@@ -100,14 +100,15 @@ describe("self-reports cannot masquerade as transport facts", () => {
 
     expect(claim.freshness.kind).toBe("live");
     expect(isVerifiedFact(claim)).toBe(false);
-    expect(provenanceLabel(claim)).toBe("CLAIMED");
+    expect(provenanceLabel(claim)).toBe("CLAIMED · LIVE");
   });
 
   it("labels a self-report distinctly, never as LIVE", () => {
     const label = provenanceLabel(known("somewhere in Europe", selfReport, production, at));
 
-    expect(label).toBe("SELF-REPORTED");
-    expect(label).not.toContain("LIVE");
+    expect(label).toBe("SELF-REPORTED · LIVE");
+    // The source half must not be a freshness word; freshness is the other half.
+    expect(label.split(" · ")[0]).toBe("SELF-REPORTED");
   });
 
   it("says plainly in the description that a self-report is unverifiable", () => {
@@ -146,7 +147,7 @@ describe("attestation is evidence, not a property of the environment", () => {
 
     const text = describeProvenance(known(true, attestation, production, at));
 
-    expect(provenanceLabel(known(true, attestation, production, at))).toBe("ATTESTED");
+    expect(provenanceLabel(known(true, attestation, production, at))).toBe("ATTESTED · LIVE");
     expect(text).toContain("nikk");
     expect(text).toContain("production runs abc1234");
   });
@@ -223,8 +224,8 @@ describe("labels and rendering", () => {
   });
 
   it("distinguishes a local observation from a production one", () => {
-    expect(provenanceLabel(known(1, transport, localClone, at))).toBe("LIVE (LOCAL)");
-    expect(provenanceLabel(known(1, transport, production, at))).toBe("LIVE");
+    expect(provenanceLabel(known(1, transport, localClone, at))).toBe("VERIFIED (LOCAL) · LIVE");
+    expect(provenanceLabel(known(1, transport, production, at))).toBe("VERIFIED · LIVE");
   });
 
   it("marks demo data as demo in the description, not just the badge", () => {
@@ -321,7 +322,10 @@ describe("historical is not stale", () => {
     // Historical means a newer value exists and this one is shown on purpose —
     // perfectly reliable about the past. A connection-problem badge on a
     // deliberate history view is a false alarm.
-    expect(provenanceLabel(historical)).toBe("LIVE · HISTORICAL");
+    // Both axes named, and no contradiction: LIVE is a freshness word and must
+    // not appear as the source half. "LIVE · HISTORICAL" asserted a value was
+    // both current and superseded.
+    expect(provenanceLabel(historical)).toBe("VERIFIED · HISTORICAL");
     expect(provenanceLabel(historical)).not.toContain("STALE");
     expect(describeProvenance(historical)).toContain("historical");
   });
@@ -356,10 +360,10 @@ describe("labels keep source and freshness independent", () => {
   it.each([
     ["CLAIMED · STALE", toStale(known(1, participantClaim, production, at), "offline")],
     ["SELF-REPORTED · HISTORICAL", known(1, selfReport, production, at, { kind: "historical", observedAt: "2026-09-01T00:00:00Z" })],
-    ["CLAIMED (LOCAL)", known(1, participantClaim, localClone, at)],
+    ["CLAIMED (LOCAL) · LIVE", known(1, participantClaim, localClone, at)],
     ["SELF-REPORTED (LOCAL) · STALE", toStale(known(1, selfReport, localClone, at), "poll_failed")],
-    ["LIVE (LOCAL)", known(1, serverFact, localClone, at)],
-    ["ATTESTED", known(1, { kind: "operator_attestation", actor: operator, statement: "s", attestedAt: at.observedAt }, production, at)],
+    ["VERIFIED (LOCAL) · LIVE", known(1, serverFact, localClone, at)],
+    ["ATTESTED · LIVE", known(1, { kind: "operator_attestation", actor: operator, statement: "s", attestedAt: at.observedAt }, production, at)],
   ])("renders %s", (expected, sourced) => {
     expect(provenanceLabel(sourced)).toBe(expected);
   });
@@ -372,3 +376,22 @@ describe("labels keep source and freshness independent", () => {
     expect(provenanceLabel(fact)).not.toBe(provenanceLabel(claim));
   });
 });
+
+describe("the source half never borrows a freshness word", () => {
+  it.each([
+    known(1, serverFact, production, at),
+    known(1, github, production, at),
+    known(1, participantClaim, production, at),
+    known(1, selfReport, production, at),
+    toStale(known(1, serverFact, production, at), "offline"),
+    known(1, serverFact, production, at, { kind: "historical", observedAt: "2026-09-01T00:00:00Z" }),
+  ])("names both axes without contradiction", (sourced) => {
+    const [source, freshness] = provenanceLabel(sourced).split(" · ");
+
+    // "LIVE · HISTORICAL" asserted a value was both current and superseded.
+    // LIVE says WHEN; it must never appear as the WHO half.
+    expect(source).not.toContain("LIVE");
+    expect(source).not.toContain("STALE");
+    expect(["LIVE", "STALE", "HISTORICAL"]).toContain(freshness);
+  });
+})

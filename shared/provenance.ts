@@ -308,8 +308,19 @@ export function isMixedEnvironment(sourced: Sourced<unknown>): boolean {
  * questions — WHO says so, and HOW CURRENT it is — so the label must carry
  * both or the type's guarantee stops at the boundary of the screen.
  *
- * Shape: SOURCE [(LOCAL)] [· FRESHNESS]
- *   LIVE · SELF-REPORTED · CLAIMED (LOCAL) · CLAIMED · STALE · SELF-REPORTED · HISTORICAL
+ * Shape: SOURCE [(SCOPE)] · FRESHNESS — both axes, always, in that order.
+ *
+ * Freshness is never omitted, and the source half never borrows a freshness
+ * word. An earlier version used LIVE for server-owned data, which is a category
+ * error: LIVE says WHEN, not WHO. It produced the self-contradictory
+ * "LIVE · HISTORICAL" — a label asserting a value is both current and
+ * superseded.
+ *
+ *   VERIFIED · LIVE            server-owned or repository-owned, current
+ *   VERIFIED · STALE           same source, refresh failed
+ *   VERIFIED (LOCAL) · LIVE    observed on a local instance, not a deployment
+ *   CLAIMED · LIVE             an authenticated participant said so, just now
+ *   SELF-REPORTED · HISTORICAL an agent's claim about itself, superseded
  */
 export function provenanceLabel(sourced: Sourced<unknown>): string {
   if (sourced.state === "unknown") return "UNKNOWN";
@@ -321,11 +332,11 @@ export function provenanceLabel(sourced: Sourced<unknown>): string {
 
   const scope = mixed ? " (MIXED)" : local ? " (LOCAL)" : "";
   const freshness =
-    sourced.freshness.kind === "stale" ? " · STALE"
-    : sourced.freshness.kind === "historical" ? " · HISTORICAL"
-    : "";
+    sourced.freshness.kind === "stale" ? "STALE"
+    : sourced.freshness.kind === "historical" ? "HISTORICAL"
+    : "LIVE";
 
-  return `${source}${scope}${freshness}`;
+  return `${source}${scope} · ${freshness}`;
 }
 
 /** The source half of a label. Says WHO vouches, independent of currency. */
@@ -340,12 +351,14 @@ function sourceLabel(source: EvidenceSource, sourced: Sourced<unknown>): string 
       return "ATTESTED";
     case "webharness_api":
     case "github":
-      return "LIVE";
+      // VERIFIED, not LIVE: this names who vouches for the value, not how
+      // current it is. Freshness is the other half of the label.
+      return "VERIFIED";
     case "fixture":
       return "DEMO";
     case "derived":
       // A derivation is only as strong as its weakest contributor.
-      return isVerifiedFact(sourced) ? "LIVE" : "DERIVED";
+      return isVerifiableSource(sourced.source) ? "VERIFIED" : "DERIVED";
   }
 }
 
