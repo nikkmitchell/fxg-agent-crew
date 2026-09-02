@@ -55,8 +55,44 @@ export type MessagePage = {
   cursor: number | null;
 };
 
+/**
+ * Stable error codes for the UI to switch on.
+ *
+ * These exist because HTTP status alone cannot carry the distinctions the UX
+ * needs: upstream answers 403 for "not a member", "muted", and "no upload
+ * rights" alike, and those are three different screens. Binding a state machine
+ * to a status number would either collapse them or force the client to
+ * pattern-match on human-readable (and Chinese-localised) detail strings.
+ */
+export type BffErrorCode =
+  /** No session, or the session's upstream token is genuinely dead. Sign in again. */
+  | "SESSION_EXPIRED"
+  /** Credentials rejected by upstream. Distinct from an expired session. */
+  | "INVALID_CREDENTIALS"
+  /** No room by that name. Do not offer to create it. */
+  | "ROOM_NOT_FOUND"
+  /** Room exists but the caller has not joined it. */
+  | "NOT_A_MEMBER"
+  /** Room exists and needs a password to join. Prompt for it. */
+  | "ROOM_PASSWORD_REQUIRED"
+  /** Caller is in the room but may not speak. Render read-only, not an error. */
+  | "MUTED"
+  /** Room archived or ended. History lives under /api/archives. */
+  | "ROOM_ARCHIVED"
+  /** Malformed request from us — a bug, not a user-facing state. */
+  | "BAD_REQUEST"
+  /** WebHarness unreachable or erroring. Retryable; keep showing stale data. */
+  | "UPSTREAM_UNAVAILABLE";
+
 export type BffError = {
+  /** Stable and switchable. Prefer this over `error` for control flow. */
+  code: BffErrorCode;
+  /** Human-readable detail. For display and logs, never for branching. */
   error: string;
-  /** True when the caller should re-authenticate rather than retry. */
+  /**
+   * True only when re-authenticating will actually help. Set after the upstream
+   * retry, so a transient server-side auth flake does not bounce a signed-in
+   * human to the login screen.
+   */
   reauth?: boolean;
 };
