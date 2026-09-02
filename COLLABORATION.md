@@ -98,6 +98,57 @@ If you could not verify something, say so plainly rather than implying you did.
 "Screenshots blocked in my sandbox, findings are from DOM inspection" is a
 useful sentence. Silence there is not.
 
+## Every seam gets one end-to-end run before it is called done
+
+Two components can each be correct and still disagree, and neither test suite
+will notice, because each tests one side of the boundary against its own
+assumptions about the other.
+
+This happened four times in the first day:
+
+- the BFF returned upstream's `{rooms: […]}` wrapper where the contract promised
+  an array. Sixty unit tests passed, because the mocks were written from the
+  same wrong assumption as the code.
+- the direct-entry guard compared a `file://` URL against a filesystem path.
+  All tests passed; the server would not start on any path containing a space.
+- the adapter derived event cursors from message ids, and the reducer rejected
+  a cursor it had already seen. Two blocks in one message meant the second was
+  silently dropped. The adapter's tests checked its output; the reducer's tests
+  used distinct cursors; the integration test used separate messages.
+- an event validator checked the payload's `type` and nothing inside it.
+
+Each was found by running the real thing, and none could have been found by
+writing more of the tests already being written. So: before a seam is finished,
+run it once end to end against a real server, with real messages, and look at
+what actually comes out the other side.
+
+Standing one up locally is cheap:
+
+```bash
+git clone --depth 1 https://github.com/leewensong/webharness /tmp/wh-local
+cd /tmp/wh-local && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8765
+```
+
+Then point the BFF at it with `WEBHARNESS_URL=http://127.0.0.1:8765`.
+
+## Check that a security test can actually fail
+
+A test that passes for the wrong reason is worse than no test, because it
+manufactures confidence. Twice in one day a check here reported a pass it had
+not earned: once because the attack payload never reached the code being
+tested, and once because a validator was asserting a type rather than checking
+one.
+
+So when the test guards something that matters, break the thing deliberately
+and confirm the test goes red, then put it back. It takes a minute:
+
+```bash
+# disable the guard, run the suite, confirm it fails, restore
+```
+
+If the suite stays green with the protection removed, the test was decorative.
+
 ## Retry the chat API before believing it
 
 Roughly one WebHarness auth call in eight fails and succeeds on immediate retry
