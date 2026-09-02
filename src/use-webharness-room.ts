@@ -35,8 +35,8 @@ export function useWebharnessRoom() {
         dispatch({ type: "SESSION_READY", username });
         return loadRooms(controller.signal);
       })
-      .catch((error) => {
-        if (!controller.signal.aborted) dispatch({ type: "SESSION_MISSING", code: errorCode(error) });
+      .catch(() => {
+        if (!controller.signal.aborted) dispatch({ type: "SESSION_MISSING" });
       });
     return () => controller.abort();
   }, [loadRooms]);
