@@ -1,210 +1,240 @@
 # Working together on this repo
 
-Four agents and several humans are committing here, on different machines, with
-different network access and different tooling. This is what we learned the hard
-way in the first day. It exists so the next person does not rediscover it.
+Several agents and humans commit here, from different machines, with different
+network access and tooling. This is what the first day taught us. It exists so
+nobody has to rediscover it.
+
+Everything below is something that actually happened, not process for its own
+sake.
 
 ## Getting someone else's work
 
-**If you can reach github.com** — the normal path:
+**Reviewing** a branch and **integrating** it are different operations. Detach
+to read; merge to take.
 
 ```bash
 git fetch origin
-git checkout feat/their-branch          # to review it
-git merge origin/feat/their-branch      # to take it into yours
+
+# review it, without disturbing your own branch
+git switch --detach origin/feat/their-branch
+
+# take it into yours
+git switch my-branch
+git merge --no-ff origin/feat/their-branch
 ```
 
-Branches on the remote are the source of truth. Check what exists with
-`gh pr list` or `git branch -r`.
+Branches on the remote are the source of truth. `gh pr list` and
+`git branch -r` show what exists.
 
-**If you cannot reach github.com** — this happened twice on day one, to two
-different agents. Do not let it stop you. Transfer commits as patch files
-through the chatroom:
+**If you cannot reach github.com** — this happened to two different agents on
+day one. Do not let it stop you. Move commits as patch files through the
+chatroom:
 
 ```bash
-# sender: export your commits
+# sender
 git format-patch origin/main --stdout > my-work.patch
-
-# then upload it to the room
 curl -sS -X POST "$WEBHARNESS_URL/api/rooms/<room>/attachments" \
   -H "Authorization: Bearer $TOKEN" -F "file=@my-work.patch"
 ```
 
 ```bash
-# receiver: download from the room, then
-git apply --check my-work.patch   # ALWAYS check before applying
+# receiver — always check before applying
+git apply --check my-work.patch
 git am my-work.patch
 ```
 
-`git am` preserves authorship, so the original author still gets credit in the
-history. That matters — patch transfer should not quietly reassign who wrote
-what.
+`git am` preserves authorship, so a patch handoff does not quietly reassign who
+wrote what.
 
-## Before you hand anyone a patch
+## Before handing anyone a patch, dry-run their side
 
-Dry-run the recipient's side. It takes two minutes and it is the difference
-between "here is a patch" and "here is a patch I know works":
+Two minutes, and it is the difference between "here is a patch" and "here is a
+patch I know applies."
 
 ```bash
-git clone . /tmp/patchtest && cd /tmp/patchtest
-git checkout <the base they are on>
-git apply --check /path/to.patch    # does it apply?
+work=$(mktemp -d)
+git clone . "$work" && cd "$work"
+git switch --detach <the base they are on>
+git apply --check /path/to.patch
 git am /path/to.patch
-npm install && npx vitest run && npm run build
+pnpm install && pnpm test && pnpm build
+cd - && rm -rf "$work"
 ```
 
-Say in the room what base you verified against. If it then fails on their
-machine, that is real information — it means the trees diverged somewhere.
+Use `mktemp -d`, never a fixed path like `/tmp/patchtest` — a fixed path
+collides with other work and invites deleting somebody else's state. Use `pnpm`,
+which matches the lockfile in this repo.
+
+Say in the room which base you verified against. If it then fails on their
+machine, that is real information: the trees have diverged somewhere.
 
 ## Claim work before you start, not after you finish
 
-The same work got done twice on day one, twice:
+The same work was done twice, twice, on day one — the run-completion fix and the
+BFF. Both were messages crossing; neither was anyone's fault; both cost real
+time. A one-line claim in the room is cheaper than a duplicate.
 
-- the run-completion fix was written on a branch and reimplemented on main
-- the BFF was applied from a patch and pushed from a branch simultaneously
+### The one-hour lease
 
-Neither was anyone's fault; both were messages crossing. Both cost real time.
-Post "I am taking X" *before* opening the editor. A one-line claim is cheaper
-than a duplicate.
+- A **substantive update** is a posted claim, decision, test result, blocker, or
+  commit reference. Presence alone is not an update: an agent can be online and
+  polling while producing nothing.
+- The **clock** is the server-confirmed timestamp of that message or event.
+  Never a local clock, and never inferred from current room state.
+- After **60 minutes** without a substantive update, the lease has expired.
+  Announce the takeover in the room **before** acting, naming exactly what you
+  are taking.
+- **Take confirmed, self-contained work** — reported bugs, reviews, small fixes.
+  Do **not** take someone's in-flight design or half-built feature; that is how
+  duplication happens, and duplication has already cost this team three times.
+- Claims are **idempotent**: re-announcing the same takeover changes nothing.
+  Two agents announcing the same slice resolve it in the room, not by racing.
+- A **returning owner enters reconcile, not resume.** They review what happened
+  in their absence and may revert it — they do not silently continue writing
+  over it. Whoever took over says so plainly and is not precious about being
+  reverted.
+- **Authorship is preserved.** Taking over a task does not take credit for the
+  work already done in it.
 
 ## Stack branches rather than waiting
 
-If your work depends on a branch that has not merged yet, branch off *it*
-instead of blocking:
+If your work depends on an unmerged branch, branch off *it*:
 
 ```bash
-git checkout -b feat/mine feat/theirs
-gh pr create --base feat/theirs        # PR targets their branch, not main
+git switch -c feat/mine feat/theirs
+gh pr create --base feat/theirs
 ```
 
-When theirs merges, rebase onto main and retarget. Nobody idles waiting for a
-merge button.
-
-## What "verified" has to mean
-
-Say what you actually ran, and run it *after* the change, not before:
-
-- `npx vitest run` — the suite
-- `npm run build` — production build
-- and boot it: `npm run dev:bff`, then hit the endpoints
-
-Unit tests are not enough on their own. A day-one bug — the direct-entry guard
-comparing a `file://` URL against a filesystem path — passed all 25 tests and
-still meant the server would not start on any path containing a space. The tests
-imported `buildServer()` directly and never exercised the entry point. Run the
-thing.
-
-If you could not verify something, say so plainly rather than implying you did.
-"Screenshots blocked in my sandbox, findings are from DOM inspection" is a
-useful sentence. Silence there is not.
+Rebase onto main and retarget when theirs lands. Nobody idles on a merge button.
 
 ## Every seam gets one end-to-end run before it is called done
 
 Two components can each be correct and still disagree, and neither test suite
-will notice, because each tests one side of the boundary against its own
-assumptions about the other.
+notices, because each tests one side against its own assumptions about the
+other.
 
-This happened four times in the first day:
+Four times on day one:
 
 - the BFF returned upstream's `{rooms: […]}` wrapper where the contract promised
-  an array. Sixty unit tests passed, because the mocks were written from the
-  same wrong assumption as the code.
-- the direct-entry guard compared a `file://` URL against a filesystem path.
-  All tests passed; the server would not start on any path containing a space.
-- the adapter derived event cursors from message ids, and the reducer rejected
-  a cursor it had already seen. Two blocks in one message meant the second was
-  silently dropped. The adapter's tests checked its output; the reducer's tests
-  used distinct cursors; the integration test used separate messages.
-- an event validator checked the payload's `type` and nothing inside it.
+  an array. Sixty unit tests passed — the mocks shared the code's wrong
+  assumption.
+- the direct-entry guard compared a `file://` URL to a filesystem path. All
+  tests passed; the server would not start on any path containing a space.
+- the adapter derived cursors from message ids while the reducer rejected a
+  cursor it had already seen, so a message carrying two actions silently lost
+  the second.
+- an event validator checked a payload's `type` and nothing inside it.
 
-Each was found by running the real thing, and none could have been found by
-writing more of the tests already being written. So: before a seam is finished,
-run it once end to end against a real server, with real messages, and look at
-what actually comes out the other side.
+None could have been found by writing more of the tests already being written.
 
-Standing one up locally is cheap:
+**Merge order is part of the seam.** Merging the adapter change before the
+reducer change produced a green suite, a working build, and silently dropped
+events. Test the merge, not only the branches.
+
+### Standing up a local instance
+
+Running WebHarness locally follows the setup in its own README. This is for
+interoperability testing only; copying or redistributing its source stays
+paused pending explicit permission from the author.
 
 ```bash
-git clone --depth 1 https://github.com/leewensong/webharness /tmp/wh-local
-cd /tmp/wh-local && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+wh=$(mktemp -d)
+git clone --depth 1 https://github.com/leewensong/webharness "$wh"
+cd "$wh" && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8765
 ```
 
-Then point the BFF at it with `WEBHARNESS_URL=http://127.0.0.1:8765`.
+Point the BFF at it with `WEBHARNESS_URL=http://127.0.0.1:8765`.
 
-Bind test servers to localhost, and tear them down. This is not fussiness: on
-day one four `serve` processes were left running for hours, three of them bound
-to `*` rather than `127.0.0.1`, quietly publishing build output to the local
-network. Nobody noticed until someone went looking for what they had left
-behind.
+**Bind to localhost and tear it down.** On day one four `serve` processes were
+left running for hours, three bound to `*` rather than `127.0.0.1`, publishing
+build output to the local network. Nobody noticed until someone went looking for
+what they had left behind.
 
 ```bash
-# bind explicitly — the default is usually every interface
-npx serve dist -l tcp://127.0.0.1:5173
+npx serve dist -l tcp://127.0.0.1:5173     # the default is usually every interface
 
-# before you finish, see what you actually left running
-lsof -nP -iTCP -sTCP:LISTEN | grep -E '127.0.0.1|\*'
+lsof -nP -iTCP -sTCP:LISTEN | grep -E '127\.0\.0\.1|\*'   # what am I actually running
 pkill -f "serve dist"
 ```
 
-A disposable local instance is fine to keep while you are actively testing
-against it, provided it holds no real credentials or data and you stop it when
-the seam work is done. Anything bound to `*` is not fine, ever — that is a
-machine-wide exposure created by a convenience default.
+A disposable instance is fine while you are actively testing against it,
+provided it holds no real credentials or data and you stop it afterwards.
+Anything bound to `*` is not fine — that is a machine-wide exposure created by a
+convenience default.
 
 ## Check that a security test can actually fail
 
 A test that passes for the wrong reason is worse than no test, because it
-manufactures confidence. Twice in one day a check here reported a pass it had
-not earned: once because the attack payload never reached the code being
-tested, and once because a validator was asserting a type rather than checking
-one.
+manufactures confidence. Twice on day one a check reported a pass it had not
+earned: once the attack payload never reached the code under test, and once a
+validator asserted a type rather than checking one.
 
-So when the test guards something that matters, break the thing deliberately
-and confirm the test goes red, then put it back. It takes a minute:
+**Do this in an isolated clone or worktree, never by breaking a guard in a
+shared branch.**
 
 ```bash
-# disable the guard, run the suite, confirm it fails, restore
+probe=$(mktemp -d)
+git worktree add "$probe" HEAD
+cd "$probe"
+# disable the guard here, run the suite, confirm it goes red
+cd - && git worktree remove "$probe" --force
 ```
 
 If the suite stays green with the protection removed, the test was decorative.
 
-## Retry the chat API before believing it
+## Say what you actually verified, and no more
 
-Roughly one WebHarness auth call in eight fails and succeeds on immediate retry
-with identical credentials (`签名验证失败`, or `challenge 不存在或已过期`). It is a
-server-side race, not your keys. Scripts that exit non-zero on the first failure
-will silently drop duty cycles:
+Run it, do not only test it. And scope the claim to what was tested:
 
-```bash
-for i in 1 2 3 4; do
-  OUT=$(python3 ~/.webharness/inbox.py <room>) && { echo "$OUT"; break; }
-done
-```
+- a **local instance** is a local instance. It is not "the live server" and not
+  "production" — nothing here has been tested against a deployment, and a
+  finding reproduced locally says nothing about a deployed service unless
+  somebody attests the two match.
+- if you could not verify something, say so. "Screenshots blocked in my sandbox,
+  findings are from DOM inspection" is a useful sentence.
+- **do not assert a cause you have not established.** Repeated auth failures that
+  succeeded on retry got written up as "a server-side race, not your keys." The
+  sample was never counted, and the same account later lost key verification
+  entirely — so credentials were at least as plausible. Record the observation
+  and its size; leave the diagnosis open.
 
-The BFF handles the same flake for humans: `server/webharness/client.ts` retries
-once on a lone 401 and only treats a second consecutive one as a real
-re-authentication. Without that, about one login in eight would bounce a signed-in
-person to a login screen for no reason.
+Retry only operations that are safe to repeat. Auth and challenge flows deserve
+particular care: a blind retry there can consume a single-use token.
+
+## The reader must not lose messages
+
+Our own room watcher dropped nineteen messages, including two direct questions
+from a human that went unanswered for forty minutes.
+
+- **Advance the cursor only past messages you actually processed.** Your own
+  posts must never move a read watermark, or posting will skip other people's
+  unread messages.
+- **Persist after processing, not before.** If the process dies between fetching
+  and handling, the cursor must not have moved.
+- **Overlap and deduplicate on restart** rather than trusting the boundary.
+- **Skipping is worse than replaying.** Re-reading a message is cheap; losing one
+  is invisible.
 
 ## Third-party code
 
-`leewensong/webharness` has **no licence**. Public on GitHub is not the same as
-open source; with no licence the author keeps all rights. Running it locally is
-fine and explicitly invited by its README. Copying its source into this repo is
-not, until the author records permission.
+`leewensong/webharness` carries no licence file. Running it locally follows the
+setup instructions in its own README, which is what we have done. Copying its
+source into this repository, or redistributing it, stays paused pending explicit
+permission from the author. This is a record of what we did and why, not a legal
+opinion.
 
-We do not need it anyway: the BFF is a clean-room HTTP integration against the
-documented API and contains none of their code.
+We do not need its source in any case: the BFF is a clean-room HTTP integration
+against the documented API.
 
 ## Do not invent state
 
-The UI must never show something the data does not support. This is the whole
-premise of the product — a mission-control screen that displays plausible
-fiction is worse than no screen.
+The UI must never show what the data does not support. A mission-control screen
+displaying plausible fiction is worse than no screen, because a human acts on it.
 
-Concretely: do not parse prose chat messages to infer task state. Structured
-events drive state; unstructured messages render as chat and drive nothing. When
-a value is unknown, show it as unknown rather than as a confident guess. The
-error classifier follows the same rule — an unrecognised failure falls back to
-the vaguer correct state, never the specific wrong one.
+- structured events drive state; prose renders as chat and drives nothing
+- unknown is shown as unknown, never as a confident guess
+- a value carries where it came from, and rendering must not collapse that away
+- the same rule applies to prose: a claim in a commit message, a comment, or a
+  chat update is still a claim, and should say what was observed rather than
+  what was assumed
