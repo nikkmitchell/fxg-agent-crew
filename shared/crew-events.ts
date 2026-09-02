@@ -342,9 +342,17 @@ function crewEvent(raw: unknown): Checked<CrewEvent> {
  */
 export type ActionRequest = { payload: CrewEvent };
 
-/** Authority derived from transport metadata. Never from message content. */
+/**
+ * Authority derived from transport metadata. Never from message content.
+ *
+ * `roomName` is part of identity, not decoration: without it two rooms can
+ * produce the same message id and therefore the same event id, so aggregating
+ * rooms would silently collide.
+ */
 export type TransportAuthority = {
-  /** Message id from WebHarness. Monotonic, server-assigned. */
+  /** Authoritative room identity, so ids and cursors are room-scoped. */
+  roomName: string;
+  /** Message id from WebHarness. Monotonic per room, server-assigned. */
   messageId: number;
   /** Authenticated sender. The one identity claim we can actually trust. */
   username: string;
@@ -353,6 +361,59 @@ export type TransportAuthority = {
   /** Which fenced block within the message, so ids stay unique per block. */
   blockIndex: number;
 };
+
+/**
+ * Validate transport metadata before trusting it as identity, order or time.
+ *
+ * These fields arrive over the network and are typed rather than checked. A
+ * TypeScript annotation on data that crossed a boundary is a claim about what
+ * we hope was sent — the same lesson that produced this whole authority layer,
+ * applied to the layer's own root of trust. If the transport metadata is
+ * malformed we have no authority at all, so nothing may be derived from it.
+ */
+export function validateAuthority(raw: unknown): Checked<TransportAuthority> {
+  const object = plainObject(raw, "authority");
+  if (!object.ok) return object;
+  const o = object.value;
+
+  const roomName = str(o.roomName, "authority.roomName", { max: 200 });
+  if (!roomName.ok) return roomName;
+  const messageId = nonNegativeInt(o.messageId, "authority.messageId", Number.MAX_SAFE_INTEGER);
+  if (!messageId.ok) return messageId;
+  const username = str(o.username, "authority.username", { max: 128 });
+  if (!username.ok) return username;
+  const createdAt = timestamp(o.createdAt, "authority.createdAt");
+  if (!createdAt.ok) return createdAt;
+  const blockIndex = nonNegativeInt(o.blockIndex, "authority.blockIndex", LIMITS.maxEnvelopesPerMessage);
+  if (!blockIndex.ok) return blockIndex;
+
+  return {
+    ok: true,
+    value: {
+      roomName: roomName.value,
+      messageId: messageId.value,
+      username: username.value,
+      createdAt: createdAt.value,
+      blockIndex: blockIndex.value,
+    },
+  };
+}
+
+/**
+ * Who may perform project-level actions.
+ *
+ * Room membership is NOT project authority. Anyone can join a public room —
+ * and a room can be public while appearing password-protected, which was
+ * observed on a local instance — so "is in the room" grants nothing.
+ *
+ * No capability system exists yet. Until one does, the resolver defaults to
+ * denying task mutation, and such blocks remain REQUESTS for an operator rather
+ * than events the reducer will apply. Failing closed here costs a feature;
+ * failing open would let any participant rewrite the board.
+ */
+export type CapabilityResolver = (username: string, room: string) => boolean;
+
+export const denyAll: CapabilityResolver = () => false;
 
 export function validateActionRequest(raw: unknown): Checked<ActionRequest> {
   const object = plainObject(raw, "envelope");
@@ -387,7 +448,8 @@ export function validateActionRequest(raw: unknown): Checked<ActionRequest> {
 export function authorize(request: ActionRequest, authority: TransportAuthority): EventEnvelope {
   return {
     version: 1,
-    eventId: `wh:${authority.messageId}:${authority.blockIndex}`,
+    // Room-scoped: two rooms can each have a message 42.
+    eventId: `wh:${authority.roomName}:${authority.messageId}:${authority.blockIndex}`,
     source: authority.username,
     sourceCursor: authority.messageId,
     occurredAt: authority.createdAt,
@@ -400,7 +462,11 @@ export function authorize(request: ActionRequest, authority: TransportAuthority)
  *
  * Shape and identity are settled by now; this is the question of permission.
  */
-export function authorizeEvent(payload: CrewEvent, authority: TransportAuthority): Checked<true> {
+export function authorizeEvent(
+  payload: CrewEvent,
+  authority: TransportAuthority,
+  canMutateProject: CapabilityResolver = denyAll,
+): Checked<true> {
   switch (payload.type) {
     case "presence.snapshotted":
       // Presence is a server observation. Accepting it from a chat message
@@ -417,12 +483,22 @@ export function authorizeEvent(payload: CrewEvent, authority: TransportAuthority
       if (payload.agent.id !== authority.username) {
         return bad(`${authority.username} may not modify the profile of ${payload.agent.id}`);
       }
+      // `online` is an OBSERVATION, made by polling the server — not something
+      // an agent may assert about itself. Authorising a self-profile update
+      // does not make a self-reported presence claim authoritative, and the
+      // caller strips the field rather than trusting it.
       return { ok: true, value: true };
 
     case "task.upserted":
     case "task.transitioned":
-      // Task mutation is legitimate for any authenticated participant today.
-      // When project capabilities exist this is where they bind.
+      // Membership is not project authority: anyone can join a public room.
+      // Without an explicit capability this is a request, not an event.
+      if (!canMutateProject(authority.username, authority.roomName)) {
+        return bad(
+          `${authority.username} has no project capability to change tasks in ${authority.roomName}; ` +
+            `treat this as a request pending operator approval`,
+        );
+      }
       return { ok: true, value: true };
   }
 }

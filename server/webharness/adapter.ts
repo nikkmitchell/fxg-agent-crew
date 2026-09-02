@@ -3,9 +3,12 @@ import {
   LIMITS,
   authorize,
   authorizeEvent,
+  denyAll,
   validateActionRequest,
+  validateAuthority,
+  type CapabilityResolver,
+  type CrewEvent,
   type EventEnvelope,
-  type TransportAuthority,
 } from "../../shared/crew-events.js";
 
 /**
@@ -56,9 +59,37 @@ export type AdaptResult = {
 export type AdaptOptions = {
   /** Ids already applied, so a replayed window does not re-apply them. */
   seenEventIds?: ReadonlySet<string>;
+  /**
+   * Authoritative room identity, used to scope event ids. Required: without it
+   * two rooms can each produce a message 42 and their events collide.
+   */
+  roomName: string;
+  /**
+   * Who may perform project-level actions. Defaults to denying everything,
+   * because room membership is not project authority — anyone can join a public
+   * room. Task blocks from users without capability are refused and reported as
+   * requests rather than applied.
+   */
+  canMutateProject?: CapabilityResolver;
 };
 
-export function adaptMessages(messages: Message[], { seenEventIds }: AdaptOptions = {}): AdaptResult {
+/**
+ * Remove fields a self-report is not entitled to assert.
+ *
+ * `online` is an observation the server makes, not a claim an agent may make
+ * about itself. Authorising someone to update their own profile does not make
+ * their presence claim authoritative, so it is rebuilt as false and left for
+ * a real presence snapshot to set.
+ */
+function stripUnauthoritativeFields(payload: CrewEvent): CrewEvent {
+  if (payload.type !== "agent.upserted") return payload;
+  return { ...payload, agent: { ...payload.agent, online: false } };
+}
+
+export function adaptMessages(
+  messages: Message[],
+  { seenEventIds, roomName, canMutateProject = denyAll }: AdaptOptions,
+): AdaptResult {
   const events: EventEnvelope[] = [];
   const transcript: Message[] = [];
   const rejected: AdaptResult["rejected"] = [];
@@ -108,21 +139,33 @@ export function adaptMessages(messages: Message[], { seenEventIds }: AdaptOption
         continue;
       }
 
-      // Authority comes from the transport, never from what was typed.
-      const authority: TransportAuthority = {
+      // Authority comes from the transport — but transport metadata crossed a
+      // network boundary too, and is typed rather than checked. Validate it
+      // before deriving identity, order or time from it: if it is malformed we
+      // have no authority at all and nothing may be built on it.
+      const checkedAuthority = validateAuthority({
+        roomName,
         messageId: message.id,
         username: message.username,
         createdAt: message.createdAt,
         blockIndex,
-      };
+      });
+      if (!checkedAuthority.ok) {
+        rejected.push({ messageId: message.id, reason: checkedAuthority.reason });
+        continue;
+      }
+      const authority = checkedAuthority.value;
 
-      const permitted = authorizeEvent(request.value.payload, authority);
+      const permitted = authorizeEvent(request.value.payload, authority, canMutateProject);
       if (!permitted.ok) {
         rejected.push({ messageId: message.id, reason: permitted.reason });
         continue;
       }
 
-      const envelope = authorize(request.value, authority);
+      const envelope = authorize(
+        { payload: stripUnauthoritativeFields(request.value.payload) },
+        authority,
+      );
       if (seenEventIds?.has(envelope.eventId) || seenInBatch.has(envelope.eventId)) continue;
 
       seenInBatch.add(envelope.eventId);

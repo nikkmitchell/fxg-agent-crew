@@ -3,6 +3,21 @@ import { adaptMessages, encodeActionRequest } from "../webharness/adapter.js";
 import { LIMITS, type CrewEvent } from "../../shared/crew-events.js";
 import type { Message } from "../../shared/contracts.js";
 
+
+/**
+ * Default options for these tests.
+ *
+ * `roomName` is required so ids are room-scoped. `canMutateProject` allows
+ * everything by default HERE so the existing behavioural tests keep exercising
+ * what they were written for; production defaults to denying, and the
+ * authorisation tests below pass their own resolver.
+ */
+const opts = (extra: Record<string, unknown> = {}) => ({
+  roomName: "AgentParty",
+  canMutateProject: () => true,
+  ...extra,
+});
+
 const message = (
   id: number,
   content: string,
@@ -28,13 +43,13 @@ const fenced = (body: unknown) => ["```crew-event", JSON.stringify(body), "```"]
 
 describe("adaptMessages", () => {
   it("extracts a validated, authorized envelope", () => {
-    const result = adaptMessages([message(1, fenced(envelope))]);
+    const result = adaptMessages([message(1, fenced(envelope))], opts());
 
     expect(result.events).toHaveLength(1);
     expect(result.events[0].payload).toEqual(payload);
     // Authority fields come from transport, not from the body.
     expect(result.events[0]).toMatchObject({
-      eventId: "wh:1:0",
+      eventId: "wh:AgentParty:1:0",
       source: "codex",
       sourceCursor: 1,
       occurredAt: "2026-09-03T00:00:00Z",
@@ -53,7 +68,7 @@ describe("adaptMessages", () => {
       message(5, '{"type":"task.transitioned","taskId":"t1","to":"done"}'),
     ];
 
-    const result = adaptMessages(prose);
+    const result = adaptMessages(prose, opts());
 
     expect(result.events).toEqual([]);
     expect(result.transcript).toHaveLength(5);
@@ -66,7 +81,7 @@ describe("transcript is independent of state", () => {
   it("keeps a message carrying a VALID envelope in the transcript", () => {
     const result = adaptMessages([
       message(1, `Taking this now.\n\n${fenced(envelope)}\n\nWill report back.`),
-    ]);
+    ], opts());
 
     // Previously an accepted envelope removed the message, silently deleting
     // the human's words around it. State and transcript are separate concerns.
@@ -76,7 +91,7 @@ describe("transcript is independent of state", () => {
   });
 
   it("keeps a message whose envelope was refused", () => {
-    const result = adaptMessages([message(1, `Here is my update.\n${fenced({ version: 9 })}`)]);
+    const result = adaptMessages([message(1, `Here is my update.\n${fenced({ version: 9 })}`)], opts());
 
     expect(result.transcript).toHaveLength(1);
     expect(result.rejected).toHaveLength(1);
@@ -88,7 +103,7 @@ describe("transcript is independent of state", () => {
       message(2, fenced(envelope)),
       message(3, "```crew-event\n{bad json}\n```"),
       message(4, "diagram.png", { msgType: "attachment" }),
-    ]);
+    ], opts());
 
     expect(result.transcript.map((m) => m.id)).toEqual([1, 2, 3, 4]);
   });
@@ -99,7 +114,7 @@ describe("streaming messages", () => {
     // A streaming message may be truncated mid-object, or look complete now and
     // differ once finished. Applying it early shows state the author has not
     // committed to.
-    const result = adaptMessages([message(1, fenced(envelope), { streaming: true })]);
+    const result = adaptMessages([message(1, fenced(envelope), { streaming: true })], opts());
 
     expect(result.events).toEqual([]);
     expect(result.rejected).toEqual([]);
@@ -111,14 +126,14 @@ describe("streaming messages", () => {
     const partial = message(1, fenced(envelope), { streaming: true });
     const final = message(1, fenced(envelope), { streaming: false });
 
-    expect(adaptMessages([partial]).events).toEqual([]);
-    expect(adaptMessages([final]).events).toHaveLength(1);
+    expect(adaptMessages([partial], opts()).events).toEqual([]);
+    expect(adaptMessages([final], opts()).events).toHaveLength(1);
   });
 
   it("does not apply a partial envelope that happens to parse", () => {
     // A truncated block whose JSON is still valid is the dangerous case.
     const truncated = fenced({ version: 1, payload: { type: "task.transitioned", taskId: "t1", to: "done" } });
-    const result = adaptMessages([message(1, truncated, { streaming: true })]);
+    const result = adaptMessages([message(1, truncated, { streaming: true })], opts());
 
     expect(result.events).toEqual([]);
   });
@@ -128,14 +143,14 @@ describe("echo handling is by event identity, not author", () => {
   it("accepts our own events when they are new", () => {
     // Suppressing everything from our own username would discard our own
     // legitimate events — the reason that approach was removed.
-    const result = adaptMessages([message(1, fenced(envelope), { username: "claude-nikk2mbp" })]);
+    const result = adaptMessages([message(1, fenced(envelope), { username: "claude-nikk2mbp" })], opts());
 
     expect(result.events).toHaveLength(1);
   });
 
   it("skips events already applied, whoever authored them", () => {
     // Ids are transport-derived: message 1, first block.
-    const result = adaptMessages([message(1, fenced(envelope))], { seenEventIds: new Set(["wh:1:0"]) });
+    const result = adaptMessages([message(1, fenced(envelope))], opts({ seenEventIds: new Set(["wh:AgentParty:1:0"]) }));
 
     expect(result.events).toEqual([]);
   });
@@ -143,7 +158,7 @@ describe("echo handling is by event identity, not author", () => {
   it("treats the same message replayed twice as one event", () => {
     // A poll window that overlaps a previous one re-delivers messages; the
     // transport-derived id makes that idempotent.
-    const result = adaptMessages([message(1, fenced(envelope)), message(1, fenced(envelope))]);
+    const result = adaptMessages([message(1, fenced(envelope)), message(1, fenced(envelope))], opts());
 
     expect(result.events).toHaveLength(1);
   });
@@ -155,9 +170,9 @@ describe("echo handling is by event identity, not author", () => {
     const result = adaptMessages([
       message(1, fenced(envelope), { username: "codex" }),
       message(2, fenced(envelope), { username: "someone-else" }),
-    ]);
+    ], opts());
 
-    expect(result.events.map((e) => e.eventId)).toEqual(["wh:1:0", "wh:2:0"]);
+    expect(result.events.map((e) => e.eventId)).toEqual(["wh:AgentParty:1:0", "wh:AgentParty:2:0"]);
   });
 });
 
@@ -169,7 +184,7 @@ describe("runtime validation of payload contents", () => {
   it("rejects a known type carrying garbage", () => {
     const result = adaptMessages([
       message(1, fenced({ ...envelope, payload: { type: "task.upserted", task: { nonsense: true } } })),
-    ]);
+    ], opts());
 
     expect(result.events).toEqual([]);
     expect(result.rejected[0].reason).toContain("task.id");
@@ -185,7 +200,7 @@ describe("runtime validation of payload contents", () => {
     ["non-array usernames", { type: "presence.snapshotted", usernames: "codex" }, "array"],
     ["non-string in usernames", { type: "presence.snapshotted", usernames: ["ok", 7] }, "usernames[1]"],
   ])("rejects %s", (_label, payload, expected) => {
-    const result = adaptMessages([message(1, fenced({ ...envelope, payload }))]);
+    const result = adaptMessages([message(1, fenced({ ...envelope, payload }))], opts());
 
     expect(result.events).toEqual([]);
     expect(result.rejected[0].reason).toContain(expected);
@@ -199,7 +214,7 @@ describe("runtime validation of payload contents", () => {
     const garbage = adaptMessages([message(1, fenced({
       version: 1,
       payload: { type: "message.received", message: { id: 1, roomName: "r", username: "u", content: "c", createdAt: "not a date" } },
-    }))]);
+    }))], opts());
 
     expect(garbage.events).toEqual([]);
     expect(garbage.rejected[0].reason).toContain("timestamp");
@@ -214,14 +229,14 @@ describe("runtime validation of payload contents", () => {
     // These are authority claims. They are refused rather than ignored, so a
     // forgery attempt is visible in the rejection log instead of silently
     // succeeding in a weaker form.
-    const result = adaptMessages([message(1, fenced({ ...envelope, ...override }))]);
+    const result = adaptMessages([message(1, fenced({ ...envelope, ...override }))], opts());
 
     expect(result.events).toEqual([]);
     expect(result.rejected[0].reason).toContain(expected);
   });
 
   it("fails closed on an unknown envelope version", () => {
-    const result = adaptMessages([message(1, fenced({ ...envelope, version: 2 }))]);
+    const result = adaptMessages([message(1, fenced({ ...envelope, version: 2 }))], opts());
 
     expect(result.events).toEqual([]);
     expect(result.rejected[0].reason).toContain("version");
@@ -230,7 +245,7 @@ describe("runtime validation of payload contents", () => {
   it("refuses an unknown event type", () => {
     const result = adaptMessages([
       message(1, fenced({ ...envelope, payload: { type: "task.deleted", taskId: "t1" } })),
-    ]);
+    ], opts());
 
     expect(result.rejected[0].reason).toContain("unknown event type");
   });
@@ -238,7 +253,7 @@ describe("runtime validation of payload contents", () => {
   it("rebuilds the value so smuggled extra keys cannot survive", () => {
     const result = adaptMessages([
       message(1, fenced({ version: 1, payload: { ...payload, injected: "also" } })),
-    ]);
+    ], opts());
 
     expect(result.events).toHaveLength(1);
     expect(JSON.stringify(result.events[0])).not.toContain("also");
@@ -247,7 +262,7 @@ describe("runtime validation of payload contents", () => {
 
 describe("prototype pollution and size bounds", () => {
   it.each(["__proto__", "constructor", "prototype"])("rejects an envelope with a %s key", (key) => {
-    const result = adaptMessages([message(1, `\`\`\`crew-event\n{"version":1,"${key}":{}}\n\`\`\``)]);
+    const result = adaptMessages([message(1, `\`\`\`crew-event\n{"version":1,"${key}":{}}\n\`\`\``)], opts());
 
     expect(result.events).toEqual([]);
     expect(result.rejected[0].reason).toContain(key);
@@ -256,7 +271,7 @@ describe("prototype pollution and size bounds", () => {
   it("rejects a polluting key nested inside a payload", () => {
     const result = adaptMessages([
       message(1, `\`\`\`crew-event\n{"version":1,"eventId":"e","source":"s","sourceCursor":1,"occurredAt":"2026-09-03T00:00:00Z","payload":{"type":"task.upserted","task":{"__proto__":{"polluted":true},"id":"t","title":"t","status":"backlog","points":1}}}\n\`\`\``),
-    ]);
+    ], opts());
 
     expect(result.events).toEqual([]);
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
@@ -264,7 +279,7 @@ describe("prototype pollution and size bounds", () => {
 
   it("rejects an oversized envelope before parsing it", () => {
     const huge = fenced({ ...envelope, payload: { ...envelope.payload, blocker: "x".repeat(LIMITS.maxEnvelopeBytes) } });
-    const result = adaptMessages([message(1, huge)]);
+    const result = adaptMessages([message(1, huge)], opts());
 
     expect(result.events).toEqual([]);
     expect(result.rejected[0].reason).toContain("bytes");
@@ -274,7 +289,7 @@ describe("prototype pollution and size bounds", () => {
     const many = Array.from({ length: LIMITS.maxEnvelopesPerMessage + 1 }, (_, i) =>
       fenced({ ...envelope, eventId: `e${i}` }),
     ).join("\n");
-    const result = adaptMessages([message(1, many)]);
+    const result = adaptMessages([message(1, many)], opts());
 
     expect(result.events).toEqual([]);
     expect(result.rejected[0].reason).toContain("limit");
@@ -286,7 +301,7 @@ describe("prototype pollution and size bounds", () => {
         version: 1,
         payload: { type: "task.transitioned", taskId: "x".repeat(LIMITS.maxStringLength + 1), to: "done" },
       })),
-    ]);
+    ], opts());
 
     expect(result.events).toEqual([]);
     expect(result.rejected[0].reason).toContain("characters");
@@ -298,7 +313,7 @@ describe("prototype pollution and size bounds", () => {
         ...envelope,
         payload: { type: "presence.snapshotted", usernames: Array.from({ length: LIMITS.maxArrayLength + 1 }, () => "u") },
       })),
-    ]);
+    ], opts());
 
     expect(result.events).toEqual([]);
     expect(result.rejected[0].reason).toContain("entries");
@@ -308,7 +323,7 @@ describe("prototype pollution and size bounds", () => {
 describe("wire format", () => {
   it("round-trips through encodeActionRequest", () => {
     // If encoder and parser disagree, agents emit blocks nobody can read.
-    const result = adaptMessages([message(1, encodeActionRequest(payload))]);
+    const result = adaptMessages([message(1, encodeActionRequest(payload))], opts());
 
     expect(result.events[0].payload).toEqual(payload);
     expect(result.events[0].source).toBe("codex");
@@ -316,13 +331,13 @@ describe("wire format", () => {
 
   it("handles several blocks in one message, in order", () => {
     const second = { version: 1, payload: { type: "task.transitioned", taskId: "t1", to: "done" } };
-    const result = adaptMessages([message(1, `${fenced(envelope)}\n${fenced(second)}`)]);
+    const result = adaptMessages([message(1, `${fenced(envelope)}\n${fenced(second)}`)], opts());
 
-    expect(result.events.map((e) => e.eventId)).toEqual(["wh:1:0", "wh:1:1"]);
+    expect(result.events.map((e) => e.eventId)).toEqual(["wh:AgentParty:1:0", "wh:AgentParty:1:1"]);
   });
 
   it("reports malformed JSON instead of throwing", () => {
-    const result = adaptMessages([message(1, "```crew-event\n{not json}\n```")]);
+    const result = adaptMessages([message(1, "```crew-event\n{not json}\n```")], opts());
 
     expect(result.rejected[0].reason).toContain("JSON");
   });
