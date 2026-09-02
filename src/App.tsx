@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { initialActivity, initialAgents, scriptedEvents } from "./demo";
 import type { Activity, AgentStatus, Evidence, WorkAgent } from "./types";
 
@@ -11,6 +11,12 @@ const statusLabel: Record<AgentStatus, string> = {
 
 const filterLabels = ["all", "decision", "artifact", "verification"] as const;
 type FeedFilter = (typeof filterLabels)[number];
+type CommandReceipt = {
+  state: "pending" | "acknowledged";
+  copy: string;
+  agentId: string;
+  agentName: string;
+};
 
 function Glyph({ name }: { name: "grid" | "stack" | "clock" | "pause" | "play" | "arrow" | "spark" }) {
   const paths = {
@@ -51,11 +57,13 @@ export default function App() {
   const [running, setRunning] = useState(true);
   const [progress, setProgress] = useState(46);
   const [activities, setActivities] = useState(initialActivity);
-  const [cycle, setCycle] = useState(0);
+  const cycleRef = useRef(0);
+  const completionLoggedRef = useRef(false);
   const [directionOpen, setDirectionOpen] = useState(false);
   const [direction, setDirection] = useState("");
   const [filter, setFilter] = useState<FeedFilter>("all");
   const [selectedEvidence, setSelectedEvidence] = useState(0);
+  const [commandReceipt, setCommandReceipt] = useState<CommandReceipt | null>(null);
 
   const selected = agents.find((agent) => agent.id === selectedId) ?? agents[0];
   const selectedArtifact = selected.evidence[selectedEvidence] ?? selected.evidence[0];
@@ -80,14 +88,25 @@ export default function App() {
   useEffect(() => {
     if (!running) return;
     const timer = window.setInterval(() => {
-      const event = scriptedEvents[cycle % scriptedEvents.length];
+      const event = scriptedEvents[cycleRef.current % scriptedEvents.length];
+      cycleRef.current += 1;
       setAgents((current) => current.map((agent) => agent.id === event.agentId ? { ...agent, status: event.status, verb: event.verb, task: event.task } : agent));
       setActivities((current) => [{ ...event.activity, id: Date.now(), time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }, ...current].slice(0, 12));
-      setProgress((current) => Math.min(current + 4, 92));
-      setCycle((current) => current + 1);
+      setProgress((current) => Math.min(current + 4, 100));
     }, 5200);
     return () => window.clearInterval(timer);
-  }, [cycle, running]);
+  }, [running]);
+
+  useEffect(() => {
+    if (progress < 100) {
+      completionLoggedRef.current = false;
+      return;
+    }
+    setRunning(false);
+    if (completionLoggedRef.current) return;
+    completionLoggedRef.current = true;
+    setActivities((current) => [{ id: Date.now(), time: "now", agentId: "nikk", copy: "verified and completed the mission", type: "verification" as const }, ...current].slice(0, 12));
+  }, [progress]);
 
   const filteredActivity = useMemo(() => activities.filter((item) => filter === "all" || item.type === filter), [activities, filter]);
 
@@ -100,10 +119,15 @@ export default function App() {
     event.preventDefault();
     const copy = direction.trim();
     if (!copy) return;
-    setActivities((current) => [{ id: Date.now(), time: "now", agentId: selected.id, copy: `received direction: “${copy}”`, type: "decision" }, ...current]);
-    setAgents((current) => current.map((agent) => agent.id === selected.id ? { ...agent, status: "working", verb: "Applying your direction" } : agent));
+    const target = { id: selected.id, name: selected.name };
+    setCommandReceipt({ state: "pending", copy, agentId: target.id, agentName: target.name });
     setDirection("");
     setDirectionOpen(false);
+    window.setTimeout(() => {
+      setActivities((current) => [{ id: Date.now(), time: "now", agentId: target.id, copy: `acknowledged direction: “${copy}”`, type: "decision" }, ...current]);
+      setAgents((current) => current.map((agent) => agent.id === target.id ? { ...agent, status: "working", verb: "Applying your direction" } : agent));
+      setCommandReceipt({ state: "acknowledged", copy, agentId: target.id, agentName: target.name });
+    }, 900);
   };
 
   return (
@@ -138,7 +162,7 @@ export default function App() {
             <label htmlFor="direction">What should change?</label>
             <div className="composer-row">
               <input id="direction" value={direction} onChange={(event) => setDirection(event.target.value)} placeholder={`Send direction to ${selected.name}…`} tabIndex={directionOpen ? 0 : -1} />
-              <button type="submit" tabIndex={directionOpen ? 0 : -1}>Send <Glyph name="arrow" /></button>
+              <button type="submit" tabIndex={directionOpen ? 0 : -1} disabled={commandReceipt?.state === "pending"}>Send <Glyph name="arrow" /></button>
             </div>
           </form>
         </section>
@@ -146,8 +170,21 @@ export default function App() {
         <section className="run-progress" aria-label="Mission progress">
           <div className="progress-copy"><span>MISSION PROGRESS</span><strong>{progress}%</strong></div>
           <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
-          <button className="run-control" onClick={() => setRunning((value) => !value)}><Glyph name={running ? "pause" : "play"} />{running ? "Pause run" : "Resume run"}</button>
+          {progress >= 100 ? (
+            <span className="run-complete">✓ Complete</span>
+          ) : (
+            <button className="run-control" onClick={() => setRunning((value) => !value)}><Glyph name={running ? "pause" : "play"} />{running ? "Pause run" : "Resume run"}</button>
+          )}
         </section>
+
+        {commandReceipt && (
+          <button className={`command-receipt command-receipt--${commandReceipt.state}`} onClick={() => selectAgent(commandReceipt.agentId)} aria-live="polite">
+            <span>{commandReceipt.state === "pending" ? "Sending direction" : "Direction acknowledged"}</span>
+            <strong>{commandReceipt.agentName}</strong>
+            <p>{commandReceipt.copy}</p>
+            <b>{commandReceipt.state === "pending" ? "…" : "✓"}</b>
+          </button>
+        )}
 
         <section className="assignment-strip" aria-label="Current assignment flow">
           {agents.map((agent, index) => (
@@ -157,6 +194,15 @@ export default function App() {
               <Status status={agent.status} />
             </button>
           ))}
+        </section>
+
+        <section className="attention-strip" aria-labelledby="attention-title">
+          <div className="attention-label"><i /><span>NEEDS ATTENTION</span></div>
+          <div>
+            <h2 id="attention-title">Hosted agent connection</h2>
+            <p>Baiwei mapped the blocker. Choose a local runtime now or approve a valid port-443 gateway.</p>
+          </div>
+          <button onClick={() => selectAgent("baiwei")}>Review decision <Glyph name="arrow" /></button>
         </section>
 
         <section className="stage-heading">
