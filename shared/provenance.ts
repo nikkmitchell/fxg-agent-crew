@@ -62,7 +62,15 @@ export type EvidenceSource =
    * transport can prove who SENT it; nothing can verify the content. These must
    * never render as facts about the world.
    */
-  | { kind: "agent_self_report"; actor: ActorRef; ref?: TransportRef }
+  /**
+   * An agent describing ITSELF. The transport can prove who sent the claim;
+   * nothing can verify its content.
+   *
+   * `ref` is REQUIRED, not optional: a self-report with no transport binding is
+   * an unattributable assertion, and we would have no way to show a reader who
+   * made it or to check the claimed actor matches the authenticated sender.
+   */
+  | { kind: "agent_self_report"; actor: ActorRef; ref: TransportRef }
   /**
    * A human asserting something the system cannot check — most importantly that
    * a deployment matches a revision. Evidence ABOUT an environment, which is
@@ -290,29 +298,54 @@ export function isMixedEnvironment(sourced: Sourced<unknown>): boolean {
 
 /* -------------------------------------------------------------- rendering -- */
 
-/** Never empty: an unlabelled value on screen reads as authoritative. */
+/**
+ * Never empty, and never collapses the two axes into one.
+ *
+ * An earlier version returned "STALE" for anything not live, which silently
+ * erased the source: an agent's unverifiable self-report and a server-owned
+ * fact both rendered identically once they went stale. The whole reason source
+ * and freshness are orthogonal in the type is that they answer different
+ * questions — WHO says so, and HOW CURRENT it is — so the label must carry
+ * both or the type's guarantee stops at the boundary of the screen.
+ *
+ * Shape: SOURCE [(LOCAL)] [· FRESHNESS]
+ *   LIVE · SELF-REPORTED · CLAIMED (LOCAL) · CLAIMED · STALE · SELF-REPORTED · HISTORICAL
+ */
 export function provenanceLabel(sourced: Sourced<unknown>): string {
   if (sourced.state === "unknown") return "UNKNOWN";
   if (sourced.state === "demo") return "DEMO";
 
-  const mixed = sourced.environments.length > 1 ? " (MIXED)" : "";
-  const local = sourced.environments.every((e) => e.target === "local") ? " (LOCAL)" : "";
+  const source = sourceLabel(sourced.source, sourced);
+  const local = sourced.environments.length > 0 && sourced.environments.every((e) => e.target === "local");
+  const mixed = sourced.environments.length > 1;
 
-  if (sourced.freshness.kind === "historical") return `HISTORICAL${mixed}`;
-  if (sourced.freshness.kind === "stale") return `STALE${mixed}`;
+  const scope = mixed ? " (MIXED)" : local ? " (LOCAL)" : "";
+  const freshness =
+    sourced.freshness.kind === "stale" ? " · STALE"
+    : sourced.freshness.kind === "historical" ? " · HISTORICAL"
+    : "";
 
-  switch (sourced.source.kind) {
+  return `${source}${scope}${freshness}`;
+}
+
+/** The source half of a label. Says WHO vouches, independent of currency. */
+function sourceLabel(source: EvidenceSource, sourced: Sourced<unknown>): string {
+  switch (source.kind) {
     case "agent_self_report":
-      return `SELF-REPORTED${mixed}`;
+      return "SELF-REPORTED";
     case "participant_statement":
-      // Said by an authenticated participant. Delivered reliably, not verified.
-      return `CLAIMED${mixed}`;
+      // Said by an authenticated participant: delivered reliably, not verified.
+      return "CLAIMED";
     case "operator_attestation":
-      return `ATTESTED${mixed}`;
+      return "ATTESTED";
+    case "webharness_api":
+    case "github":
+      return "LIVE";
+    case "fixture":
+      return "DEMO";
     case "derived":
-      return isVerifiedFact(sourced) ? `LIVE${local}${mixed}` : `DERIVED${mixed}`;
-    default:
-      return `LIVE${local}${mixed}`;
+      // A derivation is only as strong as its weakest contributor.
+      return isVerifiedFact(sourced) ? "LIVE" : "DERIVED";
   }
 }
 

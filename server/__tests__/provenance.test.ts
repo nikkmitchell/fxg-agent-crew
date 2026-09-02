@@ -29,7 +29,14 @@ const participantClaim: EvidenceSource = {
 };
 const github: EvidenceSource = { kind: "github", repo: "nikkmitchell/fxg-agent-crew" };
 const transport = serverFact;
-const selfReport: EvidenceSource = { kind: "agent_self_report", actor: agent };
+const selfReport: EvidenceSource = {
+  kind: "agent_self_report",
+  actor: agent,
+  // Binding is required: a self-report with no transport ref is an
+  // unattributable assertion, and we could not check the claimed actor against
+  // the authenticated sender.
+  ref: { roomName: "AgentParty", messageId: 7, username: "claude-nikk2mbp" },
+};
 
 const at = { observedAt: "2026-09-03T01:00:00Z", receivedAt: "2026-09-03T01:00:02Z" };
 
@@ -180,7 +187,10 @@ describe("freshness is orthogonal to source", () => {
   it("keeps source and freshness independent", () => {
     const staleSelfReport = toStale(known("gpt-9", selfReport, production, at), "offline");
 
-    expect(provenanceLabel(staleSelfReport)).toBe("STALE");
+    // Must keep BOTH axes. Collapsing to "STALE" erases who vouched for it,
+    // so an unverifiable self-report and a server fact would look identical
+    // once either went stale.
+    expect(provenanceLabel(staleSelfReport)).toBe("SELF-REPORTED · STALE");
     expect(isVerifiedFact(staleSelfReport)).toBe(false);
   });
 
@@ -256,21 +266,30 @@ describe("derivation preserves every contributing source", () => {
     expect(text).toContain("about itself");
   });
 
-  it("is invariant to operand order", () => {
+  it("is invariant to operand order, on normalized provenance", () => {
     const prod = known(1, serverFact, production, at);
     const claim = known(2, selfReport, localClone, at);
 
     const ab = combine(prod, claim, (a, b) => a + b);
     const ba = combine(claim, prod, (a, b) => b + a);
 
-    // Order must not decide which provenance survives — that is how a weaker
-    // source silently disappears depending on argument position.
-    expect(isVerifiedFact(ab)).toBe(isVerifiedFact(ba));
-    expect(ab.state === "known" && ab.environments.length).toBe(
-      ba.state === "known" ? ba.environments.length : -1,
-    );
-    expect(ab.state === "known" && ab.source.kind).toBe("derived");
-    expect(ba.state === "known" && ba.source.kind).toBe("derived");
+    // Assert the whole provenance, order-normalized — not just that a couple of
+    // fields happen to agree. Order deciding which source survives is exactly
+    // how a weaker contributor disappears depending on argument position.
+    const normalize = (s: typeof ab) =>
+      s.state === "known"
+        ? {
+            sources: [...(s.source.kind === "derived" ? s.source.from : [s.source])]
+              .map((x) => JSON.stringify(x))
+              .sort(),
+            environments: s.environments.map((e) => JSON.stringify(e)).sort(),
+            freshness: s.freshness,
+            verified: isVerifiedFact(s),
+            label: provenanceLabel(s),
+          }
+        : null;
+
+    expect(normalize(ab)).toEqual(normalize(ba));
   });
 
   it("flattens nested derivations so lineage stays inspectable", () => {
@@ -302,7 +321,7 @@ describe("historical is not stale", () => {
     // Historical means a newer value exists and this one is shown on purpose —
     // perfectly reliable about the past. A connection-problem badge on a
     // deliberate history view is a false alarm.
-    expect(provenanceLabel(historical)).toBe("HISTORICAL");
+    expect(provenanceLabel(historical)).toBe("LIVE · HISTORICAL");
     expect(provenanceLabel(historical)).not.toContain("STALE");
     expect(describeProvenance(historical)).toContain("historical");
   });
@@ -324,5 +343,32 @@ describe("historical is not stale", () => {
     const result = combine(hist, brokenPoll, (a, b) => a + b);
 
     expect(result.state === "known" && result.freshness.kind).toBe("stale");
+  });
+});
+
+
+/**
+ * The label must never collapse the two axes. Required by re-review: the type
+ * being orthogonal is worthless if rendering flattens it back on the way to the
+ * screen, which is the last place the distinction actually matters.
+ */
+describe("labels keep source and freshness independent", () => {
+  it.each([
+    ["CLAIMED · STALE", toStale(known(1, participantClaim, production, at), "offline")],
+    ["SELF-REPORTED · HISTORICAL", known(1, selfReport, production, at, { kind: "historical", observedAt: "2026-09-01T00:00:00Z" })],
+    ["CLAIMED (LOCAL)", known(1, participantClaim, localClone, at)],
+    ["SELF-REPORTED (LOCAL) · STALE", toStale(known(1, selfReport, localClone, at), "poll_failed")],
+    ["LIVE (LOCAL)", known(1, serverFact, localClone, at)],
+    ["ATTESTED", known(1, { kind: "operator_attestation", actor: operator, statement: "s", attestedAt: at.observedAt }, production, at)],
+  ])("renders %s", (expected, sourced) => {
+    expect(provenanceLabel(sourced)).toBe(expected);
+  });
+
+  it("a stale server fact and a stale claim are distinguishable", () => {
+    const fact = toStale(known(1, serverFact, production, at), "offline");
+    const claim = toStale(known(1, participantClaim, production, at), "offline");
+
+    // Previously both read "STALE" and were indistinguishable on screen.
+    expect(provenanceLabel(fact)).not.toBe(provenanceLabel(claim));
   });
 });
