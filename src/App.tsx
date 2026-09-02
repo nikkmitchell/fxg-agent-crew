@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { initialActivity, initialAgents, scriptedEvents } from "./demo";
+import { initialActivity, initialAgents, initialTasks, scriptedEvents } from "./demo";
 import type { Activity, AgentStatus, Evidence, WorkAgent } from "./types";
 import { LiveRoomPanel } from "./LiveRoomPanel";
 import { AgentAvatar } from "./AgentAvatar";
+import { ProjectBoard } from "./ProjectBoard";
 
 const statusLabel: Record<AgentStatus, string> = {
   working: "Working",
@@ -247,6 +248,8 @@ export default function App() {
           ))}
           <div className="table-key"><span><i className="key-live" /> active work</span><span><i className="key-line" /> handoff</span><span><i className="key-decision" /> decision</span></div>
         </section>
+
+        <ProjectBoard tasks={initialTasks} agents={agents} />
 
         <section className="work-log">
           <div className="log-header">

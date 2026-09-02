@@ -1,4 +1,15 @@
 import type { Activity, ScriptedEvent, WorkAgent } from "./types";
+import type { CrewTask } from "./event-core";
+
+export const initialTasks: CrewTask[] = [
+  { id: "AC-01", title: "Secure same-origin WebHarness BFF", status: "done", assigneeId: "nikk", points: 8 },
+  { id: "AC-02", title: "Accessible workroom foundation", status: "done", assigneeId: "mira", points: 5 },
+  { id: "AC-03", title: "Validate structured crew events", status: "review", assigneeId: "wilson", points: 8 },
+  { id: "AC-04", title: "Connect live room projection", status: "in_progress", assigneeId: "nikk", points: 8 },
+  { id: "AC-05", title: "Rotate duplicated agent key", status: "blocked", assigneeId: "wilson", points: 3, blocker: "Unique public key needs owner registration" },
+  { id: "AC-06", title: "Add confirmed send and upload routes", status: "backlog", points: 5 },
+  { id: "AC-07", title: "Build the rubber-duck retreat", status: "backlog", assigneeId: "baiwei", points: 3 },
+];
 
 export const initialAgents: WorkAgent[] = [
   {
