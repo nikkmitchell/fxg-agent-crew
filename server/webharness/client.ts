@@ -20,8 +20,9 @@
  *    first 401 as "session invalid" would sign people out on a transient
  *    failure we have seen happen, and one extra request is cheap.
  *
- *    RETRY IS RESTRICTED TO REQUESTS THAT CAN SAFELY BE REPEATED — idempotent
- *    methods, plus an explicit per-call opt-in currently used only by login. A
+ *    RETRY IS RESTRICTED TO REQUESTS THAT CAN SAFELY BE REPEATED — methods with
+ *    safe semantics, plus an explicit per-call opt-in currently used only by
+ *    login. A
  *    401 says the response was rejected, not that the server did no work, so
  *    blindly repeating a POST could duplicate a write. A duplicated mutation is
  *    worse than an extra sign-in prompt. Everything else surfaces the 401 at
@@ -62,8 +63,20 @@ export type RequestOptions = {
   retryUnsafeOn401?: boolean;
 };
 
-/** Methods with no side effects, so repeating one cannot duplicate work. */
-const IDEMPOTENT_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+/**
+ * Methods with SAFE semantics — ones where the client is not asking the server
+ * to change anything, so re-sending is not a request to do the work twice.
+ *
+ * Deliberately not called IDEMPOTENT: in HTTP terms PUT and DELETE are also
+ * idempotent, but they are excluded here on purpose. Idempotency is a promise
+ * about the END STATE after repeats, which does not tell us it is safe to
+ * resend when we cannot see whether the first attempt was applied.
+ *
+ * Nor is "safe" a claim that these are literally side-effect-free — a GET may
+ * log, count, or touch a last-seen timestamp. It means the request does not ASK
+ * for a change, which is the property that makes repeating it acceptable here.
+ */
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export class WebharnessClient {
   constructor(private readonly baseUrl: string) {}
@@ -71,7 +84,7 @@ export class WebharnessClient {
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const attempt = () => this.rawRequest<T>(path, options);
     const method = (options.method ?? "GET").toUpperCase();
-    const mayRetry = IDEMPOTENT_METHODS.has(method) || options.retryUnsafeOn401 === true;
+    const mayRetry = SAFE_METHODS.has(method) || options.retryUnsafeOn401 === true;
 
     try {
       return await attempt();

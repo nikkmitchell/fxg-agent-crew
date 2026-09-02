@@ -117,6 +117,9 @@ describe("only requests that can safely repeat are retried", () => {
   });
 
   it.each(["PATCH", "DELETE", "PUT"])("does NOT retry %s on 401", async (method) => {
+    // PUT and DELETE are idempotent in HTTP terms and still excluded: knowing
+    // the end state after repeats does not tell us it is safe to resend when we
+    // cannot see whether the first attempt was applied.
     const fetchMock = vi.fn().mockImplementation(once(401, { detail: "签名验证失败" }));
     vi.stubGlobal("fetch", fetchMock);
 
