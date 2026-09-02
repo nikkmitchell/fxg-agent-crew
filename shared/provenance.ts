@@ -1,161 +1,241 @@
 /**
- * Provenance: where a displayed value came from, carried with the value.
+ * Provenance: what we know about a value, and how we came to know it.
  *
- * The product principle is that every visible state says what it really is —
- * LIVE, STALE, DEMO or UNKNOWN. This makes that a type rather than a
- * convention, because conventions have failed us repeatedly in one day:
+ * The product principle is that every visible state says what it really is.
+ * This makes that structural rather than conventional, because conventions
+ * failed repeatedly in a single day — a progress bar reporting "running" while
+ * stuck at 92%, a completed run re-emitting its terminal event on reload, a
+ * validator accepting payloads it never checked, and a security finding
+ * reproduced on a local clone described as a fact about production. Each passed
+ * review and tests; intent caught none of them.
  *
- *   - a progress bar reported "running" while permanently stuck at 92%
- *   - a completed run re-emitted its terminal event on every reload
- *   - an event validator accepted payloads it had never checked
- *   - a local security finding was described as a fact about production
+ * Two axes, deliberately orthogonal (per review of the first version, which
+ * collapsed them into one union and could not express "an agent's self-report,
+ * received live"):
  *
- * Every one of those was a component asserting more than it knew, and every one
- * passed review and tests. Intent did not catch them. A type can: there is no
- * way to construct a Sourced<T> without stating where the value came from, so
- * "we forgot to mark this stale" becomes a compile error rather than something
- * a human notices on a screenshot three days later.
+ *   EvidenceSource — WHERE the value came from, and therefore who vouches for it
+ *   Freshness      — HOW CURRENT it is
+ *
+ * plus a third state for absence. The single most important rule here is that
+ * `unknown` carries NO VALUE. If we do not know whether a room enforces its
+ * password, there is no boolean to render; making it structurally absent means
+ * "we do not know" cannot be smuggled onto a screen as a guess wearing an
+ * UNKNOWN badge.
  */
 
-/**
- * Which system was actually observed.
- *
- * `revision` and `attestedBy` are optional because we usually do NOT know them,
- * and that ignorance is the point. A finding reproduced against a local clone
- * says nothing about a deployed service unless somebody asserts the two match —
- * the assumption that they do is exactly the mistake this field exists to stop.
- */
-export type Environment = {
-  target: "production" | "local" | "unspecified";
-  /** Origin actually talked to, e.g. "http://127.0.0.1:8765". */
-  origin?: string;
-  /** Commit of the code observed, when genuinely known. */
-  revision?: string;
-  /** Who asserted that a deployment matches `revision`. Never inferred. */
-  attestedBy?: string;
+/** Stable reference to whoever made a claim. Not a free string. */
+export type ActorRef = {
+  kind: "human" | "agent";
+  username: string;
 };
 
-/** Why a value is no longer known to be current. */
+/**
+ * Where a value came from. This is an authority statement, not a label: it
+ * says who is vouching for the content and therefore how far it can be trusted.
+ */
+export type EvidenceSource =
+  /**
+   * Read from WebHarness over our own transport. The strongest thing we have,
+   * and still only as good as the server. `messageId` binds the claim to
+   * transport metadata rather than to anything an author typed.
+   */
+  | { kind: "webharness_transport"; roomName?: string; messageId?: number }
+  /**
+   * An agent describing ITSELF — model, runtime, avatar, location, bio. The
+   * transport can prove who SENT it; nothing can verify the content. These must
+   * never render as facts about the world.
+   */
+  | { kind: "agent_self_report"; actor: ActorRef }
+  /**
+   * A human asserting something the system cannot check — most importantly that
+   * a deployment matches a revision. Evidence ABOUT an environment, which is
+   * why it lives here rather than inside Environment.
+   */
+  | { kind: "operator_attestation"; actor: ActorRef; statement: string; attestedAt: string }
+  | { kind: "github"; repo: string; ref?: string }
+  | { kind: "fixture"; note: string };
+
 export type StaleReason = "offline" | "poll_failed" | "superseded";
 
 /**
- * Note that `demo` and `unknown` carry no `observedAt`. They were never
- * observed, and stamping a time on an unobserved value is itself a small lie —
- * it makes fabricated data look sourced.
+ * `superseded` means historical rather than merely old: a newer value exists
+ * and this one is being shown deliberately, which is different from a value we
+ * simply failed to refresh.
  */
-export type Provenance =
-  | { kind: "live"; observedAt: string; environment: Environment }
-  | { kind: "stale"; observedAt: string; environment: Environment; reason: StaleReason }
-  | { kind: "demo"; note: string }
-  | { kind: "unknown"; reason: string };
+export type Freshness =
+  | { kind: "live" }
+  | { kind: "stale"; lastObservedAt: string; reason: StaleReason };
 
-export type Sourced<T> = {
-  readonly value: T;
-  readonly provenance: Provenance;
+/**
+ * Which system was observed. `revision` stays optional because we usually do
+ * not know it, and that ignorance is the point — a local reproduction says
+ * nothing about a deployment unless an operator_attestation says so.
+ */
+export type Environment = {
+  target: "production" | "local" | "unspecified";
+  origin?: string;
+  revision?: string;
 };
+
+/**
+ * `observedAt` is when the underlying fact was true at the source.
+ * `receivedAt` is when it reached us. They differ under long-polling and
+ * replay, and conflating them makes replayed history look freshly observed.
+ */
+export type Sourced<T> =
+  | {
+      state: "known";
+      value: T;
+      source: EvidenceSource;
+      freshness: Freshness;
+      environment: Environment;
+      observedAt: string;
+      receivedAt: string;
+    }
+  | { state: "demo"; value: T; source: { kind: "fixture"; note: string }; note: string }
+  | { state: "unknown"; reason: string; environment?: Environment };
 
 /* ------------------------------------------------------------ constructors -- */
 
-/**
- * There is deliberately no `of(value)` or `wrap(value)`. Every constructor
- * demands the context that justifies the claim, which is what stops provenance
- * from decaying into a field everyone sets to "live" by default.
- */
+/** No constructor accepts a bare value: every one demands its justification. */
 
-export function live<T>(value: T, environment: Environment, observedAt = new Date().toISOString()): Sourced<T> {
-  return { value, provenance: { kind: "live", observedAt, environment } };
-}
-
-export function stale<T>(value: T, environment: Environment, reason: StaleReason, observedAt: string): Sourced<T> {
-  return { value, provenance: { kind: "stale", observedAt, environment, reason } };
+export function known<T>(
+  value: T,
+  source: EvidenceSource,
+  environment: Environment,
+  times: { observedAt: string; receivedAt?: string },
+  freshness: Freshness = { kind: "live" },
+): Sourced<T> {
+  return {
+    state: "known",
+    value,
+    source,
+    freshness,
+    environment,
+    observedAt: times.observedAt,
+    receivedAt: times.receivedAt ?? new Date().toISOString(),
+  };
 }
 
 export function demo<T>(value: T, note: string): Sourced<T> {
-  return { value, provenance: { kind: "demo", note } };
-}
-
-export function unknown<T>(value: T, reason: string): Sourced<T> {
-  return { value, provenance: { kind: "unknown", reason } };
+  return { state: "demo", value, source: { kind: "fixture", note }, note };
 }
 
 /**
- * Demote a previously-live value that we can no longer confirm, preserving when
- * it was last actually seen. Connection loss must not silently keep rendering
- * as LIVE, and the age of the last good observation is what a human needs in
- * order to judge whether to trust it.
+ * Takes NO value, by construction. This is the whole point: an unknown cannot
+ * carry a guess.
  */
+export function unknown(reason: string, environment?: Environment): Sourced<never> {
+  return { state: "unknown", reason, environment };
+}
+
+/* ------------------------------------------------------------- transitions -- */
+
+/** Demote a known value, preserving when it was last actually observed. */
 export function toStale<T>(sourced: Sourced<T>, reason: StaleReason): Sourced<T> {
-  const { provenance } = sourced;
-  if (provenance.kind === "live" || provenance.kind === "stale") {
-    return stale(sourced.value, provenance.environment, reason, provenance.observedAt);
-  }
-  // Demo and unknown values were never live; there is nothing to go stale.
-  return sourced;
+  if (sourced.state !== "known") return sourced;
+  const lastObservedAt =
+    sourced.freshness.kind === "stale" ? sourced.freshness.lastObservedAt : sourced.observedAt;
+  return { ...sourced, freshness: { kind: "stale", lastObservedAt, reason } };
 }
 
-/**
- * Map the value, keeping the provenance. Deriving from a stale input yields a
- * stale output — a computation cannot be fresher than what it was computed
- * from, and losing that on the way to the screen is how confident-looking
- * numbers get built out of old data.
- */
-export function mapSourced<T, U>(sourced: Sourced<T>, fn: (value: T) => U): Sourced<U> {
-  return { value: fn(sourced.value), provenance: sourced.provenance };
-}
+/* ---------------------------------------------------------------- queries -- */
 
 /**
- * Combine two sourced values, taking the WEAKER provenance.
+ * True only for a live value read over our own transport.
  *
- * Ordering: unknown < demo < stale < live. A figure derived from one live and
- * one unknown input is not live, and presenting it as such is the failure mode
- * this whole module exists to prevent.
+ * A self-report is not a fact about the world however fresh it is, and a
+ * fixture is never real. This is the check that stops an agent's claim about
+ * its own model or location being rendered as verified.
+ */
+export function isVerifiedFact(sourced: Sourced<unknown>): boolean {
+  return (
+    sourced.state === "known" &&
+    sourced.freshness.kind === "live" &&
+    (sourced.source.kind === "webharness_transport" || sourced.source.kind === "github")
+  );
+}
+
+/** True when a value exists at all and may be displayed with a badge. */
+export function hasValue<T>(sourced: Sourced<T>): sourced is Extract<Sourced<T>, { value: T }> {
+  return sourced.state === "known" || sourced.state === "demo";
+}
+
+/** Map a value, keeping its provenance. A derivation is never fresher than its input. */
+export function mapSourced<T, U>(sourced: Sourced<T>, fn: (value: T) => U): Sourced<U> {
+  if (sourced.state === "unknown") return sourced;
+  if (sourced.state === "demo") return { ...sourced, value: fn(sourced.value) };
+  return { ...sourced, value: fn(sourced.value) };
+}
+
+/**
+ * Combine two values, degrading to the weaker of the two.
+ *
+ * If either input is unknown the result is unknown — NOT a computed value with
+ * an unknown badge — because a number derived from something we do not know is
+ * a number we invented. Lineage from both sides is preserved in the reason so
+ * the degradation is explicable rather than mysterious.
  */
 export function combine<A, B, C>(a: Sourced<A>, b: Sourced<B>, fn: (a: A, b: B) => C): Sourced<C> {
-  const rank = { unknown: 0, demo: 1, stale: 2, live: 3 } as const;
-  const weaker = rank[a.provenance.kind] <= rank[b.provenance.kind] ? a.provenance : b.provenance;
-  return { value: fn(a.value, b.value), provenance: weaker };
+  if (a.state === "unknown") return unknown(`derived from unknown: ${a.reason}`, a.environment);
+  if (b.state === "unknown") return unknown(`derived from unknown: ${b.reason}`, b.environment);
+
+  if (a.state === "demo" || b.state === "demo") {
+    const note = a.state === "demo" && b.state === "demo" ? `${a.note}; ${b.note}` : a.state === "demo" ? a.note : (b as Extract<Sourced<B>, { state: "demo" }>).note;
+    return demo(fn(a.value, b.value), note);
+  }
+
+  // Both known: take the weaker freshness, and keep the weaker source authority.
+  const weakerFreshness = a.freshness.kind === "stale" ? a.freshness : b.freshness;
+  const weakerSource = isVerifiedFact(a) ? b.source : a.source;
+  return {
+    state: "known",
+    value: fn(a.value, b.value),
+    source: weakerSource,
+    freshness: weakerFreshness,
+    environment: a.environment,
+    observedAt: a.observedAt < b.observedAt ? a.observedAt : b.observedAt,
+    receivedAt: a.receivedAt > b.receivedAt ? a.receivedAt : b.receivedAt,
+  };
 }
 
 /* -------------------------------------------------------------- rendering -- */
 
-/** True when the value may be presented as current fact. */
-export function isTrustworthy(sourced: Sourced<unknown>): boolean {
-  return sourced.provenance.kind === "live";
-}
-
-/** Short label for a badge. Never empty: an unlabelled value looks authoritative. */
-export function provenanceLabel(provenance: Provenance): string {
-  switch (provenance.kind) {
-    case "live":
-      return provenance.environment.target === "local" ? "LIVE (LOCAL)" : "LIVE";
-    case "stale":
-      return "STALE";
-    case "demo":
-      return "DEMO";
-    case "unknown":
-      return "UNKNOWN";
+/** Never empty: an unlabelled value on screen reads as authoritative. */
+export function provenanceLabel(sourced: Sourced<unknown>): string {
+  if (sourced.state === "unknown") return "UNKNOWN";
+  if (sourced.state === "demo") return "DEMO";
+  if (sourced.source.kind === "agent_self_report") {
+    return sourced.freshness.kind === "live" ? "SELF-REPORTED" : "SELF-REPORTED (STALE)";
   }
+  if (sourced.source.kind === "operator_attestation") return "ATTESTED";
+  if (sourced.freshness.kind === "stale") return "STALE";
+  return sourced.environment.target === "local" ? "LIVE (LOCAL)" : "LIVE";
 }
 
-/**
- * Human-readable explanation for a tooltip or evidence panel. Includes the
- * environment, so a claim proven against a local clone can never be read as a
- * statement about production without the reader seeing the difference.
- */
-export function describeProvenance(provenance: Provenance): string {
-  switch (provenance.kind) {
-    case "live":
-    case "stale": {
-      const { target, origin, revision, attestedBy } = provenance.environment;
-      const where = origin ? `${target} (${origin})` : target;
-      const rev = revision ? ` at ${revision}` : "";
-      const attest = attestedBy ? `, attested by ${attestedBy}` : revision ? ", unattested" : "";
-      const prefix = provenance.kind === "stale" ? `last seen ${provenance.observedAt}` : `observed ${provenance.observedAt}`;
-      return `${prefix} on ${where}${rev}${attest}`;
-    }
-    case "demo":
-      return `demo data: ${provenance.note}`;
-    case "unknown":
-      return `not known: ${provenance.reason}`;
+/** Explanation for a tooltip or evidence panel, naming source and environment. */
+export function describeProvenance(sourced: Sourced<unknown>): string {
+  if (sourced.state === "unknown") return `not known: ${sourced.reason}`;
+  if (sourced.state === "demo") return `demo data: ${sourced.note}`;
+
+  const { environment: env, source } = sourced;
+  const where = env.origin ? `${env.target} (${env.origin})` : env.target;
+  const rev = env.revision ? ` at ${env.revision}` : "";
+  const when =
+    sourced.freshness.kind === "stale"
+      ? `last seen ${sourced.freshness.lastObservedAt} (${sourced.freshness.reason})`
+      : `observed ${sourced.observedAt}`;
+
+  switch (source.kind) {
+    case "agent_self_report":
+      return `${when} — reported by ${source.actor.username} about itself, unverifiable`;
+    case "operator_attestation":
+      return `${when} — attested by ${source.actor.username}: ${source.statement}`;
+    case "github":
+      return `${when} — from ${source.repo}${source.ref ? `@${source.ref}` : ""}`;
+    case "webharness_transport":
+      return `${when} on ${where}${rev}${env.revision ? " (deployment match unattested)" : ""}`;
+    case "fixture":
+      return `${when} — fixture: ${source.note}`;
   }
 }
