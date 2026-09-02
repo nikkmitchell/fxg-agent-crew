@@ -121,3 +121,85 @@ describe("replay idempotency", () => {
     expect(next.rejectedEvents.at(-1)?.reason).toContain("version");
   });
 });
+
+/**
+ * Regressions for three defects found by reviewing the reducer after the
+ * adapter landed. Each is written to fail against the previous behaviour.
+ */
+describe("seam and lifecycle regressions", () => {
+  const seedTask = (state: CrewState, cursor = 1) =>
+    reduceCrewEvent(state, envelope("wh:1:0", cursor, {
+      type: "task.upserted",
+      task: { id: "t1", title: "Wire the room", status: "assigned", points: 1 },
+    }));
+
+  it("accepts multiple events sharing one cursor, as one message with two blocks produces", () => {
+    // The adapter derives sourceCursor from the WebHarness message id, so both
+    // blocks of a two-block message carry the same cursor. Rejecting on
+    // equality silently dropped the second action — confirmed end-to-end
+    // against a live server before this fix.
+    const seeded = seedTask(initialCrewState);
+    const first = reduceCrewEvent(seeded, envelope("wh:7:0", 7, { type: "task.transitioned", taskId: "t1", to: "in_progress" }));
+    const second = reduceCrewEvent(first, envelope("wh:7:1", 7, { type: "task.transitioned", taskId: "t1", to: "review" }));
+
+    expect(second.tasks.t1.status).toBe("review");
+    expect(second.rejectedEvents).toEqual([]);
+  });
+
+  it("still rejects a genuinely stale cursor from an older poll window", () => {
+    // Relaxing to `<` must not lose the protection entirely.
+    const seeded = seedTask(initialCrewState, 10);
+    const stale = reduceCrewEvent(seeded, envelope("wh:5:0", 5, { type: "task.transitioned", taskId: "t1", to: "in_progress" }));
+
+    expect(stale.rejectedEvents.at(-1)?.reason).toContain("stale source cursor");
+    expect(stale.tasks.t1.status).toBe("assigned");
+  });
+
+  it("marks presence by transport username, not by display name", () => {
+    // usernames carries authenticated ids; `name` is a mutable self-chosen
+    // display name. Matching on name marked everyone offline, silently.
+    const withAgent = reduceCrewEvent(initialCrewState, envelope("wh:1:0", 1, {
+      type: "agent.upserted",
+      agent: { id: "baipad-gpt001", name: "Inkstone", avatarSeed: "x", online: false },
+    } as never));
+    const after = reduceCrewEvent(withAgent, envelope("wh:2:0", 2, {
+      type: "presence.snapshotted",
+      usernames: ["baipad-gpt001"],
+    }));
+
+    expect(after.agents["baipad-gpt001"].online).toBe(true);
+  });
+
+  it("marks an agent offline when absent from the snapshot", () => {
+    const withAgent = reduceCrewEvent(initialCrewState, envelope("wh:1:0", 1, {
+      type: "agent.upserted",
+      agent: { id: "baipad-gpt001", name: "Inkstone", avatarSeed: "x", online: true },
+    } as never));
+    const after = reduceCrewEvent(withAgent, envelope("wh:2:0", 2, { type: "presence.snapshotted", usernames: [] }));
+
+    expect(after.agents["baipad-gpt001"].online).toBe(false);
+  });
+
+  it("bounds seenEventIds instead of growing without limit", () => {
+    let state = initialCrewState;
+    for (let i = 1; i <= 6000; i++) {
+      state = reduceCrewEvent(state, envelope(`wh:${i}:0`, i, { type: "presence.snapshotted", usernames: [] }));
+    }
+
+    expect(Object.keys(state.seenEventIds).length).toBeLessThan(6000);
+  });
+
+  it("keeps replay idempotent despite pruning", () => {
+    // The reason pruning is cursor-bounded rather than a simple truncation:
+    // evicting an id that could still be re-delivered would let it apply twice.
+    let state = initialCrewState;
+    const log = Array.from({ length: 20 }, (_, i) =>
+      envelope(`wh:${i + 1}:0`, i + 1, { type: "presence.snapshotted", usernames: [] }),
+    );
+    for (const event of log) state = reduceCrewEvent(state, event);
+
+    const replayed = log.reduce(reduceCrewEvent, state);
+
+    expect(replayed).toEqual(state);
+  });
+});
