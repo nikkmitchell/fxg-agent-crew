@@ -70,44 +70,6 @@ const allowedTransitions: Record<TaskStatus, TaskStatus[]> = {
   done: ["review"],
 };
 
-/**
- * Cap on retained event ids.
- *
- * seenEventIds previously grew without bound — 1000 events meant 1000 keys
- * retained forever, which for a long-lived dashboard polling a busy room is a
- * slow leak.
- *
- * It cannot simply be truncated, because dropping an id makes replay
- * non-idempotent again: a re-delivered event whose id was evicted would apply a
- * second time, which is exactly the property the replay tests pin. So eviction
- * is bounded by the cursor instead — an id is only dropped once its source
- * cursor has advanced past it, since WebHarness will not re-deliver a message
- * older than a cursor we have already passed. Anything still reachable by a
- * reconnect is kept.
- */
-const MAX_SEEN_EVENT_IDS = 5000;
-
-/**
- * Evict only ids that can no longer legitimately reappear.
- *
- * eventIds are wh:<messageId>:<blockIndex>, so the messageId embedded in the id
- * is comparable with the source cursor. Ids that do not parse are never evicted
- * — an unrecognised format means we cannot prove it is safe to forget.
- */
-function pruneSeenEventIds(seen: Record<string, true>, cursors: Record<string, number>): Record<string, true> {
-  const entries = Object.keys(seen);
-  if (entries.length <= MAX_SEEN_EVENT_IDS) return seen;
-
-  const lowestCursor = Math.min(...Object.values(cursors), Infinity);
-  const kept: Record<string, true> = {};
-  for (const id of entries) {
-    const match = /^wh:(\d+):\d+$/.exec(id);
-    // Keep anything we cannot prove is unreachable, including foreign formats.
-    if (!match || Number(match[1]) >= lowestCursor) kept[id] = true;
-  }
-  return kept;
-}
-
 function reject(state: CrewState, eventId: string, reason: string): CrewState {
   return {
     ...state,
@@ -124,7 +86,7 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
   // (a WebHarness message id), so several events can legitimately share one:
   // two fenced blocks in a single message carry the same cursor. Rejecting on
   // equality silently dropped every action after the first in such a message —
-  // confirmed end-to-end against a live server, not only in tests.
+  // confirmed end-to-end against a running local instance, not only in tests.
   //
   // Uniqueness is already guaranteed by eventId, which is
   // wh:<messageId>:<blockIndex>, and replay protection comes from seenEventIds
@@ -133,11 +95,18 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
   const lastCursor = state.cursors[event.source] ?? -1;
   if (event.sourceCursor < lastCursor) return reject(state, event.eventId, "stale source cursor");
 
-  const cursors = { ...state.cursors, [event.source]: event.sourceCursor };
   const next: CrewState = {
     ...state,
-    cursors,
-    seenEventIds: pruneSeenEventIds({ ...state.seenEventIds, [event.eventId]: true }, cursors),
+    cursors: { ...state.cursors, [event.source]: event.sourceCursor },
+    // seenEventIds is deliberately unbounded for now. A previous attempt to cap
+    // it made replay non-idempotent above the threshold — evicted ids came back
+    // as stale-cursor rejections, which mutate state — and the test claiming
+    // otherwise was vacuous, exercising 20 events against a 5000-event cap so
+    // the pruning never ran. Bounding it correctly needs the room-scoped
+    // ordering key from the adapter work; until then an unbounded set is the
+    // honest choice, because a slow leak is better than silently breaking the
+    // one property this reducer exists to guarantee.
+    seenEventIds: { ...state.seenEventIds, [event.eventId]: true },
   };
 
   switch (event.payload.type) {

@@ -137,7 +137,7 @@ describe("seam and lifecycle regressions", () => {
     // The adapter derives sourceCursor from the WebHarness message id, so both
     // blocks of a two-block message carry the same cursor. Rejecting on
     // equality silently dropped the second action — confirmed end-to-end
-    // against a live server before this fix.
+    // against a running local instance before this fix.
     const seeded = seedTask(initialCrewState);
     const first = reduceCrewEvent(seeded, envelope("wh:7:0", 7, { type: "task.transitioned", taskId: "t1", to: "in_progress" }));
     const second = reduceCrewEvent(first, envelope("wh:7:1", 7, { type: "task.transitioned", taskId: "t1", to: "review" }));
@@ -180,20 +180,16 @@ describe("seam and lifecycle regressions", () => {
     expect(after.agents["baipad-gpt001"].online).toBe(false);
   });
 
-  it("bounds seenEventIds instead of growing without limit", () => {
+  it("keeps replay idempotent at a volume that would have triggered pruning", () => {
+    // 6000 events, deliberately above the 5000 cap a removed pruning attempt
+    // used. That attempt BROKE this property: evicted ids came back as
+    // stale-cursor rejections, which mutate state. Its own test hid the break
+    // by running 20 events against a 5000 threshold, so pruning never
+    // executed and the assertion passed for the wrong reason.
+    //
+    // This runs past that threshold precisely so it cannot pass vacuously.
     let state = initialCrewState;
-    for (let i = 1; i <= 6000; i++) {
-      state = reduceCrewEvent(state, envelope(`wh:${i}:0`, i, { type: "presence.snapshotted", usernames: [] }));
-    }
-
-    expect(Object.keys(state.seenEventIds).length).toBeLessThan(6000);
-  });
-
-  it("keeps replay idempotent despite pruning", () => {
-    // The reason pruning is cursor-bounded rather than a simple truncation:
-    // evicting an id that could still be re-delivered would let it apply twice.
-    let state = initialCrewState;
-    const log = Array.from({ length: 20 }, (_, i) =>
+    const log = Array.from({ length: 6000 }, (_, i) =>
       envelope(`wh:${i + 1}:0`, i + 1, { type: "presence.snapshotted", usernames: [] }),
     );
     for (const event of log) state = reduceCrewEvent(state, event);
@@ -201,5 +197,6 @@ describe("seam and lifecycle regressions", () => {
     const replayed = log.reduce(reduceCrewEvent, state);
 
     expect(replayed).toEqual(state);
+    expect(replayed.rejectedEvents).toEqual([]);
   });
 });
