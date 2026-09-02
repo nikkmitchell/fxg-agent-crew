@@ -10,8 +10,14 @@ import { WebharnessError } from "./client.js";
  * therefore not something the client should ever pattern-match on itself — that
  * is exactly the coupling this module exists to absorb.
  *
- * All markers below are now OBSERVED, not documented. They were captured by
- * driving a local WebHarness instance into each failure state:
+ * The markers enumerated below were OBSERVED rather than taken from the docs,
+ * captured by driving a LOCAL WebHarness instance into each failure state.
+ * Production was never probed, so nothing here is evidence about a deployment.
+ *
+ * Note the list is not exhaustive: the muted branch matches "禁言" and that
+ * wording was seen locally, but other 403 wordings this code still matches may
+ * not have been triggered directly. Treat unlisted markers as documented, not
+ * confirmed.
  *   403 "尚未加入该房间"  — reading a room never joined
  *   403 "需要房间密码"    — joining a private password room with no password
  *   403 "房间密码错误"    — joining it with the wrong password

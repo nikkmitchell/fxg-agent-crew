@@ -6,12 +6,13 @@ const upstream = (status: number, detail: string) => new WebharnessError(status,
 
 describe("classify", () => {
   it("maps the observed not-joined 403 to NOT_A_MEMBER", () => {
-    // Exact string returned by the live server for a room the caller has not joined.
+    // Exact string returned by a local instance for a room never joined.
     expect(classify(upstream(403, "尚未加入该房间")).code).toBe("NOT_A_MEMBER");
   });
 
-  it("distinguishes the meanings of 403, using strings observed from a live server", () => {
-    // Captured by driving a local instance into each state, not from docs.
+  it("distinguishes the meanings of 403, using strings observed from a running local server", () => {
+    // Captured by driving a LOCAL WebHarness instance into each state, not from
+    // docs and not from production, which was never probed.
     expect(classify(upstream(403, "需要房间密码")).code).toBe("ROOM_PASSWORD_REQUIRED");
     expect(classify(upstream(403, "房间密码错误")).code).toBe("ROOM_PASSWORD_INCORRECT");
     expect(classify(upstream(403, "你已被禁言")).code).toBe("MUTED");
@@ -45,7 +46,7 @@ describe("classify", () => {
     expect(classify(upstream(404, "房间不存在，请先创建或加入")).code).not.toBe("ROOM_ARCHIVED");
   });
 
-  it("maps the observed muted wording", () => {
+  it("maps the muted wording seen locally", () => {
     expect(classify(upstream(403, "你已被禁言")).code).toBe("MUTED");
   });
 
