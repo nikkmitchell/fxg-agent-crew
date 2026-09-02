@@ -75,6 +75,12 @@ export type BffErrorCode =
   | "NOT_A_MEMBER"
   /** Room exists and needs a password to join. Prompt for it. */
   | "ROOM_PASSWORD_REQUIRED"
+  /**
+   * A password was supplied and rejected. Distinct from needing one: the user
+   * has already typed something, so the UI should say it was wrong rather than
+   * re-prompting as though they had entered nothing.
+   */
+  | "ROOM_PASSWORD_INCORRECT"
   /** Caller is in the room but may not speak. Render read-only, not an error. */
   | "MUTED"
   /** Room archived or ended. History lives under /api/archives. */

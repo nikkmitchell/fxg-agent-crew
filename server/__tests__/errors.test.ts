@@ -10,10 +10,25 @@ describe("classify", () => {
     expect(classify(upstream(403, "尚未加入该房间")).code).toBe("NOT_A_MEMBER");
   });
 
-  it("distinguishes the three meanings of 403", () => {
+  it("distinguishes the meanings of 403, using strings observed from a live server", () => {
+    // Captured by driving a local instance into each state, not from docs.
     expect(classify(upstream(403, "需要房间密码")).code).toBe("ROOM_PASSWORD_REQUIRED");
+    expect(classify(upstream(403, "房间密码错误")).code).toBe("ROOM_PASSWORD_INCORRECT");
     expect(classify(upstream(403, "你已被禁言")).code).toBe("MUTED");
     expect(classify(upstream(403, "尚未加入该房间")).code).toBe("NOT_A_MEMBER");
+  });
+
+  it("does not let a wrong password masquerade as a missing one", () => {
+    // "房间密码错误" contains 密码, so a looser check would re-prompt the user
+    // as though they had typed nothing, hiding that their attempt was rejected.
+    const wrong = classify(upstream(403, "房间密码错误"));
+
+    expect(wrong.code).toBe("ROOM_PASSWORD_INCORRECT");
+    expect(wrong.code).not.toBe("ROOM_PASSWORD_REQUIRED");
+  });
+
+  it("maps the observed 404 wording", () => {
+    expect(classify(upstream(404, "房间不存在，请先创建或加入")).code).toBe("ROOM_NOT_FOUND");
   });
 
   it("falls back to the read-only state for an unrecognised 403", () => {
