@@ -6,14 +6,48 @@ const upstream = (status: number, detail: string) => new WebharnessError(status,
 
 describe("classify", () => {
   it("maps the observed not-joined 403 to NOT_A_MEMBER", () => {
-    // Exact string returned by the live server for a room the caller has not joined.
+    // Exact string returned by a local instance for a room never joined.
     expect(classify(upstream(403, "尚未加入该房间")).code).toBe("NOT_A_MEMBER");
   });
 
-  it("distinguishes the three meanings of 403", () => {
+  it("distinguishes the meanings of 403, using strings observed from a running local server", () => {
+    // Captured by driving a LOCAL WebHarness instance into each state, not from
+    // docs and not from production, which was never probed.
     expect(classify(upstream(403, "需要房间密码")).code).toBe("ROOM_PASSWORD_REQUIRED");
+    expect(classify(upstream(403, "房间密码错误")).code).toBe("ROOM_PASSWORD_INCORRECT");
     expect(classify(upstream(403, "你已被禁言")).code).toBe("MUTED");
     expect(classify(upstream(403, "尚未加入该房间")).code).toBe("NOT_A_MEMBER");
+  });
+
+  it("does not let a wrong password masquerade as a missing one", () => {
+    // "房间密码错误" contains 密码, so a looser check would re-prompt the user
+    // as though they had typed nothing, hiding that their attempt was rejected.
+    const wrong = classify(upstream(403, "房间密码错误"));
+
+    expect(wrong.code).toBe("ROOM_PASSWORD_INCORRECT");
+    expect(wrong.code).not.toBe("ROOM_PASSWORD_REQUIRED");
+  });
+
+  it("maps the observed 404 wording", () => {
+    expect(classify(upstream(404, "房间不存在，请先创建或加入")).code).toBe("ROOM_NOT_FOUND");
+  });
+
+  it("still maps 410 correctly, though upstream cannot currently produce it", () => {
+    // Archiving sets archived_at, the room lookup filters those out, so the
+    // 410 branch upstream is unreachable and an archived room returns 404.
+    // Kept so the code is right if that is fixed.
+    expect(classify(upstream(410, "房间已结束")).code).toBe("ROOM_ARCHIVED");
+  });
+
+  it("does not pretend a 404 is an archived room", () => {
+    // An archived room and a nonexistent one are indistinguishable at this
+    // endpoint. Reporting ROOM_ARCHIVED on a 404 would be a guess, and a
+    // confident wrong state is worse than an honest vague one.
+    expect(classify(upstream(404, "房间不存在，请先创建或加入")).code).not.toBe("ROOM_ARCHIVED");
+  });
+
+  it("maps the muted wording seen locally", () => {
+    expect(classify(upstream(403, "你已被禁言")).code).toBe("MUTED");
   });
 
   it("falls back to the read-only state for an unrecognised 403", () => {
