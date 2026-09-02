@@ -2,7 +2,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { RoomDetail, RoomSummary } from "../../shared/contracts.js";
 import type { Config } from "../config.js";
 import type { Session, SessionStore } from "../session.js";
-import { WebharnessClient, WebharnessError } from "../webharness/client.js";
+import { WebharnessClient } from "../webharness/client.js";
+import { classify } from "../webharness/errors.js";
 import { pollMessages } from "../webharness/longpoll.js";
 
 export function registerRoomRoutes(
@@ -15,25 +16,25 @@ export function registerRoomRoutes(
   const requireSession = (request: FastifyRequest, reply: FastifyReply): Session | undefined => {
     const session = sessions.get(request.cookies[config.cookieName]);
     if (!session) {
-      reply.code(401).send({ error: "not signed in", reauth: true });
+      reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in", reauth: true });
       return undefined;
     }
     return session;
   };
 
   /**
-   * Upstream failures are translated rather than forwarded verbatim: a 401 from
-   * WebHarness has already survived the client's single retry, so by the time it
-   * reaches here it genuinely means re-authenticate.
+   * Upstream failures are translated into stable codes rather than forwarded
+   * verbatim, so the UI never branches on a Chinese detail string or on a 403
+   * that means three different things. A 401 reaching here has already survived
+   * the client's retry, so it genuinely means re-authenticate.
    */
   const fail = (reply: FastifyReply, error: unknown) => {
-    if (error instanceof WebharnessError) {
-      if (error.status === 401) return reply.code(401).send({ error: error.detail, reauth: true });
-      if (error.status === 403) return reply.code(403).send({ error: error.detail });
-      if (error.status === 404) return reply.code(404).send({ error: error.detail });
-      if (error.status === 410) return reply.code(410).send({ error: "room archived" });
-    }
-    return reply.code(502).send({ error: "upstream unavailable" });
+    const { code, status, detail } = classify(error);
+    return reply.code(status).send({
+      code,
+      error: detail,
+      ...(code === "SESSION_EXPIRED" ? { reauth: true } : {}),
+    });
   };
 
   app.get("/bff/rooms", async (request, reply) => {
@@ -75,7 +76,7 @@ export function registerRoomRoutes(
       const afterIdRaw = request.query.afterId;
       const afterId = afterIdRaw === undefined ? undefined : Number(afterIdRaw);
       if (afterId !== undefined && !Number.isFinite(afterId)) {
-        return reply.code(400).send({ error: "afterId must be a number" });
+        return reply.code(400).send({ code: "BAD_REQUEST", error: "afterId must be a number" });
       }
 
       try {

@@ -24,7 +24,7 @@ export function registerAuthRoutes(
   app.post<{ Body: { username?: string; password?: string } }>("/bff/login", async (request, reply) => {
     const { username, password } = request.body ?? {};
     if (!username || !password) {
-      return reply.code(400).send({ error: "username and password are required" });
+      return reply.code(400).send({ code: "BAD_REQUEST", error: "username and password are required" });
     }
 
     try {
@@ -43,10 +43,10 @@ export function registerAuthRoutes(
       return reply.send({ username });
     } catch (error) {
       if (error instanceof WebharnessError && error.status === 401) {
-        return reply.code(401).send({ error: "invalid credentials", reauth: true });
+        return reply.code(401).send({ code: "INVALID_CREDENTIALS", error: "invalid credentials", reauth: true });
       }
       request.log.error({ err: error }, "login failed");
-      return reply.code(502).send({ error: "upstream unavailable" });
+      return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "upstream unavailable" });
     }
   });
 
@@ -58,7 +58,7 @@ export function registerAuthRoutes(
 
   app.get("/bff/me", async (request, reply) => {
     const session = sessions.get(request.cookies[config.cookieName]);
-    if (!session) return reply.code(401).send({ error: "not signed in", reauth: true });
+    if (!session) return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in", reauth: true });
     return reply.send(sessions.publicView(session));
   });
 }
