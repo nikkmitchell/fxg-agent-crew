@@ -54,7 +54,11 @@ export function registerRoomRoutes(
         "/api/rooms",
         { token: session.token },
       );
-      const rooms = Array.isArray(payload) ? payload : payload.rooms ?? [];
+      // `?? []` only guards null/undefined. If upstream sends {rooms:"oops"}
+      // that string would pass straight through and break the array contract
+      // this PR exists to fix — the annotation is not the check.
+      const nested = Array.isArray(payload) ? payload : payload.rooms;
+      const rooms = Array.isArray(nested) ? nested : [];
       return reply.send(rooms);
     } catch (error) {
       return fail(reply, error);

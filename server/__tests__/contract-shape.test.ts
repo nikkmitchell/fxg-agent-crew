@@ -214,3 +214,43 @@ describe("room detail and message shapes", () => {
     expect(detail.body).not.toContain("secret-token");
   });
 });
+
+/**
+ * Malformed-value guards, required by review on #8.
+ *
+ * The PR's own stated lesson is that a transport annotation is not validation —
+ * and the first version then used `?? []`, which only guards null and
+ * undefined. A wrong TYPE sails straight through it. These pin the fix.
+ */
+describe("malformed upstream values cannot cross the boundary", () => {
+  const withSession = () => {
+    const sessions = new SessionStore(60_000);
+    const sid = sessions.create("qa-tester", "secret-token");
+    return { sid, app: buildApp(sessions) };
+  };
+
+  it("returns [] when upstream sends a non-array under rooms", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(json({ rooms: "oops" })));
+    const { app, sid } = withSession();
+
+    const body = (await app.inject({ method: "GET", url: "/bff/rooms", cookies: { fxg_sid: sid } })).json();
+
+    // `?? []` would have handed the UI a string where it expects an array.
+    expect(body).toEqual([]);
+  });
+
+  it("returns [] rather than throwing when messages is a non-array", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(json({ roomName: "qa-room", messages: "oops" })));
+    const { app, sid } = withSession();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/bff/rooms/qa-room/messages",
+      cookies: { fxg_sid: sid },
+    });
+
+    // Without the guard this throws inside reduce and becomes a 500.
+    expect(response.statusCode).toBe(200);
+    expect(response.json().messages).toEqual([]);
+  });
+})

@@ -47,7 +47,9 @@ export async function pollMessages(
     signal,
   });
 
-  const messages = result.messages ?? [];
+  // Must be Array.isArray, not `?? []`: a malformed non-array value would
+  // survive the nullish check and then throw on .reduce below.
+  const messages = Array.isArray(result.messages) ? result.messages : [];
   const highest = messages.reduce<number | null>(
     (max, message) => (max === null || message.id > max ? message.id : max),
     null,
