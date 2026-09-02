@@ -77,7 +77,7 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .command-receipt--pending b { animation: pulse 1s infinite; }
 
 .assignment-strip { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); }
-.assignment-strip > button { min-width: 0; display: grid; grid-template-columns: auto 1fr; gap: 0 10px; padding: 17px 15px 17px 0; border: 0; border-right: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; position: relative; }
+.assignment-strip > button { min-width: 0; min-height: 78px; display: grid; grid-template-columns: auto 1fr; gap: 0 10px; padding: 17px 15px 17px 0; border: 0; border-right: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; position: relative; }
 .assignment-strip > button:not(:first-child) { padding-left: 15px; }
 .assignment-strip > button:last-child { border-right: 0; }
 .assignment-strip > button::after { content: ""; position: absolute; left: 0; right: 100%; bottom: -1px; height: 2px; background: var(--cobalt); transition: right .32s var(--ease); }
@@ -93,10 +93,10 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .attention-label i { width: 9px; height: 9px; border: 2px solid var(--vermilion); transform: rotate(45deg); }
 .attention-strip h2 { margin: 0 0 3px; font-family: "Instrument Serif", serif; font-size: 21px; font-weight: 400; }
 .attention-strip p { margin: 0; color: var(--muted); font-size: 9px; }
-.attention-strip button { display: flex; align-items: center; gap: 7px; padding: 8px 0 8px 10px; border: 0; background: transparent; font-size: 9px; font-weight: 700; cursor: pointer; }
+.attention-strip button { min-height: 44px; display: flex; align-items: center; gap: 7px; padding: 8px 0 8px 10px; border: 0; background: transparent; font-size: 10px; font-weight: 700; cursor: pointer; }
 .attention-strip button .glyph { width: 14px; }
 
-.status { display: inline-flex; align-items: center; gap: 6px; width: max-content; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.status { display: inline-flex; align-items: center; gap: 6px; width: max-content; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .055em; text-transform: uppercase; }
 .status i { width: 7px; height: 7px; border: 1.5px solid currentColor; display: inline-block; }
 .status--working { color: var(--vermilion); }
 .status--working i { border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
@@ -153,7 +153,7 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .work-log { padding-top: 64px; scroll-margin-top: 20px; }
 .log-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 25px; padding-bottom: 20px; border-bottom: 1px solid var(--ink); }
 .feed-filters { display: flex; gap: 4px; flex-wrap: wrap; }
-.feed-filters button { padding: 6px 9px; border: 1px solid transparent; border-radius: 99px; background: transparent; color: var(--muted); font-size: 9px; text-transform: uppercase; cursor: pointer; }
+.feed-filters button { min-height: 44px; padding: 6px 11px; border: 1px solid transparent; border-radius: 99px; background: transparent; color: var(--muted); font-size: 9px; text-transform: uppercase; cursor: pointer; }
 .feed-filters button.is-active { border-color: var(--ink); color: var(--ink); }
 .activity-list > button { width: 100%; display: grid; grid-template-columns: 48px 30px 1fr auto; align-items: center; gap: 10px; padding: 13px 3px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; transition: padding .2s var(--ease), background .2s ease; }
 .activity-list > button:hover { padding-left: 10px; background: rgba(251,250,246,.6); }
@@ -224,7 +224,7 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
   .assignment-strip > button { border-bottom: 1px solid var(--line); }
   .assignment-strip > button:nth-child(2) { border-right: 0; }
   .stage-heading > p { text-align: left; }
-  .attention-strip { grid-template-columns: 1fr auto; }
+  .attention-strip { position: sticky; top: 54px; z-index: 8; grid-template-columns: 1fr auto; margin-inline: -17px; padding: 13px 17px; background: color-mix(in srgb, var(--surface) 96%, transparent); box-shadow: 0 8px 20px rgba(37,34,27,.08); }
   .attention-label { grid-column: 1 / -1; }
   .attention-strip p { max-width: 250px; }
   .command-receipt { grid-template-columns: auto auto 1fr auto; }

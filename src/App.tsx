@@ -18,6 +18,25 @@ type CommandReceipt = {
   agentName: string;
 };
 
+type StoredWorkroomState = {
+  selectedId?: string;
+  progress?: number;
+  running?: boolean;
+};
+
+function loadStoredState(): StoredWorkroomState {
+  try {
+    return JSON.parse(localStorage.getItem("fxg-workroom-state") ?? "{}") as StoredWorkroomState;
+  } catch {
+    localStorage.removeItem("fxg-workroom-state");
+    return {};
+  }
+}
+
+function prependActivity(current: Activity[], next: Activity): Activity[] {
+  return [next, ...current.filter((item) => !(item.agentId === next.agentId && item.copy === next.copy && item.type === next.type))].slice(0, 12);
+}
+
 function Glyph({ name }: { name: "grid" | "stack" | "clock" | "pause" | "play" | "arrow" | "spark" }) {
   const paths = {
     grid: <><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></>,
@@ -44,7 +63,7 @@ function AgentMark({ agent, large = false }: { agent: WorkAgent; large?: boolean
 }
 
 function Status({ status }: { status: AgentStatus }) {
-  return <span className={`status status--${status}`}><i />{statusLabel[status]}</span>;
+  return <span className={`status status--${status}`} aria-label={`Status: ${statusLabel[status]}`}><i aria-hidden="true" />{statusLabel[status]}</span>;
 }
 
 function EvidenceIcon({ kind }: { kind: Evidence["kind"] }) {
@@ -52,13 +71,14 @@ function EvidenceIcon({ kind }: { kind: Evidence["kind"] }) {
 }
 
 export default function App() {
+  const [storedState] = useState(loadStoredState);
   const [agents, setAgents] = useState(initialAgents);
-  const [selectedId, setSelectedId] = useState("mira");
-  const [running, setRunning] = useState(true);
-  const [progress, setProgress] = useState(46);
+  const [selectedId, setSelectedId] = useState(storedState.selectedId ?? "mira");
+  const [running, setRunning] = useState(storedState.running ?? true);
+  const [progress, setProgress] = useState(storedState.progress ?? 46);
   const [activities, setActivities] = useState(initialActivity);
   const cycleRef = useRef(0);
-  const completionLoggedRef = useRef(false);
+  const previousProgressRef = useRef(progress);
   const [directionOpen, setDirectionOpen] = useState(false);
   const [direction, setDirection] = useState("");
   const [filter, setFilter] = useState<FeedFilter>("all");
@@ -67,19 +87,6 @@ export default function App() {
 
   const selected = agents.find((agent) => agent.id === selectedId) ?? agents[0];
   const selectedArtifact = selected.evidence[selectedEvidence] ?? selected.evidence[0];
-
-  useEffect(() => {
-    const stored = localStorage.getItem("fxg-workroom-state");
-    if (!stored) return;
-    try {
-      const state = JSON.parse(stored) as { selectedId?: string; progress?: number; running?: boolean };
-      if (state.selectedId) setSelectedId(state.selectedId);
-      if (typeof state.progress === "number") setProgress(state.progress);
-      if (typeof state.running === "boolean") setRunning(state.running);
-    } catch {
-      localStorage.removeItem("fxg-workroom-state");
-    }
-  }, []);
 
   useEffect(() => {
     localStorage.setItem("fxg-workroom-state", JSON.stringify({ selectedId, progress, running }));
@@ -91,21 +98,18 @@ export default function App() {
       const event = scriptedEvents[cycleRef.current % scriptedEvents.length];
       cycleRef.current += 1;
       setAgents((current) => current.map((agent) => agent.id === event.agentId ? { ...agent, status: event.status, verb: event.verb, task: event.task } : agent));
-      setActivities((current) => [{ ...event.activity, id: Date.now(), time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }, ...current].slice(0, 12));
+      setActivities((current) => prependActivity(current, { ...event.activity, id: Date.now(), time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }));
       setProgress((current) => Math.min(current + 4, 100));
     }, 5200);
     return () => window.clearInterval(timer);
   }, [running]);
 
   useEffect(() => {
-    if (progress < 100) {
-      completionLoggedRef.current = false;
-      return;
-    }
-    setRunning(false);
-    if (completionLoggedRef.current) return;
-    completionLoggedRef.current = true;
-    setActivities((current) => [{ id: Date.now(), time: "now", agentId: "nikk", copy: "verified and completed the mission", type: "verification" as const }, ...current].slice(0, 12));
+    const crossedCompletion = previousProgressRef.current < 100 && progress >= 100;
+    previousProgressRef.current = progress;
+    if (progress >= 100) setRunning(false);
+    if (!crossedCompletion) return;
+    setActivities((current) => prependActivity(current, { id: Date.now(), time: "now", agentId: "nikk", copy: "verified and completed the mission", type: "verification" }));
   }, [progress]);
 
   const filteredActivity = useMemo(() => activities.filter((item) => filter === "all" || item.type === filter), [activities, filter]);
@@ -124,7 +128,7 @@ export default function App() {
     setDirection("");
     setDirectionOpen(false);
     window.setTimeout(() => {
-      setActivities((current) => [{ id: Date.now(), time: "now", agentId: target.id, copy: `acknowledged direction: “${copy}”`, type: "decision" }, ...current]);
+      setActivities((current) => prependActivity(current, { id: Date.now(), time: "now", agentId: target.id, copy: `acknowledged direction: “${copy}”`, type: "decision" }));
       setAgents((current) => current.map((agent) => agent.id === target.id ? { ...agent, status: "working", verb: "Applying your direction" } : agent));
       setCommandReceipt({ state: "acknowledged", copy, agentId: target.id, agentName: target.name });
     }, 900);
