@@ -16,11 +16,16 @@
  *    the sample was never counted properly. What is observed is the retry
  *    behaviour, not the reason for it.
  *
- *    The retry is justified by consequence rather than by diagnosis: treating a
+ * *    The retry is justified by consequence rather than by diagnosis: treating a
  *    first 401 as "session invalid" would sign people out on a transient
- *    failure we have seen happen, and one extra request is cheap. Only requests
- *    that are safe to repeat are retried, and only a second consecutive 401 is
- *    surfaced as needing re-auth.
+ *    failure we have seen happen, and one extra request is cheap.
+ *
+ *    RETRY IS RESTRICTED TO REQUESTS THAT CAN SAFELY BE REPEATED — idempotent
+ *    methods, plus an explicit per-call opt-in currently used only by login. A
+ *    401 says the response was rejected, not that the server did no work, so
+ *    blindly repeating a POST could duplicate a write. A duplicated mutation is
+ *    worse than an extra sign-in prompt. Everything else surfaces the 401 at
+ *    once, and a second consecutive 401 always means re-auth.
  *
  * 2. THE TOKEN NEVER LEAVES THIS MODULE'S CALLERS. It is passed in per request
  *    from the session store and is deliberately absent from every error this
@@ -45,30 +50,47 @@ export type RequestOptions = {
   body?: unknown;
   /** Abort signal, so a client disconnect cancels the upstream long-poll. */
   signal?: AbortSignal;
+  /**
+   * Opt a non-idempotent request into the single 401 retry.
+   *
+   * Off by default and deliberately explicit. Retrying an arbitrary POST is not
+   * safe in general: a 401 tells us the response was rejected, not that the
+   * server did no work, and a retried create can duplicate. Set this only where
+   * repeating the call has been reasoned about — currently just login, where a
+   * rejected attempt leaves nothing behind.
+   */
+  retryUnsafeOn401?: boolean;
 };
+
+/** Methods with no side effects, so repeating one cannot duplicate work. */
+const IDEMPOTENT_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export class WebharnessClient {
   constructor(private readonly baseUrl: string) {}
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const attempt = () => this.rawRequest<T>(path, options);
+    const method = (options.method ?? "GET").toUpperCase();
+    const mayRetry = IDEMPOTENT_METHODS.has(method) || options.retryUnsafeOn401 === true;
 
     try {
       return await attempt();
     } catch (error) {
-      // Retry exactly once on a lone 401 — see note 1 above. Anything else, and
-      // any 401 on a second consecutive try, is surfaced to the caller.
-      if (error instanceof WebharnessError && error.status === 401) {
-        try {
-          return await attempt();
-        } catch (retryError) {
-          if (retryError instanceof WebharnessError && retryError.status === 401) {
-            throw new WebharnessError(401, retryError.detail, true);
-          }
-          throw retryError;
+      if (!(error instanceof WebharnessError) || error.status !== 401) throw error;
+
+      // A 401 on a request we cannot safely repeat is surfaced immediately.
+      // Retrying a mutation would risk duplicating it, and a duplicated write
+      // is worse than an extra sign-in prompt.
+      if (!mayRetry) throw new WebharnessError(401, error.detail, true);
+
+      try {
+        return await attempt();
+      } catch (retryError) {
+        if (retryError instanceof WebharnessError && retryError.status === 401) {
+          throw new WebharnessError(401, retryError.detail, true);
         }
+        throw retryError;
       }
-      throw error;
     }
   }
 
@@ -103,6 +125,9 @@ export class WebharnessClient {
     const result = await this.request<{ token: string }>("/api/login", {
       method: "POST",
       body: { username, password },
+      // Safe to repeat: a rejected login leaves no state behind, and this is
+      // the request where the transient 401s were actually observed.
+      retryUnsafeOn401: true,
     });
     return result.token;
   }
