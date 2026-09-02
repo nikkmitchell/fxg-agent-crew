@@ -31,6 +31,24 @@ describe("classify", () => {
     expect(classify(upstream(404, "房间不存在，请先创建或加入")).code).toBe("ROOM_NOT_FOUND");
   });
 
+  it("still maps 410 correctly, though upstream cannot currently produce it", () => {
+    // Archiving sets archived_at, the room lookup filters those out, so the
+    // 410 branch upstream is unreachable and an archived room returns 404.
+    // Kept so the code is right if that is fixed.
+    expect(classify(upstream(410, "房间已结束")).code).toBe("ROOM_ARCHIVED");
+  });
+
+  it("does not pretend a 404 is an archived room", () => {
+    // An archived room and a nonexistent one are indistinguishable at this
+    // endpoint. Reporting ROOM_ARCHIVED on a 404 would be a guess, and a
+    // confident wrong state is worse than an honest vague one.
+    expect(classify(upstream(404, "房间不存在，请先创建或加入")).code).not.toBe("ROOM_ARCHIVED");
+  });
+
+  it("maps the observed muted wording", () => {
+    expect(classify(upstream(403, "你已被禁言")).code).toBe("MUTED");
+  });
+
   it("falls back to the read-only state for an unrecognised 403", () => {
     // Half the 403 wordings come from docs rather than observation, so an
     // unknown one must land on a safe screen. NOT_A_MEMBER shows read-only;

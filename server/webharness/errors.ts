@@ -63,6 +63,19 @@ export function classify(error: unknown): { code: BffErrorCode; status: number; 
     return { code: "ROOM_NOT_FOUND", status: 404, detail };
   }
 
+  // Kept for correctness, but NOTE: upstream cannot currently reach this.
+  //
+  // Archiving sets archived_at and ended_at together, and the room lookup
+  // filters `archived_at IS NULL`, so an archived room is never found and the
+  // 410 "房间已结束" branch is unreachable — verified by reading app/main.py on a
+  // local instance and by observing a real archive return 404.
+  //
+  // The consequence is that we CANNOT distinguish "this room was archived" from
+  // "no such room" at this endpoint, so an archived room surfaces as
+  // ROOM_NOT_FOUND. That is worse UX than saying "this room ended, history is in
+  // archives", but claiming ROOM_ARCHIVED on a 404 would be guessing, and a
+  // confident wrong state is worse than an honest vague one. If upstream fixes
+  // the lookup, this branch starts working with no change here.
   if (status === 410) {
     return { code: "ROOM_ARCHIVED", status: 410, detail };
   }
