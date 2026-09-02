@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { adaptMessages, encodeEnvelope } from "../webharness/adapter.js";
+import { adaptMessages, encodeActionRequest } from "../webharness/adapter.js";
 import { initialCrewState, reduceCrewEvent } from "../../src/event-core.js";
-import type { EventEnvelope } from "../../shared/crew-events.js";
+import type { CrewEvent } from "../../shared/crew-events.js";
 import type { Message } from "../../shared/contracts.js";
 
 /**
@@ -22,23 +22,14 @@ const msg = (id: number, content: string, overrides: Partial<Message> = {}): Mes
   ...overrides,
 });
 
-const env = (eventId: string, cursor: number, payload: EventEnvelope["payload"]): EventEnvelope => ({
-  version: 1,
-  eventId,
-  source: "codex",
-  sourceCursor: cursor,
-  occurredAt: "2026-09-03T00:00:00Z",
-  payload,
-});
-
 const room: Message[] = [
   msg(1, "morning all"),
-  msg(2, encodeEnvelope(env("e1", 1, {
+  msg(2, encodeActionRequest({
     type: "task.upserted",
     task: { id: "t1", title: "Wire the room", status: "assigned", points: 3 },
-  }))),
+  })),
   msg(3, "I think t1 is blocked, someone take a look"),
-  msg(4, encodeEnvelope(env("e2", 2, { type: "task.transitioned", taskId: "t1", to: "in_progress" }))),
+  msg(4, encodeActionRequest({ type: "task.transitioned", taskId: "t1", to: "in_progress" })),
 ];
 
 describe("adapter -> reducer", () => {
@@ -63,7 +54,7 @@ describe("adapter -> reducer", () => {
   });
 
   it("keeps a refused envelope out of the reducer entirely", () => {
-    const bad = msg(5, '```crew-event\n{"version":1,"eventId":"x","source":"s","sourceCursor":1,"occurredAt":"2026-09-03T00:00:00Z","payload":{"type":"task.upserted","task":{"nonsense":true}}}\n```');
+    const bad = msg(5, '```crew-event\n{"version":1,"payload":{"type":"task.upserted","task":{"nonsense":true}}}\n```');
     const { events, transcript, rejected } = adaptMessages([...room, bad]);
     const state = events.reduce(reduceCrewEvent, initialCrewState);
 
@@ -83,14 +74,14 @@ describe("adapter -> reducer", () => {
 
     const state = [...first.events, ...second.events].reduce(reduceCrewEvent, initialCrewState);
 
-    expect(second.events.map((e) => e.eventId)).toEqual(["e2"]);
+    expect(second.events.map((e) => e.eventId)).toEqual(["wh:4:0"]);
     expect(state.tasks.t1.status).toBe("in_progress");
   });
 
   it("ignores a streaming envelope and applies it once finalized", () => {
-    const streaming = msg(6, encodeEnvelope(env("e3", 3, {
+    const streaming = msg(6, encodeActionRequest({
       type: "task.transitioned", taskId: "t1", to: "review",
-    })), { streaming: true });
+    }), { streaming: true });
 
     const midStream = adaptMessages([...room, streaming]);
     const midState = midStream.events.reduce(reduceCrewEvent, initialCrewState);

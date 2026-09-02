@@ -129,11 +129,23 @@ function bool(value: unknown, label: string): Checked<boolean> {
  * epoch. A wrong timestamp orders the log wrongly, which is worse than a
  * missing event because it looks correct.
  */
+const ISO_8601 = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:?\d{2})?$/;
+
 function timestamp(value: unknown, label: string): Checked<string> {
   const checked = str(value, label, { max: 64 });
   if (!checked.ok) return checked;
-  const parsed = Date.parse(checked.value);
-  if (Number.isNaN(parsed)) return bad(`${label} is not a parseable timestamp`);
+
+  // Date.parse alone is far too permissive — it accepts "Sat Sep 3 2026",
+  // "2026", "March 3" and other loose forms, several of which are
+  // implementation-defined and some of which silently assume local time. An
+  // event log ordered by ambiguous timestamps is worse than one that rejects
+  // them, so require an actual ISO-8601 shape first.
+  if (!ISO_8601.test(checked.value)) {
+    return bad(`${label} is not an ISO-8601 timestamp`);
+  }
+  if (Number.isNaN(Date.parse(checked.value))) {
+    return bad(`${label} is not a parseable timestamp`);
+  }
   return checked;
 }
 
@@ -313,7 +325,110 @@ function crewEvent(raw: unknown): Checked<CrewEvent> {
   }
 }
 
+/* ----------------------------------------------------------- action request -- */
+
+/**
+ * What a fenced block is allowed to contain.
+ *
+ * NOTE WHAT IS ABSENT: eventId, source, sourceCursor and occurredAt. Those were
+ * previously read from the message body, which meant anyone who could type in
+ * the room could forge another agent's identity, preempt a legitimate event id,
+ * or reorder the log. Shape validation did not help — the forgeries were
+ * perfectly well-formed.
+ *
+ * A fenced block is now only a REQUESTED ACTION. Identity, time and ordering are
+ * supplied by the transport, which WebHarness actually authenticates. Validated
+ * is not the same as authorized.
+ */
+export type ActionRequest = { payload: CrewEvent };
+
+/** Authority derived from transport metadata. Never from message content. */
+export type TransportAuthority = {
+  /** Message id from WebHarness. Monotonic, server-assigned. */
+  messageId: number;
+  /** Authenticated sender. The one identity claim we can actually trust. */
+  username: string;
+  /** Server-assigned timestamp. */
+  createdAt: string;
+  /** Which fenced block within the message, so ids stay unique per block. */
+  blockIndex: number;
+};
+
+export function validateActionRequest(raw: unknown): Checked<ActionRequest> {
+  const object = plainObject(raw, "envelope");
+  if (!object.ok) return object;
+  const o = object.value;
+
+  // Fail closed on versions we do not understand.
+  if (o.version !== 1) return bad(`unsupported envelope version: ${String(o.version)}`);
+
+  // Reject rather than ignore attempts to assert authority in the body. Silently
+  // dropping them would let a forger believe it worked, and would hide the
+  // attempt from the rejection log.
+  for (const field of ["eventId", "source", "sourceCursor", "occurredAt"]) {
+    if (o[field] !== undefined) {
+      return bad(`${field} may not be set by the message body; authority comes from transport`);
+    }
+  }
+
+  const payload = crewEvent(o.payload);
+  if (!payload.ok) return payload;
+
+  return { ok: true, value: { payload: payload.value } };
+}
+
+/**
+ * Build an envelope from a validated request plus transport-derived authority.
+ *
+ * eventId is derived from messageId and blockIndex, so it cannot collide with
+ * or preempt another author's event. sourceCursor is the server-assigned
+ * message id, so ordering cannot be manipulated from content.
+ */
+export function authorize(request: ActionRequest, authority: TransportAuthority): EventEnvelope {
+  return {
+    version: 1,
+    eventId: `wh:${authority.messageId}:${authority.blockIndex}`,
+    source: authority.username,
+    sourceCursor: authority.messageId,
+    occurredAt: authority.createdAt,
+    payload: request.payload,
+  };
+}
+
+/**
+ * Per-event authorization: may THIS sender request THIS action?
+ *
+ * Shape and identity are settled by now; this is the question of permission.
+ */
+export function authorizeEvent(payload: CrewEvent, authority: TransportAuthority): Checked<true> {
+  switch (payload.type) {
+    case "presence.snapshotted":
+      // Presence is a server observation. Accepting it from a chat message
+      // would let any participant declare who is online.
+      return bad("presence may only be derived from server polling, not from a message");
+
+    case "message.received":
+      // Messages come from the transport itself. Accepting a claimed one lets
+      // a sender fabricate an utterance attributed to somebody else.
+      return bad("message events are derived from transport, not from message content");
+
+    case "agent.upserted":
+      // An agent may describe itself and nothing else.
+      if (payload.agent.id !== authority.username) {
+        return bad(`${authority.username} may not modify the profile of ${payload.agent.id}`);
+      }
+      return { ok: true, value: true };
+
+    case "task.upserted":
+    case "task.transitioned":
+      // Task mutation is legitimate for any authenticated participant today.
+      // When project capabilities exist this is where they bind.
+      return { ok: true, value: true };
+  }
+}
+
 /* --------------------------------------------------------------- envelope -- */
+
 
 /**
  * Validate a parsed envelope completely. Returns the reconstructed value rather

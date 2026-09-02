@@ -1,55 +1,60 @@
 import type { Message } from "../../shared/contracts.js";
-import { LIMITS, validateEnvelope, type EventEnvelope } from "../../shared/crew-events.js";
+import {
+  LIMITS,
+  authorize,
+  authorizeEvent,
+  validateActionRequest,
+  type EventEnvelope,
+  type TransportAuthority,
+} from "../../shared/crew-events.js";
 
 /**
- * Turn WebHarness room messages into validated CrewEvent envelopes.
+ * Turn WebHarness room messages into authorized CrewEvent envelopes.
  *
- * THE RULE: a message drives application state only if it carries an explicit,
- * fully-validated envelope. Everything else is chat — it renders in the feed and
- * changes nothing.
+ * TWO RULES, and the second was missing until review caught it.
  *
- * We do not infer state from prose. It would be easy: an agent writes "I am
- * blocked on auth" and a regex turns that into a blocked task. That is the exact
- * failure this product exists to avoid — a mission-control screen making
- * confident claims the data does not support. A blocker the system invented is
- * worse than one it missed, because a human acts on it.
+ * 1. A message drives state only if it carries an explicit fenced block. Prose
+ *    never does. An agent writing "I am blocked on auth" is a sentence, not a
+ *    state change; inferring one would put a claim on a mission-control screen
+ *    that no event supports, and a blocker the system invented is worse than
+ *    one it missed, because a human acts on it.
  *
- * Nothing here trusts a type annotation. Content arrives from a room anyone can
- * post to, so every field is inspected at runtime by shared/crew-events.ts and
- * the validated value is rebuilt rather than passed through.
+ * 2. VALIDATED IS NOT AUTHORIZED. The previous version validated every field of
+ *    an envelope and then trusted the result — even though eventId, source,
+ *    sourceCursor and occurredAt were all authored inside a chat message that
+ *    anyone can post to. The forgeries would have been perfectly well-formed:
+ *    name another agent as `source`, rewrite someone else's profile, fabricate
+ *    presence, attribute an utterance to a human, preempt a legitimate eventId
+ *    so the real one deduplicates away, or set a cursor that reorders the log.
+ *
+ *    So a fenced block is now only a REQUESTED ACTION. Identity, ordering and
+ *    time come from transport metadata that WebHarness authenticates, and each
+ *    action is separately checked against what its sender is allowed to do.
  */
 
-/** Agents wrap envelopes in this fence so human prose can never be mistaken for one. */
+/** Agents wrap requests in this fence so prose can never be mistaken for one. */
 const FENCE = /```crew-event\s*\n([\s\S]*?)```/g;
 
 export type AdaptResult = {
-  /** Fully validated envelopes, safe to feed the reducer, in message order. */
+  /** Authorized envelopes, safe to reduce. */
   events: EventEnvelope[];
   /**
-   * Every message, unchanged, in the order received — including ones that
-   * carried envelopes.
-   *
-   * The transcript is a separate concern from state. A message must not vanish
-   * from the conversation just because part of it was machine-readable, and a
-   * malformed block must not delete the human words around it. Callers render
-   * this and reduce `events`; the two are independent.
+   * Every message, unchanged and in order — including ones carrying actions.
+   * The transcript is a separate concern from state: a message must not vanish
+   * because part of it was machine-readable, and a rejected block must not
+   * delete the human words around it.
    */
   transcript: Message[];
   /**
-   * Envelopes we refused, with why. Surfaced rather than swallowed: a silently
-   * dropped event is indistinguishable from one that never happened, and that
-   * is how an event-sourced UI drifts from reality with nobody noticing.
+   * Refusals with reasons. Surfaced rather than swallowed — a silently dropped
+   * event is indistinguishable from one that never happened, and a silently
+   * dropped forgery hides an attack.
    */
   rejected: Array<{ messageId: number; reason: string }>;
 };
 
 export type AdaptOptions = {
-  /**
-   * Ids already applied. Echo prevention is by event identity, not by author:
-   * suppressing everything from our own username would also discard our own
-   * legitimate events, and would not help anyway, since a relayed duplicate
-   * from another author must be caught regardless of who sent it.
-   */
+  /** Ids already applied, so a replayed window does not re-apply them. */
   seenEventIds?: ReadonlySet<string>;
 };
 
@@ -60,16 +65,11 @@ export function adaptMessages(messages: Message[], { seenEventIds }: AdaptOption
   const seenInBatch = new Set<string>();
 
   for (const message of messages) {
-    // Every message reaches the transcript, whatever we make of its contents.
     transcript.push(message);
 
-    // A streaming message is still being written. Its envelope may be truncated
-    // mid-object, or complete-looking now and different once finished. Applying
-    // it early would put state on screen that the author has not yet committed
-    // to, so structured blocks are read only from the finalized message.
+    // A streaming message is still being written; its block may be truncated,
+    // or complete-looking now and different once finished.
     if (message.streaming) continue;
-
-    // Attachments and other non-text messages are never envelope carriers.
     if (message.msgType && message.msgType !== "text") continue;
 
     const blocks = [...message.content.matchAll(FENCE)];
@@ -78,20 +78,19 @@ export function adaptMessages(messages: Message[], { seenEventIds }: AdaptOption
     if (blocks.length > LIMITS.maxEnvelopesPerMessage) {
       rejected.push({
         messageId: message.id,
-        reason: `message carries ${blocks.length} envelopes, limit is ${LIMITS.maxEnvelopesPerMessage}`,
+        reason: `message carries ${blocks.length} blocks, limit is ${LIMITS.maxEnvelopesPerMessage}`,
       });
       continue;
     }
 
-    for (const [, body] of blocks) {
-      // Bound the input before parsing it, rather than trusting the upstream
-      // 2000-character message cap — that is their invariant, not ours.
+    for (const [blockIndex, match] of blocks.entries()) {
+      const body = match[1];
+
+      // Bound before parsing rather than trusting upstream's message cap, which
+      // is their invariant and not ours.
       const size = Buffer.byteLength(body, "utf8");
       if (size > LIMITS.maxEnvelopeBytes) {
-        rejected.push({
-          messageId: message.id,
-          reason: `envelope is ${size} bytes, limit is ${LIMITS.maxEnvelopeBytes}`,
-        });
+        rejected.push({ messageId: message.id, reason: `block is ${size} bytes, limit is ${LIMITS.maxEnvelopeBytes}` });
         continue;
       }
 
@@ -99,28 +98,48 @@ export function adaptMessages(messages: Message[], { seenEventIds }: AdaptOption
       try {
         parsed = JSON.parse(body);
       } catch {
-        rejected.push({ messageId: message.id, reason: "envelope is not valid JSON" });
+        rejected.push({ messageId: message.id, reason: "block is not valid JSON" });
         continue;
       }
 
-      const checked = validateEnvelope(parsed);
-      if (!checked.ok) {
-        rejected.push({ messageId: message.id, reason: checked.reason });
+      const request = validateActionRequest(parsed);
+      if (!request.ok) {
+        rejected.push({ messageId: message.id, reason: request.reason });
         continue;
       }
 
-      const { eventId } = checked.value;
-      if (seenEventIds?.has(eventId) || seenInBatch.has(eventId)) continue;
+      // Authority comes from the transport, never from what was typed.
+      const authority: TransportAuthority = {
+        messageId: message.id,
+        username: message.username,
+        createdAt: message.createdAt,
+        blockIndex,
+      };
 
-      seenInBatch.add(eventId);
-      events.push(checked.value);
+      const permitted = authorizeEvent(request.value.payload, authority);
+      if (!permitted.ok) {
+        rejected.push({ messageId: message.id, reason: permitted.reason });
+        continue;
+      }
+
+      const envelope = authorize(request.value, authority);
+      if (seenEventIds?.has(envelope.eventId) || seenInBatch.has(envelope.eventId)) continue;
+
+      seenInBatch.add(envelope.eventId);
+      events.push(envelope);
     }
   }
 
   return { events, transcript, rejected };
 }
 
-/** Build a fenced envelope for sending. One definition of the wire format. */
-export function encodeEnvelope(envelope: EventEnvelope): string {
-  return ["```crew-event", JSON.stringify(envelope, null, 2), "```"].join("\n");
+/**
+ * Build a fenced action request for sending.
+ *
+ * Takes only the payload: an author cannot set identity, ordering or time, and
+ * the encoder deliberately offers no way to try. One definition of the wire
+ * format, so encoder and parser cannot drift.
+ */
+export function encodeActionRequest(payload: EventEnvelope["payload"]): string {
+  return ["```crew-event", JSON.stringify({ version: 1, payload }, null, 2), "```"].join("\n");
 }

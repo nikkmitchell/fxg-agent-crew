@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { adaptMessages, encodeEnvelope } from "../webharness/adapter.js";
-import { LIMITS, type EventEnvelope } from "../../shared/crew-events.js";
+import { adaptMessages, encodeActionRequest } from "../webharness/adapter.js";
+import { LIMITS, type CrewEvent } from "../../shared/crew-events.js";
 import type { Message } from "../../shared/contracts.js";
 
 const message = (
@@ -18,23 +18,27 @@ const message = (
   ...overrides,
 });
 
-const envelope: EventEnvelope = {
-  version: 1,
-  eventId: "e1",
-  source: "codex",
-  sourceCursor: 1,
-  occurredAt: "2026-09-03T00:00:00Z",
-  payload: { type: "task.transitioned", taskId: "t1", to: "blocked", blocker: "waiting on auth" },
-};
+/** A payload only. Identity, ordering and time now come from the transport. */
+const payload: CrewEvent = { type: "task.transitioned", taskId: "t1", to: "blocked", blocker: "waiting on auth" };
+
+/** A well-formed request as an agent would send it. */
+const envelope = { version: 1, payload };
 
 const fenced = (body: unknown) => ["```crew-event", JSON.stringify(body), "```"].join("\n");
 
 describe("adaptMessages", () => {
-  it("extracts a fully validated envelope", () => {
+  it("extracts a validated, authorized envelope", () => {
     const result = adaptMessages([message(1, fenced(envelope))]);
 
     expect(result.events).toHaveLength(1);
-    expect(result.events[0]).toEqual(envelope);
+    expect(result.events[0].payload).toEqual(payload);
+    // Authority fields come from transport, not from the body.
+    expect(result.events[0]).toMatchObject({
+      eventId: "wh:1:0",
+      source: "codex",
+      sourceCursor: 1,
+      occurredAt: "2026-09-03T00:00:00Z",
+    });
     expect(result.rejected).toEqual([]);
   });
 
@@ -113,7 +117,7 @@ describe("streaming messages", () => {
 
   it("does not apply a partial envelope that happens to parse", () => {
     // A truncated block whose JSON is still valid is the dangerous case.
-    const truncated = fenced({ ...envelope, payload: { type: "task.transitioned", taskId: "t1", to: "done" } });
+    const truncated = fenced({ version: 1, payload: { type: "task.transitioned", taskId: "t1", to: "done" } });
     const result = adaptMessages([message(1, truncated, { streaming: true })]);
 
     expect(result.events).toEqual([]);
@@ -130,24 +134,30 @@ describe("echo handling is by event identity, not author", () => {
   });
 
   it("skips events already applied, whoever authored them", () => {
-    const result = adaptMessages([message(1, fenced(envelope))], { seenEventIds: new Set(["e1"]) });
+    // Ids are transport-derived: message 1, first block.
+    const result = adaptMessages([message(1, fenced(envelope))], { seenEventIds: new Set(["wh:1:0"]) });
 
     expect(result.events).toEqual([]);
   });
 
-  it("deduplicates within a single batch", () => {
-    const result = adaptMessages([message(1, fenced(envelope)), message(2, fenced(envelope))]);
+  it("treats the same message replayed twice as one event", () => {
+    // A poll window that overlaps a previous one re-delivers messages; the
+    // transport-derived id makes that idempotent.
+    const result = adaptMessages([message(1, fenced(envelope)), message(1, fenced(envelope))]);
 
     expect(result.events).toHaveLength(1);
   });
 
-  it("catches a duplicate relayed by a different author", () => {
+  it("treats two genuinely different messages as two events", () => {
+    // Previously an identical body meant an identical eventId, so a real second
+    // action was silently swallowed. Ids now come from transport, so distinct
+    // messages stay distinct even when their content matches exactly.
     const result = adaptMessages([
       message(1, fenced(envelope), { username: "codex" }),
       message(2, fenced(envelope), { username: "someone-else" }),
     ]);
 
-    expect(result.events).toHaveLength(1);
+    expect(result.events.map((e) => e.eventId)).toEqual(["wh:1:0", "wh:2:0"]);
   });
 });
 
@@ -181,24 +191,29 @@ describe("runtime validation of payload contents", () => {
     expect(result.rejected[0].reason).toContain(expected);
   });
 
-  it("rejects a missing or unparseable timestamp instead of defaulting it", () => {
+  it("rejects an unparseable nested timestamp instead of defaulting it", () => {
     // Defaulting to the epoch would order the log wrongly while looking
-    // correct, which is worse than dropping the event.
-    const missing = adaptMessages([message(1, fenced({ ...envelope, occurredAt: undefined }))]);
-    const garbage = adaptMessages([message(2, fenced({ ...envelope, occurredAt: "not a date" }))]);
+    // correct, which is worse than dropping the event. The envelope's own
+    // occurredAt now comes from transport; this covers timestamps inside a
+    // payload, which are still author-supplied.
+    const garbage = adaptMessages([message(1, fenced({
+      version: 1,
+      payload: { type: "message.received", message: { id: 1, roomName: "r", username: "u", content: "c", createdAt: "not a date" } },
+    }))]);
 
-    expect(missing.events).toEqual([]);
     expect(garbage.events).toEqual([]);
     expect(garbage.rejected[0].reason).toContain("timestamp");
   });
 
   it.each([
-    ["negative cursor", { sourceCursor: -1 }, "negative"],
-    ["fractional cursor", { sourceCursor: 1.5 }, "integer"],
-    ["string cursor", { sourceCursor: "1" }, "finite number"],
-    ["empty eventId", { eventId: "" }, "empty"],
-    ["missing source", { source: undefined }, "source"],
-  ])("rejects an envelope with %s", (_label, override, expected) => {
+    ["a cursor", { sourceCursor: 1 }, "sourceCursor"],
+    ["an eventId", { eventId: "e1" }, "eventId"],
+    ["a source", { source: "codex" }, "source"],
+    ["a timestamp", { occurredAt: "2026-09-03T00:00:00Z" }, "occurredAt"],
+  ])("refuses a body that tries to set %s", (_label, override, expected) => {
+    // These are authority claims. They are refused rather than ignored, so a
+    // forgery attempt is visible in the rejection log instead of silently
+    // succeeding in a weaker form.
     const result = adaptMessages([message(1, fenced({ ...envelope, ...override }))]);
 
     expect(result.events).toEqual([]);
@@ -222,11 +237,10 @@ describe("runtime validation of payload contents", () => {
 
   it("rebuilds the value so smuggled extra keys cannot survive", () => {
     const result = adaptMessages([
-      message(1, fenced({ ...envelope, injected: "surprise", payload: { ...envelope.payload, injected: "also" } })),
+      message(1, fenced({ version: 1, payload: { ...payload, injected: "also" } })),
     ]);
 
     expect(result.events).toHaveLength(1);
-    expect(JSON.stringify(result.events[0])).not.toContain("surprise");
     expect(JSON.stringify(result.events[0])).not.toContain("also");
   });
 });
@@ -268,7 +282,10 @@ describe("prototype pollution and size bounds", () => {
 
   it("rejects an over-long string field", () => {
     const result = adaptMessages([
-      message(1, fenced({ ...envelope, eventId: "x".repeat(LIMITS.maxStringLength + 1) })),
+      message(1, fenced({
+        version: 1,
+        payload: { type: "task.transitioned", taskId: "x".repeat(LIMITS.maxStringLength + 1), to: "done" },
+      })),
     ]);
 
     expect(result.events).toEqual([]);
@@ -289,18 +306,19 @@ describe("prototype pollution and size bounds", () => {
 });
 
 describe("wire format", () => {
-  it("round-trips through encodeEnvelope", () => {
-    // If encoder and parser disagree, agents emit events nobody can read.
-    const result = adaptMessages([message(1, encodeEnvelope(envelope))]);
+  it("round-trips through encodeActionRequest", () => {
+    // If encoder and parser disagree, agents emit blocks nobody can read.
+    const result = adaptMessages([message(1, encodeActionRequest(payload))]);
 
-    expect(result.events[0]).toEqual(envelope);
+    expect(result.events[0].payload).toEqual(payload);
+    expect(result.events[0].source).toBe("codex");
   });
 
-  it("handles several distinct envelopes in one message, in order", () => {
-    const second = { ...envelope, eventId: "e2", sourceCursor: 2 };
+  it("handles several blocks in one message, in order", () => {
+    const second = { version: 1, payload: { type: "task.transitioned", taskId: "t1", to: "done" } };
     const result = adaptMessages([message(1, `${fenced(envelope)}\n${fenced(second)}`)]);
 
-    expect(result.events.map((e) => e.eventId)).toEqual(["e1", "e2"]);
+    expect(result.events.map((e) => e.eventId)).toEqual(["wh:1:0", "wh:1:1"]);
   });
 
   it("reports malformed JSON instead of throwing", () => {
