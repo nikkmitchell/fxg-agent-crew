@@ -82,12 +82,30 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
   if (event.version !== 1) return reject(state, event.eventId, "unsupported event version");
   if (state.seenEventIds[event.eventId]) return state;
 
+  // Strictly-less rather than less-or-equal. Cursors are transport-derived
+  // (a WebHarness message id), so several events can legitimately share one:
+  // two fenced blocks in a single message carry the same cursor. Rejecting on
+  // equality silently dropped every action after the first in such a message —
+  // confirmed end-to-end against a running local instance, not only in tests.
+  //
+  // Uniqueness is already guaranteed by eventId, which is
+  // wh:<messageId>:<blockIndex>, and replay protection comes from seenEventIds
+  // above. The cursor only needs to be non-decreasing, to reject genuinely
+  // stale deliveries from an older poll window.
   const lastCursor = state.cursors[event.source] ?? -1;
-  if (event.sourceCursor <= lastCursor) return reject(state, event.eventId, "stale source cursor");
+  if (event.sourceCursor < lastCursor) return reject(state, event.eventId, "stale source cursor");
 
   const next: CrewState = {
     ...state,
     cursors: { ...state.cursors, [event.source]: event.sourceCursor },
+    // seenEventIds is deliberately unbounded for now. A previous attempt to cap
+    // it made replay non-idempotent above the threshold — evicted ids came back
+    // as stale-cursor rejections, which mutate state — and the test claiming
+    // otherwise was vacuous, exercising 20 events against a 5000-event cap so
+    // the pruning never ran. Bounding it correctly needs the room-scoped
+    // ordering key from the adapter work; until then an unbounded set is the
+    // honest choice, because a slow leak is better than silently breaking the
+    // one property this reducer exists to guarantee.
     seenEventIds: { ...state.seenEventIds, [event.eventId]: true },
   };
 
@@ -98,7 +116,14 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
       const online = new Set(event.payload.usernames);
       return {
         ...next,
-        agents: Object.fromEntries(Object.entries(next.agents).map(([id, agent]) => [id, { ...agent, online: online.has(agent.name) }])),
+        // Match on ID, not name. `usernames` carries authenticated transport
+        // usernames and agents are keyed by that same id; `name` is a mutable
+        // self-chosen display name ("Inkstone" for baipad-gpt001). Matching on
+        // name marked every agent offline permanently, and did so SILENTLY —
+        // no rejection, no error, just a crew strip quietly claiming nobody is
+        // working. On a product whose first promise is showing who is active,
+        // that is the worst shape of failure: confidently wrong, no signal.
+        agents: Object.fromEntries(Object.entries(next.agents).map(([id, agent]) => [id, { ...agent, online: online.has(id) }])),
       };
     }
     case "task.upserted":
