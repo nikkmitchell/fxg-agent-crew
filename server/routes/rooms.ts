@@ -41,7 +41,24 @@ export function registerRoomRoutes(
     const session = requireSession(request, reply);
     if (!session) return reply;
     try {
-      const rooms = await client.request<RoomSummary[]>("/api/rooms", { token: session.token });
+      // Upstream wraps this as { rooms: [...] }. Unwrap it here rather than
+      // leaking the wrapper: shared/contracts.ts promises RoomSummary[], and a
+      // BFF whose responses do not match its own declared contract is worse
+      // than no contract, because the UI is written against the lie.
+      //
+      // Nothing caught this in review or in 60 unit tests, because
+      // client.request<T>() only casts — there is no runtime validation, so
+      // TypeScript happily believed the annotation. It surfaced the first time
+      // the route was run against a real server.
+      const payload = await client.request<{ rooms?: RoomSummary[] } | RoomSummary[]>(
+        "/api/rooms",
+        { token: session.token },
+      );
+      // `?? []` only guards null/undefined. If upstream sends {rooms:"oops"}
+      // that string would pass straight through and break the array contract
+      // this PR exists to fix — the annotation is not the check.
+      const nested = Array.isArray(payload) ? payload : payload.rooms;
+      const rooms = Array.isArray(nested) ? nested : [];
       return reply.send(rooms);
     } catch (error) {
       return fail(reply, error);
