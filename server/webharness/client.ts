@@ -3,15 +3,30 @@
  *
  * Two behaviours here are not incidental:
  *
- * 1. RETRY ON A SINGLE 401. Measured against the live server over ~3h of
- *    continuous duty, roughly 1 in 8 agent logins fails with either
- *    "签名验证失败" or "challenge 不存在或已过期" and then succeeds immediately
- *    on retry with the identical key — one observed cycle needed three
- *    attempts. That points at a server-side race between issuing the nonce and
- *    validating it, not at bad credentials. If we treated the first 401 as
- *    "session invalid" we would sign a human out roughly one login in eight for
- *    no reason, so a lone 401 is retried and only a second consecutive one is
- *    surfaced as needing re-auth.
+ * 1. RETRY ON A SINGLE 401. During roughly three hours of agent polling
+ *    against one deployment, an uncounted but repeated number of logins
+ *    returned 401 ("签名验证失败" or "challenge 不存在或已过期") and then
+ *    succeeded on an immediate retry with the same key; one observed cycle
+ *    needed three attempts.
+ *
+ *    The CAUSE IS NOT ESTABLISHED. It is tempting to call it a nonce/validation
+ *    race, but that agent's key later stopped verifying altogether, and the
+ *    account may have had overlapping key registrations — so credential or
+ *    identity confusion is at least as plausible as anything server-side, and
+ *    the sample was never counted properly. What is observed is the retry
+ *    behaviour, not the reason for it.
+ *
+ * *    The retry is justified by consequence rather than by diagnosis: treating a
+ *    first 401 as "session invalid" would sign people out on a transient
+ *    failure we have seen happen, and one extra request is cheap.
+ *
+ *    RETRY IS RESTRICTED TO REQUESTS THAT CAN SAFELY BE REPEATED — methods with
+ *    safe semantics, plus an explicit per-call opt-in currently used only by
+ *    login. A
+ *    401 says the response was rejected, not that the server did no work, so
+ *    blindly repeating a POST could duplicate a write. A duplicated mutation is
+ *    worse than an extra sign-in prompt. Everything else surfaces the 401 at
+ *    once, and a second consecutive 401 always means re-auth.
  *
  * 2. THE TOKEN NEVER LEAVES THIS MODULE'S CALLERS. It is passed in per request
  *    from the session store and is deliberately absent from every error this
@@ -36,30 +51,59 @@ export type RequestOptions = {
   body?: unknown;
   /** Abort signal, so a client disconnect cancels the upstream long-poll. */
   signal?: AbortSignal;
+  /**
+   * Opt a non-idempotent request into the single 401 retry.
+   *
+   * Off by default and deliberately explicit. Retrying an arbitrary POST is not
+   * safe in general: a 401 tells us the response was rejected, not that the
+   * server did no work, and a retried create can duplicate. Set this only where
+   * repeating the call has been reasoned about — currently just login, where a
+   * rejected attempt leaves nothing behind.
+   */
+  retryUnsafeOn401?: boolean;
 };
+
+/**
+ * Methods with SAFE semantics — ones where the client is not asking the server
+ * to change anything, so re-sending is not a request to do the work twice.
+ *
+ * Deliberately not called IDEMPOTENT: in HTTP terms PUT and DELETE are also
+ * idempotent, but they are excluded here on purpose. Idempotency is a promise
+ * about the END STATE after repeats, which does not tell us it is safe to
+ * resend when we cannot see whether the first attempt was applied.
+ *
+ * Nor is "safe" a claim that these are literally side-effect-free — a GET may
+ * log, count, or touch a last-seen timestamp. It means the request does not ASK
+ * for a change, which is the property that makes repeating it acceptable here.
+ */
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export class WebharnessClient {
   constructor(private readonly baseUrl: string) {}
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const attempt = () => this.rawRequest<T>(path, options);
+    const method = (options.method ?? "GET").toUpperCase();
+    const mayRetry = SAFE_METHODS.has(method) || options.retryUnsafeOn401 === true;
 
     try {
       return await attempt();
     } catch (error) {
-      // Retry exactly once on a lone 401 — see note 1 above. Anything else, and
-      // any 401 on a second consecutive try, is surfaced to the caller.
-      if (error instanceof WebharnessError && error.status === 401) {
-        try {
-          return await attempt();
-        } catch (retryError) {
-          if (retryError instanceof WebharnessError && retryError.status === 401) {
-            throw new WebharnessError(401, retryError.detail, true);
-          }
-          throw retryError;
+      if (!(error instanceof WebharnessError) || error.status !== 401) throw error;
+
+      // A 401 on a request we cannot safely repeat is surfaced immediately.
+      // Retrying a mutation would risk duplicating it, and a duplicated write
+      // is worse than an extra sign-in prompt.
+      if (!mayRetry) throw new WebharnessError(401, error.detail, true);
+
+      try {
+        return await attempt();
+      } catch (retryError) {
+        if (retryError instanceof WebharnessError && retryError.status === 401) {
+          throw new WebharnessError(401, retryError.detail, true);
         }
+        throw retryError;
       }
-      throw error;
     }
   }
 
@@ -94,6 +138,9 @@ export class WebharnessClient {
     const result = await this.request<{ token: string }>("/api/login", {
       method: "POST",
       body: { username, password },
+      // Safe to repeat: a rejected login leaves no state behind, and this is
+      // the request where the transient 401s were actually observed.
+      retryUnsafeOn401: true,
     });
     return result.token;
   }
