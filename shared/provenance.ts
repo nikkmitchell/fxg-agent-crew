@@ -33,19 +33,36 @@ export type ActorRef = {
  * Where a value came from. This is an authority statement, not a label: it
  * says who is vouching for the content and therefore how far it can be trusted.
  */
+/** Authoritative transport metadata: which message, from which authenticated sender. */
+export type TransportRef = {
+  roomName: string;
+  messageId: number;
+  /** Authenticated sender. Proves WHO SPOKE, never that what they said is true. */
+  username: string;
+};
+
 export type EvidenceSource =
   /**
-   * Read from WebHarness over our own transport. The strongest thing we have,
-   * and still only as good as the server. `messageId` binds the claim to
-   * transport metadata rather than to anything an author typed.
+   * A field the SERVER owns and computes — room configuration, onlineUsers,
+   * message metadata. The strongest evidence we have, and still only as good as
+   * the server.
    */
-  | { kind: "webharness_transport"; roomName?: string; messageId?: number }
+  | { kind: "webharness_api"; endpoint: string }
+  /**
+   * Content a participant authored, delivered over authenticated transport.
+   *
+   * This is deliberately NOT the same as webharness_api. Transport proves who
+   * sent a message; it says nothing about whether the message is true. Treating
+   * the two alike is how "someone typed it in a chat room" becomes "verified
+   * fact" purely because HTTPS carried it.
+   */
+  | { kind: "participant_statement"; ref: TransportRef }
   /**
    * An agent describing ITSELF — model, runtime, avatar, location, bio. The
    * transport can prove who SENT it; nothing can verify the content. These must
    * never render as facts about the world.
    */
-  | { kind: "agent_self_report"; actor: ActorRef }
+  | { kind: "agent_self_report"; actor: ActorRef; ref?: TransportRef }
   /**
    * A human asserting something the system cannot check — most importantly that
    * a deployment matches a revision. Evidence ABOUT an environment, which is
@@ -53,18 +70,33 @@ export type EvidenceSource =
    */
   | { kind: "operator_attestation"; actor: ActorRef; statement: string; attestedAt: string }
   | { kind: "github"; repo: string; ref?: string }
-  | { kind: "fixture"; note: string };
+  | { kind: "fixture"; note: string }
+  /**
+   * A value computed from several inputs. Keeps EVERY contributing source
+   * rather than electing a winner: a figure built from production and a local
+   * clone, or from GitHub and an agent's self-report, must not be attributed to
+   * whichever one happened to rank higher.
+   */
+  | { kind: "derived"; from: EvidenceSource[] };
 
-export type StaleReason = "offline" | "poll_failed" | "superseded";
+/** Why a value we wanted to refresh is out of date. */
+export type StaleReason = "offline" | "poll_failed";
 
 /**
- * `superseded` means historical rather than merely old: a newer value exists
- * and this one is being shown deliberately, which is different from a value we
- * simply failed to refresh.
+ * `historical` is NOT a kind of stale, which is why it is a separate case
+ * rather than a StaleReason.
+ *
+ * Stale means we tried to know the current value and failed — the reading is
+ * unreliable. Historical means a newer value exists and this older one is being
+ * shown deliberately, so it is perfectly reliable as a statement about the
+ * past. Rendering a deliberate historical view with a "connection problem"
+ * badge would be a false alarm; rendering a failed refresh as history would
+ * hide a real one.
  */
 export type Freshness =
   | { kind: "live" }
-  | { kind: "stale"; lastObservedAt: string; reason: StaleReason };
+  | { kind: "stale"; lastObservedAt: string; reason: StaleReason }
+  | { kind: "historical"; observedAt: string; supersededBy?: string };
 
 /**
  * Which system was observed. `revision` stays optional because we usually do
@@ -88,7 +120,12 @@ export type Sourced<T> =
       value: T;
       source: EvidenceSource;
       freshness: Freshness;
-      environment: Environment;
+      /**
+       * Every environment that contributed. Usually one. A value derived from
+       * production and a local clone keeps BOTH, so the mixture cannot be
+       * quietly presented as though it came from either alone.
+       */
+      environments: Environment[];
       observedAt: string;
       receivedAt: string;
     }
@@ -102,7 +139,7 @@ export type Sourced<T> =
 export function known<T>(
   value: T,
   source: EvidenceSource,
-  environment: Environment,
+  environment: Environment | Environment[],
   times: { observedAt: string; receivedAt?: string },
   freshness: Freshness = { kind: "live" },
 ): Sourced<T> {
@@ -111,7 +148,7 @@ export function known<T>(
     value,
     source,
     freshness,
-    environment,
+    environments: Array.isArray(environment) ? environment : [environment],
     observedAt: times.observedAt,
     receivedAt: times.receivedAt ?? new Date().toISOString(),
   };
@@ -149,11 +186,28 @@ export function toStale<T>(sourced: Sourced<T>, reason: StaleReason): Sourced<T>
  * its own model or location being rendered as verified.
  */
 export function isVerifiedFact(sourced: Sourced<unknown>): boolean {
-  return (
-    sourced.state === "known" &&
-    sourced.freshness.kind === "live" &&
-    (sourced.source.kind === "webharness_transport" || sourced.source.kind === "github")
-  );
+  if (sourced.state !== "known" || sourced.freshness.kind !== "live") return false;
+  return isVerifiableSource(sourced.source);
+}
+
+/**
+ * Only server-owned or repository-owned data counts.
+ *
+ * A participant_statement is excluded even though it arrived over authenticated
+ * transport: the transport proves who spoke, never that they were right. A
+ * derived value is verifiable only if EVERY contributor is — one unverifiable
+ * input taints the result, which is the whole point of keeping lineage.
+ */
+function isVerifiableSource(source: EvidenceSource): boolean {
+  switch (source.kind) {
+    case "webharness_api":
+    case "github":
+      return true;
+    case "derived":
+      return source.from.length > 0 && source.from.every(isVerifiableSource);
+    default:
+      return false;
+  }
 }
 
 /** True when a value exists at all and may be displayed with a badge. */
@@ -181,22 +235,57 @@ export function combine<A, B, C>(a: Sourced<A>, b: Sourced<B>, fn: (a: A, b: B) 
   if (b.state === "unknown") return unknown(`derived from unknown: ${b.reason}`, b.environment);
 
   if (a.state === "demo" || b.state === "demo") {
-    const note = a.state === "demo" && b.state === "demo" ? `${a.note}; ${b.note}` : a.state === "demo" ? a.note : (b as Extract<Sourced<B>, { state: "demo" }>).note;
-    return demo(fn(a.value, b.value), note);
+    const notes = [a.state === "demo" ? a.note : null, b.state === "demo" ? b.note : null].filter(Boolean);
+    return demo(fn(a.value, b.value), notes.join("; "));
   }
 
-  // Both known: take the weaker freshness, and keep the weaker source authority.
-  const weakerFreshness = a.freshness.kind === "stale" ? a.freshness : b.freshness;
-  const weakerSource = isVerifiedFact(a) ? b.source : a.source;
+  // Both known. Keep EVERY contributing source and environment rather than
+  // electing a winner — a value built from production and a local clone, or
+  // from GitHub and an agent's self-report, must not end up attributed to
+  // whichever one ranked higher. That attribution is exactly the overclaim
+  // this type exists to prevent.
+  const from = [...flattenSource(a.source), ...flattenSource(b.source)];
+  const environments = dedupeEnvironments([...a.environments, ...b.environments]);
+
   return {
     state: "known",
     value: fn(a.value, b.value),
-    source: weakerSource,
-    freshness: weakerFreshness,
-    environment: a.environment,
+    source: { kind: "derived", from },
+    freshness: weakerFreshness(a.freshness, b.freshness),
+    environments,
+    // Oldest contributing observation and newest receipt: the result is no
+    // fresher than its stalest input.
     observedAt: a.observedAt < b.observedAt ? a.observedAt : b.observedAt,
     receivedAt: a.receivedAt > b.receivedAt ? a.receivedAt : b.receivedAt,
   };
+}
+
+/** Flatten nested derivations so lineage stays a flat, comparable list. */
+function flattenSource(source: EvidenceSource): EvidenceSource[] {
+  return source.kind === "derived" ? source.from.flatMap(flattenSource) : [source];
+}
+
+function dedupeEnvironments(environments: Environment[]): Environment[] {
+  const seen = new Map<string, Environment>();
+  for (const env of environments) {
+    seen.set(`${env.target}|${env.origin ?? ""}|${env.revision ?? ""}`, env);
+  }
+  return [...seen.values()];
+}
+
+/**
+ * Weakest wins, and the ordering is deliberate: stale beats historical beats
+ * live. A stale input means we do not reliably know the current value, which
+ * contaminates anything computed from it.
+ */
+function weakerFreshness(a: Freshness, b: Freshness): Freshness {
+  const rank = { stale: 0, historical: 1, live: 2 } as const;
+  return rank[a.kind] <= rank[b.kind] ? a : b;
+}
+
+/** True when a value came from more than one environment. */
+export function isMixedEnvironment(sourced: Sourced<unknown>): boolean {
+  return sourced.state === "known" && sourced.environments.length > 1;
 }
 
 /* -------------------------------------------------------------- rendering -- */
@@ -205,37 +294,70 @@ export function combine<A, B, C>(a: Sourced<A>, b: Sourced<B>, fn: (a: A, b: B) 
 export function provenanceLabel(sourced: Sourced<unknown>): string {
   if (sourced.state === "unknown") return "UNKNOWN";
   if (sourced.state === "demo") return "DEMO";
-  if (sourced.source.kind === "agent_self_report") {
-    return sourced.freshness.kind === "live" ? "SELF-REPORTED" : "SELF-REPORTED (STALE)";
+
+  const mixed = sourced.environments.length > 1 ? " (MIXED)" : "";
+  const local = sourced.environments.every((e) => e.target === "local") ? " (LOCAL)" : "";
+
+  if (sourced.freshness.kind === "historical") return `HISTORICAL${mixed}`;
+  if (sourced.freshness.kind === "stale") return `STALE${mixed}`;
+
+  switch (sourced.source.kind) {
+    case "agent_self_report":
+      return `SELF-REPORTED${mixed}`;
+    case "participant_statement":
+      // Said by an authenticated participant. Delivered reliably, not verified.
+      return `CLAIMED${mixed}`;
+    case "operator_attestation":
+      return `ATTESTED${mixed}`;
+    case "derived":
+      return isVerifiedFact(sourced) ? `LIVE${local}${mixed}` : `DERIVED${mixed}`;
+    default:
+      return `LIVE${local}${mixed}`;
   }
-  if (sourced.source.kind === "operator_attestation") return "ATTESTED";
-  if (sourced.freshness.kind === "stale") return "STALE";
-  return sourced.environment.target === "local" ? "LIVE (LOCAL)" : "LIVE";
 }
 
-/** Explanation for a tooltip or evidence panel, naming source and environment. */
+/** One-line summary of a source, used when describing a derivation. */
+function describeSource(source: EvidenceSource): string {
+  switch (source.kind) {
+    case "webharness_api":
+      return `server API ${source.endpoint}`;
+    case "participant_statement":
+      return `stated by ${source.ref.username} in message ${source.ref.messageId}`;
+    case "agent_self_report":
+      return `${source.actor.username} about itself, unverifiable`;
+    case "operator_attestation":
+      return `attested by ${source.actor.username}: ${source.statement}`;
+    case "github":
+      return `${source.repo}${source.ref ? `@${source.ref}` : ""}`;
+    case "fixture":
+      return `fixture: ${source.note}`;
+    case "derived":
+      return `derived from [${source.from.map(describeSource).join(" + ")}]`;
+  }
+}
+
+/** Explanation for a tooltip or evidence panel, naming every source and environment. */
 export function describeProvenance(sourced: Sourced<unknown>): string {
   if (sourced.state === "unknown") return `not known: ${sourced.reason}`;
   if (sourced.state === "demo") return `demo data: ${sourced.note}`;
 
-  const { environment: env, source } = sourced;
-  const where = env.origin ? `${env.target} (${env.origin})` : env.target;
-  const rev = env.revision ? ` at ${env.revision}` : "";
   const when =
     sourced.freshness.kind === "stale"
       ? `last seen ${sourced.freshness.lastObservedAt} (${sourced.freshness.reason})`
-      : `observed ${sourced.observedAt}`;
+      : sourced.freshness.kind === "historical"
+        ? `historical, observed ${sourced.freshness.observedAt}`
+        : `observed ${sourced.observedAt}`;
 
-  switch (source.kind) {
-    case "agent_self_report":
-      return `${when} — reported by ${source.actor.username} about itself, unverifiable`;
-    case "operator_attestation":
-      return `${when} — attested by ${source.actor.username}: ${source.statement}`;
-    case "github":
-      return `${when} — from ${source.repo}${source.ref ? `@${source.ref}` : ""}`;
-    case "webharness_transport":
-      return `${when} on ${where}${rev}${env.revision ? " (deployment match unattested)" : ""}`;
-    case "fixture":
-      return `${when} — fixture: ${source.note}`;
-  }
+  const where = sourced.environments
+    .map((env) => {
+      const origin = env.origin ? ` (${env.origin})` : "";
+      const rev = env.revision ? ` at ${env.revision}` : "";
+      // An unattested revision must never read as a statement about a
+      // deployment; say so rather than leaving it inferable.
+      const attested = env.revision ? " (deployment match unattested)" : "";
+      return `${env.target}${origin}${rev}${attested}`;
+    })
+    .join(" + ");
+
+  return `${when} — ${describeSource(sourced.source)}; ${where}`;
 }

@@ -4,6 +4,7 @@ import {
   demo,
   describeProvenance,
   hasValue,
+  isMixedEnvironment,
   isVerifiedFact,
   known,
   mapSourced,
@@ -21,7 +22,13 @@ const localClone: Environment = { target: "local", origin: "http://127.0.0.1:876
 const agent: ActorRef = { kind: "agent", username: "claude-nikk2mbp" };
 const operator: ActorRef = { kind: "human", username: "nikk" };
 
-const transport: EvidenceSource = { kind: "webharness_transport", roomName: "AgentParty", messageId: 42 };
+const serverFact: EvidenceSource = { kind: "webharness_api", endpoint: "/api/rooms/AgentParty" };
+const participantClaim: EvidenceSource = {
+  kind: "participant_statement",
+  ref: { roomName: "AgentParty", messageId: 42, username: "mallory" },
+};
+const github: EvidenceSource = { kind: "github", repo: "nikkmitchell/fxg-agent-crew" };
+const transport = serverFact;
 const selfReport: EvidenceSource = { kind: "agent_self_report", actor: agent };
 
 const at = { observedAt: "2026-09-03T01:00:00Z", receivedAt: "2026-09-03T01:00:02Z" };
@@ -74,8 +81,19 @@ describe("self-reports cannot masquerade as transport facts", () => {
     expect(isVerifiedFact(claim)).toBe(false);
   });
 
-  it("a transport-sourced live value IS a verified fact", () => {
-    expect(isVerifiedFact(known("AgentParty", transport, production, at))).toBe(true);
+  it("a server-owned API fact IS verified", () => {
+    expect(isVerifiedFact(known("AgentParty", serverFact, production, at))).toBe(true);
+  });
+
+  it("an authenticated participant's CLAIM is not a verified fact", () => {
+    // Transport proves who spoke. It says nothing about whether they were
+    // right. A chat claim cannot become verified merely because HTTPS
+    // delivered it reliably.
+    const claim = known("the deploy is green", participantClaim, production, at);
+
+    expect(claim.freshness.kind).toBe("live");
+    expect(isVerifiedFact(claim)).toBe(false);
+    expect(provenanceLabel(claim)).toBe("CLAIMED");
   });
 
   it("labels a self-report distinctly, never as LIVE", () => {
@@ -162,7 +180,7 @@ describe("freshness is orthogonal to source", () => {
   it("keeps source and freshness independent", () => {
     const staleSelfReport = toStale(known("gpt-9", selfReport, production, at), "offline");
 
-    expect(provenanceLabel(staleSelfReport)).toBe("SELF-REPORTED (STALE)");
+    expect(provenanceLabel(staleSelfReport)).toBe("STALE");
     expect(isVerifiedFact(staleSelfReport)).toBe(false);
   });
 
@@ -201,5 +219,110 @@ describe("labels and rendering", () => {
 
   it("marks demo data as demo in the description, not just the badge", () => {
     expect(describeProvenance(demo(1, "seeded fixture"))).toContain("demo data");
+  });
+});
+
+/**
+ * The five cases named in re-review. Each is a path by which a value could be
+ * presented as better-evidenced than it is.
+ */
+describe("derivation preserves every contributing source", () => {
+  it("keeps both environments when production and local are combined", () => {
+    const prod = known(1, serverFact, production, at);
+    const local = known(2, serverFact, localClone, at);
+
+    const result = combine(prod, local, (a, b) => a + b);
+
+    // Attributing this to either environment alone is precisely the overclaim
+    // that started all of this.
+    expect(result.state === "known" && result.environments).toHaveLength(2);
+    expect(isMixedEnvironment(result)).toBe(true);
+    expect(provenanceLabel(result)).toContain("MIXED");
+    expect(describeProvenance(result)).toContain("production");
+    expect(describeProvenance(result)).toContain("local");
+  });
+
+  it("keeps both sources when GitHub and a self-report are combined", () => {
+    const repo = known("v1.2.0", github, production, at);
+    const claim = known("running v1.2.0", selfReport, production, at);
+
+    const result = combine(repo, claim, (a, b) => `${a}/${b}`);
+
+    // One unverifiable input taints the result: an agent agreeing with GitHub
+    // does not make the agent's claim verified.
+    expect(isVerifiedFact(result)).toBe(false);
+    const text = describeProvenance(result);
+    expect(text).toContain("nikkmitchell/fxg-agent-crew");
+    expect(text).toContain("about itself");
+  });
+
+  it("is invariant to operand order", () => {
+    const prod = known(1, serverFact, production, at);
+    const claim = known(2, selfReport, localClone, at);
+
+    const ab = combine(prod, claim, (a, b) => a + b);
+    const ba = combine(claim, prod, (a, b) => b + a);
+
+    // Order must not decide which provenance survives — that is how a weaker
+    // source silently disappears depending on argument position.
+    expect(isVerifiedFact(ab)).toBe(isVerifiedFact(ba));
+    expect(ab.state === "known" && ab.environments.length).toBe(
+      ba.state === "known" ? ba.environments.length : -1,
+    );
+    expect(ab.state === "known" && ab.source.kind).toBe("derived");
+    expect(ba.state === "known" && ba.source.kind).toBe("derived");
+  });
+
+  it("flattens nested derivations so lineage stays inspectable", () => {
+    const one = known(1, serverFact, production, at);
+    const two = known(2, github, production, at);
+    const three = known(3, selfReport, production, at);
+
+    const nested = combine(combine(one, two, (a, b) => a + b), three, (a, b) => a + b);
+
+    expect(nested.state === "known" && nested.source.kind === "derived" && nested.source.from).toHaveLength(3);
+  });
+
+  it("a derivation of only verifiable sources stays verifiable", () => {
+    const result = combine(known(1, serverFact, production, at), known(2, github, production, at), (a, b) => a + b);
+
+    expect(isVerifiedFact(result)).toBe(true);
+  });
+});
+
+describe("historical is not stale", () => {
+  it("labels a superseded value HISTORICAL, never STALE", () => {
+    const historical = known("old title", serverFact, production, at, {
+      kind: "historical",
+      observedAt: "2026-09-01T00:00:00Z",
+      supersededBy: "wh:99:0",
+    });
+
+    // Stale means we tried to know the current value and failed — unreliable.
+    // Historical means a newer value exists and this one is shown on purpose —
+    // perfectly reliable about the past. A connection-problem badge on a
+    // deliberate history view is a false alarm.
+    expect(provenanceLabel(historical)).toBe("HISTORICAL");
+    expect(provenanceLabel(historical)).not.toContain("STALE");
+    expect(describeProvenance(historical)).toContain("historical");
+  });
+
+  it("does not admit superseded as a stale reason", () => {
+    // Compile-time: StaleReason no longer includes it. This pins the runtime
+    // consequence so a future widening does not quietly reintroduce it.
+    const stale = toStale(known(1, serverFact, production, at), "offline");
+
+    expect(stale.state === "known" && stale.freshness.kind).toBe("stale");
+    expect(JSON.stringify(stale)).not.toContain("superseded");
+  });
+
+  it("ranks stale below historical when combining", () => {
+    const hist = known(1, serverFact, production, at, { kind: "historical", observedAt: "2026-09-01T00:00:00Z" });
+    const brokenPoll = toStale(known(2, serverFact, production, at), "poll_failed");
+
+    // An unreliable reading contaminates more than a deliberate old one.
+    const result = combine(hist, brokenPoll, (a, b) => a + b);
+
+    expect(result.state === "known" && result.freshness.kind).toBe("stale");
   });
 });
