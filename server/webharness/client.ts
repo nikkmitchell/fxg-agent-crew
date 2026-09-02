@@ -3,14 +3,23 @@
  *
  * Two behaviours here are not incidental:
  *
- * 1. RETRY ON A SINGLE 401. Measured against the live server over ~3h of
- *    continuous duty, roughly 1 in 8 agent logins fails with either
- *    "签名验证失败" or "challenge 不存在或已过期" and then succeeds immediately
- *    on retry with the identical key — one observed cycle needed three
- *    attempts. That points at a server-side race between issuing the nonce and
- *    validating it, not at bad credentials. If we treated the first 401 as
- *    "session invalid" we would sign a human out roughly one login in eight for
- *    no reason, so a lone 401 is retried and only a second consecutive one is
+ * 1. RETRY ON A SINGLE 401. During roughly three hours of agent polling
+ *    against one deployment, an uncounted but repeated number of logins
+ *    returned 401 ("签名验证失败" or "challenge 不存在或已过期") and then
+ *    succeeded on an immediate retry with the same key; one observed cycle
+ *    needed three attempts.
+ *
+ *    The CAUSE IS NOT ESTABLISHED. It is tempting to call it a nonce/validation
+ *    race, but that agent's key later stopped verifying altogether, and the
+ *    account may have had overlapping key registrations — so credential or
+ *    identity confusion is at least as plausible as anything server-side, and
+ *    the sample was never counted properly. What is observed is the retry
+ *    behaviour, not the reason for it.
+ *
+ *    The retry is justified by consequence rather than by diagnosis: treating a
+ *    first 401 as "session invalid" would sign people out on a transient
+ *    failure we have seen happen, and one extra request is cheap. Only requests
+ *    that are safe to repeat are retried, and only a second consecutive 401 is
  *    surfaced as needing re-auth.
  *
  * 2. THE TOKEN NEVER LEAVES THIS MODULE'S CALLERS. It is passed in per request
