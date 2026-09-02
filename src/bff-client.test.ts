@@ -49,5 +49,15 @@ describe("bff client", () => {
     await bff.messages("AgentParty", { signal: controller.signal });
     expect(fetchMock.mock.calls[0][1].signal).toBe(controller.signal);
   });
-});
 
+  it("sends messages through the same-origin BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: 7, username: "nikk", content: "hello" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await bff.sendMessage("A/B", "hello");
+    expect(fetchMock).toHaveBeenCalledWith("/bff/rooms/A%2FB/messages", expect.objectContaining({
+      method: "POST",
+      credentials: "same-origin",
+      body: JSON.stringify({ content: "hello" }),
+    }));
+  });
+});

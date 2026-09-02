@@ -22,6 +22,12 @@ export type ConnectionState = {
   errorCode?: string;
   notice?: string;
   stale: boolean;
+  outbox: Array<{
+    clientId: string;
+    content: string;
+    state: "queued" | "pending" | "acknowledged" | "failed";
+    errorCode?: string;
+  }>;
 };
 
 export type ConnectionEvent =
@@ -38,6 +44,10 @@ export type ConnectionEvent =
   | { type: "RETRY_REQUESTED" }
   | { type: "BROWSER_OFFLINE" }
   | { type: "BROWSER_ONLINE" }
+  | { type: "MESSAGE_QUEUED"; clientId: string; content: string }
+  | { type: "MESSAGE_SENDING"; clientId: string }
+  | { type: "MESSAGE_ACKNOWLEDGED"; clientId: string; message: Message }
+  | { type: "MESSAGE_FAILED"; clientId: string; code: string }
   | { type: "LOGGED_OUT" };
 
 export const initialConnectionState: ConnectionState = {
@@ -46,6 +56,7 @@ export const initialConnectionState: ConnectionState = {
   messages: [],
   attempt: 0,
   stale: false,
+  outbox: [],
 };
 
 const readOnlyCodes = new Set(["MUTED", "NOT_A_MEMBER", "ROOM_ARCHIVED"]);
@@ -64,7 +75,7 @@ export function reduceConnection(state: ConnectionState, event: ConnectionEvent)
     case "ROOMS_LOADED":
       return { ...state, phase: "selecting_room", rooms: event.rooms, errorCode: undefined };
     case "ROOM_SELECTED":
-      return { ...state, phase: "connecting", roomName: event.roomName, room: undefined, messages: [], lastCursor: undefined, attempt: 0, stale: false };
+      return { ...state, phase: "connecting", roomName: event.roomName, room: undefined, messages: [], outbox: [], lastCursor: undefined, attempt: 0, stale: false };
     case "ROOM_CONNECTED":
       return {
         ...state,
@@ -102,8 +113,22 @@ export function reduceConnection(state: ConnectionState, event: ConnectionEvent)
       return { ...state, phase: "reconnecting", errorCode: "OFFLINE", notice: "Offline · showing saved activity", stale: state.messages.length > 0 };
     case "BROWSER_ONLINE":
       return state.phase === "reconnecting" ? { ...state, phase: "connecting", errorCode: undefined, notice: "Back online · reconnecting" } : state;
+    case "MESSAGE_QUEUED":
+      return { ...state, outbox: [...state.outbox, { clientId: event.clientId, content: event.content, state: "queued" as const }].slice(-20) };
+    case "MESSAGE_SENDING":
+      return { ...state, outbox: state.outbox.map((item) => item.clientId === event.clientId ? { ...item, state: "pending", errorCode: undefined } : item) };
+    case "MESSAGE_ACKNOWLEDGED": {
+      const messages = new Map(state.messages.map((message) => [message.id, message]));
+      messages.set(event.message.id, event.message);
+      return {
+        ...state,
+        messages: [...messages.values()].sort((a, b) => a.id - b.id).slice(-500),
+        outbox: state.outbox.map((item) => item.clientId === event.clientId ? { ...item, state: "acknowledged", errorCode: undefined } : item),
+      };
+    }
+    case "MESSAGE_FAILED":
+      return { ...state, outbox: state.outbox.map((item) => item.clientId === event.clientId ? { ...item, state: "failed", errorCode: event.code } : item) };
     case "LOGGED_OUT":
       return { ...initialConnectionState, phase: "signed_out" };
   }
 }
-

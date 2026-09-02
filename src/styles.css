@@ -20,9 +20,9 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--canvas); }
-button, input { font: inherit; }
+button, input, textarea { font: inherit; }
 button { color: inherit; }
-button:focus-visible, input:focus-visible { outline: 3px solid color-mix(in oklch, var(--cobalt) 75%, white); outline-offset: 3px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid color-mix(in oklch, var(--cobalt) 75%, white); outline-offset: 3px; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 68px minmax(680px, 1fr) 350px; }
 .utility-rail { position: sticky; top: 0; height: 100vh; z-index: 10; display: flex; flex-direction: column; align-items: center; padding: 20px 0; background: var(--rail); color: #f1efe7; }
@@ -275,6 +275,20 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .room-messages article p { margin: 7px 0 0; font-size: 11px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .room-messages article > small { color: var(--vermilion); font-size: 8px; }
 .room-messages article.is-streaming { border-left: 2px solid var(--vermilion); padding-left: 10px; }
+.room-composer { padding: 12px 22px; border-top: 1px solid var(--line); background: var(--surface); }
+.room-composer > label { display: block; margin-bottom: 7px; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.room-composer > div:not(.outbox-receipt) { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+.room-composer textarea { min-width: 0; resize: none; padding: 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--canvas); font-size: 10px; }
+.room-composer > div > button { min-width: 62px; border: 0; border-radius: 5px; background: var(--ink); color: white; font-size: 9px; font-weight: 800; cursor: pointer; }
+.room-composer > small { display: block; margin-top: 4px; color: var(--muted); font-size: 7px; text-align: right; }
+.outbox-receipt { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; margin-bottom: 7px; padding: 7px 8px; border-left: 2px solid var(--cobalt); background: color-mix(in srgb, var(--cobalt) 6%, var(--surface)); }
+.outbox-receipt span { color: var(--cobalt); font-size: 7px; font-weight: 800; text-transform: uppercase; }
+.outbox-receipt p { margin: 0; overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.outbox-receipt button { min-height: 28px; border: 0; background: transparent; font-size: 8px; font-weight: 800; text-decoration: underline; cursor: pointer; }
+.outbox-receipt--failed { border-color: var(--vermilion); }
+.outbox-receipt--failed span { color: var(--vermilion); }
+.outbox-receipt--acknowledged { border-color: var(--sage); }
+.outbox-receipt--acknowledged span { color: var(--sage); }
 .room-readonly-note { min-height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; border-top: 1px solid var(--ink); color: var(--muted); font-size: 9px; text-transform: uppercase; }
 .room-readonly-note button { min-height: 44px; border: 0; background: transparent; color: inherit; font-size: 9px; text-decoration: underline; cursor: pointer; }
 

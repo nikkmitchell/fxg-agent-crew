@@ -2,15 +2,23 @@ import { FormEvent, useState } from "react";
 import { useWebharnessRoom } from "./use-webharness-room";
 
 export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
-  const { state, login, logout, selectRoom, retry } = useWebharnessRoom();
+  const { state, login, logout, selectRoom, retry, sendMessage, retryMessage } = useWebharnessRoom();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
 
   const submitLogin = (event: FormEvent) => {
     event.preventDefault();
     if (!username.trim() || !password) return;
     void login({ username: username.trim(), password });
     setPassword("");
+  };
+
+  const submitMessage = (event: FormEvent) => {
+    event.preventDefault();
+    if (!message.trim()) return;
+    sendMessage(message);
+    setMessage("");
   };
 
   const connectionLabel = {
@@ -94,6 +102,20 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
             ))}
           </div>
 
+          {state.phase === "connected" && (
+            <form className="room-composer" onSubmit={submitMessage}>
+              {state.outbox.slice(-2).map((item) => (
+                <div className={`outbox-receipt outbox-receipt--${item.state}`} key={item.clientId}>
+                  <span>{item.state}</span><p>{item.content}</p>
+                  {item.state === "failed" && <button type="button" onClick={() => retryMessage(item.clientId)}>Retry</button>}
+                </div>
+              ))}
+              <label htmlFor="room-message">Message the room</label>
+              <div><textarea id="room-message" maxLength={2000} rows={3} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write a confirmed room message…" /><button type="submit">Send</button></div>
+              <small>{message.length} / 2000</small>
+            </form>
+          )}
+
           <footer className="room-readonly-note">
             <span>{state.phase === "read_only" ? "Viewing confirmed history" : "Live transcript"}</span>
             <button onClick={() => void logout()}>Sign out</button>
@@ -103,4 +125,3 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
     </aside>
   );
 }
-

@@ -63,4 +63,18 @@ describe("connection state", () => {
     state = reduceConnection(state, { type: "BROWSER_ONLINE" });
     expect(state).toMatchObject({ phase: "connecting", errorCode: undefined });
   });
+
+  it("keeps a visible receipt from queue through acknowledgement", () => {
+    let state = reduceConnection(initialConnectionState, { type: "MESSAGE_QUEUED", clientId: "local-1", content: "hello" });
+    state = reduceConnection(state, { type: "MESSAGE_SENDING", clientId: "local-1" });
+    state = reduceConnection(state, { type: "MESSAGE_ACKNOWLEDGED", clientId: "local-1", message: message(9, "hello") });
+    expect(state.outbox[0]).toMatchObject({ state: "acknowledged", content: "hello" });
+    expect(state.messages.at(-1)?.id).toBe(9);
+  });
+
+  it("retains failed messages for explicit retry", () => {
+    let state = reduceConnection(initialConnectionState, { type: "MESSAGE_QUEUED", clientId: "local-2", content: "retry me" });
+    state = reduceConnection(state, { type: "MESSAGE_FAILED", clientId: "local-2", code: "UPSTREAM_UNAVAILABLE" });
+    expect(state.outbox[0]).toMatchObject({ state: "failed", errorCode: "UPSTREAM_UNAVAILABLE" });
+  });
 });

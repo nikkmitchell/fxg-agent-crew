@@ -64,5 +64,11 @@ export const bff = {
     const suffix = query.size ? `?${query}` : "";
     return requestJson<MessagePage>(`/bff/rooms/${encodeURIComponent(roomName)}/messages${suffix}`, { signal: options.signal });
   },
-};
 
+  sendMessage: (roomName: string, content: string, signal?: AbortSignal) =>
+    requestJson<import("../shared/contracts").Message>(`/bff/rooms/${encodeURIComponent(roomName)}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+      signal,
+    }),
+};

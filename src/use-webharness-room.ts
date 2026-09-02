@@ -130,6 +130,38 @@ export function useWebharnessRoom() {
     setRun((value) => value + 1);
   }, []);
 
+  const sendOne = useCallback(async (clientId: string, content: string) => {
+    const roomName = selectedRoomRef.current;
+    if (!roomName) return;
+    dispatch({ type: "MESSAGE_SENDING", clientId });
+    try {
+      const message = await bff.sendMessage(roomName, content);
+      dispatch({ type: "MESSAGE_ACKNOWLEDGED", clientId, message });
+    } catch (error) {
+      dispatch({ type: "MESSAGE_FAILED", clientId, code: errorCode(error) });
+    }
+  }, []);
+
+  const sendMessage = useCallback((content: string) => {
+    const trimmed = content.trim();
+    if (!trimmed || trimmed.length > 2_000 || !selectedRoomRef.current) return;
+    const clientId = crypto.randomUUID();
+    dispatch({ type: "MESSAGE_QUEUED", clientId, content: trimmed });
+    if (navigator.onLine) void sendOne(clientId, trimmed);
+  }, [sendOne]);
+
+  const retryMessage = useCallback((clientId: string) => {
+    const item = state.outbox.find((candidate) => candidate.clientId === clientId);
+    if (item && navigator.onLine) void sendOne(item.clientId, item.content);
+  }, [sendOne, state.outbox]);
+
+  useEffect(() => {
+    if (state.phase !== "connected" || !navigator.onLine) return;
+    for (const item of state.outbox) {
+      if (item.state === "queued") void sendOne(item.clientId, item.content);
+    }
+  }, [sendOne, state.outbox, state.phase]);
+
   const retry = useCallback(() => {
     dispatch({ type: "RETRY_REQUESTED" });
     if (selectedRoomRef.current) {
@@ -139,5 +171,5 @@ export function useWebharnessRoom() {
     }
   }, [loadRooms]);
 
-  return { state, login, logout, selectRoom, retry };
+  return { state, login, logout, selectRoom, retry, sendMessage, retryMessage };
 }
