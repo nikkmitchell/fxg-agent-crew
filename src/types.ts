@@ -19,6 +19,9 @@ export interface WorkAgent {
   elapsed: string;
   accent: string;
   shape: "circle" | "arch" | "square" | "diamond";
+  model: string;
+  runtime: string;
+  coarseLocation: string;
   evidence: Evidence[];
 }
 

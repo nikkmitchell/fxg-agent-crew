@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { initialActivity, initialAgents, scriptedEvents } from "./demo";
 import type { Activity, AgentStatus, Evidence, WorkAgent } from "./types";
 import { LiveRoomPanel } from "./LiveRoomPanel";
+import { AgentAvatar } from "./AgentAvatar";
 
 const statusLabel: Record<AgentStatus, string> = {
   working: "Working",
@@ -55,11 +56,11 @@ function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" | "pause" |
 function AgentMark({ agent, large = false }: { agent: WorkAgent; large?: boolean }) {
   return (
     <span
-      className={`agent-mark shape-${agent.shape}${large ? " agent-mark--large" : ""}`}
+      className={`agent-mark${large ? " agent-mark--large" : ""}`}
       style={{ "--agent-accent": agent.accent } as React.CSSProperties}
       aria-hidden="true"
     >
-      {agent.initials}
+      <AgentAvatar seed={agent.id} label={agent.name} size={large ? 52 : 27} />
     </span>
   );
 }
@@ -270,6 +271,11 @@ export default function App() {
           <p>{selected.name.toUpperCase()} IS {selected.status === "waiting" ? "WAITING" : selected.status === "complete" ? "READY" : "WORKING"}</p>
           <h2>{selected.task}</h2>
           <span>{selected.summary}</span>
+          <dl className="profile-facts">
+            <div><dt>Model</dt><dd>{selected.model}</dd></div>
+            <div><dt>Runtime</dt><dd>{selected.runtime}</dd></div>
+            <div><dt>Location</dt><dd>{selected.coarseLocation}</dd></div>
+          </dl>
         </div>
 
         <div className="evidence-section">

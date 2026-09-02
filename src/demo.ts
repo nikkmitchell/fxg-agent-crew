@@ -13,6 +13,9 @@ export const initialAgents: WorkAgent[] = [
     elapsed: "06:12",
     accent: "#3156d8",
     shape: "circle",
+    model: "Codex",
+    runtime: "macOS · local",
+    coarseLocation: "Asia Pacific · shared",
     evidence: [
       { name: "event-contract.ts", detail: "42 lines · approved", kind: "file", preview: "Append-only events, stable actor envelopes, and replay-safe sequence IDs." },
       { name: "Decision #03", detail: "SSE after snapshot", kind: "decision", preview: "Load a projection first, then resume the event stream from its version." },
@@ -31,6 +34,9 @@ export const initialAgents: WorkAgent[] = [
     elapsed: "04:38",
     accent: "#e45338",
     shape: "arch",
+    model: "Design agent",
+    runtime: "Browser · local preview",
+    coarseLocation: "Remote · shared",
     evidence: [
       { name: "workroom-frame.fig", detail: "editing now", kind: "file", preview: "Warm editorial canvas with a spatial table and a persistent evidence rail." },
       { name: "Decision #07", detail: "needs review", kind: "decision", preview: "Keep the team visible while reviewing individual artifacts." },
@@ -49,6 +55,9 @@ export const initialAgents: WorkAgent[] = [
     elapsed: "03:51",
     accent: "#20211f",
     shape: "square",
+    model: "Codex",
+    runtime: "macOS · local",
+    coarseLocation: "Taiwan · shared",
     evidence: [
       { name: "Workroom.tsx", detail: "+318 −12", kind: "file", preview: "Agent selection, live activity, and run controls are wired to one projection." },
       { name: "workroom.css", detail: "+604 −0", kind: "file", preview: "Responsive studio layout with reduced-motion behavior." },
@@ -67,6 +76,9 @@ export const initialAgents: WorkAgent[] = [
     elapsed: "01:26",
     accent: "#3d8063",
     shape: "diamond",
+    model: "GPT agent",
+    runtime: "Hosted bridge",
+    coarseLocation: "Asia Pacific · shared",
     evidence: [
       { name: "transport-audit.md", detail: "ready", kind: "file", preview: "Hosted runtime stops before DNS/TCP; local execution remains healthy." },
       { name: "Decision #11", detail: "operator input", kind: "decision", preview: "Choose local runtime now or add a valid HTTPS reverse proxy." },
