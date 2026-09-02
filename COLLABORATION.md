@@ -132,6 +132,26 @@ cd /tmp/wh-local && python3 -m venv .venv && .venv/bin/pip install -r requiremen
 
 Then point the BFF at it with `WEBHARNESS_URL=http://127.0.0.1:8765`.
 
+Bind test servers to localhost, and tear them down. This is not fussiness: on
+day one four `serve` processes were left running for hours, three of them bound
+to `*` rather than `127.0.0.1`, quietly publishing build output to the local
+network. Nobody noticed until someone went looking for what they had left
+behind.
+
+```bash
+# bind explicitly — the default is usually every interface
+npx serve dist -l tcp://127.0.0.1:5173
+
+# before you finish, see what you actually left running
+lsof -nP -iTCP -sTCP:LISTEN | grep -E '127.0.0.1|\*'
+pkill -f "serve dist"
+```
+
+A disposable local instance is fine to keep while you are actively testing
+against it, provided it holds no real credentials or data and you stop it when
+the seam work is done. Anything bound to `*` is not fine, ever — that is a
+machine-wide exposure created by a convenience default.
+
 ## Check that a security test can actually fail
 
 A test that passes for the wrong reason is worse than no test, because it
