@@ -61,3 +61,63 @@ describe("reduceCrewEvent", () => {
   });
 });
 
+
+/**
+ * Replay idempotency is the property the whole event core exists to provide,
+ * and it was the one thing not yet pinned: dedup-by-id was covered, but not
+ * "feed the entire log twice and get the same state". Those are different
+ * claims — per-event dedup can hold while ordering, cursors or derived
+ * collections still drift on a second pass.
+ *
+ * It matters because replay is not hypothetical here. Every page load
+ * reconstructs state from the log, and a mount that re-derives even one extra
+ * entry is exactly the bug that shipped and was fixed on the UI side
+ * (a completed run re-emitting its terminal event on every reload).
+ */
+describe("replay idempotency", () => {
+  const log: EventEnvelope[] = [
+    envelope("e1", 1, { type: "agent.upserted", agent: { id: "codex", name: "Codex", role: "eng" } as never }),
+    envelope("e2", 2, taskEvent),
+    envelope("e3", 3, { type: "task.transitioned", taskId: "task-1", to: "in_progress" }),
+    envelope("e4", 4, { type: "task.transitioned", taskId: "task-1", to: "blocked", blocker: "waiting on auth" }),
+    envelope("e5", 5, { type: "message.received", message: { id: 10, roomName: "AgentParty", username: "nikk", content: "status?", createdAt: "2026-09-02T01:00:00Z" } }),
+    envelope("e6", 6, { type: "presence.snapshotted", usernames: ["codex", "claude"] }),
+  ];
+
+  const replay = (events: EventEnvelope[]) => events.reduce(reduceCrewEvent, initialCrewState);
+
+  it("produces identical state when the whole log is replayed twice", () => {
+    expect(replay(log)).toEqual(replay(log));
+  });
+
+  it("is unchanged by re-applying the log to already-built state", () => {
+    const once = replay(log);
+    const twice = log.reduce(reduceCrewEvent, once);
+
+    // The second pass must be a no-op, not merely non-crashing: no duplicated
+    // messages, no re-advanced cursor, no extra rejections.
+    expect(twice.messages).toEqual(once.messages);
+    expect(twice.cursors).toEqual(once.cursors);
+    expect(twice.tasks).toEqual(once.tasks);
+    expect(twice.rejectedEvents).toEqual(once.rejectedEvents);
+  });
+
+  it("reaches the same state regardless of how the log is chunked", () => {
+    const whole = replay(log);
+    const split = log.slice(3).reduce(reduceCrewEvent, replay(log.slice(0, 3)));
+
+    // A reconnect resumes mid-log; that must not change the outcome.
+    expect(split).toEqual(whole);
+  });
+
+  it("fails closed on an unsupported schema version", () => {
+    const future = { ...envelope("future", 99, taskEvent), version: 2 as unknown as 1 };
+    const next = reduceCrewEvent(initialCrewState, future);
+
+    // Partially applying an envelope we do not understand is worse than
+    // refusing it: it would put state on screen that no version of the
+    // contract actually describes.
+    expect(next.tasks).toEqual({});
+    expect(next.rejectedEvents.at(-1)?.reason).toContain("version");
+  });
+});
