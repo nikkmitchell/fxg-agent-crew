@@ -189,6 +189,46 @@ cd - && git worktree remove "$probe" --force
 
 If the suite stays green with the protection removed, the test was decorative.
 
+## Green is a claim about what ran, not about what is true
+
+Five distinct times in two days a green run has been wrong, and none of them
+were exotic:
+
+1. **The mocks shared the code's wrong assumption.** `/bff/rooms` forwarded
+   upstream's `{rooms: […]}` wrapper where the contract promised an array.
+   Sixty tests passed because every one mocked the shape the code already
+   believed in.
+2. **A threshold meant the guarded path never ran.** A `seenEventIds` cap was
+   "proved" idempotent by a test replaying 20 events against a 5000-event
+   limit, so the pruning branch never executed. Above the threshold it broke
+   replay outright.
+3. **Two branches, each green, broken only in one merge order.** The adapter
+   introduced transport-derived cursors; the reducer still rejected equal ones.
+   Merged the wrong way round: green suite, working build, events silently
+   dropped. Neither suite could see it, because each was correct about its own
+   half.
+4. **Tests green while the build failed.** Two duplicate `EventEnvelope`
+   definitions and only one updated — 194 passing tests and a type error in the
+   same tree.
+5. **A file that ran nothing.** Stores built inside `it.each(...)` are
+   constructed at collection time, before `beforeEach` creates the temp path.
+   The constructor threw during collection, the file loaded with zero tests,
+   and the run reported no failures.
+
+So:
+
+- **Read the count, not the colour.** "no tests" and "12 passed" look equally
+  green in a summary line.
+- **Run the build as well as the suite**, and treat a passing suite over a
+  failing build as a failing run.
+- **Test the merge, not only the branches** — see the seam rule above.
+- When a test guards something that matters, **break the thing and confirm the
+  test goes red** — see the rule above.
+
+The common thread: green states *what was run*, and it is easy to read as *what
+is true*. That is the same overclaim this product exists to prevent, committed
+in the tooling used to check the product.
+
 ## Say what you actually verified, and no more
 
 Run it, do not only test it. And scope the claim to what was tested:
