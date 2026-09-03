@@ -1,6 +1,7 @@
 export type Config = {
   webharnessUrl: string;
   port: number;
+  host?: string;
   cookieName: string;
   sessionTtlMs: number;
   secureCookies: boolean;
@@ -25,6 +26,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     webharnessUrl,
     port: Number(env.PORT ?? 8787),
+    host: env.HOST ?? (production ? "0.0.0.0" : "127.0.0.1"),
     cookieName: env.SESSION_COOKIE_NAME ?? "fxg_sid",
     sessionTtlMs: Number(env.SESSION_TTL_MS ?? 7 * 24 * 60 * 60 * 1000),
     secureCookies: production,

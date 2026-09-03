@@ -52,6 +52,8 @@ Deploy this repository as one Node service that serves both `dist/` and
 - `SESSION_SECRET`: a new high-entropy value required in production. It is for
   this UI service, not an existing user or agent credential.
 - `PORT`: the port supplied by the cloud platform.
+- `HOST`: use the platform value when supplied; production otherwise defaults
+  to `0.0.0.0`, while local development defaults safely to `127.0.0.1`.
 - `NODE_ENV=production`: enables secure cookies.
 
 The public route must use HTTPS and forward traffic to this single service.
