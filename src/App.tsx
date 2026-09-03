@@ -153,11 +153,41 @@ export default function App() {
       </aside>
 
       <main className="workroom">
+        {/*
+          * This banner is load-bearing, not decoration.
+          *
+          * Everything on this screen — agents, statuses, progress, the blocker,
+          * the evidence — is scripted from demo.ts. It also names real people
+          * and attributes states to them they never reported. Without an
+          * unmissable label at the top, a reader has no way to know that, and
+          * the first screen previously said "live now" beside an animated pulse
+          * over invented data.
+          *
+          * The one real path is Live Rooms.
+          */}
+        <p className="demo-banner" role="status">
+          <strong>DEMO PROJECTION</strong>
+          <span>
+            Everything below is simulated sample data, including the people named and their
+            statuses. Nothing here reflects real activity. For live data, open{" "}
+            <button type="button" className="demo-banner-link" onClick={() => setLiveRoomOpen(true)}>
+              Live Rooms
+            </button>.
+          </span>
+        </p>
+
         <header className="project-header">
           <div>
-            <p className="eyebrow">FXG AGENT CREW <span>/</span> RELEASE 0.1</p>
+            <p className="eyebrow">FXG AGENT CREW <span>/</span> RELEASE 0.1 <span>/</span> DEMO</p>
             <h1>Build software with<br />the work visible.</h1>
-            <p className="run-line"><span className="live-pulse" /> 2 agents working <b>·</b> 1 decision needed <b>·</b> live now</p>
+            {/*
+              * Was: "2 agents working · 1 decision needed · live now" with a
+              * live pulse. Those counts were hardcoded and nothing was live.
+              * A pulsing indicator over fixture data is a claim the data cannot
+              * support, so the pulse is gone and the numbers say where they
+              * come from.
+              */}
+            <p className="run-line">{initialAgents.length} sample agents <b>·</b> scripted timeline <b>·</b> not live</p>
           </div>
           <div className="header-actions">
             <button className="text-button" onClick={() => selectAgent("nikk")}>Review changes</button>
@@ -177,8 +207,8 @@ export default function App() {
           </form>
         </section>
 
-        <section className="run-progress" aria-label="Mission progress">
-          <div className="progress-copy"><span>MISSION PROGRESS</span><strong>{progress}%</strong></div>
+        <section className="run-progress" aria-label="Mission progress (simulated)">
+          <div className="progress-copy"><span>MISSION PROGRESS <i className="demo-tag">DEMO</i></span><strong>{progress}%</strong></div>
           <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
           {progress >= 100 ? (
             <span className="run-complete">✓ Complete</span>
@@ -196,7 +226,7 @@ export default function App() {
           </button>
         )}
 
-        <section className="assignment-strip" aria-label="Current assignment flow">
+        <section className="assignment-strip" aria-label="Current assignment flow (simulated sample agents)">
           {agents.map((agent, index) => (
             <button key={agent.id} className={selected.id === agent.id ? "is-selected" : ""} onClick={() => selectAgent(agent.id)}>
               <span className="stage-index">0{index + 1}</span>
