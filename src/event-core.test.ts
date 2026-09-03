@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { initialCrewState, reduceCrewEvent, type CrewEvent, type CrewState, type EventEnvelope } from "./event-core";
 
-const envelope = (eventId: string, sourceCursor: number, payload: CrewEvent, source = "test"): EventEnvelope => ({
+const envelope = (
+  eventId: string,
+  sourceCursor: number,
+  payload: CrewEvent,
+  source = "test",
+  stream = "room-1",
+): EventEnvelope => ({
   version: 1,
   eventId,
+  stream,
   source,
   sourceCursor,
   occurredAt: "2026-09-02T00:00:00Z",
@@ -21,10 +28,14 @@ describe("reduceCrewEvent", () => {
     expect(reduceCrewEvent(first, envelope("one", 2, { ...taskEvent }))).toBe(first);
   });
 
-  it("tracks cursors independently per source", () => {
-    const one = reduceCrewEvent(initialCrewState, envelope("one", 4, taskEvent, "room-a"));
-    const two = reduceCrewEvent(one, envelope("two", 1, { type: "presence.snapshotted", usernames: [] }, "presence"));
-    expect(two.cursors).toEqual({ "room-a": 4, presence: 1 });
+  it("tracks cursors independently per stream and author", () => {
+    // Keyed by stream and author together: a room carries the id sequence, and
+    // one participant must not be able to rewind another's position in it.
+    const one = reduceCrewEvent(initialCrewState, envelope("one", 4, taskEvent, "alice", "room-a"));
+    const two = reduceCrewEvent(one, envelope("two", 1, { type: "presence.snapshotted", usernames: [] }, "presence", "room-a"));
+
+    expect(Object.keys(two.cursors)).toHaveLength(2);
+    expect(Object.values(two.cursors).sort()).toEqual([1, 4]);
   });
 
   it("rejects stale source events without mutating domain data", () => {
@@ -200,3 +211,76 @@ describe("seam and lifecycle regressions", () => {
     expect(replayed.rejectedEvents).toEqual([]);
   });
 });
+
+
+describe("cursors are per stream, not per author", () => {
+  const noop: CrewEvent = { type: "presence.snapshotted", usernames: [] };
+
+  it("does not let a busy room make a quiet room look stale", () => {
+    // The same user posts in two rooms. Message ids are per-room sequences, so
+    // room-B's message 1 is not "behind" room-A's message 100 — keying order by
+    // username alone rejected every event in the quieter room.
+    let state = reduceCrewEvent(initialCrewState, envelope("a:100", 100, noop, "claude", "room-a"));
+    state = reduceCrewEvent(state, envelope("b:1", 1, noop, "claude", "room-b"));
+
+    expect(state.rejectedEvents).toEqual([]);
+    expect(Object.keys(state.cursors)).toHaveLength(2);
+  });
+
+  it("stays correct when two rooms interleave", () => {
+    const log = [
+      envelope("a:10", 10, noop, "claude", "room-a"),
+      envelope("b:2", 2, noop, "claude", "room-b"),
+      envelope("a:11", 11, noop, "claude", "room-a"),
+      envelope("b:3", 3, noop, "claude", "room-b"),
+      envelope("a:12", 12, noop, "claude", "room-a"),
+    ];
+
+    const state = log.reduce(reduceCrewEvent, initialCrewState);
+
+    expect(state.rejectedEvents).toEqual([]);
+    expect(log.reduce(reduceCrewEvent, state)).toEqual(state);
+  });
+
+  it("still rejects a genuinely stale event within one stream", () => {
+    // Scoping must not remove the protection it was scoping.
+    let state = reduceCrewEvent(initialCrewState, envelope("a:10", 10, noop, "claude", "room-a"));
+    state = reduceCrewEvent(state, envelope("a:5", 5, noop, "claude", "room-a"));
+
+    expect(state.rejectedEvents.at(-1)?.reason).toContain("stale source cursor");
+  });
+
+  it("keeps two authors in one room independent", () => {
+    let state = reduceCrewEvent(initialCrewState, envelope("a:100", 100, noop, "alice", "room-a"));
+    state = reduceCrewEvent(state, envelope("a:2", 2, noop, "bob", "room-a"));
+
+    // One participant must not be able to rewind another's position.
+    expect(state.rejectedEvents).toEqual([]);
+  });
+})
+
+describe("a profile update preserves observed presence", () => {
+  const profile = (id: string, name: string): CrewEvent =>
+    ({ type: "agent.upserted", agent: { id, name, avatarSeed: "x" } } as CrewEvent);
+
+  it("does not mark a genuinely online agent offline when they edit their profile", () => {
+    // The bug this pins was introduced BY the previous fix: rebuilding `online`
+    // as false stopped an agent claiming presence, and simultaneously wiped
+    // real presence on every profile edit. Refusing the field is not enough —
+    // the merge has to keep what polling observed.
+    let state = reduceCrewEvent(initialCrewState, envelope("e1", 1, profile("claude", "Claude")));
+    state = reduceCrewEvent(state, envelope("e2", 2, { type: "presence.snapshotted", usernames: ["claude"] }));
+    expect(state.agents.claude.online).toBe(true);
+
+    state = reduceCrewEvent(state, envelope("e3", 3, profile("claude", "Claude the Renamed")));
+
+    expect(state.agents.claude.name).toBe("Claude the Renamed");
+    expect(state.agents.claude.online).toBe(true);
+  });
+
+  it("defaults a never-observed agent to offline rather than inventing presence", () => {
+    const state = reduceCrewEvent(initialCrewState, envelope("e1", 1, profile("newcomer", "New")));
+
+    expect(state.agents.newcomer.online).toBe(false);
+  });
+})
