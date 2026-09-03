@@ -402,7 +402,43 @@ export type TransportAuthority = {
  * same root-of-trust gap this module already closed for identity and order —
  * left open one field over.
  */
+import type { Message } from "./contracts.js";
+
 export type ReadableMessage = { content: string; streaming: boolean; msgType?: string };
+
+/** Validate and rebuild an entire message received across the network. */
+export function validateTransportMessage(raw: unknown): Checked<Message> {
+  const object = plainObject(raw, "message");
+  if (!object.ok) return object;
+  const o = object.value;
+
+  const id = nonNegativeInt(o.id, "message.id", Number.MAX_SAFE_INTEGER);
+  if (!id.ok) return id;
+  const username = str(o.username, "message.username", { max: 128 });
+  if (!username.ok) return username;
+  const content = str(o.content, "message.content", { max: 100_000, allowEmpty: true });
+  if (!content.ok) return content;
+  const msgType = str(o.msgType, "message.msgType", { max: 64 });
+  if (!msgType.ok) return msgType;
+  const createdAt = timestamp(o.createdAt, "message.createdAt");
+  if (!createdAt.ok) return createdAt;
+  const updatedAt = timestamp(o.updatedAt, "message.updatedAt");
+  if (!updatedAt.ok) return updatedAt;
+  if (typeof o.streaming !== "boolean") return bad("message.streaming is not a boolean");
+
+  return {
+    ok: true,
+    value: {
+      id: id.value,
+      username: username.value,
+      content: content.value,
+      msgType: msgType.value,
+      createdAt: createdAt.value,
+      updatedAt: updatedAt.value,
+      streaming: o.streaming,
+    },
+  };
+}
 
 export function validateReadableMessage(raw: unknown): Checked<ReadableMessage> {
   const object = plainObject(raw, "message");

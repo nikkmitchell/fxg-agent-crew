@@ -162,7 +162,7 @@ describe("capability, boundary, scope and mixed-authority fields", () => {
   });
 
   it.each([
-    ["a non-numeric message id", { id: "seven" as unknown as number }, "messageId"],
+    ["a non-numeric message id", { id: "seven" as unknown as number }, "message.id"],
     ["an empty username", { username: "" }, "username"],
     ["an unparseable createdAt", { createdAt: "last Tuesday" }, "createdAt"],
   ])("refuses malformed transport metadata: %s", (_label, override, expected) => {
@@ -259,24 +259,21 @@ describe("message shape is validated before it is read", () => {
     expect(r.rejected[0].reason).toContain("streaming");
   });
 
-  it("treats an absent streaming flag as not streaming", () => {
+  it("refuses an absent streaming flag", () => {
     const { streaming, ...withoutFlag } = msg(1, encodeActionRequest({ type: "presence.snapshotted", usernames: [] }));
 
     const r = adaptMessages([withoutFlag as unknown as typeof base], opts());
 
-    // presence is refused on authorization grounds, not shape — the point is
-    // that the absent flag did not itself cause a rejection.
-    expect(r.rejected.map((x) => x.reason).join()).not.toContain("streaming");
+    expect(r.rejected.map((x) => x.reason).join()).toContain("streaming");
   });
 
-  it("keeps a malformed message in the transcript", () => {
-    // One bad message must not vanish from the conversation, and must not take
-    // the rest of the batch with it.
+  it("does not leak malformed prose-only metadata into the trusted transcript", () => {
     const r = adaptMessages(
-      [{ ...base, content: null } as unknown as typeof base, msg(2, "a normal message")],
+      [{ ...base, username: null } as unknown as typeof base, msg(2, "a normal message")],
       opts(),
     );
 
-    expect(r.transcript).toHaveLength(2);
+    expect(r.transcript).toEqual([msg(2, "a normal message")]);
+    expect(r.rejected[0].reason).toContain("username");
   });
 })

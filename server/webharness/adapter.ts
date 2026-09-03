@@ -6,7 +6,7 @@ import {
   denyAll,
   validateActionRequest,
   validateAuthority,
-  validateReadableMessage,
+  validateTransportMessage,
   type CapabilityResolver,
   type EventEnvelope,
 } from "../../shared/crew-events.js";
@@ -83,24 +83,24 @@ export function adaptMessages(
   const seenInBatch = new Set<string>();
 
   for (const message of messages) {
-    transcript.push(message);
-
-    // Validate the fields we are about to READ before reading them. content and
-    // streaming crossed the network and are typed rather than checked: matchAll
-    // on a null content throws, and a non-boolean streaming skips the guard
-    // that keeps half-written messages out of state.
-    const readable = validateReadableMessage(message);
-    if (!readable.ok) {
-      rejected.push({ messageId: message.id, reason: readable.reason });
+    // The BFF establishes only that its payload is an array. Rebuild each full
+    // element before returning it under the trusted Message type; otherwise a
+    // prose-only message with malformed metadata bypasses every action check.
+    const checked = validateTransportMessage(message);
+    if (!checked.ok) {
+      const rawId = (message as unknown as { id?: unknown })?.id;
+      rejected.push({ messageId: Number.isSafeInteger(rawId) ? rawId as number : -1, reason: checked.reason });
       continue;
     }
+    const readable = checked.value;
+    transcript.push(readable);
 
     // A streaming message is still being written; its block may be truncated,
     // or complete-looking now and different once finished.
-    if (readable.value.streaming) continue;
-    if (readable.value.msgType && readable.value.msgType !== "text") continue;
+    if (readable.streaming) continue;
+    if (readable.msgType !== "text") continue;
 
-    const blocks = [...readable.value.content.matchAll(FENCE)];
+    const blocks = [...readable.content.matchAll(FENCE)];
     if (blocks.length === 0) continue;
 
     if (blocks.length > LIMITS.maxEnvelopesPerMessage) {
