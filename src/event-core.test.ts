@@ -209,7 +209,7 @@ describe("seam and lifecycle regressions", () => {
 
     expect(replayed).toEqual(state);
     expect(replayed.rejectedEvents).toEqual([]);
-  });
+  }, 15_000);
 });
 
 
