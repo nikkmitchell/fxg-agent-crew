@@ -1,6 +1,9 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { initialActivity, initialAgents, scriptedEvents } from "./demo";
+import { initialActivity, initialAgents, initialTasks, scriptedEvents } from "./demo";
 import type { Activity, AgentStatus, Evidence, WorkAgent } from "./types";
+import { LiveRoomPanel } from "./LiveRoomPanel";
+import { AgentAvatar } from "./AgentAvatar";
+import { ProjectBoard } from "./ProjectBoard";
 
 const statusLabel: Record<AgentStatus, string> = {
   working: "Working",
@@ -37,11 +40,12 @@ function prependActivity(current: Activity[], next: Activity): Activity[] {
   return [next, ...current.filter((item) => !(item.agentId === next.agentId && item.copy === next.copy && item.type === next.type))].slice(0, 12);
 }
 
-function Glyph({ name }: { name: "grid" | "stack" | "clock" | "pause" | "play" | "arrow" | "spark" }) {
+function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" | "pause" | "play" | "arrow" | "spark" }) {
   const paths = {
     grid: <><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></>,
     stack: <><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 16 9 5 9-5"/></>,
     clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+    chat: <><path d="M5 5h14v10H9l-4 4V5Z"/><path d="M9 9h6M9 12h4"/></>,
     pause: <><path d="M9 6v12M15 6v12"/></>,
     play: <path d="m8 5 11 7-11 7V5Z"/>,
     arrow: <><path d="M5 12h14M14 7l5 5-5 5"/></>,
@@ -53,11 +57,11 @@ function Glyph({ name }: { name: "grid" | "stack" | "clock" | "pause" | "play" |
 function AgentMark({ agent, large = false }: { agent: WorkAgent; large?: boolean }) {
   return (
     <span
-      className={`agent-mark shape-${agent.shape}${large ? " agent-mark--large" : ""}`}
+      className={`agent-mark${large ? " agent-mark--large" : ""}`}
       style={{ "--agent-accent": agent.accent } as React.CSSProperties}
       aria-hidden="true"
     >
-      {agent.initials}
+      <AgentAvatar seed={agent.id} label={agent.name} size={large ? 52 : 27} />
     </span>
   );
 }
@@ -84,6 +88,7 @@ export default function App() {
   const [filter, setFilter] = useState<FeedFilter>("all");
   const [selectedEvidence, setSelectedEvidence] = useState(0);
   const [commandReceipt, setCommandReceipt] = useState<CommandReceipt | null>(null);
+  const [liveRoomOpen, setLiveRoomOpen] = useState(false);
 
   const selected = agents.find((agent) => agent.id === selectedId) ?? agents[0];
   const selectedArtifact = selected.evidence[selectedEvidence] ?? selected.evidence[0];
@@ -142,6 +147,7 @@ export default function App() {
           <button className="rail-button is-active" aria-label="Workroom" title="Workroom"><Glyph name="grid" /></button>
           <button className="rail-button" aria-label="Artifacts" title="Artifacts" onClick={() => selectAgent("nikk")}><Glyph name="stack" /></button>
           <button className="rail-button" aria-label="Run history" title="Run history" onClick={() => document.querySelector(".work-log")?.scrollIntoView({ behavior: "smooth" })}><Glyph name="clock" /></button>
+          <button className={`rail-button${liveRoomOpen ? " is-active" : ""}`} aria-label="Live rooms" title="Live rooms" aria-expanded={liveRoomOpen} onClick={() => setLiveRoomOpen((open) => !open)}><Glyph name="chat" /></button>
         </nav>
         <button className="rail-avatar" aria-label="Operator profile">NM</button>
       </aside>
@@ -243,6 +249,8 @@ export default function App() {
           <div className="table-key"><span><i className="key-live" /> active work</span><span><i className="key-line" /> handoff</span><span><i className="key-decision" /> decision</span></div>
         </section>
 
+        <ProjectBoard tasks={initialTasks} agents={agents} />
+
         <section className="work-log">
           <div className="log-header">
             <div><p className="eyebrow">WORK LOG</p><h2>What changed because of the work.</h2></div>
@@ -266,6 +274,11 @@ export default function App() {
           <p>{selected.name.toUpperCase()} IS {selected.status === "waiting" ? "WAITING" : selected.status === "complete" ? "READY" : "WORKING"}</p>
           <h2>{selected.task}</h2>
           <span>{selected.summary}</span>
+          <dl className="profile-facts">
+            <div><dt>Model</dt><dd>{selected.model}</dd></div>
+            <div><dt>Runtime</dt><dd>{selected.runtime}</dd></div>
+            <div><dt>Location</dt><dd>{selected.coarseLocation}</dd></div>
+          </dl>
         </div>
 
         <div className="evidence-section">
@@ -296,6 +309,7 @@ export default function App() {
           <button onClick={() => setActivities((current) => [{ id: Date.now(), time: "now", agentId: selected.id, copy: "workspace focus opened by operator", type: "work" }, ...current])}>Watch work</button>
         </div>
       </aside>
+      {liveRoomOpen && <LiveRoomPanel onClose={() => setLiveRoomOpen(false)} />}
     </div>
   );
 }

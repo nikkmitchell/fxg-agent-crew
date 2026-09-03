@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { RoomDetail, RoomSummary } from "../../shared/contracts.js";
+import type { Message, RoomDetail, RoomSummary } from "../../shared/contracts.js";
 import type { Config } from "../config.js";
 import type { Session, SessionStore } from "../session.js";
 import { WebharnessClient } from "../webharness/client.js";
 import { classify } from "../webharness/errors.js";
 import { pollMessages } from "../webharness/longpoll.js";
+import { validateTransportMessage } from "../../shared/crew-events.js";
 
 export function registerRoomRoutes(
   app: FastifyInstance,
@@ -108,6 +109,32 @@ export function registerRoomRoutes(
       } catch (error) {
         // An abort is the client leaving, not a failure worth reporting.
         if (controller.signal.aborted) return reply;
+        return fail(reply, error);
+      }
+    },
+  );
+
+  app.post<{ Params: { room: string }; Body: { content?: string } }>(
+    "/bff/rooms/:room/messages",
+    async (request, reply) => {
+      const session = requireSession(request, reply);
+      if (!session) return reply;
+      const content = request.body?.content?.trim();
+      if (!content || content.length > 2_000) {
+        return reply.code(400).send({ code: "BAD_REQUEST", error: "message must be between 1 and 2000 characters" });
+      }
+
+      try {
+        const rawMessage = await client.request<Message>(
+          `/api/rooms/${encodeURIComponent(request.params.room)}/messages`,
+          { method: "POST", token: session.token, body: { content } },
+        );
+        const checked = validateTransportMessage(rawMessage);
+        if (!checked.ok) {
+          return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "invalid message response" });
+        }
+        return reply.send(checked.value);
+      } catch (error) {
         return fail(reply, error);
       }
     },
