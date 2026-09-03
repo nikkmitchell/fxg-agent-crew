@@ -28,7 +28,8 @@ afterEach(() => vi.unstubAllGlobals());
 describe("POST /bff/rooms/:room/messages", () => {
   it("sends through the server-side token and returns the confirmed message", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      id: 8, username: "nikk", content: "hello", msgType: "text", createdAt: "now", updatedAt: "now", streaming: false,
+      id: 8, username: "nikk", content: "hello", msgType: "text",
+      createdAt: "2026-09-03T04:00:00Z", updatedAt: "2026-09-03T04:00:00Z", streaming: false,
     }), { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     const { app, sid } = setup();
@@ -53,6 +54,17 @@ describe("POST /bff/rooms/:room/messages", () => {
 
   it("fails closed when upstream returns a shape that is not a message", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 })));
+    const { app, sid } = setup();
+    const response = await app.inject({ method: "POST", url: "/bff/rooms/AgentParty/messages", cookies: { fxg_sid: sid }, payload: { content: "hello" } });
+    expect(response.statusCode).toBe(502);
+    expect(response.json().code).toBe("UPSTREAM_UNAVAILABLE");
+  });
+
+  it("does not forward a partially valid upstream message", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 8, username: "nikk", content: "hello", msgType: "text",
+      createdAt: "not-a-time", updatedAt: "2026-09-03T04:00:00Z", streaming: false,
+    }), { status: 200 })));
     const { app, sid } = setup();
     const response = await app.inject({ method: "POST", url: "/bff/rooms/AgentParty/messages", cookies: { fxg_sid: sid }, payload: { content: "hello" } });
     expect(response.statusCode).toBe(502);

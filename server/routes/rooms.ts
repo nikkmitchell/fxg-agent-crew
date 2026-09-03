@@ -5,6 +5,7 @@ import type { Session, SessionStore } from "../session.js";
 import { WebharnessClient } from "../webharness/client.js";
 import { classify } from "../webharness/errors.js";
 import { pollMessages } from "../webharness/longpoll.js";
+import { validateTransportMessage } from "../../shared/crew-events.js";
 
 export function registerRoomRoutes(
   app: FastifyInstance,
@@ -124,17 +125,15 @@ export function registerRoomRoutes(
       }
 
       try {
-        const message = await client.request<Message>(
+        const rawMessage = await client.request<Message>(
           `/api/rooms/${encodeURIComponent(request.params.room)}/messages`,
           { method: "POST", token: session.token, body: { content } },
         );
-        if (
-          !message || typeof message !== "object" || typeof message.id !== "number" ||
-          typeof message.username !== "string" || typeof message.content !== "string"
-        ) {
+        const checked = validateTransportMessage(rawMessage);
+        if (!checked.ok) {
           return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "invalid message response" });
         }
-        return reply.send(message);
+        return reply.send(checked.value);
       } catch (error) {
         return fail(reply, error);
       }
