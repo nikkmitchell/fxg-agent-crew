@@ -152,10 +152,16 @@ build output to the local network. Nobody noticed until someone went looking for
 what they had left behind.
 
 ```bash
-npx serve dist -l tcp://127.0.0.1:5173     # the default is usually every interface
+pnpm exec serve dist -l tcp://127.0.0.1:5173 & # the default is usually every interface
+serve_pid=$!
+trap 'kill "$serve_pid" 2>/dev/null; wait "$serve_pid" 2>/dev/null' EXIT
 
-lsof -nP -iTCP -sTCP:LISTEN | grep -E '127\.0\.0\.1|\*'   # what am I actually running
-pkill -f "serve dist"
+# Verify the listener owned by this exact process, not every server on the machine.
+lsof -nP -a -p "$serve_pid" -iTCP -sTCP:LISTEN
+
+kill "$serve_pid"
+wait "$serve_pid" 2>/dev/null
+trap - EXIT
 ```
 
 A disposable instance is fine while you are actively testing against it,
