@@ -28,7 +28,7 @@ export type CrewMessage = {
 };
 
 export type CrewEvent =
-  | { type: "agent.upserted"; agent: AgentProfile }
+  | { type: "agent.upserted"; agent: Omit<AgentProfile, "online"> }
   | { type: "presence.snapshotted"; usernames: string[] }
   | { type: "task.upserted"; task: CrewTask }
   | { type: "task.transitioned"; taskId: string; to: TaskStatus; blocker?: string }
@@ -37,6 +37,18 @@ export type CrewEvent =
 export type EventEnvelope = {
   version: 1;
   eventId: string;
+  /**
+   * The ordered stream this event belongs to — the room. Cursors are keyed by
+   * stream and author together, because message ids are per-room sequences: the
+   * same user at room-A message 100 and room-B message 1 is not going
+   * backwards.
+   *
+   * NOTE: this type is duplicated in shared/crew-events.ts, which is the wire
+   * contract. They must be kept in step — a mismatch compiles on one side and
+   * fails on the other, which is how this field was missed here first.
+   */
+  stream: string;
+  /** Authenticated author. Identity, not ordering. */
   source: string;
   sourceCursor: number;
   occurredAt: string;
@@ -70,6 +82,14 @@ const allowedTransitions: Record<TaskStatus, TaskStatus[]> = {
   done: ["review"],
 };
 
+/**
+ * Ordering is per stream+author. The stream carries the id sequence; the author
+ * is retained so one participant cannot rewind another's position within it.
+ */
+function cursorKey(event: EventEnvelope): string {
+  return `${event.stream}\u0000${event.source}`;
+}
+
 function reject(state: CrewState, eventId: string, reason: string): CrewState {
   return {
     ...state,
@@ -88,16 +108,20 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
   // equality silently dropped every action after the first in such a message —
   // confirmed end-to-end against a running local instance, not only in tests.
   //
-  // Uniqueness is already guaranteed by eventId, which is
-  // wh:<messageId>:<blockIndex>, and replay protection comes from seenEventIds
-  // above. The cursor only needs to be non-decreasing, to reject genuinely
-  // stale deliveries from an older poll window.
-  const lastCursor = state.cursors[event.source] ?? -1;
+  // Uniqueness is already guaranteed by eventId, and replay protection comes
+  // from seenEventIds above. The cursor only needs to be non-decreasing, to
+  // reject genuinely stale deliveries from an older poll window.
+  //
+  // Keyed by STREAM, not author. Message ids are per-room sequences, so the
+  // same user posting in room A at 100 and room B at 1 is not going backwards —
+  // keying by username alone made every event in the quieter room look stale.
+  const streamKey = cursorKey(event);
+  const lastCursor = state.cursors[streamKey] ?? -1;
   if (event.sourceCursor < lastCursor) return reject(state, event.eventId, "stale source cursor");
 
   const next: CrewState = {
     ...state,
-    cursors: { ...state.cursors, [event.source]: event.sourceCursor },
+    cursors: { ...state.cursors, [streamKey]: event.sourceCursor },
     // seenEventIds is deliberately unbounded for now. A previous attempt to cap
     // it made replay non-idempotent above the threshold — evicted ids came back
     // as stale-cursor rejections, which mutate state — and the test claiming
@@ -110,8 +134,20 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
   };
 
   switch (event.payload.type) {
-    case "agent.upserted":
-      return { ...next, agents: { ...next.agents, [event.payload.agent.id]: event.payload.agent } };
+    case "agent.upserted": {
+      // A profile update must PRESERVE observed presence, not reset it. The
+      // event carries no `online` field, and an existing observation survives
+      // the merge — otherwise every profile edit would silently mark a working
+      // agent as offline until the next presence snapshot.
+      const existing = next.agents[event.payload.agent.id];
+      return {
+        ...next,
+        agents: {
+          ...next.agents,
+          [event.payload.agent.id]: { ...event.payload.agent, online: existing?.online ?? false },
+        },
+      };
+    }
     case "presence.snapshotted": {
       const online = new Set(event.payload.usernames);
       return {

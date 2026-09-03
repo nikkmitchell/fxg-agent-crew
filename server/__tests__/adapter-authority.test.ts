@@ -103,7 +103,7 @@ describe("per-event authorization", () => {
   it("refuses editing another agent's profile", () => {
     const r = adaptMessages([msg(1, encodeActionRequest({
       type: "agent.upserted",
-      agent: { id: "wilson", name: "Wilson", avatarSeed: "x", online: true },
+      agent: { id: "wilson", name: "Wilson", avatarSeed: "x" },
     }), "mallory")], opts());
     expect(r.events).toEqual([]);
     expect(r.rejected[0].reason).toContain("may not modify the profile of wilson");
@@ -112,7 +112,7 @@ describe("per-event authorization", () => {
   it("allows an agent to describe itself", () => {
     const r = adaptMessages([msg(1, encodeActionRequest({
       type: "agent.upserted",
-      agent: { id: "mallory", name: "Mallory", avatarSeed: "x", online: true },
+      agent: { id: "mallory", name: "Mallory", avatarSeed: "x" },
     }), "mallory")], opts());
     expect(r.events).toHaveLength(1);
   });
@@ -202,19 +202,81 @@ describe("capability, boundary, scope and mixed-authority fields", () => {
     expect(r.events.map((e) => e.sourceCursor)).toEqual([9, 9]);
   });
 
-  it("never lets a self-report assert its own presence", () => {
+  it("refuses a profile that tries to assert its own presence", () => {
+    // Refused rather than silently stripped. An earlier version rebuilt online
+    // as false, which stopped the forgery but ALSO wiped genuine presence on
+    // every profile update — fixing one bug by introducing another. The field
+    // now has no place in the event at all.
+    const r = adaptMessages(
+      [msg(1, `\`\`\`crew-event\n{"version":1,"payload":{"type":"agent.upserted","agent":{"id":"mallory","name":"Mallory","avatarSeed":"x","online":true}}}\n\`\`\``, "mallory")],
+      opts(),
+    );
+
+    expect(r.events).toEqual([]);
+    expect(r.rejected[0].reason).toContain("may not be self-reported");
+  });
+
+  it("accepts a profile without presence and leaves observed status alone", () => {
     const r = adaptMessages(
       [msg(1, encodeActionRequest({
         type: "agent.upserted",
-        agent: { id: "mallory", name: "Mallory", avatarSeed: "x", online: true },
+        agent: { id: "mallory", name: "Mallory", avatarSeed: "x" },
       }), "mallory")],
       opts(),
     );
 
-    // Authorising a self-profile update does not make a self-reported presence
-    // claim authoritative. `online` is an observation from polling.
     expect(r.events).toHaveLength(1);
-    const payload = r.events[0].payload as { type: "agent.upserted"; agent: { online: boolean } };
-    expect(payload.agent.online).toBe(false);
+    expect(JSON.stringify(r.events[0].payload)).not.toContain("online");
+  });
+})
+
+describe("message shape is validated before it is read", () => {
+  const base = msg(1, "hello");
+
+  it.each([
+    ["null content", { content: null }],
+    ["object content", { content: { evil: true } }],
+    ["numeric content", { content: 42 }],
+  ])("refuses %s instead of throwing", (_label, override) => {
+    // content.matchAll(...) on a non-string throws, taking down the whole poll
+    // cycle rather than rejecting one message.
+    const r = adaptMessages([{ ...base, ...override } as unknown as typeof base], opts());
+
+    expect(r.events).toEqual([]);
+    expect(r.rejected[0].reason).toContain("content");
+  });
+
+  it("refuses a non-boolean streaming flag rather than coercing it", () => {
+    // Coercion is how a half-written message gets applied: a truthy string
+    // would pass the guard, a falsy one would skip it, and neither is a
+    // statement about whether the author has finished writing.
+    const r = adaptMessages(
+      [{ ...msg(1, encodeActionRequest({ type: "presence.snapshotted", usernames: [] })), streaming: "yes" } as unknown as typeof base],
+      opts(),
+    );
+
+    expect(r.events).toEqual([]);
+    expect(r.rejected[0].reason).toContain("streaming");
+  });
+
+  it("treats an absent streaming flag as not streaming", () => {
+    const { streaming, ...withoutFlag } = msg(1, encodeActionRequest({ type: "presence.snapshotted", usernames: [] }));
+
+    const r = adaptMessages([withoutFlag as unknown as typeof base], opts());
+
+    // presence is refused on authorization grounds, not shape — the point is
+    // that the absent flag did not itself cause a rejection.
+    expect(r.rejected.map((x) => x.reason).join()).not.toContain("streaming");
+  });
+
+  it("keeps a malformed message in the transcript", () => {
+    // One bad message must not vanish from the conversation, and must not take
+    // the rest of the batch with it.
+    const r = adaptMessages(
+      [{ ...base, content: null } as unknown as typeof base, msg(2, "a normal message")],
+      opts(),
+    );
+
+    expect(r.transcript).toHaveLength(2);
   });
 })

@@ -6,8 +6,8 @@ import {
   denyAll,
   validateActionRequest,
   validateAuthority,
+  validateReadableMessage,
   type CapabilityResolver,
-  type CrewEvent,
   type EventEnvelope,
 } from "../../shared/crew-events.js";
 
@@ -73,19 +73,6 @@ export type AdaptOptions = {
   canMutateProject?: CapabilityResolver;
 };
 
-/**
- * Remove fields a self-report is not entitled to assert.
- *
- * `online` is an observation the server makes, not a claim an agent may make
- * about itself. Authorising someone to update their own profile does not make
- * their presence claim authoritative, so it is rebuilt as false and left for
- * a real presence snapshot to set.
- */
-function stripUnauthoritativeFields(payload: CrewEvent): CrewEvent {
-  if (payload.type !== "agent.upserted") return payload;
-  return { ...payload, agent: { ...payload.agent, online: false } };
-}
-
 export function adaptMessages(
   messages: Message[],
   { seenEventIds, roomName, canMutateProject = denyAll }: AdaptOptions,
@@ -98,12 +85,22 @@ export function adaptMessages(
   for (const message of messages) {
     transcript.push(message);
 
+    // Validate the fields we are about to READ before reading them. content and
+    // streaming crossed the network and are typed rather than checked: matchAll
+    // on a null content throws, and a non-boolean streaming skips the guard
+    // that keeps half-written messages out of state.
+    const readable = validateReadableMessage(message);
+    if (!readable.ok) {
+      rejected.push({ messageId: message.id, reason: readable.reason });
+      continue;
+    }
+
     // A streaming message is still being written; its block may be truncated,
     // or complete-looking now and different once finished.
-    if (message.streaming) continue;
-    if (message.msgType && message.msgType !== "text") continue;
+    if (readable.value.streaming) continue;
+    if (readable.value.msgType && readable.value.msgType !== "text") continue;
 
-    const blocks = [...message.content.matchAll(FENCE)];
+    const blocks = [...readable.value.content.matchAll(FENCE)];
     if (blocks.length === 0) continue;
 
     if (blocks.length > LIMITS.maxEnvelopesPerMessage) {
@@ -163,7 +160,7 @@ export function adaptMessages(
       }
 
       const envelope = authorize(
-        { payload: stripUnauthoritativeFields(request.value.payload) },
+        request.value,
         authority,
       );
       if (seenEventIds?.has(envelope.eventId) || seenInBatch.has(envelope.eventId)) continue;

@@ -44,8 +44,17 @@ export type CrewMessage = {
   createdAt: string;
 };
 
+/**
+ * A self-reported profile. Note the ABSENCE of `online`: presence is observed by
+ * polling the server, never asserted by the subject. Including the field here
+ * at all would invite exactly the confusion it caused — an earlier version
+ * rebuilt it as false, which stopped an agent claiming to be online and instead
+ * made every profile update mark a genuinely-online agent as offline.
+ */
+export type SelfReportedProfile = Omit<AgentProfile, "online">;
+
 export type CrewEvent =
-  | { type: "agent.upserted"; agent: AgentProfile }
+  | { type: "agent.upserted"; agent: SelfReportedProfile }
   | { type: "presence.snapshotted"; usernames: string[] }
   | { type: "task.upserted"; task: CrewTask }
   | { type: "task.transitioned"; taskId: string; to: TaskStatus; blocker?: string }
@@ -54,6 +63,15 @@ export type CrewEvent =
 export type EventEnvelope = {
   version: 1;
   eventId: string;
+  /**
+   * The ordered stream this event belongs to — the room.
+   *
+   * Cursors are per-STREAM, not per-author. The same user in two rooms produces
+   * two independent id sequences, so keying order by username alone makes
+   * room-B's message 1 look stale after room-A's message 100.
+   */
+  stream: string;
+  /** Authenticated author. Identity, not ordering. */
   source: string;
   sourceCursor: number;
   occurredAt: string;
@@ -165,7 +183,7 @@ function taskStatus(value: unknown, label: string): Checked<TaskStatus> {
 
 /* ---------------------------------------------------------------- payloads -- */
 
-function agentProfile(raw: unknown): Checked<AgentProfile> {
+function agentProfile(raw: unknown): Checked<SelfReportedProfile> {
   const object = plainObject(raw, "agent");
   if (!object.ok) return object;
   const o = object.value;
@@ -176,8 +194,12 @@ function agentProfile(raw: unknown): Checked<AgentProfile> {
   if (!name.ok) return name;
   const avatarSeed = str(o.avatarSeed, "agent.avatarSeed");
   if (!avatarSeed.ok) return avatarSeed;
-  const online = bool(o.online, "agent.online");
-  if (!online.ok) return online;
+
+  // Refused rather than ignored: a sender who included it should learn it
+  // carries no weight, instead of believing it was accepted.
+  if (o.online !== undefined) {
+    return bad("agent.online may not be self-reported; presence comes from server polling");
+  }
 
   const model = optional(o.model, () => str(o.model, "agent.model"));
   if (!model.ok) return model;
@@ -192,7 +214,6 @@ function agentProfile(raw: unknown): Checked<AgentProfile> {
       id: id.value,
       name: name.value,
       avatarSeed: avatarSeed.value,
-      online: online.value,
       ...(model.value !== undefined ? { model: model.value } : {}),
       ...(runtime.value !== undefined ? { runtime: runtime.value } : {}),
       ...(coarseLocation.value !== undefined ? { coarseLocation: coarseLocation.value } : {}),
@@ -371,6 +392,45 @@ export type TransportAuthority = {
  * applied to the layer's own root of trust. If the transport metadata is
  * malformed we have no authority at all, so nothing may be derived from it.
  */
+/**
+ * The transport fields the adapter READS before it can decide anything —
+ * content and streaming — validated before they are touched.
+ *
+ * `content.matchAll(...)` on a null or object content throws, and a non-boolean
+ * `streaming` silently skips the guard that keeps half-written messages out of
+ * state. Both are network-supplied and typed rather than checked, which is the
+ * same root-of-trust gap this module already closed for identity and order —
+ * left open one field over.
+ */
+export type ReadableMessage = { content: string; streaming: boolean; msgType?: string };
+
+export function validateReadableMessage(raw: unknown): Checked<ReadableMessage> {
+  const object = plainObject(raw, "message");
+  if (!object.ok) return object;
+  const o = object.value;
+
+  const content = str(o.content, "message.content", { max: 100_000, allowEmpty: true });
+  if (!content.ok) return content;
+
+  // Absent is treated as not-streaming; present-but-wrong is refused rather
+  // than coerced, since coercion is how a half-written message gets applied.
+  if (o.streaming !== undefined && typeof o.streaming !== "boolean") {
+    return bad("message.streaming is not a boolean");
+  }
+  if (o.msgType !== undefined && typeof o.msgType !== "string") {
+    return bad("message.msgType is not a string");
+  }
+
+  return {
+    ok: true,
+    value: {
+      content: content.value,
+      streaming: o.streaming === true,
+      ...(typeof o.msgType === "string" ? { msgType: o.msgType } : {}),
+    },
+  };
+}
+
 export function validateAuthority(raw: unknown): Checked<TransportAuthority> {
   const object = plainObject(raw, "authority");
   if (!object.ok) return object;
@@ -450,6 +510,7 @@ export function authorize(request: ActionRequest, authority: TransportAuthority)
     version: 1,
     // Room-scoped: two rooms can each have a message 42.
     eventId: `wh:${authority.roomName}:${authority.messageId}:${authority.blockIndex}`,
+    stream: authority.roomName,
     source: authority.username,
     sourceCursor: authority.messageId,
     occurredAt: authority.createdAt,
