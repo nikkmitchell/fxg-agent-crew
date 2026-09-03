@@ -42,7 +42,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
 // Only listen when run directly, so tests can build the server without binding.
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const { app, config } = buildServer();
-  app.listen({ port: config.port, host: "0.0.0.0" }).catch((error) => {
+  app.listen({ port: config.port, host: config.host ?? "127.0.0.1" }).catch((error) => {
     app.log.error(error);
     process.exit(1);
   });
