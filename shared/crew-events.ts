@@ -35,6 +35,11 @@ export type CrewTask = {
   assigneeId?: string;
   points: number;
   blocker?: string;
+  owners?: string[];
+  acceptedBy?: string[];
+  comments?: Array<{ id: string; author: string; body: string; createdAt: string }>;
+  links?: Array<{ label: string; href: string }>;
+  images?: Array<{ label: string; href: string }>;
 };
 
 export type CrewProject = {
@@ -261,6 +266,68 @@ function crewTask(raw: unknown): Checked<CrewTask> {
   const blocker = optional(o.blocker, () => str(o.blocker, "task.blocker"));
   if (!blocker.ok) return blocker;
 
+  const stringList = (rawList: unknown, label: string): Checked<string[] | undefined> => {
+    if (rawList === undefined || rawList === null) return { ok: true, value: undefined };
+    if (!Array.isArray(rawList)) return bad(`${label} is not an array`);
+    if (rawList.length > LIMITS.maxArrayLength) return bad(`${label} exceeds ${LIMITS.maxArrayLength} entries`);
+    const values: string[] = [];
+    for (const [index, value] of rawList.entries()) {
+      const checked = str(value, `${label}[${index}]`);
+      if (!checked.ok) return checked;
+      if (!values.includes(checked.value)) values.push(checked.value);
+    }
+    return { ok: true, value: values };
+  };
+  const owners = stringList(o.owners, "task.owners");
+  if (!owners.ok) return owners;
+  const acceptedBy = stringList(o.acceptedBy, "task.acceptedBy");
+  if (!acceptedBy.ok) return acceptedBy;
+  if (acceptedBy.value?.some((username) => !owners.value?.includes(username))) {
+    return bad("task.acceptedBy contains a user who is not an owner");
+  }
+
+  const links = (rawList: unknown, label: string): Checked<Array<{ label: string; href: string }> | undefined> => {
+    if (rawList === undefined || rawList === null) return { ok: true, value: undefined };
+    if (!Array.isArray(rawList)) return bad(`${label} is not an array`);
+    if (rawList.length > LIMITS.maxArrayLength) return bad(`${label} exceeds ${LIMITS.maxArrayLength} entries`);
+    const values: Array<{ label: string; href: string }> = [];
+    for (const [index, rawLink] of rawList.entries()) {
+      const link = plainObject(rawLink, `${label}[${index}]`);
+      if (!link.ok) return link;
+      const linkLabel = str(link.value.label, `${label}[${index}].label`);
+      if (!linkLabel.ok) return linkLabel;
+      const href = str(link.value.href, `${label}[${index}].href`, { max: 2_000 });
+      if (!href.ok) return href;
+      if (!/^https?:\/\//.test(href.value)) return bad(`${label}[${index}].href must use http or https`);
+      values.push({ label: linkLabel.value, href: href.value });
+    }
+    return { ok: true, value: values };
+  };
+  const taskLinks = links(o.links, "task.links");
+  if (!taskLinks.ok) return taskLinks;
+  const images = links(o.images, "task.images");
+  if (!images.ok) return images;
+
+  let comments: CrewTask["comments"];
+  if (o.comments !== undefined && o.comments !== null) {
+    if (!Array.isArray(o.comments)) return bad("task.comments is not an array");
+    if (o.comments.length > LIMITS.maxArrayLength) return bad(`task.comments exceeds ${LIMITS.maxArrayLength} entries`);
+    comments = [];
+    for (const [index, rawComment] of o.comments.entries()) {
+      const comment = plainObject(rawComment, `task.comments[${index}]`);
+      if (!comment.ok) return comment;
+      const commentId = str(comment.value.id, `task.comments[${index}].id`);
+      if (!commentId.ok) return commentId;
+      const author = str(comment.value.author, `task.comments[${index}].author`);
+      if (!author.ok) return author;
+      const body = str(comment.value.body, `task.comments[${index}].body`, { max: 2_000 });
+      if (!body.ok) return body;
+      const createdAt = timestamp(comment.value.createdAt, `task.comments[${index}].createdAt`);
+      if (!createdAt.ok) return createdAt;
+      comments.push({ id: commentId.value, author: author.value, body: body.value, createdAt: createdAt.value });
+    }
+  }
+
   // The reducer refuses a blocked task with no reason; refusing it here too
   // means the rejection is reported at the boundary where it can be explained.
   if (status.value === "blocked" && blocker.value === undefined) {
@@ -277,6 +344,11 @@ function crewTask(raw: unknown): Checked<CrewTask> {
       points: points.value,
       ...(assigneeId.value !== undefined ? { assigneeId: assigneeId.value } : {}),
       ...(blocker.value !== undefined ? { blocker: blocker.value } : {}),
+      ...(owners.value !== undefined ? { owners: owners.value } : {}),
+      ...(acceptedBy.value !== undefined ? { acceptedBy: acceptedBy.value } : {}),
+      ...(comments !== undefined ? { comments } : {}),
+      ...(taskLinks.value !== undefined ? { links: taskLinks.value } : {}),
+      ...(images.value !== undefined ? { images: images.value } : {}),
     },
   };
 }

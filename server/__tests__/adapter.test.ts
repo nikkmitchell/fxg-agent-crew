@@ -321,6 +321,43 @@ describe("prototype pollution and size bounds", () => {
 });
 
 describe("wire format", () => {
+  it("retains task ownership, acceptance, discussion, links, and images", () => {
+    const richTask: CrewEvent = {
+      type: "task.upserted",
+      task: {
+        id: "rules",
+        projectId: "many-player-go",
+        title: "Agree on rules",
+        status: "assigned",
+        points: 3,
+        owners: ["baiwei", "codex"],
+        acceptedBy: ["codex"],
+        comments: [{ id: "c1", author: "nikk", body: "Keep the rules simple.", createdAt: "2026-09-04T00:00:00Z" }],
+        links: [{ label: "Go rules", href: "https://example.test/rules" }],
+        images: [{ label: "Board sketch", href: "https://example.test/board.png" }],
+      },
+    };
+    const result = adaptMessages([message(1, encodeActionRequest(richTask))], opts());
+    expect(result.events[0].payload).toEqual(richTask);
+  });
+
+  it("rejects acceptance attributed to somebody who is not an owner", () => {
+    const result = adaptMessages([message(1, encodeActionRequest({
+      type: "task.upserted",
+      task: {
+        id: "rules",
+        projectId: "many-player-go",
+        title: "Agree on rules",
+        status: "assigned",
+        points: 3,
+        owners: ["baiwei"],
+        acceptedBy: ["codex"],
+      },
+    }))], opts());
+    expect(result.events).toEqual([]);
+    expect(result.rejected[0].reason).toContain("not an owner");
+  });
+
   it("round-trips through encodeActionRequest", () => {
     // If encoder and parser disagree, agents emit blocks nobody can read.
     const result = adaptMessages([message(1, encodeActionRequest(payload))], opts());
