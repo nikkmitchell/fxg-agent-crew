@@ -29,11 +29,20 @@ export type AgentProfile = {
 
 export type CrewTask = {
   id: string;
+  projectId?: string;
   title: string;
   status: TaskStatus;
   assigneeId?: string;
   points: number;
   blocker?: string;
+};
+
+export type CrewProject = {
+  id: string;
+  title: string;
+  summary: string;
+  goal: string;
+  milestones: string[];
 };
 
 export type CrewMessage = {
@@ -56,6 +65,7 @@ export type SelfReportedProfile = Omit<AgentProfile, "online">;
 export type CrewEvent =
   | { type: "agent.upserted"; agent: SelfReportedProfile }
   | { type: "presence.snapshotted"; usernames: string[] }
+  | { type: "project.upserted"; project: CrewProject }
   | { type: "task.upserted"; task: CrewTask }
   | { type: "task.transitioned"; taskId: string; to: TaskStatus; blocker?: string }
   | { type: "message.received"; message: CrewMessage };
@@ -237,6 +247,8 @@ function crewTask(raw: unknown): Checked<CrewTask> {
 
   const id = str(o.id, "task.id");
   if (!id.ok) return id;
+  const projectId = optional(o.projectId, () => str(o.projectId, "task.projectId"));
+  if (!projectId.ok) return projectId;
   const title = str(o.title, "task.title");
   if (!title.ok) return title;
   const status = taskStatus(o.status, "task.status");
@@ -259,6 +271,7 @@ function crewTask(raw: unknown): Checked<CrewTask> {
     ok: true,
     value: {
       id: id.value,
+      ...(projectId.value !== undefined ? { projectId: projectId.value } : {}),
       title: title.value,
       status: status.value,
       points: points.value,
@@ -266,6 +279,32 @@ function crewTask(raw: unknown): Checked<CrewTask> {
       ...(blocker.value !== undefined ? { blocker: blocker.value } : {}),
     },
   };
+}
+
+function crewProject(raw: unknown): Checked<CrewProject> {
+  const object = plainObject(raw, "project");
+  if (!object.ok) return object;
+  const o = object.value;
+
+  const id = str(o.id, "project.id");
+  if (!id.ok) return id;
+  const title = str(o.title, "project.title");
+  if (!title.ok) return title;
+  const summary = str(o.summary, "project.summary", { max: 2_000 });
+  if (!summary.ok) return summary;
+  const goal = str(o.goal, "project.goal", { max: 2_000 });
+  if (!goal.ok) return goal;
+  if (!Array.isArray(o.milestones)) return bad("project.milestones is not an array");
+  if (o.milestones.length < 1 || o.milestones.length > 10) {
+    return bad("project.milestones must contain 1 to 10 entries");
+  }
+  const milestones: string[] = [];
+  for (const [index, entry] of o.milestones.entries()) {
+    const checked = str(entry, `project.milestones[${index}]`);
+    if (!checked.ok) return checked;
+    milestones.push(checked.value);
+  }
+  return { ok: true, value: { id: id.value, title: title.value, summary: summary.value, goal: goal.value, milestones } };
 }
 
 function crewMessage(raw: unknown): Checked<CrewMessage> {
@@ -321,6 +360,10 @@ function crewEvent(raw: unknown): Checked<CrewEvent> {
         usernames.push(checked.value);
       }
       return { ok: true, value: { type: "presence.snapshotted", usernames } };
+    }
+    case "project.upserted": {
+      const project = crewProject(o.project);
+      return project.ok ? { ok: true, value: { type: "project.upserted", project: project.value } } : project;
     }
     case "task.upserted": {
       const task = crewTask(o.task);
@@ -595,13 +638,14 @@ export function authorizeEvent(
       // caller strips the field rather than trusting it.
       return { ok: true, value: true };
 
+    case "project.upserted":
     case "task.upserted":
     case "task.transitioned":
       // Membership is not project authority: anyone can join a public room.
       // Without an explicit capability this is a request, not an event.
       if (!canMutateProject(authority.username, authority.roomName)) {
         return bad(
-          `${authority.username} has no project capability to change tasks in ${authority.roomName}; ` +
+          `${authority.username} has no project capability to change project data in ${authority.roomName}; ` +
             `treat this as a request pending operator approval`,
         );
       }

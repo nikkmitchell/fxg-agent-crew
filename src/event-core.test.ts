@@ -23,6 +23,35 @@ const taskEvent: CrewEvent = {
 };
 
 describe("reduceCrewEvent", () => {
+  it("stores projects and scopes new tasks to an existing project", () => {
+    const withProject = reduceCrewEvent(initialCrewState, envelope("project", 1, {
+      type: "project.upserted",
+      project: {
+        id: "many-player-go",
+        title: "Multiplayer Go",
+        summary: "Use Saha.ing to develop a Go variant for three or more players.",
+        goal: "Prove the project workflow with a genuinely playable release.",
+        milestones: ["Agree on rules", "Build the first playable board"],
+      },
+    }));
+    const withTask = reduceCrewEvent(withProject, envelope("task", 2, {
+      type: "task.upserted",
+      task: { id: "go-rules", projectId: "many-player-go", title: "Agree on rules", status: "backlog", points: 3 },
+    }));
+
+    expect(withTask.projects["many-player-go"].title).toBe("Multiplayer Go");
+    expect(withTask.tasks["go-rules"].projectId).toBe("many-player-go");
+  });
+
+  it("rejects a scoped task when its project does not exist", () => {
+    const state = reduceCrewEvent(initialCrewState, envelope("task", 1, {
+      type: "task.upserted",
+      task: { id: "orphan", projectId: "missing", title: "Orphan", status: "backlog", points: 1 },
+    }));
+    expect(state.tasks.orphan).toBeUndefined();
+    expect(state.rejectedEvents.at(-1)?.reason).toBe("project not found");
+  });
+
   it("deduplicates event ids", () => {
     const first = reduceCrewEvent(initialCrewState, envelope("one", 1, taskEvent));
     expect(reduceCrewEvent(first, envelope("one", 2, { ...taskEvent }))).toBe(first);
