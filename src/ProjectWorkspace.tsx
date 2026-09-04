@@ -7,10 +7,26 @@ const PROJECT_ROOM = "AgentParty";
 type ProjectState = { projects: CrewProject[]; tasks: CrewTask[] };
 type Me = { username: string; kind?: "human" | "agent" };
 
+/** An error that kept the server's machine-readable code, not just its prose. */
+class RequestFailed extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message);
+    this.name = "RequestFailed";
+  }
+}
+
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : `Request failed (${response.status})`);
+  if (!response.ok) {
+    // The code is retained so callers can distinguish "you are signed out"
+    // from "this failed". Matching on the prose would break the moment the
+    // wording changed.
+    throw new RequestFailed(
+      typeof body.error === "string" ? body.error : `Request failed (${response.status})`,
+      typeof body.code === "string" ? body.code : undefined,
+    );
+  }
   return body as T;
 }
 
@@ -21,6 +37,14 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   const [selectedId, setSelectedId] = useState(() => localStorage.getItem("saha-project") ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /**
+   * Signed out is a distinct state from failed.
+   *
+   * Rendering the create form to a signed-out visitor offers an action that is
+   * guaranteed to 401. An interface should not invite you to do something it
+   * knows will not work.
+   */
+  const [signedOut, setSignedOut] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -33,7 +57,15 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       setViewedUsername((username) => username || current.username);
       setSelectedId((currentId) => currentId || projects.projects[0]?.id || "");
       setError("");
+      setSignedOut(false);
     } catch (cause) {
+      const code = cause instanceof RequestFailed ? cause.code : undefined;
+      if (code === "SESSION_EXPIRED") {
+        setSignedOut(true);
+        setError("");
+        return;
+      }
+      setSignedOut(false);
       setError(cause instanceof Error ? cause.message : "Could not load projects");
     }
   }, []);
@@ -143,6 +175,18 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   return (
     <section className="project-workspace" aria-busy={busy}>
       {error ? <p className="project-error" role="alert">{error}</p> : null}
+
+      {signedOut ? (
+        <div className="signin-callout" role="status">
+          <strong>Sign in to see and change projects.</strong>
+          <p>
+            Projects are read from the room's durable log, which needs an authenticated session.
+            Nothing is shown here rather than an empty board, because an empty board and a
+            signed-out one look identical and mean different things.
+          </p>
+          <p className="signin-hint">Open <b>Chat</b> and sign in, then return to this tab.</p>
+        </div>
+      ) : null}
       {state.projects.length ? (
         <label className="project-picker">Project
           <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
@@ -151,13 +195,16 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         </label>
       ) : null}
 
-      {tab === "projects" ? (
+      {tab === "projects" && !signedOut ? (
         <div className="project-grid">
           <div><h2>Projects</h2>{state.projects.map((project) => (
             <button className="project-row" key={project.id} onClick={() => setSelectedId(project.id)}>
               <strong>{project.name}</strong><span>{project.summary}</span>
             </button>
           ))}</div>
+          {/* Hidden rather than disabled when signed out: a disabled form still
+              advertises an action, and the honest message is "sign in", not
+              "this button does nothing". */}
           <form className="project-form" onSubmit={createProject}>
             <h2>Create project</h2>
             <label>Name<input name="name" required /></label>
@@ -169,13 +216,13 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         </div>
       ) : null}
 
-      {tab === "overview" && selected ? <div className="project-overview">
+      {tab === "overview" && !signedOut && selected ? <div className="project-overview">
         <p className="eyebrow">PROJECT OVERVIEW</p><h2>{selected.name}</h2><p>{selected.summary}</p>
         <h3>Goals</h3><ul>{selected.goals.map((goal) => <li key={goal}>{goal}</li>)}</ul>
         <h3>Steps</h3><ol>{selected.steps.map((step) => <li key={step.id} data-status={step.status}>{step.title}</li>)}</ol>
       </div> : null}
 
-      {tab === "board" && selected ? <div className="project-grid">
+      {tab === "board" && !signedOut && selected ? <div className="project-grid">
         <div><h2>{selected.name} board</h2>{tasks.length ? tasks.map((task) => (
           <article className="task-row" key={task.id}>
             <span>{task.status.replace("_", " ")}</span><h3>{task.title}</h3>
@@ -193,7 +240,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         <form className="project-form" onSubmit={createTask}><h2>Add task</h2><label>Task<input name="title" required /></label><label>Owner username <small>Optional</small><input name="owner" /></label><button disabled={busy}>Add to board</button></form>
       </div> : null}
 
-      {tab === "mine" ? <div>
+      {tab === "mine" && !signedOut ? <div>
         <p className="eyebrow">{me?.username ?? "NOT SIGNED IN"}{me?.kind ? ` / ${me.kind.toUpperCase()}` : ""}</p>
         <h2>{viewedUsername === me?.username ? "My work" : `${viewedUsername}'s work`}</h2>
         <label className="project-picker">View work for
