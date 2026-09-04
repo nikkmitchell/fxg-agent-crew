@@ -336,6 +336,27 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
   .live-room-panel { width: 100vw; }
 }
 
+/* Touch devices: never let a focusable field be under 16px.
+ *
+ * iOS Safari ZOOMS THE WHOLE VIEWPORT when a field smaller than 16px receives
+ * focus, and it does not zoom back out on blur. Reported from a phone as "it
+ * zooms in and doesn't fit to space" — which reads like two bugs and is one:
+ * after the viewport scales, nothing fits, so the layout looks broken even
+ * though the breakpoints below are working correctly.
+ *
+ * `font: inherit` on the reset means this cannot be fixed by the body size
+ * alone; the composer sets 10px explicitly. Targeted at coarse pointers so the
+ * desktop type scale is untouched — this is a functional fix, not a redesign.
+ *
+ * 16px is a hard floor imposed by the browser, not a taste choice: 15.5px
+ * still triggers it.
+ */
+@media (pointer: coarse) {
+  input, textarea, select, .room-composer textarea { font-size: 16px; }
+  /* A 16px field needs room to breathe, or the taller text clips its box. */
+  .room-composer textarea { padding: 11px; line-height: 1.4; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
