@@ -104,6 +104,28 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     event.currentTarget.reset();
   };
 
+  const updateTask = async (task: CrewTask, action: "claim" | "accept" | "start") => {
+    if (!me?.username) return setError("Sign in before changing task ownership.");
+    const username = me.username;
+    const owners = action === "claim" ? [username] : task.owners ?? [];
+    if (action !== "claim" && !owners.includes(username)) {
+      return setError("Only an assigned owner can accept or start this task.");
+    }
+    const acceptedBy = action === "accept"
+      ? Array.from(new Set([...(task.acceptedBy ?? []), username]))
+      : task.acceptedBy ?? [];
+    await append({
+      type: "task.upserted",
+      task: {
+        ...task,
+        owners,
+        assigneeId: owners[0],
+        acceptedBy,
+        status: action === "start" ? "in_progress" : "assigned",
+      },
+    });
+  };
+
   return (
     <section className="project-workspace" aria-busy={busy}>
       {error ? <p className="project-error" role="alert">{error}</p> : null}
@@ -141,7 +163,18 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
       {tab === "board" && selected ? <div className="project-grid">
         <div><h2>{selected.name} board</h2>{tasks.length ? tasks.map((task) => (
-          <article className="task-row" key={task.id}><span>{task.status.replace("_", " ")}</span><h3>{task.title}</h3><p>{task.owners?.length ? `Owner: ${task.owners.join(", ")}` : "Unassigned · available to claim"}</p></article>
+          <article className="task-row" key={task.id}>
+            <span>{task.status.replace("_", " ")}</span><h3>{task.title}</h3>
+            <p>{task.owners?.length ? `Owner: ${task.owners.join(", ")}` : "Unassigned · available to claim"}</p>
+            {task.acceptedBy?.length ? <p>Accepted by: {task.acceptedBy.join(", ")}</p> : null}
+            <div className="task-actions">
+              {!task.owners?.length ? <button disabled={busy || !me} onClick={() => void updateTask(task, "claim")}>Claim task</button> : null}
+              {task.owners?.includes(me?.username ?? "") && !task.acceptedBy?.includes(me?.username ?? "")
+                ? <button disabled={busy} onClick={() => void updateTask(task, "accept")}>Accept assignment</button> : null}
+              {task.acceptedBy?.includes(me?.username ?? "") && task.status === "assigned"
+                ? <button disabled={busy} onClick={() => void updateTask(task, "start")}>Start work</button> : null}
+            </div>
+          </article>
         )) : <p>No tasks yet.</p>}</div>
         <form className="project-form" onSubmit={createTask}><h2>Add task</h2><label>Task<input name="title" required /></label><label>Owner username <small>Optional</small><input name="owner" /></label><button disabled={busy}>Add to board</button></form>
       </div> : null}
