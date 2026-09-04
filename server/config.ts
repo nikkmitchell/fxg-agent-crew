@@ -7,6 +7,12 @@ export type Config = {
   cookieName: string;
   sessionTtlMs: number;
   secureCookies: boolean;
+  /**
+   * Where sessions live. A path uses SQLite so they survive a restart; ":memory:"
+   * keeps them in-process and loses them, which is right for tests and local
+   * work but never for a deployment.
+   */
+  sessionStorePath: string;
 };
 
 /**
@@ -45,5 +51,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     cookieName: env.SESSION_COOKIE_NAME ?? "fxg_sid",
     sessionTtlMs: Number(env.SESSION_TTL_MS ?? 7 * 24 * 60 * 60 * 1000),
     secureCookies: production,
+    // Production defaults to a file so a container restart does not sign
+    // everyone out; development defaults to memory so nobody accumulates
+    // stray database files while iterating.
+    sessionStorePath: env.SESSION_STORE_PATH ?? (production ? "./data/sessions.db" : ":memory:"),
   };
 }

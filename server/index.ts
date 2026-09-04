@@ -1,10 +1,12 @@
 import { fileURLToPath } from "node:url";
+import { mkdirSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { dirname, resolve } from "node:path";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import staticPlugin from "@fastify/static";
-import { loadConfig } from "./config.js";
-import { SessionStore } from "./session.js";
+import { loadConfig, type Config } from "./config.js";
+import { MemorySessionStore, SqliteSessionStore, type SessionStore } from "./session.js";
 import { WebharnessClient } from "./webharness/client.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
@@ -17,10 +19,24 @@ import { registerRoomRoutes } from "./routes/rooms.js";
  * a different origin cannot call it at all. Same-origin removes the problem
  * rather than working around it.
  */
+/**
+ * Choose a session store from config.
+ *
+ * ":memory:" is explicit rather than implied by an absent path, so a deployment
+ * that loses sessions on every restart has to have asked for it.
+ */
+function createSessionStore(config: Config): SessionStore {
+  if (config.sessionStorePath === ":memory:") {
+    return new MemorySessionStore(config.sessionTtlMs);
+  }
+  mkdirSync(dirname(config.sessionStorePath), { recursive: true });
+  return new SqliteSessionStore(config.sessionTtlMs, config.sessionStorePath, DatabaseSync);
+}
+
 export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const config = loadConfig(env);
   const app = Fastify({ logger: true });
-  const sessions = new SessionStore(config.sessionTtlMs);
+  const sessions = createSessionStore(config);
   const client = new WebharnessClient(config.webharnessUrl);
 
   app.register(cookie);

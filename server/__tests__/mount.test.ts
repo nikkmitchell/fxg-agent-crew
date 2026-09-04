@@ -1,7 +1,26 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
 
 const apps: Array<ReturnType<typeof buildServer>["app"]> = [];
+const dist = resolve(import.meta.dirname, "../../dist");
+let createdFixture = false;
+
+beforeAll(() => {
+  // The static-route contract needs an index file, but a clean checkout has no
+  // build output. Make the test self-contained rather than passing only when a
+  // developer happened to run `pnpm build` first.
+  if (!existsSync(resolve(dist, "index.html"))) {
+    mkdirSync(dist, { recursive: true });
+    writeFileSync(resolve(dist, "index.html"), "<!doctype html><title>fixture</title>");
+    createdFixture = true;
+  }
+});
+
+afterAll(() => {
+  if (createdFixture) rmSync(dist, { recursive: true, force: true });
+});
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));

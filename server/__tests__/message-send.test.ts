@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { registerRoomRoutes } from "../routes/rooms.js";
-import { SessionStore } from "../session.js";
+import { MemorySessionStore } from "../session.js";
 import { WebharnessClient } from "../webharness/client.js";
 import type { Config } from "../config.js";
 
@@ -15,7 +15,7 @@ const config: Config = {
 };
 
 function setup() {
-  const sessions = new SessionStore(60_000);
+  const sessions = new MemorySessionStore(60_000);
   const sid = sessions.create("nikk", "upstream-secret");
   const app = Fastify();
   app.register(cookie);

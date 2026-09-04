@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
-import { SessionStore } from "../session.js";
+import { MemorySessionStore } from "../session.js";
 import { WebharnessClient } from "../webharness/client.js";
 import { registerRoomRoutes } from "../routes/rooms.js";
 import type { Config } from "../config.js";
@@ -47,7 +47,7 @@ describe("BFF response shapes match the declared contract", () => {
     // Exactly what the live server returns.
     vi.stubGlobal("fetch", vi.fn().mockImplementation(json({ rooms: [{ roomName: "qa-room", ownerName: "qa" }] })));
 
-    const sessions = new SessionStore(60_000);
+    const sessions = new MemorySessionStore(60_000);
     const sid = sessions.create("qa", "token");
     const app = buildApp(sessions);
 
@@ -66,7 +66,7 @@ describe("BFF response shapes match the declared contract", () => {
     // Do not assume the wrapper is permanent; both shapes must work.
     vi.stubGlobal("fetch", vi.fn().mockImplementation(json([{ roomName: "qa-room", ownerName: "qa" }])));
 
-    const sessions = new SessionStore(60_000);
+    const sessions = new MemorySessionStore(60_000);
     const sid = sessions.create("qa", "token");
     const app = buildApp(sessions);
 
@@ -79,7 +79,7 @@ describe("BFF response shapes match the declared contract", () => {
     // A UI mapping over undefined crashes; mapping over [] renders empty.
     vi.stubGlobal("fetch", vi.fn().mockImplementation(json({})));
 
-    const sessions = new SessionStore(60_000);
+    const sessions = new MemorySessionStore(60_000);
     const sid = sessions.create("qa", "token");
     const app = buildApp(sessions);
 
@@ -91,7 +91,7 @@ describe("BFF response shapes match the declared contract", () => {
   it("never sends the upstream token in any room response", async () => {
     vi.stubGlobal("fetch", vi.fn().mockImplementation(json({ rooms: [] })));
 
-    const sessions = new SessionStore(60_000);
+    const sessions = new MemorySessionStore(60_000);
     const sid = sessions.create("qa", "super-secret-upstream-token");
     const app = buildApp(sessions);
 
@@ -102,7 +102,7 @@ describe("BFF response shapes match the declared contract", () => {
   });
 
   it("errors carry a code the UI can switch on", async () => {
-    const sessions = new SessionStore(60_000);
+    const sessions = new MemorySessionStore(60_000);
     const app = buildApp(sessions);
 
     const response = await app.inject({ method: "GET", url: "/bff/rooms" });
@@ -143,7 +143,7 @@ describe("room detail and message shapes", () => {
   };
 
   const withSession = () => {
-    const sessions = new SessionStore(60_000);
+    const sessions = new MemorySessionStore(60_000);
     const sid = sessions.create("qa-tester", "secret-token");
     return { sessions, sid, app: buildApp(sessions) };
   };
@@ -164,14 +164,15 @@ describe("room detail and message shapes", () => {
   });
 
   it("messages are unwrapped and the cursor is derived, since upstream sends none", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockImplementation(json({
+    const fetchMock = vi.fn().mockImplementation(json({
       roomName: "qa-room",
       messages: [
         { id: 1, username: "qa-tester", content: "one", msgType: "text", createdAt: "", updatedAt: "", streaming: false },
         { id: 3, username: "qa-tester", content: "three", msgType: "text", createdAt: "", updatedAt: "", streaming: false },
         { id: 2, username: "qa-tester", content: "two", msgType: "text", createdAt: "", updatedAt: "", streaming: false },
       ],
-    })));
+    }));
+    vi.stubGlobal("fetch", fetchMock);
     const { app, sid } = withSession();
 
     const body = (await app.inject({ method: "GET", url: "/bff/rooms/qa-room/messages", cookies: { fxg_sid: sid } })).json();
@@ -179,6 +180,12 @@ describe("room detail and message shapes", () => {
     expect(Array.isArray(body.messages)).toBe(true);
     // Highest id seen, not last-in-array: upstream ordering is not guaranteed.
     expect(body.cursor).toBe(3);
+    // A browser reload starts without a transcript and therefore without an
+    // afterId. The BFF must request initial history instead of silently
+    // substituting a server-side cursor whose preceding messages the browser
+    // does not have.
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("limit=50");
+    expect(fetchMock.mock.calls[0]?.[0]).not.toContain("afterId=");
   });
 
   it("holds the caller's cursor across an empty page", async () => {
@@ -224,7 +231,7 @@ describe("room detail and message shapes", () => {
  */
 describe("malformed upstream values cannot cross the boundary", () => {
   const withSession = () => {
-    const sessions = new SessionStore(60_000);
+    const sessions = new MemorySessionStore(60_000);
     const sid = sessions.create("qa-tester", "secret-token");
     return { sid, app: buildApp(sessions) };
   };

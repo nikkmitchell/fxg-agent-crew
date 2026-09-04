@@ -92,8 +92,8 @@ export function registerRoomRoutes(
       request.raw.on("close", () => controller.abort());
 
       const afterIdRaw = request.query.afterId;
-      const afterId = afterIdRaw === undefined ? undefined : Number(afterIdRaw);
-      if (afterId !== undefined && !Number.isFinite(afterId)) {
+      const explicitAfterId = afterIdRaw === undefined ? undefined : Number(afterIdRaw);
+      if (explicitAfterId !== undefined && !Number.isFinite(explicitAfterId)) {
         return reply.code(400).send({ code: "BAD_REQUEST", error: "afterId must be a number" });
       }
 
@@ -101,7 +101,11 @@ export function registerRoomRoutes(
         const page = await pollMessages(client, {
           room: request.params.room,
           token: session.token,
-          afterId,
+          // Only the browser knows whether it retained the transcript that
+          // precedes a cursor. With no explicit afterId, fetch initial history;
+          // silently substituting a server cursor would render an empty page
+          // after a browser reload.
+          afterId: explicitAfterId,
           waitSeconds: request.query.wait === undefined ? 25 : Number(request.query.wait),
           signal: controller.signal,
         });
