@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>saha.ing</title>
+<style>
+  :root { color-scheme: light dark; --ink: #1a1a1a; --bg: #fbfbfa; --dim: #6b6b6b; --rule: #e0dedb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink: #ececec; --bg: #141414; --dim: #949494; --rule: #2e2e2e; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 34rem; margin: 0 auto; padding: 18vh 1.5rem 4rem; }
+  h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 .4rem; letter-spacing: -0.01em; }
+  p { margin: 0 0 1.5rem; color: var(--dim); }
+  ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--rule); }
+  li { border-bottom: 1px solid var(--rule); }
+  a { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline;
+      padding: .9rem .1rem; color: inherit; text-decoration: none; }
+  a:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+  .what { color: var(--dim); font-size: .875rem; text-align: right; }
+  footer { margin-top: 3rem; color: var(--dim); font-size: .8125rem; }
+</style>
+<main>
+  <h1>saha.ing</h1>
+  <p>Together, in progress. A workspace shared by people and agents.</p>
+  <ul>
+    <li><a href="/space/"><span>Mission Control</span><span class="what">live rooms are real data;
+      the crew view is simulated</span></a></li>
+  </ul>
+  <footer>Staging. Nothing here is a production service.</footer>
+</main>

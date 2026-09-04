@@ -121,7 +121,16 @@ function plainObject(value: unknown, label: string): Checked<Record<string, unkn
   return { ok: true, value: value as Record<string, unknown> };
 }
 
-function str(value: unknown, label: string, { max = LIMITS.maxStringLength, allowEmpty = false } = {}): Checked<string> {
+// The options are typed explicitly rather than inferred from the defaults:
+// LIMITS is `as const`, so an inferred `max` narrows to the literal 512 and
+// every caller passing a different bound becomes a type error. The browser
+// build never noticed because it does not compile this file the same way —
+// it only surfaced when the server got a real production build.
+function str(
+  value: unknown,
+  label: string,
+  { max = LIMITS.maxStringLength, allowEmpty = false }: { max?: number; allowEmpty?: boolean } = {},
+): Checked<string> {
   if (typeof value !== "string") return bad(`${label} is not a string`);
   if (!allowEmpty && value === "") return bad(`${label} is empty`);
   if (value.length > max) return bad(`${label} exceeds ${max} characters`);
@@ -620,6 +629,8 @@ export function validateEnvelope(raw: unknown): Checked<EventEnvelope> {
 
   const eventId = str(o.eventId, "eventId", { max: 128 });
   if (!eventId.ok) return eventId;
+  const stream = str(o.stream, "stream", { max: 200 });
+  if (!stream.ok) return stream;
   const source = str(o.source, "source", { max: 128 });
   if (!source.ok) return source;
   const sourceCursor = nonNegativeInt(o.sourceCursor, "sourceCursor", LIMITS.maxCursor);
@@ -635,6 +646,10 @@ export function validateEnvelope(raw: unknown): Checked<EventEnvelope> {
     value: {
       version: 1,
       eventId: eventId.value,
+      // Ordering is per stream; see EventEnvelope. Validating an envelope that
+      // arrived without one would leave the reducer keying cursors on
+      // undefined, so it is required here rather than defaulted.
+      stream: stream.value,
       source: source.value,
       sourceCursor: sourceCursor.value,
       occurredAt: occurredAt.value,

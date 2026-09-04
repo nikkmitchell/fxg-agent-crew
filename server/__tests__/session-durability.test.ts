@@ -60,7 +60,12 @@ describe("sessions survive a restart", () => {
     first.destroy(sid);
     first.close();
 
-    expect(openStore().get(sid)).toBeUndefined();
+    // Bound to a variable and closed. Left inline, this handle stays open and
+    // afterEach's rmSync fails with EPERM on Windows — the assertion passes
+    // while the suite reports a failure that has nothing to do with sessions.
+    const second = openStore();
+    expect(second.get(sid)).toBeUndefined();
+    second.close();
   });
 });
 

@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, resolve } from "node:path";
+import { existsSync } from "node:fs";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import staticPlugin from "@fastify/static";
@@ -33,6 +34,22 @@ function createSessionStore(config: Config): SessionStore {
   return new SqliteSessionStore(config.sessionTtlMs, config.sessionStorePath, DatabaseSync);
 }
 
+/**
+ * Walk up from `start` looking for a built UI. Throws rather than falling back
+ * to a guess: a server that boots while serving nothing looks healthy and is
+ * useless, and "the API works but every page is 404" is a bad thing to discover
+ * from a user.
+ */
+function findUiRoot(start: string): string {
+  for (let dir = start, i = 0; i < 6; i += 1, dir = dirname(dir)) {
+    const candidate = resolve(dir, "dist");
+    if (existsSync(resolve(candidate, "index.html"))) return candidate;
+  }
+  throw new Error(
+    `no built UI found near ${start} — run \`pnpm run build\` before starting the server`,
+  );
+}
+
 export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const config = loadConfig(env);
   const app = Fastify({ logger: true });
@@ -50,10 +67,16 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.
+  // Resolve the UI bundle by SEARCHING upward rather than assuming a fixed
+  // depth. Running from source, this file sits at server/; compiled, it sits
+  // at dist-server/server/ — one level deeper. A hardcoded "../dist" is
+  // correct in dev and silently 404s the entire UI in production, which is
+  // exactly what happened the first time this was built for real.
   const here = dirname(fileURLToPath(import.meta.url));
+  const uiRoot = findUiRoot(here);
   const basePath = config.basePath ?? "";
   app.register(staticPlugin, {
-    root: resolve(here, "../dist"),
+    root: uiRoot,
     prefix: basePath ? `${basePath}/` : "/",
     wildcard: false,
   });

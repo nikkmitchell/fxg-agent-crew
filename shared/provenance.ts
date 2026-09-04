@@ -358,7 +358,7 @@ function sourceLabel(source: EvidenceSource, sourced: Sourced<unknown>): string 
       return "DEMO";
     case "derived":
       // A derivation is only as strong as its weakest contributor.
-      return isVerifiableSource(sourced.source) ? "VERIFIED" : "DERIVED";
+      return isVerifiedFact(sourced) ? "VERIFIED" : "DERIVED";
   }
 }
 
