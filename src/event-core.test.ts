@@ -28,10 +28,13 @@ describe("reduceCrewEvent", () => {
       type: "project.upserted",
       project: {
         id: "many-player-go",
-        title: "Multiplayer Go",
+        name: "Multiplayer Go",
         summary: "Use Saha.ing to develop a Go variant for three or more players.",
-        goal: "Prove the project workflow with a genuinely playable release.",
-        milestones: ["Agree on rules", "Build the first playable board"],
+        goals: ["Prove the project workflow with a genuinely playable release."],
+        steps: [
+          { id: "rules", title: "Agree on rules", status: "in_progress" },
+          { id: "playable", title: "Build the first playable board", status: "not_started" },
+        ],
       },
     }));
     const withTask = reduceCrewEvent(withProject, envelope("task", 2, {
@@ -39,7 +42,7 @@ describe("reduceCrewEvent", () => {
       task: { id: "go-rules", projectId: "many-player-go", title: "Agree on rules", status: "backlog", points: 3 },
     }));
 
-    expect(withTask.projects["many-player-go"].title).toBe("Multiplayer Go");
+    expect(withTask.projects["many-player-go"].name).toBe("Multiplayer Go");
     expect(withTask.tasks["go-rules"].projectId).toBe("many-player-go");
   });
 

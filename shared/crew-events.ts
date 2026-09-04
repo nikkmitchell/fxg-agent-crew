@@ -39,10 +39,10 @@ export type CrewTask = {
 
 export type CrewProject = {
   id: string;
-  title: string;
+  name: string;
   summary: string;
-  goal: string;
-  milestones: string[];
+  goals: string[];
+  steps: Array<{ id: string; title: string; status: "not_started" | "in_progress" | "done" }>;
 };
 
 export type CrewMessage = {
@@ -288,23 +288,38 @@ function crewProject(raw: unknown): Checked<CrewProject> {
 
   const id = str(o.id, "project.id");
   if (!id.ok) return id;
-  const title = str(o.title, "project.title");
-  if (!title.ok) return title;
+  const name = str(o.name, "project.name");
+  if (!name.ok) return name;
   const summary = str(o.summary, "project.summary", { max: 2_000 });
   if (!summary.ok) return summary;
-  const goal = str(o.goal, "project.goal", { max: 2_000 });
-  if (!goal.ok) return goal;
-  if (!Array.isArray(o.milestones)) return bad("project.milestones is not an array");
-  if (o.milestones.length < 1 || o.milestones.length > 10) {
-    return bad("project.milestones must contain 1 to 10 entries");
+  if (!Array.isArray(o.goals) || o.goals.length < 1 || o.goals.length > 10) {
+    return bad("project.goals must contain 1 to 10 entries");
   }
-  const milestones: string[] = [];
-  for (const [index, entry] of o.milestones.entries()) {
-    const checked = str(entry, `project.milestones[${index}]`);
+  const goals: string[] = [];
+  for (const [index, entry] of o.goals.entries()) {
+    const checked = str(entry, `project.goals[${index}]`);
     if (!checked.ok) return checked;
-    milestones.push(checked.value);
+    goals.push(checked.value);
   }
-  return { ok: true, value: { id: id.value, title: title.value, summary: summary.value, goal: goal.value, milestones } };
+  if (!Array.isArray(o.steps) || o.steps.length < 1 || o.steps.length > 10) {
+    return bad("project.steps must contain 1 to 10 entries");
+  }
+  const steps: CrewProject["steps"] = [];
+  for (const [index, rawStep] of o.steps.entries()) {
+    const step = plainObject(rawStep, `project.steps[${index}]`);
+    if (!step.ok) return step;
+    const stepId = str(step.value.id, `project.steps[${index}].id`);
+    if (!stepId.ok) return stepId;
+    const stepTitle = str(step.value.title, `project.steps[${index}].title`);
+    if (!stepTitle.ok) return stepTitle;
+    const status = str(step.value.status, `project.steps[${index}].status`, { max: 32 });
+    if (!status.ok) return status;
+    if (!(["not_started", "in_progress", "done"] as const).includes(status.value as CrewProject["steps"][number]["status"])) {
+      return bad(`project.steps[${index}].status is not known`);
+    }
+    steps.push({ id: stepId.value, title: stepTitle.value, status: status.value as CrewProject["steps"][number]["status"] });
+  }
+  return { ok: true, value: { id: id.value, name: name.value, summary: summary.value, goals, steps } };
 }
 
 function crewMessage(raw: unknown): Checked<CrewMessage> {

@@ -22,10 +22,10 @@ export type CrewTask = {
 
 export type CrewProject = {
   id: string;
-  title: string;
+  name: string;
   summary: string;
-  goal: string;
-  milestones: string[];
+  goals: string[];
+  steps: Array<{ id: string; title: string; status: "not_started" | "in_progress" | "done" }>;
 };
 
 export type CrewMessage = {
