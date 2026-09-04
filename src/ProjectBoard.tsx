@@ -22,8 +22,8 @@ export function ProjectBoard({ tasks, agents }: { tasks: CrewTask[]; agents: Wor
     <section className="project-board" aria-labelledby="project-board-title">
       <header className="board-header">
         <div>
-          <p className="eyebrow">SIMULATED PROJECT BOARD <span>/</span> DEMO PROJECTION</p>
-          <h2 id="project-board-title">From brief to verified release.</h2>
+          <p className="eyebrow">PROJECT BOARD</p>
+          <h2 id="project-board-title">Tasks</h2>
         </div>
         <a href="https://github.com/nikkmitchell/fxg-agent-crew" target="_blank" rel="noreferrer">
           <small>PROJECT LOCATION</small>
