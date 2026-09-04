@@ -26,7 +26,10 @@ EnvironmentFile=/etc/fxg-crew/env
 Environment=HOST=127.0.0.1
 Environment=NODE_ENV=production
 
-ExecStart=/usr/bin/node --experimental-strip-types server/index.ts
+# Compiled JS, not --experimental-strip-types. That flag does not rewrite the
+# .js import specifiers this codebase uses, so it could never start outside a
+# dev machine running tsx. Run `npm run build` before deploying.
+ExecStart=/usr/bin/node dist-server/server/index.js
 Restart=always
 RestartSec=3
 
@@ -48,10 +51,20 @@ ProtectControlGroups=yes
 RestrictAddressFamilies=AF_INET AF_INET6
 RestrictNamespaces=yes
 LockPersonality=yes
-MemoryDenyWriteExecute=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 UMask=0077
+
+# NOT set: MemoryDenyWriteExecute.
+#
+# It is the usual hardening recommendation and it is wrong for Node. V8's JIT
+# maps memory writable-then-executable, so the flag kills the process during
+# Isolate::Initialize with a SIGTRAP core dump before any of our code runs.
+# Verified here: six crash-restarts in a row.
+#
+# Worth knowing: `systemctl is-active` reported "active" throughout, because it
+# answers during the restart backoff window. A crash-looping service looks
+# healthy to the check most people reach for first.
 
 [Install]
 WantedBy=multi-user.target

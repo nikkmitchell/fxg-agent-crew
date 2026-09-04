@@ -1,0 +1,30 @@
+{
+  // Production build for the BFF.
+  //
+  // The server previously had NO build at all: `dev:bff` ran it through tsx,
+  // and the systemd unit tried `node --experimental-strip-types`, which does
+  // not rewrite the `.js` specifiers in our imports the way tsx does. The
+  // service could not start outside a dev machine.
+  //
+  // Compiling to plain JS means production runs stock node with no experimental
+  // flags and no TypeScript runtime.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist-server",
+    "rootDir": ".",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "sourceMap": true,
+    "noEmit": false,
+    "types": ["node"]
+  },
+  // src/event-core.ts is pulled in by the adapter tests and the reducer seam,
+  // so it compiles alongside the server rather than with the browser bundle.
+  "include": ["server/**/*.ts", "shared/**/*.ts", "src/event-core.ts"],
+  "exclude": ["server/__tests__/**", "**/*.test.ts"]
+}

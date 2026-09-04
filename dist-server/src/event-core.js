@@ -1,0 +1,130 @@
+export const initialCrewState = {
+    agents: {},
+    tasks: {},
+    messages: [],
+    cursors: {},
+    seenEventIds: {},
+    rejectedEvents: [],
+};
+const allowedTransitions = {
+    backlog: ["assigned"],
+    assigned: ["in_progress", "backlog"],
+    in_progress: ["blocked", "review"],
+    blocked: ["in_progress", "backlog"],
+    review: ["in_progress", "blocked", "done"],
+    done: ["review"],
+};
+/**
+ * Ordering is per stream+author. The stream carries the id sequence; the author
+ * is retained so one participant cannot rewind another's position within it.
+ */
+function cursorKey(event) {
+    return `${event.stream}\u0000${event.source}`;
+}
+function reject(state, eventId, reason) {
+    return {
+        ...state,
+        seenEventIds: { ...state.seenEventIds, [eventId]: true },
+        rejectedEvents: [...state.rejectedEvents, { eventId, reason }].slice(-50),
+    };
+}
+export function reduceCrewEvent(state, event) {
+    if (event.version !== 1)
+        return reject(state, event.eventId, "unsupported event version");
+    if (state.seenEventIds[event.eventId])
+        return state;
+    // Strictly-less rather than less-or-equal. Cursors are transport-derived
+    // (a WebHarness message id), so several events can legitimately share one:
+    // two fenced blocks in a single message carry the same cursor. Rejecting on
+    // equality silently dropped every action after the first in such a message —
+    // confirmed end-to-end against a running local instance, not only in tests.
+    //
+    // Uniqueness is already guaranteed by eventId, and replay protection comes
+    // from seenEventIds above. The cursor only needs to be non-decreasing, to
+    // reject genuinely stale deliveries from an older poll window.
+    //
+    // Keyed by STREAM, not author. Message ids are per-room sequences, so the
+    // same user posting in room A at 100 and room B at 1 is not going backwards —
+    // keying by username alone made every event in the quieter room look stale.
+    const streamKey = cursorKey(event);
+    const lastCursor = state.cursors[streamKey] ?? -1;
+    if (event.sourceCursor < lastCursor)
+        return reject(state, event.eventId, "stale source cursor");
+    const next = {
+        ...state,
+        cursors: { ...state.cursors, [streamKey]: event.sourceCursor },
+        // seenEventIds is deliberately unbounded for now. A previous attempt to cap
+        // it made replay non-idempotent above the threshold — evicted ids came back
+        // as stale-cursor rejections, which mutate state — and the test claiming
+        // otherwise was vacuous, exercising 20 events against a 5000-event cap so
+        // the pruning never ran. Bounding it correctly needs the room-scoped
+        // ordering key from the adapter work; until then an unbounded set is the
+        // honest choice, because a slow leak is better than silently breaking the
+        // one property this reducer exists to guarantee.
+        seenEventIds: { ...state.seenEventIds, [event.eventId]: true },
+    };
+    switch (event.payload.type) {
+        case "agent.upserted": {
+            // A profile update must PRESERVE observed presence, not reset it. The
+            // event carries no `online` field, and an existing observation survives
+            // the merge — otherwise every profile edit would silently mark a working
+            // agent as offline until the next presence snapshot.
+            const existing = next.agents[event.payload.agent.id];
+            return {
+                ...next,
+                agents: {
+                    ...next.agents,
+                    [event.payload.agent.id]: { ...event.payload.agent, online: existing?.online ?? false },
+                },
+            };
+        }
+        case "presence.snapshotted": {
+            const online = new Set(event.payload.usernames);
+            return {
+                ...next,
+                // Match on ID, not name. `usernames` carries authenticated transport
+                // usernames and agents are keyed by that same id; `name` is a mutable
+                // self-chosen display name ("Inkstone" for baipad-gpt001). Matching on
+                // name marked every agent offline permanently, and did so SILENTLY —
+                // no rejection, no error, just a crew strip quietly claiming nobody is
+                // working. On a product whose first promise is showing who is active,
+                // that is the worst shape of failure: confidently wrong, no signal.
+                agents: Object.fromEntries(Object.entries(next.agents).map(([id, agent]) => [id, { ...agent, online: online.has(id) }])),
+            };
+        }
+        case "task.upserted":
+            return { ...next, tasks: { ...next.tasks, [event.payload.task.id]: event.payload.task } };
+        case "task.transitioned": {
+            const task = next.tasks[event.payload.taskId];
+            if (!task)
+                return reject(next, event.eventId, "task not found");
+            if (!allowedTransitions[task.status].includes(event.payload.to)) {
+                return reject(next, event.eventId, `invalid transition: ${task.status} -> ${event.payload.to}`);
+            }
+            if (event.payload.to === "blocked" && !event.payload.blocker?.trim()) {
+                return reject(next, event.eventId, "blocked tasks require a reason");
+            }
+            return {
+                ...next,
+                tasks: {
+                    ...next.tasks,
+                    [task.id]: {
+                        ...task,
+                        status: event.payload.to,
+                        blocker: event.payload.to === "blocked" ? event.payload.blocker?.trim() : undefined,
+                    },
+                },
+            };
+        }
+        case "message.received": {
+            const message = event.payload.message;
+            return {
+                ...next,
+                messages: [...next.messages.filter((item) => item.id !== message.id), message]
+                    .sort((a, b) => a.id - b.id)
+                    .slice(-500),
+            };
+        }
+    }
+}
+//# sourceMappingURL=event-core.js.map

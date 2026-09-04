@@ -60,15 +60,24 @@ Use a disposable WebHarness account, never a real one:
 2. confirm the response body is `{"username":"..."}` with **no token** in it
 3. confirm the cookie is `HttpOnly` and `Secure`
 4. open Live Rooms, pick a room, send a message, see it appear
-5. `systemctl restart fxg-crew` — you should still be signed in
+5. `systemctl restart fxg-crew` — **you will be signed out** on current `main`
 
-Step 5 is the one worth doing deliberately. Sessions are stored on disk
-(`/var/lib/fxg-crew/sessions.db`) precisely so a restart or redeploy does not
-sign everyone out.
+Step 5 currently fails, deliberately documented rather than quietly hoped past.
+Durable sessions are in an unmerged branch (#16). The unit already sets
+`SESSION_STORE_PATH`, but the code on `main` has an in-memory store and ignores
+it, so **the variable is a no-op today and every restart or redeploy signs
+everyone out**.
+
+Do not read the presence of `SESSION_STORE_PATH` in the unit as evidence the
+feature is live. It was configured ahead of the code, which is exactly the kind
+of gap that reads as working. Once #16 merges, a `sessions.db` appears in
+`/var/lib/fxg-crew/` and step 5 should pass — the absence of that file is the
+check.
 
 ## Limits, stated plainly
 
-- **Single instance.** SQLite gives restart-survival on one host. It does not
+- **Sessions are lost on restart** until #16 merges. See the smoke test.
+- **Single instance** *(once #16 lands)*. SQLite gives restart-survival on one host. It does not
   give multi-instance sharing, and a SQLite file on network storage is a known
   way to corrupt a database. More than one replica needs Redis or a real
   database server; the `SessionStore` interface is the seam for that.
