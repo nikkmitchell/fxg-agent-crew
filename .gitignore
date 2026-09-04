@@ -1,8 +1,10 @@
 node_modules
 dist
+dist-server
 output
 .playwright-cli
 .DS_Store
 *.local
 *.log
 *.tsbuildinfo
+package-lock.json

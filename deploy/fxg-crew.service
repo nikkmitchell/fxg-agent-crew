@@ -1,0 +1,76 @@
+# systemd unit for Mission Control (UI + BFF), mounted at /space.
+#
+# It does NOT own `/`. Classic chat keeps the root path; this service only ever
+# answers under /space, and nginx only proxies that prefix. An earlier version
+# of this file claimed `location /` and would have replaced the chat it was
+# supposed to sit beside.
+#
+# Install: /etc/systemd/system/fxg-crew.service
+[Unit]
+Description=FXG Agent Crew — Mission Control at /space
+Documentation=https://github.com/nikkmitchell/fxg-agent-crew
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fxgcrew
+Group=fxgcrew
+WorkingDirectory=/opt/fxg-crew
+
+# Secrets in a root-owned file, never in the unit — `systemctl cat` is readable
+# by anyone.
+EnvironmentFile=/etc/fxg-crew/env
+
+Environment=NODE_ENV=production
+# Loopback only. nginx terminates TLS and proxies in; this process is never
+# directly reachable from the internet.
+Environment=HOST=127.0.0.1
+# The mount point. Must match the nginx location and the build's Vite base, or
+# assets 404 while the HTML loads — a failure that looks like a blank page.
+Environment=APP_BASE_PATH=/space
+
+# Compiled JS, not --experimental-strip-types: that flag does not rewrite the
+# .js import specifiers this codebase uses, so it could never boot outside a
+# dev machine running tsx. Run `npm run build` before deploying.
+ExecStart=/usr/bin/node dist-server/server/index.js
+Restart=always
+RestartSec=3
+
+StateDirectory=fxg-crew
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0077
+
+# NOT set: MemoryDenyWriteExecute.
+#
+# It is the usual hardening recommendation and it is wrong for Node. V8's JIT
+# maps memory writable-then-executable, so the flag kills the process during
+# Isolate::Initialize with a SIGTRAP core dump before any of our code runs.
+# Observed here: six crash-restarts.
+#
+# Worth knowing: `systemctl is-active` reported "active" throughout, because it
+# answers during the restart backoff window. A crash-looping service looks
+# healthy to the check most people reach for first.
+#
+# NOT set: SESSION_STORE_PATH.
+#
+# Durable sessions are unmerged (#16). Setting the variable now would make the
+# unit read as though restarts are survivable when the in-memory store ignores
+# it entirely. Configuration that describes a feature the code lacks is the
+# same lie as a label on a value that was never observed.
+
+[Install]
+WantedBy=multi-user.target
