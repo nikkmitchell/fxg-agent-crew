@@ -12,7 +12,7 @@ import { registerRoomRoutes } from "./routes/rooms.js";
 /**
  * Backend-for-frontend.
  *
- * The UI and /bff/* are served from ONE origin, which is the point: WebHarness
+ * The UI and its /bff/* are served from ONE origin, which is the point: WebHarness
  * sends no CORS headers and answers preflight OPTIONS with 405, so a browser on
  * a different origin cannot call it at all. Same-origin removes the problem
  * rather than working around it.
@@ -25,14 +25,26 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
 
   app.register(cookie);
 
-  registerAuthRoutes(app, config, sessions, client);
-  registerRoomRoutes(app, config, sessions, client);
+  // A prefix lets Wilson mount this beside classic chat at /space without
+  // stealing its routes. With the default empty prefix, existing URLs remain
+  // /bff/* and the app remains a standalone service.
+  app.register(async (scoped) => {
+    registerAuthRoutes(scoped, config, sessions, client);
+    registerRoomRoutes(scoped, config, sessions, client);
+  }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.
   const here = dirname(fileURLToPath(import.meta.url));
-  app.register(staticPlugin, { root: resolve(here, "../dist"), wildcard: false });
+  const basePath = config.basePath ?? "";
+  app.register(staticPlugin, {
+    root: resolve(here, "../dist"),
+    prefix: basePath ? `${basePath}/` : "/",
+    wildcard: false,
+  });
   app.setNotFoundHandler((request, reply) => {
-    if (request.url.startsWith("/bff/")) return reply.code(404).send({ error: "not found" });
+    if (request.url.startsWith(`${basePath}/bff/`)) return reply.code(404).send({ error: "not found" });
+    if (basePath && request.url === basePath) return reply.redirect(`${basePath}/`);
+    if (basePath && !request.url.startsWith(`${basePath}/`)) return reply.code(404).send({ error: "not found" });
     return reply.sendFile("index.html");
   });
 
