@@ -29,11 +29,20 @@ export type AgentProfile = {
 
 export type CrewTask = {
   id: string;
+  projectId?: string;
   title: string;
   status: TaskStatus;
   assigneeId?: string;
   points: number;
   blocker?: string;
+};
+
+export type CrewProject = {
+  id: string;
+  name: string;
+  summary: string;
+  goals: string[];
+  steps: Array<{ id: string; title: string; status: "not_started" | "in_progress" | "done" }>;
 };
 
 export type CrewMessage = {
@@ -56,6 +65,7 @@ export type SelfReportedProfile = Omit<AgentProfile, "online">;
 export type CrewEvent =
   | { type: "agent.upserted"; agent: SelfReportedProfile }
   | { type: "presence.snapshotted"; usernames: string[] }
+  | { type: "project.upserted"; project: CrewProject }
   | { type: "task.upserted"; task: CrewTask }
   | { type: "task.transitioned"; taskId: string; to: TaskStatus; blocker?: string }
   | { type: "message.received"; message: CrewMessage };
@@ -237,6 +247,8 @@ function crewTask(raw: unknown): Checked<CrewTask> {
 
   const id = str(o.id, "task.id");
   if (!id.ok) return id;
+  const projectId = optional(o.projectId, () => str(o.projectId, "task.projectId"));
+  if (!projectId.ok) return projectId;
   const title = str(o.title, "task.title");
   if (!title.ok) return title;
   const status = taskStatus(o.status, "task.status");
@@ -259,6 +271,7 @@ function crewTask(raw: unknown): Checked<CrewTask> {
     ok: true,
     value: {
       id: id.value,
+      ...(projectId.value !== undefined ? { projectId: projectId.value } : {}),
       title: title.value,
       status: status.value,
       points: points.value,
@@ -266,6 +279,47 @@ function crewTask(raw: unknown): Checked<CrewTask> {
       ...(blocker.value !== undefined ? { blocker: blocker.value } : {}),
     },
   };
+}
+
+function crewProject(raw: unknown): Checked<CrewProject> {
+  const object = plainObject(raw, "project");
+  if (!object.ok) return object;
+  const o = object.value;
+
+  const id = str(o.id, "project.id");
+  if (!id.ok) return id;
+  const name = str(o.name, "project.name");
+  if (!name.ok) return name;
+  const summary = str(o.summary, "project.summary", { max: 2_000 });
+  if (!summary.ok) return summary;
+  if (!Array.isArray(o.goals) || o.goals.length < 1 || o.goals.length > 10) {
+    return bad("project.goals must contain 1 to 10 entries");
+  }
+  const goals: string[] = [];
+  for (const [index, entry] of o.goals.entries()) {
+    const checked = str(entry, `project.goals[${index}]`);
+    if (!checked.ok) return checked;
+    goals.push(checked.value);
+  }
+  if (!Array.isArray(o.steps) || o.steps.length < 1 || o.steps.length > 10) {
+    return bad("project.steps must contain 1 to 10 entries");
+  }
+  const steps: CrewProject["steps"] = [];
+  for (const [index, rawStep] of o.steps.entries()) {
+    const step = plainObject(rawStep, `project.steps[${index}]`);
+    if (!step.ok) return step;
+    const stepId = str(step.value.id, `project.steps[${index}].id`);
+    if (!stepId.ok) return stepId;
+    const stepTitle = str(step.value.title, `project.steps[${index}].title`);
+    if (!stepTitle.ok) return stepTitle;
+    const status = str(step.value.status, `project.steps[${index}].status`, { max: 32 });
+    if (!status.ok) return status;
+    if (!(["not_started", "in_progress", "done"] as const).includes(status.value as CrewProject["steps"][number]["status"])) {
+      return bad(`project.steps[${index}].status is not known`);
+    }
+    steps.push({ id: stepId.value, title: stepTitle.value, status: status.value as CrewProject["steps"][number]["status"] });
+  }
+  return { ok: true, value: { id: id.value, name: name.value, summary: summary.value, goals, steps } };
 }
 
 function crewMessage(raw: unknown): Checked<CrewMessage> {
@@ -321,6 +375,10 @@ function crewEvent(raw: unknown): Checked<CrewEvent> {
         usernames.push(checked.value);
       }
       return { ok: true, value: { type: "presence.snapshotted", usernames } };
+    }
+    case "project.upserted": {
+      const project = crewProject(o.project);
+      return project.ok ? { ok: true, value: { type: "project.upserted", project: project.value } } : project;
     }
     case "task.upserted": {
       const task = crewTask(o.task);
@@ -595,13 +653,14 @@ export function authorizeEvent(
       // caller strips the field rather than trusting it.
       return { ok: true, value: true };
 
+    case "project.upserted":
     case "task.upserted":
     case "task.transitioned":
       // Membership is not project authority: anyone can join a public room.
       // Without an explicit capability this is a request, not an event.
       if (!canMutateProject(authority.username, authority.roomName)) {
         return bad(
-          `${authority.username} has no project capability to change tasks in ${authority.roomName}; ` +
+          `${authority.username} has no project capability to change project data in ${authority.roomName}; ` +
             `treat this as a request pending operator approval`,
         );
       }

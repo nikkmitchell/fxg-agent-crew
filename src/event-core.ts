@@ -12,11 +12,20 @@ export type AgentProfile = {
 
 export type CrewTask = {
   id: string;
+  projectId?: string;
   title: string;
   status: TaskStatus;
   assigneeId?: string;
   points: number;
   blocker?: string;
+};
+
+export type CrewProject = {
+  id: string;
+  name: string;
+  summary: string;
+  goals: string[];
+  steps: Array<{ id: string; title: string; status: "not_started" | "in_progress" | "done" }>;
 };
 
 export type CrewMessage = {
@@ -30,6 +39,7 @@ export type CrewMessage = {
 export type CrewEvent =
   | { type: "agent.upserted"; agent: Omit<AgentProfile, "online"> }
   | { type: "presence.snapshotted"; usernames: string[] }
+  | { type: "project.upserted"; project: CrewProject }
   | { type: "task.upserted"; task: CrewTask }
   | { type: "task.transitioned"; taskId: string; to: TaskStatus; blocker?: string }
   | { type: "message.received"; message: CrewMessage };
@@ -57,6 +67,7 @@ export type EventEnvelope = {
 
 export type CrewState = {
   agents: Record<string, AgentProfile>;
+  projects: Record<string, CrewProject>;
   tasks: Record<string, CrewTask>;
   messages: CrewMessage[];
   cursors: Record<string, number>;
@@ -66,6 +77,7 @@ export type CrewState = {
 
 export const initialCrewState: CrewState = {
   agents: {},
+  projects: {},
   tasks: {},
   messages: [],
   cursors: {},
@@ -162,7 +174,12 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
         agents: Object.fromEntries(Object.entries(next.agents).map(([id, agent]) => [id, { ...agent, online: online.has(id) }])),
       };
     }
+    case "project.upserted":
+      return { ...next, projects: { ...next.projects, [event.payload.project.id]: event.payload.project } };
     case "task.upserted":
+      if (event.payload.task.projectId && !next.projects[event.payload.task.projectId]) {
+        return reject(next, event.eventId, "project not found");
+      }
       return { ...next, tasks: { ...next.tasks, [event.payload.task.id]: event.payload.task } };
     case "task.transitioned": {
       const task = next.tasks[event.payload.taskId];
