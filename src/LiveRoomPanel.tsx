@@ -79,10 +79,29 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
 
       {state.roomName && state.phase !== "selecting_room" && state.phase !== "signed_out" && (
         <>
-          <div className="room-presence">
-            <span>{state.room?.onlineCount ?? 0} online</span>
-            <div>{state.room?.onlineUsers.slice(0, 5).map((user) => <i key={user.username} title={user.username}>{user.username.slice(0, 2).toUpperCase()}</i>)}</div>
-          </div>
+          {/*
+            * Presence is a disclosure, not a permanent band.
+            *
+            * This panel stacked header + status + presence above the message
+            * list — roughly 190px of fixed chrome. On a phone the keyboard
+            * takes most of what is left, so the messages collapsed to nothing
+            * while typing: "I'm in chat and while typing it doesn't even show
+            * messages". The count stays visible because it is one line; the
+            * avatars are behind a toggle because they are not.
+            */}
+          <details className="room-presence">
+            <summary>
+              <span>{state.room?.onlineCount ?? 0} online</span>
+              <small>Who</small>
+            </summary>
+            <div className="room-presence-list">
+              {state.room?.onlineUsers.length
+                ? state.room.onlineUsers.map((user) => (
+                    <i key={user.username} title={user.username}>{user.username.slice(0, 2).toUpperCase()}</i>
+                  ))
+                : <p>Nobody else is here right now.</p>}
+            </div>
+          </details>
 
           {(state.phase === "reconnecting" || state.errorCode === "ROOM_ARCHIVED" || state.errorCode === "NOT_A_MEMBER") && (
             <div className="room-callout" role="status">
