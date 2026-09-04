@@ -60,10 +60,27 @@ fi
 
 log "next steps"
 cat <<'NEXT'
-1. cp deploy/env.example /etc/fxg-crew/env && edit it
-     SESSION_SECRET=$(openssl rand -base64 48)
-   chmod 600 /etc/fxg-crew/env
-2. Point DNS at this host, then:
-     certbot --nginx -d your.hostname
-3. deploy/release.sh
+1. Secrets:
+     cp deploy/env.example /etc/fxg-crew/env
+     sed -i "s|SESSION_SECRET=REPLACE_ME|SESSION_SECRET=$(openssl rand -base64 48)|" /etc/fxg-crew/env
+     chmod 600 /etc/fxg-crew/env
+   APP_BASE_PATH and SESSION_STORE_PATH must both be set. The service mounts at
+   the default and serves "/" without the first, and crashes on a read-only path
+   without the second.
+
+2. TLS: FOLLOW deploy/README.md SECTION 3. Do not improvise this.
+
+   Deliberately NOT repeated here as a one-liner, because the order matters and
+   a copy of it in two places is a copy that goes stale. In short: an HTTP-only
+   bootstrap config, THEN `certbot certonly --webroot`, THEN the real TLS config.
+
+   This script used to say `certbot --nginx -d your.hostname` at this point.
+   That was wrong twice over: the nginx plugin rewrites the config, so the file
+   that runs is not the file that was reviewed; and installing the TLS config
+   first deadlocks the host, because it references certificate files that do not
+   exist yet, so `nginx -t` fails, so nginx will not start, so it cannot serve
+   the ACME challenge that would create them.
+
+3. Ship and verify from a checkout:
+     deploy/release.sh root@your.hostname
 NEXT
