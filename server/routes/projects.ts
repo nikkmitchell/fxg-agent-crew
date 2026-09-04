@@ -14,7 +14,12 @@ const PAGE_LIMIT = 50;
 const MAX_PAGES = 200;
 
 /** Replay the room's durable action log. WebHarness is the persistence layer. */
-export async function replayProjectState(client: Pick<WebharnessClient, "request">, room: string, token: string) {
+export async function replayProjectState(
+  client: Pick<WebharnessClient, "request">,
+  room: string,
+  token: string,
+  canMutateProject: (username: string, roomName: string) => boolean,
+) {
   const messages: Message[] = [];
   let afterId = 0;
 
@@ -36,7 +41,7 @@ export async function replayProjectState(client: Pick<WebharnessClient, "request
     roomName: room,
     // A valid signed-in room member may organize projects. Identity and room
     // membership still come from WebHarness; the event body cannot forge them.
-    canMutateProject: () => true,
+    canMutateProject,
   });
   const state = adapted.events.reduce(reduceCrewEvent, initialCrewState);
   return {
@@ -60,13 +65,14 @@ export function registerProjectRoutes(
     }
     return session;
   };
+  const canMutateProject = (username: string) => config.projectMutators.includes(username);
 
   app.get<{ Querystring: { room?: string } }>("/bff/projects", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const room = request.query.room?.trim();
     if (!room) return reply.code(400).send({ code: "BAD_REQUEST", error: "room is required" });
-    return reply.send(await replayProjectState(client, room, session.token));
+    return reply.send(await replayProjectState(client, room, session.token, (username) => canMutateProject(username)));
   });
 
   app.post<{ Body: { room?: string; payload?: CrewEvent } }>("/bff/project-events", async (request, reply) => {
@@ -76,6 +82,9 @@ export function registerProjectRoutes(
     const checked = validateActionRequest({ version: 1, payload: request.body?.payload });
     if (!room || !checked.ok || !["project.upserted", "task.upserted", "task.transitioned"].includes(checked.ok ? checked.value.payload.type : "")) {
       return reply.code(400).send({ code: "BAD_REQUEST", error: checked.ok ? "project action required" : checked.reason });
+    }
+    if (!canMutateProject(session.username)) {
+      return reply.code(403).send({ code: "PROJECT_PERMISSION_REQUIRED", error: "project mutation is not permitted" });
     }
     const message = await client.request<Message>(
       `/api/rooms/${encodeURIComponent(room)}/messages`,

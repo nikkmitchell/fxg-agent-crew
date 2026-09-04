@@ -13,6 +13,8 @@ export type Config = {
    * work but never for a deployment.
    */
   sessionStorePath: string;
+  /** Explicit WebHarness usernames allowed to mutate project state. */
+  projectMutators: string[];
 };
 
 /**
@@ -55,5 +57,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // everyone out; development defaults to memory so nobody accumulates
     // stray database files while iterating.
     sessionStorePath: env.SESSION_STORE_PATH ?? (production ? "./data/sessions.db" : ":memory:"),
+    projectMutators: (env.PROJECT_MUTATORS ?? "").split(",").map((value) => value.trim()).filter(Boolean),
   };
 }

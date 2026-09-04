@@ -26,4 +26,11 @@ describe("server bind address", () => {
   it("rejects a base path that could escape its mount", () => {
     expect(() => loadConfig({ WEBHARNESS_URL: "https://example.test", APP_BASE_PATH: "/../space" })).toThrow("APP_BASE_PATH");
   });
+
+  it("parses an explicit project-mutator allowlist", () => {
+    expect(loadConfig({
+      WEBHARNESS_URL: "https://example.test",
+      PROJECT_MUTATORS: "nikk, Nikk2Macbook-Codex-001, claude-nikk2mbp",
+    }).projectMutators).toEqual(["nikk", "Nikk2Macbook-Codex-001", "claude-nikk2mbp"]);
+  });
 });

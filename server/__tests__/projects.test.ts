@@ -32,7 +32,7 @@ describe("project replay", () => {
       .mockResolvedValueOnce({ messages: [transport(1, project), transport(2, task)] })
       .mockResolvedValueOnce({ messages: [] });
 
-    const state = await replayProjectState({ request } as never, "AgentParty", "secret-never-returned");
+    const state = await replayProjectState({ request } as never, "AgentParty", "secret-never-returned", () => true);
 
     expect(state.projects).toHaveLength(1);
     expect(state.projects[0].name).toBe("Multiplayer Go");
@@ -47,7 +47,7 @@ describe("project replay", () => {
       task: { id: "orphan", projectId: "missing", title: "Orphan", status: "backlog", points: 1 },
     });
     const request = vi.fn().mockResolvedValueOnce({ messages: [transport(1, task)] });
-    const state = await replayProjectState({ request } as never, "AgentParty", "secret-never-returned");
+    const state = await replayProjectState({ request } as never, "AgentParty", "secret-never-returned", () => true);
     expect(state.tasks).toEqual([]);
     expect(state.rejected.at(-1)).toMatchObject({ reason: "project not found" });
   });
