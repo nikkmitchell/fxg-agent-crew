@@ -51,4 +51,16 @@ describe("project replay", () => {
     expect(state.tasks).toEqual([]);
     expect(state.rejected.at(-1)).toMatchObject({ reason: "project not found" });
   });
+
+  it("fails instead of returning a silently truncated projection", async () => {
+    const fullPage = Array.from({ length: 50 }, (_, index) => transport(index + 1, "ordinary prose"));
+    let cursor = 0;
+    const request = vi.fn().mockImplementation(() => {
+      const page = fullPage.map((message) => ({ ...message, id: message.id + cursor }));
+      cursor += 50;
+      return Promise.resolve({ messages: page });
+    });
+    await expect(replayProjectState({ request } as never, "AgentParty", "secret-never-returned", () => true))
+      .rejects.toThrow("exceeded 10000 messages");
+  });
 });

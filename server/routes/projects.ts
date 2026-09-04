@@ -22,6 +22,7 @@ export async function replayProjectState(
 ) {
   const messages: Message[] = [];
   let afterId = 0;
+  let complete = false;
 
   for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber += 1) {
     const page = await client.request<{ messages?: Message[] }>(
@@ -29,13 +30,14 @@ export async function replayProjectState(
       { token },
     );
     const batch = Array.isArray(page.messages) ? page.messages : [];
-    if (batch.length === 0) break;
+    if (batch.length === 0) { complete = true; break; }
     messages.push(...batch);
     const next = batch.reduce((highest, message) => Math.max(highest, message.id), afterId);
     if (next <= afterId) throw new Error("project replay cursor did not advance");
     afterId = next;
-    if (batch.length < PAGE_LIMIT) break;
+    if (batch.length < PAGE_LIMIT) { complete = true; break; }
   }
+  if (!complete) throw new Error(`project replay exceeded ${MAX_PAGES * PAGE_LIMIT} messages`);
 
   const adapted = adaptMessages(messages, {
     roomName: room,
@@ -86,9 +88,13 @@ export function registerProjectRoutes(
     if (!canMutateProject(session.username)) {
       return reply.code(403).send({ code: "PROJECT_PERMISSION_REQUIRED", error: "project mutation is not permitted" });
     }
+    const content = encodeActionRequest(checked.value.payload);
+    if (content.length > 2_000) {
+      return reply.code(400).send({ code: "BAD_REQUEST", error: "project action exceeds the 2000-character message limit" });
+    }
     const message = await client.request<Message>(
       `/api/rooms/${encodeURIComponent(room)}/messages`,
-      { method: "POST", token: session.token, body: { content: encodeActionRequest(checked.value.payload) } },
+      { method: "POST", token: session.token, body: { content } },
     );
     return reply.code(201).send({ messageId: message.id });
   });
