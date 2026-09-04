@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { LiveRoomPanel } from "./LiveRoomPanel";
-import { ProjectBoard } from "./ProjectBoard";
 import { DEFAULT_TAB, TABS, type Tab, pathForTab, tabFromPath } from "./router";
-import type { CrewTask } from "./event-core";
+import { ProjectWorkspace } from "./ProjectWorkspace";
 
 /**
  * Mission Control.
@@ -67,10 +66,6 @@ export default function App() {
   );
   const [liveRoomOpen, setLiveRoomOpen] = useState(false);
 
-  // Real tasks, once something produces them. Empty is the honest default:
-  // there is no persistence yet, so there is nothing to show.
-  const [tasks] = useState<CrewTask[]>([]);
-
   // Back/forward must work. Without this the URL changes and the view does
   // not, which is worse than having no routing at all.
   useEffect(() => {
@@ -115,41 +110,7 @@ export default function App() {
           <h1>{TAB_META[tab].label}</h1>
         </header>
 
-        {tab === "projects" ? (
-          <Empty
-            title="No projects yet."
-            because="Nothing has been created, and this list will not invent an entry to look busy."
-            next="Creating a project here is the first real test: create it, refresh, and it is still there. Until that holds, nothing else on these tabs can be trusted either."
-          />
-        ) : null}
-
-        {tab === "overview" ? (
-          <Empty
-            title="No project selected."
-            because="Overview summarises one project: its goals, its five to ten headline steps, how far those steps have got, and a live feed of what has changed. No project exists to summarise."
-            next="The live feed lives here rather than in a tab of its own, and each entry clicks through to the item it came from."
-          />
-        ) : null}
-
-        {tab === "board" ? (
-          tasks.length === 0 ? (
-            <Empty
-              title="No tasks yet."
-              because="The board renders real tasks only, and there are none."
-              next="Cards will carry owners, comments, links and images, and will need accepting: an assigned task nobody has agreed to is shown as waiting, not as work in progress. Unowned tasks can be claimed."
-            />
-          ) : (
-            <ProjectBoard tasks={tasks} agents={[]} />
-          )
-        ) : null}
-
-        {tab === "mine" ? (
-          <Empty
-            title="Nothing assigned to you."
-            because="This tab shows only the tasks you own — accepted or still waiting on your acceptance."
-            next="A selector under the profile picture will switch to anyone else's view, so you can see what a person actually has on."
-          />
-        ) : null}
+        {tab === "projects" || tab === "overview" || tab === "board" || tab === "mine" ? <ProjectWorkspace tab={tab} /> : null}
 
         {tab === "build" ? (
           <Empty
