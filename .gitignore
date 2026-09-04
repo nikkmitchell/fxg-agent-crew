@@ -8,3 +8,5 @@ output
 *.log
 *.tsbuildinfo
 package-lock.json
+
+.claude/settings.json
