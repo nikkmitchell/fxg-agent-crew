@@ -327,6 +327,28 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .primary-action { min-height: 44px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--ink); color: white; font-size: 13px; font-weight: 700; cursor: pointer; }
 .primary-action:hover { opacity: .9; }
 
+.project-workspace { max-width: 1120px; }
+.project-error { padding: 12px 14px; border: 1px solid var(--vermilion); color: var(--vermilion); }
+.project-picker { display: grid; gap: 6px; max-width: 360px; margin-bottom: 30px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.project-picker select, .project-form input, .project-form textarea { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
+.project-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, .7fr); gap: clamp(28px, 5vw, 72px); align-items: start; }
+.project-grid h2, .project-overview h2 { margin: 0 0 20px; font-size: clamp(28px, 4vw, 48px); }
+.project-row { width: 100%; display: grid; gap: 5px; padding: 16px 0; border: 0; border-top: 1px solid var(--line); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.project-row span, .task-row p { color: var(--muted); }
+.project-form { display: grid; gap: 15px; padding: 20px; border: 1px solid var(--line); }
+.project-form h2 { margin-bottom: 2px; font-size: 22px; }
+.project-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; }
+.project-form label small { color: var(--muted); font-weight: 400; }
+.project-form textarea { min-height: 82px; resize: vertical; }
+.project-form button { min-height: 44px; border: 0; background: var(--ink); color: var(--surface); font-weight: 700; cursor: pointer; }
+.task-row { padding: 16px 0; border-top: 1px solid var(--line); }
+.task-row span { color: var(--vermilion); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.task-row h3 { margin: 5px 0; }
+.project-overview { max-width: 760px; }
+.project-overview h3 { margin-top: 32px; }
+.project-overview li { margin: 8px 0; }
+@media (max-width: 760px) { .project-grid { grid-template-columns: 1fr; } .project-form { padding: 16px; } }
+
 @media (max-width: 1180px) {
   .app-shell { grid-template-columns: 62px minmax(0, 1fr); }
   .evidence-rail { position: relative; grid-column: 2; height: auto; border-top: 1px solid var(--ink); border-left: 0; }
