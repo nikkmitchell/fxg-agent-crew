@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { LiveRoomPanel } from "./LiveRoomPanel";
 import { ProjectBoard } from "./ProjectBoard";
 import { DEFAULT_TAB, TABS, type Tab, pathForTab, tabFromPath } from "./router";
-import type { CrewTask } from "./event-core";
+import { useProjects } from "./use-projects";
 
 /**
  * Mission Control.
@@ -67,9 +67,36 @@ export default function App() {
   );
   const [liveRoomOpen, setLiveRoomOpen] = useState(false);
 
-  // Real tasks, once something produces them. Empty is the honest default:
-  // there is no persistence yet, so there is nothing to show.
-  const [tasks] = useState<CrewTask[]>([]);
+  const { view, createProject } = useProjects();
+  const tasks = view.tasks;
+  const [name, setName] = useState("");
+  const [summary, setSummary] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const submitProject = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim()) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      await createProject({
+        id: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 48),
+        name: name.trim(),
+        summary: summary.trim(),
+        goals: [],
+        steps: [],
+      });
+      setName("");
+      setSummary("");
+    } catch (error) {
+      // Shown, not swallowed. A create that failed must not look like one that
+      // worked — that is the whole point of re-reading instead of inserting.
+      setCreateError((error as { message?: string })?.message ?? "could not create the project");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   // Back/forward must work. Without this the URL changes and the view does
   // not, which is worse than having no routing at all.
@@ -116,11 +143,65 @@ export default function App() {
         </header>
 
         {tab === "projects" ? (
-          <Empty
-            title="No projects yet."
-            because="Nothing has been created, and this list will not invent an entry to look busy."
-            next="Creating a project here is the first real test: create it, refresh, and it is still there. Until that holds, nothing else on these tabs can be trusted either."
-          />
+          <section className="projects-tab">
+            {view.phase === "loading" ? <p className="muted-note">Reading the project log…</p> : null}
+
+            {view.phase === "signed_out" ? (
+              <Empty
+                title="Not signed in."
+                because="Projects are read from the room's durable log, which needs an authenticated session."
+                next="Open Chat and sign in, then come back."
+              />
+            ) : null}
+
+            {view.phase === "error" ? (
+              <div className="room-error" role="alert">
+                <strong>Could not load projects.</strong>
+                <p>{view.error}</p>
+                <p>Nothing is shown rather than a partial list — an incomplete board that looks complete is worse than a visible failure.</p>
+              </div>
+            ) : null}
+
+            {view.phase === "ready" ? (
+              <>
+                {view.projects.length === 0 ? (
+                  <p className="muted-note">No projects yet. Creating one below writes it to the room log; it survives a refresh or it never existed.</p>
+                ) : (
+                  <ul className="project-list">
+                    {view.projects.map((project) => (
+                      <li key={project.id}>
+                        <strong>{project.name}</strong>
+                        {project.summary ? <p>{project.summary}</p> : null}
+                        <small>
+                          {tasks.filter((task) => (task as { projectId?: string }).projectId === project.id).length} tasks
+                          {project.steps.length ? ` · ${project.steps.length} steps` : ""}
+                        </small>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <form className="project-create" onSubmit={submitProject}>
+                  <h2>New project</h2>
+                  <label htmlFor="project-name">Name</label>
+                  <input id="project-name" value={name} onChange={(event) => setName(event.target.value)} />
+                  <label htmlFor="project-summary">Summary</label>
+                  <input id="project-summary" value={summary} onChange={(event) => setSummary(event.target.value)} />
+                  {createError ? <p className="room-error" role="alert">{createError}</p> : null}
+                  <button type="submit" className="primary-action" disabled={creating || !name.trim()}>
+                    {creating ? "Writing to the log…" : "Create project"}
+                  </button>
+                </form>
+
+                {view.rejected.length > 0 ? (
+                  <details className="rejected-events">
+                    <summary>{view.rejected.length} event(s) the server refused</summary>
+                    <ul>{view.rejected.map((item, index) => <li key={index}>{item.reason}</li>)}</ul>
+                  </details>
+                ) : null}
+              </>
+            ) : null}
+          </section>
         ) : null}
 
         {tab === "overview" ? (

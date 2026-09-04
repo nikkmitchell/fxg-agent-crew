@@ -1,4 +1,11 @@
 import type { BffError, LoginRequest, MeResponse, MessagePage, RoomDetail, RoomSummary } from "../shared/contracts";
+import type { CrewProject, CrewTask } from "./event-core";
+
+export type ProjectState = {
+  projects: CrewProject[];
+  tasks: CrewTask[];
+  rejected: Array<{ eventId?: string; reason: string }>;
+};
 
 type ErrorBody = BffError & { code?: string };
 
@@ -45,6 +52,18 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
 
 export const bff = {
   me: (signal?: AbortSignal) => requestJson<MeResponse>(`${bffRoot}/me`, { signal }),
+
+  /** Replayed project state for a room. WebHarness is the durable store. */
+  projects: (room: string, signal?: AbortSignal) =>
+    requestJson<ProjectState>(`${bffRoot}/projects?room=${encodeURIComponent(room)}`, { signal }),
+
+  /** Append one validated project action to the room's log. */
+  projectEvent: (room: string, payload: unknown, signal?: AbortSignal) =>
+    requestJson<{ messageId: number }>(`${bffRoot}/project-events`, {
+      method: "POST",
+      body: JSON.stringify({ room, payload }),
+      signal,
+    }),
 
   login: (credentials: LoginRequest, signal?: AbortSignal) => requestJson<MeResponse>(`${bffRoot}/login`, {
     method: "POST",
