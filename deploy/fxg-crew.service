@@ -65,12 +65,15 @@ UMask=0077
 # answers during the restart backoff window. A crash-looping service looks
 # healthy to the check most people reach for first.
 #
-# NOT set: SESSION_STORE_PATH.
+# SESSION_STORE_PATH is set in the EnvironmentFile, not here — it belongs next
+# to the secret it shares that file with.
 #
-# Durable sessions are unmerged (#16). Setting the variable now would make the
-# unit read as though restarts are survivable when the in-memory store ignores
-# it entirely. Configuration that describes a feature the code lacks is the
-# same lie as a label on a value that was never observed.
+# It MUST point inside StateDirectory. ProtectSystem=strict above makes
+# /opt/fxg-crew read-only, so the application's production default of
+# ./data/sessions.db (relative to WorkingDirectory) would crash this service on
+# boot. /var/lib/fxg-crew is the writable path systemd creates for us.
+#
+# Sessions are durable as of #16: a restart no longer signs everyone out.
 
 [Install]
 WantedBy=multi-user.target

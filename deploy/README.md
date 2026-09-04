@@ -22,16 +22,54 @@ cp deploy/env.example /etc/fxg-crew/env
 sed -i "s|SESSION_SECRET=REPLACE_ME|SESSION_SECRET=$(openssl rand -base64 48)|" /etc/fxg-crew/env
 chmod 600 /etc/fxg-crew/env
 
-# 3. TLS — after DNS points here
-cp deploy/nginx.conf /etc/nginx/sites-available/fxg-crew
+# 3. TLS — after DNS points here.
+#
+# ORDER MATTERS, and getting it wrong deadlocks the host. nginx.conf references
+# /etc/letsencrypt/live/<host>/fullchain.pem. On a machine that has never run
+# certbot that file does not exist, so `nginx -t` FAILS and nginx will not
+# start — and a stopped nginx cannot serve the ACME challenge that would create
+# the certificate. It presents as "nginx is broken", not as "wrong order".
+#
+# So: HTTP-only bootstrap first, certificate second, TLS config third.
+
+# 3a. bootstrap: HTTP only, serves nothing but the ACME challenge
+mkdir -p /var/www/html/.well-known/acme-challenge
+cp deploy/nginx.bootstrap.conf /etc/nginx/sites-available/fxg-crew
 sed -i 's/SERVER_NAME_HERE/your.hostname/g' /etc/nginx/sites-available/fxg-crew
+rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/fxg-crew /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
-certbot --nginx -d your.hostname
+
+# 3b. obtain the certificate via the webroot the bootstrap config serves.
+# --webroot, not --nginx: certbot's nginx plugin rewrites the config, and we
+# want the file we reviewed to be the file that runs.
+certbot certonly --webroot -w /var/www/html -d your.hostname --agree-tos -m you@example.com -n
+
+# 3c. NOW the real config, which can finally find the certificate
+mkdir -p /var/www/saha
+cp deploy/index.html /var/www/saha/index.html
+cp deploy/nginx.conf /etc/nginx/sites-available/fxg-crew
+sed -i 's/SERVER_NAME_HERE/your.hostname/g' /etc/nginx/sites-available/fxg-crew
+nginx -t && systemctl reload nginx
+
+# 3d. prove renewal works before trusting HSTS
+certbot renew --dry-run
 
 # 4. from your laptop
 deploy/release.sh root@your.hostname
 ```
+
+## The root path: two servers, one hostname
+
+`https://your.hostname/` is a real landing page and the Node service still
+returns 404 for `/`. Those are not in conflict, because they are different
+servers: **nginx** answers `/` from `/var/www/saha` on disk, and only `/space/`
+is proxied to Node. `release.sh` asserts that Node returns 404 at `/` and at
+`/api/rooms` on loopback, which is the isolation guarantee — Mission Control
+cannot capture the chat it sits beside.
+
+If the landing page is ever removed, `location = /` must go back to
+`return 404`. It must never fall through to `proxy_pass`.
 
 ## An IP address is not enough
 
@@ -60,24 +98,29 @@ Use a disposable WebHarness account, never a real one:
 2. confirm the response body is `{"username":"..."}` with **no token** in it
 3. confirm the cookie is `HttpOnly` and `Secure`
 4. open Live Rooms, pick a room, send a message, see it appear
-5. `systemctl restart fxg-crew` — **you will be signed out** on current `main`
+5. `systemctl restart fxg-crew` — **you must still be signed in afterwards**
+6. hard-refresh the page — the transcript must show history, not an empty room
+7. `ls -l /var/lib/fxg-crew/sessions.db` — must exist and be non-empty
 
-Step 5 currently fails, deliberately documented rather than quietly hoped past.
-Durable sessions are in an unmerged branch (#16). The unit already sets
-`SESSION_STORE_PATH`, but the code on `main` has an in-memory store and ignores
-it, so **the variable is a no-op today and every restart or redeploy signs
-everyone out**.
+Steps 5-7 are the #16 acceptance check. **#16 is merged** (58bdbf4): sessions are
+durable across a restart on a single instance.
 
-Do not read the presence of `SESSION_STORE_PATH` in the unit as evidence the
-feature is live. It was configured ahead of the code, which is exactly the kind
-of gap that reads as working. Once #16 merges, a `sessions.db` appears in
-`/var/lib/fxg-crew/` and step 5 should pass — the absence of that file is the
-check.
+Step 5 and step 6 prove different things, and passing 5 alone is not a pass.
+Step 5 proves *authentication* survived. Step 6 proves the browser still gets
+*history* — a restored server-side cursor that silently resumed mid-stream would
+leave a freshly loaded page showing an empty transcript, which is the failure
+#16 was written to avoid.
+
+The absence of `sessions.db` is the fast negative check: if that file is missing,
+`SESSION_STORE_PATH` is wrong or its directory is not writable, and sessions are
+in memory no matter what the configuration says.
 
 ## Limits, stated plainly
 
-- **Sessions are lost on restart** until #16 merges. See the smoke test.
-- **Single instance** *(once #16 lands)*. SQLite gives restart-survival on one host. It does not
+- **Sessions survive a restart on one host** (#16). They do not survive the box
+  being replaced, and the 7-day WebHarness token behind a session still expires
+  on its own schedule.
+- **Single instance.** SQLite gives restart-survival on one host. It does not
   give multi-instance sharing, and a SQLite file on network storage is a known
   way to corrupt a database. More than one replica needs Redis or a real
   database server; the `SessionStore` interface is the seam for that.
