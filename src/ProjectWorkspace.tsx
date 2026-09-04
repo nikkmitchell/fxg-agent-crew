@@ -17,6 +17,7 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "overview" | "board" | "mine"> }) {
   const [state, setState] = useState<ProjectState>({ projects: [], tasks: [] });
   const [me, setMe] = useState<Me | null>(null);
+  const [viewedUsername, setViewedUsername] = useState("");
   const [selectedId, setSelectedId] = useState(() => localStorage.getItem("saha-project") ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -29,6 +30,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       ]);
       setState(projects);
       setMe(current);
+      setViewedUsername((username) => username || current.username);
       setSelectedId((currentId) => currentId || projects.projects[0]?.id || "");
       setError("");
     } catch (cause) {
@@ -41,10 +43,22 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
   const selected = state.projects.find((project) => project.id === selectedId);
   const tasks = state.tasks.filter((task) => task.projectId === selectedId);
-  const myTasks = useMemo(
-    () => tasks.filter((task) => task.owners?.includes(me?.username ?? "") || task.assigneeId === me?.username),
-    [tasks, me?.username],
+  const workOwners = useMemo(() => {
+    const usernames = new Set<string>();
+    if (me?.username) usernames.add(me.username);
+    for (const task of tasks) {
+      for (const owner of task.owners ?? []) usernames.add(owner);
+      if (task.assigneeId) usernames.add(task.assigneeId);
+    }
+    return Array.from(usernames).sort((a, b) => a.localeCompare(b));
+  }, [tasks, me?.username]);
+  const viewedTasks = useMemo(
+    () => tasks.filter((task) => task.owners?.includes(viewedUsername) || task.assigneeId === viewedUsername),
+    [tasks, viewedUsername],
   );
+  useEffect(() => {
+    if (viewedUsername && !workOwners.includes(viewedUsername)) setViewedUsername(me?.username ?? workOwners[0] ?? "");
+  }, [me?.username, viewedUsername, workOwners]);
 
   const append = async (payload: unknown) => {
     setBusy(true);
@@ -179,7 +193,16 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         <form className="project-form" onSubmit={createTask}><h2>Add task</h2><label>Task<input name="title" required /></label><label>Owner username <small>Optional</small><input name="owner" /></label><button disabled={busy}>Add to board</button></form>
       </div> : null}
 
-      {tab === "mine" ? <div><p className="eyebrow">{me?.username ?? "NOT SIGNED IN"}{me?.kind ? ` / ${me.kind.toUpperCase()}` : ""}</p><h2>My work</h2>{myTasks.length ? myTasks.map((task) => <article className="task-row" key={task.id}><span>{task.status}</span><h3>{task.title}</h3></article>) : <p>No tasks assigned to this identity.</p>}</div> : null}
+      {tab === "mine" ? <div>
+        <p className="eyebrow">{me?.username ?? "NOT SIGNED IN"}{me?.kind ? ` / ${me.kind.toUpperCase()}` : ""}</p>
+        <h2>{viewedUsername === me?.username ? "My work" : `${viewedUsername}'s work`}</h2>
+        <label className="project-picker">View work for
+          <select value={viewedUsername} onChange={(event) => setViewedUsername(event.target.value)}>
+            {workOwners.map((username) => <option key={username} value={username}>{username === me?.username ? `${username} (me)` : username}</option>)}
+          </select>
+        </label>
+        {viewedTasks.length ? viewedTasks.map((task) => <article className="task-row" key={task.id}><span>{task.status}</span><h3>{task.title}</h3></article>) : <p>No tasks assigned to this identity.</p>}
+      </div> : null}
     </section>
   );
 }
