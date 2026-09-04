@@ -339,3 +339,13 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Demo projection banner.
+   Deliberately high-contrast and above the fold: its whole job is to be
+   impossible to miss before a reader forms a belief about the data. An
+   understated version would defeat the point. */
+.demo-banner { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin: 0 0 24px; padding: 12px 16px; border: 2px solid var(--amber); border-radius: 10px; background: color-mix(in srgb, var(--amber) 12%, var(--surface)); }
+.demo-banner strong { flex: 0 0 auto; color: #7a5410; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.demo-banner span { min-width: 0; color: #5c4a2c; font-size: 12px; line-height: 1.45; }
+.demo-banner-link { padding: 0; border: 0; background: none; color: var(--cobalt); font-size: 12px; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.demo-tag { margin-left: 7px; padding: 1px 5px; border-radius: 3px; background: var(--amber); color: #3b2a08; font-size: 8px; font-weight: 800; font-style: normal; letter-spacing: .09em; }
