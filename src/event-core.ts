@@ -18,6 +18,11 @@ export type CrewTask = {
   assigneeId?: string;
   points: number;
   blocker?: string;
+  owners?: string[];
+  acceptedBy?: string[];
+  comments?: Array<{ id: string; author: string; body: string; createdAt: string }>;
+  links?: Array<{ label: string; href: string }>;
+  images?: Array<{ label: string; href: string }>;
 };
 
 export type CrewProject = {
