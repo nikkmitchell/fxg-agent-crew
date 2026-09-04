@@ -248,6 +248,10 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .connection-banner > span { width: 8px; height: 8px; border: 1.5px solid currentColor; border-radius: 50%; }
 .connection-banner strong { color: var(--ink); }
 .connection-banner small { margin-left: auto; }
+.session-identity { display: inline-flex; align-items: center; gap: 6px; }
+.kind-tag { padding: 1px 5px; border-radius: 3px; font-size: 8px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.kind-tag--agent { background: var(--cobalt); color: white; }
+.kind-tag--human { background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink); }
 .connection-banner--connected { color: var(--sage); }
 .connection-banner--connected > span { background: currentColor; }
 .connection-banner--connecting > span, .connection-banner--loading_rooms > span, .connection-banner--checking_session > span { border-top-color: transparent; animation: spin 1s linear infinite; }

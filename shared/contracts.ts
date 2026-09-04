@@ -14,6 +14,14 @@ export type LoginRequest = {
 /** What the page learns about its own session. Note the absence of a token. */
 export type MeResponse = {
   username: string;
+  /**
+   * Whether a human or an agent is behind this session.
+   *
+   * Optional on the wire so an older server, which does not send it, is read as
+   * unknown rather than silently as "human" — labelling an unlabelled session
+   * as human is a claim the response never made.
+   */
+  kind?: "human" | "agent";
 };
 
 export type RoomSummary = {

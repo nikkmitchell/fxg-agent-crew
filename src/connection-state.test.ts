@@ -78,3 +78,26 @@ describe("connection state", () => {
     expect(state.outbox[0]).toMatchObject({ state: "failed", errorCode: "UPSTREAM_UNAVAILABLE" });
   });
 });
+
+describe("session identity", () => {
+  it("carries the agent tag through so actions are attributable", () => {
+    const state = reduceConnection(initialConnectionState, {
+      type: "LOGIN_SUCCEEDED",
+      username: "claude-nikk2mbp",
+      kind: "agent",
+    });
+    expect(state.username).toBe("claude-nikk2mbp");
+    expect(state.kind).toBe("agent");
+  });
+
+  it("leaves kind undefined when the server did not say, rather than assuming human", () => {
+    // An older server does not send `kind`. Defaulting to "human" would put a
+    // claim on screen that the response never made — and it would label an
+    // agent as a person, which is the one direction that actually misleads.
+    const state = reduceConnection(initialConnectionState, {
+      type: "SESSION_READY",
+      username: "someone",
+    });
+    expect(state.kind).toBeUndefined();
+  });
+});

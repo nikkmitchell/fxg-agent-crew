@@ -45,6 +45,22 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
       <div className={`connection-banner connection-banner--${state.phase}`}>
         <span aria-hidden="true" />
         <strong>{connectionLabel}</strong>
+        {/*
+          * Who is signed in, and whether they are a person.
+          *
+          * Agents are first-class users here — they create projects, take
+          * tasks and move work — so their actions must be attributable to an
+          * agent rather than blending into human activity. The tag is shown
+          * ONLY when the server actually said which; an unlabelled session is
+          * left unlabelled rather than assumed to be human, because assuming
+          * is how a screen ends up making a claim nobody made.
+          */}
+        {state.username && (
+          <small className="session-identity">
+            {state.username}
+            {state.kind ? <b className={`kind-tag kind-tag--${state.kind}`}>{state.kind}</b> : null}
+          </small>
+        )}
         {state.stale && <small>Saved activity shown</small>}
       </div>
 

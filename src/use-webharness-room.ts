@@ -31,8 +31,8 @@ export function useWebharnessRoom() {
   useEffect(() => {
     const controller = new AbortController();
     bff.me(controller.signal)
-      .then(({ username }) => {
-        dispatch({ type: "SESSION_READY", username });
+      .then(({ username, kind }) => {
+        dispatch({ type: "SESSION_READY", username, kind });
         return loadRooms(controller.signal);
       })
       .catch(() => {
@@ -106,8 +106,8 @@ export function useWebharnessRoom() {
   const login = useCallback(async (credentials: LoginRequest) => {
     dispatch({ type: "LOGIN_STARTED" });
     try {
-      const { username } = await bff.login(credentials);
-      dispatch({ type: "LOGIN_SUCCEEDED", username });
+      const { username, kind } = await bff.login(credentials);
+      dispatch({ type: "LOGIN_SUCCEEDED", username, kind });
       await loadRooms();
     } catch (error) {
       dispatch({ type: "LOGIN_FAILED", code: errorCode(error) });

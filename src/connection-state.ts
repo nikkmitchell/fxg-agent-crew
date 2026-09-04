@@ -13,6 +13,12 @@ export type ConnectionPhase =
 export type ConnectionState = {
   phase: ConnectionPhase;
   username?: string;
+  /**
+   * Human or agent. Undefined means the server did not say, which is shown as
+   * unknown rather than assumed — an unlabelled session is not evidence of a
+   * human one.
+   */
+  kind?: "human" | "agent";
   rooms: RoomSummary[];
   roomName?: string;
   room?: RoomDetail;
@@ -32,9 +38,9 @@ export type ConnectionState = {
 
 export type ConnectionEvent =
   | { type: "SESSION_MISSING"; code?: string }
-  | { type: "SESSION_READY"; username: string }
+  | { type: "SESSION_READY"; username: string; kind?: "human" | "agent" }
   | { type: "LOGIN_STARTED" }
-  | { type: "LOGIN_SUCCEEDED"; username: string }
+  | { type: "LOGIN_SUCCEEDED"; username: string; kind?: "human" | "agent" }
   | { type: "LOGIN_FAILED"; code: string }
   | { type: "ROOMS_LOADED"; rooms: RoomSummary[] }
   | { type: "ROOM_SELECTED"; roomName: string }
@@ -67,7 +73,7 @@ export function reduceConnection(state: ConnectionState, event: ConnectionEvent)
       return { ...initialConnectionState, phase: "signed_out", errorCode: event.code };
     case "SESSION_READY":
     case "LOGIN_SUCCEEDED":
-      return { ...initialConnectionState, phase: "loading_rooms", username: event.username };
+      return { ...initialConnectionState, phase: "loading_rooms", username: event.username, kind: event.kind };
     case "LOGIN_STARTED":
       return { ...state, phase: "signed_out", errorCode: undefined, notice: "Signing in…" };
     case "LOGIN_FAILED":
