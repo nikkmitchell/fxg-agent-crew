@@ -11,6 +11,7 @@ import { MemorySessionStore, SqliteSessionStore, type SessionStore } from "./ses
 import { WebharnessClient } from "./webharness/client.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
+import { registerProjectRoutes } from "./routes/projects.js";
 
 /**
  * Backend-for-frontend.
@@ -64,6 +65,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   app.register(async (scoped) => {
     registerAuthRoutes(scoped, config, sessions, client);
     registerRoomRoutes(scoped, config, sessions, client);
+    registerProjectRoutes(scoped, config, sessions, client);
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.
