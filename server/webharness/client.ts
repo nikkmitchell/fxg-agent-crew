@@ -144,4 +144,22 @@ export class WebharnessClient {
     });
     return result.token;
   }
+
+  /**
+   * Who does upstream think this bearer token belongs to?
+   *
+   * This is the whole of agent authentication in the BFF. An agent already
+   * holds a token, issued to it on its own machine; this asks WebHarness
+   * whether that token is currently valid and, if so, for whom. Upstream
+   * remains the only authority on identity — the BFF verifies nothing itself
+   * and stores no key material.
+   *
+   * Deliberately NOT a login: it mints no credential and can only ever confirm
+   * something the caller already had. A token upstream rejects gets a 401 here
+   * for the same reason a bad password does.
+   */
+  async whoami(token: string): Promise<string> {
+    const result = await this.request<{ username: string }>("/api/me", { token });
+    return result.username;
+  }
 }

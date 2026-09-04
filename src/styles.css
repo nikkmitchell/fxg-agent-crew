@@ -231,7 +231,15 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .inspector-actions button { padding: 10px; border: 1px solid var(--ink); background: transparent; font-size: 9px; font-weight: 700; cursor: pointer; }
 .inspector-actions button:first-child { background: var(--ink); color: white; }
 
-.live-room-panel { position: fixed; z-index: 40; inset: 0 0 0 auto; width: min(430px, calc(100vw - 68px)); display: flex; flex-direction: column; border-left: 1px solid var(--ink); background: var(--surface); box-shadow: -24px 0 60px rgba(31,30,26,.16); }
+/* height:100dvh, not the `inset:0` default.
+ *
+ * With inset:0 the panel is sized against the LARGE viewport, so when the
+ * mobile keyboard opens the panel keeps its full height: the composer is
+ * pushed under the keyboard and the message list is clipped off-screen.
+ * 100dvh tracks the viewport actually visible, so the list shrinks and stays
+ * scrollable rather than disappearing while you type.
+ */
+.live-room-panel { position: fixed; z-index: 40; inset: 0 0 auto auto; height: 100dvh; width: min(430px, calc(100vw - 68px)); display: flex; flex-direction: column; border-left: 1px solid var(--ink); background: var(--surface); box-shadow: -24px 0 60px rgba(31,30,26,.16); }
 .live-room-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 24px 22px 18px; border-bottom: 1px solid var(--ink); }
 .live-room-header p { margin: 0 0 5px; color: var(--vermilion); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
 .live-room-header h2 { margin: 0; font-family: "Instrument Serif", serif; font-size: 32px; line-height: 1; font-weight: 400; }
@@ -261,8 +269,12 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .room-picker button span small, .room-picker button b { margin-top: 3px; color: var(--muted); font-size: 9px; }
 .room-note { padding: 24px 0; color: var(--muted); font-size: 11px; }
 .room-logout { min-height: 44px; margin-top: 20px; border: 0; background: transparent; color: var(--muted); font-size: 10px; text-decoration: underline; cursor: pointer; }
-.room-presence { min-height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 8px 22px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 9px; text-transform: uppercase; }
-.room-presence div { display: flex; }
+.room-presence { border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.room-presence > summary { min-height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; cursor: pointer; list-style: none; }
+.room-presence > summary::-webkit-details-marker { display: none; }
+.room-presence > summary small { text-decoration: underline; }
+.room-presence-list { display: flex; flex-wrap: wrap; padding: 0 22px 10px; }
+.room-presence-list p { margin: 0; text-transform: none; }
 .room-presence i { width: 27px; height: 27px; display: grid; place-items: center; margin-left: -5px; border: 2px solid var(--surface); border-radius: 50%; background: var(--cobalt); color: white; font-size: 7px; font-style: normal; font-weight: 800; }
 .room-callout { margin: 14px 22px 0; padding: 13px; border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--line)); background: color-mix(in srgb, var(--amber) 7%, var(--surface)); }
 .room-callout strong { font-family: "Instrument Serif", serif; font-size: 18px; font-weight: 400; }
@@ -295,6 +307,25 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 22%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
 @keyframes dash { to { stroke-dashoffset: -90; } }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Tab shell + honest empty states.
+ *
+ * The empty states are the main screen for now, not an edge case, so they get
+ * real layout rather than a centred shrug. They must read as "this is empty and
+ * here is why", never as a failed load.
+ */
+.tab-header { margin-bottom: 28px; }
+.tab-header h1 { margin: 6px 0 0; font-family: "Instrument Serif", serif; font-size: clamp(38px, 5vw, 58px); line-height: 1.02; }
+
+.empty-state { max-width: 54ch; padding: 26px 0 0; border-top: 1px solid var(--line); }
+.empty-state h2 { margin: 0 0 10px; font-family: "Instrument Serif", serif; font-size: 26px; font-weight: 400; }
+.empty-state p { margin: 0 0 10px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.empty-next { padding-left: 12px; border-left: 2px solid var(--line); }
+
+.tab-rooms { max-width: 54ch; }
+.tab-rooms p { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.primary-action { min-height: 44px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--ink); color: white; font-size: 13px; font-weight: 700; cursor: pointer; }
+.primary-action:hover { opacity: .9; }
 
 @media (max-width: 1180px) {
   .app-shell { grid-template-columns: 62px minmax(0, 1fr); }
@@ -351,6 +382,19 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
  * 16px is a hard floor imposed by the browser, not a taste choice: 15.5px
  * still triggers it.
  */
+/* On a short viewport the message list is the point and the chrome is not.
+ * Trimmed so the list keeps usable height once the keyboard is up.
+ */
+@media (max-height: 700px), (max-width: 760px) {
+  .live-room-header { padding: 12px 18px 10px; }
+  .live-room-header h2 { font-size: 21px; }
+  .live-room-header p { margin: 0 0 2px; }
+  .connection-banner { min-height: 32px; padding: 0 18px; }
+  .room-messages { padding: 6px 18px 14px; }
+  .room-composer { padding: 8px 18px; }
+  .room-presence > summary { min-height: 32px; padding: 0 18px; }
+}
+
 @media (pointer: coarse) {
   input, textarea, select, .room-composer textarea { font-size: 16px; }
   /* A 16px field needs room to breathe, or the taller text clips its box. */

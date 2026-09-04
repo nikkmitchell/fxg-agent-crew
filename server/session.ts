@@ -13,29 +13,44 @@ import { randomBytes } from "node:crypto";
  * the token, however encrypted, into the browser. Not worth it.
  */
 
+/**
+ * Who is behind a session.
+ *
+ * Recorded so the UI can label an agent's actions as an agent's. Agents are
+ * first-class users of this product, not humans in disguise, and a board where
+ * you cannot tell which is which is a board that misattributes work.
+ *
+ * This is a LABEL, not a permission. It says who acted; it grants nothing.
+ */
+export type SessionKind = "human" | "agent";
+
 export type Session = {
   username: string;
   /** WebHarness bearer token. MUST NOT be serialized to the client. */
   token: string;
+  kind: SessionKind;
   expiresAt: number;
 };
 
 export interface SessionStore {
-  create(username: string, token: string): string;
+  create(username: string, token: string, kind?: SessionKind): string;
   get(sid: string | undefined): Session | undefined;
   /** Replace the upstream token after a transparent re-login, keeping the sid. */
   refreshToken(sid: string, token: string): void;
   destroy(sid: string | undefined): void;
   /** Projection safe to send to the browser. */
-  publicView(session: Session): { username: string };
+  publicView(session: Session): { username: string; kind: SessionKind };
   close(): void;
 }
 
 const newSessionId = () => randomBytes(32).toString("base64url");
 
 /** Shared by both stores so `publicView` cannot drift apart between them. */
-function publicViewOf(session: Session): { username: string } {
-  return { username: session.username };
+function publicViewOf(session: Session): { username: string; kind: SessionKind } {
+  // Enumerated explicitly rather than spreading the session and deleting the
+  // token. A spread leaks any field added later by default; this leaks nothing
+  // unless someone writes the line to do it.
+  return { username: session.username, kind: session.kind };
 }
 
 /**
@@ -50,9 +65,9 @@ export class MemorySessionStore implements SessionStore {
 
   constructor(private readonly ttlMs: number) {}
 
-  create(username: string, token: string): string {
+  create(username: string, token: string, kind: SessionKind = "human"): string {
     const sid = newSessionId();
-    this.sessions.set(sid, { username, token, expiresAt: Date.now() + this.ttlMs });
+    this.sessions.set(sid, { username, token, kind, expiresAt: Date.now() + this.ttlMs });
     return sid;
   }
 
@@ -120,6 +135,7 @@ export class SqliteSessionStore implements SessionStore {
         expires_at INTEGER NOT NULL
       );
     `);
+    this.addKindColumn();
     this.db.exec("PRAGMA foreign_keys = ON");
     this.purgeExpired();
   }
@@ -133,26 +149,50 @@ export class SqliteSessionStore implements SessionStore {
     this.db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(Date.now());
   }
 
-  create(username: string, token: string): string {
+  /**
+   * Add `kind` to a table that already exists.
+   *
+   * CREATE TABLE IF NOT EXISTS does nothing to a database created before this
+   * column, so without a migration the column is present on fresh machines and
+   * absent in production — where people are currently signed in. Rows written
+   * before this default to "human", which is what they were.
+   *
+   * Guarded by inspecting the schema rather than catching the error, so a
+   * genuine failure is not swallowed alongside the expected one.
+   */
+  private addKindColumn(): void {
+    const columns = this.db.prepare("PRAGMA table_info(sessions)").all() as Array<{ name: string }>;
+    if (columns.some((column) => column.name === "kind")) return;
+    this.db.exec("ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'human'");
+  }
+
+  create(username: string, token: string, kind: SessionKind = "human"): string {
     const sid = newSessionId();
     this.db
-      .prepare("INSERT INTO sessions (sid, username, token, expires_at) VALUES (?, ?, ?, ?)")
-      .run(sid, username, token, Date.now() + this.ttlMs);
+      .prepare("INSERT INTO sessions (sid, username, token, kind, expires_at) VALUES (?, ?, ?, ?, ?)")
+      .run(sid, username, token, kind, Date.now() + this.ttlMs);
     return sid;
   }
 
   get(sid: string | undefined): Session | undefined {
     if (!sid) return undefined;
     const row = this.db
-      .prepare("SELECT username, token, expires_at FROM sessions WHERE sid = ?")
-      .get(sid) as { username: string; token: string; expires_at: number } | undefined;
+      .prepare("SELECT username, token, kind, expires_at FROM sessions WHERE sid = ?")
+      .get(sid) as { username: string; token: string; kind: string; expires_at: number } | undefined;
     if (!row) return undefined;
 
     if (row.expires_at <= Date.now()) {
       this.destroy(sid);
       return undefined;
     }
-    return { username: row.username, token: row.token, expiresAt: row.expires_at };
+    // Anything that is not exactly "agent" reads as human. An unrecognised
+    // value must not become a third, silently different kind.
+    return {
+      username: row.username,
+      token: row.token,
+      kind: row.kind === "agent" ? "agent" : "human",
+      expiresAt: row.expires_at,
+    };
   }
 
   refreshToken(sid: string, token: string): void {

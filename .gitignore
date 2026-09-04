@@ -10,3 +10,5 @@ output
 package-lock.json
 
 .claude/settings.json
+
+.claude/launch.json
