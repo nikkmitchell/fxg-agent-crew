@@ -36,10 +36,11 @@ function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" }) {
 }
 
 const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" | "chat" }> = {
-  projects: { label: "Projects", glyph: "grid" },
+  overview: { label: "Overview", glyph: "grid" },
   board: { label: "Board", glyph: "stack" },
-  rooms: { label: "Rooms", glyph: "chat" },
-  activity: { label: "Activity", glyph: "clock" },
+  mine: { label: "My work", glyph: "grid" },
+  build: { label: "Build", glyph: "clock" },
+  chat: { label: "Chat", glyph: "chat" },
 };
 
 /**
@@ -113,11 +114,11 @@ export default function App() {
           <h1>{TAB_META[tab].label}</h1>
         </header>
 
-        {tab === "projects" ? (
+        {tab === "overview" ? (
           <Empty
-            title="No projects yet."
-            because="Nothing has been created here, and this screen will not invent one to look busy."
-            next="Project creation and persistence are in progress. When a project is created it appears here and survives a refresh — that is the test."
+            title="No project yet."
+            because="A project carries a summary, its goals, five to ten headline steps, and where those steps have got to. None exists, so there is nothing to summarise."
+            next="Once a project is created it appears here with its steps and a live feed of changes, each one clicking through to the item it came from."
           />
         ) : null}
 
@@ -125,33 +126,42 @@ export default function App() {
           tasks.length === 0 ? (
             <Empty
               title="No tasks yet."
-              because="The board renders real tasks only. There are none, so it is empty."
-              next="Tasks will appear once a project exists to hold them."
+              because="The board renders real tasks only, and there are none."
+              next="Cards will carry owners, comments, links and images, and will need accepting: an assigned task nobody has agreed to is shown as waiting, not as work in progress. Unowned tasks can be claimed."
             />
           ) : (
             <ProjectBoard tasks={tasks} agents={[]} />
           )
         ) : null}
 
-        {tab === "rooms" ? (
+        {tab === "mine" ? (
+          <Empty
+            title="Nothing assigned to you."
+            because="This tab shows only the tasks you own — accepted or still waiting on your acceptance."
+            next="A selector under the profile picture will switch to anyone else's view, so you can see what a person actually has on."
+          />
+        ) : null}
+
+        {tab === "build" ? (
+          <Empty
+            title="Build status is not wired up yet."
+            because="Branches, commits and their check results are not being read from anywhere. Showing a green tick here without that would be the exact lie this screen exists to avoid."
+            next="It will report the deployed commit alongside the branch it came from, so a deploy that is ahead of the mainline is visible rather than discovered later."
+          />
+        ) : null}
+
+        {tab === "chat" ? (
           <section className="tab-rooms">
             <p>
               Live Rooms is real data — the same rooms, messages and people as the chat itself.
               It is the one part of this screen that has always been true.
             </p>
             <button type="button" className="primary-action" onClick={() => setLiveRoomOpen(true)}>
-              Open Live Rooms
+              Open chat
             </button>
           </section>
         ) : null}
 
-        {tab === "activity" ? (
-          <Empty
-            title="No activity yet."
-            because="This feed will be derived from real room events, not scripted ones. The previous version replayed a fixed script and presented it as history."
-            next="It fills in once events are persisted and read back."
-          />
-        ) : null}
       </main>
 
       {liveRoomOpen ? <LiveRoomPanel onClose={() => setLiveRoomOpen(false)} /> : null}
