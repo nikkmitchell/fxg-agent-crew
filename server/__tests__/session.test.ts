@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { SessionStore } from "../session.js";
+import { MemorySessionStore } from "../session.js";
 
 const SECRET = "upstream-token-that-must-never-reach-the-browser";
 
 describe("SessionStore", () => {
   it("never exposes the upstream token in the client-facing projection", () => {
-    const store = new SessionStore(60_000);
+    const store = new MemorySessionStore(60_000);
     const sid = store.create("nikk", SECRET);
     const session = store.get(sid)!;
 
@@ -18,7 +18,7 @@ describe("SessionStore", () => {
   });
 
   it("hands back an opaque session id, not the token", () => {
-    const store = new SessionStore(60_000);
+    const store = new MemorySessionStore(60_000);
     const sid = store.create("nikk", SECRET);
 
     expect(sid).not.toContain(SECRET);
@@ -26,14 +26,14 @@ describe("SessionStore", () => {
   });
 
   it("expires sessions and stops returning them", () => {
-    const store = new SessionStore(-1); // already expired
+    const store = new MemorySessionStore(-1); // already expired
     const sid = store.create("nikk", SECRET);
 
     expect(store.get(sid)).toBeUndefined();
   });
 
   it("keeps the session id stable across a transparent token refresh", () => {
-    const store = new SessionStore(60_000);
+    const store = new MemorySessionStore(60_000);
     const sid = store.create("nikk", SECRET);
 
     store.refreshToken(sid, "a-newer-token");
@@ -45,7 +45,7 @@ describe("SessionStore", () => {
   });
 
   it("forgets a destroyed session", () => {
-    const store = new SessionStore(60_000);
+    const store = new MemorySessionStore(60_000);
     const sid = store.create("nikk", SECRET);
 
     store.destroy(sid);
