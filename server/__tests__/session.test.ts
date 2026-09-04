@@ -14,7 +14,12 @@ describe("SessionStore", () => {
     // The invariant of the whole BFF: serialise the public view and the token
     // must not appear anywhere in it, under any key.
     expect(JSON.stringify(view)).not.toContain(SECRET);
-    expect(Object.keys(view)).toEqual(["username"]);
+    // The key list is asserted exactly, on purpose. It is an allow-list: a
+    // field added to Session must be added here deliberately before it can
+    // reach the browser, so the next field cannot ride along by accident.
+    // "kind" was added this way — it is a label saying human or agent, and it
+    // grants nothing.
+    expect(Object.keys(view).sort()).toEqual(["kind", "username"]);
   });
 
   it("hands back an opaque session id, not the token", () => {

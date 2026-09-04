@@ -34,6 +34,7 @@ describe("tab routing", () => {
       return isTab(segment) ? segment : DEFAULT_TAB;
     };
     expect(resolve("/space/board", "/space")).toBe("board");
+    expect(resolve("/space/projects", "/space")).toBe("projects");
     expect(resolve("/space/chat/", "/space")).toBe("chat");
     expect(resolve("/space/", "/space")).toBe(DEFAULT_TAB);
   });

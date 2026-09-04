@@ -98,7 +98,7 @@ describe("both stores honour the same contract", () => {
       const session = store.get(store.create("qa-tester", "super-secret-token"))!;
 
       expect(JSON.stringify(store.publicView(session)), name).not.toContain("super-secret-token");
-      expect(store.publicView(session), name).toEqual({ username: "qa-tester" });
+      expect(store.publicView(session), name).toEqual({ username: "qa-tester", kind: "human" });
     });
   });
 

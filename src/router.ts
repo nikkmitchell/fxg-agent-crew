@@ -12,10 +12,10 @@
  * fine when clicked, which is the confusing half-broken state.
  */
 
-export const TABS = ["overview", "board", "mine", "build", "chat"] as const;
+export const TABS = ["projects", "overview", "board", "mine", "build", "chat"] as const;
 export type Tab = (typeof TABS)[number];
 
-export const DEFAULT_TAB: Tab = "overview";
+export const DEFAULT_TAB: Tab = "projects";
 
 /** Base path with no trailing slash: "/space" in production, "" in dev. */
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");

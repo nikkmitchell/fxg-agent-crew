@@ -36,6 +36,7 @@ function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" }) {
 }
 
 const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" | "chat" }> = {
+  projects: { label: "Projects", glyph: "grid" },
   overview: { label: "Overview", glyph: "grid" },
   board: { label: "Board", glyph: "stack" },
   mine: { label: "My work", glyph: "grid" },
@@ -114,11 +115,19 @@ export default function App() {
           <h1>{TAB_META[tab].label}</h1>
         </header>
 
+        {tab === "projects" ? (
+          <Empty
+            title="No projects yet."
+            because="Nothing has been created, and this list will not invent an entry to look busy."
+            next="Creating a project here is the first real test: create it, refresh, and it is still there. Until that holds, nothing else on these tabs can be trusted either."
+          />
+        ) : null}
+
         {tab === "overview" ? (
           <Empty
-            title="No project yet."
-            because="A project carries a summary, its goals, five to ten headline steps, and where those steps have got to. None exists, so there is nothing to summarise."
-            next="Once a project is created it appears here with its steps and a live feed of changes, each one clicking through to the item it came from."
+            title="No project selected."
+            because="Overview summarises one project: its goals, its five to ten headline steps, how far those steps have got, and a live feed of what has changed. No project exists to summarise."
+            next="The live feed lives here rather than in a tab of its own, and each entry clicks through to the item it came from."
           />
         ) : null}
 
