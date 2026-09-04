@@ -1,0 +1,57 @@
+# systemd unit for the FXG Agent Crew UI + BFF.
+#
+# One Node service. It serves the built UI and /bff/* from a single origin,
+# which is the point: same-origin removes the CORS problem rather than working
+# around it, and lets the session cookie stay httpOnly.
+#
+# Install:  /etc/systemd/system/fxg-crew.service
+[Unit]
+Description=FXG Agent Crew (Mission Control UI + BFF)
+Documentation=https://github.com/nikkmitchell/fxg-agent-crew
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fxgcrew
+Group=fxgcrew
+WorkingDirectory=/opt/fxg-crew
+
+# Secrets live in a root-owned file, never in this unit — a unit file is
+# world-readable and shows up in `systemctl cat`.
+EnvironmentFile=/etc/fxg-crew/env
+
+# Bind to loopback only. nginx terminates TLS and proxies in; the Node process
+# is never directly reachable from the internet.
+Environment=HOST=127.0.0.1
+Environment=NODE_ENV=production
+
+ExecStart=/usr/bin/node --experimental-strip-types server/index.ts
+Restart=always
+RestartSec=3
+
+# Session storage. Sessions survive a restart, so a deploy does not sign
+# everyone out.
+StateDirectory=fxg-crew
+Environment=SESSION_STORE_PATH=/var/lib/fxg-crew/sessions.db
+
+# Hardening. This service holds WebHarness bearer tokens for every signed-in
+# human, so a compromise here is a credential compromise.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
