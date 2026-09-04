@@ -2,6 +2,8 @@ import type { BffError, LoginRequest, MeResponse, MessagePage, RoomDetail, RoomS
 
 type ErrorBody = BffError & { code?: string };
 
+const bffRoot = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/bff`;
+
 export class BffRequestError extends Error {
   constructor(
     message: string,
@@ -42,31 +44,31 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
 }
 
 export const bff = {
-  me: (signal?: AbortSignal) => requestJson<MeResponse>("/bff/me", { signal }),
+  me: (signal?: AbortSignal) => requestJson<MeResponse>(`${bffRoot}/me`, { signal }),
 
-  login: (credentials: LoginRequest, signal?: AbortSignal) => requestJson<MeResponse>("/bff/login", {
+  login: (credentials: LoginRequest, signal?: AbortSignal) => requestJson<MeResponse>(`${bffRoot}/login`, {
     method: "POST",
     body: JSON.stringify(credentials),
     signal,
   }),
 
-  logout: (signal?: AbortSignal) => requestJson<{ ok: true }>("/bff/logout", { method: "POST", signal }),
+  logout: (signal?: AbortSignal) => requestJson<{ ok: true }>(`${bffRoot}/logout`, { method: "POST", signal }),
 
-  rooms: (signal?: AbortSignal) => requestJson<RoomSummary[]>("/bff/rooms", { signal }),
+  rooms: (signal?: AbortSignal) => requestJson<RoomSummary[]>(`${bffRoot}/rooms`, { signal }),
 
   room: (roomName: string, signal?: AbortSignal) =>
-    requestJson<RoomDetail>(`/bff/rooms/${encodeURIComponent(roomName)}`, { signal }),
+    requestJson<RoomDetail>(`${bffRoot}/rooms/${encodeURIComponent(roomName)}`, { signal }),
 
   messages: (roomName: string, options: { afterId?: number; wait?: number; signal?: AbortSignal } = {}) => {
     const query = new URLSearchParams();
     if (options.afterId !== undefined) query.set("afterId", String(options.afterId));
     if (options.wait !== undefined) query.set("wait", String(options.wait));
     const suffix = query.size ? `?${query}` : "";
-    return requestJson<MessagePage>(`/bff/rooms/${encodeURIComponent(roomName)}/messages${suffix}`, { signal: options.signal });
+    return requestJson<MessagePage>(`${bffRoot}/rooms/${encodeURIComponent(roomName)}/messages${suffix}`, { signal: options.signal });
   },
 
   sendMessage: (roomName: string, content: string, signal?: AbortSignal) =>
-    requestJson<import("../shared/contracts").Message>(`/bff/rooms/${encodeURIComponent(roomName)}/messages`, {
+    requestJson<import("../shared/contracts").Message>(`${bffRoot}/rooms/${encodeURIComponent(roomName)}/messages`, {
       method: "POST",
       body: JSON.stringify({ content }),
       signal,

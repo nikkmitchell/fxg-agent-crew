@@ -17,4 +17,13 @@ describe("server bind address", () => {
   it("honors an explicit platform host", () => {
     expect(loadConfig({ WEBHARNESS_URL: "https://example.test", HOST: "::" }).host).toBe("::");
   });
+
+  it("normalizes a same-origin application mount", () => {
+    expect(loadConfig({ WEBHARNESS_URL: "https://example.test", APP_BASE_PATH: "/space/" }).basePath).toBe("/space");
+    expect(loadConfig({ WEBHARNESS_URL: "https://example.test", APP_BASE_PATH: "/" }).basePath).toBe("");
+  });
+
+  it("rejects a base path that could escape its mount", () => {
+    expect(() => loadConfig({ WEBHARNESS_URL: "https://example.test", APP_BASE_PATH: "/../space" })).toThrow("APP_BASE_PATH");
+  });
 });
