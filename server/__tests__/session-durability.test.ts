@@ -60,7 +60,9 @@ describe("sessions survive a restart", () => {
     first.destroy(sid);
     first.close();
 
-    expect(openStore().get(sid)).toBeUndefined();
+    const second = openStore();
+    expect(second.get(sid)).toBeUndefined();
+    second.close();
   });
 });
 
