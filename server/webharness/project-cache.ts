@@ -56,6 +56,7 @@ export type ProjectProjection = {
   profiles: unknown[];
   ownerships: unknown[];
   memberships: unknown[];
+  projectCreators: Record<string, string>;
   rejected: Array<{ reason: string }>;
   /** True when this answer came from a full replay rather than an increment. */
   fullReplay: boolean;
@@ -162,6 +163,7 @@ export class ProjectStateCache {
       profiles: Object.values(state.profiles),
       ownerships: Object.values(state.ownerships),
       memberships: state.memberships,
+      projectCreators: state.projectCreators,
       rejected,
       fullReplay: startFrom === 0,
     };

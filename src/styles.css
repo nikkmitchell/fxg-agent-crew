@@ -595,3 +595,15 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
  * right call. It just must not be invisible. */
 .build-flag { color: var(--amber); }
 .build-panel .unknown { color: var(--muted); font-style: italic; }
+
+.member-list { list-style: none; margin: 0 0 18px; padding: 0; }
+.member-list li { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.member-roles { color: var(--cobalt); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.member-list small { margin-left: auto; color: var(--muted); font-size: 12px; }
+.member-form { display: grid; gap: 10px; max-width: 44ch; margin: 6px 0 20px; padding: 14px; border: 1px solid var(--line); }
+.member-form label { display: grid; gap: 4px; font-size: 13px; }
+.member-form input[type="text"], .member-form input:not([type]) { min-height: 38px; padding: 6px 10px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; }
+.member-form fieldset { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 8px 0 0; border: 0; }
+.member-form legend { padding: 0; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.role-option { display: inline-flex; gap: 5px; align-items: center; font-size: 13px; }
+.member-form button { min-height: 38px; justify-self: start; padding: 0 14px; border: 0; background: var(--ink); color: white; font-size: 13px; font-weight: 700; cursor: pointer; }
