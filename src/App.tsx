@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LiveRoomPanel } from "./LiveRoomPanel";
 import { DEFAULT_TAB, TABS, type Tab, pathForTab, tabFromPath } from "./router";
 import { ProjectWorkspace } from "./ProjectWorkspace";
+import { BuildPanel } from "./BuildPanel";
 
 /**
  * Mission Control.
@@ -112,13 +113,7 @@ export default function App() {
 
         {tab === "projects" || tab === "overview" || tab === "board" || tab === "mine" ? <ProjectWorkspace tab={tab} /> : null}
 
-        {tab === "build" ? (
-          <Empty
-            title="Build status is not wired up yet."
-            because="Branches, commits and their check results are not being read from anywhere. Showing a green tick here without that would be the exact lie this screen exists to avoid."
-            next="It will report the deployed commit alongside the branch it came from, so a deploy that is ahead of the mainline is visible rather than discovered later."
-          />
-        ) : null}
+        {tab === "build" ? <BuildPanel /> : null}
 
         {tab === "chat" ? (
           <section className="tab-rooms">
