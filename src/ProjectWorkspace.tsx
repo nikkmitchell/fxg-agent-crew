@@ -108,6 +108,28 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     }
   };
 
+  /**
+   * Append one comment. Deliberately task.commented rather than re-sending the
+   * card: two people commenting at once must not overwrite each other, and the
+   * whole card plus every prior comment does not fit in one 2000-character
+   * durable message.
+   */
+  const addComment = async (taskId: string, body: string) => {
+    if (!me?.username || !body.trim()) return;
+    await append({
+      type: "task.commented",
+      taskId,
+      comment: {
+        // Author and time are in the id so a retry after a timed-out write
+        // resolves to the same comment rather than a duplicate.
+        id: `${taskId}-${me.username}-${Date.now().toString(36)}`,
+        author: me.username,
+        body: body.trim(),
+        createdAt: new Date().toISOString(),
+      },
+    });
+  };
+
   const createProject = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -228,6 +250,56 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             <span>{task.status.replace("_", " ")}</span><h3>{task.title}</h3>
             <p>{task.owners?.length ? `Owner: ${task.owners.join(", ")}` : "Unassigned · available to claim"}</p>
             {task.acceptedBy?.length ? <p>Accepted by: {task.acceptedBy.join(", ")}</p> : null}
+
+            {/*
+              * The reasoning, which was being written to the durable log and
+              * rendered nowhere. Six recorded decisions existed on these cards
+              * and none of them were visible — the data was real and the screen
+              * showed no sign of it, which is its own kind of dishonesty.
+              */}
+            <details className="task-detail">
+              <summary>
+                {(task.comments?.length ?? 0) === 0
+                  ? "No discussion yet"
+                  : `${task.comments!.length} comment${task.comments!.length === 1 ? "" : "s"}`}
+              </summary>
+
+              {task.comments?.map((comment) => (
+                <div className="task-comment" key={comment.id}>
+                  <p className="task-comment-meta">
+                    <b>{comment.author}</b>
+                    <time dateTime={comment.createdAt}>{comment.createdAt.slice(0, 16).replace("T", " ")}</time>
+                  </p>
+                  <p className="task-comment-body">{comment.body}</p>
+                </div>
+              ))}
+
+              {task.links?.length ? (
+                <ul className="task-links">
+                  {task.links.map((link) => (
+                    <li key={link.href}>
+                      <a href={link.href} target="_blank" rel="noreferrer noopener">{link.label}</a>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {me ? (
+                <form
+                  className="task-comment-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const form = event.currentTarget;
+                    const value = String(new FormData(form).get("body") ?? "");
+                    void addComment(task.id, value).then(() => form.reset());
+                  }}
+                >
+                  <label htmlFor={`comment-${task.id}`}>Add a comment</label>
+                  <textarea id={`comment-${task.id}`} name="body" rows={3} required />
+                  <button disabled={busy}>Comment</button>
+                </form>
+              ) : null}
+            </details>
             <div className="task-actions">
               {!task.owners?.length ? <button disabled={busy || !me} onClick={() => void updateTask(task, "claim")}>Claim task</button> : null}
               {task.owners?.includes(me?.username ?? "") && !task.acceptedBy?.includes(me?.username ?? "")

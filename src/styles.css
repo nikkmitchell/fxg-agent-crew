@@ -336,6 +336,19 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .project-row { width: 100%; display: grid; gap: 5px; padding: 16px 0; border: 0; border-top: 1px solid var(--line); background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .project-row span, .task-row p { color: var(--muted); }
 .project-form { display: grid; gap: 15px; padding: 20px; border: 1px solid var(--line); }
+/* Task detail: the recorded reasoning, which existed in the durable log and
+ * was rendered nowhere. Six decisions were on these cards and invisible. */
+.task-detail { margin-top: 10px; border-top: 1px solid var(--line); }
+.task-detail > summary { padding: 8px 0; color: var(--muted); font-size: 12px; cursor: pointer; }
+.task-comment { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.task-comment-meta { display: flex; gap: 10px; align-items: baseline; margin: 0 0 4px; font-size: 12px; }
+.task-comment-meta time { color: var(--muted); font-size: 12px; }
+.task-comment-body { margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.task-links { margin: 10px 0 0; padding-left: 18px; font-size: 13px; }
+.task-comment-form { display: grid; gap: 6px; margin-top: 12px; }
+.task-comment-form label { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.task-comment-form textarea { width: 100%; padding: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; resize: vertical; }
+.task-comment-form button { min-height: 38px; justify-self: start; padding: 0 14px; border: 0; background: var(--ink); color: white; font-size: 13px; font-weight: 700; cursor: pointer; }
 .project-form h2 { margin-bottom: 2px; font-size: 22px; }
 .project-form label { display: grid; gap: 6px; font-size: 14px; font-weight: 700; }
 .project-form label small { color: var(--muted); font-weight: 400; }
