@@ -1,4 +1,5 @@
-import { avatarRecipe } from "./AgentAvatar";
+import { AvatarArt } from "./AgentAvatar";
+import { avatarRecipe, initialsOf } from "./avatar";
 
 export type IdentityKind = "human" | "agent" | undefined;
 
@@ -12,28 +13,35 @@ export type IdentityKind = "human" | "agent" | undefined;
  *
  * Three rules:
  *
- * 1. NEVER invent an identity. With no username it renders a signed-out mark,
+ * 1. NEVER INVENT AN IDENTITY. With no username it renders a signed-out mark,
  *    not a plausible-looking one.
  * 2. AGENTS ARE VISIBLY AGENTS. They are first-class users here, not humans in
  *    disguise; a board where you cannot tell which is which misattributes work.
  * 3. UNKNOWN KIND STAYS UNKNOWN. The server may not say, and defaulting to
- *    "human" would label an agent as a person — the one direction that
- *    actively misleads.
+ *    "human" would label an agent as a person — the one direction that actively
+ *    misleads.
  *
- * The colour is derived from the name, so the same person is the same colour
- * everywhere without anyone maintaining a mapping. It is decoration, and it
- * carries no meaning that is not also written in text.
+ * WHAT THE PICTURE IS ALLOWED TO SAY. Shape carries kind, because kind is a
+ * fact the log records: a circle is a human, a rounded square is an agent, and
+ * a dashed edge is an actor whose kind we were never told. Colour and motif
+ * carry NOTHING — they are hashed from the name so the same actor looks the
+ * same everywhere without anyone maintaining a mapping. Every one of these
+ * distinctions is also written in the accessible label, so nothing here is
+ * available only to someone who can see it and already knows the code.
  */
 export function Identity({
   username,
   kind,
   size = 28,
   showName = false,
+  displayName,
 }: {
   username?: string;
   kind?: IdentityKind;
   size?: number;
   showName?: boolean;
+  /** A profile's chosen name. The username is still the identity underneath. */
+  displayName?: string;
 }) {
   if (!username) {
     return (
@@ -45,26 +53,48 @@ export function Identity({
   }
 
   const recipe = avatarRecipe(username);
-  const initials = username.replace(/[^a-zA-Z0-9]/g, "").slice(0, 2).toUpperCase() || "?";
+  const shown = displayName?.trim() || username;
   const kindLabel = kind === "agent" ? "agent" : kind === "human" ? "human" : "kind unknown";
+  const clipId = `id-clip-${username.replace(/[^a-zA-Z0-9]/g, "")}-${size}`;
+  const radius = kind === "agent" ? 14 : 32;
 
   return (
     <span className={`identity identity--${kind ?? "unknown"}`}>
-      <span
-        className="identity-mark"
-        style={{ width: size, height: size, background: recipe.accent, color: recipe.background }}
+      <svg
+        className="identity-art"
+        width={size}
+        height={size}
+        viewBox="0 0 64 64"
         // The label carries the kind, so a screen reader is told what a sighted
-        // user reads from the marker rather than being left to infer it.
+        // reader takes from the shape rather than being left to infer it.
         role="img"
-        aria-label={`${username}, ${kindLabel}`}
+        aria-label={`${shown}, ${kindLabel}`}
       >
-        {initials}
-        {kind === "agent" ? <span className="identity-agent-dot" aria-hidden="true" /> : null}
-      </span>
+        <defs>
+          <clipPath id={clipId}>
+            <rect width="64" height="64" rx={radius} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${clipId})`}>
+          <rect width="64" height="64" fill={recipe.paper} />
+          <AvatarArt recipe={recipe} size={size} />
+        </g>
+        {kind === undefined ? (
+          // A dashed edge for an actor the log never gave a kind for. Drawn
+          // rather than defaulted, because "human" is the guess that misleads.
+          <rect x="1.5" y="1.5" width="61" height="61" rx={radius} fill="none" stroke={recipe.ink} strokeWidth="3" strokeDasharray="7 6" opacity=".65" />
+        ) : null}
+        <text x="32" y="41" textAnchor="middle" fill={recipe.ink} fontSize="26" fontWeight="800" fontFamily="Manrope, system-ui, sans-serif">
+          {initialsOf(shown)}
+        </text>
+      </svg>
       {showName ? (
         <span className="identity-name">
-          {username}
-          <small>{kindLabel}</small>
+          {shown}
+          <small>
+            {kindLabel}
+            {displayName?.trim() && displayName.trim() !== username ? ` · ${username}` : ""}
+          </small>
         </span>
       ) : null}
     </span>

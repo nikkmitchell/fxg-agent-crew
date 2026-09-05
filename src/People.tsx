@@ -121,7 +121,7 @@ export function People({
           return (
             <li key={actor.username}>
               <div className="person-head">
-                <Identity username={actor.username} kind={actor.kind} size={40} showName />
+                <Identity username={actor.username} kind={actor.kind} displayName={actor.profile?.displayName} size={40} showName />
                 {actor.username === session?.username ? <span className="person-you">you</span> : null}
               </div>
 
