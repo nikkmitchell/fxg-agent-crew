@@ -1,3 +1,6 @@
+import type { ActorProfile, Ownership } from "./profiles.js";
+import { confirmOwnership, declareOwnership, revokeOwnership } from "./profiles.js";
+
 export type TaskKind = "decision" | "build";
 
 export type TaskStatus = "backlog" | "assigned" | "in_progress" | "blocked" | "review" | "done";
@@ -92,6 +95,23 @@ export type CrewEvent =
    * erase the other.
    */
   | { type: "task.commented"; taskId: string; comment: TaskComment }
+  /**
+   * A profile, declared by its own actor.
+   *
+   * Kept separate from agent.upserted, which records observed presence. This is
+   * what someone chose to publish about themselves; that is what the system
+   * noticed. Conflating them would let an observation overwrite a declaration.
+   */
+  | { type: "profile.upserted"; profile: ActorProfile }
+  /**
+   * One step in the ownership handshake, never the whole of it.
+   *
+   * The payload carries the intent and the actor performing it; the reducer
+   * applies the same rules as the pure model, so a declaration cannot arrive
+   * pre-verified. Trusting a `state` field from the wire would let a claimant
+   * assert "verified" and skip the agent's consent entirely.
+   */
+  | { type: "ownership.acted"; agentActorId: string; ownerActorId: string; action: "declare" | "confirm" | "revoke" }
   | { type: "message.received"; message: CrewMessage };
 
 export type EventEnvelope = {
@@ -119,6 +139,10 @@ export type CrewState = {
   agents: Record<string, AgentProfile>;
   projects: Record<string, CrewProject>;
   tasks: Record<string, CrewTask>;
+  /** Declared profiles, keyed by stable actor id. */
+  profiles: Record<string, ActorProfile>;
+  /** Ownership links, keyed by agent — an agent has at most one owner. */
+  ownerships: Record<string, Ownership>;
   messages: CrewMessage[];
   cursors: Record<string, number>;
   seenEventIds: Record<string, true>;
@@ -129,6 +153,8 @@ export const initialCrewState: CrewState = {
   agents: {},
   projects: {},
   tasks: {},
+  profiles: {},
+  ownerships: {},
   messages: [],
   cursors: {},
   seenEventIds: {},
@@ -231,6 +257,38 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
         return reject(next, event.eventId, "project not found");
       }
       return { ...next, tasks: { ...next.tasks, [event.payload.task.id]: event.payload.task } };
+    case "profile.upserted": {
+      // Last declaration wins for that actor. Nothing merges: a profile is a
+      // statement someone made, and silently blending an old field into a new
+      // statement would attribute something to them they did not say.
+      return { ...next, profiles: { ...next.profiles, [event.payload.profile.actorId]: event.payload.profile } };
+    }
+    case "ownership.acted": {
+      const { agentActorId, ownerActorId, action } = event.payload;
+      // The ACTING identity is the authenticated author of the event, never a
+      // field in the body. That is what stops a claimant confirming their own
+      // claim by writing someone else's id into the payload.
+      const actor = event.source;
+      const existing = next.ownerships[agentActorId];
+
+      if (action === "declare") {
+        if (existing && existing.state !== "revoked") {
+          return reject(next, event.eventId, "agent already has an owner");
+        }
+        return {
+          ...next,
+          ownerships: { ...next.ownerships, [agentActorId]: declareOwnership(agentActorId, ownerActorId) },
+        };
+      }
+
+      if (!existing) return reject(next, event.eventId, "no ownership to act on");
+      const updated = action === "confirm" ? confirmOwnership(existing, actor) : revokeOwnership(existing, actor);
+      // The model returns the link unchanged when the actor was not entitled to
+      // act. Surfacing that as a rejection means a refused attempt is visible
+      // rather than looking like a no-op that succeeded.
+      if (updated === existing) return reject(next, event.eventId, `${actor} may not ${action} this ownership`);
+      return { ...next, ownerships: { ...next.ownerships, [agentActorId]: updated } };
+    }
     case "task.commented": {
       const task = next.tasks[event.payload.taskId];
       if (!task) return reject(next, event.eventId, "task not found");
