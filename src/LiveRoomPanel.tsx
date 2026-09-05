@@ -1,5 +1,34 @@
 import { FormEvent, useState } from "react";
 import { useWebharnessRoom } from "./use-webharness-room";
+import { summariseCrewEvent } from "./crew-event-summary";
+
+/**
+ * One message. Board events are posted into this room as fenced JSON — that is
+ * the durable log and it belongs there — but a person reading the room should
+ * see what changed, not a payload. The original stays one click away, because
+ * the raw event is the record and the summary is only an interpretation.
+ */
+function MessageBody({ message }: { message: { id: number; username: string; createdAt: string; content: string; streaming?: boolean } }) {
+  const summary = summariseCrewEvent(message.content);
+
+  return (
+    <article className={message.streaming ? "is-streaming" : ""}>
+      <header><strong>{message.username}</strong><time>{message.createdAt}</time></header>
+      {summary ? (
+        <>
+          <p className="crew-event-headline">{summary.headline}</p>
+          <details className="crew-event-raw">
+            <summary>Show the recorded event</summary>
+            <pre>{summary.raw}</pre>
+          </details>
+        </>
+      ) : (
+        <p>{message.content}</p>
+      )}
+      {message.streaming && <small>writing…</small>}
+    </article>
+  );
+}
 
 export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
   const { state, login, logout, selectRoom, retry, sendMessage, retryMessage } = useWebharnessRoom();
@@ -113,11 +142,7 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
 
           <div className="room-messages" aria-label="Room transcript">
             {state.messages.length === 0 ? <div className="room-empty"><p>No messages loaded yet.</p></div> : state.messages.map((message) => (
-              <article key={message.id} className={message.streaming ? "is-streaming" : ""}>
-                <header><strong>{message.username}</strong><time>{message.createdAt}</time></header>
-                <p>{message.content}</p>
-                {message.streaming && <small>writing…</small>}
-              </article>
+              <MessageBody key={message.id} message={message} />
             ))}
           </div>
 
