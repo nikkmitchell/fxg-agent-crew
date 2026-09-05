@@ -12,7 +12,7 @@
  * fine when clicked, which is the confusing half-broken state.
  */
 
-export const TABS = ["projects", "overview", "board", "mine", "build", "chat"] as const;
+export const TABS = ["projects", "overview", "board", "mine", "people", "build", "chat"] as const;
 export type Tab = (typeof TABS)[number];
 
 export const DEFAULT_TAB: Tab = "projects";
