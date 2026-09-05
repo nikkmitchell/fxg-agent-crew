@@ -129,4 +129,32 @@ describe("profiles over the wire", () => {
     );
     expect(second.profiles.nikk.bio).toBeUndefined();
   });
+
+  it("refuses a profile declared for somebody else", () => {
+    // The rule the ownership case immediately below this one already keeps: the
+    // acting identity is the authenticated author of the event, never a field
+    // in the body. Without it any member of the room can rewrite anyone's
+    // profile — and displayName is now the name rendered on their avatar and
+    // beside their comments, so this is impersonation, not vandalism.
+    const state = reduceCrewEvent(
+      initialCrewState,
+      envelope("e1", "claude-nikk2mbp", 1, {
+        type: "profile.upserted",
+        profile: { actorId: "nikk", kind: "human", displayName: "Not Nikk" },
+      }),
+    );
+    expect(state.profiles.nikk).toBeUndefined();
+    expect(state.rejectedEvents.at(-1)?.reason).toContain("own profile");
+  });
+
+  it("still lets an actor declare their own", () => {
+    const state = reduceCrewEvent(
+      initialCrewState,
+      envelope("e1", "nikk", 1, {
+        type: "profile.upserted",
+        profile: { actorId: "nikk", kind: "human", displayName: "Nikk" },
+      }),
+    );
+    expect(state.profiles.nikk.displayName).toBe("Nikk");
+  });
 });
