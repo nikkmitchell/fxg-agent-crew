@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { CrewProject, CrewTask } from "./event-core";
 import type { Tab } from "./router";
+import { recentActivity } from "./recent-activity";
 
 const PROJECT_ROOM = "AgentParty";
 
@@ -45,6 +46,10 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
    * knows will not work.
    */
   const [signedOut, setSignedOut] = useState(false);
+  /** Task named by the URL hash, so a jump from the feed opens the right card. */
+  const [hashTaskId, setHashTaskId] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.hash.replace(/^#task-/, ""),
+  );
 
   const load = useCallback(async () => {
     try {
@@ -71,6 +76,26 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const sync = () => setHashTaskId(window.location.hash.replace(/^#task-/, ""));
+    window.addEventListener("popstate", sync);
+    window.addEventListener("hashchange", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("hashchange", sync);
+    };
+  }, []);
+
+  // Scroll to the card once it exists. Deferred to a frame so the details
+  // element has opened first, or the browser scrolls to the collapsed height.
+  useEffect(() => {
+    if (!hashTaskId) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`task-${hashTaskId}`)?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hashTaskId, tab]);
   useEffect(() => { if (selectedId) localStorage.setItem("saha-project", selectedId); }, [selectedId]);
 
   const selected = state.projects.find((project) => project.id === selectedId);
@@ -242,11 +267,57 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         <p className="eyebrow">PROJECT OVERVIEW</p><h2>{selected.name}</h2><p>{selected.summary}</p>
         <h3>Goals</h3><ul>{selected.goals.map((goal) => <li key={goal}>{goal}</li>)}</ul>
         <h3>Steps</h3><ol>{selected.steps.map((step) => <li key={step.id} data-status={step.status}>{step.title}</li>)}</ol>
+
+        {/*
+          * Live updates, derived from the comments already loaded rather than
+          * fetched separately: a second source for a fact we hold would drift
+          * from the first.
+          *
+          * It shows COMMENTS, not every change. A status transition carries no
+          * author or timestamp in the projected state, so including it would
+          * mean inventing one of them — and a feed that guessed who moved a
+          * card is worse than one that only reports what it can attribute.
+          * The heading says so rather than implying completeness.
+          */}
+        <h3>Recent discussion</h3>
+        {recentActivity(tasks).length === 0 ? (
+          <p className="muted-note">Nothing has been discussed on this project yet.</p>
+        ) : (
+          <ul className="activity-feed">
+            {recentActivity(tasks).map((entry) => (
+              <li key={`${entry.taskId}-${entry.at}-${entry.author}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Takes you to the item it came from, which is the point of
+                    // the feed: reading about a change and finding it are one
+                    // action, not two.
+                    // A real navigation, not local state: the Board is a URL,
+                    // so jumping to a card is linkable and survives a refresh
+                    // like every other location in this app.
+                    setSelectedId(selected.id);
+                    const target = `${import.meta.env.BASE_URL}board#task-${entry.taskId}`;
+                    window.history.pushState({}, "", target);
+                    window.dispatchEvent(new PopStateEvent("popstate"));
+                  }}
+                >
+                  <span className="activity-meta">
+                    <b>{entry.author}</b>
+                    <span>on {entry.taskTitle}</span>
+                    <time dateTime={entry.at}>{entry.at.slice(0, 16).replace("T", " ")}</time>
+                  </span>
+                  <span className="activity-excerpt">{entry.excerpt}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="muted-note">Shows discussion only. Status changes are not attributable to a person in the stored state, so they are not invented here.</p>
       </div> : null}
 
       {tab === "board" && !signedOut && selected ? <div className="project-grid">
         <div><h2>{selected.name} board</h2>{tasks.length ? tasks.map((task) => (
-          <article className="task-row" key={task.id}>
+          <article className="task-row" id={`task-${task.id}`} key={task.id}>
             <span>{task.status.replace("_", " ")}</span><h3>{task.title}</h3>
             <p>{task.owners?.length ? `Owner: ${task.owners.join(", ")}` : "Unassigned · available to claim"}</p>
             {task.acceptedBy?.length ? <p>Accepted by: {task.acceptedBy.join(", ")}</p> : null}
@@ -257,7 +328,9 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
               * and none of them were visible — the data was real and the screen
               * showed no sign of it, which is its own kind of dishonesty.
               */}
-            <details className="task-detail">
+            {/* Opened when arrived at from the activity feed, so the jump
+                lands on the discussion rather than beside it. */}
+            <details className="task-detail" open={hashTaskId === task.id}>
               <summary>
                 {(task.comments?.length ?? 0) === 0
                   ? "No discussion yet"
