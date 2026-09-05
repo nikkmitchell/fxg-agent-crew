@@ -293,6 +293,34 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     event.currentTarget.reset();
   };
 
+  /**
+   * Which tab is open, per card. Defaults to the brief.
+   *
+   * Discussion used to be the only thing here, which meant the newest remark
+   * sat where the brief belongs. What a card MEANS should not be something you
+   * reach by scrolling past what someone said about it this afternoon.
+   */
+  const [openTab, setOpenTab] = useState<Record<string, "brief" | "discussion" | "links">>({});
+  const tabOf = (taskId: string) => openTab[taskId] ?? "brief";
+
+  /**
+   * Save a description.
+   *
+   * task.upserted REPLACES the stored card, so the whole task is sent with the
+   * one field changed. Sending only the description would silently drop owners,
+   * comments and status — an edit that looks like a small one and is not.
+   */
+  const saveDescription = async (task: CrewTask, description: string) => {
+    const trimmed = description.trim();
+    await append({
+      type: "task.upserted",
+      // Cleared means cleared: the field is omitted rather than sent as "",
+      // so "nobody has written one" stays distinguishable from "someone wrote
+      // nothing".
+      task: trimmed ? { ...task, description: trimmed } : (({ description: _drop, ...rest }) => rest)(task),
+    });
+  };
+
   const updateTask = async (task: CrewTask, action: "claim" | "accept" | "start") => {
     if (!me?.username) return setError("Sign in before changing task ownership.");
     const username = me.username;
@@ -350,11 +378,95 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
                     <details className="task-detail" open={hashTaskId === task.id}>
                       <summary>
-                        {(task.comments?.length ?? 0) === 0
-                          ? "No discussion yet"
-                          : `${task.comments!.length} comment${task.comments!.length === 1 ? "" : "s"}`}
+                        {task.description ? "Brief" : "No brief yet"}
+                        {(task.comments?.length ?? 0) > 0 ? ` · ${task.comments!.length} comment${task.comments!.length === 1 ? "" : "s"}` : ""}
                       </summary>
 
+                      {/*
+                        * Tabs, so a card can carry what it MEANS separately from
+                        * what people said about it. Real buttons in a tablist
+                        * rather than styled divs: this has to be reachable from
+                        * a keyboard, and a div cannot be.
+                        */}
+                      <div className="task-tabs" role="tablist" aria-label={`${task.title} detail`}>
+                        {([
+                          ["brief", "Brief"],
+                          ["discussion", `Discussion${task.comments?.length ? ` (${task.comments.length})` : ""}`],
+                          ["links", `Links${task.links?.length ? ` (${task.links.length})` : ""}`],
+                        ] as const).map(([id, label]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            role="tab"
+                            id={`tab-${id}-${task.id}`}
+                            aria-selected={tabOf(task.id) === id}
+                            aria-controls={`panel-${id}-${task.id}`}
+                            className={tabOf(task.id) === id ? "task-tab task-tab--on" : "task-tab"}
+                            onClick={() => setOpenTab((current) => ({ ...current, [task.id]: id }))}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {tabOf(task.id) === "brief" ? (
+                        <div className="task-panel" role="tabpanel" id={`panel-brief-${task.id}`} aria-labelledby={`tab-brief-${task.id}`}>
+                          {task.description ? (
+                            <p className="task-description">{task.description}</p>
+                          ) : (
+                            /*
+                             * An explicit invitation, not an empty panel. Blank
+                             * space here reads as a card that failed to load
+                             * rather than one nobody has written a brief for.
+                             */
+                            <p className="muted-note">
+                              Nobody has written a brief for this card yet.{me ? " You can." : ""}
+                            </p>
+                          )}
+                          {me ? (
+                            <form
+                              className="task-brief-form"
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                const form = event.currentTarget;
+                                void saveDescription(task, String(new FormData(form).get("description") ?? ""));
+                              }}
+                            >
+                              <label htmlFor={`brief-${task.id}`}>
+                                What does this card mean, and what does finishing it look like?
+                              </label>
+                              <textarea
+                                id={`brief-${task.id}`}
+                                name="description"
+                                rows={4}
+                                maxLength={4000}
+                                defaultValue={task.description ?? ""}
+                              />
+                              <button disabled={busy}>{task.description ? "Update brief" : "Write brief"}</button>
+                            </form>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {tabOf(task.id) === "links" ? (
+                        <div className="task-panel" role="tabpanel" id={`panel-links-${task.id}`} aria-labelledby={`tab-links-${task.id}`}>
+                          {task.links?.length ? (
+                            <ul className="task-links">
+                              {task.links.map((link) => (
+                                <li key={link.href}>
+                                  <a href={link.href} target="_blank" rel="noreferrer noopener">{link.label}</a>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="muted-note">No links on this card.</p>
+                          )}
+                        </div>
+                      ) : null}
+
+                      {tabOf(task.id) === "discussion" ? (
+                      <div className="task-panel" role="tabpanel" id={`panel-discussion-${task.id}`} aria-labelledby={`tab-discussion-${task.id}`}>
+                      {(task.comments?.length ?? 0) === 0 ? <p className="muted-note">No discussion yet.</p> : null}
                       {task.comments?.map((comment) => (
                         <div className="task-comment" key={comment.id}>
                           <p className="task-comment-meta">
@@ -365,16 +477,6 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                           <p className="task-comment-body">{comment.body}</p>
                         </div>
                       ))}
-
-                      {task.links?.length ? (
-                        <ul className="task-links">
-                          {task.links.map((link) => (
-                            <li key={link.href}>
-                              <a href={link.href} target="_blank" rel="noreferrer noopener">{link.label}</a>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
 
                       {me ? (
                         <form
@@ -390,6 +492,8 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                           <textarea id={`comment-${task.id}`} name="body" rows={3} required />
                           <button disabled={busy}>Comment</button>
                         </form>
+                      ) : null}
+                      </div>
                       ) : null}
                     </details>
 
