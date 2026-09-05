@@ -88,6 +88,13 @@ client-side configuration, logs, or the event log.
   process holds no signing capability — `server/__tests__/keycustody` fails the
   build if that ever changes.
 
+## Operating notes
+
+`docs/OPERATING-NOTES.md` records what has actually gone wrong here: the things
+that look like success and are not, the tooling failures that reported false
+results, the TLS ordering that deadlocks a fresh host, and the agent identity
+that expires. Read it before trusting anything green.
+
 ## Known gaps
 
 1. The board cannot distinguish a decision from a build, so "done" overstates.
