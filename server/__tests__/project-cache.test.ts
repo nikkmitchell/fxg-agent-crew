@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ProjectStateCache } from "../webharness/project-cache.js";
+import { ProjectStateCache, SERVER_MAX_PAGE } from "../webharness/project-cache.js";
 
 /**
  * The regression that matters: a second load must NOT refetch history.
@@ -153,5 +153,28 @@ describe("incremental project replay", () => {
     // The caller got an error; the cursor did not move on to messages that
     // were never folded. Advancing here would silently drop them forever.
     expect(cache.cursorFor("AgentParty")).toBe(cursor);
+  });
+});
+
+describe("page size", () => {
+  it("never exceeds the size the server actually honours", async () => {
+    // WebHarness returns an EMPTY page above 200 rather than an error, and an
+    // empty page is how the replay loop detects the end of history. A page size
+    // over the cap would therefore stop on the first request and report an
+    // empty board as a complete one. Measured against the live server:
+    // limit=200 returns 200 messages, limit=500 returns 0.
+    const cache = new ProjectStateCache({ request: async () => ({ messages: [] }) } as never);
+    const calls: number[] = [];
+    await new ProjectStateCache(
+      {
+        request: async <T,>(path: string): Promise<T> => {
+          calls.push(Number(new URL(`http://x${path}`).searchParams.get("limit") ?? 0));
+          return { messages: [] } as T;
+        },
+      } as never,
+    ).read("AgentParty", "token", () => true);
+
+    expect(calls[0]).toBeLessThanOrEqual(SERVER_MAX_PAGE);
+    expect(cache).toBeDefined();
   });
 });

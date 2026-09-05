@@ -29,7 +29,24 @@ import type { WebharnessClient } from "./client.js";
  * nobody verified.
  */
 
-const PAGE_LIMIT = 50;
+/**
+ * Page size for replay.
+ *
+ * WebHarness accepts up to 200 and SILENTLY RETURNS AN EMPTY PAGE above it —
+ * limit=500 answers with zero messages and no error. Measured, not assumed.
+ *
+ * That is a trap for this loop specifically: an empty page is how it detects
+ * the end of history, so a page size over the cap would make it stop on the
+ * FIRST request and return an empty board as though the replay were complete.
+ * The board would look finished and be empty, which is the failure this file
+ * already throws to avoid in the other direction.
+ *
+ * So this constant may not exceed SERVER_MAX_PAGE, and a test asserts it.
+ * 200 rather than 50 cuts a ~680-message room from 14 upstream round trips to
+ * 4.
+ */
+export const SERVER_MAX_PAGE = 200;
+const PAGE_LIMIT = 200;
 const MAX_PAGES = 200;
 const MAX_REJECTED = 50;
 
