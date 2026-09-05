@@ -42,6 +42,15 @@ export type CrewTask = {
    * assumption, which is the same error in a smaller costume.
    */
   kind?: TaskKind;
+  /**
+   * 1 is most urgent, 5 least. Optional, and ABSENT MEANS UNSET — not lowest.
+   *
+   * The distinction matters because the point of this field is agents choosing
+   * what to do next without being told. Defaulting unset cards to the bottom
+   * would quietly bury every card nobody has triaged, which is exactly the work
+   * most likely to need a human's attention.
+   */
+  priority?: number;
   owners?: string[];
   acceptedBy?: string[];
   comments?: TaskComment[];

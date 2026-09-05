@@ -579,3 +579,14 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .freshness time { font-variant-numeric: tabular-nums; }
 .freshness--stale { color: var(--amber); }
 .freshness button { padding: 2px 8px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+
+/* Priority. Named in words as well as ranked by number — "now" is actionable,
+ * "1" needs a legend. Untriaged cards carry no chip at all rather than a grey
+ * one, so nothing implies they were judged and found unimportant. */
+.priority-chip { padding: 1px 7px; border-radius: 3px; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.priority-chip--1 { background: color-mix(in srgb, var(--vermilion) 16%, transparent); color: var(--vermilion); }
+.priority-chip--2 { background: color-mix(in srgb, var(--amber) 20%, transparent); color: #7a5310; }
+.priority-chip--3, .priority-chip--4, .priority-chip--5 { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--muted); }
+.next-up { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 4px 10px; border: 1px solid var(--line); color: inherit; font-size: 13px; text-decoration: none; }
+.next-up:hover { border-color: var(--ink); }
+.next-up span { color: var(--muted); }
