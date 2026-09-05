@@ -64,6 +64,43 @@ describe("pollMessages", () => {
     expect(fetchMock.mock.calls[1][0]).toContain("wait=");
   });
 
+  /**
+   * Chat is a RECENT WINDOW by design, not an exhaustive traversal — the
+   * opposite of the project replay, and deliberately so: only the browser knows
+   * whether it still holds the transcript before a cursor, so the server must
+   * not decide on its behalf.
+   *
+   * That contract existed only as a comment. Asked in review to point at its
+   * test, there wasn't one — so the claim that "every room-history reader is
+   * page-safe" rested on an untested assertion for this reader. A bound nobody
+   * checks is a bound that can be removed by accident.
+   */
+  it("asks for a bounded recent window when it has no cursor, rather than everything", async () => {
+    const fetchMock = vi.fn().mockImplementation(jsonOnce({ roomName: "r", messages: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new WebharnessClient("https://x.test");
+
+    await pollMessages(client, { room: "r", token: "t" });
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("limit=50");
+    // No cursor AND no limit would ask the server for the whole room, which is
+    // the failure this window exists to prevent.
+    expect(url).not.toContain("afterId=");
+  });
+
+  it("does not impose a window when resuming from a cursor", async () => {
+    // Incremental reads are bounded by the cursor itself; adding a limit here
+    // would silently drop anything beyond it and the caller could not tell.
+    const fetchMock = vi.fn().mockImplementation(jsonOnce({ roomName: "r", messages: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new WebharnessClient("https://x.test");
+
+    await pollMessages(client, { room: "r", token: "t", afterId: 100 });
+
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain("limit=");
+  });
+
   it("caps wait at the server's 30s maximum", async () => {
     const fetchMock = vi.fn().mockImplementation(jsonOnce({ roomName: "r", messages: [] }));
     vi.stubGlobal("fetch", fetchMock);
