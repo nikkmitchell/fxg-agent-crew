@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 type BuildInfo = {
   commit: string | null;
+  branch?: string | null;
+  tree?: string | null;
   deployedAt: string | null;
   processStartedAt: string;
   unavailableReason?: string;
@@ -61,6 +63,37 @@ export function BuildPanel() {
             <code>{info.commit.slice(0, 12)}</code>
           ) : (
             <><b>Unknown.</b> {info.unavailableReason}</>
+          )}
+        </dd>
+
+        <dt>Branch</dt>
+        <dd>
+          {info.branch ? (
+            <>
+              <code>{info.branch}</code>
+              {info.branch !== "main" ? (
+                // Not an error — deploying a branch is normal here and has been
+                // the right call more than once. But it means main does not
+                // describe what is running, which is worth seeing rather than
+                // discovering.
+                <span className="build-flag"> not main — the mainline does not describe this</span>
+              ) : null}
+            </>
+          ) : (
+            <span className="unknown">not recorded</span>
+          )}
+        </dd>
+
+        <dt>Working tree</dt>
+        <dd>
+          {info.tree === null || info.tree === undefined ? (
+            <span className="unknown">not recorded</span>
+          ) : info.tree === "clean" ? (
+            "clean — the artifact matches the commit"
+          ) : (
+            <span className="build-flag">
+              {info.tree.replace("dirty:", "")} uncommitted change(s) at ship time — the artifact does NOT match the commit
+            </span>
           )}
         </dd>
 

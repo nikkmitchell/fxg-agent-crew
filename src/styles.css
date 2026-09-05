@@ -590,3 +590,8 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .next-up { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 4px 10px; border: 1px solid var(--line); color: inherit; font-size: 13px; text-decoration: none; }
 .next-up:hover { border-color: var(--ink); }
 .next-up span { color: var(--muted); }
+
+/* A flag, not an error: deploying a branch or a dirty tree is sometimes the
+ * right call. It just must not be invisible. */
+.build-flag { color: var(--amber); }
+.build-panel .unknown { color: var(--muted); font-style: italic; }
