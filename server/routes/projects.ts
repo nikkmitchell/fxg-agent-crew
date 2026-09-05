@@ -105,7 +105,7 @@ export function registerProjectRoutes(
     if (!session) return reply;
     const room = request.body?.room?.trim();
     const checked = validateActionRequest({ version: 1, payload: request.body?.payload });
-    if (!room || !checked.ok || !["project.upserted", "task.upserted", "task.transitioned"].includes(checked.ok ? checked.value.payload.type : "")) {
+    if (!room || !checked.ok || !["project.upserted", "task.upserted", "task.transitioned", "task.commented"].includes(checked.ok ? checked.value.payload.type : "")) {
       return reply.code(400).send({ code: "BAD_REQUEST", error: checked.ok ? "project action required" : checked.reason });
     }
     if (!canMutateProject(session.username)) {

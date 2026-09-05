@@ -27,6 +27,8 @@ export type AgentProfile = {
   online: boolean;
 };
 
+export type TaskComment = { id: string; author: string; body: string; createdAt: string };
+
 export type CrewTask = {
   id: string;
   projectId?: string;
@@ -37,7 +39,7 @@ export type CrewTask = {
   blocker?: string;
   owners?: string[];
   acceptedBy?: string[];
-  comments?: Array<{ id: string; author: string; body: string; createdAt: string }>;
+  comments?: TaskComment[];
   links?: Array<{ label: string; href: string }>;
   images?: Array<{ label: string; href: string }>;
 };
@@ -73,6 +75,7 @@ export type CrewEvent =
   | { type: "project.upserted"; project: CrewProject }
   | { type: "task.upserted"; task: CrewTask }
   | { type: "task.transitioned"; taskId: string; to: TaskStatus; blocker?: string }
+  | { type: "task.commented"; taskId: string; comment: TaskComment }
   | { type: "message.received"; message: CrewMessage };
 
 export type EventEnvelope = {
@@ -353,6 +356,25 @@ function crewTask(raw: unknown): Checked<CrewTask> {
   };
 }
 
+/**
+ * One comment. Shared by the whole-card path and the append path so the two
+ * cannot drift apart in what they accept - a field allowed by one and rejected
+ * by the other is the kind of gap that only appears in production.
+ */
+function checkedComment(raw: unknown, label: string): Checked<TaskComment> {
+  const comment = plainObject(raw, label);
+  if (!comment.ok) return comment;
+  const id = str(comment.value.id, `${label}.id`);
+  if (!id.ok) return id;
+  const author = str(comment.value.author, `${label}.author`);
+  if (!author.ok) return author;
+  const body = str(comment.value.body, `${label}.body`, { max: 2_000 });
+  if (!body.ok) return body;
+  const createdAt = timestamp(comment.value.createdAt, `${label}.createdAt`);
+  if (!createdAt.ok) return createdAt;
+  return { ok: true, value: { id: id.value, author: author.value, body: body.value, createdAt: createdAt.value } };
+}
+
 function crewProject(raw: unknown): Checked<CrewProject> {
   const object = plainObject(raw, "project");
   if (!object.ok) return object;
@@ -455,6 +477,13 @@ function crewEvent(raw: unknown): Checked<CrewEvent> {
     case "task.upserted": {
       const task = crewTask(o.task);
       return task.ok ? { ok: true, value: { type: "task.upserted", task: task.value } } : task;
+    }
+    case "task.commented": {
+      const taskId = str(o.taskId, "payload.taskId");
+      if (!taskId.ok) return taskId;
+      const comment = checkedComment(o.comment, "payload.comment");
+      if (!comment.ok) return comment;
+      return { ok: true, value: { type: "task.commented", taskId: taskId.value, comment: comment.value } };
     }
     case "task.transitioned": {
       const taskId = str(o.taskId, "payload.taskId");
@@ -728,6 +757,7 @@ export function authorizeEvent(
     case "project.upserted":
     case "task.upserted":
     case "task.transitioned":
+    case "task.commented":
       // Membership is not project authority: anyone can join a public room.
       // Without an explicit capability this is a request, not an event.
       if (!canMutateProject(authority.username, authority.roomName)) {
