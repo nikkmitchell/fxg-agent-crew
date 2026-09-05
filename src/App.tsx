@@ -118,9 +118,19 @@ export default function App() {
       </aside>
 
       <main className="workroom" id="workroom" tabIndex={-1}>
+        {/*
+          * One line, not two blocks.
+          *
+          * This screen previously stacked four headers before any content: a
+          * breadcrumb, a display-size tab title, a project label with its
+          * select, and the project name again at display size. On a laptop the
+          * board began below the fold of its own container. The rail already
+          * shows which tab is active and the document title carries it too, so
+          * the h1 stays for structure but stops behaving like a poster.
+          */}
         <header className="tab-header">
-          <p className="eyebrow">SAHA <span>/</span> MISSION CONTROL</p>
           <h1>{TAB_META[tab].label}</h1>
+          <p className="eyebrow">saha / mission control</p>
         </header>
 
         {tab === "projects" || tab === "overview" || tab === "board" || tab === "mine" ? <ProjectWorkspace tab={tab} /> : null}

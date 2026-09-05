@@ -32,7 +32,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
  * whole page when it does. */
 .workroom:focus { outline: none; }
 
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: 68px minmax(680px, 1fr) 350px; }
+/* Two columns: the rail, and everything else.
+ *
+ * with the demo. 350px of every screen was held for nothing — which is what
+ * clipped the board and left two-thirds of the page empty. Same class of bug as
+ * the dead .board-columns rules: a removed feature still shaping the layout.
+ *
+ * 100dvh rather than 100vh so mobile browser chrome cannot push the page taller
+ * than the screen. */
+.app-shell { min-height: 100dvh; display: grid; grid-template-columns: 68px minmax(0, 1fr); }
 .utility-rail { position: sticky; top: 0; height: 100vh; z-index: 10; display: flex; flex-direction: column; align-items: center; padding: 20px 0; background: var(--rail); color: #f1efe7; }
 .brand-mark { border: 0; background: none; color: inherit; font-size: 17px; font-weight: 700; letter-spacing: -.08em; cursor: pointer; }
 .brand-mark span { color: #ee6047; }
@@ -42,7 +50,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .rail-avatar { width: 32px; height: 32px; border: 1px solid #565751; border-radius: 50%; background: #2d55df; color: white; font-size: 13px; font-weight: 700; cursor: pointer; }
 .glyph { width: 19px; height: 19px; flex: 0 0 auto; }
 
-.workroom { min-width: 0; padding: clamp(26px, 3vw, 48px) clamp(24px, 3.4vw, 54px) 80px; overflow: hidden; }
+/* No overflow:hidden — it clipped the board's own horizontal scroll. Bottom
+ * padding cut from 80px, which left a dead band under every screen. */
+.workroom { min-width: 0; display: flex; flex-direction: column; padding: clamp(20px, 2.2vw, 34px) clamp(20px, 2.6vw, 40px) 28px; }
 .project-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; }
 .eyebrow { margin: 0 0 13px; color: #5f5b53; font-size: 13px; font-weight: 700; letter-spacing: .13em; }
 .eyebrow span { color: var(--vermilion); margin: 0 4px; }
@@ -179,7 +189,6 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .type-decision { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
 .type-verification { color: var(--sage); border-color: color-mix(in srgb, var(--sage) 45%, var(--line)); }
 
-.evidence-rail { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 28px 24px 24px; border-left: 1px solid var(--line); background: var(--surface); }
 .evidence-heading { display: flex; justify-content: space-between; align-items: center; padding-bottom: 17px; border-bottom: 1px solid var(--ink); }
 .evidence-heading .eyebrow { margin: 0; }
 .agent-profile { padding: 28px 0 27px; }
@@ -306,8 +315,11 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
  * real layout rather than a centred shrug. They must read as "this is empty and
  * here is why", never as a failed load.
  */
-.tab-header { margin-bottom: 28px; }
-.tab-header h1 { margin: 6px 0 0; font-family: "Instrument Serif", serif; font-size: clamp(38px, 5vw, 58px); line-height: 1.02; }
+/* A label, not a poster. It was clamp(38px,5vw,58px) with an eyebrow above it,
+ * which cost roughly 120px of vertical space on every screen to repeat what the
+ * rail and the tab title already say. */
+.tab-header { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin-bottom: 14px; }
+.tab-header h1 { margin: 0; font-family: "Instrument Serif", serif; font-size: clamp(22px, 2.4vw, 30px); font-weight: 400; line-height: 1.1; }
 
 .empty-state { max-width: 54ch; padding: 26px 0 0; border-top: 1px solid var(--line); }
 .empty-state h2 { margin: 0 0 10px; font-family: "Instrument Serif", serif; font-size: 26px; font-weight: 400; }
@@ -343,13 +355,21 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
  * The columns scroll horizontally and each one scrolls vertically on its own,
  * so a long column never pushes the others off the bottom of the page.
  */
-.board { display: flex; flex-direction: column; min-height: 0; }
-.board-bar { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; margin-bottom: 18px; }
-.board-bar h2 { margin: 0; font-family: "Instrument Serif", serif; font-size: clamp(26px, 3.4vw, 38px); font-weight: 400; }
+/* A reading-width cap is right for Projects, Overview and My work, and wrong
+ * for a board: it was clipping two of six columns on a 1440px screen while
+ * 250px of the workroom sat unused beside them. The board opts out explicitly
+ * rather than the cap being removed for everyone. */
+.project-workspace--wide { max-width: none; }
+
+.board { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.board-bar { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-bottom: 12px; }
+.board-project { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.board-project > span { color: var(--muted); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.board-project select { min-height: 36px; padding: 5px 10px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; font-size: 14px; }
 .board-bar .kind-progress { margin: 0; }
 
-.board-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(268px, 1fr); gap: 14px; align-items: start; overflow-x: auto; padding-bottom: 14px; scroll-snap-type: x proximity; }
-.board-column { display: flex; flex-direction: column; min-width: 0; max-height: 68vh; border: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 3%, var(--surface)); scroll-snap-align: start; }
+.board-columns { flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 14px; align-items: start; overflow-x: auto; padding-bottom: 14px; scroll-snap-type: x proximity; }
+.board-column { display: flex; flex-direction: column; min-width: 0; max-height: 100%; border: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 3%, var(--surface)); scroll-snap-align: start; }
 .column-head { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .column-head h3 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
 /* The count is the fastest thing to read on a board; it should not need a
@@ -374,6 +394,11 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
  * list of what one person has on, not a board. */
 .my-work-cards { display: grid; gap: 12px; max-width: 62ch; margin-top: 16px; }
 
+/* Collapsed by default. Expanded, this form was taller than any real card and
+ * became the biggest object on an empty board — the thing you had not done yet
+ * shouting louder than the work. */
+.add-card-wrap > summary { padding: 8px 4px; color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer; }
+.add-card-wrap > summary:hover { color: var(--ink); }
 .add-card { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--line); }
 .add-card input, .add-card select { min-height: 36px; padding: 6px 8px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; font-size: 13px; }
 .add-card button { min-height: 34px; border: 0; background: var(--ink); color: white; font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -423,7 +448,6 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 
 @media (max-width: 1180px) {
   .app-shell { grid-template-columns: 62px minmax(0, 1fr); }
-  .evidence-rail { position: relative; grid-column: 2; height: auto; border-top: 1px solid var(--ink); border-left: 0; }
   .workroom { grid-column: 2; }
   .utility-rail { grid-row: 1 / span 2; }
 }
@@ -454,7 +478,6 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
   .agent-workspace { position: relative; inset: auto; width: 100%; min-height: 165px; transform: none !important; }
   .activity-list > button { grid-template-columns: 38px 27px 1fr; }
   .activity-type { display: none; }
-  .evidence-rail { padding: 25px 18px; }
   .live-room-panel { width: 100vw; }
 }
 
