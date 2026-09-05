@@ -45,6 +45,43 @@ Every one of these actually happened here.
 
 ---
 
+## A feature can raise the value of a hole you already had
+
+`profile.upserted` stored whatever `actorId` the payload claimed and never
+compared it to `event.source`, so any member of the room could overwrite
+anyone's profile. That sat in the reducer directly above `ownership.acted`,
+whose comment states the rule it was missing: **the acting identity is the
+authenticated author of the event, never a field in the body.**
+
+While the profile was only read on one tab, that was defacement. An hour after
+avatars shipped, `displayName` had become the name rendered on a person's avatar
+and beside every comment they had written — the same hole, now impersonation.
+Nothing about the vulnerable code changed. Its blast radius did.
+
+**So: when you put a name, a face, or an attribution on the screen, audit who is
+allowed to write the field you are about to render.** Feature work moves data
+into places where it means more, and an authority check that was adequate for
+the old meaning may not be for the new one.
+
+Two habits that came out of it, both worth keeping:
+
+- **Attack it live, do not trust your own test.** The fix and its test were both
+  mine. Posting a real impersonating event to the room and replaying the whole
+  log through the deployed reducer is what actually proved it: victim absent,
+  refusal recorded, only the self-declared profile surviving. The probe stays in
+  the log as evidence.
+- **Audit the log before deploying a rule that rejects.** A reducer rule applies
+  on every replay, so it silently erases whatever it now refuses. Walk the
+  history first and count what would newly be rejected. Here it was zero. Had it
+  not been, deploying would have deleted real profiles with a green build.
+
+And a tooling trap found doing that audit: paginating that room with a `before`
+cursor did not page at all and returned the same message twelve times, which
+read as twelve events. `afterId`, the parameter the server's own drain uses, is
+the one that works. **A count is not evidence until you have deduplicated it.**
+
+---
+
 ## Failure modes of the tooling, not the system
 
 Five separate times, a check reported something false and the system was fine:
