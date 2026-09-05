@@ -3,6 +3,9 @@ import { LiveRoomPanel } from "./LiveRoomPanel";
 import { DEFAULT_TAB, TABS, type Tab, pathForTab, tabFromPath } from "./router";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import { BuildPanel } from "./BuildPanel";
+import { Identity } from "./Identity";
+import { PeoplePanel } from "./PeoplePanel";
+import { useSession } from "./use-session";
 
 /**
  * Mission Control.
@@ -40,6 +43,7 @@ const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" |
   overview: { label: "Overview", glyph: "grid" },
   board: { label: "Board", glyph: "stack" },
   mine: { label: "My work", glyph: "grid" },
+  people: { label: "People", glyph: "grid" },
   build: { label: "Build", glyph: "clock" },
   chat: { label: "Chat", glyph: "chat" },
 };
@@ -66,6 +70,7 @@ export default function App() {
     typeof window === "undefined" ? DEFAULT_TAB : tabFromPath(window.location.pathname),
   );
   const [liveRoomOpen, setLiveRoomOpen] = useState(false);
+  const session = useSession();
 
   // Back/forward must work. Without this the URL changes and the view does
   // not, which is worse than having no routing at all.
@@ -114,7 +119,14 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <button className="rail-avatar" aria-label="Operator profile">NM</button>
+        {/*
+          * Was hardcoded "NM" — the same initials for every visitor, an identity
+          * this page had never checked. It now shows whoever is actually signed
+          * in, or a signed-out mark when nobody is.
+          */}
+        <span className="rail-identity">
+          <Identity username={session?.username} kind={session?.kind} size={32} />
+        </span>
       </aside>
 
       <main className="workroom" id="workroom" tabIndex={-1}>
@@ -134,6 +146,8 @@ export default function App() {
         </header>
 
         {tab === "projects" || tab === "overview" || tab === "board" || tab === "mine" ? <ProjectWorkspace tab={tab} /> : null}
+
+        {tab === "people" ? <PeoplePanel session={session} /> : null}
 
         {tab === "build" ? <BuildPanel /> : null}
 

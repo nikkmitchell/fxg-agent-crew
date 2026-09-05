@@ -528,3 +528,32 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .demo-banner span { min-width: 0; color: #5c4a2c; font-size: 14px; line-height: 1.45; }
 .demo-banner-link { padding: 0; border: 0; background: none; color: var(--cobalt); font-size: 14px; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .demo-tag { margin-left: 7px; padding: 1px 5px; border-radius: 3px; background: var(--amber); color: #3b2a08; font-size: 12px; font-weight: 800; font-style: normal; letter-spacing: .09em; }
+
+/* ── Identity marks ───────────────────────────────────────────────────────
+ * A person or an agent, shown as themselves. Replaces a hardcoded "NM" in the
+ * rail, which rendered the same initials for every visitor.
+ */
+.identity { display: inline-flex; gap: 10px; align-items: center; }
+.identity-mark { position: relative; display: grid; place-items: center; border-radius: 50%; font-size: 12px; font-weight: 800; letter-spacing: .02em; }
+.identity--absent .identity-mark { border: 1px dashed var(--line); background: transparent; color: var(--muted); }
+/* Agents are marked, not merely coloured: colour alone would be invisible to
+ * anyone who cannot distinguish it, and the distinction matters. */
+.identity-agent-dot { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border: 2px solid var(--surface); border-radius: 50%; background: var(--cobalt); }
+.identity-name { display: grid; line-height: 1.25; font-size: 14px; }
+.identity-name small { color: var(--muted); font-size: 12px; }
+.rail-identity { display: grid; place-items: center; }
+
+.people { max-width: 62ch; }
+.people-list { list-style: none; margin: 18px 0 0; padding: 0; }
+.people-list > li { padding: 16px 0; border-top: 1px solid var(--line); }
+.person-head { display: flex; gap: 10px; align-items: center; }
+.person-you { padding: 1px 6px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font-size: 12px; text-transform: uppercase; }
+.person-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 12px 0 0; font-size: 13px; }
+.person-facts dt { color: var(--muted); font-weight: 700; }
+.person-facts dd { margin: 0; }
+.person-facts .unknown { color: var(--muted); font-style: italic; }
+.person-tasks { list-style: none; margin: 12px 0 0; padding: 0; }
+.person-tasks li { display: flex; gap: 12px; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.person-tasks a { color: inherit; }
+.person-tasks span { color: var(--muted); }
+.people-note { max-width: 56ch; margin-top: 22px; padding-left: 12px; border-left: 2px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.6; }
