@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { CrewProject, CrewTask } from "./event-core";
 import type { Tab } from "./router";
 import { recentActivity } from "./recent-activity";
+import { describeProgress, kindLabel } from "./task-kind";
 
 const PROJECT_ROOM = "AgentParty";
 
@@ -181,6 +182,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     const data = new FormData(event.currentTarget);
     const title = String(data.get("title") ?? "").trim();
     const owner = String(data.get("owner") ?? "").trim();
+    const kind = String(data.get("kind") ?? "").trim();
     if (!title) return setError("Task title is required.");
     await append({
       type: "task.upserted",
@@ -190,6 +192,9 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         title,
         status: owner ? "assigned" : "backlog",
         points: 1,
+        // Omitted entirely when unspecified, rather than sent as a default. The
+        // field's purpose is to stop the board claiming what nobody told it.
+        ...(kind === "decision" || kind === "build" ? { kind } : {}),
         owners: owner ? [owner] : [],
         acceptedBy: [], comments: [], links: [], images: [],
       },
@@ -265,6 +270,11 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
       {tab === "overview" && !signedOut && selected ? <div className="project-overview">
         <p className="eyebrow">PROJECT OVERVIEW</p><h2>{selected.name}</h2><p>{selected.summary}</p>
+        {/* Split by kind, never one combined number: a single "8 of 9 done"
+            is what let this board imply a working product when every finished
+            card was a decision. */}
+        <p className="kind-progress">{describeProgress(tasks)}</p>
+
         <h3>Goals</h3><ul>{selected.goals.map((goal) => <li key={goal}>{goal}</li>)}</ul>
         <h3>Steps</h3><ol>{selected.steps.map((step) => <li key={step.id} data-status={step.status}>{step.title}</li>)}</ol>
 
@@ -318,7 +328,9 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       {tab === "board" && !signedOut && selected ? <div className="project-grid">
         <div><h2>{selected.name} board</h2>{tasks.length ? tasks.map((task) => (
           <article className="task-row" id={`task-${task.id}`} key={task.id}>
-            <span>{task.status.replace("_", " ")}</span><h3>{task.title}</h3>
+            <span>{task.status.replace("_", " ")}</span>
+            <span className={`kind-chip kind-chip--${kindLabel(task.kind)}`}>{kindLabel(task.kind)}</span>
+            <h3>{task.title}</h3>
             <p>{task.owners?.length ? `Owner: ${task.owners.join(", ")}` : "Unassigned · available to claim"}</p>
             {task.acceptedBy?.length ? <p>Accepted by: {task.acceptedBy.join(", ")}</p> : null}
 
@@ -382,7 +394,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             </div>
           </article>
         )) : <p>No tasks yet.</p>}</div>
-        <form className="project-form" onSubmit={createTask}><h2>Add task</h2><label>Task<input name="title" required /></label><label>Owner username <small>Optional</small><input name="owner" /></label><button disabled={busy}>Add to board</button></form>
+        <form className="project-form" onSubmit={createTask}><h2>Add task</h2><label>Task<input name="title" required /></label><label>Owner username <small>Optional</small><input name="owner" /></label><label>Kind <small>Does finishing it mean decided, or built?</small><select name="kind" defaultValue=""><option value="">Unspecified</option><option value="decision">Decision</option><option value="build">Build</option></select></label><button disabled={busy}>Add to board</button></form>
       </div> : null}
 
       {tab === "mine" && !signedOut ? <div>
