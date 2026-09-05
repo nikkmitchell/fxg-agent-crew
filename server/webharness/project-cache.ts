@@ -1,5 +1,6 @@
 import type { Message } from "../../shared/contracts.js";
 import { adaptMessages } from "./adapter.js";
+import { SERVER_MAX_PAGE, drainPages } from "./drain-pages.js";
 import { initialCrewState, reduceCrewEvent, type CrewState } from "../../src/event-core.js";
 import type { WebharnessClient } from "./client.js";
 
@@ -45,9 +46,7 @@ import type { WebharnessClient } from "./client.js";
  * 200 rather than 50 cuts a ~680-message room from 14 upstream round trips to
  * 4.
  */
-export const SERVER_MAX_PAGE = 200;
-const PAGE_LIMIT = 200;
-const MAX_PAGES = 200;
+const PAGE_LIMIT = SERVER_MAX_PAGE;
 const MAX_REJECTED = 50;
 
 export type ProjectProjection = {
@@ -109,34 +108,22 @@ export class ProjectStateCache {
   ): Promise<ProjectProjection> {
     const cached = this.entries.get(room);
     const startFrom = cached?.lastId ?? 0;
-    const messages: Message[] = [];
-    let afterId = startFrom;
-    let complete = false;
 
-    for (let page = 0; page < MAX_PAGES; page += 1) {
-      const response = await this.client.request<{ messages?: Message[] }>(
-        `/api/rooms/${encodeURIComponent(room)}/messages?afterId=${afterId}&wait=0&limit=${this.pageLimit}`,
-        { token },
-      );
-      const batch = Array.isArray(response.messages) ? response.messages : [];
-      if (batch.length === 0) {
-        complete = true;
-        break;
-      }
-      messages.push(...batch);
-      const next = batch.reduce((highest, message) => Math.max(highest, message.id), afterId);
-      if (next <= afterId) throw new Error("project replay cursor did not advance");
-      afterId = next;
-      if (batch.length < this.pageLimit) {
-        complete = true;
-        break;
-      }
-    }
-
-    // Ran out of guard with history still unread. Throwing keeps the previous
-    // cache intact internally, but the CALLER gets an error rather than a
-    // board that is missing its oldest projects while looking complete.
-    if (!complete) throw new Error(`project replay exceeded ${MAX_PAGES * this.pageLimit} messages`);
+    // Traversal lives in drainPages, not here. Three readers in this project
+    // each re-implemented "read every page" and each got a different part of it
+    // wrong; this one no longer has its own copy to get wrong.
+    const { items: messages, lastId } = await drainPages<Message>({
+      fetchPage: async (afterId, limit) => {
+        const response = await this.client.request<{ messages?: Message[] }>(
+          `/api/rooms/${encodeURIComponent(room)}/messages?afterId=${afterId}&wait=0&limit=${limit}`,
+          { token },
+        );
+        return Array.isArray(response.messages) ? response.messages : [];
+      },
+      idOf: (message) => message.id,
+      startAfter: startFrom,
+      pageLimit: this.pageLimit,
+    });
 
     const adapted = adaptMessages(messages, { roomName: room, canMutateProject });
     const state = adapted.events.reduce(reduceCrewEvent, cached?.state ?? initialCrewState);
@@ -144,7 +131,7 @@ export class ProjectStateCache {
       -MAX_REJECTED,
     );
 
-    this.entries.set(room, { state, lastId: afterId, rejected });
+    this.entries.set(room, { state, lastId, rejected });
 
     return {
       projects: Object.values(state.projects),
