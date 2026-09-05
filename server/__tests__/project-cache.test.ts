@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ProjectStateCache, SERVER_MAX_PAGE } from "../webharness/project-cache.js";
+import { ProjectStateCache } from "../webharness/project-cache.js";
+import { SERVER_MAX_PAGE } from "../webharness/drain-pages.js";
 
 /**
  * The regression that matters: a second load must NOT refetch history.

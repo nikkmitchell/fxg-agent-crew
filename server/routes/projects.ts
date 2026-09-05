@@ -1,58 +1,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Message } from "../../shared/contracts.js";
-import {
-  adaptMessages,
-  encodeActionRequest,
-} from "../webharness/adapter.js";
+import { encodeActionRequest } from "../webharness/adapter.js";
 import { validateActionRequest, type CrewEvent } from "../../shared/crew-events.js";
-import { initialCrewState, reduceCrewEvent } from "../../src/event-core.js";
 import type { Config } from "../config.js";
 import type { Session, SessionStore } from "../session.js";
 import type { WebharnessClient } from "../webharness/client.js";
 import { ProjectStateCache } from "../webharness/project-cache.js";
 
-const PAGE_LIMIT = 50;
-const MAX_PAGES = 200;
-
-/** Replay the room's durable action log. WebHarness is the persistence layer. */
-export async function replayProjectState(
-  client: Pick<WebharnessClient, "request">,
-  room: string,
-  token: string,
-  canMutateProject: (username: string, roomName: string) => boolean,
-) {
-  const messages: Message[] = [];
-  let afterId = 0;
-  let complete = false;
-
-  for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber += 1) {
-    const page = await client.request<{ messages?: Message[] }>(
-      `/api/rooms/${encodeURIComponent(room)}/messages?afterId=${afterId}&wait=0&limit=${PAGE_LIMIT}`,
-      { token },
-    );
-    const batch = Array.isArray(page.messages) ? page.messages : [];
-    if (batch.length === 0) { complete = true; break; }
-    messages.push(...batch);
-    const next = batch.reduce((highest, message) => Math.max(highest, message.id), afterId);
-    if (next <= afterId) throw new Error("project replay cursor did not advance");
-    afterId = next;
-    if (batch.length < PAGE_LIMIT) { complete = true; break; }
-  }
-  if (!complete) throw new Error(`project replay exceeded ${MAX_PAGES * PAGE_LIMIT} messages`);
-
-  const adapted = adaptMessages(messages, {
-    roomName: room,
-    // A valid signed-in room member may organize projects. Identity and room
-    // membership still come from WebHarness; the event body cannot forge them.
-    canMutateProject,
-  });
-  const state = adapted.events.reduce(reduceCrewEvent, initialCrewState);
-  return {
-    projects: Object.values(state.projects),
-    tasks: Object.values(state.tasks),
-    rejected: [...adapted.rejected, ...state.rejectedEvents],
-  };
-}
 
 export function registerProjectRoutes(
   app: FastifyInstance,

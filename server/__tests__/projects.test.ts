@@ -1,6 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 import { encodeActionRequest } from "../webharness/adapter.js";
-import { replayProjectState } from "../routes/projects.js";
+import { ProjectStateCache } from "../webharness/project-cache.js";
+import { PagesExhaustedError } from "../webharness/drain-pages.js";
+
+/**
+ * These test the path that actually serves /bff/projects.
+ *
+ * They previously tested replayProjectState, which nothing called any more —
+ * the route had moved to the cache. So the semantics below were guarded on code
+ * that could not fail in production, while the code that does run carried its
+ * own separate copy of the same traversal. Repointed rather than deleted: the
+ * assertions were always the right ones, they were just aimed at the wrong
+ * implementation.
+ */
+const replay = (request: unknown, canMutate: () => boolean = () => true) =>
+  new ProjectStateCache({ request } as never, 50).read("AgentParty", "secret-never-returned", canMutate);
 
 const transport = (id: number, content: string) => ({
   id,
@@ -32,7 +46,7 @@ describe("project replay", () => {
       .mockResolvedValueOnce({ messages: [transport(1, project), transport(2, task)] })
       .mockResolvedValueOnce({ messages: [] });
 
-    const state = await replayProjectState({ request } as never, "AgentParty", "secret-never-returned", () => true);
+    const state = await replay(request);
 
     expect(state.projects).toHaveLength(1);
     expect(state.projects[0].name).toBe("Multiplayer Go");
@@ -47,7 +61,7 @@ describe("project replay", () => {
       task: { id: "orphan", projectId: "missing", title: "Orphan", status: "backlog", points: 1 },
     });
     const request = vi.fn().mockResolvedValueOnce({ messages: [transport(1, task)] });
-    const state = await replayProjectState({ request } as never, "AgentParty", "secret-never-returned", () => true);
+    const state = await replay(request);
     expect(state.tasks).toEqual([]);
     expect(state.rejected.at(-1)).toMatchObject({ reason: "project not found" });
   });
@@ -60,7 +74,6 @@ describe("project replay", () => {
       cursor += 50;
       return Promise.resolve({ messages: page });
     });
-    await expect(replayProjectState({ request } as never, "AgentParty", "secret-never-returned", () => true))
-      .rejects.toThrow("exceeded 10000 messages");
+    await expect(replay(request)).rejects.toBeInstanceOf(PagesExhaustedError);
   });
 });
