@@ -48,6 +48,18 @@ rsync -az --delete \
 # commit rather than to "whatever was on someone's laptop".
 "${SSH[@]}" "$TARGET" "printf '%s\n' '$SHA' > $REMOTE/DEPLOYED_COMMIT"
 
+# The branch and the tree's cleanliness, recorded at ship time because they
+# cannot be recovered later: .git is excluded from the rsync, so the host has no
+# way to answer "which branch is this?" once the deploy has finished.
+#
+# Both have mattered here. A branch deployed while main moved on took hours to
+# notice, and "the deployed artifact will not match this commit" is warned about
+# above and then forgotten by everyone including the person who saw it.
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+TREE=$([ "$DIRTY" = "0" ] && echo clean || echo "dirty:$DIRTY")
+"${SSH[@]}" "$TARGET" "printf '%s\n' '$BRANCH' > $REMOTE/DEPLOYED_BRANCH"
+"${SSH[@]}" "$TARGET" "printf '%s\n' '$TREE' > $REMOTE/DEPLOYED_TREE"
+
 log "install production deps + restart"
 "${SSH[@]}" "$TARGET" bash -euo pipefail <<'REMOTE_CMDS'
   cd /opt/fxg-crew

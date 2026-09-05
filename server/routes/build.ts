@@ -21,6 +21,16 @@ import type { SessionStore } from "../session.js";
  */
 
 export type BuildInfo = {
+  /** Branch this was shipped from, or null when nothing recorded it. */
+  branch: string | null;
+  /**
+   * Whether the working tree was clean at ship time.
+   *
+   * "dirty:N" means the deployed artifact does not correspond to the commit
+   * beside it — release.sh warns about that and everyone forgets, so it is
+   * recorded rather than trusted to memory.
+   */
+  tree: string | null;
   /** Commit recorded by the release script, or null when it cannot be read. */
   commit: string | null;
   /** When that record was written, i.e. when the release happened. */
@@ -38,15 +48,30 @@ export function readBuildInfo(root: string): BuildInfo {
   const processStartedAt = new Date(Date.now() - Math.round(process.uptime() * 1000)).toISOString();
   const path = resolve(root, "DEPLOYED_COMMIT");
 
+  // Read alongside the commit. Missing is normal on anything deployed before
+  // these were recorded, and is reported as unknown rather than guessed.
+  const sidecar = (name: string): string | null => {
+    try {
+      const value = readFileSync(resolve(root, name), "utf8").trim();
+      return value === "" ? null : value;
+    } catch {
+      return null;
+    }
+  };
+  const branch = sidecar("DEPLOYED_BRANCH");
+  const tree = sidecar("DEPLOYED_TREE");
+
   try {
     const commit = readFileSync(path, "utf8").trim();
     if (!commit) {
-      return { commit: null, deployedAt: null, processStartedAt, unavailableReason: "DEPLOYED_COMMIT is empty" };
+      return { commit: null, branch, tree, deployedAt: null, processStartedAt, unavailableReason: "DEPLOYED_COMMIT is empty" };
     }
-    return { commit, deployedAt: statSync(path).mtime.toISOString(), processStartedAt };
+    return { commit, branch, tree, deployedAt: statSync(path).mtime.toISOString(), processStartedAt };
   } catch {
     return {
       commit: null,
+      branch,
+      tree,
       deployedAt: null,
       processStartedAt,
       // The honest reading: this service was not started by the release script,

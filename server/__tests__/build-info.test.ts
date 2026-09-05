@@ -69,3 +69,61 @@ describe("build info", () => {
     }
   });
 });
+
+describe("branch and tree state", () => {
+  it("reports the branch and a clean tree when the release recorded them", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fxg-build-branch-"));
+    try {
+      writeFileSync(join(dir, "DEPLOYED_COMMIT"), "abc123\n");
+      writeFileSync(join(dir, "DEPLOYED_BRANCH"), "main\n");
+      writeFileSync(join(dir, "DEPLOYED_TREE"), "clean\n");
+      const info = readBuildInfo(dir);
+
+      expect(info.branch).toBe("main");
+      expect(info.tree).toBe("clean");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("says NOT RECORDED for a deploy made before these were written", () => {
+    // Every deploy up to now. Absent must read as unknown, never as "main" or
+    // "clean" — both of which would be a reassuring guess about the thing this
+    // panel exists to check.
+    const dir = mkdtempSync(join(tmpdir(), "fxg-build-old-"));
+    try {
+      writeFileSync(join(dir, "DEPLOYED_COMMIT"), "abc123\n");
+      const info = readBuildInfo(dir);
+
+      expect(info.branch).toBeNull();
+      expect(info.tree).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("carries the dirty count so an artifact that does not match its commit is visible", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fxg-build-dirty-"));
+    try {
+      writeFileSync(join(dir, "DEPLOYED_COMMIT"), "abc123\n");
+      writeFileSync(join(dir, "DEPLOYED_TREE"), "dirty:3\n");
+      expect(readBuildInfo(dir).tree).toBe("dirty:3");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("still reports branch and tree when the commit itself is unknown", () => {
+    // A hand-started service may still have sidecars from an earlier deploy.
+    // Losing them because the commit is missing would discard true information.
+    const dir = mkdtempSync(join(tmpdir(), "fxg-build-nocommit-"));
+    try {
+      writeFileSync(join(dir, "DEPLOYED_BRANCH"), "feat/x\n");
+      const info = readBuildInfo(dir);
+      expect(info.commit).toBeNull();
+      expect(info.branch).toBe("feat/x");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
