@@ -306,7 +306,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   );
 
   return (
-    <section className="project-workspace" aria-busy={busy}>
+    <section className={`project-workspace${tab === "board" ? " project-workspace--wide" : ""}`} aria-busy={busy}>
       {error ? <p className="project-error" role="alert">{error}</p> : null}
 
       {signedOut ? (
@@ -320,7 +320,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
           <p className="signin-hint">Open <b>Chat</b> and sign in, then return to this tab.</p>
         </div>
       ) : null}
-      {state.projects.length ? (
+      {state.projects.length && tab !== "board" ? (
         <label className="project-picker">Project
           <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
             {state.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
@@ -409,7 +409,12 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       {tab === "board" && !signedOut && selected ? (
         <div className="board">
           <header className="board-bar">
-            <h2>{selected.name}</h2>
+            <label className="board-project">
+              <span>Project</span>
+              <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+                {state.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+              </select>
+            </label>
             {/* Two different questions, both shown: how much is decided versus
                 built, and how much of the weighted work is finished. Neither
                 answers the other. */}
@@ -446,6 +451,8 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                     {items.map((task) => renderCard(task))}
 
                     {column.status === "backlog" ? (
+                      <details className="add-card-wrap">
+                      <summary>+ Add card</summary>
                       <form className="add-card" onSubmit={createTask}>
                         <input name="title" placeholder="New task…" required aria-label="New task title" />
                         <input name="owner" placeholder="Owner (optional)" aria-label="Owner username" />
@@ -456,6 +463,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                         </select>
                         <button disabled={busy}>Add card</button>
                       </form>
+                      </details>
                     ) : null}
                   </div>
                 </section>
