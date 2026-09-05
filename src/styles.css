@@ -557,3 +557,18 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .person-tasks a { color: inherit; }
 .person-tasks span { color: var(--muted); }
 .people-note { max-width: 56ch; margin-top: 22px; padding-left: 12px; border-left: 2px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+.person-bio { max-width: 56ch; margin: 10px 0 0; font-size: 13px; line-height: 1.6; }
+/* Ownership status is stated in words as well as colour — colour alone is
+ * invisible to anyone who cannot distinguish it, and this is a claim about a
+ * relationship rather than decoration. */
+.ownership--pending { color: var(--amber); }
+.ownership--verified { color: var(--sage); }
+.ownership--revoked { color: var(--muted); text-decoration: line-through; }
+.person-actions { display: grid; gap: 4px; margin: 10px 0 0; padding-left: 12px; border-left: 2px solid var(--cobalt); color: var(--muted); font-size: 13px; }
+.people-note strong { color: var(--ink); }
+@media (max-width: 760px) {
+  .person-facts { grid-template-columns: 1fr; gap: 2px 0; }
+  .person-facts dt { margin-top: 8px; }
+  .person-tasks li { flex-direction: column; gap: 2px; }
+}

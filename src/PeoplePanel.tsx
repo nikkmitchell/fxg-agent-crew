@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CrewTask } from "./event-core";
+import type { ActorProfile, Ownership } from "./profiles";
 import { People } from "./People";
 import type { Session } from "./use-session";
 
@@ -14,7 +15,7 @@ const PROJECT_ROOM = "AgentParty";
  * disagreeing with the board.
  */
 export function PeoplePanel({ session }: { session: Session | null }) {
-  const [tasks, setTasks] = useState<CrewTask[] | null>(null);
+  const [data, setData] = useState<{ tasks: CrewTask[]; profiles: ActorProfile[]; ownerships: Ownership[] } | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "signed_out" | "error">("loading");
 
   useEffect(() => {
@@ -30,9 +31,13 @@ export function PeoplePanel({ session }: { session: Session | null }) {
           return;
         }
         if (!response.ok) throw new Error(String(response.status));
-        const body = (await response.json()) as { tasks?: CrewTask[] };
+        const body = (await response.json()) as {
+          tasks?: CrewTask[];
+          profiles?: ActorProfile[];
+          ownerships?: Ownership[];
+        };
         if (!cancelled) {
-          setTasks(body.tasks ?? []);
+          setData({ tasks: body.tasks ?? [], profiles: body.profiles ?? [], ownerships: body.ownerships ?? [] });
           setState("ready");
         }
       } catch {
@@ -46,7 +51,7 @@ export function PeoplePanel({ session }: { session: Session | null }) {
 
   if (state === "loading") return <p className="muted-note">Reading the log…</p>;
   if (state === "signed_out") return <p className="muted-note">Sign in to see who is working on what.</p>;
-  if (state === "error" || !tasks) {
+  if (state === "error" || !data) {
     return (
       <p className="project-error" role="alert">
         Could not read the log, so this page is empty rather than partial.
@@ -54,5 +59,5 @@ export function PeoplePanel({ session }: { session: Session | null }) {
     );
   }
 
-  return <People tasks={tasks} session={session} />;
+  return <People tasks={data.tasks} profiles={data.profiles} ownerships={data.ownerships} session={session} />;
 }
