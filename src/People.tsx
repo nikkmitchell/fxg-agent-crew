@@ -267,6 +267,26 @@ export function People({
    * event's author — a control that could only ever produce a refusal is worse
    * than no control.
    */
+  const [actionError, setActionError] = useState("");
+
+  /**
+   * Publish one ownership intent.
+   *
+   * The event carries WHAT WAS ASKED FOR, never the resulting state. Whether it
+   * is allowed is decided by the reducer from the authenticated author, so a
+   * claimant cannot confirm their own claim by writing the other side's id into
+   * the body. These buttons cannot grant anything; they can only ask.
+   */
+  const act = async (agentActorId: string, ownerActorId: string, action: "declare" | "confirm" | "revoke") => {
+    if (!onPublish) return;
+    setActionError("");
+    try {
+      await onPublish({ type: "ownership.acted", agentActorId, ownerActorId, action });
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "Could not save");
+    }
+  };
+
   const editor =
     session && onPublish ? (
       <ProfileEditor actorId={session.username} kind={session.kind} current={mine} onPublish={onPublish} />
@@ -294,6 +314,8 @@ export function People({
       </p>
 
       {editor}
+
+      {actionError ? <p className="project-error" role="alert">{actionError}</p> : null}
 
       <ul className="people-list">
         {actors.map((actor) => {
@@ -369,11 +391,40 @@ export function People({
                 * action they cannot take and invites a refusal they will read as
                 * a fault.
                 */}
-              {canDeclareOwner || canConfirm || canRevoke ? (
+              {(canDeclareOwner || canConfirm || canRevoke) && onPublish && session ? (
                 <p className="person-actions">
-                  {canDeclareOwner ? <span>You can claim this agent as yours.</span> : null}
-                  {canConfirm ? <span>Someone has claimed you — confirm or decline.</span> : null}
-                  {canRevoke ? <span>You can end this link.</span> : null}
+                  {canDeclareOwner ? (
+                    <>
+                      <span>You can claim this agent as yours.</span>
+                      {/*
+                        * A claim is a REQUEST. It lands as pending and stays
+                        * pending until the agent itself confirms — saying an
+                        * agent is yours does not make it so, which is the same
+                        * boundary the rest of this system holds.
+                        */}
+                      <button type="button" onClick={() => act(actor.username, session.username, "declare")}>
+                        Claim as mine
+                      </button>
+                    </>
+                  ) : null}
+                  {canConfirm && actor.ownedBy ? (
+                    <>
+                      <span>Someone has claimed you.</span>
+                      <button type="button" onClick={() => act(actor.username, actor.ownedBy!.ownerActorId, "confirm")}>
+                        Confirm
+                      </button>
+                      {/* Declining is a revoke: there is no third state, and a
+                          claim you refuse should not linger as pending. */}
+                      <button type="button" onClick={() => act(actor.username, actor.ownedBy!.ownerActorId, "revoke")}>
+                        Decline
+                      </button>
+                    </>
+                  ) : null}
+                  {canRevoke && !canConfirm && actor.ownedBy ? (
+                    <button type="button" onClick={() => act(actor.username, actor.ownedBy!.ownerActorId, "revoke")}>
+                      End this link
+                    </button>
+                  ) : null}
                 </p>
               ) : null}
 
