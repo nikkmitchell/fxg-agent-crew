@@ -86,6 +86,18 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {/*
+        * Six navigation buttons sit before the content on every load. Without
+        * this, reaching the page a keyboard user came for costs six tab presses
+        * every single time — and the cost is paid by exactly the people for whom
+        * each press is most expensive.
+        *
+        * Visible on focus rather than always: it is a shortcut for people who
+        * need it, and hiding it entirely (display:none, or a positive tabindex
+        * trick) is what makes most skip links non-functional.
+        */}
+      <a className="skip-link" href="#workroom">Skip to content</a>
+
       <aside className="utility-rail" aria-label="Workspace navigation">
         <button className="brand-mark" aria-label="Saha home">F<span>/</span>X</button>
         <nav className="rail-nav" aria-label="Sections">
@@ -105,7 +117,7 @@ export default function App() {
         <button className="rail-avatar" aria-label="Operator profile">NM</button>
       </aside>
 
-      <main className="workroom">
+      <main className="workroom" id="workroom" tabIndex={-1}>
         <header className="tab-header">
           <p className="eyebrow">SAHA <span>/</span> MISSION CONTROL</p>
           <h1>{TAB_META[tab].label}</h1>

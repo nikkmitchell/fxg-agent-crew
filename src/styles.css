@@ -24,6 +24,14 @@ button, input, textarea { font: inherit; }
 button { color: inherit; }
 button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid color-mix(in oklch, var(--cobalt) 75%, white); outline-offset: 3px; }
 
+/* Off-screen until focused, then visibly on top of everything. Never
+ * display:none — a skip link that is not focusable is not a skip link. */
+.skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; padding: 12px 18px; background: var(--ink); color: white; font-size: 14px; font-weight: 700; text-decoration: none; }
+.skip-link:focus { left: 0; }
+/* The target takes focus programmatically; it should not draw a box around the
+ * whole page when it does. */
+.workroom:focus { outline: none; }
+
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 68px minmax(680px, 1fr) 350px; }
 .utility-rail { position: sticky; top: 0; height: 100vh; z-index: 10; display: flex; flex-direction: column; align-items: center; padding: 20px 0; background: var(--rail); color: #f1efe7; }
 .brand-mark { border: 0; background: none; color: inherit; font-size: 17px; font-weight: 700; letter-spacing: -.08em; cursor: pointer; }
