@@ -111,6 +111,21 @@ export function stepProgress(steps: ProjectStep[]): { done: number; total: numbe
   return { done, total: steps.length, percent: steps.length === 0 ? 0 : Math.round((done / steps.length) * 100) };
 }
 
+/**
+ * Progress weighted by points rather than card count, so one large task is not
+ * worth the same as one trivial one.
+ *
+ * Rescued from a component that nothing imported any more. It is a different
+ * question from progressByKind — that one asks "how much is decided versus
+ * built", this asks "how much of the work is finished" — and both are shown,
+ * because neither answers the other.
+ */
+export function calculateProjectProgress(tasks: CrewTask[]) {
+  const total = tasks.reduce((sum, task) => sum + task.points, 0);
+  const complete = tasks.filter((task) => task.status === "done").reduce((sum, task) => sum + task.points, 0);
+  return { total, complete, percent: total === 0 ? 0 : Math.round((complete / total) * 100) };
+}
+
 export const BOARD_COLUMNS: Array<{ status: TaskStatus; label: string }> = [
   { status: "backlog", label: "Backlog" },
   { status: "assigned", label: "Assigned" },

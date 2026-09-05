@@ -3,7 +3,7 @@ import type { CrewProject, CrewTask } from "./event-core";
 import type { Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
-import { BOARD_COLUMNS } from "./project-model";
+import { BOARD_COLUMNS, calculateProjectProgress } from "./project-model";
 
 const PROJECT_ROOM = "AgentParty";
 
@@ -410,7 +410,13 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         <div className="board">
           <header className="board-bar">
             <h2>{selected.name}</h2>
-            <p className="kind-progress">{describeProgress(tasks)}</p>
+            {/* Two different questions, both shown: how much is decided versus
+                built, and how much of the weighted work is finished. Neither
+                answers the other. */}
+            <p className="kind-progress">
+              {describeProgress(tasks)}
+              {tasks.length ? ` · ${calculateProjectProgress(tasks).percent}% of points done` : ""}
+            </p>
           </header>
 
           {/*

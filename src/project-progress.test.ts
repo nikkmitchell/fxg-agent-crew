@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CrewTask } from "./event-core";
-import { calculateProjectProgress } from "./ProjectBoard";
+import { calculateProjectProgress } from "./project-model";
 
 describe("calculateProjectProgress", () => {
   it("weights progress by points rather than card count", () => {
