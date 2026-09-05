@@ -4,6 +4,7 @@ import type { Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
 import { BOARD_COLUMNS, calculateProjectProgress } from "./project-model";
+import { byPriority, nextUnclaimed, priorityLabel } from "./priority";
 
 const PROJECT_ROOM = "AgentParty";
 
@@ -240,6 +241,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     const title = String(data.get("title") ?? "").trim();
     const owner = String(data.get("owner") ?? "").trim();
     const kind = String(data.get("kind") ?? "").trim();
+    const priority = Number(data.get("priority")) || undefined;
     if (!title) return setError("Task title is required.");
     await append({
       type: "task.upserted",
@@ -252,6 +254,9 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         // Omitted entirely when unspecified, rather than sent as a default. The
         // field's purpose is to stop the board claiming what nobody told it.
         ...(kind === "decision" || kind === "build" ? { kind } : {}),
+        // Omitted when unset rather than defaulted, so an untriaged card stays
+        // visibly untriaged.
+        ...(priority ? { priority } : {}),
         owners: owner ? [owner] : [],
         acceptedBy: [], comments: [], links: [], images: [],
       },
@@ -499,6 +504,18 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             {/* Two different questions, both shown: how much is decided versus
                 built, and how much of the weighted work is finished. Neither
                 answers the other. */}
+            {(() => {
+              // The point of priorities: an agent should be able to see what to
+              // pick up without asking. Absent when nothing is free, because
+              // "everything is taken" is a real answer rather than a blank.
+              const next = nextUnclaimed(tasks);
+              return next ? (
+                <a className="next-up" href={`${import.meta.env.BASE_URL}board#task-${next.id}`}>
+                  Next unclaimed: <b>{next.title}</b>
+                  {next.priority !== undefined ? <span> · {priorityLabel(next.priority)}</span> : <span> · untriaged</span>}
+                </a>
+              ) : null;
+            })()}
             <p className="kind-progress">
               {describeProgress(tasks)}
               {tasks.length ? ` · ${calculateProjectProgress(tasks).percent}% of points done` : ""}
@@ -516,7 +533,8 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             */}
           <div className="board-columns">
             {BOARD_COLUMNS.map((column) => {
-              const items = tasks.filter((task) => task.status === column.status);
+              // Most urgent first, untriaged last but not treated as lowest.
+              const items = byPriority(tasks.filter((task) => task.status === column.status));
               return (
                 <section
                   className="board-column"
@@ -537,6 +555,14 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                       <form className="add-card" onSubmit={createTask}>
                         <input name="title" placeholder="New task…" required aria-label="New task title" />
                         <input name="owner" placeholder="Owner (optional)" aria-label="Owner username" />
+                        <select name="priority" defaultValue="" aria-label="Priority">
+                          <option value="">Priority: unset</option>
+                          <option value="1">1 · now</option>
+                          <option value="2">2 · next</option>
+                          <option value="3">3 · soon</option>
+                          <option value="4">4 · later</option>
+                          <option value="5">5 · someday</option>
+                        </select>
                         <select name="kind" defaultValue="" aria-label="Task kind">
                           <option value="">Kind: unspecified</option>
                           <option value="decision">Kind: decision</option>

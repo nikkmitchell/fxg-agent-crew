@@ -59,6 +59,15 @@ export type CrewTask = {
    * assumption, which is the same error in a smaller costume.
    */
   kind?: TaskKind;
+  /**
+   * 1 is most urgent, 5 least. Optional, and ABSENT MEANS UNSET — not lowest.
+   *
+   * The distinction matters because the point of this field is agents choosing
+   * what to do next without being told. Defaulting unset cards to the bottom
+   * would quietly bury every card nobody has triaged, which is exactly the work
+   * most likely to need a human's attention.
+   */
+  priority?: number;
   owners?: string[];
   acceptedBy?: string[];
   comments?: TaskComment[];
@@ -295,6 +304,15 @@ function crewTask(raw: unknown): Checked<CrewTask> {
   // Rejected rather than coerced: an unrecognised kind must not silently become
   // one of the two we know about, because the whole point of the field is that
   // the board stops implying something it was not told.
+  // Bounded and integral. A free-form number would let one card claim priority
+  // 0 or -1 and sit above everything forever, which is a ranking nobody agreed
+  // to.
+  const priority = optional(o.priority, () =>
+    typeof o.priority === "number" && Number.isInteger(o.priority) && o.priority >= 1 && o.priority <= 5
+      ? ({ ok: true, value: o.priority } as Checked<number>)
+      : bad("task.priority must be an integer from 1 (most urgent) to 5"),
+  );
+  if (!priority.ok) return priority;
   const kind = optional(o.kind, () =>
     o.kind === "decision" || o.kind === "build"
       ? ({ ok: true, value: o.kind } as Checked<"decision" | "build">)
@@ -381,6 +399,7 @@ function crewTask(raw: unknown): Checked<CrewTask> {
       ...(assigneeId.value !== undefined ? { assigneeId: assigneeId.value } : {}),
       ...(blocker.value !== undefined ? { blocker: blocker.value } : {}),
       ...(kind.value !== undefined ? { kind: kind.value } : {}),
+      ...(priority.value !== undefined ? { priority: priority.value } : {}),
       ...(owners.value !== undefined ? { owners: owners.value } : {}),
       ...(acceptedBy.value !== undefined ? { acceptedBy: acceptedBy.value } : {}),
       ...(comments !== undefined ? { comments } : {}),
