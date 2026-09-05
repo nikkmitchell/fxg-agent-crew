@@ -52,6 +52,8 @@ const MAX_REJECTED = 50;
 export type ProjectProjection = {
   projects: unknown[];
   tasks: unknown[];
+  profiles: unknown[];
+  ownerships: unknown[];
   rejected: Array<{ reason: string }>;
   /** True when this answer came from a full replay rather than an increment. */
   fullReplay: boolean;
@@ -136,6 +138,11 @@ export class ProjectStateCache {
     return {
       projects: Object.values(state.projects),
       tasks: Object.values(state.tasks),
+      // Declared profiles and ownership links. These are public room state, not
+      // credentials: the profile validator refuses anything sensitive before it
+      // can reach the log, so there is nothing here to withhold at read time.
+      profiles: Object.values(state.profiles),
+      ownerships: Object.values(state.ownerships),
       rejected,
       fullReplay: startFrom === 0,
     };
