@@ -1,84 +1,97 @@
 # FXG Agent Crew
 
-A visual workroom for watching a coordinated team of software agents plan, build, review, and ship.
+A shared workroom where people and agents plan, decide and record work together,
+with a standing rule: **the screen may only say what it can prove.** Anything
+unknown renders as unknown rather than as a confident guess.
 
-## Current milestone
+## What is actually running
 
-Version `0.2` is a migration build: the existing Mission Control remains intact,
-and the **Live rooms** button opens a real WebHarness workspace alongside it.
-People use their existing WebHarness username and password; agents keep using
-their existing Ed25519 identities on their own machines. No account migration
-or private-key transfer is required.
+Live at **https://saha.ing** — front door at `/`, Mission Control at `/space/`.
+The classic WebHarness chat is untouched and cannot be captured by this service:
+`release.sh` refuses to ship unless the app returns 404 for `/` and `/api/rooms`
+on loopback.
 
-The main Mission Control projection is still explicitly demo data. The live
-drawer is real: it supports session restoration, room selection, presence,
-continuous message polling, reconnect/read-only states, and confirmed message
-sending with explicit retry.
+The **Build** tab reports the deployed commit, or says UNKNOWN with a reason.
+Treat that as more current than this file — a README is a claim, and the Build
+tab is a measurement.
+
+## What is real, and what is not
+
+Real:
+
+- **Projects, tasks, comments.** Stored as validated events in a WebHarness
+  room, replayed on load. Create something, refresh, and it is still there.
+- **Live rooms.** Session restoration, presence, long-poll, reconnect and
+  read-only states, confirmed sends with explicit retry.
+- **Sign-in for humans and agents.** Humans use their existing WebHarness
+  username and password; agents present the bearer token they already hold,
+  which is verified upstream. Sessions record which, and the UI labels it.
+- **Durable sessions.** SQLite on one host; a restart no longer signs anyone
+  out.
+
+Not real, stated plainly:
+
+- **Nothing has been built for either project yet.** Multiplayer Go and
+  Meditation Experience carry recorded decisions, not code. The board says
+  "done" on those cards meaning "decided", which is a distinction the board
+  cannot currently express.
+- **Single instance.** SQLite sessions do not survive the host being replaced
+  and are not shared between replicas.
 
 ## Run locally
 
 ```bash
 pnpm install
-pnpm dev
+pnpm dev            # UI only
 ```
 
-Production check:
-
-```bash
-pnpm build
-pnpm preview
-```
-
-To run the complete same-origin application locally:
+The whole same-origin application:
 
 ```bash
 pnpm build
 WEBHARNESS_URL=https://your-webharness-host.example \
+  SESSION_SECRET=$(openssl rand -base64 48) \
   PORT=8787 \
   pnpm dev:bff
 ```
 
-Open `http://127.0.0.1:8787`, then choose **Live rooms**. The browser receives
-only an opaque, httpOnly session cookie; the upstream bearer token remains in
-server memory.
+Open `http://127.0.0.1:8787`. With no `APP_BASE_PATH` the app serves from the
+root; production sets `APP_BASE_PATH=/space`, and it must match the nginx
+location **and** the Vite base used at build time. A mismatch loads the HTML and
+404s every asset, which presents as a blank page rather than an error.
 
-## Wilson's cloud handoff
+## Configuration
 
-Deploy this repository as one Node service that serves both `dist/` and
-`/bff/*`. Configure:
+| variable | why |
+|---|---|
+| `WEBHARNESS_URL` | the existing WebHarness origin; accounts and memberships stay authoritative there |
+| `SESSION_SECRET` | new, high-entropy, specific to this service |
+| `APP_BASE_PATH` | where the app mounts. Absent, it owns `/` — which is how it once captured the chat |
+| `SESSION_STORE_PATH` | must be writable. `ProtectSystem=strict` makes the working directory read-only, so the application default would crash on boot |
+| `PROJECT_MUTATORS` | comma-separated usernames permitted to change project data. Room membership is not project authority |
+| `PORT` / `HOST` | loopback in production; nginx faces the internet |
 
-- `WEBHARNESS_URL`: Wilson's existing WebHarness origin. Existing accounts and
-  room memberships remain authoritative there.
-- `SESSION_SECRET`: a new high-entropy value required in production. It is for
-  this UI service, not an existing user or agent credential.
-- `PORT`: the port supplied by the cloud platform.
-- `HOST`: use the platform value when supplied; production otherwise defaults
-  to `0.0.0.0`, while local development defaults safely to `127.0.0.1`.
-- `NODE_ENV=production`: enables secure cookies.
+Deployment order matters and is documented in `deploy/README.md`. Follow it
+rather than improvising: installing the TLS nginx config before a certificate
+exists deadlocks the host against its own ACME challenge.
 
-The public route must use HTTPS and forward traffic to this single service.
-Do not put WebHarness bearer tokens, user passwords, or agent private keys in
-build variables, browser configuration, logs, or repository secrets intended
-for client-side code.
-
-Before switching daily work, run one production smoke test with a disposable
-human account: sign in, open an existing room, receive a new message, send one
-message, disconnect/reconnect, and sign out. Then confirm the browser never sees
-the upstream bearer token.
+Never put bearer tokens, passwords or private keys into build variables,
+client-side configuration, logs, or the event log.
 
 ## Product principles
 
-- The work—not the agents' personalities—is the visual hero.
+- The work, not the agents' personalities, is the visual hero.
 - Every status links to evidence, a decision, or an operator action.
-- The UI consumes a normalized event stream so mock and live runtimes remain interchangeable.
-- External credentials and private keys never enter the event log.
+- Unknown renders as unknown. A partial answer presented as complete is the
+  failure this project exists to avoid.
+- External credentials and private keys never enter the event log, and this
+  process holds no signing capability — `server/__tests__/keycustody` fails the
+  build if that ever changes.
 
-## Remaining migration work
+## Known gaps
 
-1. Replace the demo Mission Control projection with the already-normalized live
-   event stream while keeping provenance labels visible.
-2. Persist sessions and catch-up state outside process memory for restarts and
-   multi-instance deployment.
-3. Connect repository evidence and project workflows to the live projection.
-4. Complete the production smoke test and operational monitoring on Wilson's
-   cloud deployment.
+1. The board cannot distinguish a decision from a build, so "done" overstates.
+2. Cold project replay costs a full room read; warm loads are folded forward.
+3. Build status shows the deployed commit only — no branch or check results.
+4. Agent Ed25519 login is broken upstream for at least one identity; bearer
+   tokens still work and expire on their own schedule.
