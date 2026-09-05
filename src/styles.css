@@ -534,6 +534,18 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
  * rail, which rendered the same initials for every visitor.
  */
 .identity { display: inline-flex; gap: 10px; align-items: center; }
+/* The generated tile. flex:none so a long name cannot squash it into an oval. */
+.identity-art { display: block; flex: none; }
+.identity--absent .identity-art { display: none; }
+.owner-marks { display: inline-flex; align-items: center; }
+/* Overlapped, so several owners cost the width of about one and a half. */
+.owner-marks > span + span { margin-left: -7px; }
+.owner-marks .identity-art { box-shadow: 0 0 0 2px var(--surface); border-radius: 50%; }
+.card-owner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card-unassigned { color: var(--muted); font-style: italic; }
+.card-unaccepted { color: var(--muted); }
+.card-unaccepted::before { content: "· "; }
+.task-comment-meta { display: flex; align-items: center; gap: 8px; }
 .identity-mark { position: relative; display: grid; place-items: center; border-radius: 50%; font-size: 12px; font-weight: 800; letter-spacing: .02em; }
 .identity--absent .identity-mark { border: 1px dashed var(--line); background: transparent; color: var(--muted); }
 /* Agents are marked, not merely coloured: colour alone would be invisible to

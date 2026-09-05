@@ -6,6 +6,8 @@ import { describeProgress, kindLabel } from "./task-kind";
 import { BOARD_COLUMNS, calculateProjectProgress } from "./project-model";
 import { byPriority, nextUnclaimed, priorityLabel } from "./priority";
 import { ROLES, canManageMembership, membersOf, type Membership, type Role } from "./membership";
+import { Identity } from "./Identity";
+import type { ActorProfile } from "./profiles";
 
 const PROJECT_ROOM = "AgentParty";
 
@@ -14,6 +16,7 @@ type ProjectState = {
   tasks: CrewTask[];
   memberships?: Membership[];
   projectCreators?: Record<string, string>;
+  profiles?: ActorProfile[];
 };
 type Me = { username: string; kind?: "human" | "agent" };
 
@@ -165,6 +168,26 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
   const selected = state.projects.find((project) => project.id === selectedId);
   const tasks = state.tasks.filter((task) => task.projectId === selectedId);
+
+  /**
+   * What the durable log says about an actor — nothing more.
+   *
+   * An actor with no profile stays UNKNOWN rather than being assumed human.
+   * Guessing here would put a "human" label on every agent that has not
+   * declared itself, which is the one direction that actively misleads, and
+   * this board is mostly agents.
+   */
+  const actorProfile = useCallback(
+    (actorId: string) => state.profiles?.find((profile) => profile.actorId === actorId),
+    [state.profiles],
+  );
+  const actorMark = useCallback(
+    (actorId: string, size: number, showName = false) => {
+      const profile = actorProfile(actorId);
+      return <Identity username={actorId} kind={profile?.kind} displayName={profile?.displayName} size={size} showName={showName} />;
+    },
+    [actorProfile],
+  );
   const workOwners = useMemo(() => {
     const usernames = new Set<string>();
     if (me?.username) usernames.add(me.username);
@@ -314,8 +337,15 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                     </p>
 
                     <p className="card-owner">
-                      {task.owners?.length ? task.owners.join(", ") : "unassigned"}
-                      {task.owners?.length && !task.acceptedBy?.length ? " · not yet accepted" : ""}
+                      {task.owners?.length ? (
+                        <>
+                          <span className="owner-marks">{task.owners.map((owner) => <span key={owner}>{actorMark(owner, 22)}</span>)}</span>
+                          <span>{task.owners.join(", ")}</span>
+                        </>
+                      ) : (
+                        <span className="card-unassigned">unassigned</span>
+                      )}
+                      {task.owners?.length && !task.acceptedBy?.length ? <span className="card-unaccepted">not yet accepted</span> : null}
                     </p>
 
                     <details className="task-detail" open={hashTaskId === task.id}>
@@ -328,6 +358,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                       {task.comments?.map((comment) => (
                         <div className="task-comment" key={comment.id}>
                           <p className="task-comment-meta">
+                            {actorMark(comment.author, 20)}
                             <b>{comment.author}</b>
                             <time dateTime={comment.createdAt}>{comment.createdAt.slice(0, 16).replace("T", " ")}</time>
                           </p>
