@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CrewProject, CrewTask } from "./event-core";
 import type { Tab } from "./router";
 import { recentActivity } from "./recent-activity";
@@ -48,6 +48,11 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
    * knows will not work.
    */
   const [signedOut, setSignedOut] = useState(false);
+  /** When the view was last confirmed against the server, and whether it has drifted. */
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [stale, setStale] = useState(false);
+  /** Whether we have ever succeeded, so a first failure still shows an error. */
+  const hasLoadedRef = useRef(false);
   /** Task named by the URL hash, so a jump from the feed opens the right card. */
   const [hashTaskId, setHashTaskId] = useState(() =>
     typeof window === "undefined" ? "" : window.location.hash.replace(/^#task-/, ""),
@@ -65,6 +70,9 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       setSelectedId((currentId) => currentId || projects.projects[0]?.id || "");
       setError("");
       setSignedOut(false);
+      setLastUpdated(new Date());
+      setStale(false);
+      hasLoadedRef.current = true;
     } catch (cause) {
       const code = cause instanceof RequestFailed ? cause.code : undefined;
       if (code === "SESSION_EXPIRED") {
@@ -73,11 +81,59 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         return;
       }
       setSignedOut(false);
-      setError(cause instanceof Error ? cause.message : "Could not load projects");
+      // A failed BACKGROUND refresh must not blank a screen that already holds
+      // good data — but it must not let that data pass as current either. The
+      // view stays and is marked stale with the time it was last confirmed, so
+      // a reader can see both what they have and how old it is.
+      //
+      // Only a failure with nothing to show becomes an error.
+      setStale(true);
+      if (!hasLoadedRef.current) {
+        setError(cause instanceof Error ? cause.message : "Could not load projects");
+      }
     }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  /**
+   * Keep an open view current without a manual refresh.
+   *
+   * Three of us post events at this board and a reader had to reload to see any
+   * of them — which is how someone ends up acting on a stale picture, and how
+   * one agent claimed a task that had already been completed.
+   *
+   * Polling is only affordable because a warm read is now under a second; on the
+   * old full-replay path this would have been a self-inflicted load problem
+   * rather than a feature.
+   *
+   * Paused when the tab is hidden. A background tab that keeps polling costs the
+   * server real work for a screen nobody is looking at, and a phone pays for it
+   * in battery.
+   */
+  useEffect(() => {
+    let timer: number | undefined;
+
+    const tick = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    const start = () => {
+      window.clearInterval(timer);
+      timer = window.setInterval(tick, 15_000);
+    };
+    const onVisibility = () => {
+      // Refresh immediately on return rather than waiting out the interval: the
+      // first thing someone does after switching back is read the screen.
+      if (document.visibilityState === "visible") void load();
+    };
+
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [load]);
 
   useEffect(() => {
     const sync = () => setHashTaskId(window.location.hash.replace(/^#task-/, ""));
@@ -308,6 +364,31 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   return (
     <section className={`project-workspace${tab === "board" ? " project-workspace--wide" : ""}`} aria-busy={busy}>
       {error ? <p className="project-error" role="alert">{error}</p> : null}
+
+      {/*
+        * Freshness, stated rather than assumed.
+        *
+        * A screen that silently stops updating looks identical to one where
+        * nothing has happened — which is precisely how a reader acts on a stale
+        * picture. When a refresh fails we keep the data and say when it was last
+        * confirmed, instead of blanking the view or letting it pass as current.
+        */}
+      {!signedOut && lastUpdated ? (
+        <p className={`freshness${stale ? " freshness--stale" : ""}`} role="status" aria-live="polite">
+          {stale ? (
+            <>
+              Not updating — showing what was last confirmed at{" "}
+              <time dateTime={lastUpdated.toISOString()}>{lastUpdated.toLocaleTimeString()}</time>.
+              <button type="button" onClick={() => void load()}>Try now</button>
+            </>
+          ) : (
+            <>
+              Updating automatically · last confirmed{" "}
+              <time dateTime={lastUpdated.toISOString()}>{lastUpdated.toLocaleTimeString()}</time>
+            </>
+          )}
+        </p>
+      ) : null}
 
       {signedOut ? (
         <div className="signin-callout" role="status">

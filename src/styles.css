@@ -572,3 +572,10 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
   .person-facts dt { margin-top: 8px; }
   .person-tasks li { flex-direction: column; gap: 2px; }
 }
+
+/* Freshness. Stated in words, because a screen that has quietly stopped
+ * updating looks exactly like one where nothing has happened. */
+.freshness { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin: 0 0 14px; color: var(--muted); font-size: 12px; }
+.freshness time { font-variant-numeric: tabular-nums; }
+.freshness--stale { color: var(--amber); }
+.freshness button { padding: 2px 8px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
