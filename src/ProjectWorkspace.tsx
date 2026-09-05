@@ -3,6 +3,7 @@ import type { CrewProject, CrewTask } from "./event-core";
 import type { Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
+import { BOARD_COLUMNS } from "./project-model";
 
 const PROJECT_ROOM = "AgentParty";
 
@@ -325,77 +326,124 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         <p className="muted-note">Shows discussion only. Status changes are not attributable to a person in the stored state, so they are not invented here.</p>
       </div> : null}
 
-      {tab === "board" && !signedOut && selected ? <div className="project-grid">
-        <div><h2>{selected.name} board</h2>{tasks.length ? tasks.map((task) => (
-          <article className="task-row" id={`task-${task.id}`} key={task.id}>
-            <span>{task.status.replace("_", " ")}</span>
-            <span className={`kind-chip kind-chip--${kindLabel(task.kind)}`}>{kindLabel(task.kind)}</span>
-            <h3>{task.title}</h3>
-            <p>{task.owners?.length ? `Owner: ${task.owners.join(", ")}` : "Unassigned · available to claim"}</p>
-            {task.acceptedBy?.length ? <p>Accepted by: {task.acceptedBy.join(", ")}</p> : null}
+      {tab === "board" && !signedOut && selected ? (
+        <div className="board">
+          <header className="board-bar">
+            <h2>{selected.name}</h2>
+            <p className="kind-progress">{describeProgress(tasks)}</p>
+          </header>
 
-            {/*
-              * The reasoning, which was being written to the durable log and
-              * rendered nowhere. Six recorded decisions existed on these cards
-              * and none of them were visible — the data was real and the screen
-              * showed no sign of it, which is its own kind of dishonesty.
-              */}
-            {/* Opened when arrived at from the activity feed, so the jump
-                lands on the discussion rather than beside it. */}
-            <details className="task-detail" open={hashTaskId === task.id}>
-              <summary>
-                {(task.comments?.length ?? 0) === 0
-                  ? "No discussion yet"
-                  : `${task.comments!.length} comment${task.comments!.length === 1 ? "" : "s"}`}
-              </summary>
-
-              {task.comments?.map((comment) => (
-                <div className="task-comment" key={comment.id}>
-                  <p className="task-comment-meta">
-                    <b>{comment.author}</b>
-                    <time dateTime={comment.createdAt}>{comment.createdAt.slice(0, 16).replace("T", " ")}</time>
-                  </p>
-                  <p className="task-comment-body">{comment.body}</p>
-                </div>
-              ))}
-
-              {task.links?.length ? (
-                <ul className="task-links">
-                  {task.links.map((link) => (
-                    <li key={link.href}>
-                      <a href={link.href} target="_blank" rel="noreferrer noopener">{link.label}</a>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-
-              {me ? (
-                <form
-                  className="task-comment-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const form = event.currentTarget;
-                    const value = String(new FormData(form).get("body") ?? "");
-                    void addComment(task.id, value).then(() => form.reset());
-                  }}
+          {/*
+            * Columns by status, not one long list.
+            *
+            * A flat list makes you read every card to answer "what is in
+            * review?" — the question a board exists to answer at a glance.
+            * Empty columns are kept rather than hidden: a stage with nothing in
+            * it is information, and a board whose shape changes as work moves
+            * is harder to read than one that stays still.
+            */}
+          <div className="board-columns">
+            {BOARD_COLUMNS.map((column) => {
+              const items = tasks.filter((task) => task.status === column.status);
+              return (
+                <section
+                  className="board-column"
+                  key={column.status}
+                  aria-label={`${column.label}, ${items.length} ${items.length === 1 ? "card" : "cards"}`}
                 >
-                  <label htmlFor={`comment-${task.id}`}>Add a comment</label>
-                  <textarea id={`comment-${task.id}`} name="body" rows={3} required />
-                  <button disabled={busy}>Comment</button>
-                </form>
-              ) : null}
-            </details>
-            <div className="task-actions">
-              {!task.owners?.length ? <button disabled={busy || !me} onClick={() => void updateTask(task, "claim")}>Claim task</button> : null}
-              {task.owners?.includes(me?.username ?? "") && !task.acceptedBy?.includes(me?.username ?? "")
-                ? <button disabled={busy} onClick={() => void updateTask(task, "accept")}>Accept assignment</button> : null}
-              {task.acceptedBy?.includes(me?.username ?? "") && task.status === "assigned"
-                ? <button disabled={busy} onClick={() => void updateTask(task, "start")}>Start work</button> : null}
-            </div>
-          </article>
-        )) : <p>No tasks yet.</p>}</div>
-        <form className="project-form" onSubmit={createTask}><h2>Add task</h2><label>Task<input name="title" required /></label><label>Owner username <small>Optional</small><input name="owner" /></label><label>Kind <small>Does finishing it mean decided, or built?</small><select name="kind" defaultValue=""><option value="">Unspecified</option><option value="decision">Decision</option><option value="build">Build</option></select></label><button disabled={busy}>Add to board</button></form>
-      </div> : null}
+                  <header className="column-head">
+                    <h3>{column.label}</h3>
+                    <span className="column-count">{items.length}</span>
+                  </header>
+
+                  <div className="column-cards">
+                    {items.map((task) => (
+                      <article className="task-card" id={`task-${task.id}`} key={task.id}>
+                        <h4>{task.title}</h4>
+
+                        <p className="card-meta">
+                          <span className={`kind-chip kind-chip--${kindLabel(task.kind)}`}>{kindLabel(task.kind)}</span>
+                          {task.comments?.length ? <span className="card-count">{task.comments.length} 💬</span> : null}
+                        </p>
+
+                        <p className="card-owner">
+                          {task.owners?.length ? task.owners.join(", ") : "unassigned"}
+                          {task.owners?.length && !task.acceptedBy?.length ? " · not yet accepted" : ""}
+                        </p>
+
+                        <details className="task-detail" open={hashTaskId === task.id}>
+                          <summary>
+                            {(task.comments?.length ?? 0) === 0
+                              ? "No discussion yet"
+                              : `${task.comments!.length} comment${task.comments!.length === 1 ? "" : "s"}`}
+                          </summary>
+
+                          {task.comments?.map((comment) => (
+                            <div className="task-comment" key={comment.id}>
+                              <p className="task-comment-meta">
+                                <b>{comment.author}</b>
+                                <time dateTime={comment.createdAt}>{comment.createdAt.slice(0, 16).replace("T", " ")}</time>
+                              </p>
+                              <p className="task-comment-body">{comment.body}</p>
+                            </div>
+                          ))}
+
+                          {task.links?.length ? (
+                            <ul className="task-links">
+                              {task.links.map((link) => (
+                                <li key={link.href}>
+                                  <a href={link.href} target="_blank" rel="noreferrer noopener">{link.label}</a>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+
+                          {me ? (
+                            <form
+                              className="task-comment-form"
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                const form = event.currentTarget;
+                                const value = String(new FormData(form).get("body") ?? "");
+                                void addComment(task.id, value).then(() => form.reset());
+                              }}
+                            >
+                              <label htmlFor={`comment-${task.id}`}>Add a comment</label>
+                              <textarea id={`comment-${task.id}`} name="body" rows={3} required />
+                              <button disabled={busy}>Comment</button>
+                            </form>
+                          ) : null}
+                        </details>
+
+                        <div className="task-actions">
+                          {!task.owners?.length ? <button disabled={busy || !me} onClick={() => void updateTask(task, "claim")}>Claim</button> : null}
+                          {task.owners?.includes(me?.username ?? "") && !task.acceptedBy?.includes(me?.username ?? "")
+                            ? <button disabled={busy} onClick={() => void updateTask(task, "accept")}>Accept</button> : null}
+                          {task.acceptedBy?.includes(me?.username ?? "") && task.status === "assigned"
+                            ? <button disabled={busy} onClick={() => void updateTask(task, "start")}>Start</button> : null}
+                        </div>
+                      </article>
+                    ))}
+
+                    {column.status === "backlog" ? (
+                      <form className="add-card" onSubmit={createTask}>
+                        <input name="title" placeholder="New task…" required aria-label="New task title" />
+                        <input name="owner" placeholder="Owner (optional)" aria-label="Owner username" />
+                        <select name="kind" defaultValue="" aria-label="Task kind">
+                          <option value="">Kind: unspecified</option>
+                          <option value="decision">Kind: decision</option>
+                          <option value="build">Kind: build</option>
+                        </select>
+                        <button disabled={busy}>Add card</button>
+                      </form>
+                    ) : null}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {tab === "mine" && !signedOut ? <div>
         <p className="eyebrow">{me?.username ?? "NOT SIGNED IN"}{me?.kind ? ` / ${me.kind.toUpperCase()}` : ""}</p>

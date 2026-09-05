@@ -356,6 +356,48 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .activity-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; color: var(--muted); font-size: 12px; }
 .activity-meta b { color: var(--ink); }
 .activity-excerpt { font-size: 13px; line-height: 1.55; }
+/* ── The board ────────────────────────────────────────────────────────────
+ * Columns, not a list. The whole point is answering "what is in review?"
+ * without reading every card.
+ *
+ * The columns scroll horizontally and each one scrolls vertically on its own,
+ * so a long column never pushes the others off the bottom of the page.
+ */
+.board { display: flex; flex-direction: column; min-height: 0; }
+.board-bar { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; margin-bottom: 18px; }
+.board-bar h2 { margin: 0; font-family: "Instrument Serif", serif; font-size: clamp(26px, 3.4vw, 38px); font-weight: 400; }
+.board-bar .kind-progress { margin: 0; }
+
+.board-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(268px, 1fr); gap: 14px; align-items: start; overflow-x: auto; padding-bottom: 14px; scroll-snap-type: x proximity; }
+.board-column { display: flex; flex-direction: column; min-width: 0; max-height: 68vh; border: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 3%, var(--surface)); scroll-snap-align: start; }
+.column-head { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.column-head h3 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+/* The count is the fastest thing to read on a board; it should not need a
+ * second glance to find. */
+.column-count { min-width: 22px; padding: 1px 6px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 10%, transparent); font-size: 12px; font-weight: 700; text-align: center; }
+.column-cards { display: grid; gap: 10px; min-height: 60px; padding: 10px; overflow-y: auto; }
+
+.task-card { padding: 11px 12px; border: 1px solid var(--line); background: var(--surface); transition: transform .12s var(--ease), box-shadow .12s var(--ease); }
+.task-card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(37,34,27,.09); }
+.task-card h4 { margin: 0 0 8px; font-size: 14px; line-height: 1.35; }
+.card-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 6px; }
+.card-meta .kind-chip { margin-left: 0; }
+.card-count { color: var(--muted); font-size: 12px; }
+.card-owner { margin: 0; color: var(--muted); font-size: 12px; }
+.task-card .task-detail { margin-top: 8px; }
+.task-card .task-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.task-card .task-actions button { min-height: 32px; padding: 0 10px; border: 1px solid var(--line); background: var(--canvas); color: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.task-card .task-actions button:hover:not([disabled]) { background: var(--ink); color: white; border-color: var(--ink); }
+
+.add-card { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--line); }
+.add-card input, .add-card select { min-height: 36px; padding: 6px 8px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; font-size: 13px; }
+.add-card button { min-height: 34px; border: 0; background: var(--ink); color: white; font-size: 13px; font-weight: 700; cursor: pointer; }
+
+@media (max-width: 760px) {
+  .board-columns { grid-auto-columns: minmax(80vw, 1fr); }
+  .board-column { max-height: none; }
+}
+
 .kind-progress { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
 .kind-chip { display: inline-block; margin-left: 8px; padding: 1px 7px; border: 1px solid var(--line); border-radius: 3px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .kind-chip--decision { color: var(--cobalt); border-color: color-mix(in srgb, var(--cobalt) 40%, transparent); }
