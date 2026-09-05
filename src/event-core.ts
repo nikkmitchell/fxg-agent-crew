@@ -24,6 +24,20 @@ export type CrewTask = {
   status: TaskStatus;
   assigneeId?: string;
   points: number;
+  /**
+   * What this card actually means, in prose.
+   *
+   * A title has to fit in a column, so it compresses until it is a label rather
+   * than a statement — "Fix Project Auto Update" tells you nothing about what
+   * was broken or what finishing looks like. Everything that context used to go
+   * into ended up in comments, where it sits below whatever was said most
+   * recently and is read as chatter rather than as the brief.
+   *
+   * OPTIONAL, and absent means nobody has written one. That is rendered as an
+   * explicit invitation to write it, never as an empty panel that reads like a
+   * loading failure.
+   */
+  description?: string;
   blocker?: string;
   /**
    * Whether finishing this card means a DECISION was reached or a THING WAS

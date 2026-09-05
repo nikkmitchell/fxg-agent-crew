@@ -379,3 +379,60 @@ describe("wire format", () => {
     expect(result.rejected[0].reason).toContain("JSON");
   });
 });
+
+describe("task descriptions over the wire", () => {
+  const upsert = (description: unknown) =>
+    fenced({
+      version: 1,
+      payload: {
+        type: "task.upserted",
+        task: { id: "t1", title: "A card", status: "backlog", points: 1, description },
+      },
+    });
+
+  it("carries a description through", () => {
+    const { events } = adaptMessages([message(1, upsert("What finishing looks like."))], opts());
+    expect(events).toHaveLength(1);
+    expect((events[0].payload as { task: { description?: string } }).task.description).toBe(
+      "What finishing looks like.",
+    );
+  });
+
+  it("keeps a card with no description, and does not invent one", () => {
+    // Absent must survive as absent. A default of "" would make the UI unable
+    // to tell "nobody wrote one" from "someone wrote nothing", and those are
+    // different claims.
+    const { events } = adaptMessages(
+      [
+        message(
+          1,
+          fenced({
+            version: 1,
+            payload: { type: "task.upserted", task: { id: "t1", title: "A card", status: "backlog", points: 1 } },
+          }),
+        ),
+      ],
+      opts(),
+    );
+    expect((events[0].payload as { task: { description?: string } }).task.description).toBeUndefined();
+  });
+
+  it("rejects a description that is not a string rather than coercing it", () => {
+    const { events, rejected } = adaptMessages([message(1, upsert({ nested: "object" }))], opts());
+    expect(events).toHaveLength(0);
+    expect(rejected[0]?.reason).toContain("task.description");
+  });
+
+  it("refuses one long enough to threaten the envelope cap", () => {
+    // 4000 is a brief, not a document. Without this bound the failure surfaces
+    // further out as an envelope-size error that never names the field.
+    const { events, rejected } = adaptMessages([message(1, upsert("x".repeat(4_001)))], opts());
+    expect(events).toHaveLength(0);
+    expect(rejected[0]?.reason).toMatch(/task\.description|envelope/);
+  });
+
+  it("accepts one at exactly the bound", () => {
+    const { events } = adaptMessages([message(1, upsert("x".repeat(4_000)))], opts());
+    expect(events).toHaveLength(1);
+  });
+});

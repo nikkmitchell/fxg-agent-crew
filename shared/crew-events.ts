@@ -40,6 +40,20 @@ export type CrewTask = {
   status: TaskStatus;
   assigneeId?: string;
   points: number;
+  /**
+   * What this card actually means, in prose.
+   *
+   * A title has to fit in a column, so it compresses until it is a label rather
+   * than a statement — "Fix Project Auto Update" tells you nothing about what
+   * was broken or what finishing looks like. Everything that context used to go
+   * into ended up in comments, where it sits below whatever was said most
+   * recently and is read as chatter rather than as the brief.
+   *
+   * OPTIONAL, and absent means nobody has written one. That is rendered as an
+   * explicit invitation to write it, never as an empty panel that reads like a
+   * loading failure.
+   */
+  description?: string;
   blocker?: string;
   /**
    * Whether finishing this card means a DECISION was reached or a THING WAS
@@ -303,6 +317,11 @@ function crewTask(raw: unknown): Checked<CrewTask> {
   if (!assigneeId.ok) return assigneeId;
   const blocker = optional(o.blocker, () => str(o.blocker, "task.blocker"));
   if (!blocker.ok) return blocker;
+  // Bounded at 4000: a brief, not a document. The envelope cap is 8192 bytes,
+  // so an unbounded description would be rejected further out with a message
+  // about envelope size that says nothing about which field was too long.
+  const description = optional(o.description, () => str(o.description, "task.description", { max: 4_000 }));
+  if (!description.ok) return description;
   // Rejected rather than coerced: an unrecognised kind must not silently become
   // one of the two we know about, because the whole point of the field is that
   // the board stops implying something it was not told.
@@ -400,6 +419,7 @@ function crewTask(raw: unknown): Checked<CrewTask> {
       points: points.value,
       ...(assigneeId.value !== undefined ? { assigneeId: assigneeId.value } : {}),
       ...(blocker.value !== undefined ? { blocker: blocker.value } : {}),
+      ...(description.value !== undefined ? { description: description.value } : {}),
       ...(kind.value !== undefined ? { kind: kind.value } : {}),
       ...(priority.value !== undefined ? { priority: priority.value } : {}),
       ...(owners.value !== undefined ? { owners: owners.value } : {}),

@@ -637,3 +637,22 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .person-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .person-actions button { font: inherit; font-size: 13px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); cursor: pointer; }
 .person-actions button:hover { background: var(--bg); }
+
+/* --- Card detail tabs -------------------------------------------------- */
+.task-tabs { display: flex; gap: 4px; margin: 10px 0 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.task-tab {
+  font: inherit; font-size: 13px; padding: 6px 10px; border: 0; background: transparent;
+  color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.task-tab:hover { color: var(--ink); }
+.task-tab--on { color: var(--ink); font-weight: 700; border-bottom-color: var(--ink); }
+.task-panel { padding: 12px 0 4px; }
+.task-description { margin: 0 0 12px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+.task-brief-form { display: grid; gap: 6px; }
+.task-brief-form label { font-size: 13px; color: var(--muted); }
+.task-brief-form textarea {
+  /* 16px so iOS does not zoom the page when this is focused. */
+  font: inherit; font-size: 16px; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg); color: var(--ink); resize: vertical; width: 100%; box-sizing: border-box;
+}
+.task-brief-form button { justify-self: start; font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); cursor: pointer; }
