@@ -1,3 +1,4 @@
+import { checkProfile, type ActorProfile } from "../src/profiles.js";
 /**
  * The crew event wire schema, plus its runtime validator.
  *
@@ -97,6 +98,8 @@ export type CrewEvent =
   | { type: "task.upserted"; task: CrewTask }
   | { type: "task.transitioned"; taskId: string; to: TaskStatus; blocker?: string }
   | { type: "task.commented"; taskId: string; comment: TaskComment }
+  | { type: "profile.upserted"; profile: ActorProfile }
+  | { type: "ownership.acted"; agentActorId: string; ownerActorId: string; action: "declare" | "confirm" | "revoke" }
   | { type: "message.received"; message: CrewMessage };
 
 export type EventEnvelope = {
@@ -509,6 +512,37 @@ function crewEvent(raw: unknown): Checked<CrewEvent> {
       const task = crewTask(o.task);
       return task.ok ? { ok: true, value: { type: "task.upserted", task: task.value } } : task;
     }
+    case "profile.upserted": {
+      // Delegated to the profile model, which is where the forbidden-field rule
+      // lives. Duplicating that list here would create a second answer to "what
+      // may never be stored", and the two would drift.
+      const profile = checkProfile(o.profile);
+      if (!profile.ok) return bad(profile.reason);
+      return { ok: true, value: { type: "profile.upserted", profile: profile.value } };
+    }
+    case "ownership.acted": {
+      const agentActorId = str(o.agentActorId, "payload.agentActorId");
+      if (!agentActorId.ok) return agentActorId;
+      const ownerActorId = str(o.ownerActorId, "payload.ownerActorId");
+      if (!ownerActorId.ok) return ownerActorId;
+      if (o.action !== "declare" && o.action !== "confirm" && o.action !== "revoke") {
+        return bad('payload.action must be "declare", "confirm" or "revoke"');
+      }
+      // A resulting STATE is never accepted from the wire. State is derived by
+      // the reducer from the action plus the authenticated author; allowing it
+      // here would let a claimant post "verified" and skip the agent's consent,
+      // which is the entire point of the handshake.
+      if ("state" in o) return bad("payload.state is derived, not declared");
+      return {
+        ok: true,
+        value: {
+          type: "ownership.acted",
+          agentActorId: agentActorId.value,
+          ownerActorId: ownerActorId.value,
+          action: o.action,
+        },
+      };
+    }
     case "task.commented": {
       const taskId = str(o.taskId, "payload.taskId");
       if (!taskId.ok) return taskId;
@@ -797,6 +831,18 @@ export function authorizeEvent(
             `treat this as a request pending operator approval`,
         );
       }
+      return { ok: true, value: true };
+
+    case "profile.upserted":
+    case "ownership.acted":
+      // Deliberately NOT gated on project capability.
+      //
+      // Describing yourself, or asking whether an agent is yours, is not
+      // changing project data — requiring project authority to publish a
+      // profile would make identity a privilege of membership. The protection
+      // that matters here is different and lives in the reducer: the acting
+      // identity comes from the authenticated author, so a claimant still
+      // cannot confirm their own claim however this is authorised.
       return { ok: true, value: true };
   }
 }
