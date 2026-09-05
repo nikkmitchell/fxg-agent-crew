@@ -5,7 +5,9 @@ import { validateActionRequest, type CrewEvent } from "../../shared/crew-events.
 import type { Config } from "../config.js";
 import type { Session, SessionStore } from "../session.js";
 import type { WebharnessClient } from "../webharness/client.js";
+import { dirname } from "node:path";
 import { ProjectStateCache } from "../webharness/project-cache.js";
+import { readBuildInfo } from "./build.js";
 
 
 export function registerProjectRoutes(
@@ -32,7 +34,17 @@ export function registerProjectRoutes(
    * number of people looking. The authority check still runs per request over
    * the adapted events, so sharing the fold shares no privilege.
    */
-  const projectCache = new ProjectStateCache(client);
+  // Durable memo, keyed by the deployed commit. dirname of the session store
+  // is StateDirectory in production, and ":memory:" in development — which
+  // yields no usable directory, so development keeps the old behaviour of
+  // replaying from zero. That is the right default for a machine where the code
+  // changes constantly.
+  const stateDir = config.sessionStorePath === ":memory:" ? undefined : dirname(config.sessionStorePath);
+  const projectCache = new ProjectStateCache(
+    client,
+    undefined,
+    stateDir ? { stateDir, commit: readBuildInfo(process.cwd()).commit } : undefined,
+  );
 
   app.get<{ Querystring: { room?: string } }>("/bff/projects", async (request, reply) => {
     const session = requireSession(request, reply);

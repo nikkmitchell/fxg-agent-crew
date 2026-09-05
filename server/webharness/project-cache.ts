@@ -3,6 +3,7 @@ import { adaptMessages } from "./adapter.js";
 import { SERVER_MAX_PAGE, drainPages } from "./drain-pages.js";
 import { initialCrewState, reduceCrewEvent, type CrewState } from "../../src/event-core.js";
 import type { WebharnessClient } from "./client.js";
+import { loadMemo, saveMemo } from "./memo-store.js";
 
 /**
  * Incremental replay of a room's project log.
@@ -81,6 +82,12 @@ export class ProjectStateCache {
     private readonly client: Pick<WebharnessClient, "request">,
     /** Test seam. Production passes nothing and gets the real page size. */
     private readonly pageLimit: number = PAGE_LIMIT,
+    /**
+     * Where a memo may persist across restarts, and the commit that would make
+     * it trustworthy. Both absent (the default, and every test) means the old
+     * behaviour exactly: nothing survives a restart.
+     */
+    private readonly durable?: { stateDir: string; commit: string | null },
   ) {}
 
   /** Testing/inspection only: how far this room has been folded. */
@@ -108,7 +115,14 @@ export class ProjectStateCache {
     token: string,
     canMutateProject: (username: string, roomName: string) => boolean,
   ): Promise<ProjectProjection> {
-    const cached = this.entries.get(room);
+    // In-memory first; then a memo from a previous process, but only if the
+    // SAME COMMIT wrote it. Different code means a fold computed by a different
+    // program, which is worth nothing.
+    let cached = this.entries.get(room);
+    if (!cached && this.durable) {
+      const memo = loadMemo(this.durable.stateDir, room, this.durable.commit);
+      if (memo) cached = { state: memo.state, lastId: memo.lastId, rejected: [] };
+    }
     const startFrom = cached?.lastId ?? 0;
 
     // Traversal lives in drainPages, not here. Three readers in this project
@@ -134,6 +148,9 @@ export class ProjectStateCache {
     );
 
     this.entries.set(room, { state, lastId, rejected });
+    if (this.durable) {
+      saveMemo(this.durable.stateDir, { commit: this.durable.commit ?? "", room, lastId, state });
+    }
 
     return {
       projects: Object.values(state.projects),
