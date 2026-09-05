@@ -389,6 +389,11 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .task-card .task-actions button { min-height: 32px; padding: 0 10px; border: 1px solid var(--line); background: var(--canvas); color: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .task-card .task-actions button:hover:not([disabled]) { background: var(--ink); color: white; border-color: var(--ink); }
 
+/* My work reuses the board card, so a person can act on their own work from
+ * their own page. Laid out as a readable column rather than a grid: this is a
+ * list of what one person has on, not a board. */
+.my-work-cards { display: grid; gap: 12px; max-width: 62ch; margin-top: 16px; }
+
 .add-card { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--line); }
 .add-card input, .add-card select { min-height: 36px; padding: 6px 8px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; font-size: 13px; }
 .add-card button { min-height: 34px; border: 0; background: var(--ink); color: white; font-size: 13px; font-weight: 700; cursor: pointer; }

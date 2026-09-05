@@ -225,6 +225,86 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     });
   };
 
+  /**
+   * One card, rendered identically wherever it appears.
+   *
+   * The board and My work had drifted into two renderings of the same thing:
+   * the board showed a full card, My work showed a status and a title and
+   * nothing you could act on. So your own page was the one place you could not
+   * claim, accept, start or comment on your own work, which is backwards.
+   *
+   * Defined here rather than in its own file because it closes over the
+   * mutation handlers and the signed-in identity; lifting it out would mean
+   * threading six props through for no gain.
+   */
+  const renderCard = (task: CrewTask) => (
+    <article className="task-card" id={`task-${task.id}`} key={task.id}>
+                    <h4>{task.title}</h4>
+
+                    <p className="card-meta">
+                      <span className={`kind-chip kind-chip--${kindLabel(task.kind)}`}>{kindLabel(task.kind)}</span>
+                      {task.comments?.length ? <span className="card-count">{task.comments.length} 💬</span> : null}
+                    </p>
+
+                    <p className="card-owner">
+                      {task.owners?.length ? task.owners.join(", ") : "unassigned"}
+                      {task.owners?.length && !task.acceptedBy?.length ? " · not yet accepted" : ""}
+                    </p>
+
+                    <details className="task-detail" open={hashTaskId === task.id}>
+                      <summary>
+                        {(task.comments?.length ?? 0) === 0
+                          ? "No discussion yet"
+                          : `${task.comments!.length} comment${task.comments!.length === 1 ? "" : "s"}`}
+                      </summary>
+
+                      {task.comments?.map((comment) => (
+                        <div className="task-comment" key={comment.id}>
+                          <p className="task-comment-meta">
+                            <b>{comment.author}</b>
+                            <time dateTime={comment.createdAt}>{comment.createdAt.slice(0, 16).replace("T", " ")}</time>
+                          </p>
+                          <p className="task-comment-body">{comment.body}</p>
+                        </div>
+                      ))}
+
+                      {task.links?.length ? (
+                        <ul className="task-links">
+                          {task.links.map((link) => (
+                            <li key={link.href}>
+                              <a href={link.href} target="_blank" rel="noreferrer noopener">{link.label}</a>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+
+                      {me ? (
+                        <form
+                          className="task-comment-form"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const form = event.currentTarget;
+                            const value = String(new FormData(form).get("body") ?? "");
+                            void addComment(task.id, value).then(() => form.reset());
+                          }}
+                        >
+                          <label htmlFor={`comment-${task.id}`}>Add a comment</label>
+                          <textarea id={`comment-${task.id}`} name="body" rows={3} required />
+                          <button disabled={busy}>Comment</button>
+                        </form>
+                      ) : null}
+                    </details>
+
+                    <div className="task-actions">
+                      {!task.owners?.length ? <button disabled={busy || !me} onClick={() => void updateTask(task, "claim")}>Claim</button> : null}
+                      {task.owners?.includes(me?.username ?? "") && !task.acceptedBy?.includes(me?.username ?? "")
+                        ? <button disabled={busy} onClick={() => void updateTask(task, "accept")}>Accept</button> : null}
+                      {task.acceptedBy?.includes(me?.username ?? "") && task.status === "assigned"
+                        ? <button disabled={busy} onClick={() => void updateTask(task, "start")}>Start</button> : null}
+                    </div>
+                  </article>
+  );
+
   return (
     <section className="project-workspace" aria-busy={busy}>
       {error ? <p className="project-error" role="alert">{error}</p> : null}
@@ -357,73 +437,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                   </header>
 
                   <div className="column-cards">
-                    {items.map((task) => (
-                      <article className="task-card" id={`task-${task.id}`} key={task.id}>
-                        <h4>{task.title}</h4>
-
-                        <p className="card-meta">
-                          <span className={`kind-chip kind-chip--${kindLabel(task.kind)}`}>{kindLabel(task.kind)}</span>
-                          {task.comments?.length ? <span className="card-count">{task.comments.length} 💬</span> : null}
-                        </p>
-
-                        <p className="card-owner">
-                          {task.owners?.length ? task.owners.join(", ") : "unassigned"}
-                          {task.owners?.length && !task.acceptedBy?.length ? " · not yet accepted" : ""}
-                        </p>
-
-                        <details className="task-detail" open={hashTaskId === task.id}>
-                          <summary>
-                            {(task.comments?.length ?? 0) === 0
-                              ? "No discussion yet"
-                              : `${task.comments!.length} comment${task.comments!.length === 1 ? "" : "s"}`}
-                          </summary>
-
-                          {task.comments?.map((comment) => (
-                            <div className="task-comment" key={comment.id}>
-                              <p className="task-comment-meta">
-                                <b>{comment.author}</b>
-                                <time dateTime={comment.createdAt}>{comment.createdAt.slice(0, 16).replace("T", " ")}</time>
-                              </p>
-                              <p className="task-comment-body">{comment.body}</p>
-                            </div>
-                          ))}
-
-                          {task.links?.length ? (
-                            <ul className="task-links">
-                              {task.links.map((link) => (
-                                <li key={link.href}>
-                                  <a href={link.href} target="_blank" rel="noreferrer noopener">{link.label}</a>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-
-                          {me ? (
-                            <form
-                              className="task-comment-form"
-                              onSubmit={(event) => {
-                                event.preventDefault();
-                                const form = event.currentTarget;
-                                const value = String(new FormData(form).get("body") ?? "");
-                                void addComment(task.id, value).then(() => form.reset());
-                              }}
-                            >
-                              <label htmlFor={`comment-${task.id}`}>Add a comment</label>
-                              <textarea id={`comment-${task.id}`} name="body" rows={3} required />
-                              <button disabled={busy}>Comment</button>
-                            </form>
-                          ) : null}
-                        </details>
-
-                        <div className="task-actions">
-                          {!task.owners?.length ? <button disabled={busy || !me} onClick={() => void updateTask(task, "claim")}>Claim</button> : null}
-                          {task.owners?.includes(me?.username ?? "") && !task.acceptedBy?.includes(me?.username ?? "")
-                            ? <button disabled={busy} onClick={() => void updateTask(task, "accept")}>Accept</button> : null}
-                          {task.acceptedBy?.includes(me?.username ?? "") && task.status === "assigned"
-                            ? <button disabled={busy} onClick={() => void updateTask(task, "start")}>Start</button> : null}
-                        </div>
-                      </article>
-                    ))}
+                    {items.map((task) => renderCard(task))}
 
                     {column.status === "backlog" ? (
                       <form className="add-card" onSubmit={createTask}>
@@ -453,7 +467,11 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             {workOwners.map((username) => <option key={username} value={username}>{username === me?.username ? `${username} (me)` : username}</option>)}
           </select>
         </label>
-        {viewedTasks.length ? viewedTasks.map((task) => <article className="task-row" key={task.id}><span>{task.status}</span><h3>{task.title}</h3></article>) : <p>No tasks assigned to this identity.</p>}
+        {viewedTasks.length ? (
+          <div className="my-work-cards">{viewedTasks.map((task) => renderCard(task))}</div>
+        ) : (
+          <p className="muted-note">No tasks assigned to this identity.</p>
+        )}
       </div> : null}
     </section>
   );
