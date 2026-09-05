@@ -5,10 +5,16 @@ import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
 import { BOARD_COLUMNS, calculateProjectProgress } from "./project-model";
 import { byPriority, nextUnclaimed, priorityLabel } from "./priority";
+import { ROLES, canManageMembership, membersOf, type Membership, type Role } from "./membership";
 
 const PROJECT_ROOM = "AgentParty";
 
-type ProjectState = { projects: CrewProject[]; tasks: CrewTask[] };
+type ProjectState = {
+  projects: CrewProject[];
+  tasks: CrewTask[];
+  memberships?: Membership[];
+  projectCreators?: Record<string, string>;
+};
 type Me = { username: string; kind?: "human" | "agent" };
 
 /** An error that kept the server's machine-readable code, not just its prose. */
@@ -456,6 +462,81 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
           * card is worse than one that only reports what it can attribute.
           * The heading says so rather than implying completeness.
           */}
+        {(() => {
+          const memberships = state.memberships ?? [];
+          const members = membersOf(memberships, selected.id);
+          const creator = state.projectCreators?.[selected.id];
+          const canManage =
+            me !== null && canManageMembership(memberships, selected.id, me.username, creator);
+
+          return (
+            <>
+              <h3>Members</h3>
+              {members.length === 0 ? (
+                <p className="muted-note">
+                  Nobody has been added to this project yet.{" "}
+                  {creator ? (
+                    <>Only <b>{creator}</b>, who created it, can add the first member.</>
+                  ) : (
+                    // No recorded creator means the bootstrap is closed. Saying
+                    // so is better than an empty list that looks like a bug.
+                    <>No creator was recorded for this project, so nobody can seed its membership.</>
+                  )}
+                </p>
+              ) : (
+                <ul className="member-list">
+                  {members.map((member) => (
+                    <li key={member.actorId}>
+                      <b>{member.actorId}</b>
+                      <span className="member-roles">{member.roles.join(", ")}</span>
+                      <small>added by {member.grantedBy}</small>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Only rendered for someone who may actually do it. */}
+              {canManage ? (
+                <form
+                  className="member-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const form = event.currentTarget;
+                    const data = new FormData(form);
+                    const actorId = String(data.get("actorId") ?? "").trim();
+                    const roles = ROLES.filter((role) => data.getAll("roles").includes(role)) as Role[];
+                    if (!actorId || roles.length === 0) {
+                      setError("A member needs a name and at least one role.");
+                      return;
+                    }
+                    void append({ type: "membership.acted", projectId: selected.id, actorId, roles, action: "grant" })
+                      .then(() => form.reset());
+                  }}
+                >
+                  <label>
+                    Add a member
+                    <input name="actorId" placeholder="username" aria-label="Member username" />
+                  </label>
+                  <fieldset>
+                    <legend>Roles</legend>
+                    {ROLES.map((role) => (
+                      <label key={role} className="role-option">
+                        <input type="checkbox" name="roles" value={role} /> {role}
+                      </label>
+                    ))}
+                  </fieldset>
+                  <button disabled={busy}>Add to project</button>
+                </form>
+              ) : (
+                <p className="muted-note">
+                  Membership is managed by this project's managers. Being assigned a card does not make you a
+                  member, and operating an agent gives that agent nothing here.
+                </p>
+              )}
+            </>
+          );
+        })()}
+
         <h3>Recent discussion</h3>
         {recentActivity(tasks).length === 0 ? (
           <p className="muted-note">Nothing has been discussed on this project yet.</p>
