@@ -20,10 +20,12 @@ export type CrewTask = {
   blocker?: string;
   owners?: string[];
   acceptedBy?: string[];
-  comments?: Array<{ id: string; author: string; body: string; createdAt: string }>;
+  comments?: TaskComment[];
   links?: Array<{ label: string; href: string }>;
   images?: Array<{ label: string; href: string }>;
 };
+
+export type TaskComment = { id: string; author: string; body: string; createdAt: string };
 
 export type CrewProject = {
   id: string;
@@ -47,6 +49,28 @@ export type CrewEvent =
   | { type: "project.upserted"; project: CrewProject }
   | { type: "task.upserted"; task: CrewTask }
   | { type: "task.transitioned"; taskId: string; to: TaskStatus; blocker?: string }
+  /**
+   * One comment, appended.
+   *
+   * Adding a comment used to mean re-sending the WHOLE task with a longer
+   * comments array. That has two defects, and both are real rather than
+   * theoretical:
+   *
+   * 1. LOST UPDATES. Two people commenting on the same card concurrently each
+   *    send the whole card from the state they last read, so the second write
+   *    silently discards the first person's comment along with any other field
+   *    they changed. It has not bitten this team only because we take turns.
+   *
+   * 2. SIZE. A durable event must fit in one 2000-character room message, and
+   *    re-sending every prior comment each time means a card gets harder to
+   *    add to the more discussion it has. The third real comment is typically
+   *    where it stops being writable.
+   *
+   * Appending one comment fixes both: the payload is bounded by the comment
+   * rather than by the card's history, and two appends commute so neither can
+   * erase the other.
+   */
+  | { type: "task.commented"; taskId: string; comment: TaskComment }
   | { type: "message.received"; message: CrewMessage };
 
 export type EventEnvelope = {
@@ -186,6 +210,24 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
         return reject(next, event.eventId, "project not found");
       }
       return { ...next, tasks: { ...next.tasks, [event.payload.task.id]: event.payload.task } };
+    case "task.commented": {
+      const task = next.tasks[event.payload.taskId];
+      if (!task) return reject(next, event.eventId, "task not found");
+      const existing = task.comments ?? [];
+      // Bound before the callback: narrowing of event.payload is lost inside a
+      // closure, so reading it there fails to compile.
+      const incoming = event.payload.comment;
+      // Idempotent by comment id. A retried append — after a timeout where the
+      // write actually landed — must not produce the comment twice.
+      if (existing.some((comment) => comment.id === incoming.id)) return next;
+      return {
+        ...next,
+        tasks: {
+          ...next.tasks,
+          [event.payload.taskId]: { ...task, comments: [...existing, incoming] },
+        },
+      };
+    }
     case "task.transitioned": {
       const task = next.tasks[event.payload.taskId];
       if (!task) return reject(next, event.eventId, "task not found");
