@@ -336,6 +336,13 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .project-row { width: 100%; display: grid; gap: 5px; padding: 16px 0; border: 0; border-top: 1px solid var(--line); background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .project-row span, .task-row p { color: var(--muted); }
 .project-form { display: grid; gap: 15px; padding: 20px; border: 1px solid var(--line); }
+
+.build-panel { max-width: 60ch; }
+.build-panel dl { display: grid; grid-template-columns: minmax(140px, auto) 1fr; gap: 10px 20px; margin: 0 0 22px; border-top: 1px solid var(--line); padding-top: 16px; }
+.build-panel dt { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.build-panel dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.build-panel code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
+.build-note { max-width: 56ch; margin: 0 0 12px; padding-left: 12px; border-left: 2px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.6; }
 /* Task detail: the recorded reasoning, which existed in the durable log and
  * was rendered nowhere. Six decisions were on these cards and invisible. */
 .task-detail { margin-top: 10px; border-top: 1px solid var(--line); }
