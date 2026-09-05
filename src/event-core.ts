@@ -1,4 +1,6 @@
 import type { ActorProfile, Ownership } from "./profiles.js";
+import type { Membership, Role } from "./membership.js";
+import { grantMembership, revokeMembership } from "./membership.js";
 import { confirmOwnership, declareOwnership, revokeOwnership } from "./profiles.js";
 
 export type TaskKind = "decision" | "build";
@@ -121,6 +123,14 @@ export type CrewEvent =
    * assert "verified" and skip the agent's consent entirely.
    */
   | { type: "ownership.acted"; agentActorId: string; ownerActorId: string; action: "declare" | "confirm" | "revoke" }
+  /**
+   * Membership of a project, granted or revoked by someone entitled to do it.
+   *
+   * Like ownership, this carries an intent and never a result: whether the
+   * change is permitted is decided by the reducer from the AUTHENTICATED author,
+   * so nobody can grant themselves a role by writing it into the body.
+   */
+  | { type: "membership.acted"; projectId: string; actorId: string; roles?: Role[]; action: "grant" | "revoke" }
   | { type: "message.received"; message: CrewMessage };
 
 export type EventEnvelope = {
@@ -152,6 +162,10 @@ export type CrewState = {
   profiles: Record<string, ActorProfile>;
   /** Ownership links, keyed by agent — an agent has at most one owner. */
   ownerships: Record<string, Ownership>;
+  /** Project memberships, including revoked ones so history stays explicable. */
+  memberships: Membership[];
+  /** Who first created each project, for the membership bootstrap. */
+  projectCreators: Record<string, string>;
   messages: CrewMessage[];
   cursors: Record<string, number>;
   seenEventIds: Record<string, true>;
@@ -164,6 +178,8 @@ export const initialCrewState: CrewState = {
   tasks: {},
   profiles: {},
   ownerships: {},
+  memberships: [],
+  projectCreators: {},
   messages: [],
   cursors: {},
   seenEventIds: {},
@@ -259,8 +275,33 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
         agents: Object.fromEntries(Object.entries(next.agents).map(([id, agent]) => [id, { ...agent, online: online.has(id) }])),
       };
     }
-    case "project.upserted":
-      return { ...next, projects: { ...next.projects, [event.payload.project.id]: event.payload.project } };
+    case "project.upserted": {
+      const id = event.payload.project.id;
+      return {
+        ...next,
+        projects: { ...next.projects, [id]: event.payload.project },
+        // Recorded on FIRST creation only. A later editor is not the creator,
+        // and letting an edit reassign it would hand the membership bootstrap
+        // to whoever updated the summary last.
+        projectCreators: next.projectCreators[id]
+          ? next.projectCreators
+          : { ...next.projectCreators, [id]: event.source },
+      };
+    }
+    case "membership.acted": {
+      const { projectId, actorId, action } = event.payload;
+      const creator = next.projectCreators[projectId];
+      const result =
+        action === "grant"
+          ? grantMembership(next.memberships, { projectId, actorId, roles: event.payload.roles ?? [] }, event.source, creator)
+          : revokeMembership(next.memberships, projectId, actorId, event.source, creator);
+
+      // A refusal is recorded rather than returning state unchanged, so an
+      // attempt that was not permitted is visible instead of looking like it
+      // quietly worked.
+      if (!result.ok) return reject(next, event.eventId, result.reason);
+      return { ...next, memberships: result.value };
+    }
     case "task.upserted":
       if (event.payload.task.projectId && !next.projects[event.payload.task.projectId]) {
         return reject(next, event.eventId, "project not found");
