@@ -55,6 +55,7 @@ export type ProjectProjection = {
   tasks: unknown[];
   profiles: unknown[];
   ownerships: unknown[];
+  memberships: unknown[];
   rejected: Array<{ reason: string }>;
   /** True when this answer came from a full replay rather than an increment. */
   fullReplay: boolean;
@@ -160,6 +161,7 @@ export class ProjectStateCache {
       // can reach the log, so there is nothing here to withhold at read time.
       profiles: Object.values(state.profiles),
       ownerships: Object.values(state.ownerships),
+      memberships: state.memberships,
       rejected,
       fullReplay: startFrom === 0,
     };

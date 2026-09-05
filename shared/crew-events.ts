@@ -1,4 +1,5 @@
 import { checkProfile, type ActorProfile } from "../src/profiles.js";
+import { isRole, type Role } from "../src/membership.js";
 /**
  * The crew event wire schema, plus its runtime validator.
  *
@@ -109,6 +110,7 @@ export type CrewEvent =
   | { type: "task.commented"; taskId: string; comment: TaskComment }
   | { type: "profile.upserted"; profile: ActorProfile }
   | { type: "ownership.acted"; agentActorId: string; ownerActorId: string; action: "declare" | "confirm" | "revoke" }
+  | { type: "membership.acted"; projectId: string; actorId: string; roles?: Role[]; action: "grant" | "revoke" }
   | { type: "message.received"; message: CrewMessage };
 
 export type EventEnvelope = {
@@ -539,6 +541,42 @@ function crewEvent(raw: unknown): Checked<CrewEvent> {
       if (!profile.ok) return bad(profile.reason);
       return { ok: true, value: { type: "profile.upserted", profile: profile.value } };
     }
+    case "membership.acted": {
+      const projectId = str(o.projectId, "payload.projectId");
+      if (!projectId.ok) return projectId;
+      const actorId = str(o.actorId, "payload.actorId");
+      if (!actorId.ok) return actorId;
+      if (o.action !== "grant" && o.action !== "revoke") {
+        return bad('payload.action must be "grant" or "revoke"');
+      }
+      // Roles are checked against the known set rather than accepted as free
+      // text. An unrecognised role would render as a capability nobody defined
+      // and grant nothing, which reads to a member as a role that silently does
+      // not work.
+      let roles: Role[] | undefined;
+      if (o.roles !== undefined && o.roles !== null) {
+        if (!Array.isArray(o.roles)) return bad("payload.roles is not an array");
+        if (o.roles.length > LIMITS.maxArrayLength) return bad("payload.roles is too long");
+        for (const role of o.roles) if (!isRole(role)) return bad(`payload.roles contains an unknown role: ${String(role)}`);
+        roles = o.roles as Role[];
+      }
+      if ("active" in o || "grantedBy" in o) {
+        // Both are derived: active from the action, grantedBy from the
+        // authenticated author. Accepting either would let a caller grant
+        // themselves a membership attributed to someone else.
+        return bad("payload.active and payload.grantedBy are derived, not declared");
+      }
+      return {
+        ok: true,
+        value: {
+          type: "membership.acted",
+          projectId: projectId.value,
+          actorId: actorId.value,
+          ...(roles !== undefined ? { roles } : {}),
+          action: o.action,
+        },
+      };
+    }
     case "ownership.acted": {
       const agentActorId = str(o.agentActorId, "payload.agentActorId");
       if (!agentActorId.ok) return agentActorId;
@@ -844,6 +882,18 @@ export function authorizeEvent(
     case "task.commented":
       // Membership is not project authority: anyone can join a public room.
       // Without an explicit capability this is a request, not an event.
+      if (!canMutateProject(authority.username, authority.roomName)) {
+        return bad(
+          `${authority.username} has no project capability to change project data in ${authority.roomName}; ` +
+            `treat this as a request pending operator approval`,
+        );
+      }
+      return { ok: true, value: true };
+
+    case "membership.acted":
+      // Membership IS project authority, so changing it is gated like any other
+      // project mutation — and then gated again inside the reducer, where only
+      // a manager (or the creator of an empty project) may actually do it.
       if (!canMutateProject(authority.username, authority.roomName)) {
         return bad(
           `${authority.username} has no project capability to change project data in ${authority.roomName}; ` +
