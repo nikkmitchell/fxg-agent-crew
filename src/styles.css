@@ -293,6 +293,10 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .room-messages article header { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
 .room-messages article time { color: var(--muted); font-size: 12px; }
 .room-messages article p { margin: 7px 0 0; font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.crew-event-headline { margin: 7px 0 0; padding-left: 10px; border-left: 2px solid var(--cobalt); color: var(--muted); font-size: 13px; font-style: italic; line-height: 1.5; }
+.crew-event-raw { margin-top: 6px; }
+.crew-event-raw > summary { color: var(--muted); font-size: 12px; cursor: pointer; }
+.crew-event-raw pre { max-height: 220px; margin: 6px 0 0; overflow: auto; padding: 8px; background: var(--canvas); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .room-messages article > small { color: var(--vermilion); font-size: 12px; }
 .room-messages article.is-streaming { border-left: 2px solid var(--vermilion); padding-left: 10px; }
 .room-composer { padding: 12px 22px; border-top: 1px solid var(--line); background: var(--surface); }
