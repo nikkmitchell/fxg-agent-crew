@@ -308,6 +308,16 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
       }
       return { ...next, tasks: { ...next.tasks, [event.payload.task.id]: event.payload.task } };
     case "profile.upserted": {
+      // A PROFILE IS A STATEMENT ABOUT YOURSELF. The acting identity is the
+      // authenticated author of the event, never the actorId in the body —
+      // the same rule the ownership case below keeps, which this case did not.
+      //
+      // Without it any member of the room could rewrite anyone's profile, and
+      // displayName is the name rendered on their avatar and beside every
+      // comment they have written. That is impersonation, not vandalism.
+      if (event.payload.profile.actorId !== event.source) {
+        return reject(next, event.eventId, `${event.source} may only declare their own profile`);
+      }
       // Last declaration wins for that actor. Nothing merges: a profile is a
       // statement someone made, and silently blending an old field into a new
       // statement would attribute something to them they did not say.
