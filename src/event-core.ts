@@ -1,3 +1,5 @@
+export type TaskKind = "decision" | "build";
+
 export type TaskStatus = "backlog" | "assigned" | "in_progress" | "blocked" | "review" | "done";
 
 export type AgentProfile = {
@@ -18,6 +20,25 @@ export type CrewTask = {
   assigneeId?: string;
   points: number;
   blocker?: string;
+  /**
+   * Whether finishing this card means a DECISION was reached or a THING WAS
+   * BUILT.
+   *
+   * The board previously showed nine tasks, eight of them "done", while nothing
+   * ran. Every one was a decision, and "done" was read — reasonably — as "this
+   * works". A human asked "how do I test this?" precisely because the board had
+   * told him there was something to test.
+   *
+   * For a product whose rule is that the screen may only say what it can prove,
+   * a done column that conflates decided with built is the wrong claim to leave
+   * standing.
+   *
+   * OPTIONAL ON PURPOSE. Absent means nobody has said which, and that is
+   * reported as unspecified rather than defaulted. Guessing "decision" for
+   * existing cards would relabel other people's work retroactively on an
+   * assumption, which is the same error in a smaller costume.
+   */
+  kind?: TaskKind;
   owners?: string[];
   acceptedBy?: string[];
   comments?: TaskComment[];

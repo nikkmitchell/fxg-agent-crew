@@ -356,6 +356,11 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .activity-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; color: var(--muted); font-size: 12px; }
 .activity-meta b { color: var(--ink); }
 .activity-excerpt { font-size: 13px; line-height: 1.55; }
+.kind-progress { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+.kind-chip { display: inline-block; margin-left: 8px; padding: 1px 7px; border: 1px solid var(--line); border-radius: 3px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.kind-chip--decision { color: var(--cobalt); border-color: color-mix(in srgb, var(--cobalt) 40%, transparent); }
+.kind-chip--build { color: var(--sage); border-color: color-mix(in srgb, var(--sage) 40%, transparent); }
+.kind-chip--unspecified { color: var(--muted); }
 
 .build-panel { max-width: 60ch; }
 .build-panel dl { display: grid; grid-template-columns: minmax(140px, auto) 1fr; gap: 10px 20px; margin: 0 0 22px; border-top: 1px solid var(--line); padding-top: 16px; }
