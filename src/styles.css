@@ -656,3 +656,7 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
   border-radius: 8px; background: var(--bg); color: var(--ink); resize: vertical; width: 100%; box-sizing: border-box;
 }
 .task-brief-form button { justify-self: start; font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); cursor: pointer; }
+
+/* Unconfirmed messages, shown whatever the connection is doing. */
+.outbox { list-style: none; margin: 0; padding: 0 0 8px; display: grid; gap: 6px; }
+.outbox-receipt em { color: var(--muted); font-size: 12px; font-style: normal; }

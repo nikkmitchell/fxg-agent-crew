@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useWebharnessRoom } from "./use-webharness-room";
 import { summariseCrewEvent } from "./crew-event-summary";
 
@@ -32,6 +32,28 @@ function MessageBody({ message }: { message: { id: number; username: string; cre
 
 export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
   const { state, login, logout, selectRoom, retry, sendMessage, retryMessage } = useWebharnessRoom();
+
+  /**
+   * Anything the server has not confirmed yet. Acknowledged items drop off:
+   * once a message is in the transcript, a receipt for it is duplicate noise.
+   */
+  const unsent = state.outbox.filter((item) => item.state !== "acknowledged");
+
+  /**
+   * Tracked as state rather than read at render time, because navigator.onLine
+   * is not reactive — React has no reason to re-render when it flips, so a
+   * value read during render can be stale on screen.
+   */
+  const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -146,14 +168,54 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
             ))}
           </div>
 
+          {/*
+            * The outbox lives OUTSIDE the composer.
+            *
+            * It used to be inside the form, which only renders while connected —
+            * so a message you queued went invisible the moment the connection
+            * dropped, which is precisely when you most want to know it still
+            * exists. It was never lost, but the screen stopped saying so, and a
+            * message you cannot see is one you assume was eaten.
+            *
+            * Every pending item is listed. The old slice(-2) silently hid the
+            * third onwards: a truncation with nothing on screen admitting it.
+            */}
+          {unsent.length > 0 && (
+            <ul className="outbox" aria-label="Messages not yet confirmed">
+              {unsent.map((item) => (
+                <li className={`outbox-receipt outbox-receipt--${item.state}`} key={item.clientId}>
+                  <span>{item.state}</span><p>{item.content}</p>
+                  {/*
+                    * A FAILED send is never retried automatically, and the copy
+                    * here says so. The first version of this line promised it
+                    * "will retry when the connection returns"; I induced the
+                    * failure, reconnected, and watched it sit there — the flush
+                    * on reconnect only picks up QUEUED items.
+                    *
+                    * The behaviour is right and the words were wrong. A send
+                    * that failed for an unknown reason may already have been
+                    * stored upstream before the error came back, so re-sending
+                    * it without being asked risks a duplicate nobody chose.
+                    * The person decides; we just have to say that plainly.
+                    *
+                    * Retry needs the browser online, so offline it is stated
+                    * rather than offered — a button that silently does nothing
+                    * reads as the app ignoring you.
+                    */}
+                  {item.state === "failed" && (
+                    online
+                      ? <button type="button" onClick={() => retryMessage(item.clientId)}>Retry</button>
+                      : <em>not sent · retry once you are back online</em>
+                  )}
+                  {/* Queued items DO flush by themselves; verified by inducing it. */}
+                  {item.state === "queued" && !online ? <em>waiting for the connection · will send itself</em> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+
           {state.phase === "connected" && (
             <form className="room-composer" onSubmit={submitMessage}>
-              {state.outbox.slice(-2).map((item) => (
-                <div className={`outbox-receipt outbox-receipt--${item.state}`} key={item.clientId}>
-                  <span>{item.state}</span><p>{item.content}</p>
-                  {item.state === "failed" && <button type="button" onClick={() => retryMessage(item.clientId)}>Retry</button>}
-                </div>
-              ))}
               <label htmlFor="room-message">Message the room</label>
               <div><textarea id="room-message" maxLength={2000} rows={3} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write a confirmed room message…" /><button type="submit">Send</button></div>
               <small>{message.length} / 2000</small>
