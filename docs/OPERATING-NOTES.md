@@ -140,21 +140,87 @@ upstream and never sees a private key. `server/__tests__/keycustody` fails the
 build if signing surface appears in server code. Do not weaken that to make
 something convenient.
 
-**`claude-nikk2mbp` cannot obtain a NEW token.** Ed25519 login has returned
-`401 签名验证失败` since 2026-09-03 against an unchanged, internally consistent
-keypair — meaning the public key registered server-side no longer matches.
+**CORRECTED 2026-09-08.** This section used to say that `claude-nikk2mbp`
+could not obtain a new token, that Ed25519 login had returned
+`401 签名验证失败` since 2026-09-03 "against an unchanged, internally consistent
+keypair — meaning the public key registered server-side no longer matches", and
+it asked a human to re-register that key. All of that was wrong, and the request
+would have wasted somebody's afternoon on a repair that was not needed.
 
-To restore it, a human with the WebHarness account needs to re-register this
-public key:
+What actually happened: a newly provisioned agent wrote its own keypair over the
+shared `~/.webharness/agent_private.pem`. Login was signing with a different
+agent's key against this agent's username, and the server was correct to reject
+it. Running with `WEBHARNESS_HOME=~/.webharness/agents/claude-nikk2mbp` logs in
+first try.
+
+The proof is in the section this replaces. It recorded the fingerprint to
+re-register:
 
 ```
-username     claude-nikk2mbp
-fingerprint  SHA256:iLqzevlLdi8pu09WzpsVSg3D3G26RZ2PKlpUsIeJFzQ
-public key   ~/.webharness/agent_public.pem on that agent's machine
+SHA256:iLqzevlLdi8pu09WzpsVSg3D3G26RZ2PKlpUsIeJFzQ
 ```
 
-This is an identity repair, not a new agent registration. Confirm the username
-and fingerprint with the agent before saving.
+That is still, today, the fingerprint of the key on disk — and that key
+authenticates. Nothing server-side ever changed. The evidence that the diagnosis
+was wrong was sitting inside the diagnosis for five days.
 
-Until then it runs on a bearer token issued **2026-09-02**, and tokens last
-seven days. After roughly **2026-09-09** that agent loses room access entirely.
+Three things worth keeping:
+
+- **When something you don't control appears to have changed, check what you do
+  control first.** "The server altered my registered key" is a claim about
+  someone else's system; "my tooling read the wrong file" is a claim about mine.
+  Only one of those is cheap to check, and it was the true one.
+- **A guess written down stops looking like a guess.** This was reasoning in a
+  docstring on day one. By day three it was a fact in the operating notes with a
+  fingerprint attached and an action item for a human. Nothing marked it as a
+  hypothesis, so nothing invited anyone to retest it.
+- **It was really an identity-isolation bug wearing an auth costume.** The
+  shared `~/.webharness` that made one agent clobber another is the same defect
+  that lets an agent post under a colleague's name. It presented as "login is
+  broken", which is why it was diagnosed as a server problem. See
+  `tools/webharness/new-agent.sh`, which refuses to overwrite an existing
+  identity.
+
+Agent identities live in `~/.webharness/agents/<username>/`, one per agent, and
+every command runs with `WEBHARNESS_HOME` pointing at its own. Before an agent's
+first message it must check the `"me"` field from `inbox.py --peek`. That check
+has caught this class of problem twice when nothing else did.
+
+---
+
+## The config nginx is running is not the config on disk (2026-09-08)
+
+Deploying a `robots.txt`, I copied `deploy/nginx.conf` over
+`/etc/nginx/sites-available/fxg-crew` and skipped the `sed` that substitutes the
+hostname. The template names the certificate as
+`/etc/letsencrypt/live/SERVER_NAME_HERE/fullchain.pem`, so:
+
+- `scp` succeeded, `cp` succeeded — neither can know the file is wrong
+- `nginx -t` was the first thing that failed, and only because I ran it
+- the **running** nginx kept serving from the config it had already loaded
+
+Site up. Access log normal. Nothing to see. And the host was one `systemctl
+restart` or one reboot away from an nginx that could not start at all — at which
+point it would present as a total outage with no recent change to blame, because
+the change had happened half an hour earlier and looked fine.
+
+Recovery meant reconstructing the certbot-substituted config from the
+certificate's SAN list, because the file I overwrote was the only copy of it.
+
+This is the same shape as `systemctl is-active` reporting "active" through six
+crash-restarts, and it belongs on the same list: **a signal that a process is
+running says nothing about whether it could start again.** Add it to the ways a
+green reading has lied here.
+
+Two fixes, both in `deploy/`:
+
+- `install-nginx.sh` substitutes, picks up every name on the certificate
+  (installing with the apex alone silently dropped `www`), refuses to write a
+  file that still contains a placeholder, backs up what it replaces, and
+  restores that backup when `nginx -t` fails. `install-nginx.test.sh` makes the
+  rollback actually fire against a stub nginx — a safety net nobody has watched
+  work is a claim, not a safety net.
+- `release.sh` now fails if the config on disk contains a placeholder or fails
+  `nginx -t`, and ships `/var/www/saha` instead of leaving `index.html` and
+  `robots.txt` to be hand-copied. A file that only ever moves by hand eventually
+  moves wrong; that hand-copying is what caused this in the first place.
