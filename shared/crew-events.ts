@@ -984,3 +984,31 @@ export function validateEnvelope(raw: unknown): Checked<EventEnvelope> {
     },
   };
 }
+
+/**
+ * Build a fenced action request for sending.
+ *
+ * Takes only the payload: an author cannot set identity, ordering or time, and
+ * the encoder deliberately offers no way to try.
+ *
+ * Lives here rather than beside the parser because the BROWSER needs it too —
+ * not to send (only the BFF posts) but to measure. A card that will be refused
+ * for length has to be refused while it is still being written, and predicting
+ * that requires the exact string the server will build, indentation included.
+ */
+export function encodeActionRequest(payload: EventEnvelope["payload"]): string {
+  return ["```crew-event", JSON.stringify({ version: 1, payload }, null, 2), "```"].join("\n");
+}
+
+/**
+ * Build a fenced action request for SHOWING — teaching, review, an example in a
+ * message. Byte-identical to `encodeActionRequest` apart from the info string,
+ * so what a reader copies is exactly what they need once they drop `-example`.
+ *
+ * Beside the real encoder on purpose. If the two ever drift, every example
+ * posted in the room teaches a format the parser does not accept, and the
+ * person who copied it finds out by having their action silently do nothing.
+ */
+export function encodeQuotedExample(payload: EventEnvelope["payload"]): string {
+  return ["```crew-event-example", JSON.stringify({ version: 1, payload }, null, 2), "```"].join("\n");
+}

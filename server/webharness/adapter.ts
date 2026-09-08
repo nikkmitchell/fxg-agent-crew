@@ -225,25 +225,9 @@ export function adaptMessages(
 }
 
 /**
- * Build a fenced action request for sending.
- *
- * Takes only the payload: an author cannot set identity, ordering or time, and
- * the encoder deliberately offers no way to try. One definition of the wire
- * format, so encoder and parser cannot drift.
+ * Re-exported from `shared/` so the browser can measure a message before
+ * sending it without importing server code. One definition of the wire format,
+ * or the editor's budget is a guess about a different string than the one that
+ * actually gets posted.
  */
-export function encodeActionRequest(payload: EventEnvelope["payload"]): string {
-  return ["```crew-event", JSON.stringify({ version: 1, payload }, null, 2), "```"].join("\n");
-}
-
-/**
- * Build a fenced action request for SHOWING — teaching, review, an example in a
- * message. Byte-identical to `encodeActionRequest` apart from the info string,
- * so what a reader copies is exactly what they need to send once they drop the
- * `-example` suffix.
- *
- * Use this any time an event appears in prose. The old way of writing an
- * example was to write the real thing, which ran it.
- */
-export function encodeQuotedExample(payload: EventEnvelope["payload"]): string {
-  return ["```crew-event-example", JSON.stringify({ version: 1, payload }, null, 2), "```"].join("\n");
-}
+export { encodeActionRequest, encodeQuotedExample } from "../../shared/crew-events.js";

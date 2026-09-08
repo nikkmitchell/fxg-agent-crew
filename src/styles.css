@@ -288,6 +288,13 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
    The tag carries the meaning for anyone who cannot see the border colour. */
 .crew-event-headline.is-example { border-left: 2px dashed var(--muted); font-style: normal; }
 .crew-event-example-tag { display: inline-block; margin-right: 7px; padding: 1px 5px; border: 1px solid var(--muted); border-radius: 3px; color: var(--muted); font-size: 10px; font-weight: 800; font-style: normal; letter-spacing: .08em; vertical-align: 1px; }
+/* The remaining-budget line under a brief. Three states, distinguished by more
+   than colour: the "over" state also changes weight and gains a rule above it,
+   because a writer who cannot see the red is exactly the writer who most needs
+   to be told before they lose the paragraph. */
+.brief-budget { margin: 5px 0 0; font-size: 11px; color: var(--muted); text-align: right; }
+.brief-budget--tight { color: var(--ink); }
+.brief-budget--over { padding-top: 5px; border-top: 1px solid var(--vermilion); color: var(--vermilion); font-weight: 800; text-align: left; }
 .crew-event-raw { margin-top: 6px; }
 .crew-event-raw > summary { color: var(--muted); font-size: 12px; cursor: pointer; }
 .crew-event-raw pre { max-height: 220px; margin: 6px 0 0; overflow: auto; padding: 8px; background: var(--canvas); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
