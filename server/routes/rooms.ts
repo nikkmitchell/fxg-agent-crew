@@ -70,10 +70,21 @@ export function registerRoomRoutes(
     const session = requireSession(request, reply);
     if (!session) return reply;
     try {
-      const detail = await client.request<RoomDetail>(
+      // `client.request<T>()` CASTS. It does not check. The same mistake was
+      // already found and fixed on /bff/rooms — the type annotation made
+      // everyone, including sixty tests, believe a shape nobody had verified —
+      // and this route was left doing exactly the same thing.
+      //
+      // It is not theoretical. Against an upstream that omits `onlineUsers`,
+      // the panel reached `state.room.onlineUsers.length`, threw, and React
+      // unmounted the whole tree: a BLANK PAGE with the error only in a console
+      // nobody has open. Found by running the app against a server I control,
+      // which is the only way this class of bug ever shows up.
+      const raw = await client.request<unknown>(
         `/api/rooms/${encodeURIComponent(request.params.room)}`,
         { token: session.token },
       );
+      const detail = normaliseRoomDetail(raw, request.params.room);
       return reply.send(detail);
     } catch (error) {
       return fail(reply, error);
@@ -143,4 +154,55 @@ export function registerRoomRoutes(
       }
     },
   );
+}
+
+/**
+ * Rebuild a RoomDetail from whatever upstream actually sent.
+ *
+ * REBUILT, not spread: `{ ...raw }` would carry through any extra field and
+ * still leave the missing ones missing. Every property here is either checked
+ * or replaced with a value that is honest about not knowing.
+ *
+ * The choice on a missing `onlineUsers` is an empty list rather than an error.
+ * Presence is decoration around a transcript; refusing to open a room because
+ * nobody could be counted would turn a cosmetic gap into an outage. An empty
+ * list renders "0 online / Nobody else is here right now", which is what the
+ * BFF genuinely knows. Fabricating a count would be the worse failure — this
+ * screen exists to not do that.
+ */
+export function normaliseRoomDetail(raw: unknown, roomName: string): RoomDetail {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const text = (value: unknown, fallback: string) =>
+    typeof value === "string" && value.trim() ? value : fallback;
+
+  const onlineUsers = Array.isArray(source.onlineUsers)
+    ? source.onlineUsers
+        .filter((user): user is Record<string, unknown> => !!user && typeof user === "object")
+        .filter((user) => typeof user.username === "string")
+        .map((user) => ({
+          username: user.username as string,
+          lastSeenAt: text(user.lastSeenAt, ""),
+        }))
+    : [];
+
+  return {
+    roomName: text(source.roomName, roomName),
+    ownerName: text(source.ownerName, ""),
+    onlineUsers,
+    // Trust a number upstream gave us; otherwise count what we can actually
+    // see. Never a guess dressed as a measurement.
+    onlineCount: typeof source.onlineCount === "number" && Number.isFinite(source.onlineCount)
+      ? source.onlineCount
+      : onlineUsers.length,
+    isOwner: source.isOwner === true,
+    muted: source.muted === true,
+    ...(source.myPermissions && typeof source.myPermissions === "object"
+      ? {
+          myPermissions: {
+            canSpeak: (source.myPermissions as Record<string, unknown>).canSpeak === true,
+            canUpload: (source.myPermissions as Record<string, unknown>).canUpload === true,
+          },
+        }
+      : {}),
+  };
 }

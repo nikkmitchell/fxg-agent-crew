@@ -19,6 +19,7 @@
  *
  *   POST /__control/fail-sends      { "count": 1 }   next N sends return 503
  *   POST /__control/offline         { "on": true }   every request fails
+ *   POST /__control/thin-room-detail{ "on": true }   room detail without onlineUsers
  *   POST /__control/say             { "content": "" } inject a message from someone else
  *   GET  /__control/state                            what the fake has recorded
  *   POST /__control/reset
@@ -48,6 +49,16 @@ const state = {
   offline: false,
   /** Every send the BFF actually forwarded, including ones we then failed. */
   sendAttempts: [] as string[],
+  /** Serve the room detail shape that crashed the panel. */
+  thinRoomDetail: false,
+  /**
+   * How many times messages have been READ.
+   *
+   * This fake answers instantly and ignores `wait`, which is exactly the
+   * condition a real proxy or gateway can create. Counting the reads is how the
+   * client's poll floor gets measured rather than asserted.
+   */
+  reads: 0,
 };
 
 function say(username: string, content: string): Msg {
@@ -103,6 +114,9 @@ const server = createServer(async (req, res) => {
       case "/__control/fail-sends":
         state.failSends = Number(body.count ?? 1);
         return json(res, 200, { failSends: state.failSends });
+      case "/__control/thin-room-detail":
+        state.thinRoomDetail = Boolean(body.on);
+        return json(res, 200, { thinRoomDetail: state.thinRoomDetail });
       case "/__control/offline":
         state.offline = Boolean(body.on);
         return json(res, 200, { offline: state.offline });
@@ -113,6 +127,7 @@ const server = createServer(async (req, res) => {
           messages: state.messages.length,
           lastId: state.nextId - 1,
           sendAttempts: state.sendAttempts,
+          reads: state.reads,
           contents: state.messages.map((m) => m.content),
         });
       case "/__control/reset":
@@ -121,6 +136,8 @@ const server = createServer(async (req, res) => {
         state.failSends = 0;
         state.offline = false;
         state.sendAttempts = [];
+        state.thinRoomDetail = false;
+        state.reads = 0;
         seed(Number(body.seed ?? 0));
         return json(res, 200, { ok: true });
       default:
@@ -151,7 +168,20 @@ const server = createServer(async (req, res) => {
     return json(res, 200, { rooms: [{ roomName: ROOM, isPublic: true, memberCount: 2 }] });
   }
   if (path === `/api/rooms/${ROOM}` && req.method === "GET") {
-    return json(res, 200, { roomName: ROOM, isPublic: true, members: [USER, "colleague"] });
+    // The degenerate shape is kept as a control rather than deleted: it is the
+    // one that white-screened the panel, and a bug you can no longer reproduce
+    // is a bug you cannot prove you fixed.
+    if (state.thinRoomDetail) {
+      return json(res, 200, { roomName: ROOM, isPublic: true, members: [USER, "colleague"] });
+    }
+    return json(res, 200, {
+      roomName: ROOM,
+      ownerName: USER,
+      onlineUsers: [{ username: USER, lastSeenAt: new Date().toISOString() }],
+      onlineCount: 1,
+      isOwner: true,
+      muted: false,
+    });
   }
 
   if (path === `/api/rooms/${ROOM}/messages`) {
@@ -169,6 +199,7 @@ const server = createServer(async (req, res) => {
       return json(res, 201, say(USER, content));
     }
 
+    state.reads += 1;
     const afterId = Number(url.searchParams.get("afterId") ?? 0);
     const limit = Math.min(Number(url.searchParams.get("limit") ?? 50), 200);
     const page = state.messages.filter((m) => m.id > afterId).slice(0, limit);

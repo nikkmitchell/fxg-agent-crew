@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useWebharnessRoom } from "./use-webharness-room";
 import { summariseCrewEvent } from "./crew-event-summary";
+import { canCompose } from "./connection-state";
 
 /**
  * One message. Board events are posted into this room as fenced JSON — that is
@@ -155,8 +156,15 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
               <small>Who</small>
             </summary>
             <div className="room-presence-list">
-              {state.room?.onlineUsers.length
-                ? state.room.onlineUsers.map((user) => (
+              {/*
+                * `?.` on onlineUsers as well as on room. The BFF now guarantees
+                * the field, but this component crashed the entire panel to a
+                * blank page over one missing array, and a render that cannot
+                * survive a surprise from the network is one bad deploy from
+                * doing it again.
+                */}
+              {state.room?.onlineUsers?.length
+                ? state.room.onlineUsers!.map((user) => (
                     <i key={user.username} title={user.username}>{user.username.slice(0, 2).toUpperCase()}</i>
                   ))
                 : <p>Nobody else is here right now.</p>}
@@ -223,7 +231,27 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
             </ul>
           )}
 
-          {state.phase === "connected" && (
+          {/*
+            * Writable while connected, and also while the BROWSER is offline.
+            *
+            * The outbox exists so a message written without a network is held
+            * and sent later — the receipt literally says "waiting for the
+            * connection · will send itself". But the composer only rendered
+            * when phase was "connected", and going offline sets phase to
+            * "reconnecting", so the machinery built for that moment was
+            * unreachable in exactly that moment. It only ever worked by
+            * accident: when polling happened to keep succeeding after the
+            * offline event, phase snapped back to "connected" and the box
+            * reappeared.
+            *
+            * Someone on a train who loses signal mid-sentence should not have
+            * the box taken away from them.
+            *
+            * Narrowly OFFLINE, not every reconnect: an archived room, a
+            * revoked membership or an expired session are refusals, and
+            * inviting someone to write into one would be a different lie.
+            */}
+          {canCompose(state) && (
             <form className="room-composer" onSubmit={submitMessage}>
               <label htmlFor="room-message">Message the room</label>
               <div><textarea id="room-message" maxLength={2000} rows={3} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write a confirmed room message…" /><button type="submit">Send</button></div>

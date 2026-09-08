@@ -88,6 +88,25 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     if (request.url.startsWith(`${basePath}/bff/`)) return reply.code(404).send({ error: "not found" });
     if (basePath && request.url === basePath) return reply.redirect(`${basePath}/`);
     if (basePath && !request.url.startsWith(`${basePath}/`)) return reply.code(404).send({ error: "not found" });
+    // A MISSING FILE MUST 404, not quietly become the app.
+    //
+    // The fallback exists so /board and /people reach the SPA. Applying it to
+    // everything meant a missing asset answered 200 with index.html, and the
+    // browser then refused it: "Expected a JavaScript-or-Wasm module script but
+    // the server responded with a MIME type of text/html". The page renders
+    // BLANK. Nothing on screen, nothing in the server log, a 200 in the access
+    // log — the only evidence is a console message nobody is looking at.
+    //
+    // It is reachable in production: a browser holding a cached index.html
+    // after a deploy asks for the previous build's hashed asset. That request
+    // deserves a 404, which a browser understands, rather than a 200 that
+    // leaves it staring at HTML it cannot execute.
+    //
+    // A path whose last segment has an extension is asking for a file. App
+    // routes do not carry one.
+    if (/\.[a-zA-Z0-9]+$/.test(new URL(request.url, "http://placeholder").pathname)) {
+      return reply.code(404).send({ error: "not found" });
+    }
     return reply.sendFile("index.html");
   });
 
