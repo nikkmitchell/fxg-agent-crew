@@ -1,0 +1,12 @@
+# saha.ing is a STAGING deployment.
+#
+# It sits in front of a real chat server holding real accounts and real
+# conversations. Nothing here is a production service, and none of it should
+# appear in a search result — a staging URL that ranks is a staging URL that
+# strangers find.
+#
+# This is a request, not a control. It stops well-behaved crawlers; it stops
+# nothing else. The actual protection is that data requires an authenticated
+# session — see /space/bff/me, which returns 401 signed out.
+User-agent: *
+Disallow: /
