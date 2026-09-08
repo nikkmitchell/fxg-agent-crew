@@ -52,7 +52,11 @@ deploy/install-nginx.sh your.hostname --reload
 certbot renew --dry-run
 
 # 4. from your laptop
-deploy/release.sh root@your.hostname
+PUBLIC_URL=https://your.hostname deploy/release.sh root@your.hostname
+#
+# PUBLIC_URL is optional but worth setting: without it the release only ever
+# verifies loopback, which proves the service answers, not that anyone outside
+# can reach it. DNS, TLS and the nginx vhost all sit between those two facts.
 ```
 
 ## The root path: two servers, one hostname

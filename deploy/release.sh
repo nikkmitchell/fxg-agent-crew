@@ -44,6 +44,16 @@ rsync -az --delete \
   --exclude node_modules --exclude .git --exclude 'dist/.vite' \
   -e "${SSH[*]}" ./ "$TARGET:$REMOTE/"
 
+# The static site, which nothing used to deploy.
+#
+# nginx answers `/` from /var/www/saha on disk — a different tree from the app
+# in /opt/fxg-crew — so index.html and robots.txt were hand-copied and drifted
+# silently. That is also why I was hand-copying deploy/nginx.conf at all on
+# 2026-09-08, which is how I put an unsubstituted template over the live config.
+# A file that only ever moves by hand eventually moves wrong.
+"${SSH[@]}" "$TARGET" "mkdir -p /var/www/saha"
+rsync -az -e "${SSH[*]}" deploy/index.html deploy/robots.txt "$TARGET:/var/www/saha/"
+
 # Record exactly what was deployed, so the running service is traceable to a
 # commit rather than to "whatever was on someone's laptop".
 "${SSH[@]}" "$TARGET" "printf '%s\n' '$SHA' > $REMOTE/DEPLOYED_COMMIT"
@@ -101,6 +111,40 @@ other=$("${SSH[@]}" "$TARGET" "curl -sS -o /dev/null -w '%{http_code}' http://12
 listening=$("${SSH[@]}" "$TARGET" "ss -ltn | grep ':8787' || true")
 grep -q '127.0.0.1:8787' <<<"$listening" || fail "8787 is not loopback-bound: $listening"
 
+# THE CONFIG-ON-DISK CHECK.
+#
+# nginx serves from the config it loaded, not the one on disk. On 2026-09-08 an
+# unsubstituted template sat at /etc/nginx/sites-available/fxg-crew for half an
+# hour while the running nginx served happily from memory: site up, access log
+# normal, and the host one reboot away from an nginx that could not start. No
+# check anywhere would have caught it, and a release would have shipped straight
+# past it every time.
+#
+# So: assert the file on disk is one nginx could actually start with.
+placeholder=$("${SSH[@]}" "$TARGET" "grep -c SERVER_NAME_HERE /etc/nginx/sites-available/fxg-crew || true")
+[ "$placeholder" = "0" ] || fail "nginx config on disk still contains SERVER_NAME_HERE — nginx could not restart with it. Reinstall with deploy/install-nginx.sh <host>"
+"${SSH[@]}" "$TARGET" "nginx -t" >/dev/null 2>&1 \
+  || fail "nginx -t fails against the config on disk — the running nginx is serving from memory and will not come back after a restart"
+
+# Public verification, when a public URL is given. Everything above this point
+# is loopback: it proves the service answers, not that anyone can reach it.
+# TLS, DNS and the nginx vhost sit between those two facts, and each has broken
+# here independently. Skipped is said out loud rather than passing quietly,
+# because a check that silently does nothing is worse than no check.
+if [ -n "${PUBLIC_URL:-}" ]; then
+  log "verify the public URL  ($PUBLIC_URL)"
+  for path in / /space/ /robots.txt; do
+    pub=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "${PUBLIC_URL%/}$path") \
+      || fail "could not reach ${PUBLIC_URL%/}$path"
+    [ "$pub" = "200" ] || fail "${PUBLIC_URL%/}$path returned $pub, expected 200"
+    printf '  %-12s 200\n' "$path"
+  done
+  grep -qi 'disallow' <<<"$(curl -sS --max-time 20 "${PUBLIC_URL%/}/robots.txt")" \
+    || fail "/robots.txt is served but contains no Disallow directive"
+else
+  printf '\033[33mnote: PUBLIC_URL not set — only loopback was verified. Nothing here says the site is reachable from outside.\033[0m\n'
+fi
+
 deployed=$("${SSH[@]}" "$TARGET" "cat $REMOTE/DEPLOYED_COMMIT")
 [ "$deployed" = "$SHA" ] || fail "deployed commit $deployed != $SHA"
 
@@ -108,3 +152,6 @@ printf '\n\033[32mDeployed and verified.\033[0m  commit %s\n' "${SHA:0:8}"
 printf '  %s/bff/me   401 SESSION_EXPIRED\n  %s/          200\n' "$BASE" "$BASE"
 printf '  /            404  (chat not captured)\n  /api/rooms   404  (chat not captured)\n'
 printf '  8787         loopback only\n  restarts     stable over 12s\n'
+printf '  nginx.conf   valid on disk (would survive a restart)\n'
+[ -n "${PUBLIC_URL:-}" ] && printf '  public       %s reachable\n' "$PUBLIC_URL" \
+                        || printf '  public       NOT CHECKED (set PUBLIC_URL)\n'
