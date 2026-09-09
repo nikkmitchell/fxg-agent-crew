@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CrewTask } from "./event-core";
 import type { ActorProfile, Ownership } from "./profiles";
+import type { Membership } from "./membership";
+import type { CrewProject } from "./event-core";
 import { People } from "./People";
 import type { Session } from "./use-session";
 
@@ -15,7 +17,13 @@ const PROJECT_ROOM = "AgentParty";
  * disagreeing with the board.
  */
 export function PeoplePanel({ session }: { session: Session | null }) {
-  const [data, setData] = useState<{ tasks: CrewTask[]; profiles: ActorProfile[]; ownerships: Ownership[] } | null>(null);
+  const [data, setData] = useState<{
+    tasks: CrewTask[];
+    profiles: ActorProfile[];
+    ownerships: Ownership[];
+    memberships: Membership[];
+    projects: CrewProject[];
+  } | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "signed_out" | "error">("loading");
 
   const load = useCallback(async () => {
@@ -32,8 +40,18 @@ export function PeoplePanel({ session }: { session: Session | null }) {
       tasks?: CrewTask[];
       profiles?: ActorProfile[];
       ownerships?: Ownership[];
+      memberships?: Membership[];
+      projects?: CrewProject[];
     };
-    setData({ tasks: body.tasks ?? [], profiles: body.profiles ?? [], ownerships: body.ownerships ?? [] });
+    setData({
+      tasks: body.tasks ?? [],
+      profiles: body.profiles ?? [],
+      ownerships: body.ownerships ?? [],
+      // Array.isArray, not `?? []`: the BFF's own contract was broken once by a
+      // value that survived a nullish check and then failed on .filter.
+      memberships: Array.isArray(body.memberships) ? body.memberships : [],
+      projects: Array.isArray(body.projects) ? body.projects : [],
+    });
     setState("ready");
   }, []);
 
@@ -81,6 +99,8 @@ export function PeoplePanel({ session }: { session: Session | null }) {
       tasks={data.tasks}
       profiles={data.profiles}
       ownerships={data.ownerships}
+      memberships={data.memberships}
+      projects={data.projects}
       session={session}
       onPublish={publish}
     />

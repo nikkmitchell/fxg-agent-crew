@@ -3,6 +3,8 @@ import type { CrewTask } from "./event-core";
 import { type ActorProfile, type Ownership, checkProfile } from "./profiles";
 import { Identity } from "./Identity";
 import type { Session } from "./use-session";
+import { groupByLineage } from "./lineage";
+import type { Membership } from "./membership";
 
 export type Actor = {
   username: string;
@@ -248,12 +250,24 @@ export function People({
   tasks,
   profiles,
   ownerships,
+  memberships = [],
+  projects = [],
   session,
   onPublish,
 }: {
   tasks: CrewTask[];
   profiles: ActorProfile[];
   ownerships: Ownership[];
+  /**
+   * Shown BESIDE ownership on purpose.
+   *
+   * The rule this whole surface exists to teach — operating an agent grants it
+   * no project authority — is only legible if a reader can see that ownership
+   * and membership are two different lists. Rendering one and not the other
+   * left the rule as a sentence in a footnote.
+   */
+  memberships?: Membership[];
+  projects?: Array<{ id: string; name: string }>;
   session: Session | null;
   /** Absent when the page is rendered read-only, e.g. in a test. */
   onPublish?: (payload: unknown) => Promise<void>;
@@ -306,19 +320,14 @@ export function People({
     );
   }
 
-  return (
-    <section className="people">
-      <p className="muted-note">
-        Built from the durable log — a declared profile, a task owned, or a comment written. Nobody
-        appears because they were mentioned.
-      </p>
-
-      {editor}
-
-      {actionError ? <p className="project-error" role="alert">{actionError}</p> : null}
-
-      <ul className="people-list">
-        {actors.map((actor) => {
+  /**
+   * One person or one instrument, rendered identically.
+   *
+   * Same markup either way, deliberately: an agent is not a lesser kind of
+   * participant, it is a participant with a person answerable for it. The only
+   * difference is where it sits and a line saying whose it is.
+   */
+  const renderActor = (actor: Actor, isInstrument: boolean) => {
           const canDeclareOwner = session?.kind === "human" && actor.kind === "agent" && !actor.ownedBy;
           const canConfirm = actor.ownedBy?.state === "pending" && session?.username === actor.username;
           const canRevoke =
@@ -341,6 +350,19 @@ export function People({
                     <dd>{actor.profile.coarseLocation}</dd>
                   </>
                 ) : null}
+                {/*
+                  * The editor collected a time zone and nothing ever rendered
+                  * it. That is worse than not asking: the value went into the
+                  * durable log, where it stays through every replay forever, to
+                  * be displayed nowhere. Storing something with no purpose is
+                  * the part that needed fixing, not the missing row.
+                  */}
+                {actor.profile?.timeZone ? (
+                  <>
+                    <dt>Time zone</dt>
+                    <dd>{actor.profile.timeZone}</dd>
+                  </>
+                ) : null}
                 {actor.profile?.model ? (
                   <>
                     <dt>Model</dt>
@@ -360,6 +382,26 @@ export function People({
 
                 <dt>Comments</dt>
                 <dd>{actor.comments}</dd>
+
+                {/*
+                  * Membership is the thing that actually grants anything, so it
+                  * sits directly above ownership, which grants nothing. Absent
+                  * is stated rather than left blank: "in no project" is a fact,
+                  * and an empty row would read as "we did not check".
+                  */}
+                <dt>Projects</dt>
+                <dd>
+                  {(() => {
+                    const mine = memberships.filter((m) => m.actorId === actor.username && m.active);
+                    if (mine.length === 0) return <span className="unknown">in no project</span>;
+                    return mine
+                      .map((m) => {
+                        const name = projects.find((p) => p.id === m.projectId)?.name ?? m.projectId;
+                        return m.roles.length ? `${name} (${m.roles.join(", ")})` : `${name} — no role stated`;
+                      })
+                      .join(" · ");
+                  })()}
+                </dd>
 
                 {/*
                   * Explicit ownership status, never a blank. An absent row reads
@@ -439,8 +481,40 @@ export function People({
                 </ul>
               ) : null}
             </li>
-          );
-        })}
+    );
+  };
+
+  return (
+    <section className="people">
+      <p className="muted-note">
+        Built from the durable log — a declared profile, a task owned, or a comment written. Nobody
+        appears because they were mentioned.
+      </p>
+
+      {editor}
+
+      {actionError ? <p className="project-error" role="alert">{actionError}</p> : null}
+
+
+
+      <ul className="people-list">
+        {/*
+          * Lineage, not leaderboard.
+          *
+          * A flat list of every name gives a reader no way to tell that six of
+          * the eight belong to two people. Agents on a CONFIRMED ownership link
+          * sit under the person answerable for them; a pending claim does not
+          * nest, because a claim is a request and drawing it as a fact here
+          * would undo the pending state that profiles.ts exists to enforce.
+          */}
+        {groupByLineage(actors).map((group) => (
+          <li key={group.root.username} className="lineage">
+            <ul className="lineage-list">
+              {renderActor(group.root, false)}
+              {group.instruments.map((instrument) => renderActor(instrument, true))}
+            </ul>
+          </li>
+        ))}
       </ul>
 
       <p className="people-note">

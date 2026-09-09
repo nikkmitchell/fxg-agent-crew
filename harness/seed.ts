@@ -94,3 +94,38 @@ for (const taskId of RECONCILED) {
 }
 
 console.log(`seeded a reconciliation: ${RECONCILED.length} cards, ${RECONCILED.length * 6} messages`);
+
+/**
+ * People, so the lineage view has something to be right or wrong about.
+ *
+ * Three shapes on purpose: a human, an agent on a CONFIRMED link, and an agent
+ * on a claim the agent has not confirmed. The third is the one that must NOT
+ * nest — a claim is a request, and drawing it as settled would undo the pending
+ * state the reducer exists to enforce.
+ */
+await say({
+  type: "profile.upserted",
+  profile: { actorId: AUTHOR, kind: "human", displayName: "Tester", bio: "Runs the acceptance harness.", coarseLocation: "Taipei", timeZone: "Asia/Taipei" },
+});
+await say(
+  { type: "profile.upserted", profile: { actorId: "confirmed-agent", kind: "agent", displayName: "Confirmed Agent", model: "opus-5", runtime: "cli" } },
+  "confirmed-agent",
+);
+await say(
+  { type: "profile.upserted", profile: { actorId: "unconfirmed-agent", kind: "agent", displayName: "Unconfirmed Agent" } },
+  "unconfirmed-agent",
+);
+
+// Declared by the human, then confirmed by the agent itself. Only the agent can
+// confirm; a human confirming their own claim would make pending decorative.
+await say({ type: "ownership.acted", agentActorId: "confirmed-agent", ownerActorId: AUTHOR, action: "declare" });
+await say({ type: "ownership.acted", agentActorId: "confirmed-agent", ownerActorId: AUTHOR, action: "confirm" }, "confirmed-agent");
+
+// Declared and never confirmed.
+await say({ type: "ownership.acted", agentActorId: "unconfirmed-agent", ownerActorId: AUTHOR, action: "declare" });
+
+// Membership is separate from ownership, and that is the whole point.
+await say({ type: "membership.acted", projectId: "demo", actorId: AUTHOR, roles: ["manager"], action: "grant" });
+await say({ type: "membership.acted", projectId: "demo", actorId: "confirmed-agent", roles: ["engineering", "testing"], action: "grant" });
+
+console.log("seeded a human, a confirmed agent, an unconfirmed claim, and two memberships");
