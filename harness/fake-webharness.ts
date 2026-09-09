@@ -19,6 +19,7 @@
  *
  *   POST /__control/fail-sends      { "count": 1 }   next N sends return 503
  *   POST /__control/offline         { "on": true }   every request fails
+ *   POST /__control/first-page      { "end": "oldest" } which end an uncursored read returns
  *   POST /__control/thin-room-detail{ "on": true }   room detail without onlineUsers
  *   POST /__control/say             { "content": "" } inject a message from someone else
  *   GET  /__control/state                            what the fake has recorded
@@ -59,6 +60,8 @@ const state = {
    * client's poll floor gets measured rather than asserted.
    */
   reads: 0,
+  /** Which end of history an uncursored read returns. See the note below. */
+  firstPage: (process.env.FAKE_FIRST_PAGE ?? "newest") as "newest" | "oldest",
 };
 
 function say(username: string, content: string): Msg {
@@ -117,6 +120,9 @@ const server = createServer(async (req, res) => {
       case "/__control/thin-room-detail":
         state.thinRoomDetail = Boolean(body.on);
         return json(res, 200, { thinRoomDetail: state.thinRoomDetail });
+      case "/__control/first-page":
+        state.firstPage = body.end === "oldest" ? "oldest" : "newest";
+        return json(res, 200, { firstPage: state.firstPage });
       case "/__control/offline":
         state.offline = Boolean(body.on);
         return json(res, 200, { offline: state.offline });
@@ -200,9 +206,29 @@ const server = createServer(async (req, res) => {
     }
 
     state.reads += 1;
-    const afterId = Number(url.searchParams.get("afterId") ?? 0);
+    const afterIdParam = url.searchParams.get("afterId");
     const limit = Math.min(Number(url.searchParams.get("limit") ?? 50), 200);
-    const page = state.messages.filter((m) => m.id > afterId).slice(0, limit);
+
+    // WITHOUT a cursor this returns the NEWEST `limit` messages, not the
+    // oldest.
+    //
+    // The first version of this fake returned the oldest, and my acceptance run
+    // for "history does not truncate" passed because of it: the client walked
+    // forward from message 1 and eventually held all 127. Against a server that
+    // answers with the most recent page, opening a busy room shows the last 50
+    // and there is no path backwards — a completely different result from the
+    // same test.
+    //
+    // That is the house failure written down in COLLABORATION.md: a mock that
+    // shares the code's assumption proves the assumption, not the code. The
+    // skill documents this endpoint as the "read recent messages before you
+    // speak" call, so newest is the behaviour to model. `oldest` is kept
+    // available because the difference is the whole point of the test.
+    const page = afterIdParam === null
+      ? (state.firstPage === "oldest"
+          ? state.messages.slice(0, limit)
+          : state.messages.slice(-limit))
+      : state.messages.filter((m) => m.id > Number(afterIdParam)).slice(0, limit);
     return json(res, 200, { roomName: ROOM, messages: page });
   }
 

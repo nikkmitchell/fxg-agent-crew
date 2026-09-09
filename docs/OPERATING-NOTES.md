@@ -158,3 +158,56 @@ and fingerprint with the agent before saving.
 
 Until then it runs on a bearer token issued **2026-09-02**, and tokens last
 seven days. After roughly **2026-09-09** that agent loses room access entirely.
+
+---
+
+## Every room-history reader, classified (2026-09-09)
+
+`saha-pagination-contract` asked for this: each reader is either exhaustive and
+uses the shared traversal, or it is a deliberately bounded window whose contract
+is written down.
+
+| reader | kind | contract |
+|---|---|---|
+| `server/webharness/project-cache.ts` | exhaustive | `drainPages`. Reads until a short page proves the end; throws rather than returning a partial board. |
+| `tools/board-dump.mts` | exhaustive | Same `drainPages`. |
+| `server/webharness/longpoll.ts` | **bounded window** | Most recent 50, then polls forward. No backwards paging. Reports `mayHaveEarlier`. |
+| `server/routes/rooms.ts` | write | POSTs a message; its GET delegates to `longpoll` and has no traversal of its own. |
+| `server/routes/projects.ts` | write | Appends a crew-event, refusing over 2000 characters. |
+
+`server/__tests__/history-readers.test.ts` fails the build when a file appears
+that reads or writes room history and is not on that list. The reason it is a
+test rather than a paragraph is that a paragraph does not fail. This same
+omission has now arrived four times in different clothes, the fourth being a
+hand-rolled traversal in `tools/board-dump.mts` written *while this card was
+being worked on*, in a repository whose `drain-pages.ts` opens by explaining
+why not to do that.
+
+### Live Chat is a window, and now says so
+
+The first read asks for the most recent 50 messages and polls forward. There is
+no way back: upstream's `before` cursor does not page — it returned the same
+message twelve times. The client additionally caps its transcript at 500.
+
+That is a reasonable design for a chat. What was not reasonable is that nothing
+said so. Opening a 127-message room showed 50, the oldest of them sitting at the
+top with nothing above it — indistinguishable from the start of the room. The
+transcript now carries a line at that edge, and only when the first page came
+back full, so a short room is not accused of hiding history it does not have.
+Both cases checked in a browser: 127 messages → 50 shown with the note; 15
+messages → all 15, no note.
+
+### A correction to how this was first measured
+
+The browser acceptance in PR #68 originally reported "history loads and does not
+silently truncate: 127 rendered, zero gaps". That was **wrong**, and wrong in the
+most embarrassing available way: the fake upstream returned the OLDEST page for
+an uncursored read, so the client walked forward from message 1 and eventually
+held everything. Against a server that answers with the most recent page — which
+is what the skill documents this endpoint as, and what a chat obviously wants —
+the same test shows 50 of 127 and no way back.
+
+A mock that shares the code's assumption proves the assumption, not the code.
+That is already the first entry in COLLABORATION.md's list of ways a green run
+has lied here, and I reproduced it while writing the harness meant to prevent
+exactly this class of mistake.

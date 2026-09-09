@@ -32,13 +32,14 @@ export async function pollMessages(
   { room, token, afterId, waitSeconds = 25, signal }: PollOptions,
 ): Promise<MessagePage> {
   const params = new URLSearchParams();
+  const INITIAL_LIMIT = 50;
   if (afterId !== undefined) {
     params.set("afterId", String(afterId));
     // `wait` is only honoured alongside afterId; without a cursor the server
     // has no basis for "new", so we must not ask it to hold the connection.
     params.set("wait", String(Math.min(waitSeconds, MAX_WAIT_SECONDS)));
   } else {
-    params.set("limit", "50");
+    params.set("limit", String(INITIAL_LIMIT));
   }
 
   const path = `/api/rooms/${encodeURIComponent(room)}/messages?${params}`;
@@ -60,5 +61,10 @@ export async function pollMessages(
     messages,
     // Hold the caller's cursor when nothing arrived rather than inventing one.
     cursor: highest ?? afterId ?? null,
+    // Only meaningful for the FIRST read of a room. A full page means we asked
+    // for everything we were willing to take and it was all used up, so there
+    // is probably more above — the browser needs to say so rather than present
+    // a truncated transcript as the whole room.
+    ...(afterId === undefined ? { mayHaveEarlier: messages.length >= INITIAL_LIMIT } : {}),
   };
 }

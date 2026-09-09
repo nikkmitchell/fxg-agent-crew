@@ -295,6 +295,9 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .brief-budget { margin: 5px 0 0; font-size: 11px; color: var(--muted); text-align: right; }
 .brief-budget--tight { color: var(--ink); }
 .brief-budget--over { padding-top: 5px; border-top: 1px solid var(--vermilion); color: var(--vermilion); font-weight: 800; text-align: left; }
+/* The top-of-transcript boundary note. Deliberately plain and unalarming: it
+   is a statement of scope, not an error. */
+.room-history-edge { margin: 0 0 10px; padding: 7px 9px; border: 1px dashed var(--line); border-radius: 5px; color: var(--muted); font-size: 11px; text-align: center; }
 .crew-event-raw { margin-top: 6px; }
 .crew-event-raw > summary { color: var(--muted); font-size: 12px; cursor: pointer; }
 .crew-event-raw pre { max-height: 220px; margin: 6px 0 0; overflow: auto; padding: 8px; background: var(--canvas); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
