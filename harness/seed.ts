@@ -61,3 +61,36 @@ for (let i = 1; i <= 5; i += 1) {
 }
 
 console.log("seeded a project, a card and five comments");
+
+/**
+ * A board reconciliation, as it actually arrives.
+ *
+ * Three cards closed back to back. backlog → done is not a legal transition, so
+ * each one costs four transitions plus a comment: fifteen messages of
+ * bookkeeping for three decisions. This is the shape that made one wake contain
+ * 49 messages.
+ */
+for (const id of ["chatty", "chatty", "chatty"]) {
+  void id;
+}
+
+const RECONCILED = ["reconcile-a", "reconcile-b", "reconcile-c"];
+for (const taskId of RECONCILED) {
+  await say({
+    type: "task.upserted",
+    task: { id: taskId, projectId: "demo", title: `Card ${taskId}`, status: "backlog", points: 1 },
+  });
+}
+for (const taskId of RECONCILED) {
+  await say({ type: "task.transitioned", taskId, to: "assigned" });
+  await say({ type: "task.transitioned", taskId, to: "in_progress" });
+  await say({
+    type: "task.commented",
+    taskId,
+    comment: { id: `${taskId}-c1`, author: AUTHOR, body: "Closing: verified against the deployed build.", createdAt: "2026-09-09T10:00:00Z" },
+  });
+  await say({ type: "task.transitioned", taskId, to: "review" });
+  await say({ type: "task.transitioned", taskId, to: "done" });
+}
+
+console.log(`seeded a reconciliation: ${RECONCILED.length} cards, ${RECONCILED.length * 6} messages`);

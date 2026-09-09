@@ -298,6 +298,15 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 /* The top-of-transcript boundary note. Deliberately plain and unalarming: it
    is a statement of scope, not an error. */
 .room-history-edge { margin: 0 0 10px; padding: 7px 9px; border: 1px dashed var(--line); border-radius: 5px; color: var(--muted); font-size: 11px; text-align: center; }
+/* A folded run of board bookkeeping. Quiet by design — it is the thing a reader
+   is trying to skip past, so it must not compete with the conversation. The
+   marker and count make it obvious there is something behind the summary. */
+.collapsed-run { margin: 8px 0; padding: 7px 10px; border-left: 2px solid var(--line); background: color-mix(in srgb, var(--muted) 5%, transparent); border-radius: 0 5px 5px 0; }
+.collapsed-run > summary { color: var(--muted); font-size: 12px; cursor: pointer; list-style: revert; }
+.collapsed-run > summary b { color: var(--ink); font-weight: 700; }
+.collapsed-run > summary small { display: inline-block; margin-left: 7px; padding: 0 5px; border: 1px solid var(--line); border-radius: 9px; font-size: 10px; }
+.collapsed-run-body { margin-top: 8px; padding-left: 8px; border-left: 1px dashed var(--line); }
+.collapsed-run-body article { margin-bottom: 8px; }
 .crew-event-raw { margin-top: 6px; }
 .crew-event-raw > summary { color: var(--muted); font-size: 12px; cursor: pointer; }
 .crew-event-raw pre { max-height: 220px; margin: 6px 0 0; overflow: auto; padding: 8px; background: var(--canvas); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }

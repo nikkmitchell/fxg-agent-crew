@@ -28,6 +28,19 @@ export type CrewEventSummary = {
    * parser.
    */
   quoted: boolean;
+  /**
+   * What the event was about, when it is about one card.
+   *
+   * Exposed so the transcript can group a run of events by the card they touch.
+   * Closing a single card costs four messages — backlog to done is not a legal
+   * transition — so a board reconciliation arrives as dozens of one-line
+   * transitions, and a person scrolling for judgement wades through all of it.
+   */
+  subject?: string;
+  /** Discriminator, for grouping and for wording a collapsed summary. */
+  eventType?: string;
+  /** Where a transition ended up, for the same reason. */
+  to?: string;
 };
 
 const FENCE = /^```crew-event\s*\n([\s\S]*?)\n?```\s*$/;
@@ -71,9 +84,24 @@ export function summariseCrewEvent(content: string): CrewEventSummary | null {
   const plain = headline ?? `recorded a ${payload.type} event`;
   // Past tense for what happened, conditional for what did not. "Example: would
   // move…" cannot be misread as a record of a change, which "moved…" can.
+  const subject = typeof payload.taskId === "string"
+    ? payload.taskId
+    : typeof (payload.task as { id?: unknown } | undefined)?.id === "string"
+      ? ((payload.task as { id: string }).id)
+      : typeof (payload.project as { id?: unknown } | undefined)?.id === "string"
+        ? ((payload.project as { id: string }).id)
+        : undefined;
+  const details = {
+    raw: trimmed,
+    quoted,
+    ...(subject ? { subject } : {}),
+    eventType: payload.type,
+    ...(typeof payload.to === "string" ? { to: payload.to } : {}),
+  };
+
   return quoted
-    ? { headline: `Example, not run — this would have ${asWouldHave(plain)}`, raw: trimmed, quoted }
-    : { headline: plain, raw: trimmed, quoted };
+    ? { headline: `Example, not run — this would have ${asWouldHave(plain)}`, ...details }
+    : { headline: plain, ...details };
 }
 
 function describe(payload: Record<string, unknown>): string | null {

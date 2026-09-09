@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useWebharnessRoom } from "./use-webharness-room";
 import { summariseCrewEvent } from "./crew-event-summary";
 import { canCompose } from "./connection-state";
+import { collapseTranscript, type TranscriptEntry } from "./collapse-transcript";
 
 /**
  * One message. Board events are posted into this room as fenced JSON — that is
@@ -37,6 +38,33 @@ function MessageBody({ message }: { message: { id: number; username: string; cre
       )}
       {message.streaming && <small>writing…</small>}
     </article>
+  );
+}
+
+/**
+ * A run of board bookkeeping, folded to one line.
+ *
+ * Closed, but not hidden: `<details>` keeps every original message one click
+ * away, unchanged and in order, because the room is the only durable store this
+ * product has and a summary is an interpretation of it.
+ *
+ * Not defaultOpen, and not a filter toggle either. A filter is a setting
+ * somebody has to find and then remember they set; a disclosure is the same
+ * decision made per run, in place, by the person actually reading.
+ */
+function CollapsedRun({ entry }: { entry: Extract<TranscriptEntry, { kind: "collapsed" }> }) {
+  return (
+    <details className="collapsed-run">
+      <summary>
+        <b>{entry.author}</b> {entry.headline}
+        <small>{entry.messages.length} events</small>
+      </summary>
+      <div className="collapsed-run-body">
+        {entry.messages.map((message) => (
+          <MessageBody key={message.id} message={message} />
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -200,9 +228,17 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
                 fetched from here yet.
               </p>
             ) : null}
-            {state.messages.length === 0 ? <div className="room-empty"><p>No messages loaded yet.</p></div> : state.messages.map((message) => (
-              <MessageBody key={message.id} message={message} />
-            ))}
+            {state.messages.length === 0 ? (
+              <div className="room-empty"><p>No messages loaded yet.</p></div>
+            ) : (
+              collapseTranscript(state.messages).map((entry) =>
+                entry.kind === "message" ? (
+                  <MessageBody key={entry.message.id} message={entry.message} />
+                ) : (
+                  <CollapsedRun key={entry.messages[0].id} entry={entry} />
+                ),
+              )
+            )}
           </div>
 
           {/*
