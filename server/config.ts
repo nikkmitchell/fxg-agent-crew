@@ -25,6 +25,8 @@ export type Config = {
   databasePath: string;
   /** Where uploaded bytes live. The one thing here that cannot be rebuilt. */
   blobRoot: string;
+  /** Pino level. "silent" exists so tests that bind a port stay readable. */
+  logLevel: string;
 };
 
 /**
@@ -70,5 +72,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     projectMutators: (env.PROJECT_MUTATORS ?? "").split(",").map((value) => value.trim()).filter(Boolean),
     databasePath: env.DATABASE_PATH ?? (production ? "./data/saha.db" : ":memory:"),
     blobRoot: env.BLOB_ROOT ?? (production ? "./data/blobs" : "./.dev-blobs"),
+    // Kept as a knob rather than hardcoded so a test that binds a real port can
+    // silence request logging. Defaults to the level everything ran at before.
+    logLevel: env.LOG_LEVEL ?? "info",
   };
 }
