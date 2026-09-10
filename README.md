@@ -6,10 +6,13 @@ unknown renders as unknown rather than as a confident guess.
 
 ## What is actually running
 
-Live at **https://saha.ing** — front door at `/`, Mission Control at `/space/`.
-The classic WebHarness chat is untouched and cannot be captured by this service:
-`release.sh` refuses to ship unless the app returns 404 for `/` and `/api/rooms`
-on loopback.
+Live at **https://saha.ing** — Mission Control is the site, at `/`. It lived
+under `/space/` until 2026-09-10; those links still redirect.
+
+`/api/` stays reserved: `release.sh` refuses to ship unless the app returns 404
+for `/api/rooms` on loopback, so anything else served from this origin later
+cannot be swallowed by the SPA fallback. `/` itself must now return 200 — it is
+ours.
 
 The **Build** tab reports the deployed commit, or says UNKNOWN with a reason.
 Treat that as more current than this file — a README is a claim, and the Build
