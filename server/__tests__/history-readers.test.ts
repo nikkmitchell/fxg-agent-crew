@@ -44,6 +44,9 @@ const CLASSIFIED: Record<string, "exhaustive" | "bounded-window" | "write"> = {
   // Appends a crew-event to the room. Refuses over 2000 characters before
   // sending, so the durable log never receives something upstream will reject.
   "server/routes/projects.ts": "write",
+  // The one-time import for ADR-002. Same drainPages, and it compares what it
+  // wrote against a fold of the room before declaring success.
+  "tools/import-from-chat.mts": "exhaustive",
   // Two things: it POSTs a chat message, and its GET delegates straight to
   // pollMessages. It has no traversal of its own, which is the point — an
   // earlier version of this project had three.
