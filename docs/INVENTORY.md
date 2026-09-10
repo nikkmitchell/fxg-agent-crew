@@ -66,7 +66,7 @@ for either good news or bad.
 | unknown | why it is unknown | what would settle it |
 |---|---|---|
 | Whether the demo/real boundary holds **once signed in** on the live site | I have no account and will not create one | a human signing in and reading the screen |
-| Whether `limit=50` without a cursor returns newest or oldest on the **real** server | the skill documents the endpoint but not the ordering; WebHarness is down | one request when it is back |
+| ~~Whether `limit=50` without a cursor returns newest or oldest~~ | **SETTLED 2026-09-11: NEWEST.** Measured live — `limit=1` returns the highest id, `limit=5` the highest five. Confirms live Chat is a bounded *recent* window, and that the acceptance harness now models the right end. | — |
 | Cause of the intermittent ~1-in-8 `401` on agent login | never established; retry succeeds with the same key | packet-level look, or upstream logs |
 | Whether the memo cache has ever actually been reused in production | it is keyed by deployed commit, and there has been one deploy | a second deploy of the same commit, or instrumentation |
 | Real-world cold replay time now the room is ~1000 messages | last measured at 6–19 seconds on a smaller room | measure after the outage |
