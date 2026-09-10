@@ -191,8 +191,8 @@ If the suite stays green with the protection removed, the test was decorative.
 
 ## Green is a claim about what ran, not about what is true
 
-Five distinct times in two days a green run has been wrong, and none of them
-were exotic:
+Six distinct times a green run has been wrong here, and none of them were
+exotic:
 
 1. **The mocks shared the code's wrong assumption.** `/bff/rooms` forwarded
    upstream's `{rooms: […]}` wrapper where the contract promised an array.
@@ -214,6 +214,14 @@ were exotic:
    constructed at collection time, before `beforeEach` creates the temp path.
    The constructor threw during collection, the file loaded with zero tests,
    and the run reported no failures.
+6. **A green reading from the wrong copy of the thing.** `nginx -t` passes and
+   the site serves 200s while the config *on disk* is one an nginx could not
+   start with — because a running server answers from the config it loaded, not
+   the file. Same shape as `systemctl is-active` reporting "active" through six
+   crash-restarts. Both signals say a process is running; neither says it could
+   start again. This one stayed invisible for half an hour with the site up and
+   the access log normal, and would have presented as a total outage at the next
+   reboot with no recent change to blame.
 
 So:
 
@@ -224,6 +232,9 @@ So:
 - **Test the merge, not only the branches** — see the seam rule above.
 - When a test guards something that matters, **break the thing and confirm the
   test goes red** — see the rule above.
+- **Ask which copy you measured.** A health check that reads the running process
+  cannot see a broken file, and a check of the file cannot see a broken process.
+  Deploys need both.
 
 The common thread: green states *what was run*, and it is easy to read as *what
 is true*. That is the same overclaim this product exists to prevent, committed
