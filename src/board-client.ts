@@ -96,3 +96,59 @@ export const board = {
 
   blobUrl: (id: string) => `${base()}/blobs/${encodeURIComponent(id)}`,
 };
+
+/* ------------------------------------------------------------- shape ------ */
+
+/**
+ * Turn database rows into the shapes the screens already render.
+ *
+ * The UI was written against the folded chat state and renders it correctly;
+ * rewriting every component to speak snake_case would be a large diff whose
+ * only effect is churn. This is the seam, and it is the ONLY place that knows
+ * both vocabularies.
+ */
+export function toCrewTask(row: Record<string, any>) {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    title: row.title,
+    status: row.status,
+    points: row.points ?? 1,
+    // Absent stays absent. A `?? "build"` here would invent the answer the
+    // schema deliberately refuses to invent.
+    ...(row.kind ? { kind: row.kind } : {}),
+    ...(row.priority ? { priority: row.priority } : {}),
+    ...(row.description ? { description: row.description } : {}),
+    ...(row.blocker ? { blocker: row.blocker } : {}),
+    ...(row.assignee_id ? { assigneeId: row.assignee_id } : {}),
+    owners: row.owners ?? [],
+    acceptedBy: row.acceptedBy ?? [],
+    comments: (row.comments ?? []).map((c: Record<string, any>) => ({
+      id: c.id, author: c.author_id, body: c.body, createdAt: c.created_at,
+    })),
+    links: (row.links ?? []).map((l: Record<string, any>) => ({ label: l.label, href: l.href })),
+  };
+}
+
+export function toCrewProject(row: Record<string, any>) {
+  return {
+    id: row.id,
+    name: row.name,
+    summary: row.summary ?? "",
+    goals: row.goals ?? [],
+    steps: [],
+  };
+}
+
+export function toProfile(row: Record<string, any>) {
+  return {
+    actorId: row.id,
+    kind: row.kind,
+    displayName: row.display_name ?? row.id,
+    ...(row.bio ? { bio: row.bio } : {}),
+    ...(row.coarse_location ? { coarseLocation: row.coarse_location } : {}),
+    ...(row.time_zone ? { timeZone: row.time_zone } : {}),
+    ...(row.model ? { model: row.model } : {}),
+    ...(row.runtime ? { runtime: row.runtime } : {}),
+  };
+}
