@@ -7,37 +7,37 @@
 # rehearses the off-host one, which is the copy you reach for on the day the
 # disk is gone and nothing else is available.
 #
-#   BACKUP_PASSPHRASE=... deploy/restore.sh <bundle.tar.gz.enc> <target-dir>
+#   BACKUP_IDENTITY=/path/to/age-key.txt deploy/restore.sh <bundle.tar.gz.age> <target-dir>
 #
+# The identity is the private key the bundle was encrypted TO. It does not live
+# on saha.ing — that is the point. If you cannot find it, you cannot read these
+# backups, and no amount of access to the server will help.
 set -euo pipefail
 
-BUNDLE=${1:?usage: restore.sh <bundle.tar.gz.enc> <target-dir>}
-TARGET=${2:?usage: restore.sh <bundle.tar.gz.enc> <target-dir>}
-: "${BACKUP_PASSPHRASE:?BACKUP_PASSPHRASE is required}"
+BUNDLE=${1:?usage: restore.sh <bundle.tar.gz.age> <target-dir>}
+TARGET=${2:?usage: restore.sh <bundle.tar.gz.age> <target-dir>}
+: "${BACKUP_IDENTITY:?BACKUP_IDENTITY (path to the age private key) is required}"
+[ -f "$BACKUP_IDENTITY" ] || { echo "no identity file at $BACKUP_IDENTITY" >&2; exit 1; }
 
 mkdir -p "$TARGET"
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 
-openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -pass env:BACKUP_PASSPHRASE -in "$BUNDLE" -out "$WORK/bundle.tar.gz"
-
-# CHECK BEFORE TRUSTING. AES-CBC is unauthenticated, so a wrong passphrase or a
-# corrupted file decrypts to garbage and exits 0. Comparing against the
-# plaintext checksum taken at backup time is what turns "it produced output"
-# into "it produced the right output".
-if [ -f "$BUNDLE.sha256" ]; then
-  EXPECTED=$(cat "$BUNDLE.sha256")
-  ACTUAL=$(shasum -a 256 "$WORK/bundle.tar.gz" | awk '{print $1}')
-  if [ "$EXPECTED" != "$ACTUAL" ]; then
-    echo "FAILED: decrypted bundle does not match its checksum." >&2
-    echo "  expected $EXPECTED" >&2
-    echo "  actual   $ACTUAL" >&2
-    echo "Either the passphrase is wrong or the backup is corrupt. Not restoring." >&2
-    exit 1
-  fi
-  echo "checksum matches the plaintext recorded at backup time"
-else
-  echo "WARNING: no .sha256 beside the bundle — cannot tell a good decrypt from a bad one" >&2
+# age is AUTHENTICATED. A modified or truncated bundle fails here rather than
+# producing plausible garbage, and there is no separate integrity file that an
+# attacker could replace alongside the ciphertext.
+#
+# The previous version used openssl AES-CBC with a checksum shipped beside the
+# bundle. Inkstone pointed out that this is not authenticated encryption:
+# whoever can replace the bundle can replace the checksum too. It caught
+# accidental corruption and nothing more, while being described as if it caught
+# tampering.
+if ! age -d -i "$BACKUP_IDENTITY" -o "$WORK/bundle.tar.gz" "$BUNDLE" 2>"$WORK/age.err"; then
+  echo "FAILED: could not decrypt and authenticate the bundle." >&2
+  sed "s/^/  /" "$WORK/age.err" >&2
+  echo "Either this is the wrong identity or the backup has been altered. Not restoring." >&2
+  exit 1
 fi
+echo "decrypted and authenticated"
 
 tar -xzf "$WORK/bundle.tar.gz" -C "$WORK"
 gunzip -c "$WORK"/db/saha-*.db.gz > "$TARGET/saha.db"

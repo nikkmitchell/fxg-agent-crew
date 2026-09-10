@@ -166,6 +166,11 @@ systemctl enable --now fxg-backup.timer
 systemctl list-timers fxg-backup.timer     # confirm it is actually scheduled
 ```
 
+Off-host copies are encrypted with **age** to a public key this host does not
+hold, so compromising saha.ing gets you the live data (which the attacker
+already has) and not the history. `apt-get install age`, then
+`age-keygen -o key.txt` somewhere that is **not this server**.
+
 `backup.sh --verify` restores the snapshot it just took, reads from it, and
 checks that every blob the database references is present in the backup. A
 backup nobody has restored is not a backup, and a database that references

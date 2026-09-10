@@ -25,7 +25,9 @@
 #
 # OFF-HOST is not optional. A backup on the same disk as the thing it backs up
 # is not a backup; it is a second copy that dies at the same moment. Set
-# BACKUP_REMOTE to somewhere else and this ships an encrypted copy there.
+# BACKUP_REMOTE and BACKUP_RECIPIENT (an age public key) and this ships an
+# authenticated encrypted copy there — encrypted to a key this host does not
+# hold, so it cannot read its own backups.
 #
 set -euo pipefail
 
@@ -67,41 +69,52 @@ ls -1dt "$DEST"/blobs/*/ 2>/dev/null | grep -v "/latest/$" | tail -n +$((KEEP + 
 SIZE=$(du -sh "$DEST" | cut -f1)
 echo "backed up to $DEST ($SIZE total, keeping $KEEP)"
 
-# Off-host, encrypted.
+# Off-host, with AUTHENTICATED encryption.
 #
-# Encrypted BEFORE it leaves, so the destination never holds readable copies of
-# people's boards and images. A passphrase in the environment is a modest
-# secret, and it is the difference between "somebody else has our data" and
-# "somebody else has our ciphertext".
+# The first version of this used `openssl enc -aes-256-cbc` and shipped a
+# SHA-256 of the plaintext beside the bundle. Inkstone caught that it is not
+# authenticated encryption, and they were right: the checksum sits next to the
+# ciphertext, unprotected, so anyone who can replace the bundle can replace the
+# checksum too. It detected accidental corruption and nothing else — while I
+# had described it as making tampering detectable, which it did not.
+#
+# `age` is authenticated (ChaCha20-Poly1305): a modified ciphertext fails to
+# decrypt rather than producing plausible garbage, and there is no separate
+# integrity file to forge.
+#
+# And it encrypts to a PUBLIC key, so this host cannot read its own backups.
+# The private key lives wherever you keep such things — not here. Compromising
+# saha.ing then gets you the live data, which the attacker already has, and not
+# the history.
 if [ -n "${BACKUP_REMOTE:-}" ]; then
-  if [ -z "${BACKUP_PASSPHRASE:-}" ]; then
-    echo "BACKUP_REMOTE is set but BACKUP_PASSPHRASE is not — refusing to ship plaintext off-host" >&2
+  if [ -z "${BACKUP_RECIPIENT:-}" ]; then
+    echo "BACKUP_REMOTE is set but BACKUP_RECIPIENT (an age public key) is not." >&2
+    echo "Refusing to ship anything off-host unencrypted or unauthenticated." >&2
     exit 1
   fi
-  BUNDLE="$DEST/offsite-$STAMP.tar.gz.enc"
-  PLAIN="$DEST/offsite-$STAMP.tar.gz"
-  tar -czf "$PLAIN" -C "$DEST" "db/saha-$STAMP.db.gz" -C "$DEST/blobs" "$STAMP"
+  command -v age >/dev/null || { echo "age is not installed; refusing to fall back to unauthenticated encryption" >&2; exit 1; }
 
-  # The checksum is of the PLAINTEXT, and it is what makes this detectable
-  # rather than merely private.
-  #
-  # openssl enc uses AES-CBC, which is unauthenticated: decrypting with the
-  # wrong key, or decrypting a corrupted file, produces GARBAGE rather than an
-  # error. I checked — a wrong passphrase returned noise and exit 0. Without
-  # this line you would discover a bad backup by restoring it and finding a
-  # database full of rubbish, at the exact moment you least want a surprise.
-  shasum -a 256 "$PLAIN" | awk '{print $1}' > "$BUNDLE.sha256"
-
-  openssl enc -aes-256-cbc -pbkdf2 -iter 250000 -salt -pass env:BACKUP_PASSPHRASE -in "$PLAIN" -out "$BUNDLE"
-  rm -f "$PLAIN"
-  rsync -a --remove-source-files "$BUNDLE" "$BUNDLE.sha256" "$BACKUP_REMOTE/" \
-    && echo "shipped encrypted copy to $BACKUP_REMOTE (with plaintext checksum for restore)"
+  BUNDLE="$DEST/offsite-$STAMP.tar.gz.age"
+  tar -czf - -C "$DEST" "db/saha-$STAMP.db.gz" -C "$DEST/blobs" "$STAMP" \
+    | age -r "$BACKUP_RECIPIENT" -o "$BUNDLE"
+  rsync -a --remove-source-files "$BUNDLE" "$BACKUP_REMOTE/" \
+    && echo "shipped authenticated encrypted copy to $BACKUP_REMOTE"
 else
   # Said out loud every run. A backup that lives on the same disk as the data
   # is one disk failure from being no backup at all, and a warning nobody sees
   # is the same as no warning.
   echo "WARNING: BACKUP_REMOTE not set — every copy is on the same disk as the data." >&2
 fi
+
+SIZE=$(du -sh "$DEST" | cut -f1)
+echo "backed up to $DEST ($SIZE total, keeping $KEEP)"
+
+# Off-host, encrypted.
+#
+# Encrypted BEFORE it leaves, so the destination never holds readable copies of
+# people's boards and images. A passphrase in the environment is a modest
+# secret, and it is the difference between "somebody else has our data" and
+# "somebody else has our ciphertext".
 
 if [ "${1:-}" = "--verify" ]; then
   # A BACKUP NOBODY HAS RESTORED IS NOT A BACKUP. This restores the snapshot
