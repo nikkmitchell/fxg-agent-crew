@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { CrewTask } from "./event-core";
 import type { ActorProfile, Ownership } from "./profiles";
 import type { Membership } from "./membership";
+import { BoardError, board, toCrewProject, toCrewTask, toProfile } from "./board-client";
 import type { CrewProject } from "./event-core";
 import { People } from "./People";
 import type { Session } from "./use-session";
@@ -27,32 +28,34 @@ export function PeoplePanel({ session }: { session: Session | null }) {
   const [state, setState] = useState<"loading" | "ready" | "signed_out" | "error">("loading");
 
   const load = useCallback(async () => {
-    const response = await fetch(
-      `${import.meta.env.BASE_URL}bff/projects?room=${encodeURIComponent(PROJECT_ROOM)}`,
-      { credentials: "include" },
-    );
-    if (response.status === 401) {
-      setState("signed_out");
-      return;
+    try {
+      // The database, not a fold of the room. People, ownership and membership
+      // are rows now; the tasks come with whichever project is open, because
+      // this surface only needs them to say who owns what.
+      const [people, list] = await Promise.all([board.people(), board.projects()]);
+      const projects = (list.projects ?? []) as Array<Record<string, unknown>>;
+      const details = await Promise.all(
+        projects.map((project) => board.project(String(project.id))),
+      );
+
+      setData({
+        tasks: details.flatMap((detail) =>
+          ((detail?.tasks ?? []) as Array<Record<string, unknown>>).map(toCrewTask)) as CrewTask[],
+        profiles: (people.actors ?? []).map((row) => toProfile(row as Record<string, unknown>)) as ActorProfile[],
+        ownerships: (people.ownerships ?? []) as Ownership[],
+        memberships: (people.memberships ?? []) as Membership[],
+        projects: projects.map((row) => toCrewProject(row)) as CrewProject[],
+      });
+      setState("ready");
+    } catch (cause) {
+      // A 401 is "sign in", not "something broke". Conflating them sends
+      // someone looking for a fault that is really a session.
+      if (cause instanceof BoardError && cause.status === 401) {
+        setState("signed_out");
+        return;
+      }
+      throw cause;
     }
-    if (!response.ok) throw new Error(String(response.status));
-    const body = (await response.json()) as {
-      tasks?: CrewTask[];
-      profiles?: ActorProfile[];
-      ownerships?: Ownership[];
-      memberships?: Membership[];
-      projects?: CrewProject[];
-    };
-    setData({
-      tasks: body.tasks ?? [],
-      profiles: body.profiles ?? [],
-      ownerships: body.ownerships ?? [],
-      // Array.isArray, not `?? []`: the BFF's own contract was broken once by a
-      // value that survived a nullish check and then failed on .filter.
-      memberships: Array.isArray(body.memberships) ? body.memberships : [],
-      projects: Array.isArray(body.projects) ? body.projects : [],
-    });
-    setState("ready");
   }, []);
 
   useEffect(() => {

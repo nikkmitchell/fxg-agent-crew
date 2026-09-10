@@ -336,6 +336,10 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .moodboard-note { margin: 0; padding: 10px; font-size: 13px; }
 .moodboard-remove { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--ink) 70%, transparent); color: white; font-size: 13px; line-height: 1; cursor: pointer; }
 .moodboard-note-foot { margin: 7px 0 0; color: var(--muted); font-size: 11px; }
+.moodboard-new { display: flex; align-items: end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.moodboard-new label { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.moodboard-new input { flex: 1; max-width: 320px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--canvas); font-size: 13px; }
+.moodboard-new button { padding: 7px 13px; border: 0; border-radius: 5px; background: var(--ink); color: white; font-size: 12px; font-weight: 800; cursor: pointer; }
 .crew-event-raw { margin-top: 6px; }
 .crew-event-raw > summary { color: var(--muted); font-size: 12px; cursor: pointer; }
 .crew-event-raw pre { max-height: 220px; margin: 6px 0 0; overflow: auto; padding: 8px; background: var(--canvas); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
