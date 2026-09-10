@@ -7,7 +7,6 @@ import type { CrewProject } from "./event-core";
 import { People } from "./People";
 import type { Session } from "./use-session";
 
-const PROJECT_ROOM = "AgentParty";
 
 /**
  * Loads the board so People can be derived from it.
@@ -70,17 +69,32 @@ export function PeoplePanel({ session }: { session: Session | null }) {
    * profile would put a change on screen that the log may have rejected, which
    * is the exact failure this product exists to avoid.
    */
+  /**
+   * Publish one intent through the board API.
+   *
+   * This still posted a crew-event fence to /bff/project-events after the
+   * cutover, which by then did nothing. A profile edit or an ownership claim
+   * would have appeared to succeed — the request returned 201, the fence
+   * reached the room, and the board never saw it. Silent, and exactly the
+   * class of failure the cutover detector exists to catch in AGENTS while I
+   * had left it in our own UI.
+   *
+   * The old payload shapes are kept at the call sites because they are how the
+   * People surface thinks; the translation lives here, in one place.
+   */
   const publish = useCallback(
     async (payload: unknown) => {
-      const response = await fetch(`${import.meta.env.BASE_URL}bff/project-events`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ room: PROJECT_ROOM, payload }),
-      });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `Could not save (${response.status})`);
+      const intent = payload as Record<string, any>;
+      if (intent.type === "profile.upserted") {
+        const { actorId: _ignored, ...profile } = intent.profile as Record<string, unknown>;
+        // actorId is dropped rather than sent: the server takes the acting
+        // identity from the session, and a field that is ignored is better
+        // removed than left to look meaningful.
+        await board.profile(profile);
+      } else if (intent.type === "ownership.acted") {
+        await board.actOnOwnership(intent.agentActorId, intent.ownerActorId, intent.action);
+      } else {
+        throw new Error(`no board endpoint for ${String(intent.type)}`);
       }
       await load();
     },

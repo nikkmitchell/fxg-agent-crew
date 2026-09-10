@@ -12,7 +12,6 @@ import { BoardError, board, toCrewProject, toCrewTask, toProfile } from "./board
 import { MoodBoard, type Board } from "./MoodBoard";
 import { briefBudget, describeBudget } from "../shared/message-budget";
 
-const PROJECT_ROOM = "AgentParty";
 
 type ProjectState = {
   projects: CrewProject[];
