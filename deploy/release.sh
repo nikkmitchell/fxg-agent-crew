@@ -196,7 +196,13 @@ if [ -n "${PUBLIC_URL:-}" ]; then
 
   # The only check that proves nginx actually upgrades. Everything before it
   # proves the app does, which is the half that was never broken.
-  pub_ws=$(ws "$(sed 's|^http|ws|' <<<"${PUBLIC_URL%/}")/bff/space/socket")
+  #
+  # Kept on https:// rather than rewritten to wss://. curl speaks WebSocket
+  # natively for a ws:// or wss:// URL and then ignores hand-written upgrade
+  # headers, which produced a flat 000 and an error message accusing nginx of
+  # not upgrading while it was upgrading perfectly well. As an HTTP request with
+  # the headers spelled out, the 101 is the server's answer, not curl's.
+  pub_ws=$(ws "${PUBLIC_URL%/}/bff/space/socket")
   [ "$pub_ws" = "101" ] || fail "the public /bff/space/socket returned $pub_ws to a handshake, expected 101 — nginx is not upgrading"
   printf '  %-12s 101 (upgraded)\n' "/bff/space/socket"
 else
