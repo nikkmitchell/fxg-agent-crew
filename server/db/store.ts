@@ -343,6 +343,87 @@ export class BoardStore {
       this.audit(actor.id, action, "membership", `${projectId}:${actorId}`, undefined, { roles: clean });
     });
   }
+
+  // ------------------------------------------------------------ mood boards
+
+  createBoard(actor: Actor, projectId: string, name: string) {
+    if (!name.trim()) throw new Refused("a board needs a name");
+    return this.tx(() => {
+      this.assertAuthority(actor.id, projectId);
+      const id = randomUUID();
+      this.db.prepare("INSERT INTO boards (id,project_id,name,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?)")
+        .run(id, projectId, name.trim(), actor.id, now(), now());
+      this.audit(actor.id, "create", "board", id, undefined, { name });
+      return id;
+    });
+  }
+
+  private boardProject(boardId: string): string {
+    const row = this.db.prepare("SELECT project_id FROM boards WHERE id = ?").get(boardId) as
+      | { project_id: string } | undefined;
+    if (!row) throw new Refused("no such board", "NOT_FOUND");
+    return row.project_id;
+  }
+
+  addBoardItem(actor: Actor, boardId: string, item: {
+    kind: "image" | "link" | "note" | "swatch";
+    blobId?: string; url?: string; text?: string; caption?: string;
+    x?: number; y?: number; w?: number; h?: number;
+  }) {
+    return this.tx(() => {
+      this.assertAuthority(actor.id, this.boardProject(boardId));
+      if (item.kind === "image" && !item.blobId) throw new Refused("an image item needs an uploaded file");
+      if (item.kind === "link" && !item.url) throw new Refused("a link item needs a url");
+      if ((item.kind === "note" || item.kind === "swatch") && !item.text?.trim()) {
+        throw new Refused(`a ${item.kind} needs text`);
+      }
+      // A link that is not http(s) is either a mistake or an attempt at
+      // javascript: — neither belongs on a board other people click.
+      if (item.url && !/^https?:\/\//i.test(item.url)) {
+        throw new Refused("a link must be http or https", "BAD_URL");
+      }
+      const id = randomUUID();
+      // Placed on top by default: a new item you cannot see reads as an upload
+      // that failed.
+      const top = (this.db.prepare("SELECT COALESCE(MAX(z), 0) + 1 AS z FROM board_items WHERE board_id = ?")
+        .get(boardId) as { z: number }).z;
+      this.db.prepare(`INSERT INTO board_items (id,board_id,kind,blob_id,url,text,caption,x,y,w,h,z,added_by,added_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(id, boardId, item.kind, item.blobId ?? null, item.url ?? null, item.text?.trim() ?? null,
+             item.caption?.trim() || null, item.x ?? 0, item.y ?? 0, item.w ?? 240, item.h ?? 240,
+             top, actor.id, now());
+      this.audit(actor.id, "add", "board_item", id, undefined, { boardId, kind: item.kind });
+      return id;
+    });
+  }
+
+  moveBoardItem(actor: Actor, itemId: string, at: { x: number; y: number; w?: number; h?: number; z?: number }) {
+    return this.tx(() => {
+      const row = this.db.prepare("SELECT board_id FROM board_items WHERE id = ?").get(itemId) as
+        | { board_id: string } | undefined;
+      if (!row) throw new Refused("no such item", "NOT_FOUND");
+      this.assertAuthority(actor.id, this.boardProject(row.board_id));
+      // Dragging is not audited. A board is arranged by moving things around
+      // dozens of times, and an audit row per drag would bury the changes that
+      // actually matter under noise — the same lesson as saha-machine-noise.
+      this.db.prepare("UPDATE board_items SET x=?, y=?, w=COALESCE(?,w), h=COALESCE(?,h), z=COALESCE(?,z) WHERE id=?")
+        .run(at.x, at.y, at.w ?? null, at.h ?? null, at.z ?? null, itemId);
+    });
+  }
+
+  removeBoardItem(actor: Actor, itemId: string) {
+    return this.tx(() => {
+      const row = this.db.prepare("SELECT * FROM board_items WHERE id = ?").get(itemId) as
+        | Record<string, unknown> | undefined;
+      if (!row) throw new Refused("no such item", "NOT_FOUND");
+      this.assertAuthority(actor.id, this.boardProject(row.board_id as string));
+      this.db.prepare("DELETE FROM board_items WHERE id = ?").run(itemId);
+      // The BLOB is deliberately left alone. Someone else's board may show the
+      // same image, and deleting bytes on the strength of one reference is how
+      // you lose a file that was still in use.
+      this.audit(actor.id, "remove", "board_item", itemId, row, undefined);
+    });
+  }
 }
 
 const slug = (name: string) =>
