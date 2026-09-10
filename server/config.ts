@@ -15,6 +15,16 @@ export type Config = {
   sessionStorePath: string;
   /** Explicit WebHarness usernames allowed to mutate project state. */
   projectMutators: string[];
+  /**
+   * saha.ing's own database — the board, people, mood boards. See ADR-002.
+   *
+   * ":memory:" is right for tests and wrong for anything else, so production
+   * gets a real path under StateDirectory and never a default that silently
+   * loses everything on restart.
+   */
+  databasePath: string;
+  /** Where uploaded bytes live. The one thing here that cannot be rebuilt. */
+  blobRoot: string;
 };
 
 /**
@@ -58,5 +68,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // stray database files while iterating.
     sessionStorePath: env.SESSION_STORE_PATH ?? (production ? "./data/sessions.db" : ":memory:"),
     projectMutators: (env.PROJECT_MUTATORS ?? "").split(",").map((value) => value.trim()).filter(Boolean),
+    databasePath: env.DATABASE_PATH ?? (production ? "./data/saha.db" : ":memory:"),
+    blobRoot: env.BLOB_ROOT ?? (production ? "./data/blobs" : "./.dev-blobs"),
   };
 }

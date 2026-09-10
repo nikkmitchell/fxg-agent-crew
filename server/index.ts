@@ -1,8 +1,7 @@
 import { fileURLToPath } from "node:url";
-import { mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, resolve } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import staticPlugin from "@fastify/static";
@@ -13,6 +12,8 @@ import { registerAuthRoutes } from "./routes/auth.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
 import { registerProjectRoutes } from "./routes/projects.js";
 import { registerBuildRoutes } from "./routes/build.js";
+import { registerBoardRoutes } from "./routes/board.js";
+import { openDatabase } from "./db/open.js";
 
 /**
  * Backend-for-frontend.
@@ -56,6 +57,32 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const config = loadConfig(env);
   const app = Fastify({ logger: true });
   const sessions = createSessionStore(config);
+
+  // saha.ing's own database. Opened once per process and migrated on the way
+  // up, so a deploy that changes the schema fails at boot rather than on the
+  // first request that touches a new column.
+  if (config.databasePath !== ":memory:") mkdirSync(dirname(config.databasePath), { recursive: true });
+  const database = openDatabase(config.databasePath, DatabaseSync);
+
+  /**
+   * Uploads arrive as raw bytes.
+   *
+   * Fastify has no parser for image types, and without one it answers 415
+   * before a handler ever runs. Registering the types we actually store — and
+   * nothing else — means an unexpected content type is refused by the framework
+   * rather than reaching the sniffer as a surprise.
+   */
+  // The refused types are parsed too, on purpose. Fastify answers an
+  // unregistered content type with a bare 415, and the whole value of refusing
+  // SVG is the sentence that comes with it — "SVG can carry scripts, export it
+  // as PNG". The sniffer in blobs.ts is still the gate; this only decides
+  // whether the person gets an answer or a status code.
+  for (const mime of [
+    "image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf",
+    "application/octet-stream", "image/svg+xml", "text/html",
+  ]) {
+    app.addContentTypeParser(mime, { parseAs: "buffer" }, (_request, body, done) => done(null, body));
+  }
   const client = new WebharnessClient(config.webharnessUrl);
 
   app.register(cookie);
@@ -68,6 +95,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerRoomRoutes(scoped, config, sessions, client);
     registerProjectRoutes(scoped, config, sessions, client);
     registerBuildRoutes(scoped, config, sessions);
+    registerBoardRoutes(scoped, config, sessions, database, config.blobRoot);
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.
@@ -123,7 +151,10 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     return reply.sendFile("index.html");
   });
 
-  return { app, config };
+  // `sessions` is returned so a test can sign somebody in without a real
+  // upstream. Deliberately not a back door into a running server: this is the
+  // value the process already holds, handed to whoever constructed it.
+  return { app, config, sessions, database };
 }
 
 // Only listen when run directly, so tests can build the server without binding.

@@ -44,6 +44,13 @@ const CLASSIFIED: Record<string, "exhaustive" | "bounded-window" | "write"> = {
   // Appends a crew-event to the room. Refuses over 2000 characters before
   // sending, so the durable log never receives something upstream will reject.
   "server/routes/projects.ts": "write",
+  // The one-time import for ADR-002. Same drainPages, and it compares what it
+  // wrote against a fold of the room before declaring success.
+  "tools/import-from-chat.mts": "exhaustive",
+  // Post-cutover detector. Deliberately a BOUNDED WINDOW: it reads only after
+  // the recorded watermark, because everything before it was applied correctly
+  // and reporting it would be a false alarm about work that succeeded.
+  "tools/legacy-detector.mts": "bounded-window",
   // Two things: it POSTs a chat message, and its GET delegates straight to
   // pollMessages. It has no traversal of its own, which is the point — an
   // earlier version of this project had three.
@@ -91,7 +98,9 @@ describe("room-history readers", () => {
       const source = readFileSync(resolve(root, file), "utf8");
       // A window that does not report being a window is indistinguishable from
       // the whole record, which is the failure this project exists to prevent.
-      expect(source, file).toMatch(/mayHaveEarlier/);
+      // The detector declares its boundary as a cutover watermark rather than
+      // a page flag, so either is accepted — but it must declare one.
+      expect(source, file).toMatch(/mayHaveEarlier|after_id/);
     }
   });
 });

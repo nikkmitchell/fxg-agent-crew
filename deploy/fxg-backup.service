@@ -1,0 +1,12 @@
+[Unit]
+Description=Back up saha.ing's database and blobs
+After=fxg-crew.service
+
+[Service]
+Type=oneshot
+# Runs as root so it can read the service's state directory and write to
+# /var/backups. It reads and copies; it never writes into the live data.
+ExecStart=/opt/fxg-crew/deploy/backup.sh --verify
+Environment=DATABASE_PATH=/var/lib/fxg-crew/saha.db
+Environment=BLOB_ROOT=/var/lib/fxg-crew/blobs
+Environment=BACKUP_ROOT=/var/backups/fxg-crew

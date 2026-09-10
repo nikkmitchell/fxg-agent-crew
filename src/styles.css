@@ -315,6 +315,27 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .lineage-list { margin: 0; padding: 0; list-style: none; }
 .lineage-list > li + li { margin-left: 22px; padding-left: 14px; border-left: 2px solid var(--line); }
 .lineage-list > li + li::before { content: "operated by the person above"; display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+/* Mood board. A free surface rather than a grid: arranging things by eye is the
+   point, and a grid would make it a list with pictures. */
+.moodboard { margin-top: 14px; }
+.moodboard-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.moodboard-head h3 { margin: 0; font-size: 15px; }
+.moodboard-add input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+/* The label is the control, so it must look and focus like one — a file input
+   hidden behind a span is invisible to the keyboard otherwise. */
+.moodboard-add span { display: inline-block; padding: 6px 11px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); font-size: 12px; font-weight: 700; cursor: pointer; }
+.moodboard-add:focus-within span { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+.moodboard-surface { position: relative; min-height: 340px; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--canvas); overflow: auto; }
+.moodboard-surface.is-editable { border-style: dashed; }
+.moodboard-empty { max-width: 34ch; margin: 120px auto; color: var(--muted); font-size: 12px; text-align: center; }
+.moodboard-item { position: absolute; margin: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / .10); overflow: hidden; touch-action: none; }
+.moodboard-surface.is-editable .moodboard-item { cursor: grab; }
+.moodboard-item.is-dragging { cursor: grabbing; box-shadow: 0 6px 18px rgb(0 0 0 / .22); }
+.moodboard-item img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.moodboard-item figcaption { position: absolute; right: 0; bottom: 0; left: 0; padding: 4px 6px; background: color-mix(in srgb, var(--ink) 62%, transparent); color: white; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.moodboard-note { margin: 0; padding: 10px; font-size: 13px; }
+.moodboard-remove { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--ink) 70%, transparent); color: white; font-size: 13px; line-height: 1; cursor: pointer; }
+.moodboard-note-foot { margin: 7px 0 0; color: var(--muted); font-size: 11px; }
 .crew-event-raw { margin-top: 6px; }
 .crew-event-raw > summary { color: var(--muted); font-size: 12px; cursor: pointer; }
 .crew-event-raw pre { max-height: 220px; margin: 6px 0 0; overflow: auto; padding: 8px; background: var(--canvas); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -151,3 +151,26 @@ instead: it substitutes, picks up every name on the existing certificate (so
 installing with the apex does not silently drop `www`), refuses to write a file
 that still contains a placeholder, backs up what it replaces, and restores that
 backup if `nginx -t` fails.
+
+## Backups — not optional any more
+
+Until ADR-002, saha.ing was disposable: everything on it could be rebuilt by
+replaying chat. Uploaded images exist nowhere else, so from the first upload a
+lost disk is lost work.
+
+```bash
+# once, on the host
+cp deploy/fxg-backup.{service,timer} /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now fxg-backup.timer
+systemctl list-timers fxg-backup.timer     # confirm it is actually scheduled
+```
+
+`backup.sh --verify` restores the snapshot it just took, reads from it, and
+checks that every blob the database references is present in the backup. A
+backup nobody has restored is not a backup, and a database that references
+files the backup does not contain restores into a board full of broken images.
+
+It uses `sqlite3 .backup`, never `cp`: copying a live SQLite file gives you
+whatever was on disk mid-write, and with WAL enabled the copy can be missing
+committed transactions that live in the `-wal` file.

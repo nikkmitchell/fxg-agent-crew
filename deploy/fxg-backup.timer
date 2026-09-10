@@ -1,0 +1,13 @@
+[Unit]
+Description=Nightly backup of saha.ing's data
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+# Run on boot if the machine was off at 03:30. A backup schedule that silently
+# skips the nights a box was down is a schedule that fails exactly when
+# something was already going wrong.
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
