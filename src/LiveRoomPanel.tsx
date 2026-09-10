@@ -180,6 +180,26 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
           )}
 
           <div className="room-messages" aria-label="Room transcript">
+            {/*
+              * The top edge is a boundary, and it has to say so.
+              *
+              * Live Chat reads the most recent 50 messages and polls forward
+              * from there; there is no backwards paging, because upstream's
+              * `before` cursor does not page (it returned the same message
+              * twelve times — see docs/OPERATING-NOTES.md). So a busy room
+              * opens partway through its own history.
+              *
+              * Without this line the oldest loaded message sits at the top with
+              * nothing above it, which is indistinguishable from the start of
+              * the room. That is the exact failure this product exists to
+              * avoid: a partial answer presented as a complete one.
+              */}
+            {state.mayHaveEarlier && state.messages.length > 0 ? (
+              <p className="room-history-edge">
+                Showing recent messages. Earlier history is not loaded, and cannot be
+                fetched from here yet.
+              </p>
+            ) : null}
             {state.messages.length === 0 ? <div className="room-empty"><p>No messages loaded yet.</p></div> : state.messages.map((message) => (
               <MessageBody key={message.id} message={message} />
             ))}

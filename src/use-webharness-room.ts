@@ -90,7 +90,12 @@ export function useWebharnessRoom() {
         const initial = await bff.messages(roomName, { wait: 0, signal: controller.signal });
         if (controller.signal.aborted) return;
         cursor = initial.cursor ?? 0;
-        dispatch({ type: "MESSAGES_RECEIVED", messages: initial.messages, cursor: initial.cursor });
+        dispatch({
+          type: "MESSAGES_RECEIVED",
+          messages: initial.messages,
+          cursor: initial.cursor,
+          mayHaveEarlier: initial.mayHaveEarlier,
+        });
       } catch (error) {
         if (!controller.signal.aborted) dispatch({ type: "POLL_FAILED", code: errorCode(error) });
         return;

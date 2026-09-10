@@ -53,6 +53,23 @@ export type MessagePage = {
   messages: Message[];
   /** Highest id in this page; feed straight back as `afterId`. */
   cursor: number | null;
+  /**
+   * True when this is the FIRST page of a room and it came back full, so older
+   * messages probably exist above it and were not fetched.
+   *
+   * Live Chat is a bounded recent-history window: the first read asks for the
+   * most recent 50 and there is no backwards paging. That is a reasonable
+   * design for a chat — but until now nothing said so, and a reader who
+   * scrolled to the top saw an ordinary message with nothing above it, which
+   * looks exactly like the beginning of the room.
+   *
+   * "Probably" is deliberate. A room with exactly 50 messages produces a full
+   * page and nothing earlier, so this flag can be true when there is nothing
+   * above. It says what was measured — we asked for 50 and got 50 — rather
+   * than a fact nobody checked. Absent on incremental polls, which are not the
+   * start of anything.
+   */
+  mayHaveEarlier?: boolean;
 };
 
 /**

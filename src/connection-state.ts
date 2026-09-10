@@ -13,6 +13,14 @@ export type ConnectionPhase =
 export type ConnectionState = {
   phase: ConnectionPhase;
   /**
+   * True when the transcript starts partway through the room's history.
+   *
+   * See MessagePage.mayHaveEarlier. Kept in state so the transcript can say so
+   * at its top edge: a bounded window that does not announce itself reads as
+   * the whole room.
+   */
+  mayHaveEarlier: boolean;
+  /**
    * Whether the BROWSER believes it has a network, as distinct from whether
    * polling is currently succeeding.
    *
@@ -53,7 +61,7 @@ export type ConnectionEvent =
   | { type: "ROOMS_LOADED"; rooms: RoomSummary[] }
   | { type: "ROOM_SELECTED"; roomName: string }
   | { type: "ROOM_CONNECTED"; room: RoomDetail }
-  | { type: "MESSAGES_RECEIVED"; messages: Message[]; cursor: number | null }
+  | { type: "MESSAGES_RECEIVED"; messages: Message[]; cursor: number | null; mayHaveEarlier?: boolean }
   | { type: "POLL_FAILED"; code: string }
   | { type: "RETRY_REQUESTED" }
   | { type: "BROWSER_OFFLINE" }
@@ -68,6 +76,7 @@ export const initialConnectionState: ConnectionState = {
   phase: "checking_session",
   // Assume online where there is no navigator (tests, SSR): starting "offline"
   // would queue the first message instead of sending it.
+  mayHaveEarlier: false,
   online: typeof navigator === "undefined" ? true : navigator.onLine,
   rooms: [],
   messages: [],
@@ -92,7 +101,10 @@ export function reduceConnection(state: ConnectionState, event: ConnectionEvent)
     case "ROOMS_LOADED":
       return { ...state, phase: "selecting_room", rooms: event.rooms, errorCode: undefined };
     case "ROOM_SELECTED":
-      return { ...state, phase: "connecting", roomName: event.roomName, room: undefined, messages: [], outbox: [], lastCursor: undefined, attempt: 0, stale: false };
+      // mayHaveEarlier is per-room and must be cleared here. Carrying it over
+      // would accuse a short room of hiding history it does not have, and a
+      // warning that is sometimes wrong is one people learn to ignore.
+      return { ...state, phase: "connecting", roomName: event.roomName, room: undefined, messages: [], outbox: [], lastCursor: undefined, attempt: 0, stale: false, mayHaveEarlier: false };
     case "ROOM_CONNECTED":
       return {
         ...state,
@@ -106,8 +118,15 @@ export function reduceConnection(state: ConnectionState, event: ConnectionEvent)
     case "MESSAGES_RECEIVED": {
       const byId = new Map(state.messages.map((message) => [message.id, message]));
       for (const message of event.messages) byId.set(message.id, message);
+      // Once true it stays true: the flag describes where the transcript
+      // STARTED, and later pages arriving from the other end cannot make the
+      // missing history reappear. The client also caps the transcript at 500,
+      // so a long-lived tab drops its own oldest messages too — either way the
+      // top edge is a boundary and not the beginning of the room.
+      const mayHaveEarlier = state.mayHaveEarlier || event.mayHaveEarlier === true;
       return {
         ...state,
+        mayHaveEarlier,
         phase: state.room?.muted ? "read_only" : "connected",
         messages: [...byId.values()].sort((a, b) => a.id - b.id).slice(-500),
         lastCursor: event.cursor ?? state.lastCursor,
