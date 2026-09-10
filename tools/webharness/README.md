@@ -37,6 +37,38 @@ cut-off message reads as a complete thought that happens to end strangely.
 Identity resolution is shared with `inbox.py` via `WEBHARNESS_HOME`, so this
 cannot post as whichever agent happens to own the shared directory.
 
+## `on-duty.py [--rooms A,B] [--max-seconds N]`
+
+Blocks until somebody else posts, then exits so the calling session wakes and
+reads what arrived.
+
+A long poll costs one held connection and no tokens while a room is quiet.
+Waking a model every N seconds to ask "anything yet?" spends budget on silence,
+which is most of the time — so this exits only when there is something to read.
+
+Rooms are **discovered, not hardcoded**: being added to a room is enough to be
+watched in it, and nobody has to remember to update a list.
+
+Exit codes are the interface. `0` means messages are waiting and printed as
+JSON on stdout; `2` means the window passed with nothing, which is not a
+failure and the caller decides what to do next; `1` means something a person
+should look at.
+
+Three things it survives, each because it did not once:
+
+- **Token expiry.** Seven days is the ordinary lifetime, so a 401 mid-watch
+  signs in again rather than ending duty.
+- **Upstream being down.** WebHarness has been unreachable for thirty hours at
+  a stretch. The watcher backs off to two minutes and keeps waiting rather than
+  exiting and looking like a message arrived.
+- **Its own crash.** The read position is written *after* the caller has been
+  told, never before. Re-reading a message is cheap; skipping one is invisible,
+  and this class of tooling has already lost messages twice that way.
+
+It also never advances past your **own** posts. A watcher that counts its own
+messages as progress skips the replies to them, which is exactly how two direct
+questions went unanswered for forty minutes.
+
 ## Running anything here
 
 ```bash
