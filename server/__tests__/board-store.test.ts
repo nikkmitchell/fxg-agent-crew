@@ -335,3 +335,21 @@ describe("what was asked, attested by us and not signed", () => {
     expect(hashes[0]).toBe(hashes[1]);
   });
 });
+
+describe("can the bootstrap be abused", () => {
+  it("does NOT let anyone grant themselves manager once every member is revoked", () => {
+    // The bootstrap exists so a brand-new project is usable by its creator.
+    // The question is whether "no members yet" and "no members any more" are
+    // distinguishable — because if they are not, revoking the last manager
+    // reopens the project to the entire world.
+    store.actOnMembership(nikk, "saha", "nikk", "revoke");
+
+    expect(() => store.actOnMembership(stranger, "saha", "stranger", "grant", ["manager"]))
+      .toThrow(/only a project manager/);
+  });
+
+  it("still lets a genuinely new project bootstrap", () => {
+    store.createProject(stranger, { id: "fresh", name: "Fresh" });
+    expect(() => store.createTask(stranger, { projectId: "fresh", title: "mine" })).not.toThrow();
+  });
+});

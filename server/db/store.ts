@@ -453,13 +453,24 @@ export class BoardStore {
   actOnMembership(actor: Actor, projectId: string, actorId: string, action: "grant" | "revoke", roles: Role[] = []) {
     const clean = roles.filter(isRole);
     return this.tx(() => {
-      const members = this.memberships().filter((m) => m.projectId === projectId && m.active);
+      // "Never had a member" and "has no member RIGHT NOW" are different, and
+      // conflating them was a privilege escalation: revoking the last manager
+      // dropped the active count to zero, which re-opened the bootstrap and let
+      // ANY signed-in actor grant themselves manager on that project.
+      //
+      // So the bootstrap looks at whether a membership row has ever existed,
+      // active or revoked. A revoked membership is still evidence that this
+      // project has been administered by somebody, and the way back in is that
+      // person or another manager — never a stranger.
+      const everGranted = (this.db.prepare("SELECT COUNT(*) c FROM memberships WHERE project_id = ?")
+        .get(projectId) as { c: number }).c;
       const isManager = (this.db.prepare("SELECT roles FROM memberships WHERE project_id=? AND actor_id=? AND active=1")
         .get(projectId, actor.id) as { roles: string } | undefined);
       const managerRoles: string[] = isManager ? JSON.parse(isManager.roles) : [];
       // A manager may. Nobody else may — not an owner of a member agent, not
-      // someone holding a card in the project.
-      if (members.length > 0 && !managerRoles.includes("manager")) {
+      // someone holding a card in the project, and not somebody who arrived
+      // after the last manager left.
+      if (everGranted > 0 && !managerRoles.includes("manager")) {
         throw new Refused("only a project manager can change who belongs to it", "PROJECT_PERMISSION_REQUIRED");
       }
       this.ensureActor(actorId);

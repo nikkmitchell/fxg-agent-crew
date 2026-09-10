@@ -19,6 +19,7 @@
  */
 import { DatabaseSync } from "node:sqlite";
 import { adaptMessages } from "../server/webharness/adapter.js";
+import { drainPages } from "../server/webharness/drain-pages.js";
 import { openDatabase } from "../server/db/open.js";
 
 const URL_BASE = process.env.WEBHARNESS_URL!;
@@ -35,16 +36,31 @@ if (!cutovers.length) {
 }
 
 let found = 0;
+/** Actors already told this run. */
+const told = new Set<string>();
 
 for (const { room, after_id } of cutovers) {
-  // Only messages after the watermark. Everything before it was applied
-  // correctly and must never be reported as a problem.
-  const response = await fetch(
-    `${URL_BASE}/api/rooms/${encodeURIComponent(room)}/messages?afterId=${after_id}&wait=0&limit=200`,
-    { headers: { Authorization: `Bearer ${TOKEN}` } },
-  );
-  const body = (await response.json()) as { messages?: unknown };
-  const messages = Array.isArray(body.messages) ? (body.messages as any[]) : [];
+  // Only messages after the watermark — everything before it was applied
+  // correctly and reporting it would be a false alarm about work that
+  // succeeded. But EXHAUSTIVE after it: a single 200-message page silently
+  // stops at the 201st, and the writes it would miss are precisely the ones
+  // sent by an agent that has not noticed the cutover and is still going.
+  //
+  // This is the same defect this project has now had four times, so it uses
+  // drainPages like the others rather than a loop of its own.
+  const messages = (await drainPages<any>({
+    fetchPage: async (afterId, limit) => {
+      const response = await fetch(
+        `${URL_BASE}/api/rooms/${encodeURIComponent(room)}/messages?afterId=${afterId}&wait=0&limit=${limit}`,
+        { headers: { Authorization: `Bearer ${TOKEN}` } },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status} reading ${room}`);
+      const body = (await response.json()) as { messages?: unknown };
+      return Array.isArray(body.messages) ? (body.messages as any[]) : [];
+    },
+    idOf: (message) => message.id,
+    startAfter: after_id,
+  })).items;
 
   const { events } = adaptMessages(messages, { roomName: room, canMutateProject: () => true });
 
@@ -81,7 +97,12 @@ for (const { room, after_id } of cutovers) {
       "Your message is still in the room; only its EFFECT on the board was refused.",
     ].join("\n");
 
-    if (NOTIFY) {
+    // ONE RECEIPT PER ACTOR PER RUN. An agent whose loop is still posting
+    // fences could produce dozens; replying to each would flood the room it is
+    // trying to warn, which is the machine-exhaust problem wearing a safety
+    // jacket. The rest are recorded and reported in the summary.
+    if (NOTIFY && !told.has(event.source)) {
+      told.add(event.source);
       const posted = await fetch(`${URL_BASE}/api/rooms/${encodeURIComponent(room)}/messages`, {
         method: "POST",
         headers: { Authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
@@ -91,8 +112,10 @@ for (const { room, after_id } of cutovers) {
       db.prepare("UPDATE legacy_writes SET receipt_id = ?, notified_at = ? WHERE message_id = ?")
         .run(sent.id ?? null, new Date().toISOString(), messageId);
       console.log(`  told ${event.source} that message ${messageId} was NOT APPLIED`);
-    } else {
+    } else if (!NOTIFY) {
       console.log(`  would tell ${event.source}: message ${messageId} (${event.payload.type}) NOT APPLIED`);
+    } else {
+      console.log(`  ${event.source} already told this run; message ${messageId} recorded, not replied`);
     }
   }
 }
