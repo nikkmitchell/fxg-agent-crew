@@ -12,6 +12,20 @@ export type ConnectionPhase =
 
 export type ConnectionState = {
   phase: ConnectionPhase;
+  /**
+   * Whether the BROWSER believes it has a network, as distinct from whether
+   * polling is currently succeeding.
+   *
+   * They are not the same thing and conflating them stranded a message. `phase`
+   * is driven by the poll: while the browser reported offline, the poll kept
+   * succeeding against a connection that still worked, so every response reset
+   * phase to "connected". Coming back online then changed nothing — the flush
+   * was watching for a transition INTO "connected" that had already happened,
+   * so a queued message sat there under a receipt promising it "will send
+   * itself". Recording the browser's own signal separately gives the flush
+   * something that actually changes when connectivity is restored.
+   */
+  online: boolean;
   username?: string;
   rooms: RoomSummary[];
   roomName?: string;
@@ -52,6 +66,9 @@ export type ConnectionEvent =
 
 export const initialConnectionState: ConnectionState = {
   phase: "checking_session",
+  // Assume online where there is no navigator (tests, SSR): starting "offline"
+  // would queue the first message instead of sending it.
+  online: typeof navigator === "undefined" ? true : navigator.onLine,
   rooms: [],
   messages: [],
   attempt: 0,
@@ -110,9 +127,15 @@ export function reduceConnection(state: ConnectionState, event: ConnectionEvent)
     case "RETRY_REQUESTED":
       return { ...state, phase: "connecting", errorCode: undefined, notice: "Retrying…" };
     case "BROWSER_OFFLINE":
-      return { ...state, phase: "reconnecting", errorCode: "OFFLINE", notice: "Offline · showing saved activity", stale: state.messages.length > 0 };
+      return { ...state, online: false, phase: "reconnecting", errorCode: "OFFLINE", notice: "Offline · showing saved activity", stale: state.messages.length > 0 };
     case "BROWSER_ONLINE":
-      return state.phase === "reconnecting" ? { ...state, phase: "connecting", errorCode: undefined, notice: "Back online · reconnecting" } : state;
+      // `online` is set unconditionally; the phase change stays conditional.
+      // Returning `state` untouched here — which is what this did when polling
+      // had already recovered on its own — meant nothing downstream could tell
+      // that connectivity had come back.
+      return state.phase === "reconnecting"
+        ? { ...state, online: true, phase: "connecting", errorCode: undefined, notice: "Back online · reconnecting" }
+        : { ...state, online: true };
     case "MESSAGE_QUEUED":
       return { ...state, outbox: [...state.outbox, { clientId: event.clientId, content: event.content, state: "queued" as const }].slice(-20) };
     case "MESSAGE_SENDING":
@@ -131,4 +154,22 @@ export function reduceConnection(state: ConnectionState, event: ConnectionEvent)
     case "LOGGED_OUT":
       return { ...initialConnectionState, phase: "signed_out" };
   }
+}
+
+/**
+ * May this person write a message right now?
+ *
+ * Pulled out of the panel's JSX so it can be tested. There is no DOM testing
+ * library in this project, and the rule is too easy to get wrong to leave as an
+ * inline condition — it was wrong until 2026-09-09, and the way it was wrong
+ * disabled the whole outbox in the one situation the outbox exists for.
+ *
+ * Writable while connected, and while the BROWSER is offline. Not writable for
+ * any other interruption: an archived room, a revoked membership or an expired
+ * session are refusals, and offering a text box for one of those would invite
+ * someone to write something that can never be sent.
+ */
+export function canCompose(state: Pick<ConnectionState, "phase" | "errorCode">): boolean {
+  if (state.phase === "connected") return true;
+  return state.phase === "reconnecting" && state.errorCode === "OFFLINE";
 }

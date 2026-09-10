@@ -5,6 +5,25 @@ import { initialConnectionState, reduceConnection } from "./connection-state";
 
 export const retryDelay = (attempt: number) => Math.min(1_000 * 2 ** Math.max(0, attempt - 1), 15_000);
 
+/**
+ * A floor on how often we may ask for messages.
+ *
+ * The loop assumes the server honours `wait=25` and holds the connection. When
+ * something in the path does not — a proxy that terminates long polls, a
+ * gateway that buffers, a server that ignores the parameter — every request
+ * returns instantly and the loop reissues it instantly. Measured against a
+ * stand-in that ignores `wait`: over a hundred thousand requests from one idle
+ * tab, throttled only by the speed of the network.
+ *
+ * Nobody would notice locally. In front of a real server it is one client
+ * quietly generating a denial of service, and the only symptom on this end is
+ * a fan.
+ *
+ * 500ms rather than something larger: an empty response should still be rare,
+ * so this must not add latency to the normal case, only bound the abnormal one.
+ */
+export const MIN_POLL_INTERVAL_MS = 500;
+
 const errorCode = (error: unknown) => error instanceof BffRequestError ? error.code : "UPSTREAM_UNAVAILABLE";
 
 const waitForRetry = (delay: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
@@ -82,12 +101,19 @@ export function useWebharnessRoom() {
           await waitForRetry(1_000, controller.signal).catch(() => undefined);
           continue;
         }
+        const startedAt = Date.now();
         try {
           const page = await bff.messages(roomName, { afterId: cursor, wait: 25, signal: controller.signal });
           if (controller.signal.aborted) return;
           cursor = page.cursor ?? cursor;
           attempt = 0;
           dispatch({ type: "MESSAGES_RECEIVED", messages: page.messages, cursor: page.cursor });
+          // See MIN_POLL_INTERVAL_MS. A poll that returns immediately must not
+          // be reissued immediately.
+          const elapsed = Date.now() - startedAt;
+          if (elapsed < MIN_POLL_INTERVAL_MS) {
+            await waitForRetry(MIN_POLL_INTERVAL_MS - elapsed, controller.signal).catch(() => undefined);
+          }
         } catch (error) {
           if (controller.signal.aborted) return;
           const code = errorCode(error);
@@ -155,12 +181,33 @@ export function useWebharnessRoom() {
     if (item && navigator.onLine) void sendOne(item.clientId, item.content);
   }, [sendOne, state.outbox]);
 
+  /**
+   * Send anything queued, whenever sending becomes possible again.
+   *
+   * `state.online` is in the dependencies, and that is the whole fix. This used
+   * to watch only `state.phase`, on the assumption that losing the network
+   * would move it to "reconnecting" and regaining it would move it back — so
+   * the return to "connected" was the signal to flush.
+   *
+   * It does not work that way when the browser reports offline while the
+   * connection still functions: flaky wifi, a captive portal, a lid closed and
+   * reopened, or simply a spurious `offline` event. The poll kept succeeding,
+   * every response reset phase to "connected", and by the time the `online`
+   * event arrived there was no transition left to observe. The queued message
+   * stayed queued — under a receipt that said "waiting for the connection ·
+   * will send itself".
+   *
+   * Reproduced in a browser: 45 seconds after coming back online, still queued,
+   * zero copies delivered, and the reassuring line gone from the screen. Losing
+   * a message is bad; telling someone it is on its way and then not sending it
+   * is worse, because they stop watching for it.
+   */
   useEffect(() => {
-    if (state.phase !== "connected" || !navigator.onLine) return;
+    if (state.phase !== "connected" || !state.online) return;
     for (const item of state.outbox) {
       if (item.state === "queued") void sendOne(item.clientId, item.content);
     }
-  }, [sendOne, state.outbox, state.phase]);
+  }, [sendOne, state.outbox, state.phase, state.online]);
 
   const retry = useCallback(() => {
     dispatch({ type: "RETRY_REQUESTED" });

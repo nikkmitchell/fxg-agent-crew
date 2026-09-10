@@ -40,6 +40,38 @@ describe("embedded /space mount", () => {
     expect((await app.inject({ method: "GET", url: "/bff/me" })).statusCode).toBe(404);
   });
 
+  it("404s a missing FILE instead of quietly answering with the app", async () => {
+    // Found in a browser, not in a test. After a rebuild, the page asked for
+    // the previous build's hashed asset; the fallback answered 200 with
+    // index.html; the browser refused it — "Expected a JavaScript-or-Wasm
+    // module script but the server responded with a MIME type of text/html" —
+    // and rendered NOTHING. Blank page, 200 in the access log, evidence only in
+    // a console nobody was watching.
+    //
+    // Reachable in production by any browser holding a cached index.html across
+    // a deploy. A 404 is something a browser can act on; a 200 of the wrong
+    // type is not.
+    const { app } = buildServer({ WEBHARNESS_URL: "https://example.test", APP_BASE_PATH: "/space" });
+    apps.push(app);
+
+    for (const url of ["/space/assets/index-DEADBEEF.js", "/space/assets/style.css", "/space/favicon.ico"]) {
+      const response = await app.inject({ method: "GET", url });
+      expect(response.statusCode, url).toBe(404);
+      expect(response.headers["content-type"], url).not.toContain("text/html");
+    }
+  });
+
+  it("still serves the app for routes, which is what the fallback is for", async () => {
+    const { app } = buildServer({ WEBHARNESS_URL: "https://example.test", APP_BASE_PATH: "/space" });
+    apps.push(app);
+
+    for (const url of ["/space/board", "/space/people", "/space/projects"]) {
+      const response = await app.inject({ method: "GET", url });
+      expect(response.statusCode, url).toBe(200);
+      expect(response.headers["content-type"], url).toContain("text/html");
+    }
+  });
+
   it("redirects the bare mount to its trailing-slash asset base", async () => {
     const { app } = buildServer({ WEBHARNESS_URL: "https://example.test", APP_BASE_PATH: "/space" });
     apps.push(app);
