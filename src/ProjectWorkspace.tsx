@@ -8,6 +8,8 @@ import { byPriority, nextUnclaimed, priorityLabel } from "./priority";
 import { ROLES, canManageMembership, membersOf, type Membership, type Role } from "./membership";
 import { Identity } from "./Identity";
 import type { ActorProfile } from "./profiles";
+import { BoardError, board, toCrewProject, toCrewTask, toProfile } from "./board-client";
+import { MoodBoard, type Board } from "./MoodBoard";
 import { briefBudget, describeBudget } from "../shared/message-budget";
 
 const PROJECT_ROOM = "AgentParty";
@@ -119,6 +121,15 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   const [me, setMe] = useState<Me | null>(null);
   const [viewedUsername, setViewedUsername] = useState("");
   const [selectedId, setSelectedId] = useState(() => localStorage.getItem("saha-project") ?? "");
+  /**
+   * The selected project, readable from inside `load` without making `load`
+   * depend on it. A dependency there would tear down and rebuild the polling
+   * effect on every project switch, which is how a poll loop ends up restarting
+   * more often than it polls.
+   */
+  const [boards, setBoards] = useState<Board[]>([]);
+  const selectedIdRef = useRef(selectedId);
+  useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   /**
@@ -141,10 +152,24 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
   const load = useCallback(async () => {
     try {
-      const [projects, current] = await Promise.all([
-        json<ProjectState>(`${import.meta.env.BASE_URL}bff/projects?room=${encodeURIComponent(PROJECT_ROOM)}`),
+      // saha.ing's own database, not a fold of the chat room. See ADR-002.
+      const [list, people, current] = await Promise.all([
+        board.projects(),
+        board.people(),
         json<Me>(`${import.meta.env.BASE_URL}bff/me`),
       ]);
+      // One project's cards are fetched with the project, so switching projects
+      // is one request rather than a re-fold of everything.
+      const wanted = selectedIdRef.current || (list.projects[0]?.id as string | undefined);
+      const detail = wanted ? await board.project(wanted) : null;
+
+      const projects: ProjectState = {
+        projects: list.projects.map((row) => toCrewProject(row as Record<string, unknown>)),
+        tasks: ((detail?.tasks ?? []) as Array<Record<string, unknown>>).map(toCrewTask) as CrewTask[],
+        memberships: (people.memberships ?? []) as Membership[],
+        profiles: (people.actors ?? []).map((row) => toProfile(row as Record<string, unknown>)) as ActorProfile[],
+      };
+      setBoards((detail?.boards ?? []) as Board[]);
       setState(projects);
       setMe(current);
       setViewedUsername((username) => username || current.username);
@@ -276,17 +301,25 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     if (viewedUsername && !workOwners.includes(viewedUsername)) setViewedUsername(me?.username ?? workOwners[0] ?? "");
   }, [me?.username, viewedUsername, workOwners]);
 
-  const append = async (payload: unknown) => {
+  /**
+   * Run one write, then reload.
+   *
+   * Replaces `append`, which posted a crew-event fence. The difference is not
+   * cosmetic: a fence was a message whose effect you discovered by re-reading
+   * the room, and this is a request that either happened or did not, with the
+   * server saying which — and saying it in words meant for a person.
+   */
+  const write = async (work: () => Promise<unknown>) => {
     setBusy(true);
     setError("");
     try {
-      await json(`${import.meta.env.BASE_URL}bff/project-events`, {
-        method: "POST",
-        body: JSON.stringify({ room: PROJECT_ROOM, payload }),
-      });
+      await work();
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save");
+      // The server's refusal is a sentence, not a code. Keeping it is the
+      // difference between "you are not a member of saha; treat this as a
+      // request pending a manager" and "Could not save".
+      setError(cause instanceof BoardError ? cause.message : cause instanceof Error ? cause.message : "Could not save");
     } finally {
       setBusy(false);
     }
@@ -300,18 +333,10 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
    */
   const addComment = async (taskId: string, body: string) => {
     if (!me?.username || !body.trim()) return;
-    await append({
-      type: "task.commented",
-      taskId,
-      comment: {
-        // Author and time are in the id so a retry after a timed-out write
-        // resolves to the same comment rather than a duplicate.
-        id: `${taskId}-${me.username}-${Date.now().toString(36)}`,
-        author: me.username,
-        body: body.trim(),
-        createdAt: new Date().toISOString(),
-      },
-    });
+    // The server assigns the id, the author and the order now. It knows who is
+    // authenticated, and it knows what arrived first — both of which the client
+    // was previously asserting about itself.
+    await write(() => board.comment(taskId, body.trim()));
   };
 
   const createProject = async (event: FormEvent<HTMLFormElement>) => {
@@ -323,13 +348,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     const stepTitles = String(data.get("steps") ?? "").split("\n").map((value) => value.trim()).filter(Boolean).slice(0, 10);
     if (!name || !summary || !goal || stepTitles.length === 0) return setError("Name, summary, goal, and at least one step are required.");
     const id = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now().toString(36)}`;
-    await append({
-      type: "project.upserted",
-      project: {
-        id, name, summary, goals: [goal],
-        steps: stepTitles.map((title, index) => ({ id: `${id}-step-${index + 1}`, title, status: "not_started" })),
-      },
-    });
+    await write(() => board.createProject({ id, name, summary, goals: [goal] }));
     setSelectedId(id);
     event.currentTarget.reset();
   };
@@ -343,24 +362,16 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     const kind = String(data.get("kind") ?? "").trim();
     const priority = Number(data.get("priority")) || undefined;
     if (!title) return setError("Task title is required.");
-    await append({
-      type: "task.upserted",
-      task: {
-        id: `${selected.id}-task-${Date.now().toString(36)}`,
-        projectId: selected.id,
-        title,
-        status: owner ? "assigned" : "backlog",
-        points: 1,
-        // Omitted entirely when unspecified, rather than sent as a default. The
-        // field's purpose is to stop the board claiming what nobody told it.
-        ...(kind === "decision" || kind === "build" ? { kind } : {}),
-        // Omitted when unset rather than defaulted, so an untriaged card stays
-        // visibly untriaged.
-        ...(priority ? { priority } : {}),
-        owners: owner ? [owner] : [],
-        acceptedBy: [], comments: [], links: [], images: [],
-      },
-    });
+    await write(() => board.createTask({
+      projectId: selected.id,
+      title,
+      // Omitted entirely when unspecified rather than sent as a default. The
+      // field exists to stop the board claiming what nobody told it, and the
+      // column is nullable for the same reason.
+      ...(kind === "decision" || kind === "build" ? { kind } : {}),
+      ...(priority ? { priority } : {}),
+      ...(owner ? { owners: [owner] } : {}),
+    }));
     event.currentTarget.reset();
   };
 
@@ -404,35 +415,23 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
   const saveDescription = async (task: CrewTask, description: string) => {
     const trimmed = description.trim();
-    const card = withoutDiscussion(task);
-    await append({
-      type: "task.upserted",
-      // Cleared means cleared: the field is omitted rather than sent as "",
-      // so "nobody has written one" stays distinguishable from "someone wrote
-      // nothing".
-      task: trimmed ? { ...card, description: trimmed } : (({ description: _drop, ...rest }) => rest)(card),
-    });
+    // null means CLEARED, undefined means not mentioned. The API keeps those
+    // apart, so a brief someone deleted is deleted and a brief nobody touched
+    // survives an unrelated edit.
+    await write(() => board.updateTask(task.id, { description: trimmed || null }));
   };
 
   const updateTask = async (task: CrewTask, action: "claim" | "accept" | "start") => {
     if (!me?.username) return setError("Sign in before changing task ownership.");
-    const username = me.username;
-    const owners = action === "claim" ? [username] : task.owners ?? [];
-    if (action !== "claim" && !owners.includes(username)) {
-      return setError("Only an assigned owner can accept or start this task.");
-    }
-    const acceptedBy = action === "accept"
-      ? Array.from(new Set([...(task.acceptedBy ?? []), username]))
-      : task.acceptedBy ?? [];
-    await append({
-      type: "task.upserted",
-      task: {
-        ...withoutDiscussion(task),
-        owners,
-        assigneeId: owners[0],
-        acceptedBy,
-        status: action === "start" ? "in_progress" : "assigned",
-      },
+    // Ownership and status are separate calls because they are separate rules.
+    // Folding them into one "upsert" is what let an illegal move ride along
+    // with an ownership change; the server refuses each on its own terms now.
+    await write(async () => {
+      if (action === "start") {
+        await board.transition(task.id, "in_progress");
+        return;
+      }
+      await board.ownership(task.id, action === "claim" ? "claim" : "accept");
     });
   };
 
@@ -716,7 +715,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                       setError("A member needs a name and at least one role.");
                       return;
                     }
-                    void append({ type: "membership.acted", projectId: selected.id, actorId, roles, action: "grant" })
+                    void write(() => board.membership(selected.id, actorId, "grant", roles))
                       .then(() => form.reset());
                   }}
                 >
@@ -865,6 +864,38 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
               );
             })}
           </div>
+
+          {/*
+            * Mood boards live under the board, because that is where the work
+            * they refer to is. They are the first thing this product can do
+            * that chat-as-a-database could not do at all — a 2000-character
+            * message cannot carry a JPEG.
+            */}
+          {boards.map((moodBoard) => (
+            <MoodBoard
+              key={moodBoard.id}
+              board={moodBoard}
+              canEdit={Boolean(me?.username)}
+              onChanged={() => void load()}
+            />
+          ))}
+
+          {me?.username ? (
+            <form
+              className="moodboard-new"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                const name = String(new FormData(form).get("name") ?? "").trim();
+                if (!name) return;
+                void write(() => board.createBoard(selected.id, name)).then(() => form.reset());
+              }}
+            >
+              <label htmlFor="new-moodboard">Add a mood board</label>
+              <input id="new-moodboard" name="name" placeholder="References, palette, tone…" maxLength={120} />
+              <button disabled={busy}>Create</button>
+            </form>
+          ) : null}
         </div>
       ) : null}
 

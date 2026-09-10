@@ -31,6 +31,17 @@ release_port() {
   local port="$1" pattern="$2" pid command
   for pid in $(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true); do
     command=$(ps -o command= -p "$pid" 2>/dev/null || true)
+    if [ -z "$command" ]; then
+      # No command line means the process is already going: it held the port
+      # long enough for lsof to see it and died before ps could name it.
+      # Treating that as a foreign process refuses to start over a corpse, which
+      # is what happened. Wait for the port instead of guessing.
+      for _ in $(seq 1 20); do
+        lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || break
+        sleep 0.2
+      done
+      continue
+    fi
     case "$command" in
       *"$pattern"*) kill "$pid" 2>/dev/null || true ;;
       *)
