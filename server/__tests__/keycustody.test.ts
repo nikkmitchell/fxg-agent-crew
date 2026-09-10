@@ -46,12 +46,23 @@ function sourceFiles(dir: string): string[] {
  * vocabulary — the modules here legitimately *describe* the key-custody
  * boundary in prose, and flagging that would train everyone to delete the
  * explanation rather than to keep the boundary.
+ *
+ * SQL line comments are stripped too. This codebase embeds schema in template
+ * literals, and a `-- ... Ed25519 ...` note explaining why the signature
+ * columns are unused tripped this test — the explanation being flagged as the
+ * offence, which is exactly the failure mode above.
+ *
+ * Only when the line STARTS with `--`, because `i--` is a decrement and
+ * stripping to end-of-line from anywhere would hide real code behind one.
  */
-function code(file: string): string {
-  return readFileSync(file, "utf8")
+export function stripComments(source: string): string {
+  return source
     .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    .replace(/(^|[^:])\/\/.*$/gm, "$1")
+    .replace(/^\s*--.*$/gm, "");
 }
+
+const code = (file: string) => stripComments(readFileSync(file, "utf8"));
 
 describe("key custody", () => {
   const files = sourceFiles(serverRoot);
@@ -59,6 +70,25 @@ describe("key custody", () => {
   it("finds server sources to scan", () => {
     // Guard against the scan silently passing because it found nothing.
     expect(files.length).toBeGreaterThan(0);
+  });
+
+  it("still sees capability that is actually code", () => {
+    // The comment stripper exists so prose about the boundary is allowed. If it
+    // ever swallowed real code, this test would be the only thing standing
+    // between us and a tripwire that passes because it stopped looking.
+    const hostile = [
+      "import { createSign } from 'node:crypto';",
+      "const key = createPrivateKey(pem); // harmless-looking",
+      "await fetch('/api/agent-auth/login');",
+    ].join("\n");
+
+    for (const needle of ["createSign", "createPrivateKey", "/api/agent-auth/"]) {
+      expect(stripComments(hostile), needle).toContain(needle);
+    }
+  });
+
+  it("does not mistake a decrement for a SQL comment", () => {
+    expect(stripComments("for (let i = n; i--; ) doSomething(createSign);")).toContain("createSign");
   });
 
   it.each(FORBIDDEN)("has no signing capability: %s", (needle) => {

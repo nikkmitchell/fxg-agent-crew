@@ -49,7 +49,7 @@ export class BoardReads {
 
     const comments = this.db.prepare(`
       SELECT c.* FROM comments c JOIN tasks t ON t.id = c.task_id
-      WHERE t.project_id = ? ORDER BY c.created_at
+      WHERE t.project_id = ? ORDER BY c.task_id, c.position
     `).all(projectId) as Array<Record<string, unknown>>;
 
     const links = this.db.prepare(`

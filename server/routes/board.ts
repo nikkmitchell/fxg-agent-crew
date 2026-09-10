@@ -61,9 +61,13 @@ export function registerBoardRoutes(
    * of saha; treat this as a request pending a manager". Replacing it with a
    * bare 403 would throw away the only part that tells someone what to do next.
    */
-  const handle = async (reply: FastifyReply, work: () => unknown) => {
+  const handle = async (reply: FastifyReply, request: FastifyRequest, work: () => unknown) => {
     try {
-      return reply.send({ ok: true, result: work() ?? null });
+      // The envelope is what was ASKED. `before`/`after` in the audit is a diff
+      // of state; this is the intent behind it, and the thing a signature would
+      // later attach to.
+      const envelope = { method: request.method, path: request.url, body: request.body ?? null };
+      return reply.send({ ok: true, result: store.withRequest(envelope, () => work()) ?? null });
     } catch (error) {
       if (error instanceof Refused) {
         return reply.code(CODES[error.code] ?? 400).send({ code: error.code, error: error.message });
@@ -107,7 +111,7 @@ export function registerBoardRoutes(
     "/bff/board/projects", async (request, reply) => {
       const session = requireSession(request, reply);
       if (!session) return reply;
-      return handle(reply, () => store.createProject(actorOf(session), {
+      return handle(reply, request, () => store.createProject(actorOf(session), {
         id: request.body?.id, name: request.body?.name ?? "", summary: request.body?.summary,
         goals: request.body?.goals,
       }));
@@ -117,7 +121,7 @@ export function registerBoardRoutes(
     const session = requireSession(request, reply);
     if (!session) return reply;
     const body = request.body as Record<string, unknown>;
-    return handle(reply, () => store.createTask(actorOf(session), {
+    return handle(reply, request, () => store.createTask(actorOf(session), {
       projectId: String(body.projectId ?? ""), title: String(body.title ?? ""),
       description: body.description as string | undefined,
       kind: body.kind as "build" | "decision" | undefined,
@@ -131,7 +135,7 @@ export function registerBoardRoutes(
     const session = requireSession(request, reply);
     if (!session) return reply;
     const body = (request.body ?? {}) as Record<string, unknown>;
-    return handle(reply, () => store.updateTask(actorOf(session), request.params.id, {
+    return handle(reply, request, () => store.updateTask(actorOf(session), request.params.id, {
       title: body.title as string | undefined,
       // `null` and absent mean different things here — cleared versus not
       // mentioned — and the store depends on being able to tell them apart.
@@ -146,7 +150,7 @@ export function registerBoardRoutes(
     "/bff/board/tasks/:id/status", async (request, reply) => {
       const session = requireSession(request, reply);
       if (!session) return reply;
-      return handle(reply, () =>
+      return handle(reply, request, () =>
         store.transitionTask(actorOf(session), request.params.id, request.body?.to as Status, request.body?.blocker));
     });
 
@@ -158,20 +162,20 @@ export function registerBoardRoutes(
       if (action !== "claim" && action !== "accept" && action !== "release") {
         return reply.code(400).send({ code: "BAD_REQUEST", error: "action must be claim, accept or release" });
       }
-      return handle(reply, () => store.setOwnership(actorOf(session), request.params.id, action));
+      return handle(reply, request, () => store.setOwnership(actorOf(session), request.params.id, action));
     });
 
   app.post<{ Params: { id: string }; Body: { body?: string } }>(
     "/bff/board/tasks/:id/comments", async (request, reply) => {
       const session = requireSession(request, reply);
       if (!session) return reply;
-      return handle(reply, () => store.addComment(actorOf(session), request.params.id, request.body?.body ?? ""));
+      return handle(reply, request, () => store.addComment(actorOf(session), request.params.id, request.body?.body ?? ""));
     });
 
   app.put("/bff/board/profile", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    return handle(reply, () => store.upsertProfile(actorOf(session), (request.body ?? {}) as Record<string, unknown>));
+    return handle(reply, request, () => store.upsertProfile(actorOf(session), (request.body ?? {}) as Record<string, unknown>));
   });
 
   app.post<{ Body: { agentId?: string; ownerId?: string; action?: string } }>(
@@ -182,7 +186,7 @@ export function registerBoardRoutes(
       if (!agentId || !ownerId || (action !== "declare" && action !== "confirm" && action !== "revoke")) {
         return reply.code(400).send({ code: "BAD_REQUEST", error: "agentId, ownerId and a valid action are required" });
       }
-      return handle(reply, () => store.actOnOwnership(actorOf(session), agentId, ownerId, action));
+      return handle(reply, request, () => store.actOnOwnership(actorOf(session), agentId, ownerId, action));
     });
 
   app.post<{ Body: { projectId?: string; actorId?: string; action?: string; roles?: Role[] } }>(
@@ -193,7 +197,7 @@ export function registerBoardRoutes(
       if (!projectId || !actorId || (action !== "grant" && action !== "revoke")) {
         return reply.code(400).send({ code: "BAD_REQUEST", error: "projectId, actorId and grant|revoke are required" });
       }
-      return handle(reply, () => store.actOnMembership(actorOf(session), projectId, actorId, action, roles ?? []));
+      return handle(reply, request, () => store.actOnMembership(actorOf(session), projectId, actorId, action, roles ?? []));
     });
 
   // ------------------------------------------------------------- mood boards
@@ -201,7 +205,7 @@ export function registerBoardRoutes(
   app.post<{ Body: { projectId?: string; name?: string } }>("/bff/board/boards", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    return handle(reply, () =>
+    return handle(reply, request, () =>
       store.createBoard(actorOf(session), request.body?.projectId ?? "", request.body?.name ?? ""));
   });
 
@@ -209,7 +213,7 @@ export function registerBoardRoutes(
     const session = requireSession(request, reply);
     if (!session) return reply;
     const body = (request.body ?? {}) as Record<string, unknown>;
-    return handle(reply, () => store.addBoardItem(actorOf(session), request.params.id, {
+    return handle(reply, request, () => store.addBoardItem(actorOf(session), request.params.id, {
       kind: body.kind as "image" | "link" | "note" | "swatch",
       blobId: body.blobId as string | undefined,
       url: body.url as string | undefined,
@@ -224,7 +228,7 @@ export function registerBoardRoutes(
     const session = requireSession(request, reply);
     if (!session) return reply;
     const body = (request.body ?? {}) as Record<string, number>;
-    return handle(reply, () => store.moveBoardItem(actorOf(session), request.params.id, {
+    return handle(reply, request, () => store.moveBoardItem(actorOf(session), request.params.id, {
       x: Number(body.x ?? 0), y: Number(body.y ?? 0), w: body.w, h: body.h, z: body.z,
     }));
   });
@@ -232,7 +236,7 @@ export function registerBoardRoutes(
   app.delete<{ Params: { id: string } }>("/bff/board/items/:id", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    return handle(reply, () => store.removeBoardItem(actorOf(session), request.params.id));
+    return handle(reply, request, () => store.removeBoardItem(actorOf(session), request.params.id));
   });
 
   // ------------------------------------------------------------------- files
@@ -255,7 +259,7 @@ export function registerBoardRoutes(
     const filename = typeof request.headers["x-filename"] === "string"
       ? decodeURIComponent(request.headers["x-filename"])
       : undefined;
-    return handle(reply, () =>
+    return handle(reply, request, () =>
       blobs.put(session.username, bytes, filename, String(request.headers["content-type"] ?? "")));
   });
 

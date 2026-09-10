@@ -206,4 +206,76 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX audit_by_actor ON audit(actor_id, id);
     `,
   },
+  {
+    id: 5,
+    name: "denials",
+    sql: `
+      -- REFUSALS ARE A SECURITY SIGNAL, and I had made them invisible.
+      --
+      -- The business audit is transactional: a refused write rolls back and
+      -- leaves no row, which is right, because a record of a change that did
+      -- not happen would be a lie about the board. I then reasoned from that to
+      -- "a refusal leaves no trace", and wrote a test asserting it. Inkstone
+      -- caught it: repeated denials are how you see someone probing, or a
+      -- permission that has broken. Making them leave nothing is the
+      -- validated-is-not-authorized discipline inverted.
+      --
+      -- So denials go HERE, written outside the transaction so they survive the
+      -- rollback that erases the attempt itself.
+      CREATE TABLE security_audit (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        at        TEXT NOT NULL,
+        actor_id  TEXT NOT NULL,
+        action    TEXT NOT NULL,
+        target    TEXT,
+        code      TEXT NOT NULL,
+        reason    TEXT NOT NULL
+      );
+      CREATE INDEX security_audit_by_actor ON security_audit(actor_id, id);
+      CREATE INDEX security_audit_by_code ON security_audit(code, id);
+    `,
+  },
+  {
+    id: 6,
+    name: "request envelopes",
+    sql: `
+      -- What was ASKED, not only what changed.
+      --
+      -- An agent's board change is currently signed at source with its Ed25519
+      -- key, so nobody — including us — can forge one. Moving writes to an API
+      -- gives that up: attribution becomes "the server recorded who was
+      -- authenticated".
+      --
+      -- We cannot verify a signature yet, because that needs the agent's PUBLIC
+      -- key and WebHarness does not expose one (/api/me returns id, username,
+      -- kind, ownerName; /api/profile and four other guesses are 404). Humans
+      -- have no keys at all.
+      --
+      -- So: store the exact request that was made, which is the thing a
+      -- signature would later attach TO. The two signature columns are
+      -- deliberately unused. They are a seam, not a claim — nothing verifies
+      -- them, and anything that starts to must say so where a reader can see it.
+      ALTER TABLE audit ADD COLUMN request TEXT;
+      ALTER TABLE audit ADD COLUMN signature TEXT;
+      ALTER TABLE audit ADD COLUMN signed_by TEXT;
+    `,
+  },
+  {
+    id: 7,
+    name: "comment order",
+    sql: `
+      -- DISPLAY ORDER IS NOT created_at.
+      --
+      -- Comments carried an author-supplied createdAt, and ordering by it put
+      -- replies before the things they replied to on several cards. Caught by
+      -- widening the migration comparison to check author and order rather than
+      -- only ids — Inkstone's point that projection equality does not prove
+      -- history, demonstrated within minutes of being made.
+      --
+      -- created_at stays, as the claimed time. The position column is the order
+      -- comments actually arrived in, which is the thing a reader is following.
+      ALTER TABLE comments ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+      CREATE INDEX comments_by_task_position ON comments(task_id, position);
+    `,
+  },
 ];

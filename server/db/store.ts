@@ -33,6 +33,30 @@ export class Refused extends Error {
 
 const now = () => new Date().toISOString();
 
+/**
+ * Generous bounds on free text.
+ *
+ * The 2000-character cap was the chat transport's, and removing it was the
+ * point of ADR-002 — but "the transport limit is gone" is not "there is no
+ * limit". Unbounded TEXT is a storage and context denial-of-service: one client
+ * bug writes a 500MB brief, and every reader of that board then pays for it.
+ *
+ * Chosen to be far above any honest use. A brief is a brief; if 100,000
+ * characters is not enough, the thing being written is a document and belongs
+ * behind a link.
+ */
+export const LIMITS = { description: 100_000, comment: 50_000, title: 500 } as const;
+
+const bounded = (value: string, max: number, what: string) => {
+  if (value.length > max) {
+    throw new Refused(
+      `that ${what} is ${value.length.toLocaleString()} characters; the limit is ${max.toLocaleString()}`,
+      "TOO_LONG",
+    );
+  }
+  return value;
+};
+
 export type Actor = { id: string; kind?: "human" | "agent" | null };
 
 export class BoardStore {
@@ -40,16 +64,61 @@ export class BoardStore {
 
   // ---------------------------------------------------------------- helpers
 
-  private audit(actorId: string, action: string, entity: string, entityId: string, before: unknown, after: unknown) {
-    this.db
-      .prepare("INSERT INTO audit (at, actor_id, action, entity, entity_id, before, after) VALUES (?,?,?,?,?,?,?)")
-      .run(now(), actorId, action, entity, entityId,
-        before === undefined ? null : JSON.stringify(before),
-        after === undefined ? null : JSON.stringify(after));
+  /**
+   * What was asked, alongside what changed.
+   *
+   * `before`/`after` is a diff of state. `request` is the intent — the exact
+   * thing the caller asked for. They are not the same evidence: a diff shows a
+   * card moved to done, the request shows who asked for that and in what terms.
+   *
+   * This is also the field a signature would attach to. An agent's board change
+   * used to be signed at source with its Ed25519 key, so not even we could
+   * forge one; moving writes to an API gives that up. We cannot verify a
+   * signature today — that needs the agent's PUBLIC key, and WebHarness exposes
+   * none (/api/me returns id, username, kind, ownerName; /api/profile and four
+   * other guesses are 404) — and humans have no keys at all.
+   *
+   * So the envelope is recorded now and the signature columns stay empty. They
+   * are a seam, not a claim. Nothing verifies them, and anything that begins to
+   * must say so somewhere a reader will find it.
+   */
+  private request?: unknown;
+
+  /** Set by the API layer for the duration of one call. */
+  withRequest<T>(request: unknown, work: () => T): T {
+    const previous = this.request;
+    this.request = request;
+    try {
+      return work();
+    } finally {
+      this.request = previous;
+    }
   }
 
-  /** Run `work` in a transaction, so a refused rule leaves nothing behind. */
-  private tx<T>(work: () => T): T {
+  private audit(actorId: string, action: string, entity: string, entityId: string, before: unknown, after: unknown) {
+    this.db
+      .prepare(`INSERT INTO audit (at, actor_id, action, entity, entity_id, before, after, request)
+                VALUES (?,?,?,?,?,?,?,?)`)
+      .run(now(), actorId, action, entity, entityId,
+        before === undefined ? null : JSON.stringify(before),
+        after === undefined ? null : JSON.stringify(after),
+        this.request === undefined ? null : JSON.stringify(this.request));
+  }
+
+  /**
+   * Run `work` in a transaction, so a refused rule leaves no half-written card.
+   *
+   * The rollback erases the attempt, and that is right — an audit row for a
+   * change that did not happen would be a lie about the board. But it also
+   * erased the fact that somebody TRIED and was refused, and that is a security
+   * signal: repeated denials are how you notice probing, or a permission that
+   * has broken. Making them leave nothing inverts the discipline this project
+   * is built on.
+   *
+   * So a refusal is recorded AFTER the rollback, in its own table, on its own
+   * connection-level statement that no transaction is holding.
+   */
+  private tx<T>(work: () => T, context?: { actorId: string; action: string; target?: string }): T {
     this.db.exec("BEGIN");
     try {
       const result = work();
@@ -57,6 +126,31 @@ export class BoardStore {
       return result;
     } catch (error) {
       this.db.exec("ROLLBACK");
+      if (context && error instanceof Refused) this.denied(context, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Record a refusal. Never inside a transaction — the whole point is that it
+   * survives the one that was just rolled back.
+   */
+  private denied(context: { actorId: string; action: string; target?: string }, refusal: Refused): void {
+    try {
+      this.db.prepare("INSERT INTO security_audit (at, actor_id, action, target, code, reason) VALUES (?,?,?,?,?,?)")
+        .run(now(), context.actorId, context.action, context.target ?? null, refusal.code, refusal.message);
+    } catch {
+      // Failing to record a denial must not turn a clean refusal into a 500.
+      // The caller is still correctly refused; we have only lost the note.
+    }
+  }
+
+  /** Refusals raised before the transaction opens still deserve recording. */
+  private guard<T>(context: { actorId: string; action: string; target?: string }, work: () => T): T {
+    try {
+      return work();
+    } catch (error) {
+      if (error instanceof Refused) this.denied(context, error);
       throw error;
     }
   }
@@ -132,7 +226,7 @@ export class BoardStore {
         .run(id, actor.id, JSON.stringify(["manager"]), actor.id, now());
       this.audit(actor.id, "create", "project", id, undefined, { name: input.name });
       return id;
-    });
+    }, { actorId: actor.id, action: "create project", target: id });
   }
 
   // ------------------------------------------------------------------- tasks
@@ -142,6 +236,8 @@ export class BoardStore {
     kind?: "build" | "decision"; points?: number; priority?: number; owners?: string[];
   }) {
     if (!input.title.trim()) throw new Refused("a card needs a title");
+    bounded(input.title.trim(), LIMITS.title, "title");
+    if (input.description) bounded(input.description.trim(), LIMITS.description, "brief");
     return this.tx(() => {
       this.ensureActor(actor.id, actor.kind ?? undefined);
       this.assertAuthority(actor.id, input.projectId);
@@ -157,7 +253,7 @@ export class BoardStore {
       }
       this.audit(actor.id, "create", "task", id, undefined, { title: input.title });
       return id;
-    });
+    }, { actorId: actor.id, action: "create task", target: input.projectId });
   }
 
   /**
@@ -179,11 +275,13 @@ export class BoardStore {
 
       if (patch.title !== undefined) {
         if (!patch.title.trim()) throw new Refused("a card needs a title");
-        set("title", patch.title.trim());
+        set("title", bounded(patch.title.trim(), LIMITS.title, "title"));
       }
       // null means "cleared", undefined means "not mentioned". They are
       // different instructions and collapsing them loses a brief someone wrote.
-      if (patch.description !== undefined) set("description", patch.description?.trim() || null);
+      if (patch.description !== undefined) {
+        set("description", patch.description?.trim() ? bounded(patch.description.trim(), LIMITS.description, "brief") : null);
+      }
       if (patch.kind !== undefined) set("kind", patch.kind);
       if (patch.points !== undefined) set("points", patch.points);
       if (patch.priority !== undefined) set("priority", patch.priority);
@@ -193,7 +291,7 @@ export class BoardStore {
       values.push(id);
       this.db.prepare(`UPDATE tasks SET ${sets.join(", ")} WHERE id = ?`).run(...values as never[]);
       this.audit(actor.id, "update", "task", id, before, this.taskRow(id));
-    });
+    }, { actorId: actor.id, action: "update task", target: id });
   }
 
   transitionTask(actor: Actor, id: string, to: Status, blocker?: string) {
@@ -209,7 +307,7 @@ export class BoardStore {
       this.db.prepare("UPDATE tasks SET status = ?, blocker = ?, updated_at = ? WHERE id = ?")
         .run(to, to === "blocked" ? (blocker ?? null) : null, now(), id);
       this.audit(actor.id, "transition", "task", id, { status: from }, { status: to });
-    });
+    }, { actorId: actor.id, action: "transition task", target: id });
   }
 
   setOwnership(actor: Actor, id: string, action: "claim" | "accept" | "release") {
@@ -235,7 +333,7 @@ export class BoardStore {
       this.db.prepare("UPDATE tasks SET assignee_id = (SELECT actor_id FROM task_owners WHERE task_id=? LIMIT 1) WHERE id=?")
         .run(id, id);
       this.audit(actor.id, action, "task", id, undefined, undefined);
-    });
+    }, { actorId: actor.id, action: `${action} task`, target: id });
   }
 
   addComment(actor: Actor, taskId: string, body: string) {
@@ -245,18 +343,26 @@ export class BoardStore {
       this.assertAuthority(actor.id, task.project_id as string);
       this.ensureActor(actor.id, actor.kind ?? undefined);
       const id = randomUUID();
-      // No length cap. The 2000 characters were the chat transport's limit, and
-      // enforcing it here would keep a restriction whose cause we removed.
-      this.db.prepare("INSERT INTO comments (id,task_id,author_id,body,created_at) VALUES (?,?,?,?,?)")
-        .run(id, taskId, actor.id, body.trim(), now());
+      // Position, not timestamp. Ordering a discussion by an author-supplied
+      // time put replies before what they replied to; the server assigns the
+      // order things actually arrived in.
+      const position = (this.db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS next FROM comments WHERE task_id = ?")
+        .get(taskId) as { next: number }).next;
+      this.db.prepare("INSERT INTO comments (id,task_id,author_id,body,created_at,position) VALUES (?,?,?,?,?,?)")
+        .run(id, taskId, actor.id, bounded(body.trim(), LIMITS.comment, "comment"), now(), position);
       this.audit(actor.id, "comment", "task", taskId, undefined, { commentId: id });
       return id;
-    });
+    }, { actorId: actor.id, action: "comment", target: taskId });
   }
 
   // ------------------------------------------------------------------ people
 
   upsertProfile(actor: Actor, profile: Record<string, unknown>) {
+    return this.guard({ actorId: actor.id, action: "update profile", target: actor.id }, () =>
+      this.upsertProfileChecked(actor, profile));
+  }
+
+  private upsertProfileChecked(actor: Actor, profile: Record<string, unknown>) {
     // A profile is a statement about yourself. The acting identity is the
     // authenticated caller, never a field in the body — that was a real
     // impersonation hole once.
@@ -315,7 +421,7 @@ export class BoardStore {
           .run(now(), agentId, ownerId);
       }
       this.audit(actor.id, action, "ownership", `${agentId}:${ownerId}`, existing, undefined);
-    });
+    }, { actorId: actor.id, action: `${action} ownership`, target: `${agentId}:${ownerId}` });
   }
 
   actOnMembership(actor: Actor, projectId: string, actorId: string, action: "grant" | "revoke", roles: Role[] = []) {
@@ -341,7 +447,7 @@ export class BoardStore {
         this.db.prepare("UPDATE memberships SET active=0 WHERE project_id=? AND actor_id=?").run(projectId, actorId);
       }
       this.audit(actor.id, action, "membership", `${projectId}:${actorId}`, undefined, { roles: clean });
-    });
+    }, { actorId: actor.id, action: `${action} membership`, target: `${projectId}:${actorId}` });
   }
 
   // ------------------------------------------------------------ mood boards
@@ -355,7 +461,7 @@ export class BoardStore {
         .run(id, projectId, name.trim(), actor.id, now(), now());
       this.audit(actor.id, "create", "board", id, undefined, { name });
       return id;
-    });
+    }, { actorId: actor.id, action: "create board", target: projectId });
   }
 
   private boardProject(boardId: string): string {
@@ -394,7 +500,7 @@ export class BoardStore {
              top, actor.id, now());
       this.audit(actor.id, "add", "board_item", id, undefined, { boardId, kind: item.kind });
       return id;
-    });
+    }, { actorId: actor.id, action: "add board item", target: boardId });
   }
 
   moveBoardItem(actor: Actor, itemId: string, at: { x: number; y: number; w?: number; h?: number; z?: number }) {
@@ -422,7 +528,7 @@ export class BoardStore {
       // same image, and deleting bytes on the strength of one reference is how
       // you lose a file that was still in use.
       this.audit(actor.id, "remove", "board_item", itemId, row, undefined);
-    });
+    }, { actorId: actor.id, action: "remove board item", target: itemId });
   }
 }
 

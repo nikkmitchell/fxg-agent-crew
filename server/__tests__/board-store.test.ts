@@ -185,9 +185,9 @@ describe("the audit trail", () => {
     expect(rows).toContainEqual({ actor_id: "nikk", action: "transition", entity: "task" });
   });
 
-  it("writes nothing when the change was refused", () => {
-    // The audit row and the change share a transaction. A refusal that left an
-    // audit row would be a record of something that did not happen.
+  it("writes no BUSINESS audit row when the change was refused", () => {
+    // The audit row and the change share a transaction, so a refusal leaves no
+    // record of a change that did not happen. That part was right.
     const id = aTask();
     const before = db.prepare("SELECT COUNT(*) c FROM audit").get() as { c: number };
     expect(() => store.transitionTask(nikk, id, "done")).toThrow();
@@ -195,10 +195,77 @@ describe("the audit trail", () => {
     expect(db.prepare("SELECT COUNT(*) c FROM audit").get()).toEqual(before);
   });
 
+  it("RECORDS THE DENIAL, which the first version of this store did not", () => {
+    // Caught in review by Inkstone. I had reasoned from "no audit row for a
+    // change that did not happen" to "no trace at all", and wrote a test
+    // asserting it. But a refusal is a security signal: repeated denials are
+    // how you see someone probing, or a permission that has broken. Making them
+    // invisible inverts validated-is-not-authorized.
+    const id = aTask();
+    expect(() => store.transitionTask(nikk, id, "done")).toThrow();
+
+    const denials = db.prepare("SELECT actor_id, action, target, code FROM security_audit").all();
+    expect(denials).toEqual([
+      { actor_id: "nikk", action: "transition task", target: id, code: "ILLEGAL_TRANSITION" },
+    ]);
+  });
+
+  it("records a denial that happens OUTSIDE a transaction too", () => {
+    // upsertProfile refuses forbidden keys before opening one, so it needs its
+    // own guard or that whole class of attempt goes unrecorded — which is the
+    // class most worth seeing.
+    expect(() => store.upsertProfile(nikk, { displayName: "N", hostname: "laptop.local" })).toThrow();
+
+    const denial = db.prepare("SELECT actor_id, action, code FROM security_audit").get();
+    expect(denial).toEqual({ actor_id: "nikk", action: "update profile", code: "FORBIDDEN_FIELD" });
+  });
+
+  it("keeps the denial even though the attempt itself was rolled back", () => {
+    // The point of writing it outside the transaction. If this ever fails, the
+    // denial is being swallowed by the same rollback that erases the attempt.
+    expect(() => store.createTask(stranger, { projectId: "saha", title: "nope" })).toThrow();
+
+    expect(db.prepare("SELECT COUNT(*) c FROM tasks WHERE title='nope'").get()).toEqual({ c: 0 });
+    expect(db.prepare("SELECT COUNT(*) c FROM security_audit WHERE code='PROJECT_PERMISSION_REQUIRED'").get())
+      .toEqual({ c: 1 });
+  });
+
+  it("shows a pattern of probing, which one row could not", () => {
+    // The reason this table exists: six refusals from one actor is a signal,
+    // and it was previously indistinguishable from silence.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      expect(() => store.createTask(stranger, { projectId: "saha", title: `try ${attempt}` })).toThrow();
+    }
+
+    expect(db.prepare("SELECT COUNT(*) c FROM security_audit WHERE actor_id='stranger'").get()).toEqual({ c: 6 });
+  });
+
   it("leaves no half-written card behind when a rule refuses", () => {
     const before = db.prepare("SELECT COUNT(*) c FROM tasks").get();
     expect(() => store.createTask(stranger, { projectId: "saha", title: "nope" })).toThrow(Refused);
 
     expect(db.prepare("SELECT COUNT(*) c FROM tasks").get()).toEqual(before);
+  });
+});
+
+describe("bounds on free text", () => {
+  it("accepts a brief far beyond anything the transport could carry", () => {
+    const id = aTask();
+    expect(() => store.updateTask(nikk, id, { description: "x".repeat(90_000) })).not.toThrow();
+  });
+
+  it("refuses one that is a denial-of-service rather than a brief", () => {
+    // Removing the transport's 2000-character cap was the point of ADR-002.
+    // "No limit" is a different claim, and an unbounded TEXT column is a
+    // storage and context DoS that every later reader of that board pays for.
+    const id = aTask();
+    expect(() => store.updateTask(nikk, id, { description: "x".repeat(200_000) }))
+      .toThrow(/200,000 characters; the limit is 100,000/);
+  });
+
+  it("bounds comments and titles too", () => {
+    const id = aTask();
+    expect(() => store.addComment(nikk, id, "x".repeat(60_000))).toThrow(/limit is 50,000/);
+    expect(() => store.updateTask(nikk, id, { title: "x".repeat(600) })).toThrow(/limit is 500/);
   });
 });

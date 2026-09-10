@@ -214,3 +214,60 @@ describe("history", () => {
     await app.close();
   });
 });
+
+describe("what was asked, not only what changed", () => {
+  it("records the request envelope beside the diff", async () => {
+    // Raised by Inkstone: moving writes off signed chat events gives up
+    // verifiable authorship. We cannot verify a signature yet — that needs the
+    // agent's public key and WebHarness exposes none — so the envelope is the
+    // honest half we CAN keep: the exact request, which is what a signature
+    // would later attach to.
+    const { app, as, database } = boot();
+    const h = { cookie: as("nikk") };
+    await app.inject({ method: "POST", url: "/bff/board/projects", headers: h, payload: { id: "saha", name: "Saha" } });
+    const id = (await app.inject({ method: "POST", url: "/bff/board/tasks", headers: h,
+      payload: { projectId: "saha", title: "A card" } })).json().result;
+    await app.inject({ method: "POST", url: `/bff/board/tasks/${id}/status`, headers: h, payload: { to: "assigned" } });
+
+    const row = database.prepare(
+      "SELECT request, signature, signed_by FROM audit WHERE action='transition' ORDER BY id DESC LIMIT 1",
+    ).get() as { request: string; signature: null; signed_by: null };
+
+    expect(JSON.parse(row.request)).toEqual({
+      method: "POST", path: `/bff/board/tasks/${id}/status`, body: { to: "assigned" },
+    });
+    // Empty on purpose. A populated signature column that nothing verifies
+    // would be a stronger claim than the truth supports.
+    expect(row.signature).toBeNull();
+    expect(row.signed_by).toBeNull();
+    await app.close();
+  });
+
+  it("records a denial with the actor and the reason", async () => {
+    const { app, as, database } = boot();
+    await app.inject({ method: "POST", url: "/bff/board/projects", headers: { cookie: as("nikk") },
+      payload: { id: "saha", name: "Saha" } });
+
+    await app.inject({ method: "POST", url: "/bff/board/tasks", headers: { cookie: as("stranger") },
+      payload: { projectId: "saha", title: "nope" } });
+
+    expect(database.prepare("SELECT actor_id, code FROM security_audit").get())
+      .toEqual({ actor_id: "stranger", code: "PROJECT_PERMISSION_REQUIRED" });
+    await app.close();
+  });
+
+  it("refuses a brief that is a denial-of-service, with the numbers", async () => {
+    const { app, as } = boot();
+    const h = { cookie: as("nikk") };
+    await app.inject({ method: "POST", url: "/bff/board/projects", headers: h, payload: { id: "saha", name: "Saha" } });
+    const id = (await app.inject({ method: "POST", url: "/bff/board/tasks", headers: h,
+      payload: { projectId: "saha", title: "A card" } })).json().result;
+
+    const response = await app.inject({ method: "PATCH", url: `/bff/board/tasks/${id}`, headers: h,
+      payload: { description: "x".repeat(200_000) } });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toMatch(/200,000 characters; the limit is 100,000/);
+    await app.close();
+  });
+});

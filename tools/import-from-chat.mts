@@ -122,11 +122,14 @@ try {
       db.prepare("INSERT OR IGNORE INTO task_owners (task_id,actor_id,accepted) VALUES (?,?,?)")
         .run(task.id, owner, (task.acceptedBy ?? []).includes(owner) ? 1 : 0);
     }
-    for (const comment of task.comments ?? []) {
+    // Position comes from the ORDER IN THE LOG, not from the claimed
+    // timestamp. Several cards had replies dated before the things they replied
+    // to, because createdAt is whatever the author put in the payload.
+    (task.comments ?? []).forEach((comment: any, position: number) => {
       ensure(comment.author);
-      db.prepare("INSERT INTO comments (id,task_id,author_id,body,created_at) VALUES (?,?,?,?,?)")
-        .run(comment.id, task.id, comment.author, comment.body, iso(comment.createdAt));
-    }
+      db.prepare("INSERT INTO comments (id,task_id,author_id,body,created_at,position) VALUES (?,?,?,?,?,?)")
+        .run(comment.id, task.id, comment.author, comment.body, iso(comment.createdAt), position);
+    });
     for (const link of task.links ?? []) {
       db.prepare("INSERT INTO task_links (id,task_id,label,href) VALUES (?,?,?,?)")
         .run(`${task.id}-${link.href}`.slice(0, 200), task.id, link.label, link.href);
@@ -228,9 +231,59 @@ check(
   dbTasks,
 );
 
-const chatComments = tasks.flatMap((t) => (t.comments ?? []).map((c: any) => c.id)).sort();
-const dbComments = (db.prepare("SELECT id FROM comments ORDER BY id").all() as Array<{ id: string }>).map((r) => r.id);
-check("comment ids", chatComments, dbComments);
+/**
+ * Comments compared by AUTHOR AND ORDER, not only by id.
+ *
+ * Inkstone caught this: comparing ids alone proves the same comments arrived,
+ * not that they arrived attributed to the right people in the right sequence. A
+ * migration that scrambled who said what would have passed the first version of
+ * this check — in a system whose entire premise is that you can trust who said
+ * what.
+ */
+const chatComments = tasks
+  .flatMap((t: any) => (t.comments ?? []).map((c: any, index: number) => ({
+    task: t.id, id: c.id, author: c.author, position: index,
+  })))
+  .sort((a, b) => (a.task + a.id).localeCompare(b.task + b.id));
+const dbComments = (db.prepare(`
+  SELECT task_id, id, author_id, position FROM comments ORDER BY task_id, id
+`).all() as Array<{ task_id: string; id: string; author_id: string; position: number }>)
+  .map((r) => ({ task: r.task_id, id: r.id, author: r.author_id, position: r.position }))
+  .sort((a, b) => (a.task + a.id).localeCompare(b.task + b.id));
+check("comments (id, author, order)", chatComments, dbComments);
+
+/** Task ownership, including who ACCEPTED — assigned and agreed are different. */
+const chatOwners = tasks
+  .filter((t: any) => t.projectId)
+  .flatMap((t: any) => (t.owners ?? []).map((owner: string) => ({
+    task: t.id, actor: owner, accepted: (t.acceptedBy ?? []).includes(owner) ? 1 : 0,
+  })))
+  .sort((a, b) => (a.task + a.actor).localeCompare(b.task + b.actor));
+const dbOwners = (db.prepare("SELECT task_id, actor_id, accepted FROM task_owners").all() as Array<any>)
+  .map((r) => ({ task: r.task_id, actor: r.actor_id, accepted: r.accepted }))
+  .sort((a, b) => (a.task + a.actor).localeCompare(b.task + b.actor));
+check("task owners (and who accepted)", chatOwners, dbOwners);
+
+/** Everything else on a card that a person would notice going missing. */
+const chatDetail = tasks.filter((t: any) => t.projectId).map((t: any) => ({
+  id: t.id, kind: t.kind ?? null, points: t.points ?? 1,
+  priority: t.priority ?? null, blocker: t.blocker ?? null,
+})).sort((a: any, b: any) => a.id.localeCompare(b.id));
+const dbDetail = (db.prepare("SELECT id, kind, points, priority, blocker FROM tasks ORDER BY id").all() as Array<any>);
+check("task kind, points, priority, blocker", chatDetail, dbDetail);
+
+/** Profiles, field by field — a display name landing on the wrong actor is
+ *  exactly the class of error this whole migration must not introduce. */
+const chatProfiles = profiles.map((p: any) => ({
+  id: p.actorId, kind: p.kind ?? null, display_name: p.displayName ?? null,
+  bio: p.bio ?? null, coarse_location: p.coarseLocation ?? null,
+  time_zone: p.timeZone ?? null, model: p.model ?? null, runtime: p.runtime ?? null,
+})).sort((a: any, b: any) => a.id.localeCompare(b.id));
+const dbProfiles = db.prepare(`
+  SELECT id, kind, display_name, bio, coarse_location, time_zone, model, runtime
+  FROM actors WHERE display_name IS NOT NULL OR bio IS NOT NULL OR model IS NOT NULL ORDER BY id
+`).all();
+check("profiles", chatProfiles, dbProfiles);
 
 const dbOwn = db.prepare("SELECT agent_id,owner_id,state FROM ownerships ORDER BY agent_id").all();
 check("ownerships",
