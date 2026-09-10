@@ -1,0 +1,204 @@
+import { DatabaseSync } from "node:sqlite";
+import { beforeEach, describe, expect, it } from "vitest";
+import { openDatabase } from "../db/open.js";
+import { BoardStore, Refused } from "../db/store.js";
+
+/**
+ * The rules survive the move off event sourcing.
+ *
+ * ADR-002 retires the reducer, and the risk of a rewrite like this is that the
+ * rules quietly go with it — each one having been learned from a real incident.
+ * These tests are those incidents, re-asked of the new code.
+ */
+
+let db: ReturnType<typeof openDatabase>;
+let store: BoardStore;
+
+const nikk = { id: "nikk", kind: "human" as const };
+const claude = { id: "claude-nikk2mbp", kind: "agent" as const };
+const stranger = { id: "stranger", kind: "human" as const };
+
+beforeEach(() => {
+  db = openDatabase(":memory:", DatabaseSync);
+  store = new BoardStore(db);
+  store.createProject(nikk, { id: "saha", name: "Saha", goals: ["ship it"] });
+});
+
+const aTask = (owners: string[] = []) =>
+  store.createTask(nikk, { projectId: "saha", title: "A card", owners });
+
+describe("project authority", () => {
+  it("lets the creator act, because a new project must be usable by somebody", () => {
+    expect(() => aTask()).not.toThrow();
+  });
+
+  it("refuses a non-member, and says it is a request rather than an error", () => {
+    expect(() => store.createTask(stranger, { projectId: "saha", title: "nope" }))
+      .toThrow(/not a member/);
+  });
+
+  it("OPERATING AN AGENT GRANTS NOTHING", () => {
+    // The rule this whole system repeats. nikk is a manager; claude is nikk's
+    // confirmed agent; claude still may not touch the project.
+    store.actOnOwnership(nikk, "claude-nikk2mbp", "nikk", "declare");
+    store.actOnOwnership(claude, "claude-nikk2mbp", "nikk", "confirm");
+
+    expect(() => store.createTask(claude, { projectId: "saha", title: "by proxy" }))
+      .toThrow(/not a member/);
+  });
+
+  it("grants authority only through explicit membership", () => {
+    store.actOnMembership(nikk, "saha", "claude-nikk2mbp", "grant", ["engineering"]);
+
+    expect(() => store.createTask(claude, { projectId: "saha", title: "mine now" })).not.toThrow();
+  });
+
+  it("lets only a manager change who belongs", () => {
+    store.actOnMembership(nikk, "saha", "claude-nikk2mbp", "grant", ["engineering"]);
+
+    expect(() => store.actOnMembership(claude, "saha", "stranger", "grant", ["manager"]))
+      .toThrow(/only a project manager/);
+  });
+});
+
+describe("moving cards", () => {
+  it("refuses backlog straight to done", () => {
+    const id = aTask();
+    expect(() => store.transitionTask(nikk, id, "done")).toThrow(/not a legal move/);
+  });
+
+  it("allows the legal path", () => {
+    const id = aTask();
+    for (const to of ["assigned", "in_progress", "review", "done"] as const) {
+      store.transitionTask(nikk, id, to);
+    }
+    expect((db.prepare("SELECT status FROM tasks WHERE id=?").get(id) as { status: string }).status).toBe("done");
+  });
+
+  it("cannot be bypassed through the general update path", () => {
+    // updateTask deliberately has no status field. If it grew one, this fails.
+    const id = aTask();
+    store.updateTask(nikk, id, { title: "renamed" } as never);
+    expect((db.prepare("SELECT status FROM tasks WHERE id=?").get(id) as { status: string }).status).toBe("backlog");
+  });
+
+  it("clears the blocker when a card stops being blocked", () => {
+    const id = aTask();
+    store.transitionTask(nikk, id, "assigned");
+    store.transitionTask(nikk, id, "in_progress");
+    store.transitionTask(nikk, id, "blocked", "waiting on auth");
+    expect((db.prepare("SELECT blocker FROM tasks WHERE id=?").get(id) as { blocker: string }).blocker)
+      .toBe("waiting on auth");
+
+    store.transitionTask(nikk, id, "in_progress");
+    expect((db.prepare("SELECT blocker FROM tasks WHERE id=?").get(id) as { blocker: string | null }).blocker).toBeNull();
+  });
+});
+
+describe("briefs and comments", () => {
+  it("accepts a brief far longer than a chat message could carry", () => {
+    // The whole point of ADR-002. 2000 characters was the transport's limit and
+    // it made eleven real cards uneditable.
+    const id = aTask();
+    const long = "x".repeat(20_000);
+    store.updateTask(nikk, id, { description: long });
+
+    expect((db.prepare("SELECT description FROM tasks WHERE id=?").get(id) as { description: string }).description)
+      .toHaveLength(20_000);
+  });
+
+  it("keeps comments when the card is edited", () => {
+    // Under the old design an edit re-sent every comment, which is what made
+    // cards uneditable. Comments are their own rows now, so an edit cannot
+    // touch them at all.
+    const id = aTask();
+    store.addComment(nikk, id, "first");
+    store.addComment(nikk, id, "second");
+    store.updateTask(nikk, id, { title: "renamed" });
+
+    expect(db.prepare("SELECT COUNT(*) c FROM comments WHERE task_id=?").get(id)).toEqual({ c: 2 });
+  });
+
+  it("distinguishes a cleared brief from an unmentioned one", () => {
+    const id = aTask();
+    store.updateTask(nikk, id, { description: "something" });
+    store.updateTask(nikk, id, { title: "renamed" });
+    expect((db.prepare("SELECT description FROM tasks WHERE id=?").get(id) as { description: string }).description)
+      .toBe("something");
+
+    store.updateTask(nikk, id, { description: null });
+    expect((db.prepare("SELECT description FROM tasks WHERE id=?").get(id) as { description: null }).description).toBeNull();
+  });
+});
+
+describe("profiles", () => {
+  it("refuses a forbidden key outright rather than stripping it", () => {
+    // Silently dropping tells the sender it was stored, and they believe it.
+    expect(() => store.upsertProfile(nikk, { displayName: "Nikk", hostname: "laptop.local" }))
+      .toThrow(/may never be stored/);
+  });
+
+  it("writes the profile of the caller, never a name in the body", () => {
+    store.upsertProfile(nikk, { displayName: "Nikk", actorId: "someone-else" } as never);
+
+    const rows = db.prepare("SELECT id, display_name FROM actors WHERE display_name IS NOT NULL").all();
+    expect(rows).toEqual([{ id: "nikk", display_name: "Nikk" }]);
+  });
+
+  it("refuses a runtime on a person", () => {
+    expect(() => store.upsertProfile(nikk, { displayName: "Nikk", model: "opus-5" }))
+      .toThrow(/not a person/);
+  });
+});
+
+describe("ownership is a request, not a fact", () => {
+  it("starts pending, and only the agent can settle it", () => {
+    store.actOnOwnership(nikk, "claude-nikk2mbp", "nikk", "declare");
+    expect((db.prepare("SELECT state FROM ownerships").get() as { state: string }).state).toBe("pending");
+
+    expect(() => store.actOnOwnership(nikk, "claude-nikk2mbp", "nikk", "confirm"))
+      .toThrow(/only the agent/);
+
+    store.actOnOwnership(claude, "claude-nikk2mbp", "nikk", "confirm");
+    expect((db.prepare("SELECT state FROM ownerships").get() as { state: string }).state).toBe("verified");
+  });
+
+  it("refuses a claim made on someone else's behalf", () => {
+    expect(() => store.actOnOwnership(stranger, "claude-nikk2mbp", "nikk", "declare"))
+      .toThrow(/only claim an agent as your own/);
+  });
+
+  it("lets either side end it, and nobody else", () => {
+    store.actOnOwnership(nikk, "claude-nikk2mbp", "nikk", "declare");
+    expect(() => store.actOnOwnership(stranger, "claude-nikk2mbp", "nikk", "revoke")).toThrow(/not your link/);
+    store.actOnOwnership(claude, "claude-nikk2mbp", "nikk", "revoke");
+    expect((db.prepare("SELECT state FROM ownerships").get() as { state: string }).state).toBe("revoked");
+  });
+});
+
+describe("the audit trail", () => {
+  it("records who did what", () => {
+    const id = aTask();
+    store.transitionTask(nikk, id, "assigned");
+
+    const rows = db.prepare("SELECT actor_id, action, entity FROM audit ORDER BY id").all();
+    expect(rows).toContainEqual({ actor_id: "nikk", action: "transition", entity: "task" });
+  });
+
+  it("writes nothing when the change was refused", () => {
+    // The audit row and the change share a transaction. A refusal that left an
+    // audit row would be a record of something that did not happen.
+    const id = aTask();
+    const before = db.prepare("SELECT COUNT(*) c FROM audit").get() as { c: number };
+    expect(() => store.transitionTask(nikk, id, "done")).toThrow();
+
+    expect(db.prepare("SELECT COUNT(*) c FROM audit").get()).toEqual(before);
+  });
+
+  it("leaves no half-written card behind when a rule refuses", () => {
+    const before = db.prepare("SELECT COUNT(*) c FROM tasks").get();
+    expect(() => store.createTask(stranger, { projectId: "saha", title: "nope" })).toThrow(Refused);
+
+    expect(db.prepare("SELECT COUNT(*) c FROM tasks").get()).toEqual(before);
+  });
+});
