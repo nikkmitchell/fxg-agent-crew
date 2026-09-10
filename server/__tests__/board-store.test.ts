@@ -269,3 +269,69 @@ describe("bounds on free text", () => {
     expect(() => store.updateTask(nikk, id, { title: "x".repeat(600) })).toThrow(/limit is 500/);
   });
 });
+
+describe("the denial log holds metadata, never payloads", () => {
+  it("does not record the value that was refused", () => {
+    // The log exists to watch for people sending things they must not. Storing
+    // the rejected payload would put the hostname, token or credential we
+    // refused into the very table we added to catch it.
+    store.upsertProfile(nikk, { displayName: "Nikk" });
+    expect(() => store.upsertProfile(nikk, { displayName: "Nikk", hostname: "secret-box.internal" })).toThrow();
+
+    const row = db.prepare("SELECT reason FROM security_audit").get() as { reason: string };
+    expect(row.reason).toBe("profile carried a field that may never be stored");
+    expect(JSON.stringify(row)).not.toContain("secret-box");
+  });
+
+  it("derives the reason from the CODE, so no wording change can leak one", () => {
+    // Structural rather than conventional: reasonFor() has no access to a
+    // payload, so it cannot pass one on however a refusal is phrased.
+    const id = aTask();
+    expect(() => store.transitionTask(nikk, id, "done")).toThrow(/backlog → done/);
+
+    const row = db.prepare("SELECT code, reason FROM security_audit").get() as { code: string; reason: string };
+    expect(row.code).toBe("ILLEGAL_TRANSITION");
+    expect(row.reason).toBe("status change is not a legal move");
+  });
+
+  it("surfaces a denial it could not write, rather than losing it quietly", () => {
+    // A denial log that has stopped recording reads as "nobody has tried
+    // anything", which is the most dangerous thing it could say.
+    const seen: string[] = [];
+    store.onDenialWriteFailure = (_error, context, code) => seen.push(`${context.actorId}:${code}`);
+    db.exec("DROP TABLE security_audit");
+
+    expect(() => store.createTask(stranger, { projectId: "saha", title: "nope" })).toThrow();
+
+    expect(seen).toEqual(["stranger:PROJECT_PERMISSION_REQUIRED"]);
+  });
+});
+
+describe("what was asked, attested by us and not signed", () => {
+  it("records a hash and the canonicalization that produced it", () => {
+    const id = aTask();
+    store.withRequest({ b: 2, a: 1 }, () => store.transitionTask(nikk, id, "assigned"));
+
+    const row = db.prepare(
+      "SELECT request, request_hash, canonicalization, attested_by, verification FROM audit WHERE action='transition'",
+    ).get() as Record<string, string>;
+
+    // Keys sorted, so the same request serialised differently hashes the same.
+    expect(row.request).toBe('{"a":1,"b":2}');
+    expect(row.request_hash).toHaveLength(64);
+    expect(row.canonicalization).toBe("json-sorted-keys-v1");
+    expect(row.attested_by).toBe("saha.ing");
+    // The honest word. Nothing here is independently verifiable.
+    expect(row.verification).toBe("server-attested");
+  });
+
+  it("hashes identically regardless of key order", () => {
+    const id = aTask();
+    store.withRequest({ a: 1, b: { d: 4, c: 3 } }, () => store.transitionTask(nikk, id, "assigned"));
+    store.withRequest({ b: { c: 3, d: 4 }, a: 1 }, () => store.transitionTask(nikk, id, "in_progress"));
+
+    const hashes = (db.prepare("SELECT request_hash FROM audit WHERE action='transition'").all() as Array<{ request_hash: string }>)
+      .map((r) => r.request_hash);
+    expect(hashes[0]).toBe(hashes[1]);
+  });
+});

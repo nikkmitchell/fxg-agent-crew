@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   FORBIDDEN_PROFILE_KEYS,
   canTransition,
@@ -96,13 +96,21 @@ export class BoardStore {
   }
 
   private audit(actorId: string, action: string, entity: string, entityId: string, before: unknown, after: unknown) {
+    const request = this.request === undefined ? null : canonical(this.request);
     this.db
-      .prepare(`INSERT INTO audit (at, actor_id, action, entity, entity_id, before, after, request)
-                VALUES (?,?,?,?,?,?,?,?)`)
+      .prepare(`INSERT INTO audit (at, actor_id, action, entity, entity_id, before, after,
+                                   request, request_hash, canonicalization, attested_by, verification)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(now(), actorId, action, entity, entityId,
         before === undefined ? null : JSON.stringify(before),
         after === undefined ? null : JSON.stringify(after),
-        this.request === undefined ? null : JSON.stringify(this.request));
+        request,
+        request === null ? null : createHash("sha256").update(request).digest("hex"),
+        request === null ? null : CANONICALIZATION,
+        // Who is vouching for this. Us — which is exactly the point of the
+        // word: the claim is the server's, not the actor's.
+        request === null ? null : "saha.ing",
+        "server-attested");
   }
 
   /**
@@ -134,16 +142,34 @@ export class BoardStore {
   /**
    * Record a refusal. Never inside a transaction — the whole point is that it
    * survives the one that was just rolled back.
+   *
+   * MINIMAL METADATA, GUARANTEED STRUCTURALLY. The denial log exists to watch
+   * for probing, and the tempting thing to store is the rejected payload. That
+   * would put the very content we refused — a hostname, a token, a credential —
+   * into the table we added to catch people sending it. Today no refusal
+   * message happens to quote its input, but that is a property of how I worded
+   * them, not a guarantee, and the next person to write a helpful error would
+   * undo it without noticing.
+   *
+   * So `reason` is NOT the refusal message. It is a fixed sentence chosen from
+   * the refusal CODE, which cannot carry a payload because it never touches
+   * one.
    */
   private denied(context: { actorId: string; action: string; target?: string }, refusal: Refused): void {
     try {
       this.db.prepare("INSERT INTO security_audit (at, actor_id, action, target, code, reason) VALUES (?,?,?,?,?,?)")
-        .run(now(), context.actorId, context.action, context.target ?? null, refusal.code, refusal.message);
-    } catch {
-      // Failing to record a denial must not turn a clean refusal into a 500.
-      // The caller is still correctly refused; we have only lost the note.
+        .run(now(), context.actorId, context.action, context.target ?? null, refusal.code, reasonFor(refusal.code));
+    } catch (error) {
+      // Failing to record a denial must not turn a clean refusal into a 500 —
+      // the caller is still correctly refused. But silent is not acceptable
+      // either: a denial log that has quietly stopped recording is worse than
+      // none, because it reads as "nobody has tried anything".
+      this.onDenialWriteFailure?.(error, context, refusal.code);
     }
   }
+
+  /** Set by the server so a lost denial reaches the log rather than nowhere. */
+  onDenialWriteFailure?: (error: unknown, context: { actorId: string; action: string }, code: string) => void;
 
   /** Refusals raised before the transaction opens still deserve recording. */
   private guard<T>(context: { actorId: string; action: string; target?: string }, work: () => T): T {
@@ -534,3 +560,55 @@ export class BoardStore {
 
 const slug = (name: string) =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+
+/**
+ * How a request is turned into the bytes we hash.
+ *
+ * Versioned because a hash is only comparable against one made the same way. If
+ * this rule ever changes, rows written under the old one must stay checkable
+ * rather than silently looking corrupt — so the version travels with the row.
+ *
+ * v1: JSON with object keys sorted, so two identical requests that happened to
+ * serialise their fields in a different order hash the same.
+ */
+export const CANONICALIZATION = "json-sorted-keys-v1";
+
+function canonical(value: unknown): string {
+  const sort = (input: unknown): unknown => {
+    if (Array.isArray(input)) return input.map(sort);
+    if (input && typeof input === "object") {
+      return Object.fromEntries(Object.entries(input as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, inner]) => [key, sort(inner)]));
+    }
+    return input;
+  };
+  return JSON.stringify(sort(value));
+}
+
+/**
+ * A fixed sentence per refusal code.
+ *
+ * The denial log must never contain the thing that was refused. Deriving the
+ * text from the CODE rather than the message makes that structural: this
+ * function has no access to a payload, so it cannot leak one however the
+ * refusal was worded.
+ */
+function reasonFor(code: string): string {
+  const reasons: Record<string, string> = {
+    PROJECT_PERMISSION_REQUIRED: "actor is not a member of the project",
+    NOT_YOURS: "actor tried to act on someone else's link",
+    NOT_THE_AGENT: "only the agent may confirm who operates it",
+    NOT_AN_OWNER: "actor does not own the card",
+    FORBIDDEN_FIELD: "profile carried a field that may never be stored",
+    ILLEGAL_TRANSITION: "status change is not a legal move",
+    TOO_LONG: "text exceeded the stored bound",
+    TOO_LARGE: "upload exceeded the size bound",
+    UNSUPPORTED_TYPE: "file type is not one we store",
+    EMPTY_FILE: "upload was empty",
+    BAD_URL: "link was not http or https",
+    NOT_FOUND: "target does not exist",
+    CONFLICT: "target already exists",
+  };
+  return reasons[code] ?? "refused";
+}

@@ -3,7 +3,7 @@ import type { Config } from "../config.js";
 import type { Session, SessionStore } from "../session.js";
 import { BoardReads } from "../db/reads.js";
 import { BoardStore, Refused } from "../db/store.js";
-import { BlobStore, MAX_BYTES } from "../db/blobs.js";
+import { BlobStore, MAX_BYTES, QUOTA_BYTES, QUOTA_FILES, orphanReport } from "../db/blobs.js";
 import type { Role, Status } from "../../shared/board-rules.js";
 
 /**
@@ -25,6 +25,8 @@ const CODES: Record<string, number> = {
   ILLEGAL_TRANSITION: 409,
   CONFLICT: 409,
   NOT_FOUND: 404,
+  QUOTA_EXCEEDED: 413,
+  TOO_LONG: 400,
   BLOB_MISSING: 500,
   TOO_LARGE: 413,
   UNSUPPORTED_TYPE: 415,
@@ -42,6 +44,49 @@ export function registerBoardRoutes(
   const reads = new BoardReads(db);
   const store = new BoardStore(db);
   const blobs = new BlobStore(db, blobRoot);
+
+  /**
+   * A lost denial must not be silent.
+   *
+   * The store swallows a failed denial-write so a clean refusal does not become
+   * a 500 — the caller is still correctly refused. But a denial log that has
+   * quietly stopped recording reads as "nobody has tried anything", which is
+   * the most dangerous thing it could say.
+   */
+  store.onDenialWriteFailure = (error, context, code) => {
+    app.log.error({ err: error, actor: context.actorId, action: context.action, code },
+      "COULD NOT RECORD A DENIAL — the security audit is incomplete from here");
+  };
+
+  /**
+   * Refusals per actor, so probing costs something.
+   *
+   * Deliberately counts REFUSALS, not requests: a member working normally never
+   * touches this, and someone trying doors hits it quickly. In memory, per
+   * process, and reset on restart — which is a real limit and worth naming
+   * rather than implying this is a durable defence. It raises the cost of a
+   * scripted probe; it does not stop a patient one.
+   */
+  const refusals = new Map<string, { count: number; until: number }>();
+  const PROBE_LIMIT = 20;
+  const PROBE_WINDOW_MS = 60_000;
+
+  const tooManyRefusals = (actorId: string): boolean => {
+    const now = Date.now();
+    const entry = refusals.get(actorId);
+    if (!entry || now > entry.until) return false;
+    return entry.count > PROBE_LIMIT;
+  };
+
+  const countRefusal = (actorId: string) => {
+    const now = Date.now();
+    const entry = refusals.get(actorId);
+    if (!entry || now > entry.until) {
+      refusals.set(actorId, { count: 1, until: now + PROBE_WINDOW_MS });
+      return;
+    }
+    entry.count += 1;
+  };
 
   const requireSession = (request: FastifyRequest, reply: FastifyReply): Session | undefined => {
     const session = sessions.get(request.cookies[config.cookieName]);
@@ -67,9 +112,18 @@ export function registerBoardRoutes(
       // of state; this is the intent behind it, and the thing a signature would
       // later attach to.
       const envelope = { method: request.method, path: request.url, body: request.body ?? null };
+      const actor = sessions.get(request.cookies[config.cookieName])?.username;
+      if (actor && tooManyRefusals(actor)) {
+        return reply.code(429).send({
+          code: "TOO_MANY_REFUSALS",
+          error: "too many refused attempts in a short window; slow down",
+        });
+      }
       return reply.send({ ok: true, result: store.withRequest(envelope, () => work()) ?? null });
     } catch (error) {
       if (error instanceof Refused) {
+        const actor = sessions.get(request.cookies[config.cookieName])?.username;
+        if (actor) countRefusal(actor);
         return reply.code(CODES[error.code] ?? 400).send({ code: error.code, error: error.message });
       }
       app.log.error({ err: error }, "board write failed");
@@ -103,6 +157,19 @@ export function registerBoardRoutes(
   app.get<{ Params: { entity: string; id: string } }>("/bff/board/history/:entity/:id", async (request, reply) => {
     if (!requireSession(request, reply)) return reply;
     return reply.send({ history: reads.history(request.params.entity, request.params.id) });
+  });
+
+  app.get("/bff/board/storage", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const { orphans, totalBytes } = orphanReport(db);
+    return reply.send({
+      quota: { bytes: QUOTA_BYTES, files: QUOTA_FILES },
+      usage: db.prepare("SELECT * FROM storage_usage ORDER BY bytes DESC").all(),
+      // Reported, never swept. Deleting bytes on a computed reference set is
+      // how you lose a file that was still in use.
+      orphans: { count: orphans.length, totalBytes, files: orphans.slice(0, 100) },
+    });
   });
 
   // ------------------------------------------------------------------ writes

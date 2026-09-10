@@ -11,6 +11,22 @@
 #   deploy/backup.sh              run one backup
 #   deploy/backup.sh --verify     also restore it to a temp file and read it
 #
+# RECOVERY OBJECTIVES, stated rather than implied:
+#
+#   RPO — how much work a restore can lose.  UP TO 24 HOURS on the nightly
+#         timer alone. That is a real number and somebody should be unhappy
+#         with it: an image uploaded at 03:31 is gone if the disk dies at
+#         03:29 the next morning. Run this by hand before anything risky.
+#
+#   RTO — how long a restore takes.  MINUTES, and only because the data is
+#         small: gunzip a file, rsync a tree, start the service. This is not a
+#         claim about a rehearsed procedure — it is a claim about the size of
+#         the data. The rehearsal is `--verify`, which restores every night.
+#
+# OFF-HOST is not optional. A backup on the same disk as the thing it backs up
+# is not a backup; it is a second copy that dies at the same moment. Set
+# BACKUP_REMOTE to somewhere else and this ships an encrypted copy there.
+#
 set -euo pipefail
 
 DB=${DATABASE_PATH:-/var/lib/fxg-crew/saha.db}
@@ -46,6 +62,42 @@ ls -1dt "$DEST"/blobs/*/ 2>/dev/null | grep -v "/latest/$" | tail -n +$((KEEP + 
 
 SIZE=$(du -sh "$DEST" | cut -f1)
 echo "backed up to $DEST ($SIZE total, keeping $KEEP)"
+
+# Off-host, encrypted.
+#
+# Encrypted BEFORE it leaves, so the destination never holds readable copies of
+# people's boards and images. A passphrase in the environment is a modest
+# secret, and it is the difference between "somebody else has our data" and
+# "somebody else has our ciphertext".
+if [ -n "${BACKUP_REMOTE:-}" ]; then
+  if [ -z "${BACKUP_PASSPHRASE:-}" ]; then
+    echo "BACKUP_REMOTE is set but BACKUP_PASSPHRASE is not — refusing to ship plaintext off-host" >&2
+    exit 1
+  fi
+  BUNDLE="$DEST/offsite-$STAMP.tar.gz.enc"
+  PLAIN="$DEST/offsite-$STAMP.tar.gz"
+  tar -czf "$PLAIN" -C "$DEST" "db/saha-$STAMP.db.gz" -C "$DEST/blobs" "$STAMP"
+
+  # The checksum is of the PLAINTEXT, and it is what makes this detectable
+  # rather than merely private.
+  #
+  # openssl enc uses AES-CBC, which is unauthenticated: decrypting with the
+  # wrong key, or decrypting a corrupted file, produces GARBAGE rather than an
+  # error. I checked — a wrong passphrase returned noise and exit 0. Without
+  # this line you would discover a bad backup by restoring it and finding a
+  # database full of rubbish, at the exact moment you least want a surprise.
+  shasum -a 256 "$PLAIN" | awk '{print $1}' > "$BUNDLE.sha256"
+
+  openssl enc -aes-256-cbc -pbkdf2 -iter 250000 -salt -pass env:BACKUP_PASSPHRASE -in "$PLAIN" -out "$BUNDLE"
+  rm -f "$PLAIN"
+  rsync -a --remove-source-files "$BUNDLE" "$BUNDLE.sha256" "$BACKUP_REMOTE/" \
+    && echo "shipped encrypted copy to $BACKUP_REMOTE (with plaintext checksum for restore)"
+else
+  # Said out loud every run. A backup that lives on the same disk as the data
+  # is one disk failure from being no backup at all, and a warning nobody sees
+  # is the same as no warning.
+  echo "WARNING: BACKUP_REMOTE not set — every copy is on the same disk as the data." >&2
+fi
 
 if [ "${1:-}" = "--verify" ]; then
   # A BACKUP NOBODY HAS RESTORED IS NOT A BACKUP. This restores the snapshot

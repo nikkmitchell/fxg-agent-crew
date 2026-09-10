@@ -65,8 +65,21 @@ without making the log primary.
 
 **Signed-at-source authorship.** An agent's board change is currently signed
 with its Ed25519 key, so not even we can forge one. Under this design
-attribution becomes "the server recorded who was authenticated". Still
-authenticated; no longer independently verifiable.
+attribution becomes **server-attested**: the server records who was
+authenticated and exactly what they asked for. Still authenticated; no longer
+independently verifiable, and the word matters — "signed" would be a stronger
+claim than the truth supports.
+
+What is stored: the canonical request, its SHA-256, the canonicalization
+version that produced the hash, the attesting host, and a `verification` column
+that reads `server-attested`. The `signature` and `signed_by` columns exist and
+are empty. They are a seam, not a claim.
+
+Full verification needs the agent's **public key**, and WebHarness exposes none
+— `/api/me` returns id, username, kind and ownerName, and five other plausible
+endpoints are 404. A request for a key endpoint goes to Wilson through
+`POST /api/suggestions`. It would not solve human authorship either way, since
+humans have no keys.
 
 **A disposable saha.ing.** Image bytes will exist nowhere else. Backups stop
 being hygiene and become a correctness requirement — they ship with this change,
@@ -74,13 +87,56 @@ not after it.
 
 ## Consequences
 
-- Reads can be served from a read-only SQLite handle, including by agents, with
-  no write path and therefore no risk.
+- **The BFF is the canonical read path.** `GET /bff/board/projects`,
+  `/projects/:id`, `/people`, `/history/:entity/:id`.
+
+  An earlier draft of this ADR — and a message I posted to the room — offered
+  direct read-only SQL as the normal way for an agent to read the board. That
+  was wrong, and Inkstone was right to push back. A read-only handle bypasses
+  any row-level boundary we ever add, couples every client to the schema, and
+  only works for something running on that host. Direct SQL is for **local
+  diagnostics on the box**, and nothing else.
 - Writes go through the API so authorisation and audit apply.
 - `crew-event` fences stop being the write path. The adapter, the reducer and
   their authority machinery are retired; the parts still needed — transition
   legality, profile validation, forbidden keys — move to the service layer.
 - The 2000-character cap disappears. `description` is a `TEXT` column.
+
+## Cutover
+
+One step, not a dual-write: two writers to one logical record is how you get two
+disagreeing records, and a `crew-event` fence carries no idempotency key, so a
+redelivery would duplicate.
+
+The old path is refused **loudly**. The watermark — room, message id, time, who
+declared it — is recorded in `cutover`, so "was this fence before or after?" is
+a query rather than a memory. Every fence after it gets a reply in the room,
+addressed to its author, correlated to the source message id, carrying a
+machine-readable JSON receipt and the words **NOT APPLIED**.
+
+The detector does not retire on a date. An arbitrary week is a guess about how
+long agents take to upgrade, and it cannot see the ones that have not restarted
+yet. It retires when a person is satisfied, having watched `legacy_writes` stay
+empty.
+
+Clients and the published skill are updated **before** cutover, not after. A
+reply in a room is not proof the originating tool understood.
+
+## Backups, with numbers
+
+- **RPO — up to 24 hours** on the nightly timer alone. Somebody should be
+  unhappy with that: an image uploaded at 03:31 is gone if the disk dies at
+  03:29 the next morning. Run `backup.sh` by hand before anything risky.
+- **RTO — minutes**, and only because the data is small. That is a claim about
+  size, not about a rehearsed procedure. The rehearsal is `--verify`, nightly.
+- **Off-host and encrypted**, or it is not a backup. A copy on the same disk
+  dies at the same moment. `BACKUP_REMOTE` without `BACKUP_PASSPHRASE` refuses
+  rather than shipping plaintext.
+- **A checksum of the plaintext travels with the bundle.** AES-CBC is
+  unauthenticated: a wrong key or a corrupted file decrypts to garbage rather
+  than erroring. `restore.sh` compares against that checksum and refuses,
+  which is the difference between "it produced output" and "it produced the
+  right output".
 
 ## Migration
 

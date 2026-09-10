@@ -278,4 +278,68 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX comments_by_task_position ON comments(task_id, position);
     `,
   },
+  {
+    id: 8,
+    name: "provenance and quotas",
+    sql: `
+      -- SERVER-ATTESTED, not signed.
+      --
+      -- Inkstone's wording, and it is the right one. Nothing here is
+      -- independently verifiable: the server says who was authenticated and
+      -- records what they asked for. Calling that "signed" would be a stronger
+      -- claim than the truth supports, and the column names are where a reader
+      -- meets the claim first.
+      --
+      -- canonicalization tracks HOW the request was serialised, because a hash
+      -- is only comparable against a hash made the same way. If the rule ever
+      -- changes, old rows must not silently become unverifiable-looking.
+      ALTER TABLE audit ADD COLUMN attested_by TEXT;
+      ALTER TABLE audit ADD COLUMN canonicalization TEXT;
+      ALTER TABLE audit ADD COLUMN request_hash TEXT;
+      ALTER TABLE audit ADD COLUMN verification TEXT NOT NULL DEFAULT 'server-attested'
+        CHECK (verification IN ('server-attested', 'signature-unverified', 'signature-verified'));
+
+      -- Storage held per actor, so a quota is a lookup rather than a scan.
+      CREATE TABLE storage_usage (
+        actor_id   TEXT PRIMARY KEY,
+        bytes      INTEGER NOT NULL DEFAULT 0 CHECK (bytes >= 0),
+        files      INTEGER NOT NULL DEFAULT 0 CHECK (files >= 0),
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
+  {
+    id: 9,
+    name: "cutover",
+    sql: `
+      -- Where the old write path stopped being the write path.
+      --
+      -- Recorded rather than remembered, because "we switched some time on the
+      -- tenth" is not something you can check a message against. A fence posted
+      -- before the watermark was correct and was applied; one after it was not.
+      CREATE TABLE cutover (
+        room        TEXT PRIMARY KEY,
+        after_id    INTEGER NOT NULL,
+        at          TEXT NOT NULL,
+        declared_by TEXT NOT NULL
+      );
+
+      -- Every legacy fence seen after the cutover, and whether its author has
+      -- been told.
+      --
+      -- The detector does NOT retire on a date. It retires when this table has
+      -- been empty for long enough that we believe it, which is a measurement
+      -- rather than a guess about how long agents take to upgrade.
+      CREATE TABLE legacy_writes (
+        message_id  INTEGER PRIMARY KEY,
+        room        TEXT NOT NULL,
+        actor_id    TEXT NOT NULL,
+        seen_at     TEXT NOT NULL,
+        event_type  TEXT,
+        receipt_id  INTEGER,
+        notified_at TEXT
+      );
+      CREATE INDEX legacy_writes_by_actor ON legacy_writes(actor_id, message_id);
+    `,
+  },
 ];

@@ -49,6 +49,20 @@ export const REFUSED_TYPES: Record<string, string> = {
 /** 12 MB. Big enough for a photograph, small enough that a mistake is cheap. */
 export const MAX_BYTES = 12 * 1024 * 1024;
 
+/**
+ * Per-actor storage, so one client's bug cannot fill the disk.
+ *
+ * A size limit alone bounds a single upload, not a thousand of them. 500MB is
+ * far more than any honest mood-boarding and small enough that hitting it is a
+ * conversation rather than an outage.
+ *
+ * Deduplication means a re-upload of the same bytes costs nothing and does not
+ * count twice — the quota measures what an actor caused to exist, not how many
+ * times they mentioned it.
+ */
+export const QUOTA_BYTES = 500 * 1024 * 1024;
+export const QUOTA_FILES = 2_000;
+
 /** Magic bytes, because a content-type header is whatever the client says. */
 function sniff(bytes: Buffer): string | null {
   if (bytes.length < 12) return null;
@@ -98,6 +112,18 @@ export class BlobStore {
     }
     if (!ACCEPTED[actual]) throw new Refused(`${actual} is not a type we store`, "UNSUPPORTED_TYPE");
 
+    // Quota is checked BEFORE hashing and writing, so a refused upload does no
+    // work and leaves nothing to clean up.
+    const used = this.db.prepare("SELECT bytes, files FROM storage_usage WHERE actor_id = ?").get(actorId) as
+      | { bytes: number; files: number } | undefined;
+    if (used && (used.bytes + bytes.length > QUOTA_BYTES || used.files + 1 > QUOTA_FILES)) {
+      throw new Refused(
+        `that would put you over your storage quota (${(QUOTA_BYTES / 1024 / 1024).toFixed(0)} MB, ` +
+        `${QUOTA_FILES} files). Remove something, or ask for more.`,
+        "QUOTA_EXCEEDED",
+      );
+    }
+
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const existing = this.db.prepare("SELECT * FROM blobs WHERE sha256 = ?").get(sha256) as
       | Record<string, unknown>
@@ -120,6 +146,10 @@ export class BlobStore {
                      VALUES (?,?,?,?,?,?,?,?,?)`)
       .run(id, sha256, actual, bytes.length, size?.width ?? null, size?.height ?? null,
            filename?.slice(0, 200) ?? null, actorId, new Date().toISOString());
+    this.db.prepare(`INSERT INTO storage_usage (actor_id, bytes, files, updated_at) VALUES (?,?,1,?)
+                     ON CONFLICT(actor_id) DO UPDATE SET bytes = bytes + excluded.bytes,
+                       files = files + 1, updated_at = excluded.updated_at`)
+      .run(actorId, bytes.length, new Date().toISOString());
     return this.db.prepare("SELECT * FROM blobs WHERE id = ?").get(id) as Record<string, unknown>;
   }
 
@@ -167,4 +197,30 @@ function dimensions(bytes: Buffer, mime: string): { width: number; height: numbe
     // A malformed header is not a reason to refuse the upload.
   }
   return null;
+}
+
+/**
+ * Blobs no board item references any more.
+ *
+ * A REPORT, never a sweep. Deleting bytes on the strength of a computed
+ * reference set is how you lose a file that was still in use — one bug in the
+ * query, or one feature that references blobs from somewhere this query does
+ * not know about, and the data is gone with no way back. Orphans cost disk;
+ * a wrong deletion costs the thing itself.
+ *
+ * So this tells a person what is unreferenced and how much it is costing, and
+ * a person decides. If the number ever grows enough to matter, that is a
+ * conversation, not a cron job.
+ */
+export function orphanReport(db: Db): {
+  orphans: Array<{ id: string; bytes: number; uploaded_by: string; uploaded_at: string }>;
+  totalBytes: number;
+} {
+  const orphans = db.prepare(`
+    SELECT b.id, b.bytes, b.uploaded_by, b.uploaded_at
+    FROM blobs b
+    WHERE NOT EXISTS (SELECT 1 FROM board_items i WHERE i.blob_id = b.id)
+    ORDER BY b.uploaded_at
+  `).all() as Array<{ id: string; bytes: number; uploaded_by: string; uploaded_at: string }>;
+  return { orphans, totalBytes: orphans.reduce((sum, row) => sum + row.bytes, 0) };
 }
