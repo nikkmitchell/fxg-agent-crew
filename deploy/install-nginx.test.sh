@@ -37,5 +37,32 @@ rm -f "$FXG_NGINX_SITE"
 "$WORK/install-nginx.sh" example.test >/dev/null 2>&1
 check "failed first install leaves no file" "$([ -e "$FXG_NGINX_SITE" ] && echo present || echo absent)" "absent"
 
+# Test 3 deliberately leaves no file behind, so put a good one back before
+# inspecting its contents. Reading an absent file would make every check below
+# fail for the wrong reason — or worse, pass vacuously if one were written
+# loosely.
+cp "$HERE/nginx.conf" "$WORK/nginx.conf"
+"$HERE/install-nginx.sh" example.test >/dev/null 2>&1
+
+# 4. The two things that were WRONG in production, asserted so they cannot come
+#    back quietly. Both were invisible: one refused uploads the app would have
+#    accepted, the other would have made every WebSocket handshake return HTML.
+check "passes WebSocket upgrade through" \
+  "$(grep -cF 'proxy_set_header Upgrade           $http_upgrade' "$FXG_NGINX_SITE")" "1"
+check "sends Connection: upgrade only when asked" \
+  "$(grep -cF 'map $http_upgrade $connection_upgrade' "$FXG_NGINX_SITE")" "1"
+
+# The body limit must sit ABOVE the application's own, so the app stays the
+# thing that refuses and explains. Read from the source rather than restated
+# here, because a number copied into a test is a number that drifts.
+APP_MB=$(grep -o 'MAX_BYTES = [0-9]* \* 1024 \* 1024' "$HERE/../server/db/blobs.ts" | grep -o '^MAX_BYTES = [0-9]*' | grep -o '[0-9]*')
+NGINX_MB=$(grep -o 'client_max_body_size [0-9]*m' "$FXG_NGINX_SITE" | grep -o '[0-9]*')
+if [ -n "$APP_MB" ] && [ -n "$NGINX_MB" ] && [ "$NGINX_MB" -gt "$APP_MB" ]; then
+  echo "ok   - nginx body limit (${NGINX_MB}m) is above the app's (${APP_MB}m)"
+else
+  echo "FAIL - nginx body limit ${NGINX_MB}m must exceed the app's ${APP_MB}m, or nginx refuses uploads the app would accept — in nginx's words, not ours"
+  fail=1
+fi
+
 [ "$fail" = 0 ] && echo "all deploy/install-nginx.sh checks passed"
 exit "$fail"
