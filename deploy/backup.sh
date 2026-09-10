@@ -51,9 +51,13 @@ gzip -f "$DEST/db/saha-$STAMP.db"
 # disk, and each one is a complete tree rather than a chain of increments that
 # all have to survive.
 LATEST="$DEST/blobs/latest"
-rsync -a --delete \
-  ${LATEST:+--link-dest="$LATEST"} \
-  "$BLOBS/" "$DEST/blobs/$STAMP/"
+# Guard on the directory EXISTING, not on the variable being set — the variable
+# is always set, so the first run passed --link-dest at a path that was not
+# there and rsync complained. Harmless, but a warning on every first run is a
+# warning people learn to ignore.
+LINK=()
+[ -d "$LATEST" ] && LINK=(--link-dest="$LATEST")
+rsync -a --delete "${LINK[@]}" "$BLOBS/" "$DEST/blobs/$STAMP/"
 ln -sfn "$DEST/blobs/$STAMP" "$LATEST"
 
 # Prune by count, oldest first.
