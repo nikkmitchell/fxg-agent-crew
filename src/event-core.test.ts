@@ -223,6 +223,20 @@ describe("seam and lifecycle regressions", () => {
     expect(after.agents["baipad-gpt001"].online).toBe(false);
   });
 
+  // 30s, against a measured 3.6s.
+  //
+  // Not padding for its own sake: this test blocked a deploy by timing out at
+  // the default 5s while passing in 3.6s on an idle machine. A 30% margin is
+  // no margin at all when the suite runs in parallel straight after a build,
+  // and release.sh correctly refuses to ship a red run — so the flake stopped
+  // a real security fix from going out.
+  //
+  // The cost is a genuine quadratic: reduceCrewEvent copies seenEventIds per
+  // event, so 6000 events means ~18M insertions. That USED to be a production
+  // scaling limit. Since ADR-002 it is not — the live board is SQL, and this
+  // reducer now runs only in the one-time importer and the legacy detector.
+  // The limit is real and no longer on any hot path, which is why the answer
+  // here is an honest timeout rather than a rewrite.
   it("keeps replay idempotent at a volume that would have triggered pruning", () => {
     // 6000 events, deliberately above the 5000 cap a removed pruning attempt
     // used. That attempt BROKE this property: evicted ids came back as
