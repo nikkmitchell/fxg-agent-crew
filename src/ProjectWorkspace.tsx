@@ -8,6 +8,7 @@ import { byPriority, nextUnclaimed, priorityLabel } from "./priority";
 import { ROLES, canManageMembership, membersOf, type Membership, type Role } from "./membership";
 import { Identity } from "./Identity";
 import type { ActorProfile } from "./profiles";
+import { briefBudget, describeBudget } from "../shared/message-budget";
 
 const PROJECT_ROOM = "AgentParty";
 
@@ -41,6 +42,76 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
     );
   }
   return body as T;
+}
+
+/**
+ * The brief editor, which knows what it can actually save.
+ *
+ * It used to invite 4000 characters into a textarea and find out at save time
+ * that the transport carries 2000 — so the way a writer learned about the limit
+ * was by losing an afternoon's writing to a 400. `maxLength={4000}` was worse
+ * than nothing: it silently stopped accepting keystrokes at a number that was
+ * not the real limit, so the writer saw neither the wall they hit nor the one
+ * still coming.
+ *
+ * The budget is MEASURED against the exact encoder the BFF uses, not estimated,
+ * and recomputed on every keystroke because the cost of a character depends on
+ * the character — a quote or a newline costs two.
+ */
+function BriefForm({
+  task,
+  busy,
+  onSave,
+}: {
+  task: CrewTask;
+  busy: boolean;
+  onSave: (task: CrewTask, description: string) => void | Promise<void>;
+}) {
+  const [text, setText] = useState(task.description ?? "");
+  const budget = briefBudget(task as unknown as Record<string, unknown>, text);
+  const said = describeBudget(budget);
+
+  return (
+    <form
+      className="task-brief-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        // Belt and braces: the button is disabled too, but a form can still be
+        // submitted from the keyboard in some browsers, and the failure here is
+        // losing what someone wrote.
+        if (!budget.fits) return;
+        void onSave(task, text);
+      }}
+    >
+      <label htmlFor={`brief-${task.id}`}>
+        What does this card mean, and what does finishing it look like?
+      </label>
+      <textarea
+        id={`brief-${task.id}`}
+        name="description"
+        rows={4}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        aria-describedby={`brief-budget-${task.id}`}
+        aria-invalid={budget.fits ? undefined : true}
+      />
+      {/*
+        * aria-live so the warning reaches someone who is typing rather than
+        * looking at it. Polite rather than assertive: it should be there when
+        * they pause, not interrupt them mid-sentence.
+        */}
+      <p
+        id={`brief-budget-${task.id}`}
+        className={`brief-budget brief-budget--${said.tone}`}
+        aria-live="polite"
+      >
+        {said.text}
+      </p>
+      <button disabled={busy || !budget.fits}>
+        {task.description ? "Update brief" : "Write brief"}
+      </button>
+    </form>
+  );
 }
 
 export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "overview" | "board" | "mine"> }) {
@@ -310,14 +381,36 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
    * one field changed. Sending only the description would silently drop owners,
    * comments and status — an edit that looks like a small one and is not.
    */
+  /**
+   * Strip the discussion off a card before sending it.
+   *
+   * task.upserted replaces the stored card, so this used to re-send every
+   * comment on every edit — and a card's comments outgrow a 2000-character
+   * durable message after about the third one. Eleven cards had already passed
+   * that point: claiming them, accepting them, renaming them or writing a brief
+   * all failed with a 400, because the discussion was riding along in a payload
+   * that had nothing to do with it. Sending the card without comments instead
+   * silently deleted them. There was no third option until the reducer learned
+   * that an omitted `comments` means unchanged.
+   *
+   * So: never send them. Comments travel as task.commented, one at a time,
+   * which is also the only shape where two people commenting at once do not
+   * erase each other.
+   */
+  const withoutDiscussion = (task: CrewTask): Omit<CrewTask, "comments"> => {
+    const { comments: _discussion, ...card } = task;
+    return card;
+  };
+
   const saveDescription = async (task: CrewTask, description: string) => {
     const trimmed = description.trim();
+    const card = withoutDiscussion(task);
     await append({
       type: "task.upserted",
       // Cleared means cleared: the field is omitted rather than sent as "",
       // so "nobody has written one" stays distinguishable from "someone wrote
       // nothing".
-      task: trimmed ? { ...task, description: trimmed } : (({ description: _drop, ...rest }) => rest)(task),
+      task: trimmed ? { ...card, description: trimmed } : (({ description: _drop, ...rest }) => rest)(card),
     });
   };
 
@@ -334,7 +427,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     await append({
       type: "task.upserted",
       task: {
-        ...task,
+        ...withoutDiscussion(task),
         owners,
         assigneeId: owners[0],
         acceptedBy,
@@ -423,28 +516,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                               Nobody has written a brief for this card yet.{me ? " You can." : ""}
                             </p>
                           )}
-                          {me ? (
-                            <form
-                              className="task-brief-form"
-                              onSubmit={(event) => {
-                                event.preventDefault();
-                                const form = event.currentTarget;
-                                void saveDescription(task, String(new FormData(form).get("description") ?? ""));
-                              }}
-                            >
-                              <label htmlFor={`brief-${task.id}`}>
-                                What does this card mean, and what does finishing it look like?
-                              </label>
-                              <textarea
-                                id={`brief-${task.id}`}
-                                name="description"
-                                rows={4}
-                                maxLength={4000}
-                                defaultValue={task.description ?? ""}
-                              />
-                              <button disabled={busy}>{task.description ? "Update brief" : "Write brief"}</button>
-                            </form>
-                          ) : null}
+                          {me ? <BriefForm task={task} busy={busy} onSave={saveDescription} /> : null}
                         </div>
                       ) : null}
 

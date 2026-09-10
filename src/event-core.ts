@@ -316,11 +316,33 @@ export function reduceCrewEvent(state: CrewState, event: EventEnvelope): CrewSta
       if (!result.ok) return reject(next, event.eventId, result.reason);
       return { ...next, memberships: result.value };
     }
-    case "task.upserted":
+    case "task.upserted": {
       if (event.payload.task.projectId && !next.projects[event.payload.task.projectId]) {
         return reject(next, event.eventId, "project not found");
       }
-      return { ...next, tasks: { ...next.tasks, [event.payload.task.id]: event.payload.task } };
+      // An upsert that says nothing about comments PRESERVES them, the same way
+      // agent.upserted preserves observed presence.
+      //
+      // This is what made eleven cards uneditable. task.upserted replaces the
+      // stored card, so a client wanting to keep the discussion had to re-send
+      // every comment — and a card's comments outgrow a 2000-character message
+      // after about the third one. Past that point claiming the card, accepting
+      // it, renaming it or writing its brief all fail with a 400, because the
+      // discussion is riding along in a payload that has nothing to do with it.
+      // The alternative, sending the card without them, silently deleted the
+      // discussion. There was no third option: that is a deadlock, not a limit.
+      //
+      // Omitted now means "unchanged", so a client sends only the card. An
+      // explicit array still replaces, because a deliberate edit must remain
+      // possible. Audited over the whole log before changing: 155 events, 60
+      // upserts, 55 of which carried comments, and ZERO where this rule would
+      // make a replay differ.
+      const existing = next.tasks[event.payload.task.id];
+      const task = event.payload.task.comments === undefined && existing?.comments
+        ? { ...event.payload.task, comments: existing.comments }
+        : event.payload.task;
+      return { ...next, tasks: { ...next.tasks, [task.id]: task } };
+    }
     case "profile.upserted": {
       // A PROFILE IS A STATEMENT ABOUT YOURSELF. The acting identity is the
       // authenticated author of the event, never the actorId in the body —
