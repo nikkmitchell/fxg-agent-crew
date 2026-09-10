@@ -103,9 +103,11 @@ negative result deserves the same scrutiny as a positive one.
 ## Deployment
 
 - `deploy/release.sh user@host` — builds, ships, restarts, then verifies the
-  RUNNING SERVICE. It refuses to finish unless `/space/bff/me` is 401 and both
-  `/` and `/api/rooms` return 404 on loopback. That last check is the guarantee
-  that Mission Control cannot capture the chat it sits beside.
+  RUNNING SERVICE. It refuses to finish unless `/bff/me` is 401, `/` is 200,
+  and `/api/rooms` is 404 on loopback. That last check is the surviving half of
+  the old isolation guarantee: Mission Control moved from `/space` to `/` on
+  2026-09-10 when chat left this origin, so `/` is ours now — but `/api/` stays
+  reserved, because the reason for the mount outlived the mount.
 - **TLS ordering deadlocks the host if you improvise it.** `nginx.conf`
   references certificate files; on a machine with no certificate `nginx -t`
   fails, nginx will not start, and a stopped nginx cannot serve the ACME

@@ -59,17 +59,27 @@ certbot renew --dry-run
 deploy/release.sh root@your.hostname
 ```
 
-## The root path: two servers, one hostname
+## The root path
 
-`https://your.hostname/` is a real landing page and the Node service still
-returns 404 for `/`. Those are not in conflict, because they are different
-servers: **nginx** answers `/` from `/var/www/saha` on disk, and only `/space/`
-is proxied to Node. `release.sh` asserts that Node returns 404 at `/` and at
-`/api/rooms` on loopback, which is the isolation guarantee — Mission Control
-cannot capture the chat it sits beside.
+`https://your.hostname/` **is** Mission Control. nginx proxies everything to
+Node except `/robots.txt`, which stays on disk so it keeps answering when the
+service is down — a crawler that gets a 502 learns nothing about whether it may
+index the host.
 
-If the landing page is ever removed, `location = /` must go back to
-`return 404`. It must never fall through to `proxy_pass`.
+It was not always this way. Mission Control was mounted at `/space` so it could
+share an origin with classic chat without capturing its routes, and `/` served a
+static landing page. Chat moved to its own domain on 2026-09-10, which left a
+front page whose entire content was a link to the real page.
+
+**The isolation that mount provided did not leave with it.** The Node service
+reserves `/api/` itself and answers 404 there, so anything else served from this
+origin later cannot be swallowed by the SPA fallback. `release.sh` still checks
+it. That is the half of the old guarantee that was worth keeping — and it was
+worth keeping deliberately, rather than deleting the whole check because the
+first half of it had started to fail.
+
+`/space` and `/space/*` redirect permanently to the new locations, so links
+bookmarked before the move still land somewhere useful.
 
 ## An IP address is not enough
 

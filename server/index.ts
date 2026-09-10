@@ -86,6 +86,19 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   });
   app.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith(`${basePath}/bff/`)) return reply.code(404).send({ error: "not found" });
+    // /api/ IS RESERVED, and stays reserved now that the app owns `/`.
+    //
+    // The old mount at /space existed so this service could sit beside classic
+    // chat on one origin without capturing its routes, and release.sh asserted
+    // that `/` and `/api/rooms` both 404. Chat now lives on its own domain, so
+    // the mount is gone — but the REASON for it is not. Without this, the SPA
+    // fallback answers /api/anything with the app, and the day something else
+    // is served from this origin we have the capture problem back, silently.
+    //
+    // Cheap to keep, expensive to rediscover.
+    if (/^\/api(\/|$)/.test(new URL(request.url, "http://placeholder").pathname)) {
+      return reply.code(404).send({ error: "not found" });
+    }
     if (basePath && request.url === basePath) return reply.redirect(`${basePath}/`);
     if (basePath && !request.url.startsWith(`${basePath}/`)) return reply.code(404).send({ error: "not found" });
     // A MISSING FILE MUST 404, not quietly become the app.
