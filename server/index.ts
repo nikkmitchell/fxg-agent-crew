@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
+import websocket from "@fastify/websocket";
 import staticPlugin from "@fastify/static";
 import { loadConfig, type Config } from "./config.js";
 import { MemorySessionStore, SqliteSessionStore, type SessionStore } from "./session.js";
@@ -13,6 +14,7 @@ import { registerRoomRoutes } from "./routes/rooms.js";
 import { registerProjectRoutes } from "./routes/projects.js";
 import { registerBuildRoutes } from "./routes/build.js";
 import { registerBoardRoutes } from "./routes/board.js";
+import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
 import { openDatabase } from "./db/open.js";
 
 /**
@@ -55,7 +57,7 @@ function findUiRoot(start: string): string {
 
 export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const config = loadConfig(env);
-  const app = Fastify({ logger: true });
+  const app = Fastify({ logger: { level: config.logLevel } });
   const sessions = createSessionStore(config);
 
   // saha.ing's own database. Opened once per process and migrated on the way
@@ -86,6 +88,13 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const client = new WebharnessClient(config.webharnessUrl);
 
   app.register(cookie);
+  // Registered at the root so the upgrade handler sees every request. The route
+  // itself is declared inside the prefixed block below, so it moves with the
+  // base path like everything else.
+  app.register(websocket);
+
+  // Who is standing where. In memory, on purpose — see server/space/presence.ts.
+  const space = new SpaceHub();
 
   // A prefix lets Wilson mount this beside classic chat at /space without
   // stealing its routes. With the default empty prefix, existing URLs remain
@@ -96,6 +105,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerProjectRoutes(scoped, config, sessions, client);
     registerBuildRoutes(scoped, config, sessions);
     registerBoardRoutes(scoped, config, sessions, database, config.blobRoot);
+    registerSpaceRoutes(scoped, config, sessions, space);
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.
@@ -151,10 +161,15 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     return reply.sendFile("index.html");
   });
 
+  // Stop the tick loop when the server does. The timer is unref'd so it would
+  // not hold the process open anyway, but a loop still broadcasting into
+  // half-closed sockets during shutdown produces errors that look like bugs.
+  app.addHook("onClose", async () => space.close());
+
   // `sessions` is returned so a test can sign somebody in without a real
   // upstream. Deliberately not a back door into a running server: this is the
   // value the process already holds, handed to whoever constructed it.
-  return { app, config, sessions, database };
+  return { app, config, sessions, database, space };
 }
 
 // Only listen when run directly, so tests can build the server without binding.

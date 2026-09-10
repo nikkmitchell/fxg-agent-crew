@@ -114,6 +114,10 @@ export class MemorySessionStore implements SessionStore {
  * file, and a SQLite file on network storage is a known way to corrupt a
  * database. Running more than one replica needs Redis or a real database
  * server. The interface above is the seam for that; this is not it.
+ *
+ * `server/space/presence.ts` has the SAME limit for the same reason, and is
+ * noted here so the day someone adds a second replica they find both from one
+ * place rather than one of them.
  */
 export class SqliteSessionStore implements SessionStore {
   private readonly db: import("node:sqlite").DatabaseSync;

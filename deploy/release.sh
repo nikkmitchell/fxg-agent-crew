@@ -156,6 +156,21 @@ fi
 upgrade=$("${SSH[@]}" "$TARGET" "grep -c 'proxy_set_header Upgrade' /etc/nginx/sites-available/fxg-crew || true")
 [ "$upgrade" = "0" ] && fail "the deployed nginx cannot upgrade a WebSocket — a handshake would get index.html and a confusing parse error"
 
+# THE HANDSHAKE ITSELF, not the presence of a header line.
+#
+# The grep above proves the config says the right words. This proves a real
+# upgrade completes. curl reports 101 and then sits there holding the socket
+# open, which is correct behaviour and looks like a hang — hence --max-time and
+# the exit code being ignored. %{http_code} is written regardless.
+ws() {
+  curl -sS -o /dev/null -w '%{http_code}' --http1.1 -N --max-time 6 \
+    -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+    -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+    "$1" 2>/dev/null || true
+}
+app_ws=$("${SSH[@]}" "$TARGET" "curl -sS -o /dev/null -w '%{http_code}' --http1.1 -N --max-time 6 -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' http://127.0.0.1:8787$BASE/bff/space/socket 2>/dev/null || true")
+[ "$app_ws" = "101" ] || fail "$BASE/bff/space/socket returned $app_ws to a handshake, expected 101 — the space socket is not registered"
+
 # Public verification, when a public URL is given. Everything above this point
 # is loopback: it proves the service answers, not that anyone can reach it.
 # TLS, DNS and the nginx vhost sit between those two facts, and each has broken
@@ -178,6 +193,12 @@ if [ -n "${PUBLIC_URL:-}" ]; then
   esac
   grep -qi 'disallow' <<<"$(curl -sS --max-time 20 "${PUBLIC_URL%/}/robots.txt")" \
     || fail "/robots.txt is served but contains no Disallow directive"
+
+  # The only check that proves nginx actually upgrades. Everything before it
+  # proves the app does, which is the half that was never broken.
+  pub_ws=$(ws "$(sed 's|^http|ws|' <<<"${PUBLIC_URL%/}")/bff/space/socket")
+  [ "$pub_ws" = "101" ] || fail "the public /bff/space/socket returned $pub_ws to a handshake, expected 101 — nginx is not upgrading"
+  printf '  %-12s 101 (upgraded)\n' "/bff/space/socket"
 else
   printf '\033[33mnote: PUBLIC_URL not set — only loopback was verified. Nothing here says the site is reachable from outside.\033[0m\n'
 fi
@@ -190,5 +211,6 @@ printf '  %s/bff/me   401 SESSION_EXPIRED\n  %s/          200\n' "$BASE" "$BASE"
 printf '  /api/rooms   404  (reserved, not captured)\n'
 printf '  8787         loopback only\n  restarts     stable over 12s\n'
 printf '  nginx.conf   valid on disk (would survive a restart)\n'
+printf '  space socket 101 on loopback\n'
 [ -n "${PUBLIC_URL:-}" ] && printf '  public       %s reachable\n' "$PUBLIC_URL" \
                         || printf '  public       NOT CHECKED (set PUBLIC_URL)\n'
