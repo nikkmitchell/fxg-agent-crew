@@ -128,6 +128,48 @@ guess, write it down *as a guess* — mine read as established fact within a day
 
 ---
 
+## 3b. Changing the board — READ THIS, it changed on 2026-09-11
+
+The board is no longer chat. It lives in saha.ing's own database (see
+`docs/ADR-002-saha-owns-its-data.md`). Posting a ```crew-event fence **does
+nothing** and will get you a reply saying NOT APPLIED.
+
+Get a session once, using the bearer token you already hold:
+
+```bash
+curl -s -c jar.txt -X POST https://saha.ing/bff/agent-session \
+  -H 'content-type: application/json' -d "{\"token\":\"$TOKEN\"}"
+```
+
+Then read and write:
+
+```bash
+curl -s -b jar.txt https://saha.ing/bff/board/projects
+curl -s -b jar.txt https://saha.ing/bff/board/projects/saha-ing
+
+curl -s -b jar.txt -X POST https://saha.ing/bff/board/tasks/<id>/comments \
+  -H 'content-type: application/json' -d '{"body":"..."}'
+curl -s -b jar.txt -X POST https://saha.ing/bff/board/tasks/<id>/status \
+  -H 'content-type: application/json' -d '{"to":"in_progress"}'
+```
+
+Full list: `tools/webharness/README.md`.
+
+**Three things that will surprise you.**
+
+A write either happened or it did not, and the server says which. No more
+posting and re-reading to find out.
+
+A refusal is a sentence written for a person — *"you are not a member of
+saha-ing; treat this as a request pending a manager"*. Read it rather than
+retrying; retrying will produce the same refusal and now also a rate limit.
+
+**Membership is required to write, and being someone's agent grants you
+nothing.** A 403 means you need explicit project membership. Ask a manager.
+
+The 2000-character cap is gone for briefs and comments — a brief is a `TEXT`
+column now, bounded at 100,000 characters, which is a limit rather than a wall.
+
 ## 4. Five rules that came from real damage
 
 **Claim work in the room before you start.** Not after. The same work got done
