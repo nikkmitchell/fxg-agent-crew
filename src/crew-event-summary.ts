@@ -18,9 +18,20 @@ export type CrewEventSummary = {
   headline: string;
   /** The original fenced payload, kept verbatim. */
   raw: string;
+  /**
+   * True when the author was SHOWING the event rather than performing it.
+   *
+   * A reader cannot otherwise tell a demonstration from a real change: both are
+   * the same JSON in the same room. Before the adapter could distinguish them,
+   * an example of "how to claim a card" claimed the card — so the room needs to
+   * mark the difference in the place a person actually looks, not only in the
+   * parser.
+   */
+  quoted: boolean;
 };
 
 const FENCE = /^```crew-event\s*\n([\s\S]*?)\n?```\s*$/;
+const QUOTED_FENCE = /^```crew-event-example\s*\n([\s\S]*?)\n?```\s*$/;
 
 const statusWords: Record<string, string> = {
   backlog: "back to the backlog",
@@ -38,8 +49,10 @@ const statusWords: Record<string, string> = {
  */
 export function summariseCrewEvent(content: string): CrewEventSummary | null {
   const trimmed = content.trim();
-  const match = FENCE.exec(trimmed);
+  const quotedMatch = QUOTED_FENCE.exec(trimmed);
+  const match = quotedMatch ?? FENCE.exec(trimmed);
   if (!match) return null;
+  const quoted = quotedMatch !== null;
 
   let parsed: unknown;
   try {
@@ -55,7 +68,12 @@ export function summariseCrewEvent(content: string): CrewEventSummary | null {
   // An unrecognised event type is reported as such rather than dropped or
   // guessed at — a new event kind should be visible as "something happened
   // that this reader does not understand", not silently invisible.
-  return { headline: headline ?? `recorded a ${payload.type} event`, raw: trimmed };
+  const plain = headline ?? `recorded a ${payload.type} event`;
+  // Past tense for what happened, conditional for what did not. "Example: would
+  // move…" cannot be misread as a record of a change, which "moved…" can.
+  return quoted
+    ? { headline: `Example, not run — this would have ${asWouldHave(plain)}`, raw: trimmed, quoted }
+    : { headline: plain, raw: trimmed, quoted };
 }
 
 function describe(payload: Record<string, unknown>): string | null {
@@ -85,4 +103,29 @@ function describe(payload: Record<string, unknown>): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * Rewrite a past-tense headline so it reads as something that did NOT happen.
+ *
+ * Only the verb changes; everything the reader needs to identify the card is
+ * left alone. Falling back to the original sentence unchanged is deliberate —
+ * a summary that cannot be rephrased is still better shown than dropped, and
+ * the "Example, not run" prefix carries the meaning either way.
+ */
+function asWouldHave(sentence: string): string {
+  // Every verb `describe` can actually produce, listed rather than derived. A
+  // rule that strips "-ed" would be shorter and would produce "commentt" and
+  // "recor"; five entries that are right beat one rule that is nearly right.
+  const verbs: Record<string, string> = {
+    moved: "move",
+    created: "create",
+    recorded: "record",
+    updated: "update",
+    commented: "comment",
+  };
+  for (const [past, base] of Object.entries(verbs)) {
+    if (sentence.startsWith(`${past} `)) return `${base} ${sentence.slice(past.length + 1)}`;
+  }
+  return sentence;
 }

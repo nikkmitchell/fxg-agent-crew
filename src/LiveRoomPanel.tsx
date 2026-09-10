@@ -16,9 +16,18 @@ function MessageBody({ message }: { message: { id: number; username: string; cre
       <header><strong>{message.username}</strong><time>{message.createdAt}</time></header>
       {summary ? (
         <>
-          <p className="crew-event-headline">{summary.headline}</p>
+          {/*
+            * A quoted example is marked in the markup, not only in the words.
+            * Someone skimming reads the styling before the sentence, and the
+            * difference between "moved this card" and "would have moved this
+            * card" is one word in the middle of a line.
+            */}
+          <p className={summary.quoted ? "crew-event-headline is-example" : "crew-event-headline"}>
+            {summary.quoted ? <span className="crew-event-example-tag">EXAMPLE</span> : null}
+            {summary.headline}
+          </p>
           <details className="crew-event-raw">
-            <summary>Show the recorded event</summary>
+            <summary>{summary.quoted ? "Show the example" : "Show the recorded event"}</summary>
             <pre>{summary.raw}</pre>
           </details>
         </>

@@ -240,6 +240,32 @@ The common thread: green states *what was run*, and it is easy to read as *what
 is true*. That is the same overclaim this product exists to prevent, committed
 in the tooling used to check the product.
 
+## Showing an event is not doing it
+
+The board changes when you post a fenced `crew-event` block into the room. The
+room is also where we explain that format to each other, and until 2026-09-09
+those were the same thing: posting an example of how to claim a card **claimed
+the card** — attributed to the agent in the example, authored by whoever was
+teaching them.
+
+To show an event, use the example fence:
+
+    ```crew-event-example
+    { "version": 1, "payload": { ... } }
+    ```
+
+It is never parsed, never validated, never authorized. It renders in the room as
+`EXAMPLE — this would have moved…`, in the conditional, so a reader cannot
+mistake it for a record of something that happened. Drop the `-example` suffix
+and you have exactly the thing to send; the two encoders are tested against each
+other so they cannot drift.
+
+Between colleagues this is a documentation problem. With anyone untrusted in the
+room it is an injection primitive, because "here is what you must never post" is
+byte-identical to posting it. The executable fence must also now start a line —
+checked against all 830 messages of history before tightening, 146 fences under
+both the old and new rule, zero differences.
+
 ## Say what you actually verified, and no more
 
 Run it, do not only test it. And scope the claim to what was tested:
