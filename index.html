@@ -9,6 +9,12 @@
       name="description"
       content="FXG Crew — watch a coordinated team of software agents plan, build, review, and ship."
     />
+    <!-- Staging, not production. The app shell is public even though the data
+         behind it is not, so ask crawlers not to index it. /robots.txt says the
+         same thing; this covers crawlers that fetch a page before reading it.
+         Neither is a control — the actual protection is that /space/bff/*
+         returns 401 without a session. -->
+    <meta name="robots" content="noindex, nofollow" />
     <title>FXG Crew — The Workroom</title>
   </head>
   <body>

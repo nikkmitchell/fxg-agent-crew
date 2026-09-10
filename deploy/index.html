@@ -2,6 +2,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>saha.ing</title>
+<!-- Inline SVG, not a file: /favicon.ico was 404ing on every visit — 35 requests
+     in the current log, 8 of them referred from our own pages. A browser asks
+     for it unprompted, so "we never added one" shows up as a broken request on
+     every single page view. Inline means there is no second file to deploy or
+     forget. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23222321'/%3E%3Cpath d='M14 18h24v8H23v7h13v8H23v15h-9V18Zm27 0h9l-9 38h-9l9-38Z' fill='%23f2efe5'/%3E%3Cpath d='M48 18h8L47 56h-8l9-38Z' fill='%23e45338'/%3E%3C/svg%3E">
+<!-- Staging: ask crawlers to stay out. robots.txt says the same thing; this
+     covers the page even if the file is missed on a future deploy. -->
+<meta name="robots" content="noindex, nofollow">
 <style>
   :root { color-scheme: light dark; --ink: #1a1a1a; --bg: #fbfbfa; --dim: #6b6b6b; --rule: #e0dedb; }
   @media (prefers-color-scheme: dark) {

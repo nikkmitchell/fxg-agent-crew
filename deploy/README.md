@@ -34,11 +34,9 @@ chmod 600 /etc/fxg-crew/env
 
 # 3a. bootstrap: HTTP only, serves nothing but the ACME challenge
 mkdir -p /var/www/html/.well-known/acme-challenge
-cp deploy/nginx.bootstrap.conf /etc/nginx/sites-available/fxg-crew
-sed -i 's/SERVER_NAME_HERE/your.hostname/g' /etc/nginx/sites-available/fxg-crew
 rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/fxg-crew /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
+deploy/install-nginx.sh your.hostname --bootstrap --reload
 
 # 3b. obtain the certificate via the webroot the bootstrap config serves.
 # --webroot, not --nginx: certbot's nginx plugin rewrites the config, and we
@@ -47,10 +45,8 @@ certbot certonly --webroot -w /var/www/html -d your.hostname --agree-tos -m you@
 
 # 3c. NOW the real config, which can finally find the certificate
 mkdir -p /var/www/saha
-cp deploy/index.html /var/www/saha/index.html
-cp deploy/nginx.conf /etc/nginx/sites-available/fxg-crew
-sed -i 's/SERVER_NAME_HERE/your.hostname/g' /etc/nginx/sites-available/fxg-crew
-nginx -t && systemctl reload nginx
+cp deploy/index.html deploy/robots.txt /var/www/saha/
+deploy/install-nginx.sh your.hostname --reload
 
 # 3d. prove renewal works before trusting HSTS
 certbot renew --dry-run
@@ -126,3 +122,18 @@ in memory no matter what the configuration says.
   database server; the `SessionStore` interface is the seam for that.
 - **The Mission Control screen is still simulated** and labelled as such. Only
   Live Rooms is real data.
+
+## Never `cp` nginx.conf by hand
+
+`deploy/nginx.conf` is a template: it names the certificate as
+`/etc/letsencrypt/live/SERVER_NAME_HERE/fullchain.pem`. Copying it onto a host
+without substituting produces a file that `cp` accepts and `nginx -t` rejects.
+The running nginx keeps serving from the config already in memory, so the site
+stays up and nothing looks broken — until the next restart or reboot, when
+nginx cannot start at all.
+
+That happened on 2026-09-08. Use `deploy/install-nginx.sh <host> [--reload]`
+instead: it substitutes, picks up every name on the existing certificate (so
+installing with the apex does not silently drop `www`), refuses to write a file
+that still contains a placeholder, backs up what it replaces, and restores that
+backup if `nginx -t` fails.
