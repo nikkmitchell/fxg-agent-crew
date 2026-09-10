@@ -40,6 +40,31 @@ describe("embedded /space mount", () => {
     expect((await app.inject({ method: "GET", url: "/bff/me" })).statusCode).toBe(404);
   });
 
+  it("reserves /api even when the app owns the root path", async () => {
+    // Mission Control was mounted at /space so it could share an origin with
+    // classic chat without capturing its routes. Chat moved to its own domain
+    // and the mount went with it — but the reason for it did not. Without this
+    // reservation the SPA fallback answers /api/anything with the app, and the
+    // day something else is served from this origin it is swallowed silently.
+    const { app } = buildServer({ WEBHARNESS_URL: "https://example.test" });
+    apps.push(app);
+
+    expect((await app.inject({ method: "GET", url: "/" })).statusCode).toBe(200);
+    for (const url of ["/api/rooms", "/api", "/api/anything/at/all"]) {
+      const response = await app.inject({ method: "GET", url });
+      expect(response.statusCode, url).toBe(404);
+      expect(response.headers["content-type"], url).not.toContain("text/html");
+    }
+  });
+
+  it("does not mistake a path that merely starts with those letters", async () => {
+    // /apiary is not /api. A prefix check without the boundary would 404 it.
+    const { app } = buildServer({ WEBHARNESS_URL: "https://example.test" });
+    apps.push(app);
+
+    expect((await app.inject({ method: "GET", url: "/apiary" })).statusCode).toBe(200);
+  });
+
   it("404s a missing FILE instead of quietly answering with the app", async () => {
     // Found in a browser, not in a test. After a rebuild, the page asked for
     // the previous build's hashed asset; the fallback answered 200 with

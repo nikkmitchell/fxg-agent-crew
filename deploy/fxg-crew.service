@@ -28,7 +28,13 @@ Environment=NODE_ENV=production
 Environment=HOST=127.0.0.1
 # The mount point. Must match the nginx location and the build's Vite base, or
 # assets 404 while the HTML loads — a failure that looks like a blank page.
-Environment=APP_BASE_PATH=/space
+# No APP_BASE_PATH: Mission Control IS saha.ing.
+#
+# It was mounted at /space so it could share an origin with classic chat.
+# Chat moved to its own domain, which left a front page whose only content was
+# a link to the real page — a click and a redirect charged to every visitor for
+# nothing. /api/ stays reserved in the service itself, so the isolation this
+# mount used to provide does not leave with it.
 
 # Compiled JS, not --experimental-strip-types: that flag does not rewrite the
 # .js import specifiers this codebase uses, so it could never boot outside a

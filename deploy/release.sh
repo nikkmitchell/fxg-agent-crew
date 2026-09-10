@@ -13,7 +13,8 @@ TARGET="${1:?usage: release.sh user@host}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/fxg_deploy_ed25519}"
 SSH=(ssh -i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new)
 REMOTE=/opt/fxg-crew
-BASE=/space
+# Mission Control is the site now; it was mounted at /space until 2026-09-10.
+BASE=""
 
 log()  { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 fail() { printf '\033[31mFAILED: %s\033[0m\n' "$*" >&2; exit 1; }
@@ -29,8 +30,9 @@ PNPM="${PNPM:-pnpm}"
 command -v "$PNPM" >/dev/null || fail "pnpm not found; run: corepack enable pnpm"
 "$PNPM" install --frozen-lockfile || fail "install failed; nothing was deployed"
 "$PNPM" exec vitest run || fail "tests failed; nothing was deployed"
-# APP_BASE_PATH must be set at BUILD time too: Vite bakes the asset base into
-# the bundle. Building without it produces HTML that loads and assets that 404.
+# APP_BASE_PATH must match at BUILD time: Vite bakes the asset base into the
+# bundle, so a mismatch produces HTML that loads and assets that 404 — a blank
+# page with a 200 in the access log. Empty means the app owns `/`.
 APP_BASE_PATH="$BASE" "$PNPM" run build || fail "build failed; nothing was deployed"
 
 SHA=$(git rev-parse HEAD)
@@ -52,7 +54,12 @@ rsync -az --delete \
 # 2026-09-08, which is how I put an unsubstituted template over the live config.
 # A file that only ever moves by hand eventually moves wrong.
 "${SSH[@]}" "$TARGET" "mkdir -p /var/www/saha"
-rsync -az -e "${SSH[*]}" deploy/index.html deploy/robots.txt "$TARGET:/var/www/saha/"
+# robots.txt only. The static landing page was removed when Mission Control
+# moved to `/` — its entire content was a link to the real page. Left in this
+# rsync it would have failed every deploy, which is the shape of bug that comes
+# from two branches each being green and only their MERGE being wrong.
+rsync -az -e "${SSH[*]}" deploy/robots.txt "$TARGET:/var/www/saha/"
+"${SSH[@]}" "$TARGET" "rm -f /var/www/saha/index.html"
 
 # Record exactly what was deployed, so the running service is traceable to a
 # commit rather than to "whatever was on someone's laptop".
@@ -99,14 +106,22 @@ grep -q SESSION_EXPIRED <<<"$body" || fail "$BASE/bff/me missing SESSION_EXPIRED
 "${SSH[@]}" "$TARGET" "curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8787$BASE/" | grep -q 200 \
   || fail "$BASE/ did not return 200"
 
-# THE ISOLATION CHECK. Mission Control must not answer for anything above its
-# mount. If this ever returns 200, the service is capable of capturing the
-# chat it is supposed to sit beside.
+# THE ISOLATION CHECK, narrowed on purpose rather than deleted.
+#
+# It used to assert that `/` returned 404, because Mission Control was mounted
+# at /space so it could share an origin with classic chat without capturing its
+# routes. Chat moved to its own domain and the mount went with it, so `/` is now
+# ours and must answer 200 — the old assertion would fail, and the wrong fix
+# would have been to quietly drop the whole block.
+#
+# The REASON survives the mount. /api/ is still reserved by the service itself,
+# so if anything else is ever served from this origin it cannot be swallowed by
+# the SPA fallback. That is the half worth keeping, and it is still checked.
 root_code=$("${SSH[@]}" "$TARGET" "curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/")
-[ "$root_code" = "404" ] || fail "/ returned $root_code, expected 404 — this service must NOT own the root path"
+[ "$root_code" = "200" ] || fail "/ returned $root_code, expected 200 — the app owns the root path now"
 
 other=$("${SSH[@]}" "$TARGET" "curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/api/rooms")
-[ "$other" = "404" ] || fail "/api/rooms returned $other, expected 404 — unrelated chat routes must not be captured"
+[ "$other" = "404" ] || fail "/api/rooms returned $other, expected 404 — /api is reserved and must not be captured"
 
 listening=$("${SSH[@]}" "$TARGET" "ss -ltn | grep ':8787' || true")
 grep -q '127.0.0.1:8787' <<<"$listening" || fail "8787 is not loopback-bound: $listening"
@@ -133,12 +148,19 @@ placeholder=$("${SSH[@]}" "$TARGET" "grep -c SERVER_NAME_HERE /etc/nginx/sites-a
 # because a check that silently does nothing is worse than no check.
 if [ -n "${PUBLIC_URL:-}" ]; then
   log "verify the public URL  ($PUBLIC_URL)"
-  for path in / /space/ /robots.txt; do
+  for path in / /board /robots.txt; do
     pub=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "${PUBLIC_URL%/}$path") \
       || fail "could not reach ${PUBLIC_URL%/}$path"
     [ "$pub" = "200" ] || fail "${PUBLIC_URL%/}$path returned $pub, expected 200"
     printf '  %-12s 200\n' "$path"
   done
+
+  # Old links must keep working. Mission Control lived under /space until
+  # 2026-09-10, and a bookmark that 404s reads as "the site is gone".
+  moved=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "${PUBLIC_URL%/}/space/board")
+  case "$moved" in 301|302) printf '  %-12s %s -> redirected\n' "/space/board" "$moved" ;;
+    *) fail "/space/board returned $moved, expected a redirect to the new location" ;;
+  esac
   grep -qi 'disallow' <<<"$(curl -sS --max-time 20 "${PUBLIC_URL%/}/robots.txt")" \
     || fail "/robots.txt is served but contains no Disallow directive"
 else
@@ -150,7 +172,7 @@ deployed=$("${SSH[@]}" "$TARGET" "cat $REMOTE/DEPLOYED_COMMIT")
 
 printf '\n\033[32mDeployed and verified.\033[0m  commit %s\n' "${SHA:0:8}"
 printf '  %s/bff/me   401 SESSION_EXPIRED\n  %s/          200\n' "$BASE" "$BASE"
-printf '  /            404  (chat not captured)\n  /api/rooms   404  (chat not captured)\n'
+printf '  /api/rooms   404  (reserved, not captured)\n'
 printf '  8787         loopback only\n  restarts     stable over 12s\n'
 printf '  nginx.conf   valid on disk (would survive a restart)\n'
 [ -n "${PUBLIC_URL:-}" ] && printf '  public       %s reachable\n' "$PUBLIC_URL" \
