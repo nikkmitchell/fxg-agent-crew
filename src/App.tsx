@@ -24,12 +24,16 @@ import { useSession } from "./use-session";
  * Live Rooms is real today and always was.
  */
 
-function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" }) {
+function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" | "image" }) {
   const paths = {
     grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
     stack: "M12 3 3 8l9 5 9-5zM3 13l9 5 9-5",
     clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
     chat: "M20 15a3 3 0 0 1-3 3H8l-4 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z",
+    // A framed picture with a horizon, rather than another abstract square —
+    // this rail is already four squares deep and the mood board is the one tab
+    // whose contents are pictures.
+    image: "M4 5h16v14H4zM4 15l4-4 3 3 4-5 5 6",
   };
   return (
     <svg className="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
@@ -38,10 +42,11 @@ function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" }) {
   );
 }
 
-const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" | "chat" }> = {
+const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" | "chat" | "image" }> = {
   projects: { label: "Projects", glyph: "grid" },
   overview: { label: "Overview", glyph: "grid" },
   board: { label: "Board", glyph: "stack" },
+  mood: { label: "Mood boards", glyph: "image" },
   mine: { label: "My work", glyph: "grid" },
   people: { label: "People", glyph: "grid" },
   build: { label: "Build", glyph: "clock" },
@@ -145,7 +150,7 @@ export default function App() {
           <p className="eyebrow">saha / mission control</p>
         </header>
 
-        {tab === "projects" || tab === "overview" || tab === "board" || tab === "mine" ? <ProjectWorkspace tab={tab} /> : null}
+        {tab === "projects" || tab === "overview" || tab === "board" || tab === "mood" || tab === "mine" ? <ProjectWorkspace tab={tab} /> : null}
 
         {tab === "people" ? <PeoplePanel session={session} /> : null}
 

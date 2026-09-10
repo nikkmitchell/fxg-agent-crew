@@ -116,7 +116,7 @@ function BriefForm({
   );
 }
 
-export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "overview" | "board" | "mine"> }) {
+export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "overview" | "board" | "mood" | "mine"> }) {
   const [state, setState] = useState<ProjectState>({ projects: [], tasks: [] });
   const [me, setMe] = useState<Me | null>(null);
   const [viewedUsername, setViewedUsername] = useState("");
@@ -579,7 +579,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   );
 
   return (
-    <section className={`project-workspace${tab === "board" ? " project-workspace--wide" : ""}`} aria-busy={busy}>
+    <section className={`project-workspace${tab === "board" || tab === "mood" ? " project-workspace--wide" : ""}`} aria-busy={busy}>
       {error ? <p className="project-error" role="alert">{error}</p> : null}
 
       {/*
@@ -865,12 +865,31 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             })}
           </div>
 
+        </div>
+      ) : null}
+
+      {tab === "mood" && !signedOut && selected ? (
+        <div className="mood-tab">
           {/*
-            * Mood boards live under the board, because that is where the work
-            * they refer to is. They are the first thing this product can do
-            * that chat-as-a-database could not do at all — a 2000-character
-            * message cannot carry a JPEG.
+            * Its own tab rather than a strip under the board.
+            *
+            * A mood board is something you look AT for a while — you sit with
+            * it, move things around, compare two references. Under the kanban
+            * it was permanently below the fold, and any time you scrolled to it
+            * you had six columns of cards above you competing for the same
+            * attention. Different activity, different place.
             */}
+          <p className="muted-note">
+            References, palette and tone for <strong>{selected.name}</strong>. Images live on saha.ing —
+            drop them here, or use Add images.
+          </p>
+
+          {boards.length === 0 ? (
+            <p className="empty-note">
+              No mood boards on this project yet.{me?.username ? " Make one below." : ""}
+            </p>
+          ) : null}
+
           {boards.map((moodBoard) => (
             <MoodBoard
               key={moodBoard.id}
