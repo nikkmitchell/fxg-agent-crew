@@ -39,18 +39,37 @@ export const DEMAND_WINDOW_MS = 120_000;
 const stillPath = (root: string, tab: string) => resolve(root, `${tab}.png`);
 const demandPath = (root: string) => resolve(root, "wanted");
 
-/** Record that a still was asked for, so the renderer knows to keep going. */
+/**
+ * Record that a still was asked for, so the renderer knows to keep going.
+ *
+ * BEST EFFORT, AND NEVER THROWS. Failing to write this means the renderer may
+ * go back to sleep — a degraded picture, not a broken page. The first version
+ * let the error out and turned an unwritable directory into a 500 on a request
+ * that could otherwise have been served perfectly well from an existing file.
+ * The caller is told nothing because there is nothing it could usefully do.
+ */
 export function noteDemand(root: string): void {
-  mkdirSync(root, { recursive: true });
   const path = demandPath(root);
   try {
     const now = new Date();
     utimesSync(path, now, now);
+    return;
   } catch {
-    // First ask: the file does not exist yet.
+    // Falls through: the file probably does not exist yet.
+  }
+  try {
+    mkdirSync(root, { recursive: true });
     writeFileSync(path, "someone is looking at the stills\n");
+  } catch (error) {
+    onDemandFailure?.(error);
   }
 }
+
+/**
+ * Told about a demand write that failed, so it reaches a log rather than
+ * nowhere. Set by the route registration below.
+ */
+let onDemandFailure: ((error: unknown) => void) | undefined;
 
 /** Has anybody asked recently? Read by the renderer, not by the app. */
 export function stillsAreWanted(root: string, now = Date.now()): boolean {
@@ -92,6 +111,10 @@ export function registerStillRoutes(
   config: Config,
   sessions: SessionStore,
 ): void {
+  // Silent best-effort is right for the request; silent forever is not.
+  onDemandFailure = (error) =>
+    app.log.warn({ error, root: config.stillsRoot }, "could not record still demand — the renderer may sleep");
+
   /**
    * A session for the renderer.
    *

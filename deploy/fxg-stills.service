@@ -19,7 +19,13 @@ Group=fxgcrew
 WorkingDirectory=/opt/fxg-crew
 Environment=NODE_ENV=production
 Environment=APP_ORIGIN=http://127.0.0.1:8787
-Environment=STILLS_ROOT=/opt/fxg-crew/data/stills
+# STILLS_ROOT is NOT set here. It comes from stills.env below, which the app
+# unit reads too — both halves must agree on the directory, and one that is
+# written twice is one that eventually disagrees.
+#
+# It must live under /var/lib/fxg-crew: ProtectSystem=strict makes
+# /opt/fxg-crew read-only for both units, exactly as the app unit warns about
+# for the session store. Pointing it at /opt produced EROFS on every request.
 # WHERE THE BROWSER IS. Playwright defaults to ~/.cache/ms-playwright, which
 # ProtectHome=true below makes invisible — the service would start cleanly and
 # then fail every render with "executable doesn't exist". Installed to /opt

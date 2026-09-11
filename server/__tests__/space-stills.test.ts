@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { buildServer } from "../index.js";
@@ -168,6 +168,26 @@ describe("keeping a browser off an idle box", () => {
     // Chrome running for as long as the box is up.
     expect(stillsAreWanted(stillsRoot, Date.now() + DEMAND_WINDOW_MS + 1)).toBe(false);
     await app.close();
+  });
+
+  it("serves a still even when it cannot record that anybody wanted it", async () => {
+    // An unwritable stills directory is a degraded picture, not a broken page.
+    // Pointing this at /opt — read-only under ProtectSystem=strict — turned
+    // every request into a 500 in production.
+    const { app, as, stillsRoot } = boot();
+    writeFileSync(resolve(stillsRoot, "board.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    chmodSync(stillsRoot, 0o500);
+    try {
+      const response = await app.inject({
+        method: "GET",
+        url: "/bff/space/stills/board.png",
+        headers: { cookie: as("nikk") },
+      });
+      expect(response.statusCode).toBe(200);
+    } finally {
+      chmodSync(stillsRoot, 0o700);
+      await app.close();
+    }
   });
 
   it("photographs exactly the panels, so the two cannot drift apart", () => {
