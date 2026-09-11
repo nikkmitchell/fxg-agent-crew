@@ -781,3 +781,23 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .room-loading-mark span:last-child { inset: 14px; border-style: solid; border-color: #6f7a92 transparent transparent transparent; animation-duration: 1.6s; animation-direction: reverse; }
 
 @keyframes room-loading-spin { to { transform: rotate(360deg); } }
+
+/* Mood board: notes and colour, not only images.
+
+   The server has always accepted note and swatch items; the surface only ever
+   made images, and a swatch fell through to the note case and printed its own
+   hex as a line of text. */
+.moodboard-add { font: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.moodboard-add:hover:not(:disabled) { background: var(--canvas); }
+.moodboard-add:disabled { opacity: .5; cursor: default; }
+
+/* A swatch is the colour. The value sits on top in ink measured against it, so
+   it stays readable on a pale yellow and on a navy alike. */
+.moodboard-swatch { position: relative; width: 100%; height: 100%; border-radius: 8px; display: grid; place-items: end center; padding-bottom: 8px; }
+.moodboard-swatch span { font: 600 11px/1 ui-monospace, SFMono-Regular, monospace; letter-spacing: .04em; }
+/* The native picker, invisible but exactly over the square, so the platform's
+   own colour UI does the work rather than a hand-rolled one. */
+.moodboard-swatch input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; cursor: pointer; }
+
+.moodboard-note.is-editable { cursor: text; outline: none; }
+.moodboard-note.is-editable:focus { box-shadow: inset 0 0 0 2px var(--cobalt); border-radius: 6px; }

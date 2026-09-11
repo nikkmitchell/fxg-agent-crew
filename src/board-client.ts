@@ -79,6 +79,9 @@ export const board = {
     }),
   moveItem: (itemId: string, at: { x: number; y: number; w?: number; h?: number }) =>
     call(`/items/${encodeURIComponent(itemId)}`, { method: "PATCH", body: JSON.stringify(at) }),
+  /** What an item says. Position is moveItem; this is content, and it is audited. */
+  editItem: (itemId: string, patch: { text?: string; caption?: string }) =>
+    call(`/items/${encodeURIComponent(itemId)}/text`, { method: "POST", body: JSON.stringify(patch) }),
   removeItem: (itemId: string) => call(`/items/${encodeURIComponent(itemId)}`, { method: "DELETE" }),
 
   /**
