@@ -117,3 +117,56 @@ describe("saying something", () => {
     await app.close();
   });
 });
+
+describe("declaring that you are answering", () => {
+  it("refuses a declaration from nobody", async () => {
+    const { app } = boot();
+    const response = await app.inject({
+      method: "POST",
+      url: "/bff/space/attending",
+      payload: { utteranceId: 1 },
+    });
+    expect(response.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it("refuses attention on an utterance nobody said", async () => {
+    // Otherwise an avatar shows a state that answers to nothing.
+    const { app, as } = boot();
+    const response = await app.inject({
+      method: "POST",
+      url: "/bff/space/attending",
+      headers: { cookie: as("Plumbline", "agent") },
+      payload: { utteranceId: 9999 },
+    });
+    expect(response.statusCode).toBe(404);
+    await app.close();
+  });
+
+  it("records a declaration, and only when it is made", async () => {
+    const { app, as, space } = boot();
+    const spoken = await say(app, as("nikk"), { say: "What is blocked?", source: "voice" });
+    const id = spoken.json().utterance.id;
+
+    // Nothing inferred: time passing is not a declaration.
+    expect(space.presence.find("Plumbline")?.attending ?? null).toBeNull();
+
+    await app.inject({
+      method: "POST",
+      url: "/bff/space/attending",
+      headers: { cookie: as("Plumbline", "agent") },
+      payload: { utteranceId: id },
+    });
+    expect(space.presence.find("Plumbline")!.attending!.utteranceId).toBe(id);
+
+    // And it can be put down again.
+    await app.inject({
+      method: "POST",
+      url: "/bff/space/attending",
+      headers: { cookie: as("Plumbline", "agent") },
+      payload: { utteranceId: null },
+    });
+    expect(space.presence.find("Plumbline")!.attending).toBeNull();
+    await app.close();
+  });
+});

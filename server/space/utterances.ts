@@ -79,6 +79,7 @@ export function registerUtteranceRoutes(
   sessions: SessionStore,
   database: DatabaseSync,
   announce: (utterance: Utterance) => void,
+  attend: (actorId: string, utteranceId: number | null) => void,
 ): void {
   const utterances = new Utterances(database);
 
@@ -106,6 +107,40 @@ export function registerUtteranceRoutes(
     announce(result.utterance);
     return reply.send({ ok: true, utterance: result.utterance });
   });
+
+  /**
+   * "I am working on a reply to this."
+   *
+   * DECLARED BY THE ANSWERER, never inferred by the room. A person sending a
+   * message and no reply arriving says nothing about whether anybody is
+   * composing one — they may not have heard, may be busy, may never answer. The
+   * browser shows the waiting as the LISTENER's state ("awaiting reply"), and
+   * only this endpoint can put a state on the answerer.
+   *
+   * Renewable, and it expires by itself: a process that dies mid-thought stops
+   * claiming attention within a minute rather than standing there apparently
+   * deep in thought forever.
+   */
+  app.post<{ Body: { utteranceId?: number | null } }>(
+    "/bff/space/attending",
+    async (request, reply) => {
+      const session = sessions.get(request.cookies[config.cookieName]);
+      if (!session) return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in" });
+
+      const id = request.body?.utteranceId ?? null;
+      if (id !== null && !Number.isInteger(id)) {
+        return reply.code(400).send({ code: "BAD_UTTERANCE", error: "utteranceId must be a whole number or null" });
+      }
+      // An id nobody said is refused. Declaring attention on a non-existent
+      // utterance would put a state on an avatar that answers to nothing.
+      if (id !== null) {
+        const exists = database.prepare("SELECT 1 FROM utterances WHERE id = ?").get(id);
+        if (!exists) return reply.code(404).send({ code: "NOT_FOUND", error: "no such utterance" });
+      }
+      attend(session.username, id);
+      return reply.send({ ok: true });
+    },
+  );
 
   app.get<{ Querystring: { limit?: string } }>("/bff/space/utterances", async (request, reply) => {
     if (!sessions.get(request.cookies[config.cookieName])) {

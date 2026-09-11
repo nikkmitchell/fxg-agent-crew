@@ -58,6 +58,15 @@ export type WirePerson = {
    * actually doing with them.
    */
   hands: { left: Pose | null; right: Pose | null };
+  /**
+   * An utterance this actor has SAID it is answering, or null.
+   *
+   * Null means we have not been told they are working on anything — which is
+   * not the same as knowing they are idle. Never inferred from silence: the
+   * room cannot see inside a process, and "they have not replied yet" is a fact
+   * about the listener, not about the speaker.
+   */
+  attending: { utteranceId: number } | null;
 };
 
 /** Server → client. */

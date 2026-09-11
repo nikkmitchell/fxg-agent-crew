@@ -44,8 +44,27 @@ export type Occupant = {
    * different all the way to the renderer.
    */
   hands: { left: Pose | null; right: Pose | null };
+  /**
+   * A declared intention to reply to an utterance, with the time it was
+   * declared.
+   *
+   * DECLARED, not inferred. The room never concludes that somebody is thinking
+   * because time has passed and no answer came — they may not have heard, may
+   * be busy, may never answer. This is set only when an actor says so, and it
+   * expires on its own so a process that dies does not leave a colleague
+   * apparently deep in thought forever.
+   */
+  attending: { utteranceId: number; since: number } | null;
   lastSeen: number;
 };
+
+/**
+ * How long a declared "I am answering this" lasts without being renewed.
+ *
+ * Long enough for a slow model, short enough that a crashed process stops
+ * claiming attention within a minute.
+ */
+export const ATTENDING_TTL_MS = 60_000;
 
 /** Drop an occupant we have not heard from in this long. */
 export const STALE_AFTER_MS = 45_000;
@@ -87,6 +106,7 @@ export class Presence {
       because: null,
       head: null,
       hands: { left: null, right: null },
+      attending: null,
       connected,
       lastSeen: this.now(),
     };
@@ -166,6 +186,7 @@ export class Presence {
    * them from here would fight the person holding the controller.
    */
   tick(deltaSeconds: number): void {
+    this.expireAttention();
     for (const occupant of this.occupants.values()) {
       if (occupant.connected) continue;
       const remaining = distance(occupant.at, occupant.heading);
@@ -183,6 +204,26 @@ export class Presence {
       // Face the way you are walking. Turning to face a wall you have arrived
       // at is the difference between standing at the board and standing near it.
       occupant.facing = Math.atan2(occupant.heading.x - occupant.at.x, occupant.heading.z - occupant.at.z);
+    }
+  }
+
+  /**
+   * Somebody says they are working on a reply to an utterance.
+   *
+   * Renewable: sending it again pushes the expiry out, which is how a long
+   * answer keeps the state alive without the room having to guess.
+   */
+  attend(actorId: string, utteranceId: number | null): void {
+    const occupant = this.occupants.get(actorId) ?? this.join(actorId, null, false);
+    occupant.attending = utteranceId === null ? null : { utteranceId, since: this.now() };
+    occupant.lastSeen = this.now();
+  }
+
+  /** Drop declarations nobody renewed. Called from the same tick as everything else. */
+  private expireAttention(): void {
+    const cutoff = this.now() - ATTENDING_TTL_MS;
+    for (const occupant of this.occupants.values()) {
+      if (occupant.attending && occupant.attending.since < cutoff) occupant.attending = null;
     }
   }
 

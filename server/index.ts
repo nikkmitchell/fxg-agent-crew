@@ -117,8 +117,13 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerBoardRoutes(scoped, config, sessions, database, config.blobRoot);
     registerSpaceRoutes(scoped, config, sessions, space);
     registerStillRoutes(scoped, config, sessions);
-    registerUtteranceRoutes(scoped, config, sessions, database, (utterance) =>
-      space.broadcast({ type: "said", utterance }),
+    registerUtteranceRoutes(
+      scoped,
+      config,
+      sessions,
+      database,
+      (utterance) => space.broadcast({ type: "said", utterance }),
+      (actorId, utteranceId) => space.presence.attend(actorId, utteranceId),
     );
   }, { prefix: config.basePath ?? "" });
 
