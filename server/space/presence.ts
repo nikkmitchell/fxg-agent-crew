@@ -1,4 +1,5 @@
 import { ROOM, WALK_SPEED, type Vec3, deskFor } from "../../shared/space-layout.js";
+import type { Pose } from "../../shared/space-wire.js";
 
 /**
  * Who is in the room, and where.
@@ -32,6 +33,17 @@ export type Occupant = {
   because: string | null;
   /** Whether a live socket is attached. Agents are drawn without one. */
   connected: boolean;
+  /**
+   * The head, as the client last reported it. Null for anyone who has not told
+   * us — every agent, and any client that only sends a position.
+   */
+  head: Pose | null;
+  /**
+   * The hands, as the device last reported them. Null for either hand means
+   * NOT TRACKED, which is different from "resting at their side" and must stay
+   * different all the way to the renderer.
+   */
+  hands: { left: Pose | null; right: Pose | null };
   lastSeen: number;
 };
 
@@ -73,6 +85,8 @@ export class Presence {
       heading: start,
       facing: 0,
       because: null,
+      head: null,
+      hands: { left: null, right: null },
       connected,
       lastSeen: this.now(),
     };
@@ -100,7 +114,18 @@ export class Presence {
    * there" — not whatever they last did on the board. Keeping it produced
    * "nikk — wrote a new card" under someone standing at the door.
    */
-  moveSelf(actorId: string, at: Vec3, facing: number): void {
+  moveSelf(
+    actorId: string,
+    at: Vec3,
+    facing: number,
+    /**
+     * What the device could see. UNDEFINED MEANS UNCHANGED and null inside
+     * means not tracked — a client that stops reporting hands (put the
+     * controllers down, took the headset off) must stop having hands drawn
+     * rather than leaving the last pair hanging in the air.
+     */
+    tracked?: { head?: Pose | null; hands?: { left: Pose | null; right: Pose | null } },
+  ): void {
     const occupant = this.occupants.get(actorId);
     if (!occupant) return;
     const clamped = clampToRoom(at);
@@ -108,6 +133,8 @@ export class Presence {
     occupant.heading = clamped;
     occupant.facing = facing;
     occupant.because = null;
+    if (tracked && "head" in tracked) occupant.head = tracked.head ?? null;
+    if (tracked?.hands) occupant.hands = tracked.hands;
     occupant.lastSeen = this.now();
   }
 

@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { XROrigin, useXR, useXRControllerLocomotion } from "@react-three/xr";
+import { XROrigin, useXR, useXRControllerLocomotion, useXRInputSourceState } from "@react-three/xr";
 import * as THREE from "three";
 import { ROOM, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
-import type { ClientMessage } from "../../shared/space-wire";
+import type { ClientMessage, Pose } from "../../shared/space-wire";
 
 /**
  * Standing in the room, rather than looking at it.
@@ -37,6 +37,21 @@ export function ImmersivePlayer({
 }) {
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
+  const worldPosition = useMemo(() => new THREE.Vector3(), []);
+  const worldQuaternion = useMemo(() => new THREE.Quaternion(), []);
+
+  /**
+   * Hands and controllers, whichever the device is giving us.
+   *
+   * A Quest with controllers reports controller spaces; hand tracking reports
+   * joint spaces; Android XR can switch between them mid-session as somebody
+   * puts a controller down. Both are read and the hand wins, so switching does
+   * not need a reconnect.
+   */
+  const leftController = useXRInputSourceState("controller", "left");
+  const rightController = useXRInputSourceState("controller", "right");
+  const leftHand = useXRInputSourceState("hand", "left");
+  const rightHand = useXRInputSourceState("hand", "right");
 
   useXRControllerLocomotion(
     origin,
@@ -49,7 +64,26 @@ export function ImmersivePlayer({
     "left",
   );
 
-  useFrame(({ clock }) => {
+  /**
+   * Read a tracked thing in ROOM space.
+   *
+   * Everything the headset reports is in the XR reference space, which is the
+   * player's own origin — so a head at (0,1.6,0) means "1.6m above my feet",
+   * not "above the middle of the room". The room's coordinates are what every
+   * other client draws in, so the conversion happens here, once, rather than
+   * three times in the renderer.
+   */
+  const inRoomSpace = (object: THREE.Object3D | null | undefined): Pose | null => {
+    if (!object) return null;
+    object.getWorldPosition(worldPosition);
+    object.getWorldQuaternion(worldQuaternion);
+    return {
+      p: { x: worldPosition.x, y: worldPosition.y, z: worldPosition.z },
+      q: { x: worldQuaternion.x, y: worldQuaternion.y, z: worldQuaternion.z, w: worldQuaternion.w },
+    };
+  };
+
+  useFrame(({ clock, camera }) => {
     const group = origin.current;
     if (!group) return;
 
@@ -65,7 +99,28 @@ export function ImmersivePlayer({
     if (now - lastSent.current < 100) return;
     lastSent.current = now;
     const at: Vec3 = { x: group.position.x, y: 0, z: group.position.z };
-    send({ type: "move", at, facing: group.rotation.y });
+
+    // THE HEAD IS THE XR CAMERA. In a session three.js drives it from the
+    // headset's own pose every frame, so this is a measurement rather than a
+    // guess — the one part of an avatar a headset can state outright.
+    const head = inRoomSpace(camera);
+
+    // HANDS ARE WHATEVER IS ACTUALLY TRACKED, and null when nothing is. A
+    // controller set down on a desk stops being reported, and the figure loses
+    // that hand rather than leaving one hovering where it was abandoned.
+    // `left` and `right` are the XR handedness, so they are the person's own
+    // left and right and not the viewer's.
+    // `.object` is the three.js node the library keeps in sync with the input
+    // source, and it is OPTIONAL — absent until the device has actually located
+    // that hand. An absent object is reported as an untracked hand rather than
+    // as a hand at the origin, which is where an unchecked `.object` would put
+    // it: on the floor in the middle of the room.
+    const hands = {
+      left: inRoomSpace(leftHand?.object) ?? inRoomSpace(leftController?.object),
+      right: inRoomSpace(rightHand?.object) ?? inRoomSpace(rightController?.object),
+    };
+
+    send({ type: "move", at, facing: group.rotation.y, ...(head ? { head } : {}), hands });
   });
 
   return <XROrigin ref={origin} position={[ROOM.spawn.x, 0, ROOM.spawn.z]} />;
