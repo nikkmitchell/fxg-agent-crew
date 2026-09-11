@@ -90,12 +90,15 @@ export function StillPanel({
   const { shot, problem } = useStill(station.tab, base, active);
 
   const caption = useMemo(() => {
+    // SHORT. The texture is one line squeezed to fit its canvas, so a long
+    // sentence arrives as condensed mush — which is what "unclear text" looked
+    // like in the headset.
     const text = problem
       ? `${station.label} — ${problem}`
       : shot
-        ? `${station.label} — a photograph, ${shot.ageSeconds}s old. Use it in a browser window.`
+        ? `${station.label} — photograph, ${shot.ageSeconds}s old`
         : `${station.label} — loading`;
-    return makeLabelTexture(text, { pixelsPerLine: 34 });
+    return makeLabelTexture(text, { pixelsPerLine: 48 });
   }, [station.label, problem, shot]);
 
   return (
@@ -112,10 +115,14 @@ export function StillPanel({
         )}
       </mesh>
 
-      {/* Captioned UNDER the frame, so it never covers the thing it describes. */}
+      {/* Captioned UNDER the frame, so it never covers the thing it describes.
+          4:1, MATCHING THE TEXTURE. makeLabelTexture draws into a 512x128
+          canvas; a 3.36 x 0.26 plane is nearly 13:1, so every caption was
+          squashed to a third of its width and read as unclear smudging rather
+          than as words. */}
       {caption ? (
-        <mesh position={[0, -station.surface.height / 2 - 0.18, 0.01]}>
-          <planeGeometry args={[station.surface.width * 0.8, 0.26]} />
+        <mesh position={[0, -station.surface.height / 2 - 0.3, 0.01]}>
+          <planeGeometry args={[2.4, 0.6]} />
           <meshBasicMaterial map={caption} transparent />
         </mesh>
       ) : null}
