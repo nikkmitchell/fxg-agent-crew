@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { currentProject, useCurrentProject } from "./current-project";
 import type { CrewProject, CrewTask } from "./event-core";
 import type { Tab } from "./router";
 import { recentActivity } from "./recent-activity";
@@ -119,7 +120,9 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   const [state, setState] = useState<ProjectState>({ projects: [], tasks: [] });
   const [me, setMe] = useState<Me | null>(null);
   const [viewedUsername, setViewedUsername] = useState("");
-  const [selectedId, setSelectedId] = useState(() => localStorage.getItem("saha-project") ?? "");
+  // The project now lives in one place, because Settings changes it from a
+  // different part of the tree. See src/current-project.ts.
+  const [selectedId, setSelectedId] = useCurrentProject();
   /**
    * The selected project, readable from inside `load` without making `load`
    * depend on it. A dependency there would tear down and rebuild the polling
@@ -172,7 +175,11 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       setState(projects);
       setMe(current);
       setViewedUsername((username) => username || current.username);
-      setSelectedId((currentId) => currentId || projects.projects[0]?.id || "");
+      // Default to the first project only when nothing is chosen. Read fresh
+      // rather than from `selectedId`, which is captured by this async closure
+      // and can be a load behind — the shared value is the truth.
+      const chosen = currentProject();
+      if (!chosen && projects.projects[0]?.id) setSelectedId(projects.projects[0].id);
       setError("");
       setSignedOut(false);
       setLastUpdated(new Date());
@@ -259,7 +266,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     });
     return () => cancelAnimationFrame(frame);
   }, [hashTaskId, tab]);
-  useEffect(() => { if (selectedId) localStorage.setItem("saha-project", selectedId); }, [selectedId]);
+  // Persisting moved into current-project.ts along with the value itself.
 
   const selected = state.projects.find((project) => project.id === selectedId);
   const tasks = state.tasks.filter((task) => task.projectId === selectedId);
@@ -618,11 +625,11 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         </div>
       ) : null}
       {state.projects.length && tab !== "board" ? (
-        <label className="project-picker">Project
-          <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-            {state.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-          </select>
-        </label>
+        // The project switcher moved to Settings, in the rail. It is a setting,
+        // not a task, and it took a line of every page to answer a question
+        // most people answer once a day. The rail button shows the selected
+        // project's name so it is still visible without opening anything.
+        null
       ) : null}
 
       {tab === "projects" && !signedOut ? (
@@ -781,12 +788,10 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       {tab === "board" && !signedOut && selected ? (
         <div className="board">
           <header className="board-bar">
-            <label className="board-project">
-              <span>Project</span>
-              <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-                {state.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-              </select>
-            </label>
+            {/* The NAME, not a switcher. Which board you are looking at is
+                worth stating on the board; changing it is a setting and lives
+                in Settings, in the rail. */}
+            <span className="board-project">{selected.name}</span>
             {/* Two different questions, both shown: how much is decided versus
                 built, and how much of the weighted work is finished. Neither
                 answers the other. */}

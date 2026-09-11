@@ -52,7 +52,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 
 /* No overflow:hidden — it clipped the board's own horizontal scroll. Bottom
  * padding cut from 80px, which left a dead band under every screen. */
-.workroom { min-width: 0; display: flex; flex-direction: column; padding: clamp(20px, 2.2vw, 34px) clamp(20px, 2.6vw, 40px) 28px; }
+/* Tighter top padding than sides: vertical space is the scarce one on a laptop,
+   and the rail already says which tab you are on. */
+.workroom { min-width: 0; display: flex; flex-direction: column; padding: clamp(12px, 1.2vw, 18px) clamp(16px, 2vw, 30px) 20px; }
 .project-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; }
 .eyebrow { margin: 0 0 13px; color: #5f5b53; font-size: 13px; font-weight: 700; letter-spacing: .13em; }
 .eyebrow span { color: var(--vermilion); margin: 0 4px; }
@@ -325,7 +327,12 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
    hidden behind a span is invisible to the keyboard otherwise. */
 .moodboard-add span { display: inline-block; padding: 6px 11px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); font-size: 12px; font-weight: 700; cursor: pointer; }
 .moodboard-add:focus-within span { outline: 2px solid var(--cobalt); outline-offset: 2px; }
-.moodboard-surface { position: relative; min-height: 340px; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--canvas); overflow: auto; }
+/* Grows with the window rather than sitting in a 340px box.
+   A mood board is arranged by eye, and judging an arrangement through a
+   letterbox with a scrollbar defeats the point of arranging it. min-height so
+   it still has a surface when the window is short, and 60dvh so it takes the
+   room it can. */
+.moodboard-surface { position: relative; min-height: 340px; height: 60dvh; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--canvas); overflow: auto; }
 .moodboard-surface.is-editable { border-style: dashed; }
 .moodboard-empty { max-width: 34ch; margin: 120px auto; color: var(--muted); font-size: 12px; text-align: center; }
 .moodboard-item { position: absolute; margin: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / .10); overflow: hidden; touch-action: none; }
@@ -375,8 +382,15 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 /* A label, not a poster. It was clamp(38px,5vw,58px) with an eyebrow above it,
  * which cost roughly 120px of vertical space on every screen to repeat what the
  * rail and the tab title already say. */
-.tab-header { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin-bottom: 14px; }
-.tab-header h1 { margin: 0; font-family: "Instrument Serif", serif; font-size: clamp(22px, 2.4vw, 30px); font-weight: 400; line-height: 1.1; }
+/* A LINE, NOT A BANNER.
+   The h1 stays for document structure — a screen reader user navigating by
+   heading needs it, and the rail's active state is not a heading. It is simply
+   no longer the size of a poster: this header was costing 40-plus pixels of
+   every tab to repeat what the rail, the cursor and the document title all
+   already say. */
+.tab-header { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: 10px; }
+.tab-header h1 { margin: 0; font-family: "Instrument Serif", serif; font-size: clamp(17px, 1.5vw, 21px); font-weight: 400; line-height: 1.1; }
+.tab-header .eyebrow { font-size: 11px; }
 
 .empty-state { max-width: 54ch; padding: 26px 0 0; border-top: 1px solid var(--line); }
 .empty-state h2 { margin: 0 0 10px; font-family: "Instrument Serif", serif; font-size: 26px; font-weight: 400; }
@@ -388,9 +402,13 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .primary-action { min-height: 44px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--ink); color: white; font-size: 14px; font-weight: 700; cursor: pointer; }
 .primary-action:hover { opacity: .9; }
 
-.project-workspace { max-width: 1120px; }
+/* FULL WIDTH. This was capped at 1120px, which on a wide screen left the board
+   in a column with the rest of the window empty beside it — six lanes squeezed
+   into half a monitor. The measure that matters is per-element (prose still has
+   one); the workspace itself has no reason to stop. */
+.project-workspace { max-width: none; }
 .project-error { padding: 12px 14px; border: 1px solid var(--vermilion); color: var(--vermilion); }
-.project-picker { display: grid; gap: 6px; max-width: 360px; margin-bottom: 30px; color: var(--muted); font-size: 14px; font-weight: 700; }
+.project-picker { display: grid; gap: 6px; max-width: 360px; margin-bottom: 18px; color: var(--muted); font-size: 14px; font-weight: 700; }
 .project-picker select, .project-form input, .project-form textarea { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
 .project-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, .7fr); gap: clamp(28px, 5vw, 72px); align-items: start; }
 .project-grid h2, .project-overview h2 { margin: 0 0 20px; font-size: clamp(28px, 4vw, 48px); }
@@ -420,9 +438,10 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 
 .board { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .board-bar { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-bottom: 12px; }
-.board-project { display: flex; gap: 8px; align-items: center; font-size: 13px; }
-.board-project > span { color: var(--muted); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-.board-project select { min-height: 36px; padding: 5px 10px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; font-size: 14px; }
+/* The project's name on the board bar. It used to be a <select>; switching is a
+   setting now and lives in the rail, but saying WHICH board this is still
+   belongs on the board. */
+.board-project { font-size: 14px; font-weight: 600; }
 .board-bar .kind-progress { margin: 0; }
 
 .board-columns { flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 14px; align-items: start; overflow-x: auto; padding-bottom: 14px; scroll-snap-type: x proximity; }
@@ -801,3 +820,22 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 
 .moodboard-note.is-editable { cursor: text; outline: none; }
 .moodboard-note.is-editable:focus { box-shadow: inset 0 0 0 2px var(--cobalt); border-radius: 6px; }
+
+/* Settings, and the rail button that opens it.
+
+   The button carries the selected project's NAME as well as a cog. Moving the
+   switcher out of the page was the request; making it undiscoverable would have
+   been the failure, and a bare cog gives no clue which project you are in. */
+.rail-settings { position: relative; display: grid; place-items: center; gap: 2px; height: auto; padding: 8px 2px; margin-top: auto; }
+.rail-settings small { display: block; max-width: 58px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; line-height: 1.2; letter-spacing: .02em; opacity: .75; }
+
+.settings-panel { position: fixed; top: 0; right: 0; z-index: 20; width: min(360px, 92vw); height: 100dvh; overflow: auto; padding: 20px 22px; border-left: 1px solid var(--line); background: var(--surface); box-shadow: -18px 0 48px rgba(0,0,0,.12); }
+.settings-panel header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.settings-panel h2 { margin: 0; font-family: "Instrument Serif", serif; font-size: 24px; font-weight: 400; }
+.settings-panel h3 { margin: 22px 0 6px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.settings-panel > header button { font: inherit; font-size: 20px; line-height: 1; padding: 2px 8px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+
+.settings-projects { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.settings-projects button { width: 100%; font: inherit; font-size: 14px; text-align: left; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); color: var(--ink); cursor: pointer; }
+.settings-projects button:hover { background: var(--surface); }
+.settings-projects button.is-selected { border-color: var(--ink); background: var(--ink); color: var(--surface); }
