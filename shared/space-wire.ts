@@ -11,6 +11,7 @@
  */
 
 import type { Vec3 } from "./space-layout.js";
+import type { Utterance } from "./voice.js";
 
 /** Orientation as a quaternion, in wire order. */
 export type Quat = { x: number; y: number; z: number; w: number };
@@ -70,6 +71,15 @@ export type ServerMessage =
       people: WirePerson[];
     }
   | { type: "snapshot"; now: number; people: WirePerson[] }
+  /**
+   * Somebody said something.
+   *
+   * Sent on the SAME socket as positions, but as its own message rather than
+   * folded into a snapshot: a snapshot is the current state and is safe to
+   * miss, while an utterance is an event and missing one loses it. A client
+   * that reconnects refetches the recent ones over HTTP.
+   */
+  | { type: "said"; utterance: Utterance }
   /**
    * Sent instead of closing silently. A socket that vanishes without a reason
    * is indistinguishable from a network failure, and the UI would have to guess.
