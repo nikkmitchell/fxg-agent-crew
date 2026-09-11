@@ -26,6 +26,11 @@ sys.path.insert(0, os.path.expanduser("~/.webharness"))
 import inbox  # noqa: E402
 
 STATE = inbox.HOME
+
+# Statuses that mean "ask again shortly", not "stop". 502/503/504 are the
+# upstream being restarted or briefly overloaded; 429 is being told to slow
+# down; 408 is a timeout the server noticed before we did.
+TRANSIENT_STATUSES = {408, 429, 500, 502, 503, 504}
 MAX_SECONDS = 6 * 60 * 60
 
 
@@ -114,27 +119,58 @@ def main():
             after = read_mark(room)
             query = "?limit=50" if after is None else f"?afterId={after}&wait={0 if first_pass else 25}"
             polls_attempted += 1
+            # `inbox.request` RATHER THAN `inbox.http`, and this is the whole
+            # point of the rewrite.
+            #
+            # `http` raises SystemExit on any status >= 400, and SystemExit
+            # inherits from BaseException — not Exception. So neither the
+            # HTTPError branch nor the catch-all below ever matched an HTTP
+            # error, and every one of them killed the watcher outright. A 502
+            # from WebHarness's nginx ended duty at 06:29 this morning; worse,
+            # the 401 re-login path documented below as "the ordinary case after
+            # seven days" had never run once, so an expired token would have
+            # ended duty silently and permanently.
+            #
+            # `request` returns (code, payload) and raises only for genuine
+            # network failures, which is what the catch-all is actually for.
             try:
-                payload = inbox.http("GET", f"/api/rooms/{room}/messages{query}", token=token,
-                                     timeout=(15 if first_pass else 45))
-                backoff = 5
-            except urllib.error.HTTPError as error:
-                if error.code == 401:
-                    # The token expired mid-watch. Sign in again rather than
-                    # ending duty — this is the ordinary case after seven days,
-                    # not a failure.
-                    me, token = inbox.login()
-                    continue
-                raise
+                code, payload = inbox.request(
+                    "GET", f"/api/rooms/{room}/messages{query}", token=token,
+                    timeout=(15 if first_pass else 45))
             except Exception as error:
-                # WebHarness has been down for thirty hours before now. Duty
-                # survives that: back off, keep the watermark, keep waiting.
+                # Network-level: DNS, TLS, connection reset. WebHarness has been
+                # down for thirty hours before now. Duty survives that: back
+                # off, keep the watermark, keep waiting.
                 polls_failed += 1
                 last_failure = str(error)
                 print(f"poll failed ({error}); retrying in {backoff}s", file=sys.stderr)
                 time.sleep(backoff)
                 backoff = min(backoff * 2, 120)
                 continue
+
+            if code == 401:
+                # The token expired mid-watch. Sign in again rather than ending
+                # duty — the ordinary case after seven days, not a failure.
+                print("token expired; signing in again", file=sys.stderr)
+                me, token = inbox.login()
+                continue
+
+            if code in TRANSIENT_STATUSES:
+                # A gateway error is not a reason to stop watching. Other 4xx
+                # still end it: a 403 or a 404 is a real problem that retrying
+                # only hides.
+                polls_failed += 1
+                last_failure = f"HTTP {code}"
+                print(f"poll got HTTP {code}; retrying in {backoff}s", file=sys.stderr)
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 120)
+                continue
+
+            if code >= 400:
+                print(f"HTTP {code} polling {room}: {payload}", file=sys.stderr)
+                return 1
+
+            backoff = 5
 
             messages = payload.get("messages") or []
             # Only messages from other people wake anybody. Advancing the mark
