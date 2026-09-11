@@ -59,6 +59,62 @@ const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" |
 };
 
 /**
+ * What a tab actually shows.
+ *
+ * Shared by the full screen and by `?embed=1`, so a panel in the room and the
+ * tab it came from cannot drift into showing different things — which is the
+ * entire reason the room embeds the real tabs instead of drawing its own
+ * version of them.
+ */
+function TabContent({
+  tab,
+  session,
+  embedded,
+  onOpenChat,
+}: {
+  tab: Tab;
+  session: ReturnType<typeof useSession>;
+  /** True inside an iframe panel. The room refuses to contain itself. */
+  embedded: boolean;
+  onOpenChat: () => void;
+}) {
+  return (
+    <>
+      {tab === "projects" || tab === "overview" || tab === "board" || tab === "mood" || tab === "mine" ? (
+        <ProjectWorkspace tab={tab} />
+      ) : null}
+
+      {tab === "people" ? <PeoplePanel session={session} /> : null}
+
+      {/* A room inside a panel inside the room: each copy would open its own
+          socket and render its own panels, recursively, until the tab died.
+          Refused with a sentence rather than by rendering nothing. */}
+      {tab === "room" ? (
+        embedded ? (
+          <p className="muted-note">The room cannot be shown inside itself.</p>
+        ) : (
+          <SpacePanel />
+        )
+      ) : null}
+
+      {tab === "build" ? <BuildPanel /> : null}
+
+      {tab === "chat" ? (
+        <section className="tab-rooms">
+          <p>
+            Live Rooms is real data — the same rooms, messages and people as the chat itself.
+            It is the one part of this screen that has always been true.
+          </p>
+          <button type="button" className="primary-action" onClick={onOpenChat}>
+            Open chat
+          </button>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+/**
  * An empty state that explains itself.
  *
  * Every one of these says what is missing and what will fill it, so a blank
@@ -98,6 +154,30 @@ export default function App() {
   useEffect(() => {
     document.title = `${TAB_META[tab].label} — Mission Control`;
   }, [tab]);
+
+  /**
+   * `?embed=1` renders the tab's CONTENT and nothing else.
+   *
+   * The room at /room hangs the real Board, Mood boards and People tabs in
+   * floating panels, which are same-origin iframes of this site. Without this
+   * each panel would carry its own navigation rail, its own header and its own
+   * skip link — three copies of the furniture, inside a room that already is
+   * the navigation.
+   *
+   * It is the SAME app with the SAME session and the same routes. Nothing is
+   * exposed here that /board does not already expose to the same person; the
+   * only thing removed is chrome.
+   */
+  const embedded = new URLSearchParams(window.location.search).get("embed") === "1";
+
+  if (embedded) {
+    return (
+      <main className="app-embed" id="workroom">
+        <TabContent tab={tab} session={session} embedded onOpenChat={() => setLiveRoomOpen(true)} />
+        {liveRoomOpen ? <LiveRoomPanel onClose={() => setLiveRoomOpen(false)} /> : null}
+      </main>
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -155,25 +235,7 @@ export default function App() {
           <p className="eyebrow">saha / mission control</p>
         </header>
 
-        {tab === "projects" || tab === "overview" || tab === "board" || tab === "mood" || tab === "mine" ? <ProjectWorkspace tab={tab} /> : null}
-
-        {tab === "people" ? <PeoplePanel session={session} /> : null}
-
-        {tab === "room" ? <SpacePanel /> : null}
-
-        {tab === "build" ? <BuildPanel /> : null}
-
-        {tab === "chat" ? (
-          <section className="tab-rooms">
-            <p>
-              Live Rooms is real data — the same rooms, messages and people as the chat itself.
-              It is the one part of this screen that has always been true.
-            </p>
-            <button type="button" className="primary-action" onClick={() => setLiveRoomOpen(true)}>
-              Open chat
-            </button>
-          </section>
-        ) : null}
+        <TabContent tab={tab} session={session} embedded={false} onOpenChat={() => setLiveRoomOpen(true)} />
 
       </main>
 

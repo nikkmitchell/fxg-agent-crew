@@ -3,13 +3,11 @@ import type { FastifyInstance } from "fastify";
 // is the plugin's dependency, not ours, and importing it here would be reaching
 // past pnpm's isolation into a package we never declared.
 import type { WebSocket } from "@fastify/websocket";
-import type { DatabaseSync } from "node:sqlite";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
 import { parseClientMessage, type ServerMessage, type WirePerson } from "../../shared/space-wire.js";
 import { Presence, STALE_AFTER_MS } from "./presence.js";
-import { readSurfaces } from "./surfaces.js";
 
 /**
  * The socket the room is drawn from.
@@ -167,23 +165,7 @@ export function registerSpaceRoutes(
   config: Config,
   sessions: SessionStore,
   hub: SpaceHub,
-  database: DatabaseSync,
 ): void {
-  /**
-   * What is on the walls.
-   *
-   * A plain GET rather than a push down the socket: this changes when somebody
-   * edits the board, which is orders of magnitude rarer than somebody taking a
-   * step, and putting it on the 10Hz channel would send a board's worth of
-   * cards ten times a second to say nothing had changed.
-   */
-  app.get<{ Querystring: { project?: string } }>("/bff/space/surfaces", async (request, reply) => {
-    if (!sessions.get(request.cookies[config.cookieName])) {
-      return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in" });
-    }
-    return reply.send(readSurfaces(database, request.query.project));
-  });
-
   app.get("/bff/space/socket", { websocket: true }, (socket, request) => {
     const session = sessions.get(request.cookies[config.cookieName]);
     if (!session) {

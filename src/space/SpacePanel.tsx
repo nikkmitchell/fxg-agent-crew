@@ -1,7 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { Identity } from "../Identity";
 import { useSpaceSocket } from "./useSpaceSocket";
-import { useSurfaces } from "./useSurfaces";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
 
 /**
@@ -54,9 +53,6 @@ export function SpacePanel() {
   const [reducedOverride, setReducedOverride] = useState<boolean | null>(null);
   const reducedMotion = reducedOverride ?? systemPrefersReduced;
   const connection = useSpaceSocket(entered);
-  const [projectId, setProjectId] = useState<string | undefined>(undefined);
-  const walls = useSurfaces(entered, projectId);
-  const surfaces = walls.state.state === "ready" ? walls.state.surfaces : null;
   const [comfort, setComfort] = useState<Comfort>(DEFAULT_COMFORT);
   const [inHeadset, setInHeadset] = useState(false);
   const [headsetAvailable, setHeadsetAvailable] = useState<boolean | null>(null);
@@ -148,7 +144,6 @@ export function SpacePanel() {
           <Scene
             connection={connection}
             reducedMotion={reducedMotion}
-            surfaces={surfaces}
             comfort={comfort}
             onImmersiveChange={setInHeadset}
             inHeadset={inHeadset}
@@ -191,30 +186,6 @@ export function SpacePanel() {
             works the same in the window.
           </p>
         )}
-
-        {surfaces && surfaces.projects.length > 0 ? (
-          <label className="space-setting">
-            <span>On the board wall</span>
-            <select
-              value={surfaces.projectId ?? ""}
-              onChange={(event) => setProjectId(event.currentTarget.value)}
-            >
-              {surfaces.projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        {walls.state.state === "failed" ? (
-          // Not an empty wall: a board with no cards and a board that could not
-          // be read look identical in 3D, and only one of them is a problem.
-          <p className="muted-note">
-            The walls could not be read — {walls.state.reason}. What is hanging on them now may be
-            out of date.
-          </p>
-        ) : null}
 
         <h2>In the room</h2>
         <label className="space-setting">

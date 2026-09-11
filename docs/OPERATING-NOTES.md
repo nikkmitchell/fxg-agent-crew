@@ -107,7 +107,7 @@ negative result deserves the same scrutiny as a positive one.
 Every position in the room comes from a row in `audit`. `server/space/activity.ts`
 polls the table forward from the end of it every 500ms and
 `server/space/destinations.ts` maps one row to one place to stand. So "Plumbline
-is at the task board" is answerable with a query, not a guess:
+is at the Board panel" is answerable with a query, not a guess:
 
 ```sql
 SELECT id, at, actor_id, action, entity, entity_id
@@ -119,13 +119,33 @@ Three things that look like bugs and are not:
 - **The room is still after a restart.** The poller starts at `MAX(id)`, not at
   zero. Replaying the table would march everyone through months of work in a few
   seconds — motion that is not happening.
-- **Somebody standing at their own desk.** That means no audit row for them in
-  the last two minutes. It does not mean idle, and nothing in the UI says it
-  does.
+- **Somebody standing on their own away from the panels.** That means no audit
+  row for them in the last two minutes. It does not mean idle, and nothing in
+  the UI says it does.
 - **An action that moves nobody.** `destinationFor` returns null for anything it
-  does not recognise rather than picking a default corner. If a new action type
-  is added to `BoardStore` and nobody moves for it, that is the reason — add it
-  to `destinations.ts`.
+  does not recognise rather than picking a default spot. If a new action type is
+  added to `BoardStore` and nobody moves for it, that is the reason — add it to
+  `destinations.ts`.
+
+### The panels are the real tabs
+
+The three panels in the room are same-origin **iframes** of `/board`, `/mood`
+and `/people` with `?embed=1`, which renders a tab's content without the
+navigation rail or header. They are live and interactive and need no code of
+ours to stay current — which is the entire reason they replaced a hand-drawn
+projection of the same data.
+
+Consequences worth knowing:
+
+- **nginx sends `X-Frame-Options: SAMEORIGIN`** and `frame-ancestors 'self'`,
+  not `DENY`. Framing by other sites is still refused;
+  `deploy/install-nginx.test.sh` asserts both the restriction and its exact
+  value, because a permissive value here is a silent clickjacking hole.
+- **Three panels means three copies of the app running.** Each iframe is a full
+  SPA with its own polling. That is the price of not maintaining a second
+  renderer, and it is paid only by people who open the room.
+- **They do not appear in a headset.** DOM cannot be composited into a WebXR
+  frame — see `docs/HEADSET-CHECKS.md`.
 
 ### The 3D room's dependencies
 
@@ -138,6 +158,12 @@ separately.
 is normal for DefinitelyTyped and not worth pinning around, but it means a type
 error about a brand-new three API is more likely to be a stale type than a
 mistake.
+
+`@react-three/drei` provides `Html`, which is how the panels get into 3D. Its
+transform mode maps one world unit to 40 CSS pixels through a constant it does
+not export — `src/space/WebPanel.tsx` documents where that number comes from. A
+drei upgrade that changes it will make every panel uniformly the wrong size,
+which is at least obvious.
 
 Development: `pnpm exec tsx tools/dev-room-harness.mts` runs the server with
 several people already in the room and prints cookies for them. It mints

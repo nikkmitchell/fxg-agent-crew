@@ -64,5 +64,21 @@ else
   fail=1
 fi
 
+# 5. Framing is allowed for US and nobody else.
+#
+# The room shows the real tabs as same-origin iframes, so DENY breaks it. The
+# failure mode of getting this wrong in the other direction is far worse and
+# completely silent: a permissive value hands every other site the ability to
+# frame saha.ing and trick a signed-in person into clicking things. So both the
+# presence of the restriction AND its exact value are asserted.
+check "refuses framing by other sites" \
+  "$(grep -cF 'add_header X-Frame-Options "SAMEORIGIN" always;' "$FXG_NGINX_SITE")" "1"
+check "no ALLOWALL or wildcard framing" \
+  "$(grep -ciE 'X-Frame-Options "(ALLOWALL|ALLOW-FROM)' "$FXG_NGINX_SITE" || true)" "0"
+check "frame-ancestors is self only" \
+  "$(grep -cF "frame-ancestors 'self'" "$FXG_NGINX_SITE")" "1"
+check "frame-ancestors has no wildcard" \
+  "$(grep -cE "frame-ancestors[^\"]*\*" "$FXG_NGINX_SITE" || true)" "0"
+
 [ "$fail" = 0 ] && echo "all deploy/install-nginx.sh checks passed"
 exit "$fail"

@@ -1,15 +1,15 @@
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { ROOM, STATIONS, WALK_SPEED, type Vec3 } from "../../shared/space-layout";
+import { base } from "../router";
 import { XR } from "@react-three/xr";
 import { Avatar3D, EYE_HEIGHT } from "./Avatar3D";
 import { Immersive } from "./Immersive";
 import { getXRStore } from "./xr-store";
 import type { Comfort } from "./comfort";
-import { Surfaces3D } from "./Surfaces3D";
-import { makeLabelTexture } from "./label-texture";
-import type { Surfaces } from "../../shared/space-surfaces";
+import { WebPanel } from "./WebPanel";
+
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
 
 /**
@@ -33,101 +33,37 @@ const COLOURS = {
   people: "#3d8063",
 } as const;
 
-/** The room shell. Static: built once, never re-created on a snapshot. */
-function Shell() {
-  return (
-    <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[ROOM.width, ROOM.depth]} />
-        <meshStandardMaterial color={COLOURS.floor} roughness={0.95} />
-      </mesh>
-
-      {/* Four walls, normals pointing INTO the room, drawn single-sided.
-          Visible from inside, invisible from outside — so a debug camera above
-          the room can look straight down into it.
-
-          This was BackSide first, on the reasoning that the outside faces
-          should be the hidden ones. Backwards: with inward normals, a camera
-          inside sees the FRONT face, so BackSide hid every wall and the room
-          rendered as a floor floating in the clear colour. Caught by looking at
-          it, which is the entire argument for building the flat view before the
-          headset one. */}
-      {[
-        { position: [0, ROOM.height / 2, -ROOM.depth / 2], rotation: [0, 0, 0], width: ROOM.width },
-        { position: [0, ROOM.height / 2, ROOM.depth / 2], rotation: [0, Math.PI, 0], width: ROOM.width },
-        { position: [-ROOM.width / 2, ROOM.height / 2, 0], rotation: [0, Math.PI / 2, 0], width: ROOM.depth },
-        { position: [ROOM.width / 2, ROOM.height / 2, 0], rotation: [0, -Math.PI / 2, 0], width: ROOM.depth },
-      ].map((wall, index) => (
-        <mesh
-          key={index}
-          position={wall.position as [number, number, number]}
-          rotation={wall.rotation as [number, number, number]}
-        >
-          <planeGeometry args={[wall.width, ROOM.height]} />
-          <meshStandardMaterial color={COLOURS.wall} roughness={1} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
 /**
- * The three frames, and their names.
+ * The void.
  *
- * A NAME IS DRAWN ONLY WHERE THERE IS NOTHING ON THE WALL. Once cards are
- * hanging, the lane headings say what it is far better than a floating title —
- * and the title was drawn straight across the top row of cards, which is how
- * this was noticed. An empty frame still needs its name, because an unlabelled
- * blank rectangle is indistinguishable from a rendering fault.
+ * There is no room. No floor, no walls, no ceiling — panels and people hanging
+ * in empty space, which is what was asked for and is also more honest: a
+ * rendered office was decoration pretending to be a place, and every hour spent
+ * on its walls was an hour not spent on what the space is actually for.
+ *
+ * A faint grid sits under everyone's feet. Not a floor: without ANY ground
+ * reference a person cannot tell whether they are moving, and walking in a
+ * featureless void is disorienting enough in a window and genuinely unpleasant
+ * in a headset. It fades out well before the edge so it reads as a hint rather
+ * than a surface.
  */
-function Stations({ occupied }: { occupied: Set<string> }) {
-  const labels = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.values(STATIONS).map((station) => [
-          station.id,
-          makeLabelTexture(station.label, { pixelsPerLine: 56 }),
-        ]),
-      ),
-    [],
-  );
+function Void() {
+  const grid = useMemo(() => {
+    const material = new THREE.LineBasicMaterial({
+      color: "#3a4152",
+      transparent: true,
+      opacity: 0.5,
+    });
+    const points: THREE.Vector3[] = [];
+    const half = 9;
+    for (let i = -half; i <= half; i += 1.5) {
+      points.push(new THREE.Vector3(-half, 0, i), new THREE.Vector3(half, 0, i));
+      points.push(new THREE.Vector3(i, 0, -half), new THREE.Vector3(i, 0, half));
+    }
+    return new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), material);
+  }, []);
 
-  return (
-    <group>
-      {Object.values(STATIONS).map((station) => {
-        const colour =
-          station.id === "taskBoard" ? COLOURS.taskBoard
-          : station.id === "moodBoard" ? COLOURS.moodBoard
-          : COLOURS.people;
-        return (
-          <group
-            key={station.id}
-            position={[station.surface.position.x, station.surface.position.y, station.surface.position.z]}
-            rotation={[0, station.surface.rotationY, 0]}
-          >
-            <mesh position={[0, 0, 0.02]}>
-              <planeGeometry args={[station.surface.width, station.surface.height]} />
-              <meshStandardMaterial color="#faf8f3" roughness={0.9} />
-            </mesh>
-            {/* A coloured edge so the three are distinguishable across the room
-                without reading the label. */}
-            <mesh position={[0, -station.surface.height / 2 - 0.06, 0.03]}>
-              <planeGeometry args={[station.surface.width, 0.1]} />
-              <meshBasicMaterial color={colour} />
-            </mesh>
-            {/* Named, so a wall you are looking at says what it is. An unlabelled
-                blank frame is indistinguishable from a rendering fault. */}
-            {labels[station.id] && !occupied.has(station.id) ? (
-              <mesh position={[0, station.surface.height / 2 - 0.28, 0.04]}>
-                <planeGeometry args={[2.6, 0.65]} />
-                <meshBasicMaterial map={labels[station.id]!} transparent />
-              </mesh>
-            ) : null}
-          </group>
-        );
-      })}
-    </group>
-  );
+  return <primitive object={grid} position={[0, -0.01, 0]} />;
 }
 
 /**
@@ -370,15 +306,12 @@ function OnDemand({ connection }: { connection: SpaceConnection }) {
 export default function Scene({
   connection,
   reducedMotion,
-  surfaces,
   comfort,
   onImmersiveChange,
   inHeadset,
 }: {
   connection: SpaceConnection;
   reducedMotion: boolean;
-  /** Null while the walls are still being read, or if reading them failed. */
-  surfaces: Surfaces | null;
   comfort: Comfort;
   onImmersiveChange: (inSession: boolean) => void;
   /** True once a headset session is live. */
@@ -388,7 +321,6 @@ export default function Scene({
 
   return (
     <Canvas
-      shadows
       // REDUCED MOTION IS HONOURED HERE, EXPLICITLY.
       //
       // src/styles.css turns animation off globally with CSS, which a
@@ -405,25 +337,21 @@ export default function Scene({
       style={{ outline: "none", touchAction: "none" }}
     >
       <XR store={getXRStore()}>
-      <color attach="background" args={["#cfd6dd"]} />
-      <hemisphereLight args={["#ffffff", "#b8ae9c", 1.5]} />
-      <directionalLight position={[4, 6, 3]} intensity={1.1} castShadow />
-      <Shell />
-      <Stations
-        occupied={
-          new Set([
-            ...(surfaces && surfaces.cards.length > 0 ? ["taskBoard"] : []),
-            ...(surfaces && surfaces.boards.some((board) => board.items.length > 0) ? ["moodBoard"] : []),
-          ])
-        }
-      />
-      {/* Suspense here and not higher up: one slow photograph must not blank the
-          room. Everything else stays on screen while it loads. */}
-      {surfaces ? (
-        <Suspense fallback={null}>
-          <Surfaces3D surfaces={surfaces} />
-        </Suspense>
-      ) : null}
+      {/* Black void. Left UNSET in a headset so the compositor can show
+          passthrough behind the scene where the device supports it; where it
+          does not, the session is simply black, which is what was asked for. */}
+      {inHeadset ? null : <color attach="background" args={["#0b0d12"]} />}
+      <hemisphereLight args={["#ffffff", "#2a3040", 2.2]} />
+      <directionalLight position={[3, 6, 4]} intensity={1.4} />
+      <Void />
+      {/* The real tabs, live. Hidden while a headset session is running: DOM is
+          not composited into an immersive frame, so leaving them mounted would
+          keep three copies of the app running to draw nothing. */}
+      {inHeadset
+        ? null
+        : Object.values(STATIONS).map((station) => (
+            <WebPanel key={station.id} station={station} base={base} />
+          ))}
       <Crowd
         peopleRef={connection.peopleRef}
         roster={connection.roster}
