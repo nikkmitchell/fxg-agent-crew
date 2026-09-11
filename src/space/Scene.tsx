@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { ROOM, STATIONS, WALK_SPEED, type Vec3 } from "../../shared/space-layout";
+import {
+  ROOM,
+  STATIONS,
+  WALK_SPEED,
+  type Vec3,
+} from "../../shared/space-layout";
 import { base } from "../router";
 import { XR } from "@react-three/xr";
 import { Avatar3D, EYE_HEIGHT } from "./Avatar3D";
@@ -58,10 +63,19 @@ function Void() {
     const points: THREE.Vector3[] = [];
     const half = 9;
     for (let i = -half; i <= half; i += 1.5) {
-      points.push(new THREE.Vector3(-half, 0, i), new THREE.Vector3(half, 0, i));
-      points.push(new THREE.Vector3(i, 0, -half), new THREE.Vector3(i, 0, half));
+      points.push(
+        new THREE.Vector3(-half, 0, i),
+        new THREE.Vector3(half, 0, i),
+      );
+      points.push(
+        new THREE.Vector3(i, 0, -half),
+        new THREE.Vector3(i, 0, half),
+      );
     }
-    return new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), material);
+    return new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(points),
+      material,
+    );
   }, []);
 
   return <primitive object={grid} position={[0, -0.01, 0]} />;
@@ -76,6 +90,19 @@ function Void() {
  * It is smoothing, not invention: nobody is ever drawn anywhere the server has
  * not already put them, only slightly behind.
  */
+/**
+ * Everyone else.
+ *
+ * WHICH figures exist comes from the roster, which is React state and changes
+ * only when somebody joins or leaves. WHERE every part of them is comes from
+ * the ref, read each frame by the figure itself — heads and hands move
+ * continuously, and routing that through React would re-render this tree ten
+ * times a second per person in order to move three objects.
+ *
+ * There is no positioning wrapper any more. Head, hands and feet all arrive in
+ * room-absolute coordinates, so a group translated to the person's position
+ * would add their offset twice and stand everybody at double the distance.
+ */
 function Crowd({
   peopleRef,
   roster,
@@ -87,80 +114,37 @@ function Crowd({
   you: string | null;
   reducedMotion: boolean;
 }) {
-  const groups = useRef(new Map<string, THREE.Group>());
-  // Reused rather than allocated per person per frame.
-  const scratch = useRef(new THREE.Vector3());
-
-  // WHICH figures exist comes from the roster, which is React state and changes
-  // only when somebody joins or leaves. WHERE they are comes from the ref, read
-  // by the render loop. Driving the list off the ref instead — the first thing
-  // I wrote — means a new arrival never appears, because a ref does not
-  // re-render anything.
   const cast = roster.filter((person) => person.actorId !== you);
-
-  useFrame((_, delta) => {
-    const current = peopleRef.current ?? [];
-    for (const person of current) {
-      const group = groups.current.get(person.actorId);
-      if (!group) continue;
-      if (reducedMotion) {
-        group.position.set(person.at.x, person.at.y, person.at.z);
-        group.rotation.y = person.facing;
-        continue;
-      }
-      // Cap the ease at walking speed plus a margin, so catching up after a
-      // dropped frame still looks like walking rather than sliding.
-      const target = scratch.current.set(person.at.x, person.at.y, person.at.z);
-      const gap = target.distanceTo(group.position);
-      if (gap > 0.001) {
-        const step = Math.min(gap, WALK_SPEED * 1.6 * delta);
-        group.position.addScaledVector(target.sub(group.position).normalize(), step);
-      }
-      // Shortest way round, so a figure turning from 179° to -179° does not
-      // spin the long way.
-      const turn = ((person.facing - group.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-      group.rotation.y += turn * Math.min(1, delta * 8);
-    }
-  });
 
   return (
     <group>
       {cast.map((person) => (
-        <group
+        <Avatar3D
           key={person.actorId}
-          ref={(group) => {
-            if (group) {
-              if (!groups.current.has(person.actorId)) {
-                // Appear where the server says, not at the origin — otherwise
-                // everyone who joins is briefly drawn walking out of the middle
-                // of the floor, which never happened.
-                const known = (peopleRef.current ?? []).find((one) => one.actorId === person.actorId);
-                if (known) {
-                  group.position.set(known.at.x, known.at.y, known.at.z);
-                  group.rotation.y = known.facing;
-                }
-              }
-              groups.current.set(person.actorId, group);
-            } else groups.current.delete(person.actorId);
-          }}
-        >
-          <Avatar3D
-            actorId={person.actorId}
-            kind={person.kind}
-            connected={person.connected}
-            because={person.because}
-          />
-        </group>
+          actorId={person.actorId}
+          kind={person.kind}
+          connected={person.connected}
+          reducedMotion={reducedMotion}
+          live={() =>
+            (peopleRef.current ?? []).find(
+              (one) => one.actorId === person.actorId,
+            )
+          }
+        />
       ))}
     </group>
   );
 }
 
 const KEYS: Record<string, [number, number]> = {
-  KeyW: [0, -1], ArrowUp: [0, -1],
-  KeyS: [0, 1], ArrowDown: [0, 1],
-  KeyA: [-1, 0], ArrowLeft: [-1, 0],
-  KeyD: [1, 0], ArrowRight: [1, 0],
+  KeyW: [0, -1],
+  ArrowUp: [0, -1],
+  KeyS: [0, 1],
+  ArrowDown: [0, 1],
+  KeyA: [-1, 0],
+  ArrowLeft: [-1, 0],
+  KeyD: [1, 0],
+  ArrowRight: [1, 0],
 };
 
 /**
@@ -184,7 +168,10 @@ function Me({
   const held = useRef(new Set<string>());
   const yaw = useRef(0);
   const dragging = useRef(false);
-  const sendMove = useMemo(() => makeMoveSender(connection.send), [connection.send]);
+  const sendMove = useMemo(
+    () => makeMoveSender(connection.send),
+    [connection.send],
+  );
 
   useEffect(() => {
     camera.position.set(ROOM.spawn.x, EYE_HEIGHT, ROOM.spawn.z);
@@ -226,7 +213,8 @@ function Me({
      */
     const surface = canvas.parentElement ?? canvas;
     const startedInAPanel = (event: PointerEvent) =>
-      event.target instanceof Element && event.target.closest(".space-panel-frame") !== null;
+      event.target instanceof Element &&
+      event.target.closest(".space-panel-frame") !== null;
 
     const down = (event: KeyboardEvent) => {
       if (!KEYS[event.code]) return;
@@ -242,7 +230,9 @@ function Me({
       if (startedInAPanel(event)) return;
       dragging.current = true;
     };
-    const stopDrag = () => { dragging.current = false; };
+    const stopDrag = () => {
+      dragging.current = false;
+    };
     const look = (event: PointerEvent) => {
       if (!dragging.current) return;
       yaw.current -= event.movementX * 0.004;
@@ -276,31 +266,64 @@ function Me({
       strafe += key[0];
       forward += key[1];
     }
-    if (forward === 0 && strafe === 0) return;
+    // NOT AN EARLY RETURN ANY MORE. Standing still is not the same as having
+    // nothing to say: a person who has stopped walking is still looking around,
+    // and skipping these frames left them reported with no head at all — so
+    // everyone else drew them staring rigidly ahead while they turned to watch
+    // the room. The rate limiter in makeMoveSender caps the traffic; this only
+    // decides whether there is anything to cap.
+    const walking = forward !== 0 || strafe !== 0;
+    if (walking) {
+      // Normalised, so walking diagonally is not faster than walking straight.
+      const distance = (WALK_SPEED * delta) / Math.hypot(forward, strafe);
 
-    // Normalised, so walking diagonally is not faster than walking straight.
-    const distance = (WALK_SPEED * delta) / Math.hypot(forward, strafe);
+      // Walk in the direction you are looking, which is what makes turning and
+      // walking feel like one action rather than two.
+      //
+      // At yaw 0 the camera looks down -Z, so ahead is (-sin y, 0, -cos y) and
+      // right is (cos y, 0, -sin y). `forward` is negative for W (see KEYS), so
+      // ahead is -forward. Written out rather than condensed: the first version
+      // folded the signs together and got two of the four wrong, which reads as
+      // "the controls are inverted" rather than as an error in one expression.
+      const ahead = -forward;
+      camera.position.x +=
+        (ahead * -Math.sin(yaw.current) + strafe * Math.cos(yaw.current)) *
+        distance;
+      camera.position.z +=
+        (ahead * -Math.cos(yaw.current) + strafe * -Math.sin(yaw.current)) *
+        distance;
 
-    // Walk in the direction you are looking, which is what makes turning and
-    // walking feel like one action rather than two.
-    //
-    // At yaw 0 the camera looks down -Z, so ahead is (-sin y, 0, -cos y) and
-    // right is (cos y, 0, -sin y). `forward` is negative for W (see KEYS), so
-    // ahead is -forward. Written out rather than condensed: the first version
-    // folded the signs together and got two of the four wrong, which reads as
-    // "the controls are inverted" rather than as an error in one expression.
-    const ahead = -forward;
-    camera.position.x += (ahead * -Math.sin(yaw.current) + strafe * Math.cos(yaw.current)) * distance;
-    camera.position.z += (ahead * -Math.cos(yaw.current) + strafe * -Math.sin(yaw.current)) * distance;
-
-    // The walls are walls.
-    const margin = 0.45;
-    camera.position.x = Math.max(-ROOM.width / 2 + margin, Math.min(ROOM.width / 2 - margin, camera.position.x));
-    camera.position.z = Math.max(-ROOM.depth / 2 + margin, Math.min(ROOM.depth / 2 - margin, camera.position.z));
-    camera.position.y = EYE_HEIGHT;
+      // The walls are walls.
+      const margin = 0.45;
+      camera.position.x = Math.max(
+        -ROOM.width / 2 + margin,
+        Math.min(ROOM.width / 2 - margin, camera.position.x),
+      );
+      camera.position.z = Math.max(
+        -ROOM.depth / 2 + margin,
+        Math.min(ROOM.depth / 2 - margin, camera.position.z),
+      );
+      camera.position.y = EYE_HEIGHT;
+    }
 
     const at: Vec3 = { x: camera.position.x, y: 0, z: camera.position.z };
-    sendMove(at, yaw.current);
+    // A HEAD, AND NO HANDS. In a window we genuinely know where the viewer's
+    // eyeline is and which way it is turned — that is the camera. We know
+    // nothing whatever about their hands, so none are sent and none are drawn.
+    // Reporting a pair at some plausible resting position would be inventing
+    // the one thing hands are good at showing.
+    sendMove(at, yaw.current, {
+      head: {
+        p: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+        q: {
+          x: camera.quaternion.x,
+          y: camera.quaternion.y,
+          z: camera.quaternion.z,
+          w: camera.quaternion.w,
+        },
+      },
+      hands: { left: null, right: null },
+    });
     if (reducedMotion) invalidate();
   });
 
@@ -347,44 +370,60 @@ export default function Scene({
       // positions instead of gliding, which is the point rather than a
       // shortcoming.
       frameloop={reducedMotion ? "demand" : "always"}
-      camera={{ fov: 70, near: 0.1, far: 60, position: [ROOM.spawn.x, EYE_HEIGHT, ROOM.spawn.z] }}
+      camera={{
+        fov: 70,
+        near: 0.1,
+        far: 60,
+        position: [ROOM.spawn.x, EYE_HEIGHT, ROOM.spawn.z],
+      }}
       gl={{ antialias: true }}
       tabIndex={0}
       style={{ outline: "none", touchAction: "none" }}
     >
       <XR store={getXRStore()}>
-      {/* Black void. Left UNSET in a headset so the compositor can show
+        {/* Black void. Left UNSET in a headset so the compositor can show
           passthrough behind the scene where the device supports it; where it
           does not, the session is simply black, which is what was asked for. */}
-      {inHeadset ? null : <color attach="background" args={["#0b0d12"]} />}
-      <hemisphereLight args={["#ffffff", "#2a3040", 2.2]} />
-      <directionalLight position={[3, 6, 4]} intensity={1.4} />
-      <Void />
-      {/* The real tabs, live — replaced in a headset by something that says why
+        {inHeadset ? null : <color attach="background" args={["#0b0d12"]} />}
+        <hemisphereLight args={["#ffffff", "#2a3040", 2.2]} />
+        <directionalLight position={[3, 6, 4]} intensity={1.4} />
+        <Void />
+        {/* The real tabs, live — replaced in a headset by something that says why
           they are not there. DOM is not composited into an immersive frame, so
           leaving them mounted would keep three copies of the app running to
           draw nothing, and leaving the spaces empty told nobody anything. */}
-      {inHeadset ? (
-        // Photographs of the same pages, taken on the server. The live panels
-        // are DOM and a session draws 3D only.
-        Object.values(STATIONS).map((station) => (
-          <StillPanel key={station.id} station={station} base={base} active={inHeadset} />
-        ))
-      ) : (
-        Object.values(STATIONS).map((station) => (
-          <WebPanel key={station.id} station={station} base={base} />
-        ))
-      )}
-      <Crowd
-        peopleRef={connection.peopleRef}
-        roster={connection.roster}
-        you={you}
-        reducedMotion={reducedMotion}
-      />
-      <Me connection={connection} reducedMotion={reducedMotion} active={!inHeadset} />
-      <OnDemand connection={connection} />
-      {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
-      <Immersive comfort={comfort} send={connection.send} onChange={onImmersiveChange} />
+        {inHeadset
+          ? // Photographs of the same pages, taken on the server. The live panels
+            // are DOM and a session draws 3D only.
+            Object.values(STATIONS).map((station) => (
+              <StillPanel
+                key={station.id}
+                station={station}
+                base={base}
+                active={inHeadset}
+              />
+            ))
+          : Object.values(STATIONS).map((station) => (
+              <WebPanel key={station.id} station={station} base={base} />
+            ))}
+        <Crowd
+          peopleRef={connection.peopleRef}
+          roster={connection.roster}
+          you={you}
+          reducedMotion={reducedMotion}
+        />
+        <Me
+          connection={connection}
+          reducedMotion={reducedMotion}
+          active={!inHeadset}
+        />
+        <OnDemand connection={connection} />
+        {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
+        <Immersive
+          comfort={comfort}
+          send={connection.send}
+          onChange={onImmersiveChange}
+        />
       </XR>
     </Canvas>
   );

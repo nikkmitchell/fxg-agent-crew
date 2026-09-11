@@ -67,6 +67,8 @@ export class SpaceHub {
         facing: occupant.facing,
         because: occupant.because,
         connected: occupant.connected,
+        head: occupant.head,
+        hands: occupant.hands,
       }));
   }
 
@@ -196,7 +198,13 @@ export function registerSpaceRoutes(
         hub.presence.heard(actorId);
         return;
       }
-      hub.presence.moveSelf(actorId, message.at, message.facing);
+      hub.presence.moveSelf(actorId, message.at, message.facing, {
+        // Spread deliberately: `head: undefined` when the client did not send
+        // one leaves the last known head alone, while an explicit null clears
+        // it. Only a client that mentions hands changes them.
+        ...("head" in message ? { head: message.head ?? null } : {}),
+        ...(message.hands ? { hands: message.hands } : {}),
+      });
     });
 
     socket.on("close", () => hub.detach(actorId, socket));

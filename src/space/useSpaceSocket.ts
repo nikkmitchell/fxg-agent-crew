@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { ClientMessage, ServerMessage, WirePerson } from "../../shared/space-wire";
+import type { ClientMessage, Pose, ServerMessage, WirePerson } from "../../shared/space-wire";
 import type { Vec3 } from "../../shared/space-layout";
 
 /**
@@ -158,16 +158,28 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
   return { status, peopleRef, roster, send, onSnapshot };
 }
 
-/** A move, rate-limited to the server's tick. Sending faster changes nothing. */
+/**
+ * A move, rate-limited to the server's tick. Sending faster changes nothing.
+ *
+ * The "standing still" shortcut only applies when NOTHING is tracked. Once a
+ * head is being reported, a person standing perfectly still on the floor is
+ * still looking around, and suppressing those frames freezes their head for
+ * everyone else while they are plainly moving it.
+ */
 export function makeMoveSender(send: (message: ClientMessage) => void, minIntervalMs = 100) {
   let lastSent = 0;
   let lastAt: Vec3 | null = null;
   let lastFacing = Number.NaN;
-  return (at: Vec3, facing: number) => {
+  return (
+    at: Vec3,
+    facing: number,
+    tracked?: { head?: Pose; hands?: { left: Pose | null; right: Pose | null } },
+  ) => {
     const now = performance.now();
     if (now - lastSent < minIntervalMs) return;
-    // Standing perfectly still needs no frames at all; the heartbeat covers it.
     const still =
+      !tracked?.head &&
+      !tracked?.hands &&
       lastAt !== null &&
       Math.abs(lastAt.x - at.x) < 0.01 &&
       Math.abs(lastAt.z - at.z) < 0.01 &&
@@ -176,6 +188,6 @@ export function makeMoveSender(send: (message: ClientMessage) => void, minInterv
     lastSent = now;
     lastAt = { ...at };
     lastFacing = facing;
-    send({ type: "move", at, facing });
+    send({ type: "move", at, facing, ...tracked });
   };
 }
