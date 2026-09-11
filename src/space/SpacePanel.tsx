@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { Identity } from "../Identity";
 import { useSpaceSocket } from "./useSpaceSocket";
+import { useSurfaces } from "./useSurfaces";
 
 /**
  * The Space tab.
@@ -50,6 +51,9 @@ export function SpacePanel() {
   const [reducedOverride, setReducedOverride] = useState<boolean | null>(null);
   const reducedMotion = reducedOverride ?? systemPrefersReduced;
   const connection = useSpaceSocket(entered);
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const walls = useSurfaces(entered, projectId);
+  const surfaces = walls.state.state === "ready" ? walls.state.surfaces : null;
 
   if (!entered) {
     return (
@@ -87,7 +91,7 @@ export function SpacePanel() {
     <section className="space-panel">
       <div className="space-canvas">
         <Suspense fallback={<p className="muted-note">Loading the room…</p>}>
-          <Scene connection={connection} reducedMotion={reducedMotion} />
+          <Scene connection={connection} reducedMotion={reducedMotion} surfaces={surfaces} />
         </Suspense>
         {status.state !== "open" ? (
           <div className="space-overlay">
@@ -112,6 +116,30 @@ export function SpacePanel() {
       </div>
 
       <aside className="space-roster">
+        {surfaces && surfaces.projects.length > 0 ? (
+          <label className="space-setting">
+            <span>On the board wall</span>
+            <select
+              value={surfaces.projectId ?? ""}
+              onChange={(event) => setProjectId(event.currentTarget.value)}
+            >
+              {surfaces.projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {walls.state.state === "failed" ? (
+          // Not an empty wall: a board with no cards and a board that could not
+          // be read look identical in 3D, and only one of them is a problem.
+          <p className="muted-note">
+            The walls could not be read — {walls.state.reason}. What is hanging on them now may be
+            out of date.
+          </p>
+        ) : null}
+
         <h2>In the room</h2>
         <label className="space-setting">
           <input

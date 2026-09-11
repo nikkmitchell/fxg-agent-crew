@@ -113,7 +113,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerProjectRoutes(scoped, config, sessions, client);
     registerBuildRoutes(scoped, config, sessions);
     registerBoardRoutes(scoped, config, sessions, database, config.blobRoot);
-    registerSpaceRoutes(scoped, config, sessions, space);
+    registerSpaceRoutes(scoped, config, sessions, space, database);
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.

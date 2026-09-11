@@ -76,6 +76,52 @@ for (const [username, kind] of people) {
 }
 const taskId = store.createTask({ id: "nikk", kind: "human" }, { projectId, title: "A card to act on" });
 
+// Enough cards to see the lanes fill, and one column deliberately overfilled so
+// the "+N more" mark on the wall is exercised rather than assumed.
+//
+// The paths are walked rather than jumped: backlog → done is illegal on purpose
+// (see shared/board-rules.ts), so a harness that sets a status directly does not
+// resemble a real board and, as it turns out, does not run either.
+const PATH_TO: Record<string, readonly string[]> = {
+  assigned: ["assigned"],
+  in_progress: ["assigned", "in_progress"],
+  blocked: ["assigned", "in_progress", "blocked"],
+  review: ["assigned", "in_progress", "review"],
+  done: ["assigned", "in_progress", "review", "done"],
+};
+
+Object.entries(PATH_TO).forEach(([lane, path], index) => {
+  const id = store.createTask({ id: "nikk", kind: "human" }, {
+    projectId,
+    title: `${lane.replace("_", " ")} card ${index + 1}`,
+    owners: index % 2 === 0 ? ["Plumbline"] : undefined,
+  });
+  for (const step of path) {
+    store.transitionTask(
+      { id: "nikk", kind: "human" },
+      id,
+      step as never,
+      step === "blocked" ? "waiting on a decision" : undefined,
+    );
+  }
+});
+for (let i = 0; i < 14; i += 1) {
+  store.createTask({ id: "nikk", kind: "human" }, { projectId, title: `Backlog item ${i + 1}` });
+}
+
+// A mood board with a real arrangement, so the wall has something to fit.
+const boardId = store.createBoard({ id: "nikk", kind: "human" }, projectId, "Look and feel");
+const swatches: [string, number, number][] = [
+  ["#3156d8", 20, 20], ["#e45338", 260, 20], ["#3d8063", 500, 20],
+  ["#cf9126", 20, 240], ["#6244a8", 260, 240], ["#a33d70", 500, 240],
+];
+for (const [colour, x, y] of swatches) {
+  store.addBoardItem({ id: "nikk", kind: "human" }, boardId, { kind: "swatch", text: colour, x, y, w: 200, h: 180 });
+}
+store.addBoardItem({ id: "nikk", kind: "human" }, boardId, {
+  kind: "note", text: "quieter than the last one", x: 20, y: 450, w: 680, h: 120,
+});
+
 console.log("\n  two figures stand at desks with no connection, to check the dimmed ring.");
 console.log("  make somebody walk to the task board for a real reason:\n");
 console.log(`  curl -s -X POST http://127.0.0.1:${PORT}/bff/board/tasks/${taskId}/comments \\`);

@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { avatarRecipe } from "../avatar";
 import { makeLabelTexture } from "./label-texture";
@@ -40,6 +41,34 @@ function useNameTexture(actorId: string): THREE.CanvasTexture | null {
 }
 
 const HEAD_RADIUS = 0.17;
+
+/**
+ * Distance at which a label is drawn at its written size. Nearer than this it
+ * is scaled down, further away it is scaled up, so a name holds roughly the
+ * same size on screen wherever you are standing.
+ */
+const LABEL_REFERENCE_METRES = 4;
+
+/**
+ * Keep text the same apparent size however close you are standing.
+ *
+ * A sprite obeys perspective like everything else, so walking up to somebody
+ * put their name across the entire screen — a wall of letters with the room
+ * behind it. Clamped at both ends: a label is never bigger than it would be at
+ * two metres, and never smaller than it would be at ten, so a figure across the
+ * room is still identifiable and one you are standing next to is not shouting.
+ */
+function useConstantApparentSize(base: [number, number]) {
+  const ref = useRef<THREE.Sprite>(null);
+  useFrame(({ camera }) => {
+    const sprite = ref.current;
+    if (!sprite) return;
+    const distance = camera.position.distanceTo(sprite.getWorldPosition(new THREE.Vector3()));
+    const factor = Math.min(10, Math.max(2, distance)) / LABEL_REFERENCE_METRES;
+    sprite.scale.set(base[0] * factor, base[1] * factor, 1);
+  });
+  return ref;
+}
 export const EYE_HEIGHT = 1.62;
 
 export function Avatar3D({ actorId, kind, connected, because }: Avatar3DProps) {
@@ -54,6 +83,9 @@ export function Avatar3D({ actorId, kind, connected, because }: Avatar3DProps) {
 
   // Shape carries kind — the rule itself lives in ./avatar-shape.ts so it can
   // be tested without standing up a renderer.
+  const nameRef = useConstantApparentSize([1.1, 0.275]);
+  const becauseRef = useConstantApparentSize([1.0, 0.25]);
+
   const body = useMemo(() => {
     const spec = bodySpec(kind);
     return spec.shape === "boxy"
@@ -120,7 +152,7 @@ export function Avatar3D({ actorId, kind, connected, because }: Avatar3DProps) {
       {/* Why they are standing here, under their name. Absent when we do not
           know, because an empty label is honest and "idle" would not be. */}
       {becauseTexture ? (
-        <sprite position={[0, BODY_HEIGHT + 0.34, 0]} scale={[1.0, 0.25, 1]}>
+        <sprite ref={becauseRef} position={[0, BODY_HEIGHT + 0.34, 0]} scale={[1.0, 0.25, 1]}>
           <spriteMaterial map={becauseTexture} transparent depthWrite={false} />
         </sprite>
       ) : null}
@@ -128,7 +160,7 @@ export function Avatar3D({ actorId, kind, connected, because }: Avatar3DProps) {
       {/* The name, always facing the reader. A figure you cannot identify is
           decoration. */}
       {nameTexture ? (
-        <sprite position={[0, BODY_HEIGHT + 0.52, 0]} scale={[1.1, 0.275, 1]}>
+        <sprite ref={nameRef} position={[0, BODY_HEIGHT + 0.52, 0]} scale={[1.1, 0.275, 1]}>
           <spriteMaterial map={nameTexture} transparent depthWrite={false} />
         </sprite>
       ) : (
