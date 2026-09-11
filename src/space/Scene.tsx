@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { ROOM, STATIONS, WALK_SPEED, type Vec3 } from "../../shared/space-layout";
 import { Avatar3D, EYE_HEIGHT } from "./Avatar3D";
+import { Surfaces3D } from "./Surfaces3D";
 import { makeLabelTexture } from "./label-texture";
+import type { Surfaces } from "../../shared/space-surfaces";
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
 
 /**
@@ -66,14 +68,15 @@ function Shell() {
 }
 
 /**
- * The three surfaces, as empty frames.
+ * The three frames, and their names.
  *
- * Empty ON PURPOSE at this stage. Stage 4 hangs the real cards and images on
- * them; until then a frame with nothing in it says "nothing is here yet", and a
- * frame with invented cards in it would say something false to anyone who
- * walked up to read it.
+ * A NAME IS DRAWN ONLY WHERE THERE IS NOTHING ON THE WALL. Once cards are
+ * hanging, the lane headings say what it is far better than a floating title —
+ * and the title was drawn straight across the top row of cards, which is how
+ * this was noticed. An empty frame still needs its name, because an unlabelled
+ * blank rectangle is indistinguishable from a rendering fault.
  */
-function Stations() {
+function Stations({ occupied }: { occupied: Set<string> }) {
   const labels = useMemo(
     () =>
       Object.fromEntries(
@@ -110,7 +113,7 @@ function Stations() {
             </mesh>
             {/* Named, so a wall you are looking at says what it is. An unlabelled
                 blank frame is indistinguishable from a rendering fault. */}
-            {labels[station.id] ? (
+            {labels[station.id] && !occupied.has(station.id) ? (
               <mesh position={[0, station.surface.height / 2 - 0.28, 0.04]}>
                 <planeGeometry args={[2.6, 0.65]} />
                 <meshBasicMaterial map={labels[station.id]!} transparent />
@@ -359,9 +362,12 @@ function OnDemand({ connection }: { connection: SpaceConnection }) {
 export default function Scene({
   connection,
   reducedMotion,
+  surfaces,
 }: {
   connection: SpaceConnection;
   reducedMotion: boolean;
+  /** Null while the walls are still being read, or if reading them failed. */
+  surfaces: Surfaces | null;
 }) {
   const you = connection.status.state === "open" ? connection.status.you : null;
 
@@ -387,7 +393,21 @@ export default function Scene({
       <hemisphereLight args={["#ffffff", "#b8ae9c", 1.5]} />
       <directionalLight position={[4, 6, 3]} intensity={1.1} castShadow />
       <Shell />
-      <Stations />
+      <Stations
+        occupied={
+          new Set([
+            ...(surfaces && surfaces.cards.length > 0 ? ["taskBoard"] : []),
+            ...(surfaces && surfaces.boards.some((board) => board.items.length > 0) ? ["moodBoard"] : []),
+          ])
+        }
+      />
+      {/* Suspense here and not higher up: one slow photograph must not blank the
+          room. Everything else stays on screen while it loads. */}
+      {surfaces ? (
+        <Suspense fallback={null}>
+          <Surfaces3D surfaces={surfaces} />
+        </Suspense>
+      ) : null}
       <Crowd
         peopleRef={connection.peopleRef}
         roster={connection.roster}

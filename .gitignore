@@ -13,3 +13,6 @@ package-lock.json
 
 .claude/launch.json
 .harness-run/
+
+# Blobs written by local development and the room harness. Never a deliverable.
+.dev-blobs/
