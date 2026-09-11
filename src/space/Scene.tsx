@@ -2,7 +2,11 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { ROOM, STATIONS, WALK_SPEED, type Vec3 } from "../../shared/space-layout";
+import { XR } from "@react-three/xr";
 import { Avatar3D, EYE_HEIGHT } from "./Avatar3D";
+import { Immersive } from "./Immersive";
+import { getXRStore } from "./xr-store";
+import type { Comfort } from "./comfort";
 import { Surfaces3D } from "./Surfaces3D";
 import { makeLabelTexture } from "./label-texture";
 import type { Surfaces } from "../../shared/space-surfaces";
@@ -232,9 +236,12 @@ const KEYS: Record<string, [number, number]> = {
 function Me({
   connection,
   reducedMotion,
+  active,
 }: {
   connection: SpaceConnection;
   reducedMotion: boolean;
+  /** False in a headset session: the player's own body steers then, not WASD. */
+  active: boolean;
 }) {
   const { camera, gl, invalidate } = useThree();
   const held = useRef(new Set<string>());
@@ -308,6 +315,7 @@ function Me({
   }, [camera, gl, invalidate]);
 
   useFrame((_, delta) => {
+    if (!active) return;
     let forward = 0;
     let strafe = 0;
     for (const code of held.current) {
@@ -363,11 +371,18 @@ export default function Scene({
   connection,
   reducedMotion,
   surfaces,
+  comfort,
+  onImmersiveChange,
+  inHeadset,
 }: {
   connection: SpaceConnection;
   reducedMotion: boolean;
   /** Null while the walls are still being read, or if reading them failed. */
   surfaces: Surfaces | null;
+  comfort: Comfort;
+  onImmersiveChange: (inSession: boolean) => void;
+  /** True once a headset session is live. */
+  inHeadset: boolean;
 }) {
   const you = connection.status.state === "open" ? connection.status.you : null;
 
@@ -389,6 +404,7 @@ export default function Scene({
       tabIndex={0}
       style={{ outline: "none", touchAction: "none" }}
     >
+      <XR store={getXRStore()}>
       <color attach="background" args={["#cfd6dd"]} />
       <hemisphereLight args={["#ffffff", "#b8ae9c", 1.5]} />
       <directionalLight position={[4, 6, 3]} intensity={1.1} castShadow />
@@ -414,8 +430,11 @@ export default function Scene({
         you={you}
         reducedMotion={reducedMotion}
       />
-      <Me connection={connection} reducedMotion={reducedMotion} />
+      <Me connection={connection} reducedMotion={reducedMotion} active={!inHeadset} />
       <OnDemand connection={connection} />
+      {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
+      <Immersive comfort={comfort} send={connection.send} onChange={onImmersiveChange} />
+      </XR>
     </Canvas>
   );
 }
