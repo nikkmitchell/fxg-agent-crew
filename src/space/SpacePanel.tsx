@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { Identity } from "../Identity";
 import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
+import { RoomLoading } from "./RoomLoading";
 
 /**
  * The Space tab.
@@ -95,9 +96,17 @@ export function SpacePanel() {
     // After the scene chunk has loaded, and again once the store has had time
     // to create itself. Only ever promotes to true — a later "no" would take
     // the button away from somebody holding a controller.
-    for (const delay of [1_500, 4_000]) timers.push(window.setTimeout(() => void check(), delay));
-    // If nothing has said yes by then, say no rather than leaving it unknown
-    // and rendering neither the button nor the explanation.
+    // KEEPS ASKING. On a Quest, `isSessionSupported` took about twenty seconds
+    // to answer yes — the button turned up long after the page looked settled,
+    // and before this it could have been missed entirely. So the answer is
+    // re-checked for a full minute rather than three times in four seconds.
+    for (const delay of [1_000, 3_000, 6_000, 10_000, 15_000, 22_000, 30_000, 45_000, 60_000]) {
+      timers.push(window.setTimeout(() => void check(), delay));
+    }
+    // Say "no headset" once the early answers are in, rather than leaving it
+    // unknown and rendering neither the button nor the explanation. The later
+    // probes can still promote it to yes — this only decides what to show while
+    // we wait.
     timers.push(
       window.setTimeout(() => {
         if (!cancelled) setHeadsetAvailable((current) => current ?? false);
@@ -151,9 +160,9 @@ export function SpacePanel() {
           </p>
         ) : headsetAvailable === false ? (
           <p className="muted-note">
-            This browser reports no immersive VR support, so there is no headset button — open
-            this same page in a headset&rsquo;s own browser for that. Everything here works the
-            same in a window.
+            No immersive VR support reported yet, so there is no headset button — open this same
+            page in a headset&rsquo;s own browser for that. On a Quest the answer can take twenty
+            seconds or so to arrive, and the button will appear on its own if it does.
           </p>
         ) : null}
       </section>
@@ -165,7 +174,11 @@ export function SpacePanel() {
   return (
     <section className="space-panel">
       <div className="space-canvas">
-        <Suspense fallback={<p className="muted-note">Loading the room…</p>}>
+        <Suspense
+          fallback={
+            <RoomLoading what="Downloading the 3D code — about a megabyte, once per visit." />
+          }
+        >
           <Scene
             connection={connection}
             reducedMotion={reducedMotion}
@@ -174,9 +187,15 @@ export function SpacePanel() {
             inHeadset={inHeadset}
           />
         </Suspense>
-        {status.state !== "open" ? (
+        {/* Connecting gets the big treatment too: until the socket is open the
+            room has nobody in it, including you, and a small grey line in the
+            corner does not distinguish that from a scene that failed. */}
+        {status.state === "connecting" ? (
+          <RoomLoading what="Connecting to the room." />
+        ) : null}
+
+        {status.state !== "open" && status.state !== "connecting" ? (
           <div className="space-overlay">
-            {status.state === "connecting" ? <p>Connecting…</p> : null}
             {status.state === "refused" ? (
               <p>
                 The room refused the connection: {status.reason}. Nothing is being shown, which is

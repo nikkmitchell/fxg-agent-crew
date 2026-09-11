@@ -762,3 +762,22 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-setting { flex-wrap: wrap; }
 .space-headset { display: grid; gap: 10px; margin: 0 0 18px; padding: 0 0 16px; border-bottom: 1px solid var(--line); }
 .space-headset .primary-action { justify-self: start; }
+
+/* Arriving in the room.
+
+   Covers the whole canvas rather than sitting in a corner of it: on a headset
+   the download is a megabyte over unknown wifi, and four words of body text was
+   indistinguishable from a scene that had failed to start.
+
+   The animation is decoration and says nothing, so the global
+   prefers-reduced-motion rule freezing it costs no information — which is why
+   the stage is written in words underneath rather than implied by the motion. */
+.room-loading { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 14px; background: #0b0d12; color: #e8e4d9; text-align: center; padding: 24px; }
+.room-loading-title { margin: 0; font-size: clamp(22px, 4.2vw, 40px); font-weight: 600; letter-spacing: .01em; }
+.room-loading-what { margin: 0; max-width: 34ch; font-size: 14px; line-height: 1.5; color: #9aa2b4; }
+
+.room-loading-mark { position: relative; width: 76px; height: 76px; }
+.room-loading-mark span { position: absolute; inset: 0; border-radius: 50%; border: 2px dashed #4a5468; animation: room-loading-spin 6s linear infinite; }
+.room-loading-mark span:last-child { inset: 14px; border-style: solid; border-color: #6f7a92 transparent transparent transparent; animation-duration: 1.6s; animation-direction: reverse; }
+
+@keyframes room-loading-spin { to { transform: rotate(360deg); } }
