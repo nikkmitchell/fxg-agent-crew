@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TAB, TABS, isTab, pathForTab, tabFromPath } from "./router";
 
@@ -11,6 +13,23 @@ describe("tab routing", () => {
     for (const tab of TABS) {
       expect(tabFromPath(pathForTab(tab)), tab).toBe(tab);
     }
+  });
+
+  it("declares no tab that nginx redirects away", () => {
+    // Mission Control was mounted at /space until 2026-09-10, and nginx still
+    // answers those URLs with a permanent redirect so old bookmarks land
+    // somewhere useful. A tab named after one of them would work when clicked
+    // and disappear on refresh — the tab lives in the SPA, but a reload asks
+    // the server, which redirects. That nearly shipped as the name for the 3D
+    // room.
+    //
+    // The redirects are READ from the deployed config rather than restated
+    // here, so adding another one cannot silently invalidate this check.
+    const nginx = readFileSync(resolve(__dirname, "../deploy/nginx.conf"), "utf8");
+    const redirected = [...nginx.matchAll(/location\s*=?\s*\/([A-Za-z0-9_-]+)\/?\s*\{[^}]*(?:return 30[12]|rewrite)/g)]
+      .map((match) => match[1]);
+    expect(redirected.length, "no redirects found — has the config moved?").toBeGreaterThan(0);
+    for (const tab of TABS) expect(redirected, `/${tab} is a redirect in nginx.conf`).not.toContain(tab);
   });
 
   it("round-trips with a trailing slash", () => {

@@ -35,6 +35,24 @@ command -v "$PNPM" >/dev/null || fail "pnpm not found; run: corepack enable pnpm
 # page with a 200 in the access log. Empty means the app owns `/`.
 APP_BASE_PATH="$BASE" "$PNPM" run build || fail "build failed; nothing was deployed"
 
+# THE LAZY BOUNDARY, MEASURED.
+#
+# Three.js is about 900 KB, roughly four times the rest of the app. It is behind
+# `React.lazy` so nobody reading the task board downloads a renderer to do it —
+# and the way that breaks is silent: one stray top-level import pulls the whole
+# thing into the main chunk and every page still works, just four times heavier.
+# Nothing in a test suite would notice.
+main_chunk=$(ls dist/assets/index-*.js 2>/dev/null | head -1)
+[ -n "$main_chunk" ] || fail "no main chunk in dist/assets — did the build layout change?"
+if grep -q WebGLRenderer "$main_chunk"; then
+  fail "three.js is in the MAIN chunk ($main_chunk) — the lazy boundary in src/space/SpacePanel.tsx is broken, and every visitor now downloads the 3D renderer"
+fi
+main_kb=$(( $(wc -c < "$main_chunk") / 1000 ))
+# A ceiling, not a target. Raise it deliberately when the app genuinely grows;
+# do not raise it to make a failure go away.
+[ "$main_kb" -lt 400 ] || fail "the main chunk is ${main_kb} KB, over the 400 KB ceiling — check what got pulled in"
+printf '  main chunk %s KB, no renderer in it\n' "$main_kb"
+
 SHA=$(git rev-parse HEAD)
 DIRTY=$(git status --porcelain | wc -l | tr -d ' ')
 [ "$DIRTY" = "0" ] || printf '\033[33mwarning: working tree has %s uncommitted change(s); deployed artifact will not match %s\033[0m\n' "$DIRTY" "${SHA:0:8}"

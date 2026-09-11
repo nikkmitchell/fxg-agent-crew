@@ -102,6 +102,24 @@ negative result deserves the same scrutiny as a positive one.
 
 ## Deployment
 
+### The 3D room's dependencies
+
+`react` is pinned by `@react-three/fiber` 9.7, whose peer range is
+`>=19 <19.3`. We are on 19.2.8 — inside it, with almost no room. Upgrading
+React past 19.3 means moving R3F at the same time; they cannot be bumped
+separately.
+
+`@types/three` lags `three` by one minor (0.185.4 against three 0.186.0). That
+is normal for DefinitelyTyped and not worth pinning around, but it means a type
+error about a brand-new three API is more likely to be a stale type than a
+mistake.
+
+Development: `pnpm exec tsx tools/dev-room-harness.mts` runs the server with
+several people already in the room and prints cookies for them. It mints
+sessions without a password and refuses to run with NODE_ENV=production. It is
+the only way to look at the room with more than one person in it, because
+signing in otherwise needs WebHarness.
+
 - `deploy/release.sh user@host` — builds, ships, restarts, then verifies the
   RUNNING SERVICE. It refuses to finish unless `/bff/me` is 401, `/` is 200,
   and `/api/rooms` is 404 on loopback. That last check is the surviving half of
