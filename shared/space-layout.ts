@@ -119,11 +119,12 @@ export const DESK_CAPACITY = DESK_COLUMN_X.length * DESK_ROW_Z.length;
  * Actor ids that are not people and must never be drawn.
  *
  * An explicit list rather than a name heuristic: "import" is the actor the
- * migration wrote its summary row under, and a rule like "ignore anything
+ * migration wrote its summary row under, "render" is the headless browser that
+ * photographs the pages for the headset, and a rule like "ignore anything
  * without a profile" would also hide a real colleague who has not filled one
  * in — which is precisely who this space should be nudging.
  */
-export const NOT_A_PERSON = new Set(["import", "system"]);
+export const NOT_A_PERSON = new Set(["import", "system", "render"]);
 
 /** Metres per second. A walk, not a sprint and not a drift. */
 export const WALK_SPEED = 1.4;

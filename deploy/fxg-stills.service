@@ -1,0 +1,45 @@
+# The headless browser that photographs the pages for the headset.
+#
+# A SEPARATE UNIT FROM THE APP, and the memory cap is the reason. Chrome is the
+# largest thing on this box by a wide margin and the likeliest to leak or hang.
+# Left inside the app, an OOM kill takes the whole site down; out here the
+# kernel kills this, systemd restarts it, and the site never notices.
+[Unit]
+Description=saha.ing — render page stills for the headset
+After=network.target fxg-crew.service
+Wants=fxg-crew.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/fxg-crew
+Environment=NODE_ENV=production
+Environment=APP_ORIGIN=http://127.0.0.1:8787
+Environment=STILLS_ROOT=/opt/fxg-crew/data/stills
+# WHERE THE BROWSER IS. Playwright defaults to ~/.cache/ms-playwright, which
+# ProtectHome=true below makes invisible — the service would start cleanly and
+# then fail every render with "executable doesn't exist". Installed to /opt
+# instead, and named here so the two agree:
+#   PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright \
+#     npx playwright-core@1.63.0 install --with-deps chromium
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+# STILLS_TOKEN lives here, not in the repo. The app refuses to mint a render
+# session when it is unset, so a box that has not been given one renders
+# nothing rather than rendering for anybody who asks.
+EnvironmentFile=/etc/fxg-crew/stills.env
+ExecStart=/usr/bin/node /opt/fxg-crew/dist-server/tools/render-stills.js
+
+# THE POINT OF THIS FILE. 700M is comfortably above one page render and well
+# below what would starve the app. Exceeding it kills Chrome, not saha.ing.
+MemoryMax=700M
+MemorySwapMax=300M
+# Chrome is a browser being pointed at our own pages, but it is still a browser.
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
