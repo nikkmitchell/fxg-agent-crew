@@ -17,6 +17,7 @@ import { registerBoardRoutes } from "./routes/board.js";
 import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
 import { Activity } from "./space/activity.js";
 import { registerStillRoutes } from "./space/stills.js";
+import { registerUtteranceRoutes } from "./space/utterances.js";
 import { openDatabase } from "./db/open.js";
 
 /**
@@ -116,6 +117,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerBoardRoutes(scoped, config, sessions, database, config.blobRoot);
     registerSpaceRoutes(scoped, config, sessions, space);
     registerStillRoutes(scoped, config, sessions);
+    registerUtteranceRoutes(scoped, config, sessions, database, (utterance) =>
+      space.broadcast({ type: "said", utterance }),
+    );
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.

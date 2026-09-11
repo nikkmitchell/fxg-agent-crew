@@ -342,4 +342,45 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX legacy_writes_by_actor ON legacy_writes(actor_id, message_id);
     `,
   },
+  {
+    id: 10,
+    name: "utterances",
+    sql: `
+      -- What was said out loud in the room, and what was said in full.
+      --
+      -- TWO FIELDS, NOT ONE, and the split is the feature. \`say\` is what a
+      -- voice reads aloud and is capped; \`detail\` is written down, never
+      -- spoken, and has no cap. Speaking at a person and explaining to a
+      -- colleague are different acts, and one column for both would have made
+      -- brevity a matter of everyone remembering to be brief.
+      --
+      -- DURABLE, like every other record here. A conversation that vanishes
+      -- when a socket drops is worse than one written down: nobody can check
+      -- what an agent actually said, which is the whole question you ask after
+      -- a voice interface does something surprising.
+      CREATE TABLE utterances (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        at         TEXT NOT NULL,
+        actor_id   TEXT NOT NULL,
+        -- Who it was aimed at. NULL means the room heard it and nobody was
+        -- addressed, which is different from addressing everybody.
+        to_actor   TEXT,
+        -- The short spoken part. NULL for something written and not said —
+        -- agent-to-agent detail nobody reads aloud.
+        say        TEXT,
+        -- The long written part. NULL when there was nothing beyond the words.
+        detail     TEXT,
+        -- How it arrived: 'voice' from a microphone, 'text' from a keyboard or
+        -- an agent's API call. Recorded because a transcript is a GUESS about
+        -- what somebody said and typed text is not, and a reader deserves to
+        -- know which they are looking at.
+        source     TEXT NOT NULL CHECK (source IN ('voice', 'text')),
+        -- Speech recognition's own confidence, when it gave one. NULL for
+        -- anything typed. Never used to hide a transcript — only to show it.
+        confidence REAL
+      );
+      CREATE INDEX utterances_by_time ON utterances(id);
+      CREATE INDEX utterances_to ON utterances(to_actor, id);
+    `,
+  },
 ];

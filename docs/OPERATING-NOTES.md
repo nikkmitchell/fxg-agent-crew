@@ -102,6 +102,29 @@ negative result deserves the same scrutiny as a positive one.
 
 ## Deployment
 
+### Voice: why an utterance has two fields
+
+`say` is read aloud and is capped at 240 characters. `detail` is written down,
+never spoken, and is effectively uncapped. That split is the whole mechanism
+behind "agents are brief with people and detailed with each other" — with one
+field it would have depended on everyone remembering to be brief.
+
+A `say` over the limit is **refused with its reason, never truncated**. Same
+rule as `FORBIDDEN_PROFILE_KEYS`: silently shortening tells the sender their
+words were used when they were not, and with speech the sender cannot hear what
+came out, so they would never find out.
+
+`source` records whether the words arrived from a microphone or a keyboard,
+because a transcript is a GUESS about what somebody said and typed text is not.
+`confidence` is recorded when recognition offers one, and is only ever shown —
+it never hides a transcript.
+
+`POST /bff/space/utterances` records and broadcasts; `GET` returns the recent
+ones so a client that reconnects does not lose the conversation. Utterances are
+broadcast as their own socket message rather than folded into a snapshot: a
+snapshot is state and is safe to miss, an utterance is an event and missing one
+loses it.
+
 ### Photographs of the pages, for the headset
 
 A headset session draws 3D only, so the live panels cannot be in it. A separate

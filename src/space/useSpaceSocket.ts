@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { ClientMessage, Pose, ServerMessage, WirePerson } from "../../shared/space-wire";
+import type { Utterance } from "../../shared/voice";
 import type { Vec3 } from "../../shared/space-layout";
 
 /**
@@ -34,7 +35,17 @@ export type SpaceConnection = {
   send: (message: ClientMessage) => void;
   /** Bumped whenever a snapshot arrives, for a scene that renders on demand. */
   onSnapshot: RefObject<(() => void) | null>;
+  /**
+   * What has been said since this client connected, oldest first.
+   *
+   * React state rather than a ref: unlike a position, an utterance is meant to
+   * be read, so something has to re-render when one arrives.
+   */
+  heard: Utterance[];
 };
+
+/** How much of the conversation to keep in memory. Older lines are on the server. */
+const HEARD_LIMIT = 60;
 
 const socketUrl = (): string => {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -47,6 +58,7 @@ const retryDelayMs = (attempt: number) => Math.min(30_000, 1_000 * 2 ** Math.min
 
 export function useSpaceSocket(enabled: boolean): SpaceConnection {
   const [status, setStatus] = useState<SpaceStatus>({ state: "connecting" });
+  const [heard, setHeard] = useState<Utterance[]>([]);
   const [roster, setRoster] = useState<
     { actorId: string; kind: "human" | "agent" | null; connected: boolean; because: string | null }[]
   >([]);
@@ -113,6 +125,13 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           setStatus({ state: "refused", reason: message.reason });
           return;
         }
+        if (message.type === "said") {
+          // Appended rather than replacing: an utterance is an event, and the
+          // list is a transcript. Capped so a room left open all day does not
+          // grow without limit.
+          setHeard((previous) => [...previous, message.utterance].slice(-HEARD_LIMIT));
+          return;
+        }
         peopleRef.current = message.people;
         setRoster((previous) => {
           const next = rosterOf(message.people);
@@ -155,7 +174,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
   };
 
-  return { status, peopleRef, roster, send, onSnapshot };
+  return { status, peopleRef, roster, send, onSnapshot, heard };
 }
 
 /**
