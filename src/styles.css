@@ -444,7 +444,13 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .board-project { font-size: 14px; font-weight: 600; }
 .board-bar .kind-progress { margin: 0; }
 
-.board-columns { flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 14px; align-items: start; overflow-x: auto; padding-bottom: 14px; scroll-snap-type: x proximity; }
+/* 168px, not 200px, and the number is the whole point.
+   Six lanes at a 200px floor plus gaps needs 1270px, which is more than a
+   1280px window has once the rail and the padding are taken — so the grid
+   overflowed, `1fr` never got to stretch anything, and DONE sat half off the
+   right edge. At 168 the six fit, 1fr expands them to fill whatever is actually
+   there, and a genuinely narrow window still scrolls. */
+.board-columns { flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(168px, 1fr); gap: 14px; align-items: start; overflow-x: auto; padding-bottom: 14px; scroll-snap-type: x proximity; }
 .board-column { display: flex; flex-direction: column; min-width: 0; max-height: 100%; border: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 3%, var(--surface)); scroll-snap-align: start; }
 .column-head { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .column-head h3 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
