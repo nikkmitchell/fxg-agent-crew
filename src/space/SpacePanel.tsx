@@ -67,15 +67,18 @@ function Transcript({ heard }: { heard: Utterance[] }) {
                   text is not. Marked, so a reader can tell which they are
                   reading rather than having to assume. */}
               {utterance.source === "voice" ? (
+                // "voice", not "heard". Inkstone's review: heard describes what
+                // the LISTENER did, and the thing being marked is where the
+                // words came from. When recognition gave a confidence it is
+                // shown outright rather than hidden in a tooltip — a transcript
+                // the machine was 62% sure of is worth reading differently.
                 <span
                   className="space-said-heard"
-                  title={
-                    utterance.confidence === null
-                      ? "Heard through a microphone"
-                      : `Heard through a microphone — recognition was ${Math.round(utterance.confidence * 100)}% confident`
-                  }
+                  title="Transcribed from a microphone, so it is a guess at what was said"
                 >
-                  heard
+                  {utterance.confidence === null
+                    ? "voice"
+                    : `voice ${Math.round(utterance.confidence * 100)}%`}
                 </span>
               ) : null}
             </p>

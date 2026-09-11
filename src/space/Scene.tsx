@@ -117,19 +117,26 @@ function Crowd({
   heard: SpaceConnection["heard"];
 }) {
   /**
-   * The last thing each person said aloud, and only recently.
+   * The last thing each person said aloud, for as long as it takes to read.
    *
-   * A line stays over somebody's head for half a minute and then goes. Leaving
-   * it indefinitely turns a remark into a label — somebody who said "looking at
-   * the blockers" an hour ago should not still appear to be saying it.
+   * HOW LONG DEPENDS ON THE LINE, which was Inkstone's review point and is
+   * plainly right: a fixed thirty seconds left "Done." hanging over somebody's
+   * head long after it meant anything, while a full-length remark got the same
+   * window as a single word. Six seconds for something short, up to fourteen
+   * for something at the spoken cap.
+   *
+   * It still expires. Leaving a line indefinitely turns a remark into a label —
+   * somebody who said "looking at the blockers" an hour ago should not still
+   * appear to be saying it.
    */
-  const RECENT_MS = 30_000;
   const lastSaid = useMemo(() => {
     const now = Date.now();
     const latest = new Map<string, string>();
     for (const utterance of heard) {
       if (!utterance.say) continue;
-      if (now - Date.parse(utterance.at) > RECENT_MS) continue;
+      // Roughly reading speed with a beat to notice it, bounded at both ends.
+      const window = Math.min(14_000, Math.max(6_000, 2_000 + utterance.say.length * 55));
+      if (now - Date.parse(utterance.at) > window) continue;
       latest.set(utterance.actorId, utterance.say);
     }
     return latest;
