@@ -84,7 +84,7 @@ describe("collapsing machine exhaust", () => {
   });
 
   it("keeps every original message, in order", () => {
-    // The room is the only durable store. This folds the view; it must never
+    // A chat room is a transcript. This folds the view; it must never
     // drop a record.
     const original = closeOneCard("saha-brief-budget");
     const [entry] = collapseTranscript(original);

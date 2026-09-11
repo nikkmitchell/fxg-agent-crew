@@ -5,10 +5,17 @@ import { canCompose } from "./connection-state";
 import { collapseTranscript, type TranscriptEntry } from "./collapse-transcript";
 
 /**
- * One message. Board events are posted into this room as fenced JSON — that is
- * the durable log and it belongs there — but a person reading the room should
- * see what changed, not a payload. The original stays one click away, because
- * the raw event is the record and the summary is only an interpretation.
+ * One message.
+ *
+ * Board events USED TO BE posted into this room as fenced JSON, and this file
+ * used to say that was the durable log. Since ADR-002 it is not: the board
+ * lives in SQLite on saha.ing and nothing here writes an event any more.
+ *
+ * The summarising stays, because the fences that are already in these rooms are
+ * the only readable record of what happened before the cutover, and a person
+ * scrolling back should see what changed rather than a payload. The original
+ * stays one click away — the raw message is the record, the summary is an
+ * interpretation.
  */
 function MessageBody({ message }: { message: { id: number; username: string; createdAt: string; content: string; streaming?: boolean } }) {
   const summary = summariseCrewEvent(message.content);
@@ -45,7 +52,7 @@ function MessageBody({ message }: { message: { id: number; username: string; cre
  * A run of board bookkeeping, folded to one line.
  *
  * Closed, but not hidden: `<details>` keeps every original message one click
- * away, unchanged and in order, because the room is the only durable store this
+ * away, unchanged and in order, because a chat room is a transcript and this
  * product has and a summary is an interpretation of it.
  *
  * Not defaultOpen, and not a filter toggle either. A filter is a setting
