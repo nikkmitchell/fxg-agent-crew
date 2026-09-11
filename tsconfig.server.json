@@ -25,6 +25,16 @@
   },
   // src/event-core.ts is pulled in by the adapter tests and the reducer seam,
   // so it compiles alongside the server rather than with the browser bundle.
-  "include": ["server/**/*.ts", "shared/**/*.ts", "src/event-core.ts"],
+  //
+  // tools/render-stills.mts is named ONE FILE AT A TIME rather than as
+  // tools/**. The other thing in there is dev-room-harness.mts, which mints
+  // sessions without a password — it refuses to run with NODE_ENV=production,
+  // but the right place for a back door is not on the production box at all.
+  "include": [
+    "server/**/*.ts",
+    "shared/**/*.ts",
+    "src/event-core.ts",
+    "tools/render-stills.mts"
+  ],
   "exclude": ["server/__tests__/**", "**/*.test.ts"]
 }

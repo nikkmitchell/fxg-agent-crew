@@ -31,7 +31,8 @@ Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 # session when it is unset, so a box that has not been given one renders
 # nothing rather than rendering for anybody who asks.
 EnvironmentFile=/etc/fxg-crew/stills.env
-ExecStart=/usr/bin/node /opt/fxg-crew/dist-server/tools/render-stills.js
+# .mjs, not .js: the source is render-stills.mts and tsc keeps the extension.
+ExecStart=/usr/bin/node /opt/fxg-crew/dist-server/tools/render-stills.mjs
 
 # THE POINT OF THIS FILE. 700M is comfortably above one page render and well
 # below what would starve the app. Exceeding it kills Chrome, not saha.ing.

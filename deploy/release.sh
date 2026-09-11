@@ -42,6 +42,18 @@ APP_BASE_PATH="$BASE" "$PNPM" run build || fail "build failed; nothing was deplo
 # and the way that breaks is silent: one stray top-level import pulls the whole
 # thing into the main chunk and every page still works, just four times heavier.
 # Nothing in a test suite would notice.
+# The renderer's entry point, named by deploy/fxg-stills.service.
+#
+# tsc keeps the source extension, so render-stills.mts becomes render-stills.mjs
+# — and the unit pointed at .js, which starts cleanly and then fails every ten
+# seconds with MODULE_NOT_FOUND. Read out of the unit file rather than restated,
+# so the two cannot drift.
+stills_entry=$(grep -o '/opt/fxg-crew/dist-server/tools/[a-zA-Z.-]*' deploy/fxg-stills.service | head -1)
+if [ -n "$stills_entry" ]; then
+  local_entry="${stills_entry#/opt/fxg-crew/}"
+  [ -f "$local_entry" ] || fail "deploy/fxg-stills.service points at $stills_entry, which the build does not produce (looked for $local_entry). tsc keeps the source extension."
+fi
+
 main_chunk=$(ls dist/assets/index-*.js 2>/dev/null | head -1)
 [ -n "$main_chunk" ] || fail "no main chunk in dist/assets — did the build layout change?"
 if grep -q WebGLRenderer "$main_chunk"; then
