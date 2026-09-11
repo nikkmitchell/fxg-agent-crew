@@ -108,12 +108,33 @@ function Crowd({
   roster,
   you,
   reducedMotion,
+  heard,
 }: {
   peopleRef: SpaceConnection["peopleRef"];
   roster: SpaceConnection["roster"];
   you: string | null;
   reducedMotion: boolean;
+  heard: SpaceConnection["heard"];
 }) {
+  /**
+   * The last thing each person said aloud, and only recently.
+   *
+   * A line stays over somebody's head for half a minute and then goes. Leaving
+   * it indefinitely turns a remark into a label — somebody who said "looking at
+   * the blockers" an hour ago should not still appear to be saying it.
+   */
+  const RECENT_MS = 30_000;
+  const lastSaid = useMemo(() => {
+    const now = Date.now();
+    const latest = new Map<string, string>();
+    for (const utterance of heard) {
+      if (!utterance.say) continue;
+      if (now - Date.parse(utterance.at) > RECENT_MS) continue;
+      latest.set(utterance.actorId, utterance.say);
+    }
+    return latest;
+  }, [heard]);
+
   const cast = roster.filter((person) => person.actorId !== you);
 
   return (
@@ -125,6 +146,7 @@ function Crowd({
           kind={person.kind}
           connected={person.connected}
           reducedMotion={reducedMotion}
+          saying={lastSaid.get(person.actorId) ?? null}
           live={() =>
             (peopleRef.current ?? []).find(
               (one) => one.actorId === person.actorId,
@@ -411,6 +433,7 @@ export default function Scene({
           roster={connection.roster}
           you={you}
           reducedMotion={reducedMotion}
+          heard={connection.heard}
         />
         <Me
           connection={connection}

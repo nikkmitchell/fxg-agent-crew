@@ -159,6 +159,38 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
       socket.addEventListener("error", () => socket.close());
     };
 
+    /**
+     * WHAT WAS SAID BEFORE WE ARRIVED.
+     *
+     * The socket carries utterances as events, and an event you were not
+     * connected for is one you never hear about. I told Inkstone exactly this
+     * when freezing the contract — "on reconnect, refetch with GET; do not
+     * assume the socket backfills" — and then did not do it here, so the
+     * transcript was empty for anyone who joined after somebody spoke.
+     *
+     * Merged rather than replacing: a message can arrive on the socket while
+     * this request is in flight, and dropping it would lose the newest line of
+     * a conversation, which is the one most worth having.
+     */
+    void (async () => {
+      try {
+        const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+        const response = await fetch(`${base}/bff/space/utterances?limit=${HEARD_LIMIT}`, {
+          credentials: "same-origin",
+        });
+        if (!response.ok || disposed) return;
+        const { utterances } = (await response.json()) as { utterances: Utterance[] };
+        setHeard((live) => {
+          const seen = new Set(live.map((one) => one.id));
+          return [...utterances.filter((one) => !seen.has(one.id)), ...live]
+            .sort((a, b) => a.id - b.id)
+            .slice(-HEARD_LIMIT);
+        });
+      } catch {
+        // The room still works without the backlog; it just starts from now.
+      }
+    })();
+
     connect();
     return () => {
       disposed = true;

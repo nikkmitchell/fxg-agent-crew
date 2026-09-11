@@ -839,3 +839,20 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .settings-projects button { width: 100%; font: inherit; font-size: 14px; text-align: left; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); color: var(--ink); cursor: pointer; }
 .settings-projects button:hover { background: var(--surface); }
 .settings-projects button.is-selected { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+
+/* What has been said, in writing.
+
+   The copy that does not disappear: a line over somebody's head goes after half
+   a minute, and a spoken reply may never have been heard at all — synthesis can
+   fail, be muted, or not exist in the browser. */
+.space-transcript { margin: 0 0 18px; }
+.space-transcript h2 { margin: 0 0 8px; font-size: 15px; }
+.space-transcript ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-height: 34dvh; overflow: auto; }
+.space-transcript li { padding-left: 10px; border-left: 2px solid var(--line); }
+.space-transcript li > p { margin: 0; font-size: 12px; color: var(--muted); }
+.space-transcript .space-said { margin-top: 2px; font-size: 14px; color: var(--ink); }
+.space-said-to { color: var(--muted); }
+/* Marked because a transcript is a guess and typed text is not. */
+.space-said-heard { margin-left: 6px; padding: 1px 5px; border-radius: 4px; background: var(--line); color: var(--ink); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.space-transcript details { margin-top: 4px; font-size: 13px; }
+.space-transcript summary { cursor: pointer; color: var(--muted); font-size: 12px; }

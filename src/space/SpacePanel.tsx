@@ -3,6 +3,7 @@ import { Identity } from "../Identity";
 import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
 import { RoomLoading } from "./RoomLoading";
+import type { Utterance } from "../../shared/voice";
 
 /**
  * The Space tab.
@@ -37,6 +38,59 @@ function useReducedMotion(): boolean {
     return () => query.removeEventListener("change", onChange);
   }, []);
   return reduced;
+}
+
+/**
+ * What has been said, in writing.
+ *
+ * A line over somebody's head goes away after half a minute, and a spoken reply
+ * may never have been heard at all — synthesis can fail, be muted, or not exist
+ * in the browser. This is the copy that does not disappear.
+ *
+ * `detail` is shown behind a disclosure rather than inline. It is the long half
+ * that is deliberately never spoken, and putting it in the flow would undo the
+ * point of capping what gets said aloud.
+ */
+function Transcript({ heard }: { heard: Utterance[] }) {
+  if (heard.length === 0) return null;
+  // Newest last, like a conversation. The list is capped upstream.
+  return (
+    <section className="space-transcript" aria-label="What has been said">
+      <h2>Said</h2>
+      <ol>
+        {heard.map((utterance) => (
+          <li key={utterance.id}>
+            <p>
+              <strong>{utterance.actorId}</strong>
+              {utterance.to ? <span className="space-said-to"> to {utterance.to}</span> : null}
+              {/* A transcript is a GUESS about what somebody said, and typed
+                  text is not. Marked, so a reader can tell which they are
+                  reading rather than having to assume. */}
+              {utterance.source === "voice" ? (
+                <span
+                  className="space-said-heard"
+                  title={
+                    utterance.confidence === null
+                      ? "Heard through a microphone"
+                      : `Heard through a microphone — recognition was ${Math.round(utterance.confidence * 100)}% confident`
+                  }
+                >
+                  heard
+                </span>
+              ) : null}
+            </p>
+            {utterance.say ? <p className="space-said">{utterance.say}</p> : null}
+            {utterance.detail ? (
+              <details>
+                <summary>Detail</summary>
+                <p>{utterance.detail}</p>
+              </details>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
 }
 
 export function SpacePanel() {
@@ -230,6 +284,8 @@ export function SpacePanel() {
             works the same in the window.
           </p>
         )}
+
+        <Transcript heard={connection.heard} />
 
         <h2>In the room</h2>
         <label className="space-setting">

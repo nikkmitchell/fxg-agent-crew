@@ -50,6 +50,14 @@ export type Avatar3DProps = {
   live: () => WirePerson | undefined;
   /** Snap instead of easing, for someone who asked for reduced motion. */
   reducedMotion: boolean;
+  /**
+   * The last thing this person said aloud, or null.
+   *
+   * Shown as TEXT above them whether or not anything was spoken. That is not
+   * decoration: synthesis can fail, be muted, or not exist in the browser at
+   * all, and a reply that was only ever audio is a reply that is simply lost.
+   */
+  saying: string | null;
 };
 
 /** The name, cached per actor. */
@@ -142,10 +150,24 @@ function turnToward(object: THREE.Object3D, q: Pose["q"], delta: number, snap: b
   else object.quaternion.slerp(scratch.quaternion, Math.min(1, delta * 14));
 }
 
-export function Avatar3D({ actorId, kind, connected, live, reducedMotion }: Avatar3DProps) {
+export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying }: Avatar3DProps) {
   const recipe = useMemo(() => avatarRecipe(actorId), [actorId]);
   const nameTexture = useNameTexture(actorId);
   const nameRef = useConstantApparentSize([1.1, 0.275]);
+  const speechRef = useConstantApparentSize([1.6, 0.4]);
+  const attendRef = useRef<THREE.Group>(null);
+
+  /**
+   * The spoken line, baked when it changes.
+   *
+   * Wrapped to two lines rather than squeezed onto one: `say` is capped at 240
+   * characters, and 240 characters condensed into a single 512px canvas is a
+   * grey smear. The caption bug on the headset stills was exactly this.
+   */
+  const speechTexture = useMemo(
+    () => (saying ? makeLabelTexture(saying, { pixelsPerLine: 40, lines: 2 }) : null),
+    [saying],
+  );
   const spec = useMemo(() => bodySpec(kind), [kind]);
 
   const headRef = useRef<THREE.Group>(null);
@@ -237,6 +259,13 @@ export function Avatar3D({ actorId, kind, connected, live, reducedMotion }: Avat
     if (labelRef.current && head) {
       labelRef.current.position.set(head.position.x, head.position.y + 0.42, head.position.z);
     }
+    if (speechRef.current && head) {
+      speechRef.current.position.set(head.position.x, head.position.y + 0.78, head.position.z);
+    }
+    if (attendRef.current && head) {
+      attendRef.current.visible = person.attending !== null;
+      attendRef.current.position.set(head.position.x, head.position.y + 0.34, head.position.z);
+    }
 
     // HANDS ONLY WHERE HANDS WERE REPORTED. A null hand is not tracked — the
     // person may be holding a mug, or at a desk with a mouse, or have set the
@@ -308,6 +337,27 @@ export function Avatar3D({ actorId, kind, connected, live, reducedMotion }: Avat
             />
           </mesh>
         )}
+      </group>
+
+      {/* WHAT THEY SAID, in text, above the name. Present even when a voice
+          read it out, because a reply that exists only as audio is one that
+          cannot be re-read, quoted, or recovered when the speaker is muted. */}
+      {speechTexture ? (
+        <sprite ref={speechRef} scale={[1.6, 0.4, 1]}>
+          <spriteMaterial map={speechTexture} transparent depthWrite={false} />
+        </sprite>
+      ) : null}
+
+      {/* A DECLARED intention to answer — never inferred from silence. Three
+          dots, because the honest content of this state is "they said they are
+          working on it" and nothing more specific than that is known. */}
+      <group ref={attendRef} visible={false}>
+        {[-0.09, 0, 0.09].map((x) => (
+          <mesh key={x} position={[x, 0, 0]}>
+            <sphereGeometry args={[0.028, 10, 8]} />
+            <meshBasicMaterial color={recipe.accent} />
+          </mesh>
+        ))}
       </group>
 
       {nameTexture ? (
