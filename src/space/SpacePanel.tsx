@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { Identity } from "../Identity";
 import { useSpaceSocket } from "./useSpaceSocket";
 import { useSurfaces } from "./useSurfaces";
+import { DEFAULT_COMFORT, type Comfort } from "./comfort";
 
 /**
  * The Space tab.
@@ -14,6 +15,8 @@ import { useSurfaces } from "./useSurfaces";
  * pulls the whole thing back into the main chunk and everything still works.
  */
 const Scene = lazy(() => import("./Scene"));
+/** Also behind the boundary: it imports the XR store, and that pulls in WebXR. */
+const HeadsetControls = lazy(() => import("./HeadsetControls"));
 
 /**
  * The scene ignores CSS, so reduced motion has to be asked for directly.
@@ -54,6 +57,57 @@ export function SpacePanel() {
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const walls = useSurfaces(entered, projectId);
   const surfaces = walls.state.state === "ready" ? walls.state.surfaces : null;
+  const [comfort, setComfort] = useState<Comfort>(DEFAULT_COMFORT);
+  const [inHeadset, setInHeadset] = useState(false);
+  const [headsetAvailable, setHeadsetAvailable] = useState<boolean | null>(null);
+
+  /**
+   * Is there a headset to enter?
+   *
+   * ASKED, not assumed: a browser with no WebXR has no `navigator.xr` at all,
+   * and an Enter button that can only fail is worse than no button — "nothing
+   * happened" is the least debuggable outcome there is.
+   *
+   * Probed REPEATEDLY after entering, which is not paranoia. `navigator.xr`
+   * can appear late: the XR store is created inside the lazy scene chunk, and
+   * on localhost without real WebXR it injects an emulated device at that
+   * moment. A single probe on mount runs before any of that and would report
+   * "no headset support" on a machine that acquires it a second later.
+   */
+  useEffect(() => {
+    if (!entered) return;
+    let cancelled = false;
+    const probe = async () => {
+      const xrSystem = (navigator as { xr?: { isSessionSupported(mode: string): Promise<boolean> } }).xr;
+      if (!xrSystem) return false;
+      try {
+        return await xrSystem.isSessionSupported("immersive-vr");
+      } catch {
+        return false;
+      }
+    };
+    const timers: number[] = [];
+    const check = async () => {
+      const supported = await probe();
+      if (!cancelled && supported) setHeadsetAvailable(true);
+    };
+    void check();
+    // After the scene chunk has loaded, and again once the store has had time
+    // to create itself. Only ever promotes to true — a later "no" would take
+    // the button away from somebody holding a controller.
+    for (const delay of [1_500, 4_000]) timers.push(window.setTimeout(() => void check(), delay));
+    // If nothing has said yes by then, say no rather than leaving it unknown
+    // and rendering neither the button nor the explanation.
+    timers.push(
+      window.setTimeout(() => {
+        if (!cancelled) setHeadsetAvailable((current) => current ?? false);
+      }, 5_000),
+    );
+    return () => {
+      cancelled = true;
+      for (const timer of timers) window.clearTimeout(timer);
+    };
+  }, [entered]);
 
   if (!entered) {
     return (
@@ -91,7 +145,14 @@ export function SpacePanel() {
     <section className="space-panel">
       <div className="space-canvas">
         <Suspense fallback={<p className="muted-note">Loading the room…</p>}>
-          <Scene connection={connection} reducedMotion={reducedMotion} surfaces={surfaces} />
+          <Scene
+            connection={connection}
+            reducedMotion={reducedMotion}
+            surfaces={surfaces}
+            comfort={comfort}
+            onImmersiveChange={setInHeadset}
+            inHeadset={inHeadset}
+          />
         </Suspense>
         {status.state !== "open" ? (
           <div className="space-overlay">
@@ -116,6 +177,21 @@ export function SpacePanel() {
       </div>
 
       <aside className="space-roster">
+        {/* HEADSET.
+            Offered only when the browser says immersive-vr is actually
+            supported. A button that can only fail is worse than no button, and
+            "nothing happened" is the least debuggable outcome there is. */}
+        {headsetAvailable === null ? null : headsetAvailable ? (
+          <Suspense fallback={null}>
+            <HeadsetControls comfort={comfort} setComfort={setComfort} inHeadset={inHeadset} />
+          </Suspense>
+        ) : (
+          <p className="muted-note">
+            This browser reports no immersive VR support, so there is no headset button. The room
+            works the same in the window.
+          </p>
+        )}
+
         {surfaces && surfaces.projects.length > 0 ? (
           <label className="space-setting">
             <span>On the board wall</span>

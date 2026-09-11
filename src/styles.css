@@ -750,3 +750,5 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-because { font-size: 12px; font-style: normal; color: var(--ink); padding-left: 36px; }
 .space-setting select { font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); max-width: 100%; }
 .space-setting { flex-wrap: wrap; }
+.space-headset { display: grid; gap: 10px; margin: 0 0 18px; padding: 0 0 16px; border-bottom: 1px solid var(--line); }
+.space-headset .primary-action { justify-self: start; }
