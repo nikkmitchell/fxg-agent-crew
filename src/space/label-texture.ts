@@ -13,7 +13,7 @@ import * as THREE from "three";
  */
 export function makeLabelTexture(
   text: string,
-  options: { pixelsPerLine?: number } = {},
+  options: { pixelsPerLine?: number; lines?: number } = {},
 ): THREE.CanvasTexture | null {
   // The scene is only ever mounted in a browser, but a test that imports this
   // file should not explode on a missing document.
@@ -31,18 +31,52 @@ export function makeLabelTexture(
   //
   // A light stroke under dark text is legible against a pale wall, a dark
   // figure, or the sky through a doorway, without a background of its own.
-  context.font = `600 ${options.pixelsPerLine ?? 64}px ui-sans-serif, system-ui, sans-serif`;
+  const size = options.pixelsPerLine ?? 64;
+  context.font = `600 ${size}px ui-sans-serif, system-ui, sans-serif`;
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.lineJoin = "round";
   context.lineWidth = 10;
   context.strokeStyle = "#f7f5f0";
-  // The max-width argument squeezes rather than clips, so a long actor id gets
-  // narrow instead of losing its ending — which is where the distinguishing
-  // part of a name like "Nikk2Macbook-Codex-001" lives.
-  context.strokeText(text, canvas.width / 2, canvas.height / 2 + 4, canvas.width - 32);
   context.fillStyle = "#141517";
-  context.fillText(text, canvas.width / 2, canvas.height / 2 + 4, canvas.width - 32);
+
+  /**
+   * WRAPPED, when asked for.
+   *
+   * A single line is squeezed to fit by the max-width argument, which is right
+   * for a name — a long actor id gets narrow rather than losing its ending,
+   * where the distinguishing part lives. It is wrong for a sentence: 240
+   * characters condensed into one 512px line is a grey smear, which is exactly
+   * how the headset captions failed.
+   */
+  const maxLines = Math.max(1, options.lines ?? 1);
+  const inner = canvas.width - 32;
+  const rows: string[] = [];
+  if (maxLines === 1) rows.push(text);
+  else {
+    let row = "";
+    for (const word of text.split(/\s+/)) {
+      const candidate = row ? `${row} ${word}` : word;
+      if (context.measureText(candidate).width <= inner || !row) row = candidate;
+      else {
+        rows.push(row);
+        row = word;
+        if (rows.length === maxLines) break;
+      }
+    }
+    if (rows.length < maxLines && row) rows.push(row);
+    // What did not fit is marked rather than dropped silently: a sentence that
+    // stops mid-thought with no sign is worse than one that says it was cut.
+    const used = rows.join(" ");
+    if (used.length < text.trim().length) rows[rows.length - 1] += "…";
+  }
+
+  const top = canvas.height / 2 - ((rows.length - 1) * size * 0.62) / 2 + 4;
+  rows.forEach((line, index) => {
+    const y = top + index * size * 0.62;
+    context.strokeText(line, canvas.width / 2, y, inner);
+    context.fillText(line, canvas.width / 2, y, inner);
+  });
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
