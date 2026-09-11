@@ -30,7 +30,7 @@ export type SpaceConnection = {
    * `connected` because a figure placed by activity and a person watching the
    * room are different things, and the roster is where that gets said in words.
    */
-  roster: { actorId: string; kind: "human" | "agent" | null; connected: boolean }[];
+  roster: { actorId: string; kind: "human" | "agent" | null; connected: boolean; because: string | null }[];
   send: (message: ClientMessage) => void;
   /** Bumped whenever a snapshot arrives, for a scene that renders on demand. */
   onSnapshot: RefObject<(() => void) | null>;
@@ -48,7 +48,7 @@ const retryDelayMs = (attempt: number) => Math.min(30_000, 1_000 * 2 ** Math.min
 export function useSpaceSocket(enabled: boolean): SpaceConnection {
   const [status, setStatus] = useState<SpaceStatus>({ state: "connecting" });
   const [roster, setRoster] = useState<
-    { actorId: string; kind: "human" | "agent" | null; connected: boolean }[]
+    { actorId: string; kind: "human" | "agent" | null; connected: boolean; because: string | null }[]
   >([]);
   const peopleRef = useRef<WirePerson[]>([]);
   const onSnapshot = useRef<(() => void) | null>(null);
@@ -66,13 +66,20 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
      * step — so it is compared rather than replaced. Setting it every snapshot
      * would re-render the whole panel ten times a second to show the same list.
      */
-    type Roster = { actorId: string; kind: "human" | "agent" | null; connected: boolean }[];
+    type Roster = {
+      actorId: string;
+      kind: "human" | "agent" | null;
+      connected: boolean;
+      /** Changes when somebody acts — rare enough to belong in React state. */
+      because: string | null;
+    }[];
     const rosterOf = (people: WirePerson[]): Roster =>
       people
         .map((person) => ({
           actorId: person.actorId,
           kind: person.kind,
           connected: person.connected,
+          because: person.because,
         }))
         .sort((a, b) => a.actorId.localeCompare(b.actorId));
     const sameRoster = (a: Roster, b: Roster) =>
@@ -81,7 +88,8 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
         (entry, index) =>
           entry.actorId === b[index].actorId &&
           entry.kind === b[index].kind &&
-          entry.connected === b[index].connected,
+          entry.connected === b[index].connected &&
+          entry.because === b[index].because,
       );
 
     const connect = () => {

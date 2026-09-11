@@ -16,6 +16,7 @@
  *   pnpm exec tsx tools/dev-room-harness.mts
  */
 import { buildServer } from "../server/index.js";
+import { BoardStore } from "../server/db/store.js";
 import { deskFor } from "../shared/space-layout.js";
 
 if (process.env.NODE_ENV === "production") {
@@ -25,7 +26,7 @@ if (process.env.NODE_ENV === "production") {
 
 const PORT = Number(process.env.PORT ?? 4174);
 
-const { app, config, sessions, space } = buildServer({
+const { app, config, sessions, space, database } = buildServer({
   WEBHARNESS_URL: "https://example.test",
   DATABASE_PATH: ":memory:",
   BLOB_ROOT: "./.dev-blobs",
@@ -54,11 +55,29 @@ for (const [username, kind] of people) {
   console.log(`  document.cookie = "${config.cookieName}=${sid}; path=/"   // ${username} (${kind})`);
 }
 
-// Standing figures with no browser attached, exactly as Stage 3 will place them
-// from the audit trail. Here they are put at their desks by hand, which is the
-// same code path — `sendTo` — with a made-up reason instead of a real one.
+// Two figures at desks with no browser attached, to check the dimmed ring and
+// the unknown-kind silhouette. Placed by hand through the same `sendTo` the
+// audit poller uses, with a reason that says plainly where it came from.
 // Nothing in this file runs on a deployed server, so nothing invented here can
 // reach a real screen.
 space.presence.sendTo("Inkstone", "agent", deskFor("Inkstone"), "placed by the dev harness");
 space.presence.sendTo("unstated-kind", null, deskFor("unstated-kind"), "placed by the dev harness");
-console.log("\n  two figures are standing at desks with no connection, to check the dimmed ring.\n");
+
+// A board to act on, so activity-driven movement can be exercised for real
+// rather than simulated. The ids are printed because the point of this harness
+// is to make a curl command against a live board possible in one step.
+const store = new BoardStore(database);
+const projectId = store.createProject({ id: "nikk", kind: "human" }, { id: "room", name: "Room demo" });
+for (const [username, kind] of people) {
+  if (username !== "nikk") {
+    store.actOnMembership({ id: "nikk", kind: "human" }, projectId, username, "grant", ["maker"]);
+  }
+  void kind;
+}
+const taskId = store.createTask({ id: "nikk", kind: "human" }, { projectId, title: "A card to act on" });
+
+console.log("\n  two figures stand at desks with no connection, to check the dimmed ring.");
+console.log("  make somebody walk to the task board for a real reason:\n");
+console.log(`  curl -s -X POST http://127.0.0.1:${PORT}/bff/board/tasks/${taskId}/comments \\`);
+console.log(`    -H 'content-type: application/json' -H "cookie: <one of the cookies above>" \\`);
+console.log(`    -d '{"body":"walking over to say this"}'\n`);

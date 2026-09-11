@@ -203,9 +203,8 @@ function Crowd({
           <Avatar3D
             actorId={person.actorId}
             kind={person.kind}
-            connected={
-              (peopleRef.current ?? []).find((one) => one.actorId === person.actorId)?.connected ?? false
-            }
+            connected={person.connected}
+            because={person.because}
           />
         </group>
       ))}
@@ -249,6 +248,24 @@ function Me({
     yaw.current = 0;
     camera.rotation.set(0, yaw.current, 0, "YXZ");
   }, [camera]);
+
+  // TELL THE SERVER WHERE WE PUT THE CAMERA, once, as soon as the socket is up.
+  //
+  // Without this the client and the server disagree the whole time somebody
+  // stands still: the browser draws them at the spawn point while the server
+  // still has them wherever their last board action put them, labelled with the
+  // reason for it. Everyone else in the room sees the stale one.
+  const announced = useRef(false);
+  const open = connection.status.state === "open";
+  useEffect(() => {
+    if (!open || announced.current) return;
+    announced.current = true;
+    connection.send({
+      type: "move",
+      at: { x: camera.position.x, y: 0, z: camera.position.z },
+      facing: yaw.current,
+    });
+  }, [open, connection, camera]);
 
   useEffect(() => {
     const canvas = gl.domElement;

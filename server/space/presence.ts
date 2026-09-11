@@ -92,7 +92,14 @@ export class Presence {
     if (occupant) occupant.lastSeen = this.now();
   }
 
-  /** A human moved themselves. Their client is the authority on where they are. */
+  /**
+   * A human moved themselves. Their client is the authority on where they are.
+   *
+   * This CLEARS the reason. `because` answers "why are they standing here", and
+   * once someone has walked themselves somewhere the answer is "they walked
+   * there" — not whatever they last did on the board. Keeping it produced
+   * "nikk — wrote a new card" under someone standing at the door.
+   */
   moveSelf(actorId: string, at: Vec3, facing: number): void {
     const occupant = this.occupants.get(actorId);
     if (!occupant) return;
@@ -100,16 +107,26 @@ export class Presence {
     occupant.at = clamped;
     occupant.heading = clamped;
     occupant.facing = facing;
+    occupant.because = null;
     occupant.lastSeen = this.now();
   }
 
   /**
-   * An agent was sent somewhere by something it did. It walks; it does not
+   * Someone was sent somewhere by something they did. They walk; they do not
    * teleport, because a figure that blinks across the room reads as a glitch
    * and tells you nothing about how long it has been working there.
+   *
+   * A CONNECTED OCCUPANT IS NOT MOVED OR RELABELLED. Their own client owns
+   * where they stand, and `because` means "why they are HERE" — attaching a
+   * reason to someone standing where they walked themselves makes the label a
+   * non-sequitur. The room said "nikk — wrote a new card" while nikk stood at
+   * the door, which is two true facts arranged into a false sentence.
    */
-  sendTo(actorId: string, kind: "human" | "agent" | null, heading: Vec3, because: string): void {
-    const occupant = this.occupants.get(actorId) ?? this.join(actorId, kind, false);
+  sendTo(actorId: string, kind: "human" | "agent" | null, heading: Vec3, because: string | null): void {
+    const existing = this.occupants.get(actorId);
+    if (existing?.connected) return;
+    const occupant = existing ?? this.join(actorId, kind, false);
+    if (kind && !occupant.kind) occupant.kind = kind;
     occupant.heading = clampToRoom(heading);
     occupant.because = because;
     occupant.lastSeen = this.now();

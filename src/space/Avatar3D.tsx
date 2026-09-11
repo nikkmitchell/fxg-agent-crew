@@ -26,6 +26,12 @@ export type Avatar3DProps = {
   kind: "human" | "agent" | null;
   /** True while a live socket is attached. Agents placed by activity have none. */
   connected: boolean;
+  /**
+   * What put them here, in the server's words. Null means we have no recent
+   * evidence — which is NOT idle, and is therefore shown as nothing at all
+   * rather than as a label saying so.
+   */
+  because: string | null;
 };
 
 /** The name, cached per actor. */
@@ -36,9 +42,15 @@ function useNameTexture(actorId: string): THREE.CanvasTexture | null {
 const HEAD_RADIUS = 0.17;
 export const EYE_HEIGHT = 1.62;
 
-export function Avatar3D({ actorId, kind, connected }: Avatar3DProps) {
+export function Avatar3D({ actorId, kind, connected, because }: Avatar3DProps) {
   const recipe = useMemo(() => avatarRecipe(actorId), [actorId]);
   const nameTexture = useNameTexture(actorId);
+  // Keyed on the sentence, so the texture is rebuilt when the reason changes
+  // and not on any other render.
+  const becauseTexture = useMemo(
+    () => (because ? makeLabelTexture(because, { pixelsPerLine: 44 }) : null),
+    [because],
+  );
 
   // Shape carries kind — the rule itself lives in ./avatar-shape.ts so it can
   // be tested without standing up a renderer.
@@ -104,6 +116,14 @@ export function Avatar3D({ actorId, kind, connected }: Avatar3DProps) {
           />
         </mesh>
       )}
+
+      {/* Why they are standing here, under their name. Absent when we do not
+          know, because an empty label is honest and "idle" would not be. */}
+      {becauseTexture ? (
+        <sprite position={[0, BODY_HEIGHT + 0.34, 0]} scale={[1.0, 0.25, 1]}>
+          <spriteMaterial map={becauseTexture} transparent depthWrite={false} />
+        </sprite>
+      ) : null}
 
       {/* The name, always facing the reader. A figure you cannot identify is
           decoration. */}
