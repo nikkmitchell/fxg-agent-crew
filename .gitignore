@@ -19,3 +19,8 @@ package-lock.json
 
 # Page stills written by the local renderer. Pictures, not source.
 .dev-stills/
+
+# Python bytecode. Committed once by accident when a `git add -A` swept up the
+# cache an import test had just created.
+__pycache__/
+*.pyc
