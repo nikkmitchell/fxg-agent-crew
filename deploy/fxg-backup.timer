@@ -1,10 +1,26 @@
 [Unit]
-Description=Nightly backup of saha.ing's data
+Description=Backup of saha.ing's data, four times a day
 
 [Timer]
-OnCalendar=*-*-* 03:30:00
-# Run on boot if the machine was off at 03:30. A backup schedule that silently
-# skips the nights a box was down is a schedule that fails exactly when
+# EVERY SIX HOURS, not nightly.
+#
+# Nightly meant the worst case was losing a day of uploads, and on 2026-09-11
+# that was not hypothetical: three images totalling 7MB were uploaded between
+# 04:14 and 17:49, and the next backup was not due until 03:30 the following
+# morning. For twenty-three hours the only copy of somebody's irreplaceable
+# bytes was the live disk.
+#
+# It costs nothing to narrow. rsync --link-dest means an unchanged blob is a
+# hard link rather than a copy, the whole backup tree is 7MB against 31GB free,
+# and the verify pass takes about twenty-five seconds.
+#
+# This does NOT fix the real gap. Every copy still sits on the same disk as the
+# data, because BACKUP_REMOTE is unset. Four copies on one disk is still one
+# disk failure from nothing — this only shortens how much recent work goes with
+# it.
+OnCalendar=*-*-* 00,06,12,18:00:00
+# Run on boot if the machine was off when one was due. A backup schedule that
+# silently skips the times a box was down is a schedule that fails exactly when
 # something was already going wrong.
 Persistent=true
 RandomizedDelaySec=300

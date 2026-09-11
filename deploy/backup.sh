@@ -34,7 +34,17 @@ set -euo pipefail
 DB=${DATABASE_PATH:-/var/lib/fxg-crew/saha.db}
 BLOBS=${BLOB_ROOT:-/var/lib/fxg-crew/blobs}
 DEST=${BACKUP_ROOT:-/var/backups/fxg-crew}
-KEEP=${BACKUP_KEEP:-14}
+# 56, because the timer runs four times a day — see deploy/fxg-backup.timer.
+#
+# It was 14, which was fourteen days when backups were nightly and became THREE
+# AND A HALF the moment the interval narrowed. Quadrupling how often you back up
+# while keeping the same number of snapshots quietly throws away three quarters
+# of your history, which is the opposite of the intent and would not have been
+# noticed until somebody went looking for last week.
+#
+# 56 keeps the original fourteen days. It costs almost nothing: unchanged blobs
+# are hard links, not copies.
+KEEP=${BACKUP_KEEP:-56}
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 
 mkdir -p "$DEST/db" "$DEST/blobs"
