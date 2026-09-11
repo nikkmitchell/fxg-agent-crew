@@ -56,6 +56,31 @@ def discover(token):
     return [r["roomName"] for r in (rows or []) if isinstance(r, dict) and r.get("roomName")]
 
 
+def silence_report(deadline_seconds, rooms, attempted, failed, last_error):
+    """What to say when the window closed with nothing to deliver.
+
+    "Nothing was said" and "I could not find out" look identical from inside the
+    loop, and reporting the first when the second is true is exactly the sort of
+    quiet false statement this project exists to avoid. A watcher that spent its
+    whole window failing to reach the server has NOT established that the rooms
+    were quiet.
+
+    Returns (message, exit_code), pure so it can be checked without a network:
+      every poll failed  -> 1, and says so    (a human should look)
+      some polls failed  -> 2, with the gap named
+      none failed        -> 2, plain quiet
+    """
+    listed = ", ".join(rooms)
+    if attempted and failed == attempted:
+        return (f"could not reach the server for any of {attempted} polls in "
+                f"{deadline_seconds}s; the rooms may not have been quiet. "
+                f"Last error: {last_error}"), 1
+    if failed:
+        return (f"nothing in {deadline_seconds}s across {listed} "
+                f"({failed} of {attempted} polls failed; last error: {last_error})"), 2
+    return f"nothing in {deadline_seconds}s across {listed}", 2
+
+
 def main():
     args = sys.argv[1:]
     only = None
@@ -77,12 +102,18 @@ def main():
     started = time.time()
     backoff = 5
     first_pass = True
+    # SILENCE HAS TWO CAUSES AND THEY ARE NOT THE SAME. Counted so the report at
+    # the end can tell "nobody said anything" from "I could not ask".
+    polls_attempted = 0
+    polls_failed = 0
+    last_failure = None
 
     while time.time() - started < deadline_seconds:
         waiting = []
         for room in rooms:
             after = read_mark(room)
             query = "?limit=50" if after is None else f"?afterId={after}&wait={0 if first_pass else 25}"
+            polls_attempted += 1
             try:
                 payload = inbox.http("GET", f"/api/rooms/{room}/messages{query}", token=token,
                                      timeout=(15 if first_pass else 45))
@@ -98,6 +129,8 @@ def main():
             except Exception as error:
                 # WebHarness has been down for thirty hours before now. Duty
                 # survives that: back off, keep the watermark, keep waiting.
+                polls_failed += 1
+                last_failure = str(error)
                 print(f"poll failed ({error}); retrying in {backoff}s", file=sys.stderr)
                 time.sleep(backoff)
                 backoff = min(backoff * 2, 120)
@@ -133,8 +166,9 @@ def main():
 
         first_pass = False
 
-    print(f"nothing in {deadline_seconds}s across {', '.join(rooms)}", file=sys.stderr)
-    return 2
+    message, code = silence_report(deadline_seconds, rooms, polls_attempted, polls_failed, last_failure)
+    print(message, file=sys.stderr)
+    return code
 
 
 if __name__ == "__main__":
