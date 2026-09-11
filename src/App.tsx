@@ -6,7 +6,10 @@ import { BuildPanel } from "./BuildPanel";
 import { Identity } from "./Identity";
 import { PeoplePanel } from "./PeoplePanel";
 import { SpacePanel } from "./space/SpacePanel";
+import { Settings } from "./Settings";
+import { useCurrentProject } from "./current-project";
 import { useSession } from "./use-session";
+import { board } from "./board-client";
 
 /**
  * Mission Control.
@@ -25,12 +28,15 @@ import { useSession } from "./use-session";
  * Live Rooms is real today and always was.
  */
 
-function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" | "image" | "room" }) {
+function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" | "image" | "room" | "cog" }) {
   const paths = {
     grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
     // A room seen in perspective: a floor plane with walls rising from it. The
     // only tab whose contents are a place rather than a list.
     room: "M3 20h18M5 20V9l7-5 7 5v11M10 20v-6h4v6",
+    // A cog. Settings is where the project switcher went, so this icon has to
+    // read as "preferences" rather than as another view of the work.
+    cog: "M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7.1 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 14a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 3.6V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 20.4 10H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z",
     stack: "M12 3 3 8l9 5 9-5zM3 13l9 5 9-5",
     clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
     chat: "M20 15a3 3 0 0 1-3 3H8l-4 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z",
@@ -46,7 +52,7 @@ function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" | "image" |
   );
 }
 
-const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" | "chat" | "image" | "room" }> = {
+const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" | "chat" | "image" | "room" | "cog" }> = {
   projects: { label: "Projects", glyph: "grid" },
   overview: { label: "Overview", glyph: "grid" },
   board: { label: "Board", glyph: "stack" },
@@ -132,6 +138,9 @@ function Empty({ title, because, next }: { title: string; because: string; next?
 }
 
 export default function App() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [projectId] = useCurrentProject();
+  const [projectName, setProjectName] = useState("");
   const [tab, setTab] = useState<Tab>(() =>
     typeof window === "undefined" ? DEFAULT_TAB : tabFromPath(window.location.pathname),
   );
@@ -154,6 +163,33 @@ export default function App() {
   useEffect(() => {
     document.title = `${TAB_META[tab].label} — Mission Control`;
   }, [tab]);
+
+  /**
+   * The selected project's NAME, for the Settings button.
+   *
+   * Looked up rather than stored alongside the id: a name can be edited, and a
+   * cached copy would sit in the rail showing what the project used to be
+   * called. Failure is silent and shows no name — the button still works, it
+   * just says less.
+   */
+  useEffect(() => {
+    if (!projectId) {
+      setProjectName("");
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { projects } = (await board.projects()) as { projects: { id: string; name: string }[] };
+        if (!cancelled) setProjectName(projects.find((p) => p.id === projectId)?.name ?? "");
+      } catch {
+        if (!cancelled) setProjectName("");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   /**
    * `?embed=1` renders the tab's CONTENT and nothing else.
@@ -214,10 +250,32 @@ export default function App() {
           * this page had never checked. It now shows whoever is actually signed
           * in, or a signed-out mark when nobody is.
           */}
+        {/*
+          * THE PROJECT'S NAME, not only a cog.
+          *
+          * Moving the switcher into Settings was the request; making it
+          * undiscoverable would be the failure. Showing what is selected on the
+          * button itself does most of what the old dropdown did — you can see
+          * which project you are looking at without opening anything.
+          */}
+        <button
+          type="button"
+          className={`rail-button rail-settings${settingsOpen ? " is-active" : ""}`}
+          aria-label={projectName ? `Settings — project: ${projectName}` : "Settings"}
+          title={projectName ? `Settings — ${projectName}` : "Settings"}
+          aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen((open) => !open)}
+        >
+          <Glyph name="cog" />
+          {projectName ? <small>{projectName}</small> : null}
+        </button>
+
         <span className="rail-identity">
           <Identity username={session?.username} kind={session?.kind} size={32} />
         </span>
       </aside>
+
+      {settingsOpen ? <Settings onClose={() => setSettingsOpen(false)} /> : null}
 
       <main className="workroom" id="workroom" tabIndex={-1}>
         {/*
