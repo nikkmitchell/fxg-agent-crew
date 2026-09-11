@@ -88,6 +88,13 @@ export function StillPanel({
   active: boolean;
 }) {
   const { shot, problem } = useStill(station.tab, base, active);
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  // See the comment on the material below: going from no map to a map needs a
+  // shader recompile, and nothing else asks for one.
+  useEffect(() => {
+    if (materialRef.current) materialRef.current.needsUpdate = true;
+  }, [shot]);
 
   const caption = useMemo(() => {
     // SHORT. The texture is one line squeezed to fit its canvas, so a long
@@ -108,11 +115,27 @@ export function StillPanel({
     >
       <mesh>
         <planeGeometry args={[station.surface.width, station.surface.height]} />
-        {shot ? (
-          <meshBasicMaterial map={shot.texture} toneMapped={false} />
-        ) : (
-          <meshBasicMaterial color="#141822" />
-        )}
+        {/*
+          ONE MATERIAL, NOT TWO BRANCHES, and both of the things below are
+          load-bearing. The first version swapped between two <meshBasicMaterial>
+          elements — which React reconciles as the SAME instance, so it kept the
+          placeholder's dark colour and never recompiled its shader. The result
+          was a panel that stayed black forever while the caption underneath it
+          cheerfully reported a five-second-old photograph.
+
+          - `color` must go WHITE once there is a map. A material's colour
+            multiplies its texture, so the placeholder's #141822 turned any
+            photograph into near-black.
+          - `needsUpdate` must be set when a map first appears. three compiles
+            USE_MAP into the shader; assigning `.map` to a material that was
+            built without one does not recompile it on its own.
+        */}
+        <meshBasicMaterial
+          ref={materialRef}
+          map={shot?.texture ?? null}
+          color={shot ? "#ffffff" : "#141822"}
+          toneMapped={false}
+        />
       </mesh>
 
       {/* Captioned UNDER the frame, so it never covers the thing it describes.
