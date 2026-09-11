@@ -16,3 +16,6 @@ package-lock.json
 
 # Blobs written by local development and the room harness. Never a deliverable.
 .dev-blobs/
+
+# Page stills written by the local renderer. Pictures, not source.
+.dev-stills/

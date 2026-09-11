@@ -33,6 +33,10 @@ const { app, config, sessions, space, database } = buildServer({
   HOST: "127.0.0.1",
   PORT: String(PORT),
   LOG_LEVEL: "warn",
+  // Passed through rather than defaulted, so `tools/render-stills.mts` can be
+  // pointed at this harness the same way it is pointed at production.
+  STILLS_ROOT: process.env.STILLS_ROOT ?? "./.dev-stills",
+  STILLS_TOKEN: process.env.STILLS_TOKEN ?? "",
 });
 
 // Enough people to see all three silhouettes at once: a declared human, a

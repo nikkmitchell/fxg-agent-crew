@@ -9,7 +9,7 @@ import { Immersive } from "./Immersive";
 import { getXRStore } from "./xr-store";
 import type { Comfort } from "./comfort";
 import { WebPanel } from "./WebPanel";
-import { PanelAbsence } from "./PanelAbsence";
+import { StillPanel } from "./StillPanel";
 
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
 
@@ -365,7 +365,11 @@ export default function Scene({
           leaving them mounted would keep three copies of the app running to
           draw nothing, and leaving the spaces empty told nobody anything. */}
       {inHeadset ? (
-        <PanelAbsence />
+        // Photographs of the same pages, taken on the server. The live panels
+        // are DOM and a session draws 3D only.
+        Object.values(STATIONS).map((station) => (
+          <StillPanel key={station.id} station={station} base={base} active={inHeadset} />
+        ))
       ) : (
         Object.values(STATIONS).map((station) => (
           <WebPanel key={station.id} station={station} base={base} />

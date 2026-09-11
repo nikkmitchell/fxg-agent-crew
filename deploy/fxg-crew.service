@@ -21,6 +21,11 @@ WorkingDirectory=/opt/fxg-crew
 # Secrets in a root-owned file, never in the unit — `systemctl cat` is readable
 # by anyone.
 EnvironmentFile=/etc/fxg-crew/env
+# The shared secret for the still renderer, read by BOTH units from one file so
+# the two halves cannot drift apart. Optional: systemd ignores a missing file
+# prefixed with "-", and with no STILLS_TOKEN the app refuses to mint a render
+# session at all, which is the correct behaviour for a box without the renderer.
+EnvironmentFile=-/etc/fxg-crew/stills.env
 
 Environment=NODE_ENV=production
 # Loopback only. nginx terminates TLS and proxies in; this process is never
