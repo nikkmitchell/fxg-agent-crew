@@ -9,6 +9,7 @@ import { Immersive } from "./Immersive";
 import { getXRStore } from "./xr-store";
 import type { Comfort } from "./comfort";
 import { WebPanel } from "./WebPanel";
+import { PanelAbsence } from "./PanelAbsence";
 
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
 
@@ -359,14 +360,17 @@ export default function Scene({
       <hemisphereLight args={["#ffffff", "#2a3040", 2.2]} />
       <directionalLight position={[3, 6, 4]} intensity={1.4} />
       <Void />
-      {/* The real tabs, live. Hidden while a headset session is running: DOM is
-          not composited into an immersive frame, so leaving them mounted would
-          keep three copies of the app running to draw nothing. */}
-      {inHeadset
-        ? null
-        : Object.values(STATIONS).map((station) => (
-            <WebPanel key={station.id} station={station} base={base} />
-          ))}
+      {/* The real tabs, live — replaced in a headset by something that says why
+          they are not there. DOM is not composited into an immersive frame, so
+          leaving them mounted would keep three copies of the app running to
+          draw nothing, and leaving the spaces empty told nobody anything. */}
+      {inHeadset ? (
+        <PanelAbsence />
+      ) : (
+        Object.values(STATIONS).map((station) => (
+          <WebPanel key={station.id} station={station} base={base} />
+        ))
+      )}
       <Crowd
         peopleRef={connection.peopleRef}
         roster={connection.roster}
