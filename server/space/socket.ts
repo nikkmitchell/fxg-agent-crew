@@ -69,6 +69,7 @@ export class SpaceHub {
         connected: occupant.connected,
         head: occupant.head,
         hands: occupant.hands,
+        attending: occupant.attending ? { utteranceId: occupant.attending.utteranceId } : null,
       }));
   }
 

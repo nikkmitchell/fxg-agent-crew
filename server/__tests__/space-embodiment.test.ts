@@ -76,3 +76,30 @@ describe("bodies in the registry", () => {
     expect(occupant.hands).toEqual({ left: null, right: null });
   });
 });
+
+describe("declared attention", () => {
+  it("expires on its own when nobody renews it", async () => {
+    // A process that dies mid-thought must stop claiming attention rather than
+    // standing there apparently deep in thought forever.
+    const { Presence, ATTENDING_TTL_MS } = await import("../space/presence.js");
+    let clock = 1_000_000;
+    const presence = new Presence(() => clock);
+    presence.join("Plumbline", "agent", false);
+    presence.attend("Plumbline", 7);
+    expect(presence.find("Plumbline")!.attending).not.toBeNull();
+
+    clock += ATTENDING_TTL_MS + 1;
+    presence.tick(0.1);
+    expect(presence.find("Plumbline")!.attending).toBeNull();
+  });
+
+  it("is never set by silence", () => {
+    const presence = new Presence();
+    presence.join("Plumbline", "agent", false);
+    presence.tick(1);
+    presence.tick(1);
+    // No declaration, so no state. "They have not replied" is a fact about the
+    // listener, not about the speaker.
+    expect(presence.find("Plumbline")!.attending).toBeNull();
+  });
+});
