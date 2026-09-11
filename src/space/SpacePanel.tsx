@@ -136,6 +136,9 @@ export function SpacePanel() {
             {connection.roster.map((person) => (
               <li key={person.actorId}>
                 <Identity username={person.actorId} kind={person.kind ?? undefined} showName />
+                {person.because ? (
+                  <em className="space-because">{person.because}</em>
+                ) : null}
                 {person.connected ? null : (
                   // Said in words, not only by a fainter ring in the scene. A
                   // dimmed outline is not something anyone can read reliably,
@@ -148,9 +151,9 @@ export function SpacePanel() {
           </ul>
         )}
         <p className="muted-note">
-          Someone marked <em>no live connection</em> is not watching the room — they are drawn
-          where something they did puts them. Activity-driven movement lands in a later stage, so
-          for now that only happens when a tool places them deliberately.
+          Someone marked <em>no live connection</em> is not watching the room — they are standing
+          where something they did puts them, and the line above says what that was. No reason
+          means we have no recent record of them acting, which is not the same as idle.
         </p>
       </aside>
     </section>

@@ -102,6 +102,31 @@ negative result deserves the same scrutiny as a positive one.
 
 ## Deployment
 
+### Why is that figure standing there?
+
+Every position in the room comes from a row in `audit`. `server/space/activity.ts`
+polls the table forward from the end of it every 500ms and
+`server/space/destinations.ts` maps one row to one place to stand. So "Plumbline
+is at the task board" is answerable with a query, not a guess:
+
+```sql
+SELECT id, at, actor_id, action, entity, entity_id
+  FROM audit WHERE actor_id = 'Plumbline' ORDER BY id DESC LIMIT 5;
+```
+
+Three things that look like bugs and are not:
+
+- **The room is still after a restart.** The poller starts at `MAX(id)`, not at
+  zero. Replaying the table would march everyone through months of work in a few
+  seconds — motion that is not happening.
+- **Somebody standing at their own desk.** That means no audit row for them in
+  the last two minutes. It does not mean idle, and nothing in the UI says it
+  does.
+- **An action that moves nobody.** `destinationFor` returns null for anything it
+  does not recognise rather than picking a default corner. If a new action type
+  is added to `BoardStore` and nobody moves for it, that is the reason — add it
+  to `destinations.ts`.
+
 ### The 3D room's dependencies
 
 `react` is pinned by `@react-three/fiber` 9.7, whose peer range is

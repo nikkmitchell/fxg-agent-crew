@@ -15,6 +15,7 @@ import { registerProjectRoutes } from "./routes/projects.js";
 import { registerBuildRoutes } from "./routes/build.js";
 import { registerBoardRoutes } from "./routes/board.js";
 import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
+import { Activity } from "./space/activity.js";
 import { openDatabase } from "./db/open.js";
 
 /**
@@ -96,6 +97,13 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Who is standing where. In memory, on purpose — see server/space/presence.ts.
   const space = new SpaceHub();
 
+  // What makes them move: the audit table, read forward from the end of it.
+  // Started here rather than on the first socket, so an agent that acts while
+  // nobody is watching is already in the right place when someone arrives.
+  const activity = new Activity(database, space.presence);
+  activity.onError = (error) => app.log.error({ error }, "space activity poll failed");
+  activity.start();
+
   // A prefix lets Wilson mount this beside classic chat at /space without
   // stealing its routes. With the default empty prefix, existing URLs remain
   // /bff/* and the app remains a standalone service.
@@ -164,12 +172,15 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Stop the tick loop when the server does. The timer is unref'd so it would
   // not hold the process open anyway, but a loop still broadcasting into
   // half-closed sockets during shutdown produces errors that look like bugs.
-  app.addHook("onClose", async () => space.close());
+  app.addHook("onClose", async () => {
+    activity.stop();
+    space.close();
+  });
 
   // `sessions` is returned so a test can sign somebody in without a real
   // upstream. Deliberately not a back door into a running server: this is the
   // value the process already holds, handed to whoever constructed it.
-  return { app, config, sessions, database, space };
+  return { app, config, sessions, database, space, activity };
 }
 
 // Only listen when run directly, so tests can build the server without binding.

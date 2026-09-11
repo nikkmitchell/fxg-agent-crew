@@ -64,6 +64,16 @@ describe("moving", () => {
     expect(spot.y).toBe(0);
   });
 
+  it("clears the reason when someone walks themselves somewhere", () => {
+    const presence = at({ now: 0 });
+    presence.sendTo("nikk", "human", { x: -3, y: 0, z: -3 }, "wrote a new card");
+    presence.join("nikk", "human", true);
+    presence.moveSelf("nikk", { x: 1, y: 0, z: 1 }, 0);
+    // "Why are they standing here" is now "they walked there". Keeping the old
+    // answer put a board action under someone standing somewhere else.
+    expect(presence.find("nikk")?.because).toBeNull();
+  });
+
   it("ignores a move from someone who is not here", () => {
     const presence = at({ now: 1 });
     presence.moveSelf("ghost", { x: 1, y: 0, z: 1 }, 0);
@@ -102,6 +112,20 @@ describe("walking", () => {
     presence.sendTo("nikk", "human", { x: -3, y: 0, z: -3 }, "should be ignored");
     presence.tick(1);
     expect(presence.find("nikk")!.at).toEqual({ x: 3, y: 0, z: 3 });
+  });
+
+  it("will not move or relabel someone who is driving their own avatar", () => {
+    const presence = at({ now: 0 });
+    presence.join("nikk", "human");
+    presence.moveSelf("nikk", { x: 3, y: 0, z: 3 }, 0.4);
+    presence.sendTo("nikk", "human", { x: -3, y: 0, z: -3 }, "wrote a new card");
+
+    const nikk = presence.find("nikk")!;
+    expect(nikk.heading).toEqual({ x: 3, y: 0, z: 3 });
+    // `because` means "why they are HERE". The room once read "nikk — wrote a
+    // new card" while nikk stood at the door: two true facts arranged into a
+    // false sentence.
+    expect(nikk.because).toBeNull();
   });
 
   it("records why someone is where they are, and starts out not knowing", () => {
