@@ -12,7 +12,7 @@
  * fine when clicked, which is the confusing half-broken state.
  */
 
-export const TABS = ["projects", "overview", "board", "mood", "mine", "people", "build", "chat"] as const;
+export const TABS = ["projects", "overview", "board", "mood", "mine", "people", "room", "build", "chat"] as const;
 export type Tab = (typeof TABS)[number];
 
 export const DEFAULT_TAB: Tab = "projects";
@@ -35,6 +35,16 @@ export function tabFromPath(pathname: string): Tab {
   return isTab(segment) ? segment : DEFAULT_TAB;
 }
 
+/**
+ * "room", NOT "space".
+ *
+ * Mission Control was mounted at /space until 2026-09-10 and nginx still
+ * answers /space and /space/* with a permanent redirect for old bookmarks. A
+ * tab at /space would be redirected away the moment anyone refreshed it — the
+ * tab would work when clicked and vanish when reloaded, which is the most
+ * confusing shape a bug can take. The socket stays at /bff/space/socket, which
+ * is under /bff/ and matches no redirect.
+ */
 export function pathForTab(tab: Tab): string {
   return `${base}/${tab}`;
 }

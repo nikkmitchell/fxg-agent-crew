@@ -1,0 +1,173 @@
+import { useEffect, useRef, useState, type RefObject } from "react";
+import type { ClientMessage, ServerMessage, WirePerson } from "../../shared/space-wire";
+import type { Vec3 } from "../../shared/space-layout";
+
+/**
+ * The room's connection.
+ *
+ * Deliberately NOT a React state update per frame: the server sends ten
+ * snapshots a second, and re-rendering the tree that often would make the 3D
+ * scene stutter for no benefit — nothing in the DOM changes when someone takes
+ * a step. Positions land in a ref the render loop reads; React state carries
+ * only what the DOM actually shows, which is the connection status and the list
+ * of who is here.
+ */
+
+export type SpaceStatus =
+  | { state: "connecting" }
+  | { state: "open"; you: string }
+  /** Refused with a reason the server gave. Shown, not swallowed. */
+  | { state: "refused"; reason: string }
+  /** Dropped. `retryInSeconds` is null while a retry is already in flight. */
+  | { state: "closed"; retryInSeconds: number | null };
+
+export type SpaceConnection = {
+  status: SpaceStatus;
+  /** Live positions, read every frame by the renderer. Never a React state. */
+  peopleRef: RefObject<WirePerson[]>;
+  /**
+   * Who is here, updated when the SET changes — not when they move. Carries
+   * `connected` because a figure placed by activity and a person watching the
+   * room are different things, and the roster is where that gets said in words.
+   */
+  roster: { actorId: string; kind: "human" | "agent" | null; connected: boolean }[];
+  send: (message: ClientMessage) => void;
+  /** Bumped whenever a snapshot arrives, for a scene that renders on demand. */
+  onSnapshot: RefObject<(() => void) | null>;
+};
+
+const socketUrl = (): string => {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}${base}/bff/space/socket`;
+};
+
+/** Backoff, capped. A tab left open overnight must not hammer the server. */
+const retryDelayMs = (attempt: number) => Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5));
+
+export function useSpaceSocket(enabled: boolean): SpaceConnection {
+  const [status, setStatus] = useState<SpaceStatus>({ state: "connecting" });
+  const [roster, setRoster] = useState<
+    { actorId: string; kind: "human" | "agent" | null; connected: boolean }[]
+  >([]);
+  const peopleRef = useRef<WirePerson[]>([]);
+  const onSnapshot = useRef<(() => void) | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const attemptRef = useRef(0);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let disposed = false;
+    let retryTimer: number | undefined;
+    let pingTimer: number | undefined;
+
+    /**
+     * The roster changes when someone joins or leaves, and not when they take a
+     * step — so it is compared rather than replaced. Setting it every snapshot
+     * would re-render the whole panel ten times a second to show the same list.
+     */
+    type Roster = { actorId: string; kind: "human" | "agent" | null; connected: boolean }[];
+    const rosterOf = (people: WirePerson[]): Roster =>
+      people
+        .map((person) => ({
+          actorId: person.actorId,
+          kind: person.kind,
+          connected: person.connected,
+        }))
+        .sort((a, b) => a.actorId.localeCompare(b.actorId));
+    const sameRoster = (a: Roster, b: Roster) =>
+      a.length === b.length &&
+      a.every(
+        (entry, index) =>
+          entry.actorId === b[index].actorId &&
+          entry.kind === b[index].kind &&
+          entry.connected === b[index].connected,
+      );
+
+    const connect = () => {
+      if (disposed) return;
+      setStatus({ state: "connecting" });
+      const socket = new WebSocket(socketUrl());
+      socketRef.current = socket;
+
+      socket.addEventListener("open", () => {
+        attemptRef.current = 0;
+        // A heartbeat well inside the server's 45s silence limit. Standing
+        // still is not the same as being gone.
+        pingTimer = window.setInterval(() => {
+          if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "ping" }));
+        }, 15_000);
+      });
+
+      socket.addEventListener("message", (event) => {
+        const message = JSON.parse(String(event.data)) as ServerMessage;
+        if (message.type === "refused") {
+          setStatus({ state: "refused", reason: message.reason });
+          return;
+        }
+        peopleRef.current = message.people;
+        setRoster((previous) => {
+          const next = rosterOf(message.people);
+          return sameRoster(previous, next) ? previous : next;
+        });
+        if (message.type === "welcome") setStatus({ state: "open", you: message.you });
+        onSnapshot.current?.();
+      });
+
+      const giveUp = () => {
+        window.clearInterval(pingTimer);
+        if (disposed) return;
+        setStatus((previous) => {
+          // A refusal is a reason; do not overwrite it with a generic close.
+          if (previous.state === "refused") return previous;
+          return { state: "closed", retryInSeconds: Math.round(retryDelayMs(attemptRef.current) / 1000) };
+        });
+        peopleRef.current = [];
+        setRoster([]);
+        retryTimer = window.setTimeout(connect, retryDelayMs(attemptRef.current));
+        attemptRef.current += 1;
+      };
+
+      socket.addEventListener("close", giveUp);
+      socket.addEventListener("error", () => socket.close());
+    };
+
+    connect();
+    return () => {
+      disposed = true;
+      window.clearTimeout(retryTimer);
+      window.clearInterval(pingTimer);
+      socketRef.current?.close();
+      socketRef.current = null;
+    };
+  }, [enabled]);
+
+  const send = (message: ClientMessage) => {
+    const socket = socketRef.current;
+    if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+  };
+
+  return { status, peopleRef, roster, send, onSnapshot };
+}
+
+/** A move, rate-limited to the server's tick. Sending faster changes nothing. */
+export function makeMoveSender(send: (message: ClientMessage) => void, minIntervalMs = 100) {
+  let lastSent = 0;
+  let lastAt: Vec3 | null = null;
+  let lastFacing = Number.NaN;
+  return (at: Vec3, facing: number) => {
+    const now = performance.now();
+    if (now - lastSent < minIntervalMs) return;
+    // Standing perfectly still needs no frames at all; the heartbeat covers it.
+    const still =
+      lastAt !== null &&
+      Math.abs(lastAt.x - at.x) < 0.01 &&
+      Math.abs(lastAt.z - at.z) < 0.01 &&
+      Math.abs(lastFacing - facing) < 0.01;
+    if (still) return;
+    lastSent = now;
+    lastAt = { ...at };
+    lastFacing = facing;
+    send({ type: "move", at, facing });
+  };
+}

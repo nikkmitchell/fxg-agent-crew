@@ -5,6 +5,7 @@ import { ProjectWorkspace } from "./ProjectWorkspace";
 import { BuildPanel } from "./BuildPanel";
 import { Identity } from "./Identity";
 import { PeoplePanel } from "./PeoplePanel";
+import { SpacePanel } from "./space/SpacePanel";
 import { useSession } from "./use-session";
 
 /**
@@ -24,9 +25,12 @@ import { useSession } from "./use-session";
  * Live Rooms is real today and always was.
  */
 
-function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" | "image" }) {
+function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" | "image" | "room" }) {
   const paths = {
     grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
+    // A room seen in perspective: a floor plane with walls rising from it. The
+    // only tab whose contents are a place rather than a list.
+    room: "M3 20h18M5 20V9l7-5 7 5v11M10 20v-6h4v6",
     stack: "M12 3 3 8l9 5 9-5zM3 13l9 5 9-5",
     clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
     chat: "M20 15a3 3 0 0 1-3 3H8l-4 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z",
@@ -42,13 +46,14 @@ function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" | "image" }
   );
 }
 
-const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" | "chat" | "image" }> = {
+const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" | "chat" | "image" | "room" }> = {
   projects: { label: "Projects", glyph: "grid" },
   overview: { label: "Overview", glyph: "grid" },
   board: { label: "Board", glyph: "stack" },
   mood: { label: "Mood boards", glyph: "image" },
   mine: { label: "My work", glyph: "grid" },
   people: { label: "People", glyph: "grid" },
+  room: { label: "The room", glyph: "room" },
   build: { label: "Build", glyph: "clock" },
   chat: { label: "Chat", glyph: "chat" },
 };
@@ -153,6 +158,8 @@ export default function App() {
         {tab === "projects" || tab === "overview" || tab === "board" || tab === "mood" || tab === "mine" ? <ProjectWorkspace tab={tab} /> : null}
 
         {tab === "people" ? <PeoplePanel session={session} /> : null}
+
+        {tab === "room" ? <SpacePanel /> : null}
 
         {tab === "build" ? <BuildPanel /> : null}
 

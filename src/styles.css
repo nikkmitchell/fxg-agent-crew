@@ -717,3 +717,33 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 /* Unconfirmed messages, shown whatever the connection is doing. */
 .outbox { list-style: none; margin: 0; padding: 0 0 8px; display: grid; gap: 6px; }
 .outbox-receipt em { color: var(--muted); font-size: 12px; font-style: normal; }
+
+/* The room.
+
+   The canvas is given a fixed aspect rather than the full viewport: this tab
+   sits inside the same shell as every other one, and a canvas that grabbed the
+   whole window would hide the rail you use to leave it. */
+.space-intro { display: grid; gap: 14px; max-width: 62ch; }
+.space-intro .primary-action { justify-self: start; }
+
+.space-panel { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: start; }
+.space-canvas { position: relative; aspect-ratio: 16 / 10; min-height: 320px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.space-canvas canvas { display: block; width: 100%; height: 100%; }
+
+/* Over the scene, not instead of it: a disconnected room still shows the room,
+   with a sentence saying that nobody in it is being drawn any more. Replacing
+   the canvas would make "disconnected" and "empty" look identical. */
+.space-overlay { position: absolute; inset: auto 0 0 0; padding: 12px 16px; background: color-mix(in srgb, var(--amber) 16%, var(--surface)); border-top: 1px solid var(--amber); font-size: 13px; }
+.space-overlay p { margin: 0; }
+
+.space-roster h2 { margin: 0 0 8px; font-size: 15px; }
+.space-roster ul { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.space-roster .muted-note { margin: 0 0 10px; }
+
+@media (max-width: 900px) {
+  .space-panel { grid-template-columns: minmax(0, 1fr); }
+}
+.space-setting { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 12px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.space-setting input { margin-top: 2px; }
+.space-roster li { display: grid; gap: 2px; }
+.space-offline { font-size: 12px; font-style: normal; color: var(--muted); padding-left: 36px; }
