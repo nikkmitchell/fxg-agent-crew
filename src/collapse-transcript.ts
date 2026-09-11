@@ -11,7 +11,7 @@ import type { Message } from "../shared/contracts";
  * judgement has to wade through every one.
  *
  * WHAT THIS IS NOT. It is not deletion, and it is not a filter. WebHarness is
- * the only durable store we have, and every original message stays in the
+ * a transcript of what people said, and every original message stays in the
  * transcript, in order, one disclosure away. A reader who wants the raw record
  * still gets all of it; a reader who wants the conversation stops paying for
  * the bookkeeping.

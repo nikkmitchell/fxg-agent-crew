@@ -2,7 +2,8 @@
  * Turn a fenced crew-event message into a sentence a person can read.
  *
  * Agents record board changes by posting the event JSON into the chat room —
- * that is the durable log, and it is right that it lives there. But a human
+ * that was the durable log before ADR-002 moved the board into SQLite, and
+ * those fences are still the record of what happened then. But a human
  * reading the room sees walls of JSON between the actual conversation, and the
  * one thing they wanted from it ("what just changed?") is the hardest thing to
  * extract.
