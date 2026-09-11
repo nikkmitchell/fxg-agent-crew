@@ -554,6 +554,41 @@ export class BoardStore {
     });
   }
 
+  /**
+   * Change what an item SAYS, as opposed to where it sits.
+   *
+   * Separate from moveBoardItem because the two have opposite audit rules.
+   * Dragging is noise and is deliberately not recorded; rewriting a note is a
+   * change of content and is. Folding them together would have forced one
+   * answer on both, and the wrong one either way — either a board arranged for
+   * ten minutes buries the day's real changes, or somebody quietly edits what a
+   * note says and nothing remembers.
+   */
+  editBoardItem(actor: Actor, itemId: string, patch: { text?: string; caption?: string }) {
+    return this.tx(() => {
+      const row = this.db.prepare("SELECT * FROM board_items WHERE id = ?").get(itemId) as
+        | Record<string, unknown> | undefined;
+      if (!row) throw new Refused("no such item", "NOT_FOUND");
+      this.assertAuthority(actor.id, this.boardProject(row.board_id as string));
+
+      const text = patch.text === undefined ? undefined : patch.text.trim();
+      const caption = patch.caption === undefined ? undefined : patch.caption.trim();
+      if (text !== undefined) bounded(text, LIMITS.comment, "note");
+      if (caption !== undefined) bounded(caption, LIMITS.title, "caption");
+
+      // A note with nothing in it is not a note; it is an invisible rectangle
+      // somebody has to hunt for to remove. Refused rather than stored.
+      if (row.kind === "note" && text !== undefined && text === "") {
+        throw new Refused("a note needs something written on it", "EMPTY_NOTE");
+      }
+
+      this.db
+        .prepare("UPDATE board_items SET text = COALESCE(?, text), caption = COALESCE(?, caption) WHERE id = ?")
+        .run(text ?? null, caption ?? null, itemId);
+      this.audit(actor.id, "update", "board_item", itemId, row, this.db.prepare("SELECT * FROM board_items WHERE id=?").get(itemId));
+    }, { actorId: actor.id, action: "edit board item", target: itemId });
+  }
+
   removeBoardItem(actor: Actor, itemId: string) {
     return this.tx(() => {
       const row = this.db.prepare("SELECT * FROM board_items WHERE id = ?").get(itemId) as

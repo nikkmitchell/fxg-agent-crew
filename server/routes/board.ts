@@ -300,6 +300,25 @@ export function registerBoardRoutes(
     }));
   });
 
+  /**
+   * What an item SAYS. Position goes through PATCH above; this is content, and
+   * unlike a drag it is audited.
+   */
+  app.post<{ Params: { id: string }; Body: { text?: string; caption?: string } }>(
+    "/bff/board/items/:id/text",
+    async (request, reply) => {
+      const session = requireSession(request, reply);
+      if (!session) return reply;
+      const body = request.body ?? {};
+      return handle(reply, request, () =>
+        store.editBoardItem(actorOf(session), request.params.id, {
+          text: typeof body.text === "string" ? body.text : undefined,
+          caption: typeof body.caption === "string" ? body.caption : undefined,
+        }),
+      );
+    },
+  );
+
   app.delete<{ Params: { id: string } }>("/bff/board/items/:id", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;

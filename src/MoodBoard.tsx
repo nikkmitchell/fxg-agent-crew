@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { readableInk } from "./avatar";
 import { BoardError, board } from "./board-client";
 
 /**
@@ -23,6 +24,83 @@ export type BoardItem = {
 };
 
 export type Board = { id: string; name: string; items: BoardItem[] };
+
+/**
+ * A colour, shown as a colour.
+ *
+ * The value is written on top in ink MEASURED against the swatch rather than
+ * chosen by eye — `readableInk` is the same function the avatars use, and it
+ * exists because a human never looks at most of these combinations. A hex code
+ * printed in black on a navy square is a value nobody can read.
+ *
+ * Editing is a native colour input sitting invisibly over the square, so the
+ * platform's own picker does the work. Recolouring a swatch is a content change
+ * and is audited, unlike dragging it.
+ */
+function Swatch({
+  item,
+  canEdit,
+  onPick,
+}: {
+  item: BoardItem;
+  canEdit: boolean;
+  onPick: (value: string) => void;
+}) {
+  const colour = /^#[0-9a-fA-F]{6}$/.test(item.text ?? "") ? (item.text as string) : "#cccccc";
+  return (
+    <div className="moodboard-swatch" style={{ background: colour }}>
+      <span style={{ color: readableInk(colour) }}>{colour.toUpperCase()}</span>
+      {canEdit ? (
+        <input
+          type="color"
+          value={colour}
+          aria-label={`Colour ${colour}`}
+          // Committed on change rather than on every drag of the picker: the
+          // native control fires continuously while you slide, and each one
+          // would be an audited write.
+          onChange={(event) => onPick(event.target.value)}
+          onPointerDown={(event) => event.stopPropagation()}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A note you write on directly.
+ *
+ * Editable in place rather than through a dialog, because a prompt box is a
+ * worse place to write than the thing you are making. Saved when focus leaves
+ * and only if it actually changed — otherwise clicking a note to read it would
+ * record an edit that did not happen.
+ */
+function Note({
+  item,
+  canEdit,
+  onWrite,
+}: {
+  item: BoardItem;
+  canEdit: boolean;
+  onWrite: (value: string) => void;
+}) {
+  if (!canEdit) return <p className="moodboard-note">{item.text}</p>;
+  return (
+    <p
+      className="moodboard-note is-editable"
+      contentEditable
+      suppressContentEditableWarning
+      // Dragging the note must not start a text selection fight with the drag
+      // handler, so a pointer down inside the text stays inside the text.
+      onPointerDown={(event) => event.stopPropagation()}
+      onBlur={(event) => {
+        const value = event.currentTarget.textContent ?? "";
+        if (value.trim() !== (item.text ?? "").trim()) onWrite(value);
+      }}
+    >
+      {item.text}
+    </p>
+  );
+}
 
 export function MoodBoard({ board: model, canEdit, onChanged }: {
   board: Board;
@@ -52,6 +130,57 @@ export function MoodBoard({ board: model, canEdit, onChanged }: {
       setBusy(false);
     }
   }, [onChanged]);
+
+  /**
+   * Where a new thing goes.
+   *
+   * Just below and right of whatever is already there, rather than always at
+   * the top left where it would land on top of the last one. Not a layout
+   * engine — the point of this surface is that a person arranges it themselves.
+   */
+  const nextSpot = () => {
+    const items = model.items;
+    if (items.length === 0) return { x: 32, y: 32 };
+    const lowest = items.reduce((a, b) => (a.y + a.h > b.y + b.h ? a : b));
+    return { x: Math.max(24, lowest.x), y: lowest.y + lowest.h + 18 };
+  };
+
+  const addNote = () =>
+    void attempt(() =>
+      board.addItem(model.id, {
+        kind: "note",
+        // Written on the note itself rather than asked for in a dialog. A
+        // prompt box is a worse place to write than the thing you are making.
+        text: "New note",
+        ...nextSpot(),
+        w: 220,
+        h: 120,
+      }),
+    );
+
+  /**
+   * A palette, not a colour.
+   *
+   * Nikk asked for palettes, and a palette is several colours seen together —
+   * one swatch at a time makes you do the arranging before you can judge it.
+   * These are a starting row to drag apart and recolour, not a recommendation:
+   * the accents from src/avatar.ts, which are already in use on this site.
+   */
+  const addPalette = () =>
+    void attempt(async () => {
+      const spot = nextSpot();
+      const colours = ["#3156d8", "#e45338", "#3d8063", "#cf9126", "#6244a8"];
+      for (const [index, colour] of colours.entries()) {
+        await board.addItem(model.id, {
+          kind: "swatch",
+          text: colour,
+          x: spot.x + index * 96,
+          y: spot.y,
+          w: 88,
+          h: 88,
+        });
+      }
+    });
 
   const addFiles = (files: FileList | null) => {
     if (!files?.length) return;
@@ -124,6 +253,16 @@ export function MoodBoard({ board: model, canEdit, onChanged }: {
             <span>{busy ? "Adding…" : "Add images"}</span>
           </label>
         ) : null}
+        {canEdit ? (
+          <>
+            <button type="button" className="moodboard-add" onClick={addNote} disabled={busy}>
+              Add note
+            </button>
+            <button type="button" className="moodboard-add" onClick={addPalette} disabled={busy}>
+              Add palette
+            </button>
+          </>
+        ) : null}
       </header>
 
       {error ? <p className="project-error" role="alert">{error}</p> : null}
@@ -138,7 +277,7 @@ export function MoodBoard({ board: model, canEdit, onChanged }: {
         {model.items.length === 0 ? (
           <p className="moodboard-empty">
             {canEdit
-              ? "Drop images here, or use Add images. PNG, JPEG, GIF, WebP and PDF."
+              ? "Drop images here, or add a note or a palette. Images can be PNG, JPEG, GIF, WebP or PDF."
               : "Nothing on this board yet."}
           </p>
         ) : null}
@@ -159,8 +298,15 @@ export function MoodBoard({ board: model, canEdit, onChanged }: {
               />
             ) : item.kind === "link" && item.url ? (
               <a href={item.url} target="_blank" rel="noreferrer noopener">{item.caption ?? item.url}</a>
+            ) : item.kind === "swatch" ? (
+              // A swatch is a COLOUR. It used to fall through to the note case
+              // and print its own hex as a line of text, which is the one thing
+              // a swatch cannot usefully be. The value stays readable on top,
+              // in ink measured against the colour rather than guessed, so it
+              // is legible on a pale yellow and on a navy alike.
+              <Swatch item={item} canEdit={canEdit} onPick={(value) => void attempt(() => board.editItem(item.id, { text: value }))} />
             ) : (
-              <p className="moodboard-note">{item.text}</p>
+              <Note item={item} canEdit={canEdit} onWrite={(value) => void attempt(() => board.editItem(item.id, { text: value }))} />
             )}
 
             {item.caption ? <figcaption>{item.caption}</figcaption> : null}
