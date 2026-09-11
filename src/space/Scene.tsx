@@ -215,6 +215,18 @@ function Me({
 
   useEffect(() => {
     const canvas = gl.domElement;
+    /**
+     * Drag-to-look listens on the canvas's CONTAINER, not the canvas.
+     *
+     * `occlude="blending"` on the panels puts the canvas above the DOM with
+     * `pointer-events: none`, so the canvas itself receives nothing. The
+     * container still does — and a pointerdown that started inside a panel is
+     * ignored, so scrolling the board does not also swing the view around.
+     */
+    const surface = canvas.parentElement ?? canvas;
+    const startedInAPanel = (event: PointerEvent) =>
+      event.target instanceof Element && event.target.closest(".space-panel-frame") !== null;
+
     const down = (event: KeyboardEvent) => {
       if (!KEYS[event.code]) return;
       held.current.add(event.code);
@@ -225,7 +237,10 @@ function Me({
     const up = (event: KeyboardEvent) => held.current.delete(event.code);
     const blur = () => held.current.clear();
 
-    const startDrag = () => { dragging.current = true; };
+    const startDrag = (event: PointerEvent) => {
+      if (startedInAPanel(event)) return;
+      dragging.current = true;
+    };
     const stopDrag = () => { dragging.current = false; };
     const look = (event: PointerEvent) => {
       if (!dragging.current) return;
@@ -237,14 +252,14 @@ function Me({
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", blur);
-    canvas.addEventListener("pointerdown", startDrag);
+    surface.addEventListener("pointerdown", startDrag as EventListener);
     window.addEventListener("pointerup", stopDrag);
     window.addEventListener("pointermove", look);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
-      canvas.removeEventListener("pointerdown", startDrag);
+      surface.removeEventListener("pointerdown", startDrag as EventListener);
       window.removeEventListener("pointerup", stopDrag);
       window.removeEventListener("pointermove", look);
     };

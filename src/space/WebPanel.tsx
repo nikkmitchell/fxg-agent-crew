@@ -72,10 +72,21 @@ export function WebPanel({ station, base }: { station: Station; base: string }) 
         // panel is `width * PIXELS_PER_METRE` px wide and needs shrinking by
         // exactly this much to end up `width` metres across.
         scale={DREI_PIXELS_PER_UNIT / PIXELS_PER_METRE}
-        // Keep the DOM behind the canvas's own occlusion rules off: avatars are
-        // WebGL and panels are DOM, and the browser cannot depth-test between
-        // them. Panels are placed in front of where people stand instead.
-        occlude={false}
+        // WITHOUT THIS, A PANEL PAINTS OVER EVERYONE.
+        //
+        // The DOM and the WebGL canvas are separate layers and the browser
+        // cannot depth-test between them, so by default the panels drew on top
+        // of every figure — including ones standing in front of them, who came
+        // out sliced in half by a rectangle.
+        //
+        // "blending" puts the canvas above the DOM and renders an invisible
+        // depth-writing plane where the panel is, so the canvas is transparent
+        // over the panel except where geometry is actually nearer. Per-pixel,
+        // and correct from any angle.
+        //
+        // The cost is that drei sets `pointer-events: none` on the canvas, so
+        // the look-around drag can no longer listen there — see Scene.tsx.
+        occlude="blending"
         style={{ width, height, pointerEvents: "auto" }}
       >
         <div className="space-panel-frame" style={{ width, height }}>
