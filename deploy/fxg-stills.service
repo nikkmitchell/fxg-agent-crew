@@ -11,6 +11,11 @@ Wants=fxg-crew.service
 
 [Service]
 Type=simple
+# The same unprivileged user as the app. A browser pointed at the open web would
+# be a bad thing to run as root; a browser pointed at our own pages is only
+# slightly better, and there is no reason for it to have more than the app does.
+User=fxgcrew
+Group=fxgcrew
 WorkingDirectory=/opt/fxg-crew
 Environment=NODE_ENV=production
 Environment=APP_ORIGIN=http://127.0.0.1:8787
