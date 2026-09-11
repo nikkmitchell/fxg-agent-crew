@@ -64,14 +64,18 @@ export function SpacePanel() {
    * and an Enter button that can only fail is worse than no button — "nothing
    * happened" is the least debuggable outcome there is.
    *
-   * Probed REPEATEDLY after entering, which is not paranoia. `navigator.xr`
-   * can appear late: the XR store is created inside the lazy scene chunk, and
-   * on localhost without real WebXR it injects an emulated device at that
-   * moment. A single probe on mount runs before any of that and would report
-   * "no headset support" on a machine that acquires it a second later.
+   * Probed from MOUNT, and again after entering. A real headset browser has
+   * `navigator.xr` from page load, so the answer is available immediately and
+   * the button can be offered before anyone has pressed anything — which is
+   * the whole point, since a headset user should not have to find their way
+   * into a flat 3D view first to discover that an immersive one exists.
+   *
+   * The repeats are for the other case: on localhost without real WebXR, the
+   * XR store injects an emulated device when the lazy scene chunk creates it,
+   * which is after mount. Only ever promotes to true — a later "no" would take
+   * the button away from somebody already holding a controller.
    */
   useEffect(() => {
-    if (!entered) return;
     let cancelled = false;
     const probe = async () => {
       const xrSystem = (navigator as { xr?: { isSessionSupported(mode: string): Promise<boolean> } }).xr;
@@ -103,6 +107,8 @@ export function SpacePanel() {
       cancelled = true;
       for (const timer of timers) window.clearTimeout(timer);
     };
+    // `entered` is a dependency because entering is what loads the chunk that
+    // can conjure an emulated device on localhost.
   }, [entered]);
 
   if (!entered) {
@@ -114,8 +120,8 @@ export function SpacePanel() {
           and the room is empty, because after a restart nobody knows where anyone was standing.
         </p>
         <p className="muted-note">
-          The boards on the walls are empty frames for now. Cards and images go on them in a later
-          stage — an empty frame is true, and a frame with invented cards in it would not be.
+          The three panels are the real Board, Mood boards and People tabs — the actual pages, not
+          a drawing of them. They are live and you can use them from in here.
         </p>
         {systemPrefersReduced ? (
           <p className="muted-note">
@@ -125,12 +131,31 @@ export function SpacePanel() {
           </p>
         ) : null}
         <p className="muted-note">
-          Entering downloads about half a megabyte of 3D code, which is why it is not loaded until
-          you ask. Walk with W A S D or the arrow keys; drag to look around.
+          Entering downloads about a megabyte of 3D code, which is why it is not loaded until you
+          ask. Walk with W A S D or the arrow keys; drag to look around.
         </p>
+
         <button type="button" className="primary-action" onClick={() => setEntered(true)}>
           Enter the room
         </button>
+
+        {/* SAID BEFORE ENTERING, not after.
+            The headset button used to appear only once you were already inside
+            the flat view, in a panel beside it — so on a desktop there was no
+            sign immersive mode existed at all, and in a headset you had to
+            walk through the window version to find the door. */}
+        {headsetAvailable === true ? (
+          <p className="muted-note">
+            This browser supports immersive VR. Enter the room and the
+            <strong> Enter in your headset</strong> button is at the top of the panel beside it.
+          </p>
+        ) : headsetAvailable === false ? (
+          <p className="muted-note">
+            This browser reports no immersive VR support, so there is no headset button — open
+            this same page in a headset&rsquo;s own browser for that. Everything here works the
+            same in a window.
+          </p>
+        ) : null}
       </section>
     );
   }
