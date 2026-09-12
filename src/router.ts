@@ -12,7 +12,9 @@
  * fine when clicked, which is the confusing half-broken state.
  */
 
-export const TABS = ["projects", "overview", "board", "mood", "mine", "people", "room", "build", "chat"] as const;
+// "said" is the room's conversation and "chat" is the gateway to the live
+// WebHarness rooms. Two different things that were briefly both called Chat.
+export const TABS = ["projects", "overview", "board", "mood", "mine", "people", "room", "build", "said", "chat"] as const;
 export type Tab = (typeof TABS)[number];
 
 export const DEFAULT_TAB: Tab = "projects";

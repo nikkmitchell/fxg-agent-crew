@@ -883,6 +883,19 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-transcript .space-said-written { margin-top: 2px; font-size: 14px; color: var(--ink); white-space: pre-wrap; }
 .space-transcript details { margin-top: 4px; font-size: 13px; }
 .space-transcript summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+/* The WebHarness room, read-only, as the Chat panel embeds it. */
+.chat-feed { display: grid; gap: 10px; max-width: 760px; }
+.chat-feed ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.chat-feed li p { margin: 0; }
+.chat-feed li p:first-child { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.chat-feed time { color: var(--muted); font-size: 12px; }
+.chat-feed-body { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-feed [role="status"] { color: var(--ink); font-size: 13px; }
+
+/* The conversation on its own page, as the room's Chat panel embeds it. Wider
+   than the rail's copy because it has the whole panel rather than a column. */
+.said-panel { display: grid; gap: 10px; max-width: 760px; }
+.said-panel .space-transcript ol { max-height: none; }
 .space-panel-picker { margin: 0 0 18px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 7px; }
 .space-panel-picker h2, .space-panel-picker p { margin: 0; }
 .space-panel-picker [role="status"] { color: var(--ink); font-size: 13px; }

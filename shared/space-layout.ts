@@ -26,6 +26,15 @@ export type Station = {
   label: string;
   /** The app tab this panel shows, embedded as its real self. */
   tab: string;
+  /**
+   * True when a headset draws this panel itself instead of showing a
+   * photograph of it. Only the chat is: the server's renderer holds no
+   * WebHarness token, so photographing it produces a picture of the sentence
+   * saying the room could not be read. Photographing it anyway would be a
+   * headless Chrome page load every fifteen seconds for an image nobody can
+   * use.
+   */
+  drawnInSession?: boolean;
 };
 
 export const ROOM = {
@@ -118,11 +127,15 @@ export function arcPlacement(index: number, count: number): {
  * look at; Chat is at one end because you talk while facing the room rather
  * than while reading.
  */
-const CATALOGUE: { id: string; label: string; tab: string }[] = [
+const CATALOGUE: { id: string; label: string; tab: string; drawnInSession?: boolean }[] = [
   { id: "moodBoard", label: "Mood boards", tab: "mood" },
   { id: "taskBoard", label: "Board", tab: "board" },
   { id: "people", label: "People", tab: "people" },
-  { id: "chat", label: "Chat", tab: "chat" },
+  // The WebHarness room, which is where the project is discussed and where
+  // tasks are handed to agents. Nikk asked for this one by name; the room's own
+  // utterance transcript is a different thing and lives on the Chat tab's
+  // sibling, "said".
+  { id: "chat", label: "Chat", tab: "chat", drawnInSession: true },
 ];
 
 export const STATIONS: Record<string, Station> = Object.fromEntries(

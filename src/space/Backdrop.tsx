@@ -47,21 +47,28 @@ export function VoidSphere() {
 export function PassthroughButton({
   passthrough,
   supported,
+  blendMode,
   onToggle,
 }: {
   passthrough: boolean;
   /** False when the session is not one that can show passthrough at all. */
   supported: boolean;
+  /** The session's own `environmentBlendMode`, printed when it says no. */
+  blendMode: string | null;
   onToggle: () => void;
 }) {
   const label = useMemo(() => {
+    // NAMING THE BLEND MODE WHEN IT REFUSES, because this button is the only
+    // instrument anybody has inside a headset. "No passthrough here" left Nikk
+    // and me guessing on an Aura; "this headset says: opaque" is a fact I can
+    // act on without being in the room.
     const text = !supported
-      ? "No passthrough here"
+      ? `No passthrough — this headset says: ${blendMode ?? "nothing yet"}`
       : passthrough
         ? "Passthrough — tap for void"
         : "Black void — tap for passthrough";
     return makeLabelTexture(text, { pixelsPerLine: 38, lines: 2 });
-  }, [passthrough, supported]);
+  }, [passthrough, supported, blendMode]);
 
   return (
     <group position={[-0.28, 0.95, -0.42]} rotation={[-0.5, 0.35, 0]}>

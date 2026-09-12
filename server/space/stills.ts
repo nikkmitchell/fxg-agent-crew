@@ -25,7 +25,12 @@ import { STATIONS } from "../../shared/space-layout.js";
  */
 
 /** Which tabs get photographed. Exactly the panels, so the two cannot diverge. */
-export const STILL_TABS = Object.values(STATIONS).map((station) => station.tab);
+export const STILL_TABS = Object.values(STATIONS)
+  // Not the ones a headset draws for itself. The chat panel is read from the
+  // viewer's own session inside the session; a photograph of it, taken by a
+  // renderer with no WebHarness token, would be a picture of an error.
+  .filter((station) => !station.drawnInSession)
+  .map((station) => station.tab);
 
 /**
  * How long after somebody asks we keep re-rendering.

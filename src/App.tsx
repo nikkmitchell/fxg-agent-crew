@@ -7,6 +7,8 @@ import { Identity } from "./Identity";
 import { PeoplePanel } from "./PeoplePanel";
 import { SpacePanel } from "./space/SpacePanel";
 import { Settings } from "./Settings";
+import { SaidPanel } from "./SaidPanel";
+import { ChatFeed } from "./ChatFeed";
 import { useCurrentProject } from "./current-project";
 import { useSession } from "./use-session";
 import { board } from "./board-client";
@@ -61,6 +63,7 @@ const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" |
   people: { label: "People", glyph: "grid" },
   room: { label: "The room", glyph: "room" },
   build: { label: "Build", glyph: "clock" },
+  said: { label: "Said in the room", glyph: "clock" },
   chat: { label: "Chat", glyph: "chat" },
 };
 
@@ -105,17 +108,15 @@ function TabContent({
 
       {tab === "build" ? <BuildPanel /> : null}
 
-      {tab === "chat" ? (
-        <section className="tab-rooms">
-          <p>
-            Live Rooms is real data — the same rooms, messages and people as the chat itself.
-            It is the one part of this screen that has always been true.
-          </p>
-          <button type="button" className="primary-action" onClick={onOpenChat}>
-            Open chat
-          </button>
-        </section>
-      ) : null}
+      {tab === "said" ? <SaidPanel /> : null}
+
+      {/* THE ROOM ITSELF, not a button that opens it.
+          This tab used to be a sentence and an "Open chat" button, which was
+          fine while the only way in was a click — but the Chat panel in the 3D
+          room is an iframe of this tab, and a panel whose whole content is a
+          button that opens an overlay you cannot reach is worse than no panel.
+          The overlay still exists for the button in the rail elsewhere. */}
+      {tab === "chat" ? <ChatFeed /> : null}
     </>
   );
 }

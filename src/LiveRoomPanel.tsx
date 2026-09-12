@@ -75,7 +75,19 @@ function CollapsedRun({ entry }: { entry: Extract<TranscriptEntry, { kind: "coll
   );
 }
 
-export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
+/**
+ * The WebHarness room, to read and to write in.
+ *
+ * STILL THE OVERLAY, and still the place you post from: it signs in to
+ * WebHarness from the browser, which is the only way to write. What it is NOT
+ * any more is the Chat panel in the 3D room — that is `ChatFeed`, which reads
+ * the same room through saha.ing's server-side token and therefore has no login
+ * form. The difference matters because you cannot complete a login wearing an
+ * Aura, which is exactly what Nikk found.
+ *
+ * `onClose` is optional so this can also be embedded without a dismissal.
+ */
+export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
   const { state, login, logout, selectRoom, retry, sendMessage, retryMessage } = useWebharnessRoom();
 
   /**
@@ -129,13 +141,19 @@ export function LiveRoomPanel({ onClose }: { onClose: () => void }) {
   }[state.phase];
 
   return (
-    <aside className="live-room-panel" aria-label="WebHarness rooms" aria-live="polite">
+    <aside
+      className={onClose ? "live-room-panel" : "live-room-panel is-embedded"}
+      aria-label="WebHarness rooms"
+      aria-live="polite"
+    >
       <header className="live-room-header">
         <div>
           <p>LIVE COORDINATION</p>
           <h2>{state.roomName ?? "WebHarness"}</h2>
         </div>
-        <button onClick={onClose} aria-label="Close live room">×</button>
+        {onClose ? (
+          <button onClick={onClose} aria-label="Close live room">×</button>
+        ) : null}
       </header>
 
       <div className={`connection-banner connection-banner--${state.phase}`}>

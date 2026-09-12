@@ -73,14 +73,19 @@ export function getXRStore(): XRStore {
  */
 export async function enterRoom(): Promise<void> {
   const xr = getXRStore();
-  let blendable = false;
+  // ASK FOR IT RATHER THAN ASKING ABOUT IT.
+  //
+  // The first version checked `isSessionSupported("immersive-ar")` first and
+  // only then requested one. On the XREAL Aura that check is the thing that
+  // failed — Nikk got teleport, which is session-independent, and a black void,
+  // which is what an `immersive-vr` fallback looks like. A device that answers
+  // "no" to the question and "yes" to the request is a device the question was
+  // lying about, and requesting costs one rejected promise to find out.
   try {
-    blendable = (await navigator.xr?.isSessionSupported("immersive-ar")) ?? false;
+    if (await xr.enterAR()) return;
   } catch {
-    // A browser that throws when asked is a browser that does not have it.
-    blendable = false;
+    // Genuinely no AR. Fall through rather than leaving somebody outside.
   }
-  if (blendable && (await xr.enterAR())) return;
   await xr.enterVR();
 }
 

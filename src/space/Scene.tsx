@@ -16,6 +16,7 @@ import { getXRStore } from "./xr-store";
 import type { Comfort } from "./comfort";
 import { WebPanel } from "./WebPanel";
 import { StillPanel } from "./StillPanel";
+import { ChatPanel3D } from "./ChatPanel3D";
 
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
 
@@ -447,12 +448,18 @@ export default function Scene({
           .map((id) => STATIONS[id])
           .filter((station) => station !== undefined)
           .map((station) =>
-            inHeadset ? (
+            !inHeadset ? (
+              <WebPanel key={station.id} station={station} base={base} />
+            ) : station.id === "chat" ? (
+              // NOT A PHOTOGRAPH. The server's renderer has no WebHarness
+              // token, so its picture of the chat is the sentence saying the
+              // room could not be read. This one is drawn from the viewer's own
+              // session — see ChatPanel3D.
+              <ChatPanel3D key={station.id} station={station} />
+            ) : (
               // Photographs of the same pages, taken on the server. The live
               // panels are DOM and a session draws 3D only.
               <StillPanel key={station.id} station={station} base={base} active={inHeadset} />
-            ) : (
-              <WebPanel key={station.id} station={station} base={base} />
             ),
           )}
         <Crowd

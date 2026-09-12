@@ -49,6 +49,7 @@ export function ImmersivePlayer({
   send,
   passthrough,
   passthroughAvailable,
+  blendMode,
   onTogglePassthrough,
   openPanels,
 }: {
@@ -56,6 +57,8 @@ export function ImmersivePlayer({
   send: (message: ClientMessage) => void;
   passthrough: boolean;
   passthroughAvailable: boolean;
+  /** What the session says it can do, shown on the button when it cannot. */
+  blendMode: string | null;
   onTogglePassthrough: () => void;
   openPanels: string[];
 }) {
@@ -233,6 +236,7 @@ export function ImmersivePlayer({
         <PassthroughButton
           passthrough={passthrough}
           supported={passthroughAvailable}
+          blendMode={blendMode}
           onToggle={onTogglePassthrough}
         />
       </XROrigin>
@@ -289,15 +293,22 @@ export function Immersive({
   openPanels: string[];
 }) {
   const session = useXR((state) => state.session);
-  const mode = useXR((state) => state.mode);
   /**
-   * Passthrough is on by default WHERE IT EXISTS, because the alternative is a
-   * person in a black void in their own living room and that is the thing that
-   * needs asking for, not the other way round. Where the session cannot blend
-   * at all the void sphere is drawn anyway: it changes nothing visible, and
-   * having one code path rather than two is worth a draw call.
+   * WHETHER PASSTHROUGH IS POSSIBLE IS THE SESSION'S ANSWER, NOT OURS.
+   *
+   * This used to be `mode === "immersive-ar"`, which is a guess about what an
+   * AR session implies. `environmentBlendMode` is the thing that actually
+   * decides: "opaque" means the compositor shows nothing behind what we draw,
+   * whatever the session was called, and "additive" or "alpha-blend" mean it
+   * does. Reading it means a device that gives us an AR session that cannot
+   * blend gets told so, rather than being handed a switch that does nothing.
+   *
+   * Passthrough is on by default where it exists, because the alternative is
+   * standing in a black void in your own living room, and that is the thing
+   * worth asking for rather than the other way round.
    */
-  const available = mode === "immersive-ar";
+  const blend = session?.environmentBlendMode ?? null;
+  const available = blend !== null && blend !== "opaque";
   const [passthrough, setPassthrough] = useState(true);
   const togglePassthrough = useCallback(() => setPassthrough((on) => !on), []);
   useEffect(() => {
@@ -309,6 +320,7 @@ export function Immersive({
       send={send}
       passthrough={available && passthrough}
       passthroughAvailable={available}
+      blendMode={blend}
       onTogglePassthrough={togglePassthrough}
       openPanels={openPanels}
     />
