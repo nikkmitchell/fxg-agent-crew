@@ -1,4 +1,4 @@
-import { getXRStore } from "./xr-store";
+import { enterRoom } from "./xr-store";
 import type { Comfort } from "./comfort";
 
 /**
@@ -18,7 +18,7 @@ export default function HeadsetControls({
 }) {
   return (
     <div className="space-headset">
-      <button type="button" className="primary-action" onClick={() => void getXRStore().enterVR()}>
+      <button type="button" className="primary-action" onClick={() => void enterRoom()}>
         {inHeadset ? "You are in the room" : "Enter in your headset"}
       </button>
       <label className="space-setting">
@@ -38,8 +38,10 @@ export default function HeadsetControls({
         </span>
       </label>
       <p className="muted-note">
-        Left stick walks, right stick turns. This is the one part of the room nobody has tested on
-        hardware; if it behaves oddly that is worth reporting rather than working around.
+        Left stick walks and right stick turns where there are sticks. Where there are none — the
+        XREAL Aura has none — point with your left hand and pinch, or pull the left trigger, to
+        teleport to where the arc lands. A button by your left hip switches passthrough off for a
+        black void and back on again.
       </p>
     </div>
   );
