@@ -116,6 +116,18 @@ log "install production deps + restart"
   chown -R fxgcrew:fxgcrew /opt/fxg-crew
   systemctl daemon-reload
   systemctl restart fxg-crew
+  # THE RENDERER TOO, when it is installed. It is a second service built from
+  # the same tree — tools/render-stills.mjs — and it holds its panel list in
+  # memory from startup. Leaving it running meant a deploy that added the chat
+  # panel shipped a server that served chat.png and a renderer that had never
+  # heard of it, so the headset showed a rectangle saying the picture was
+  # coming, for ever. Nothing in the old verification would have caught that:
+  # the app restarted, the site was up, and the missing thing was a 503 on a
+  # path nobody checked.
+  if systemctl list-unit-files fxg-stills.service >/dev/null 2>&1 \
+     && systemctl is-enabled fxg-stills >/dev/null 2>&1; then
+    systemctl restart fxg-stills
+  fi
 REMOTE_CMDS
 
 log "verify the running service"
@@ -127,6 +139,28 @@ before=$("${SSH[@]}" "$TARGET" "systemctl show fxg-crew -p NRestarts --value")
 sleep 12
 after=$("${SSH[@]}" "$TARGET" "systemctl show fxg-crew -p NRestarts --value")
 [ "$before" = "$after" ] || fail "service is crash-looping (NRestarts $before -> $after)"
+
+# THE RENDERER PHOTOGRAPHS EVERY PANEL, not the number it had at startup.
+#
+# The renderer reads its panel list once, at boot. Adding the chat panel shipped
+# an app that served chat.png and a renderer that had never heard of one, and
+# every check above still passed: the service was up, the site was up, and the
+# only symptom was a rectangle in a headset saying the picture was coming. This
+# compares what it last photographed against what this build says there is.
+panels=$(node -e "import('./dist-server/server/space/stills.js').then(m => console.log(m.STILL_TABS.length))" 2>/dev/null || echo "")
+if [ -n "$panels" ]; then
+  shot=$("${SSH[@]}" "$TARGET" "journalctl -u fxg-stills -n 200 --no-pager 2>/dev/null | grep -o 'rendered [0-9]*/[0-9]*' | tail -1" || true)
+  if [ -z "$shot" ]; then
+    # Nobody has been in the room since the restart, so it has had nothing to
+    # do. Said out loud rather than passed silently: an unchecked thing that
+    # reads as a tick is how the last one got through.
+    printf '  stills       renderer idle since restart — not checked\n'
+  else
+    want="${shot##*/}"
+    [ "$want" = "$panels" ] || fail "the renderer is photographing $shot but this build has $panels panels — it is running older code. Check: systemctl status fxg-stills"
+    printf '  stills       %s, matching this build\n' "$shot"
+  fi
+fi
 
 code=$("${SSH[@]}" "$TARGET" "curl -sS -o /tmp/me.json -w '%{http_code}' http://127.0.0.1:8787$BASE/bff/me")
 body=$("${SSH[@]}" "$TARGET" "cat /tmp/me.json")
