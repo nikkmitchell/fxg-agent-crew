@@ -47,13 +47,43 @@ function useStill(tab: string, base: string, active: boolean): { shot: Shot; pro
           return;
         }
         const ageSeconds = Number(response.headers.get("x-still-age-seconds") ?? "0");
-        const bitmap = await createImageBitmap(await response.blob());
-        if (cancelled) {
-          bitmap.close();
-          return;
+
+        /**
+         * DECODED THROUGH AN <img>, NOT createImageBitmap.
+         *
+         * The first version made an ImageBitmap and wrapped it in a
+         * CanvasTexture. That renders the right way up in desktop Chrome and
+         * came out rotated 180° in a Quest headset — WebGL's
+         * UNPACK_FLIP_Y_WEBGL is specified as having no effect on ImageBitmap
+         * sources, so whether the picture ends up flipped is left to the
+         * driver, and the two browsers disagree. I could not have found this in
+         * the flat view: I looked, and it was correct there.
+         *
+         * An HTMLImageElement is the path three.js is built around, the one the
+         * mood board images already use here, and flipY behaves the same
+         * everywhere. The object URL is revoked once decoded so a panel
+         * refreshing every fifteen seconds does not leak one per cycle.
+         */
+        const blobUrl = URL.createObjectURL(await response.blob());
+        let image: HTMLImageElement;
+        try {
+          image = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const element = new Image();
+            element.onload = () => resolve(element);
+            element.onerror = () => reject(new Error("the photograph could not be decoded"));
+            element.src = blobUrl;
+          });
+        } finally {
+          URL.revokeObjectURL(blobUrl);
         }
-        const texture = new THREE.CanvasTexture(bitmap as unknown as HTMLCanvasElement);
+        if (cancelled) return;
+
+        const texture = new THREE.Texture(image);
         texture.colorSpace = THREE.SRGBColorSpace;
+        // Said outright rather than left to the default, because the default is
+        // exactly what differed between the two browsers.
+        texture.flipY = true;
+        texture.needsUpdate = true;
         // Freed explicitly. A new texture every fifteen seconds for as long as
         // somebody wears the headset is a leak that ends in a crash.
         previous.current?.dispose();
