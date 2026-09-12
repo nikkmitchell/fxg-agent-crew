@@ -23,7 +23,16 @@ import type { Utterance, UtteranceInput } from "../shared/voice";
 const root = `${base}/bff/space`;
 
 export const space = {
-  /** What has been said in the room, newest first. */
+  /**
+   * What has been said in the room, OLDEST FIRST.
+   *
+   * The order is stated here because two callers guessed it differently and
+   * one of them was wrong: the server queries `ORDER BY id DESC` and then
+   * reverses, so what arrives already reads downward like a conversation.
+   * `SaidPanel` reversed it a second time and displayed the room backwards on
+   * production; the socket's backfill sorted by id and was right by accident.
+   * Nobody should have to open `utterances.ts` to find this out again.
+   */
   said: (limit: number) =>
     requestJson<{ utterances: Utterance[] }>(`${root}/utterances?limit=${limit}`),
 

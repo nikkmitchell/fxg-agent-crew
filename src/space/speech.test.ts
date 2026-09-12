@@ -144,3 +144,42 @@ describe("browser speech boundary", () => {
     expect(recognition.onresult).toBeNull();
   });
 });
+
+describe("what a confidence of zero means", () => {
+  /**
+   * Every utterance spoken through a Quest arrived with confidence 0 and the
+   * transcript displayed "VOICE 0%" — the machine appearing to declare itself
+   * certain the words were wrong. It was declaring nothing: several Web Speech
+   * implementations return 0 on a final result rather than a figure.
+   */
+  const recogniseWith = (confidence: number | undefined) => {
+    let final: { text: string; confidence?: number } | undefined;
+    createSpeechInput({
+      scope: { webkitSpeechRecognition: FakeRecognition as any },
+      onPhase: vi.fn(),
+      onInterim: vi.fn(),
+      onFinal: (result) => (final = result),
+      onFailure: vi.fn(),
+    });
+    FakeRecognition.latest.onresult?.({
+      resultIndex: 0,
+      results: {
+        length: 1,
+        0: { isFinal: true, length: 1, 0: { transcript: "hello", confidence } },
+      },
+    });
+    return final;
+  };
+
+  it("reports no confidence at all when the engine says zero", () => {
+    expect(recogniseWith(0)).toEqual({ text: "hello" });
+  });
+
+  it("reports no confidence when the engine says nothing", () => {
+    expect(recogniseWith(undefined)).toEqual({ text: "hello" });
+  });
+
+  it("keeps a real one", () => {
+    expect(recogniseWith(0.62)).toEqual({ text: "hello", confidence: 0.62 });
+  });
+});

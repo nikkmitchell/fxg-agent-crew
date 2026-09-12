@@ -30,9 +30,9 @@ export function SaidPanel() {
         const body = await space.said(KEEP);
         if (stopped) return;
         setFailed(false);
-        // Oldest first: the server hands back newest-first because that is the
-        // cheap query, and a conversation reads downward.
-        setHeard([...body.utterances].reverse());
+        // Already oldest-first; see the note on `space.said`. Reversing it here
+        // is what displayed the room backwards.
+        setHeard(body.utterances);
       } catch {
         // KEEP WHAT WE HAVE and say the reading stopped. Blanking the panel on
         // one failed poll would look like everybody had gone quiet, which is a

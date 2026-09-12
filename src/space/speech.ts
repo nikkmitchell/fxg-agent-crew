@@ -88,8 +88,24 @@ export function createSpeechInput(options: {
       const transcript = result?.[0]?.transcript ?? "";
       if (result?.isFinal) {
         final += transcript;
+        /**
+         * A ZERO IS "NOT REPORTED", NOT "CERTAINLY WRONG".
+         *
+         * Every utterance Nikk spoke through a Quest stored confidence 0, and
+         * the transcript duly displayed "VOICE 0%" — which reads as the machine
+         * declaring itself certain the words are wrong. It was declaring
+         * nothing: several Web Speech implementations return 0 on final results
+         * rather than a figure, and an engine that genuinely had no confidence
+         * would not be handing the result over as final.
+         *
+         * So a zero is dropped and the utterance carries no confidence at all,
+         * which the transcript already renders as a plain "VOICE". Saying
+         * nothing is the honest answer when nothing was said to us.
+         */
         const confidence = result[0]?.confidence;
-        if (typeof confidence === "number" && Number.isFinite(confidence)) confidences.push(confidence);
+        if (typeof confidence === "number" && Number.isFinite(confidence) && confidence > 0) {
+          confidences.push(confidence);
+        }
       } else {
         interim += transcript;
       }
