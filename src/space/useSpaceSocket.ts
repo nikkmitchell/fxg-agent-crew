@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type {
   ClientMessage,
   Placement,
@@ -52,6 +52,14 @@ export type SpaceConnection = {
   liveUtterance: Utterance | null;
   /** Where every panel hangs. Empty until the socket says; see the note above. */
   places: Placement[];
+  /**
+   * Listen to every frame the server sends, raw.
+   *
+   * For things this hook deliberately does not interpret — voice signalling is
+   * the only one — so that the room's own state stays about who is here and
+   * where they are. Returns the function that stops listening.
+   */
+  subscribe: (listener: (message: ServerMessage) => void) => () => void;
 };
 
 /** How much of the conversation to keep in memory. Older lines are on the server. */
@@ -78,6 +86,13 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
    * appearing empty and then filling in.
    */
   const [places, setPlaces] = useState<Placement[]>([]);
+  /**
+   * Anybody who wants every frame, as it arrives.
+   *
+   * A ref rather than state: adding a listener must not re-open the socket, and
+   * a set that changed identity on every render would do exactly that.
+   */
+  const listeners = useRef(new Set<(message: ServerMessage) => void>());
   const [roster, setRoster] = useState<
     { actorId: string; kind: "human" | "agent" | null; connected: boolean; because: string | null }[]
   >([]);
@@ -140,6 +155,11 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
 
       socket.addEventListener("message", (event) => {
         const message = JSON.parse(String(event.data)) as ServerMessage;
+        // Anything that wants the raw stream gets it first and unfiltered —
+        // voice signalling is the only user today and it is deliberately not
+        // interpreted here, because this hook's job is who is in the room.
+        for (const listener of listeners.current) listener(message);
+        if (message.type === "voice" || message.type === "voicePresence") return;
         if (message.type === "refused") {
           setStatus({ state: "refused", reason: message.reason });
           return;
@@ -239,7 +259,14 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
   };
 
-  return { status, peopleRef, roster, send, onSnapshot, heard, liveUtterance, places };
+  const subscribe = useCallback((listener: (message: ServerMessage) => void) => {
+    listeners.current.add(listener);
+    return () => {
+      listeners.current.delete(listener);
+    };
+  }, []);
+
+  return { status, peopleRef, roster, send, onSnapshot, heard, liveUtterance, places, subscribe };
 }
 
 /**

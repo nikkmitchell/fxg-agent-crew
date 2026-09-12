@@ -13,6 +13,7 @@ import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
 import { VoidSphere } from "./Backdrop";
 import { WristVoice } from "./WristVoice";
+import type { VoiceChat } from "./useVoiceChat";
 import type { ClientMessage, Pose } from "../../shared/space-wire";
 
 /**
@@ -55,6 +56,7 @@ export function ImmersivePlayer({
   openPanels,
   you,
   groupRoom,
+  voice,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -68,6 +70,8 @@ export function ImmersivePlayer({
   you: string | null;
   /** The WebHarness room to post into when you choose to tell the agents. */
   groupRoom: string | null;
+  /** Live voice, owned above the session so entering one cannot close it. */
+  voice: VoiceChat;
 }) {
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
@@ -279,6 +283,7 @@ export function ImmersivePlayer({
         passthroughAvailable={passthroughAvailable}
         blendMode={blendMode}
         onTogglePassthrough={onTogglePassthrough}
+        voice={voice}
       />
       {/*
         The floor you can teleport onto. It is deliberately invisible: the room
@@ -327,6 +332,7 @@ export function Immersive({
   openPanels,
   you,
   groupRoom,
+  voice,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -334,6 +340,7 @@ export function Immersive({
   openPanels: string[];
   you: string | null;
   groupRoom: string | null;
+  voice: VoiceChat;
 }) {
   const session = useXR((state) => state.session);
   /**
@@ -368,6 +375,7 @@ export function Immersive({
       openPanels={openPanels}
       you={you}
       groupRoom={groupRoom}
+      voice={voice}
     />
   ) : null;
 }

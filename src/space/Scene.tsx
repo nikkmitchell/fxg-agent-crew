@@ -18,6 +18,7 @@ import { WebPanel } from "./WebPanel";
 import { StillPanel } from "./StillPanel";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
+import type { VoiceChat } from "./useVoiceChat";
 import { Movable, savePlacement } from "./Movable";
 import { defaultPlacement } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
@@ -407,6 +408,7 @@ export default function Scene({
   inHeadset,
   openPanels,
   onPanelTrouble,
+  voice,
 }: {
   connection: SpaceConnection;
   reducedMotion: boolean;
@@ -418,6 +420,8 @@ export default function Scene({
   openPanels: string[];
   /** Said out loud when a panel cannot go where it was dropped. */
   onPanelTrouble: (why: string | null) => void;
+  /** Live voice, owned above the scene so a session change cannot close it. */
+  voice: VoiceChat;
 }) {
   const you = connection.status.state === "open" ? connection.status.you : null;
   // Which WebHarness room the wrist control posts into when you choose to tell
@@ -521,6 +525,7 @@ export default function Scene({
           openPanels={openPanels}
           you={you}
           groupRoom={groupRoom}
+          voice={voice}
         />
       </XR>
     </Canvas>

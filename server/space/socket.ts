@@ -52,6 +52,13 @@ export class SpaceHub {
     if (sockets.size > 0) return;
     // The last tab closed. Now they have actually left.
     this.sockets.delete(actorId);
+    // AND THEIR MICROPHONE IS NOT ON ANY MORE, whatever they last said about
+    // it. A name left in this set is somebody every newcomer tries to call and
+    // nobody ever reaches. Announced as well as removed, so people already in
+    // the room tear down the connection rather than waiting on silence.
+    if (this.voices.delete(actorId)) {
+      this.broadcast({ type: "voicePresence", actorId, on: false });
+    }
     this.presence.leave(actorId);
     if (this.sockets.size === 0) this.stop();
   }
@@ -83,6 +90,30 @@ export class SpaceHub {
     } catch {
       // Nothing useful to do: the close handler will clean it up.
     }
+  }
+
+  /**
+   * Hand a message to one person's sockets, if they have any.
+   *
+   * Returns whether anybody was there. All of them, not one: somebody signed in
+   * on a desktop and a headset at once is one person in two places, and a call
+   * offered only to whichever socket happened to be first would be answered by
+   * the wrong device about half the time.
+   */
+  /**
+   * Who has their microphone open.
+   *
+   * Held here rather than in `Presence` because it is not a fact about where
+   * anybody is, and because it must vanish the moment a socket does — a name
+   * left in this set is somebody the room keeps trying to call.
+   */
+  readonly voices = new Set<string>();
+
+  deliver(actorId: string, message: ServerMessage): boolean {
+    const sockets = this.sockets.get(actorId);
+    if (!sockets || sockets.size === 0) return false;
+    for (const socket of sockets) this.send(socket, message);
+    return true;
   }
 
   broadcast(message: ServerMessage): void {
@@ -204,6 +235,9 @@ export function registerSpaceRoutes(
       // four placements in every snapshot to say "still there" is traffic that
       // looks free until there are twenty people in the room.
       panels: panelsNow(),
+      // Who to call on arrival. Yourself excluded: a second tab of your own is
+      // still you, and calling it would put your own microphone in your ears.
+      voice: [...hub.voices].filter((id) => id !== actorId),
     });
 
     socket.on("message", (raw: Buffer | string) => {
@@ -214,6 +248,32 @@ export function registerSpaceRoutes(
       if (!message) return;
       if (message.type === "ping") {
         hub.presence.heard(actorId);
+        return;
+      }
+      if (message.type === "voicePresence") {
+        // Told to the room, not asked of it: whether somebody's microphone is
+        // on is theirs to state, and nobody else's to infer from silence.
+        if (message.on) hub.voices.add(actorId);
+        else hub.voices.delete(actorId);
+        hub.broadcast({ type: "voicePresence", actorId, on: message.on });
+        return;
+      }
+      if (message.type === "voice") {
+        // RELAYED WITH THE SENDER STAMPED BY US. `from` is the session that
+        // sent the frame, never a field the client supplied — a client that
+        // could name its own sender could introduce itself to the room as
+        // somebody else and be listened to as them.
+        //
+        // Refused to a stranger rather than dropped: an unanswered call and a
+        // call that was never delivered look identical from the caller's side,
+        // and only one of them is worth retrying.
+        if (!hub.deliver(message.to, { type: "voice", from: actorId, signal: message.signal })) {
+          hub.send(socket, {
+            type: "voicePresence",
+            actorId: message.to,
+            on: false,
+          });
+        }
         return;
       }
       hub.presence.moveSelf(actorId, message.at, message.facing, {

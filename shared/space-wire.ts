@@ -98,6 +98,15 @@ export type ServerMessage =
        * free until there are twenty people in the room.
        */
       panels: Placement[];
+      /**
+       * Who already has their microphone open.
+       *
+       * Without this, two people can only discover each other by one of them
+       * switching their microphone on while the other is already watching — so
+       * whoever turned theirs on first would be inaudible to everybody who
+       * arrived afterwards, which is most people.
+       */
+      voice: string[];
     }
   | { type: "snapshot"; now: number; people: WirePerson[] }
   /**
@@ -119,10 +128,44 @@ export type ServerMessage =
    */
   | { type: "said"; utterance: Utterance }
   /**
+   * One step of setting up a voice call with somebody else in the room.
+   *
+   * RELAYED, NOT UNDERSTOOD. The server copies these between two people and
+   * looks inside only far enough to know who to hand them to. The audio itself
+   * never touches the server: it is a direct connection between the two
+   * browsers, which is why saha.ing can carry voice on a 1.6GB box at all.
+   *
+   * `from` is stamped by the SERVER from the session that sent it, never copied
+   * from the frame. A client that could name its own sender could introduce
+   * itself to the room as somebody else and be listened to as them.
+   */
+  | { type: "voice"; from: string; signal: VoiceSignal }
+  /**
+   * Somebody switched their microphone on or off.
+   *
+   * Separate from the signalling so that a client knows who is AVAILABLE to
+   * call before it calls them — offering a connection to everybody in the room
+   * and waiting to see who answers is slower and noisier than asking first.
+   */
+  | { type: "voicePresence"; actorId: string; on: boolean }
+  /**
    * Sent instead of closing silently. A socket that vanishes without a reason
    * is indistinguishable from a network failure, and the UI would have to guess.
    */
   | { type: "refused"; reason: string };
+
+/**
+ * The contents of one signalling step.
+ *
+ * Deliberately opaque to everything in this file except the discriminator: it
+ * is WebRTC's own vocabulary, and re-typing `RTCSessionDescriptionInit` here
+ * would be a second definition to keep in step for no benefit. The server never
+ * reads it.
+ */
+export type VoiceSignal =
+  | { kind: "offer"; sdp: string }
+  | { kind: "answer"; sdp: string }
+  | { kind: "candidate"; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null };
 
 /** Client → server. */
 export type ClientMessage =
@@ -143,7 +186,17 @@ export type ClientMessage =
       hands?: { left: Pose | null; right: Pose | null };
     }
   /** Still here. Cheaper than a move when standing still. */
-  | { type: "ping" };
+  | { type: "ping" }
+  /**
+   * Pass this to somebody else in the room, as part of setting up a call.
+   *
+   * `to` is an actor id. The server refuses to relay to somebody who is not
+   * connected rather than dropping it silently — a call that never arrives and
+   * a call that was never sent look the same from the caller's side.
+   */
+  | { type: "voice"; to: string; signal: VoiceSignal }
+  /** My microphone is on, or is off. Told to the room, not asked of it. */
+  | { type: "voicePresence"; on: boolean };
 
 /**
  * Parse a client frame without trusting any of it.
@@ -178,6 +231,52 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       ...(typeof hands === "object" && hands !== null
         ? { hands: { left: pose(hands.left), right: pose(hands.right) } }
         : {}),
+    };
+  }
+  if (message.type === "voicePresence") {
+    if (typeof message.on !== "boolean") return null;
+    return { type: "voicePresence", on: message.on };
+  }
+  if (message.type === "voice") {
+    if (typeof message.to !== "string" || message.to.length === 0) return null;
+    const signal = voiceSignal(message.signal);
+    if (!signal) return null;
+    return { type: "voice", to: message.to, signal };
+  }
+  return null;
+}
+
+/**
+ * One signalling step, or null.
+ *
+ * SIZE-CAPPED, because this is the one thing a client can ask the server to
+ * copy to somebody else, and a relay with no limit is an invitation to use the
+ * room as a free message bus. An SDP is a few kilobytes; a candidate is a line.
+ * The caps are generous against real traffic and useless as a transport.
+ */
+const SDP_LIMIT = 16_000;
+const CANDIDATE_LIMIT = 1_000;
+
+function voiceSignal(value: unknown): VoiceSignal | null {
+  if (typeof value !== "object" || value === null) return null;
+  const signal = value as Record<string, unknown>;
+  if (signal.kind === "offer" || signal.kind === "answer") {
+    if (typeof signal.sdp !== "string" || signal.sdp.length === 0) return null;
+    if (signal.sdp.length > SDP_LIMIT) return null;
+    return { kind: signal.kind, sdp: signal.sdp };
+  }
+  if (signal.kind === "candidate") {
+    if (typeof signal.candidate !== "string") return null;
+    if (signal.candidate.length > CANDIDATE_LIMIT) return null;
+    const sdpMid = signal.sdpMid;
+    const sdpMLineIndex = signal.sdpMLineIndex;
+    if (sdpMid !== null && typeof sdpMid !== "string") return null;
+    if (sdpMLineIndex !== null && typeof sdpMLineIndex !== "number") return null;
+    return {
+      kind: "candidate",
+      candidate: signal.candidate,
+      sdpMid: sdpMid as string | null,
+      sdpMLineIndex: sdpMLineIndex as number | null,
     };
   }
   return null;

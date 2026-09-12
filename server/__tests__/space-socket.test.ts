@@ -111,7 +111,13 @@ const connect = async (origin: string, cookie?: string) => {
       ? Promise.resolve(closeCode)
       : new Promise((resolve) => closeWanters.push(resolve));
 
-  return { socket, next, where, drain, closed };
+  /** Send a well-formed client frame. */
+  const send = (message: unknown) => socket.send(JSON.stringify(message));
+  /** Send whatever string, for the frames a typed client could not produce. */
+  const sendRaw = (raw: string) => socket.send(raw);
+  const close = () => socket.close();
+
+  return { socket, next, where, drain, closed, send, sendRaw, close };
 };
 
 /** Wait for a condition rather than for a duration. */
@@ -243,5 +249,157 @@ describe("the space socket", () => {
     expect(space.presence.size).toBe(1);
 
     nikk.socket.close();
+  });
+});
+
+describe("setting up a call between two people in the room", () => {
+  const offer = { kind: "offer" as const, sdp: "v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\n" };
+
+  it("tells the room when somebody opens their microphone", async () => {
+    const { origin, as } = await boot();
+    const wren = await connect(origin, as("wren"));
+    const nikk = await connect(origin, as("nikk"));
+
+    wren.send({ type: "voicePresence", on: true });
+
+    const heard = await nikk.where(
+      (message) => message.type === "voicePresence",
+      "a voice presence",
+    );
+    expect(heard).toEqual({ type: "voicePresence", actorId: "wren", on: true });
+    wren.close();
+    nikk.close();
+  });
+
+  it("hands a call step to the person it was addressed to, and nobody else", async () => {
+    const { origin, as } = await boot();
+    const wren = await connect(origin, as("wren"));
+    const nikk = await connect(origin, as("nikk"));
+    const inkstone = await connect(origin, as("inkstone"));
+
+    wren.send({ type: "voice", to: "nikk", signal: offer });
+
+    const heard = await nikk.where((message) => message.type === "voice", "the call");
+    expect(heard).toEqual({ type: "voice", from: "wren", signal: offer });
+
+    // The third person in the room must not receive somebody else's call setup.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(inkstone.drain().filter((message) => message.type === "voice")).toEqual([]);
+    wren.close();
+    nikk.close();
+    inkstone.close();
+  });
+
+  it("stamps the sender from the session, not from the frame", async () => {
+    const { origin, as } = await boot();
+    const wren = await connect(origin, as("wren"));
+    const nikk = await connect(origin, as("nikk"));
+
+    // Claiming to be somebody else. If this got through, a person could
+    // introduce themselves to the room as another and be listened to as them.
+    wren.send({ type: "voice", to: "nikk", from: "inkstone", signal: offer });
+
+    const heard = await nikk.where((message) => message.type === "voice", "the call");
+    expect(heard).toMatchObject({ from: "wren" });
+    wren.close();
+    nikk.close();
+  });
+
+  it("says the person is not there rather than dropping a call silently", async () => {
+    const { origin, as } = await boot();
+    const wren = await connect(origin, as("wren"));
+
+    wren.send({ type: "voice", to: "nobody-here", signal: offer });
+
+    const heard = await wren.where(
+      (message) => message.type === "voicePresence",
+      "the refusal",
+    );
+    // An unanswered call and a call that was never delivered look identical
+    // from the caller's side, and only one of them is worth retrying.
+    expect(heard).toEqual({ type: "voicePresence", actorId: "nobody-here", on: false });
+    wren.close();
+  });
+
+  it("ignores a malformed call step without disturbing the socket", async () => {
+    const { origin, as } = await boot();
+    const wren = await connect(origin, as("wren"));
+    const nikk = await connect(origin, as("nikk"));
+
+    for (const bad of [
+      { type: "voice", to: "nikk" },
+      { type: "voice", to: "nikk", signal: { kind: "hangup" } },
+      { type: "voice", to: "nikk", signal: { kind: "offer", sdp: "x".repeat(20_000) } },
+      { type: "voice", signal: offer },
+    ]) {
+      wren.sendRaw(JSON.stringify(bad));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(nikk.drain().filter((message) => message.type === "voice")).toEqual([]);
+
+    // And the socket is still perfectly usable afterwards.
+    wren.send({ type: "voice", to: "nikk", signal: offer });
+    const heard = await nikk.where((message) => message.type === "voice", "the good call");
+    expect(heard).toMatchObject({ from: "wren" });
+    wren.close();
+    nikk.close();
+  });
+});
+
+describe("finding out who is already talking", () => {
+  it("tells somebody who arrives late", async () => {
+    const { origin, as } = await boot();
+    const wren = await connect(origin, as("wren"));
+    wren.send({ type: "voicePresence", on: true });
+    // Let the server record it before anybody else arrives.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const nikk = await connect(origin, as("nikk"));
+    const welcome = await nikk.where((message) => message.type === "welcome", "the welcome");
+    // Without this a newcomer hears nobody who switched their microphone on
+    // before they arrived, which is most people most of the time.
+    expect(welcome).toMatchObject({ voice: ["wren"] });
+    wren.close();
+    nikk.close();
+  });
+
+  it("does not list you to yourself", async () => {
+    const { origin, as } = await boot();
+    const cookie = as("wren");
+    const first = await connect(origin, cookie);
+    first.send({ type: "voicePresence", on: true });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    // A second tab of your own is still you; calling it would put your own
+    // microphone into your own ears.
+    const second = await connect(origin, cookie);
+    const welcome = await second.where((message) => message.type === "welcome", "the welcome");
+    expect(welcome).toMatchObject({ voice: [] });
+    first.close();
+    second.close();
+  });
+
+  it("stops saying somebody is talking once they have left", async () => {
+    const { origin, as } = await boot();
+    const wren = await connect(origin, as("wren"));
+    const nikk = await connect(origin, as("nikk"));
+    wren.send({ type: "voicePresence", on: true });
+    await nikk.where((message) => message.type === "voicePresence", "the microphone opening");
+
+    wren.close();
+    // Announced, not merely forgotten: everyone still in the room has a
+    // connection to tear down, and waiting on silence to notice is how you get
+    // a room full of half-open calls.
+    const heard = await nikk.where(
+      (message) => message.type === "voicePresence" && message.on === false,
+      "the microphone closing",
+    );
+    expect(heard).toEqual({ type: "voicePresence", actorId: "wren", on: false });
+
+    const later = await connect(origin, as("inkstone"));
+    const welcome = await later.where((message) => message.type === "welcome", "the welcome");
+    expect(welcome).toMatchObject({ voice: [] });
+    nikk.close();
+    later.close();
   });
 });

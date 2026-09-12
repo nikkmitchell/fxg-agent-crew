@@ -5,6 +5,7 @@ import { base } from "../router";
 import { WRIST_BUTTON, WristButton } from "./Backdrop";
 import { createSpeechInput, speechCapabilities, type SpeechInput } from "./speech";
 import { planVoice, type VoiceDestination } from "./voice-routing";
+import type { VoiceChat } from "./useVoiceChat";
 
 /**
  * Everything you need on your wrist, behind one button.
@@ -43,6 +44,7 @@ export function WristVoice({
   passthroughAvailable,
   blendMode,
   onTogglePassthrough,
+  voice,
 }: {
   wrist: { p: { x: number; y: number; z: number }; q: THREE.Quaternion } | null;
   you: string | null;
@@ -51,6 +53,8 @@ export function WristVoice({
   passthroughAvailable: boolean;
   blendMode: string | null;
   onTogglePassthrough: () => void;
+  /** Live voice between people in the room, owned above the session. */
+  voice: VoiceChat;
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
@@ -180,6 +184,19 @@ export function WristVoice({
   } else {
     rows.push({ label: "Close", onTap: () => setOpen(false) });
 
+    // TALKING OUT LOUD comes first, above dictation, because it is the thing
+    // somebody standing next to another person wants: to be heard by them,
+    // rather than to have their words typed into a room.
+    rows.push({
+      label: voice.on
+        ? voice.others.length > 0
+          ? `Talking — you hear ${voice.others.join(", ")}`
+          : "Talking — nobody else has theirs on"
+        : "Talk out loud",
+      tone: voice.on ? "live" : "normal",
+      onTap: () => voice.setOn(!voice.on),
+    });
+
     rows.push(
       capabilities.recognition
         ? {
@@ -224,8 +241,9 @@ export function WristVoice({
     });
   }
 
-  if (notice) {
-    rows.push({ label: notice, tone: "muted", onTap: () => setNotice(null) });
+  const said = notice ?? voice.trouble;
+  if (said) {
+    rows.push({ label: said, tone: "muted", onTap: () => setNotice(null) });
   }
 
   return (

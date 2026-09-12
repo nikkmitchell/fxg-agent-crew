@@ -7,6 +7,7 @@ import type { Utterance } from "../../shared/voice";
 import { VoiceControls } from "./VoiceControls";
 import { Transcript } from "./Transcript";
 import { usePanelChoices } from "./usePanelChoices";
+import { useVoiceChat } from "./useVoiceChat";
 import { ProjectChooser } from "../ProjectChooser";
 
 /**
@@ -76,6 +77,18 @@ export function SpacePanel() {
   const [headsetAvailable, setHeadsetAvailable] = useState<boolean | null>(null);
   const panels = usePanelChoices(entered);
   const [panelTrouble, setPanelTrouble] = useState<string | null>(null);
+  /**
+   * Live voice, held HERE rather than inside the scene.
+   *
+   * The scene unmounts and remounts — entering a headset session, the lazy
+   * chunk loading — and a microphone that closed and reopened every time would
+   * be both alarming and useless. This outlives all of it.
+   */
+  const voice = useVoiceChat(
+    connection.send,
+    connection.subscribe,
+    connection.status.state === "open" ? connection.status.you : null,
+  );
 
   /**
    * Is there a headset to enter?
@@ -206,6 +219,7 @@ export function SpacePanel() {
             inHeadset={inHeadset}
             openPanels={panels.open}
             onPanelTrouble={setPanelTrouble}
+            voice={voice}
           />
         </Suspense>
         {/* Connecting gets the big treatment too: until the socket is open the
@@ -255,6 +269,26 @@ export function SpacePanel() {
         <Transcript heard={connection.heard} />
 
         <VoiceControls connection={connection} />
+
+        {/* TALKING, as opposed to sending words. The audio is a direct
+            connection between browsers; saha.ing copies a few kilobytes of
+            setup and then gets out of the way. */}
+        <section className="space-voice">
+          <h2>Talk out loud</h2>
+          <button
+            type="button"
+            className={voice.on ? "primary-action" : "text-button"}
+            onClick={() => voice.setOn(!voice.on)}
+          >
+            {voice.on ? "Microphone is open — click to close it" : "Open your microphone"}
+          </button>
+          <p className="muted-note">
+            {voice.others.length === 0
+              ? "Nobody else has their microphone on, so there is nobody to hear."
+              : `You can hear: ${voice.others.join(", ")}.`}
+          </p>
+          {voice.trouble ? <p role="status">{voice.trouble}</p> : null}
+        </section>
 
         {/* WHAT IS ON THE ARC, and which project it is showing.
             Both live here rather than on a settings page because in this room
