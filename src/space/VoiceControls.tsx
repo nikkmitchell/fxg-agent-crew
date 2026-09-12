@@ -71,7 +71,7 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
 
   const send = async () => {
     const words = draft.trim();
-    if (!words || sending) return;
+    if (!words || sending || overLimit || recipientMissing) return;
     setSending(true);
     setNotice(null);
     const utterance: UtteranceInput = {
@@ -103,6 +103,8 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
 
   const limit = source === "voice" ? SPOKEN_LIMIT : DETAIL_LIMIT;
   const people = connection.roster.filter((person) => person.actorId !== you);
+  const recipientMissing = Boolean(to && !people.some((person) => person.actorId === to));
+  const overLimit = draft.trim().length > limit;
 
   return (
     <section className="space-voice" aria-labelledby="space-voice-heading">
@@ -137,16 +139,26 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
       <p className={draft.length > limit ? "space-voice-count over" : "space-voice-count"}>
         {draft.length} / {limit} characters{source === "voice" ? " spoken" : " written"}
       </p>
+      {source === "voice" ? (
+        <button type="button" className="text-button" disabled={sending} onClick={() => {
+          setSource("text");
+          setConfidence(undefined);
+          setNotice("This draft will be sent as written detail and will not be read aloud.");
+        }}>Send as written text instead</button>
+      ) : null}
+      {overLimit ? <p role="status">Shorten this draft{source === "voice" ? " or send it as written text" : ""} before sending. Your words have been kept.</p> : null}
 
       <label>
         <span>Address</span>
         <select value={to} onChange={(event) => setTo(event.currentTarget.value)} disabled={sending}>
           <option value="">The room, nobody in particular</option>
+          {recipientMissing ? <option value={to}>{to} — no longer in the roster</option> : null}
           {people.map((person) => <option key={person.actorId} value={person.actorId}>{person.actorId}</option>)}
         </select>
       </label>
+      {recipientMissing ? <p role="status">Your selected recipient is no longer in the roster. Choose an address before sending.</p> : null}
 
-      <button type="button" className="primary-action" onClick={() => void send()} disabled={!draft.trim() || sending}>
+      <button type="button" className="primary-action" onClick={() => void send()} disabled={!draft.trim() || sending || overLimit || recipientMissing}>
         {sending ? "Sending…" : "Send after review"}
       </button>
 
@@ -162,6 +174,7 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
       ) : (
         <p className="muted-note">This browser cannot read replies aloud. They remain in the transcript.</p>
       )}
+      <p className="muted-note">Replies addressed to the room stay in the transcript and are not read aloud.</p>
       <p className="space-voice-state" aria-live="polite">
         {listening ? "Listening — nothing is sent until you review it." : speaking ? "Speaking." : notice}
       </p>
