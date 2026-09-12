@@ -49,11 +49,14 @@ const COLOURS = {
  * rendered office was decoration pretending to be a place, and every hour spent
  * on its walls was an hour not spent on what the space is actually for.
  *
- * A faint grid sits under everyone's feet. Not a floor: without ANY ground
- * reference a person cannot tell whether they are moving, and walking in a
- * featureless void is disorienting enough in a window and genuinely unpleasant
- * in a headset. It fades out well before the edge so it reads as a hint rather
- * than a surface.
+ * A faint grid sits under everyone's feet IN A WINDOW. Not a floor: without any
+ * ground reference at all a person cannot tell whether they are moving, and
+ * walking in a featureless void is genuinely disorienting on a flat screen.
+ *
+ * It is not drawn in a headset. The reasoning that put it there assumed the
+ * void; in passthrough the real floor of the real room is already underfoot,
+ * and a glowing grid laid over your own carpet is worse than nothing —
+ * it is the one thing in the scene pretending to be somewhere you are not.
  */
 function Void() {
   const grid = useMemo(() => {
@@ -435,7 +438,13 @@ export default function Scene({
         {inHeadset ? null : <color attach="background" args={["#0b0d12"]} />}
         <hemisphereLight args={["#ffffff", "#2a3040", 2.2]} />
         <directionalLight position={[3, 6, 4]} intensity={1.4} />
-        <Void />
+        {/* NOT IN A HEADSET. The grid is there so that somebody moving through
+          a featureless void can tell they are moving — which is a real problem
+          in a window and no problem at all in passthrough, where the actual
+          floor of the actual room is right there. Nikk, on an Aura: "passthrough
+          is working, except for the ground, also we don't even need the
+          ground". */}
+        {inHeadset ? null : <Void />}
         {/* The real tabs, live — replaced in a headset by something that says why
           they are not there. DOM is not composited into an immersive frame, so
           leaving them mounted would keep three copies of the app running to

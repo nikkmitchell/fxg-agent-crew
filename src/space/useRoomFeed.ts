@@ -50,8 +50,13 @@ export function useRoomFeed(enabled: boolean, preferred = "saha.ing"): RoomFeed 
     const pickRoom = async (): Promise<string | null> => {
       const response = await fetch(`${base}/bff/rooms`, { credentials: "same-origin" });
       if (!response.ok) throw new Error(`rooms ${response.status}`);
-      const body = (await response.json()) as { rooms?: { name?: string }[] };
-      const names = (body.rooms ?? []).map((entry) => entry.name).filter(Boolean) as string[];
+      // `roomName`, not `name`. The upstream shape is what WebHarness returns
+      // and saha.ing passes through unchanged; reading `name` found undefined
+      // on every room and reported "you are not in any room" to somebody
+      // standing in five of them.
+      const body = (await response.json()) as { roomName?: string }[] | { rooms?: { roomName?: string }[] };
+      const list = Array.isArray(body) ? body : (body.rooms ?? []);
+      const names = list.map((entry) => entry.roomName).filter(Boolean) as string[];
       // The room Nikk means by "our normal chat" if it is there, and otherwise
       // whichever one they are actually in — guessing a name that does not
       // exist would show an empty panel with no explanation.
