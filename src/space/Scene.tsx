@@ -17,6 +17,7 @@ import type { Comfort } from "./comfort";
 import { WebPanel } from "./WebPanel";
 import { StillPanel } from "./StillPanel";
 import { ChatPanel3D } from "./ChatPanel3D";
+import { useRoomFeed } from "./useRoomFeed";
 
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
 
@@ -408,6 +409,11 @@ export default function Scene({
   openPanels: string[];
 }) {
   const you = connection.status.state === "open" ? connection.status.you : null;
+  // Which WebHarness room the wrist control posts into when you choose to tell
+  // the agents. Resolved here rather than inside the control so that it is
+  // already known by the time somebody has finished a sentence — asking for it
+  // at send time would put a round trip between speaking and being heard.
+  const groupRoom = useRoomFeed(inHeadset).room;
 
   return (
     <Canvas
@@ -491,6 +497,8 @@ export default function Scene({
           send={connection.send}
           onChange={onImmersiveChange}
           openPanels={openPanels}
+          you={you}
+          groupRoom={groupRoom}
         />
       </XR>
     </Canvas>

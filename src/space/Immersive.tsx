@@ -12,6 +12,7 @@ import { ROOM, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
 import { PassthroughButton, VoidSphere } from "./Backdrop";
+import { WristVoice } from "./WristVoice";
 import type { ClientMessage, Pose } from "../../shared/space-wire";
 
 /**
@@ -52,6 +53,8 @@ export function ImmersivePlayer({
   blendMode,
   onTogglePassthrough,
   openPanels,
+  you,
+  groupRoom,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -61,6 +64,10 @@ export function ImmersivePlayer({
   blendMode: string | null;
   onTogglePassthrough: () => void;
   openPanels: string[];
+  /** Who the room says you are, for the line the group chat sees. */
+  you: string | null;
+  /** The WebHarness room to post into when you choose to tell the agents. */
+  groupRoom: string | null;
 }) {
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
@@ -95,6 +102,18 @@ export function ImmersivePlayer({
    */
   const originSpace = useXR((state) => state.originReferenceSpace);
   const [arrivalFacing] = useState(() => facingFor(openPanels));
+  const wristRef = useRef<{ p: Vec3; q: THREE.Quaternion } | null>(null);
+  // Re-rendered at a human rate rather than a frame rate: the panel's POSITION
+  // is driven per frame from the ref inside WristVoice, and this only has to
+  // tell React whether the hand exists at all.
+  const [wristLive, setWristLive] = useState(false);
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setWristLive(wristRef.current !== null),
+      250,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
 
   useXRControllerLocomotion(
     origin,
@@ -212,6 +231,18 @@ export function ImmersivePlayer({
     held.current.left = heldHand(held.current.left, liveLeft, now);
     held.current.right = heldHand(held.current.right, liveRight, now);
 
+    // The wrist controls ride the LIVE pose, not the held one. A held hand is
+    // a claim about where a hand was a moment ago, which is fine for an avatar
+    // somebody else is looking at and wrong for a button you are trying to
+    // press — a control floating where your hand used to be is a control that
+    // cannot be pressed, and worse, looks like it can.
+    wristRef.current = liveLeft
+      ? {
+          p: liveLeft.p,
+          q: new THREE.Quaternion(liveLeft.q.x, liveLeft.q.y, liveLeft.q.z, liveLeft.q.w),
+        }
+      : null;
+
     send({
       type: "move",
       at,
@@ -241,6 +272,11 @@ export function ImmersivePlayer({
         />
       </XROrigin>
       {passthrough ? null : <VoidSphere />}
+      {/* The controls you need while standing in the room, on your wrist,
+        because everything Inkstone built is DOM and a session shows none of
+        it. Mounted whether or not the hand is tracked right now — it hides
+        itself — so that it does not lose its transcript on a dropout. */}
+      <WristVoice wrist={wristLive ? wristRef.current : null} you={you} groupRoom={groupRoom} />
       {/*
         The floor you can teleport onto. It is deliberately invisible: the room
         has no floor by design, and drawing one to make teleport work would put
@@ -286,11 +322,15 @@ export function Immersive({
   send,
   onChange,
   openPanels,
+  you,
+  groupRoom,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
   onChange: (inSession: boolean) => void;
   openPanels: string[];
+  you: string | null;
+  groupRoom: string | null;
 }) {
   const session = useXR((state) => state.session);
   /**
@@ -323,6 +363,8 @@ export function Immersive({
       blendMode={blend}
       onTogglePassthrough={togglePassthrough}
       openPanels={openPanels}
+      you={you}
+      groupRoom={groupRoom}
     />
   ) : null;
 }
