@@ -9,6 +9,7 @@ import {
 import type { Placement } from "../../shared/space-wire.js";
 import type { SessionStore } from "../session.js";
 import type { Config } from "../config.js";
+import { makeRequireSession } from "../require-session.js";
 
 /**
  * Which panels a person has open.
@@ -149,13 +150,14 @@ export function registerPanelRoutes(
     announce: (placement: Placement, by: string) => void;
   },
 ) {
+  const requireSession = makeRequireSession(config, sessions);
   const choices = new PanelChoices(database);
   const places = new PanelPlaces(database);
 
   /** The catalogue, and which of it you have open. */
   app.get("/bff/space/panels", async (request, reply) => {
-    const session = sessions.get(request.cookies[config.cookieName]);
-    if (!session) return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in" });
+    const session = requireSession(request, reply);
+    if (!session) return reply;
     return reply.send({
       panels: Object.values(STATIONS).map((station) => ({
         id: station.id,
@@ -170,8 +172,8 @@ export function registerPanelRoutes(
   app.put<{ Params: { id: string }; Body: { open?: unknown } }>(
     "/bff/space/panels/:id",
     async (request, reply) => {
-      const session = sessions.get(request.cookies[config.cookieName]);
-      if (!session) return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in" });
+      const session = requireSession(request, reply);
+      if (!session) return reply;
       const open = request.body?.open;
       if (typeof open !== "boolean") {
         return reply.code(400).send({ code: "BAD_OPEN", error: "open must be true or false" });
@@ -201,8 +203,8 @@ export function registerPanelRoutes(
   app.put<{ Params: { id: string }; Body: { position?: unknown; rotationY?: unknown } }>(
     "/bff/space/panels/:id/place",
     async (request, reply) => {
-      const session = sessions.get(request.cookies[config.cookieName]);
-      if (!session) return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in" });
+      const session = requireSession(request, reply);
+      if (!session) return reply;
 
       const body = request.body ?? {};
       const position = body.position as { x?: unknown; y?: unknown; z?: unknown } | undefined;

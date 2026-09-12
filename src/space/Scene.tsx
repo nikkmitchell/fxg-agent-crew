@@ -38,15 +38,6 @@ import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
  * reads. Nothing here invents a coordinate.
  */
 
-const COLOURS = {
-  floor: "#d9d4c7",
-  wall: "#efece4",
-  trim: "#c2bbaa",
-  taskBoard: "#3156d8",
-  moodBoard: "#a33d70",
-  people: "#3d8063",
-} as const;
-
 /**
  * The void.
  *
@@ -425,11 +416,14 @@ export default function Scene({
   voice: VoiceChat;
 }) {
   const you = connection.status.state === "open" ? connection.status.you : null;
-  // Which WebHarness room the wrist control posts into when you choose to tell
-  // the agents. Resolved here rather than inside the control so that it is
-  // already known by the time somebody has finished a sentence — asking for it
-  // at send time would put a round trip between speaking and being heard.
-  const groupRoom = useRoomFeed(inHeadset).room;
+  /**
+   * The WebHarness room, read ONCE for the whole scene.
+   *
+   * It used to be read here for its name and again inside ChatPanel3D for its
+   * messages — two hooks, two timers, two cursors, twice the requests, for one
+   * conversation. Read here and passed down.
+   */
+  const feed = useRoomFeed(inHeadset);
 
   return (
     <Canvas
@@ -496,7 +490,7 @@ export default function Scene({
                 // token, so its picture of the chat is the sentence saying the
                 // room could not be read. This one is drawn from the viewer's
                 // own session — see ChatPanel3D.
-                <ChatPanel3D station={station} />
+                <ChatPanel3D station={station} feed={feed} />
               ) : (
                 // Photographs of the same pages, taken on the server. The live
                 // panels are DOM and a session draws 3D only.
@@ -529,7 +523,7 @@ export default function Scene({
           onChange={onImmersiveChange}
           openPanels={openPanels}
           you={you}
-          groupRoom={groupRoom}
+          groupRoom={feed.room}
           voice={voice}
         />
       </XR>

@@ -5,6 +5,7 @@ import { avatarRecipe } from "../avatar";
 import { makeLabelTexture } from "./label-texture";
 import { bodySpec, ringIsBroken } from "./avatar-shape";
 import type { Pose, WirePerson } from "../../shared/space-wire";
+import type { Vec3 } from "../../shared/space-layout";
 
 /**
  * A person, in three dimensions: head, shoulders, and hands when there are any.
@@ -70,6 +71,21 @@ const HEAD_RADIUS = 0.16;
 const TORSO_HEIGHT = 0.42;
 /** Where an untracked head sits above the floor. A standing adult's eyeline. */
 export const EYE_HEIGHT = 1.62;
+
+/**
+ * Where a person's head is.
+ *
+ * The measured head when the client reports one, and the feet plus a standing
+ * eye height when it does not — which is the case for every agent, whose
+ * position comes from the audit trail and who has no head to track.
+ *
+ * SHARED WITH THE AUDIO, which needs the identical answer: a voice coming from
+ * somewhere its speaker's head is not sounds like a bug in the audio. Never the
+ * origin — that would put a voice under the floor in the middle of the room.
+ */
+export function headOf(person: Pick<WirePerson, "at" | "head">): Vec3 {
+  return person.head?.p ?? { x: person.at.x, y: EYE_HEIGHT, z: person.at.z };
+}
 const LABEL_REFERENCE_METRES = 4;
 
 /**
@@ -211,9 +227,7 @@ export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying
     if (head) {
       approach(
         head,
-        person.head
-          ? person.head.p
-          : { x: person.at.x, y: EYE_HEIGHT, z: person.at.z },
+        headOf(person),
         6,
         delta,
         reducedMotion,

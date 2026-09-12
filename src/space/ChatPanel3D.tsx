@@ -3,7 +3,7 @@ import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Station } from "../../shared/space-layout";
 import { makeChatCanvas, paintChat } from "./chat-texture";
-import { useRoomFeed } from "./useRoomFeed";
+import type { RoomFeed } from "./useRoomFeed";
 
 /**
  * The chat panel, in a headset.
@@ -17,9 +17,12 @@ import { useRoomFeed } from "./useRoomFeed";
  * Mounted only inside a session. In a window the real DOM panel is better in
  * every way: selectable, scrollable, and it does not cost a texture upload
  * every time somebody speaks.
+ *
+ * The feed is PASSED IN rather than read here. This used to call `useRoomFeed`
+ * itself while the scene called it too, which meant two timers and two cursors
+ * polling the same conversation.
  */
-export function ChatPanel3D({ station }: { station: Station }) {
-  const feed = useRoomFeed(true);
+export function ChatPanel3D({ station, feed }: { station: Station; feed: RoomFeed }) {
   const { canvas, texture } = useMemo(() => makeChatCanvas(), []);
   // On demand: a room set to redraw only when something happens still has to
   // redraw when a message lands, and nothing else in the scene has moved.

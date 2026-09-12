@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  ARC_FOCUS,
   defaultPlacement,
   facingArc,
   normaliseRotation,
   placementRefusal,
   standFor,
 } from "./panel-place";
+import { ARC_FOCUS } from "./space-layout";
 import { ROOM, STATIONS } from "./space-layout";
 
 const at = (x: number, y: number, z: number, rotationY = 0) => ({

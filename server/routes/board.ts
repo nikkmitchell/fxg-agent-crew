@@ -5,6 +5,7 @@ import { BoardReads } from "../db/reads.js";
 import { BoardStore, Refused } from "../db/store.js";
 import { BlobStore, MAX_BYTES, QUOTA_BYTES, QUOTA_FILES, orphanReport } from "../db/blobs.js";
 import type { Role, Status } from "../../shared/board-rules.js";
+import { makeRequireSession } from "../require-session.js";
 
 /**
  * The board API. saha.ing's own data, served from saha.ing's own database.
@@ -88,14 +89,7 @@ export function registerBoardRoutes(
     entry.count += 1;
   };
 
-  const requireSession = (request: FastifyRequest, reply: FastifyReply): Session | undefined => {
-    const session = sessions.get(request.cookies[config.cookieName]);
-    if (!session) {
-      reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in", reauth: true });
-      return undefined;
-    }
-    return session;
-  };
+  const requireSession = makeRequireSession(config, sessions);
 
   const actorOf = (session: Session) => ({ id: session.username, kind: session.kind });
 

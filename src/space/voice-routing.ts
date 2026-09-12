@@ -1,4 +1,4 @@
-import { SPOKEN_LIMIT } from "../../shared/voice";
+import { refusalFor, type UtteranceInput } from "../../shared/voice";
 
 /**
  * Where a spoken sentence goes.
@@ -40,12 +40,19 @@ export function planVoice(
 ): VoicePlan {
   const words = transcript.trim();
   if (!words) return { posts: [], refused: "Nothing was heard, so nothing was sent." };
-  if (words.length > SPOKEN_LIMIT) {
-    return {
-      posts: [],
-      refused: `That was ${words.length} characters; the room speaks up to ${SPOKEN_LIMIT}. Say it in two.`,
-    };
-  }
+
+  /**
+   * ASK THE SHARED RULE, do not restate it.
+   *
+   * This used to compare against SPOKEN_LIMIT itself, with its own wording —
+   * which made three implementations of one rule: here, in `VoiceControls`, and
+   * in `refusalFor`, which is the one the server actually enforces. Three
+   * places to change a limit is two places to forget. Now the only way to be
+   * refused locally is to be refused for the reason the server would give.
+   */
+  const input: UtteranceInput = { say: words, source: "voice" };
+  const refused = refusalFor(input);
+  if (refused) return { posts: [], refused: `${refused[0].toUpperCase()}${refused.slice(1)}.` };
 
   const posts: VoicePost[] = [
     {

@@ -8,6 +8,7 @@ import type { WebharnessClient } from "../webharness/client.js";
 import { dirname } from "node:path";
 import { ProjectStateCache } from "../webharness/project-cache.js";
 import { readBuildInfo } from "./build.js";
+import { makeRequireSession } from "../require-session.js";
 
 
 export function registerProjectRoutes(
@@ -16,14 +17,7 @@ export function registerProjectRoutes(
   sessions: SessionStore,
   client: WebharnessClient,
 ): void {
-  const requireSession = (request: FastifyRequest, reply: FastifyReply): Session | undefined => {
-    const session = sessions.get(request.cookies[config.cookieName]);
-    if (!session) {
-      reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in", reauth: true });
-      return undefined;
-    }
-    return session;
-  };
+  const requireSession = makeRequireSession(config, sessions);
   const canMutateProject = (username: string) => config.projectMutators.includes(username);
 
   /**

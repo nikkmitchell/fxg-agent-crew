@@ -6,6 +6,7 @@ import { WebharnessClient } from "../webharness/client.js";
 import { classify } from "../webharness/errors.js";
 import { pollMessages } from "../webharness/longpoll.js";
 import { validateTransportMessage } from "../../shared/crew-events.js";
+import { makeRequireSession } from "../require-session.js";
 
 export function registerRoomRoutes(
   app: FastifyInstance,
@@ -13,15 +14,7 @@ export function registerRoomRoutes(
   sessions: SessionStore,
   client: WebharnessClient,
 ): void {
-  /** Resolve the session or answer 401; returns undefined once it has replied. */
-  const requireSession = (request: FastifyRequest, reply: FastifyReply): Session | undefined => {
-    const session = sessions.get(request.cookies[config.cookieName]);
-    if (!session) {
-      reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in", reauth: true });
-      return undefined;
-    }
-    return session;
-  };
+  const requireSession = makeRequireSession(config, sessions);
 
   /**
    * Upstream failures are translated into stable codes rather than forwarded

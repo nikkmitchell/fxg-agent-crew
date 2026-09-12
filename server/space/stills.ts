@@ -5,6 +5,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { STATIONS } from "../../shared/space-layout.js";
+import { makeRequireSession } from "../require-session.js";
 
 /**
  * Pictures of the real pages, for the headset.
@@ -116,6 +117,7 @@ export function registerStillRoutes(
   config: Config,
   sessions: SessionStore,
 ): void {
+  const requireSession = makeRequireSession(config, sessions);
   // Silent best-effort is right for the request; silent forever is not.
   onDemandFailure = (error) =>
     app.log.warn({ error, root: config.stillsRoot }, "could not record still demand — the renderer may sleep");
@@ -154,9 +156,7 @@ export function registerStillRoutes(
    * either.
    */
   app.get<{ Params: { tab: string } }>("/bff/space/stills/:tab.png", async (request, reply) => {
-    if (!sessions.get(request.cookies[config.cookieName])) {
-      return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in" });
-    }
+    if (!requireSession(request, reply)) return reply;
     const tab = request.params.tab;
     // An allowlist, not a sanitiser: the tab name becomes a path, and the only
     // safe way to put caller input in a path is to not put caller input in a

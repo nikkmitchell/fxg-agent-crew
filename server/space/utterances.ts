@@ -4,6 +4,7 @@ import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
 import { refusalFor, type Utterance, type UtteranceInput } from "../../shared/voice.js";
+import { makeRequireSession } from "../require-session.js";
 
 /**
  * What is said in the room.
@@ -81,11 +82,12 @@ export function registerUtteranceRoutes(
   announce: (utterance: Utterance) => void,
   attend: (actorId: string, utteranceId: number | null) => void,
 ): void {
+  const requireSession = makeRequireSession(config, sessions);
   const utterances = new Utterances(database);
 
   app.post<{ Body: UtteranceInput }>("/bff/space/utterances", async (request, reply) => {
-    const session = sessions.get(request.cookies[config.cookieName]);
-    if (!session) return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in" });
+    const session = requireSession(request, reply);
+    if (!session) return reply;
 
     const body = request.body ?? ({} as UtteranceInput);
     // `source` is the caller's claim about how the words arrived, and it is
@@ -124,8 +126,8 @@ export function registerUtteranceRoutes(
   app.post<{ Body: { utteranceId?: number | null } }>(
     "/bff/space/attending",
     async (request, reply) => {
-      const session = sessions.get(request.cookies[config.cookieName]);
-      if (!session) return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in" });
+      const session = requireSession(request, reply);
+      if (!session) return reply;
 
       const id = request.body?.utteranceId ?? null;
       if (id !== null && !Number.isInteger(id)) {
@@ -143,9 +145,7 @@ export function registerUtteranceRoutes(
   );
 
   app.get<{ Querystring: { limit?: string } }>("/bff/space/utterances", async (request, reply) => {
-    if (!sessions.get(request.cookies[config.cookieName])) {
-      return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in" });
-    }
+    if (!requireSession(request, reply)) return reply;
     return reply.send({ utterances: utterances.recent(Number(request.query.limit ?? 50)) });
   });
 }

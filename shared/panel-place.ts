@@ -1,4 +1,4 @@
-import { ROOM, STATIONS } from "./space-layout.js";
+import { ARC_FOCUS, ROOM, STAND_BACK, STATIONS } from "./space-layout.js";
 import type { Placement } from "./space-wire.js";
 import type { Vec3 } from "./space-layout.js";
 
@@ -69,24 +69,20 @@ export function facingArc(x: number, z: number): number {
   return Math.atan2(ARC_FOCUS.x - x, ARC_FOCUS.z - z);
 }
 
-/** The point every panel turns toward. Matches the arc's own focus. */
-export const ARC_FOCUS = { x: 0, z: 5.2 } as const;
-
 /**
  * Where an avatar stands to attend to a panel that may have been moved.
  *
  * Derived from the panel rather than stored beside it, so moving a board moves
- * the place agents walk to in the same motion. `STAND_BACK` here has to match
- * the arc's — it does, because both are the same 1.8 metres and this is the
- * only other place that number appears.
+ * the place agents walk to in the same motion. The distance is the arc's own
+ * `STAND_BACK`, imported rather than repeated: this used to be a local 1.8 with
+ * a comment promising it matched, and a promise is not a mechanism.
  */
 export function standFor(place: Placement): Vec3 {
-  const back = 1.8;
   // A panel with no rotation faces +z, so its normal is (sin ry, cos ry) and
   // the place to stand is that far along it.
   return {
-    x: place.position.x + Math.sin(place.rotationY) * back,
+    x: place.position.x + Math.sin(place.rotationY) * STAND_BACK,
     y: 0,
-    z: place.position.z + Math.cos(place.rotationY) * back,
+    z: place.position.z + Math.cos(place.rotationY) * STAND_BACK,
   };
 }

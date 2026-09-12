@@ -92,8 +92,26 @@ const PANEL = { width: 4.0, height: 2.5 } as const;
  * why the flat view lets you drag to look. Somebody who would rather have
  * fewer, closer panels closes one — which is most of what the picker is for.
  */
+/**
+ * The point every panel faces, and the point a dragged panel turns back toward.
+ *
+ * EXPORTED, because `panel-place.ts` needs the identical point to aim a panel
+ * somebody has just dragged. It had its own copy of these coordinates for a
+ * day, which is the exact failure this file's own opening comment warns about:
+ * two numbers that must agree, written twice.
+ */
+export const ARC_FOCUS = { x: 0, z: 5.2 } as const;
+
+/**
+ * How far in front of its panel somebody stands to attend to it.
+ *
+ * EXPORTED for the same reason. `panel-place.ts` had `const back = 1.8` and a
+ * comment saying it matched this one — a comment is not a mechanism.
+ */
+export const STAND_BACK = 1.8;
+
 const ARC = {
-  focus: { x: 0, z: 5.2 },
+  focus: ARC_FOCUS,
   radius: 7.0,
   /**
    * The angle between one panel and the next, NOT the width of the whole arc.
@@ -107,9 +125,6 @@ const ARC = {
    */
   step: (37 * Math.PI) / 180,
 } as const;
-
-/** How far in front of its panel somebody stands to attend to it. */
-const STAND_BACK = 1.8;
 
 /**
  * One panel's place on the arc, by its position in the catalogue.

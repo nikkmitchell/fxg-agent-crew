@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { EYE_HEIGHT } from "./Avatar3D";
+import { headOf } from "./Avatar3D";
 import type { SpaceConnection } from "./useSpaceSocket";
 
 /**
@@ -58,11 +58,10 @@ function Voice({
   useFrame(() => {
     const person = peopleRef.current.find((p) => p.actorId === actorId);
     if (!person) return;
-    // The HEAD when we have one, because that is where a voice comes from, and
-    // the feet plus a standing eye height when we do not. Never the origin: a
-    // voice from (0,0,0) is a voice from under the floor in the middle of the
-    // room, which sounds like a bug in the audio rather than a missing head.
-    const at = person.head?.p ?? { x: person.at.x, y: EYE_HEIGHT, z: person.at.z };
+    // Where a voice comes from is where the head is — the same answer the
+    // figure is drawn with, from the same function, so a voice cannot end up
+    // somewhere its speaker's head is not.
+    const at = headOf(person);
     audio.position.set(at.x, at.y, at.z);
   });
 
