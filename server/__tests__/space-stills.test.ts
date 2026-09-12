@@ -108,13 +108,17 @@ describe("serving a still", () => {
 
   it("refuses a tab that is not a panel", async () => {
     const { app, as } = boot();
-    // "said" is a REAL tab of the app that is not on the arc — the case that
-    // matters, because a path traversal is obviously wrong and an app tab
+    // "overview" is a REAL tab of the app that is not on the arc — the case
+    // that matters, because a path traversal is obviously wrong and an app tab
     // nobody asked to photograph looks perfectly reasonable.
-    // "chat" is a REAL panel on the arc, and still not photographed: a headset
-    // draws it from the viewer's own session. Asking for a picture of it is
-    // asking for something that deliberately does not exist.
-    for (const tab of ["../../etc/passwd", "chat", "said", "..%2F..%2Fsecret"]) {
+    //
+    // "chat" is a real panel ON the arc and still not photographed: a headset
+    // draws it from the viewer's own session, because the renderer holds no
+    // WebHarness token. Asking for a picture of it asks for something that
+    // deliberately does not exist. ("said" sat here until it became a panel of
+    // its own — the room's transcript, which the renderer CAN photograph
+    // because that one is a saha.ing endpoint.)
+    for (const tab of ["../../etc/passwd", "overview", "chat", "..%2F..%2Fsecret"]) {
       const response = await app.inject({
         method: "GET",
         url: `/bff/space/stills/${tab}.png`,
@@ -202,6 +206,6 @@ describe("keeping a browser off an idle box", () => {
     // panel edits this line, which is the point: a new panel that nobody
     // photographs is a blank rectangle in a headset, and the edit is where you
     // find that out.
-    expect(STILL_TABS).toEqual(["mood", "board", "people"]);
+    expect(STILL_TABS).toEqual(["mood", "board", "people", "said"]);
   });
 });

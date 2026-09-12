@@ -29,6 +29,16 @@ import type { ClientMessage, ServerMessage, VoiceSignal } from "../../shared/spa
 export type VoiceChat = {
   /** True once the microphone is open and the room has been told. */
   on: boolean;
+  /**
+   * Everyone's incoming audio, by actor id.
+   *
+   * Handed out so the scene can put each voice where its speaker is standing.
+   * The streams are ALSO attached to a muted `<audio>` element inside this
+   * hook, and that is not redundant: a MediaStream that is never attached to a
+   * media element does not flow in Chrome, so without it the positioned audio
+   * would be silence with no error anywhere.
+   */
+  streams: Map<string, MediaStream>;
   /** Who else has their microphone on. */
   others: string[];
   /** Null unless something went wrong, in which case what. */
@@ -49,6 +59,7 @@ export function useVoiceChat(
 ): VoiceChat {
   const [on, setOnState] = useState(false);
   const [others, setOthers] = useState<string[]>([]);
+  const [streams, setStreams] = useState<Map<string, MediaStream>>(new Map());
   const [trouble, setTrouble] = useState<string | null>(null);
 
   const microphone = useRef<MediaStream | null>(null);
@@ -66,6 +77,12 @@ export function useVoiceChat(
       sound.remove();
       sounds.current.delete(actorId);
     }
+    setStreams((before) => {
+      if (!before.has(actorId)) return before;
+      const next = new Map(before);
+      next.delete(actorId);
+      return next;
+    });
   }, []);
 
   const connectionTo = useCallback(
@@ -99,13 +116,27 @@ export function useVoiceChat(
         // looks: a MediaStream that is never attached to a media element does
         // not flow in Chrome, so even a future spatialised version has to keep
         // this. Muted output would be silence with no error anywhere.
+        const stream = event.streams[0] ?? null;
         let sound = sounds.current.get(actorId);
         if (!sound) {
           sound = document.createElement("audio");
           sound.autoplay = true;
+          // MUTED, and still necessary. The element is what makes the stream
+          // flow at all in Chrome; the sound you actually hear is placed in the
+          // room by SpatialVoices. Unmuting this would play every voice a
+          // second time, flat and from nowhere.
+          sound.muted = true;
           sounds.current.set(actorId, sound);
         }
-        sound.srcObject = event.streams[0] ?? null;
+        sound.srcObject = stream;
+        if (stream) {
+          setStreams((before) => {
+            if (before.get(actorId) === stream) return before;
+            const next = new Map(before);
+            next.set(actorId, stream);
+            return next;
+          });
+        }
         void sound.play().catch(() => {
           // Autoplay refused. It cannot be: this only ever runs after the
           // person pressed a button to turn their own microphone on, which is
@@ -250,5 +281,5 @@ export function useVoiceChat(
     [drop],
   );
 
-  return { on, others, trouble, setOn };
+  return { on, others, streams, trouble, setOn };
 }

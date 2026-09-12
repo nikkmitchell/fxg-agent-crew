@@ -83,15 +83,30 @@ const PANEL = { width: 4.0, height: 2.5 } as const;
  * reading distance: closer and the centre panel fills your view, further and
  * the text on it stops being legible in a headset.
  *
- * THE SPREAD IS THE COMPROMISE, and it is worth saying which way it falls.
- * Four panels wide enough to read cannot all sit within one view: fitting them
- * means pushing them far enough away that the text goes. So the two inner
- * panels are in front of you and the outer two are a head-turn to either side.
- * That is right in a headset, where turning your head costs nothing and is most
- * of what a room is for, and it is why the flat view lets you drag to look.
- * Somebody who would rather have fewer, closer panels closes one.
+ * THE ARC GETS WIDER RATHER THAN TIGHTER as panels are added, and it is worth
+ * saying which way that compromise falls. Panels wide enough to read cannot all
+ * sit within one view: fitting them would mean pushing them far enough away
+ * that the text goes. So the inner panels are in front of you and the outer
+ * ones are a head-turn to either side. That is right in a headset, where
+ * turning your head costs nothing and is most of what a room is for, and it is
+ * why the flat view lets you drag to look. Somebody who would rather have
+ * fewer, closer panels closes one — which is most of what the picker is for.
  */
-const ARC = { focus: { x: 0, z: 5.2 }, radius: 7.0, spread: (120 * Math.PI) / 180 } as const;
+const ARC = {
+  focus: { x: 0, z: 5.2 },
+  radius: 7.0,
+  /**
+   * The angle between one panel and the next, NOT the width of the whole arc.
+   *
+   * Fixing the total spread meant that adding the fifth panel silently squeezed
+   * the other four into each other — the overlap test caught it, which is why
+   * that test exists. Spacing them by a constant angle instead keeps every gap
+   * the same whatever the catalogue holds, and the arc simply gets wider as the
+   * room gains panels. At this radius it leaves about half a metre between
+   * neighbours.
+   */
+  step: (37 * Math.PI) / 180,
+} as const;
 
 /** How far in front of its panel somebody stands to attend to it. */
 const STAND_BACK = 1.8;
@@ -108,7 +123,8 @@ export function arcPlacement(index: number, count: number): {
   stand: Vec3;
 } {
   // A single panel goes straight ahead rather than at one end of nothing.
-  const turn = count < 2 ? 0 : -ARC.spread / 2 + (ARC.spread * index) / (count - 1);
+  const spread = ARC.step * (count - 1);
+  const turn = count < 2 ? 0 : -spread / 2 + ARC.step * index;
   const x = ARC.focus.x + ARC.radius * Math.sin(turn);
   const z = ARC.focus.z - ARC.radius * Math.cos(turn);
   // Toward the focus, which is also the direction the panel faces.
@@ -131,6 +147,20 @@ const CATALOGUE: { id: string; label: string; tab: string; drawnInSession?: bool
   { id: "moodBoard", label: "Mood boards", tab: "mood" },
   { id: "taskBoard", label: "Board", tab: "board" },
   { id: "people", label: "People", tab: "people" },
+  /**
+   * THE ROOM'S OWN TRANSCRIPT, which is not the same thing as the chat below.
+   *
+   * Added because Nikk stood in a headset, spoke four times, and had to ask me
+   * in another room whether any of it had come out. The transcript lived in the
+   * page's rail — DOM, invisible inside a session — and your own words are not
+   * drawn above your own head, because you are not drawn to yourself. So
+   * speaking into the room looked exactly like speaking into nothing.
+   *
+   * Photographed like the boards rather than drawn live: unlike the WebHarness
+   * chat, this reads a saha.ing endpoint, and the still renderer holds a real
+   * saha.ing session.
+   */
+  { id: "said", label: "Said in the room", tab: "said" },
   // The WebHarness room, which is where the project is discussed and where
   // tasks are handed to agents. Nikk asked for this one by name; the room's own
   // utterance transcript is a different thing and lives on the Chat tab's

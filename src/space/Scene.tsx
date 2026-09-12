@@ -19,6 +19,7 @@ import { StillPanel } from "./StillPanel";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
 import type { VoiceChat } from "./useVoiceChat";
+import { SpatialVoices } from "./SpatialVoices";
 import { Movable, savePlacement } from "./Movable";
 import { defaultPlacement } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
@@ -516,6 +517,10 @@ export default function Scene({
           active={!inHeadset}
           openPanels={openPanels}
         />
+        {/* Each voice placed where its speaker is standing. Nothing at all
+          until somebody opens a microphone. */}
+        <SpatialVoices streams={voice.streams} peopleRef={connection.peopleRef} />
+
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
         <Immersive
