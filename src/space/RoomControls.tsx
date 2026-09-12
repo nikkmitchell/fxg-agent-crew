@@ -8,15 +8,26 @@ import { planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 
 /**
- * Everything you need on your wrist, behind one button.
+ * The room's controls, in front of you at body level.
  *
- * THE FIRST VERSION PUT THREE PANELS THERE AT ONCE and Nikk's verdict was
- * "almost impossible to use": three targets the size of a matchbox, stacked,
- * riding a hand that is also the thing you point with. So there is one button
- * now — the same one that was already there for passthrough — and everything
- * else unfolds from it when you tap it, and folds away again.
+ * NOT ON A HAND. Two attempts lived on the left wrist and both were wrong.
+ * Nikk, on the first: "almost impossible to use" — three matchbox panels
+ * stacked on a hand that is also the thing you point with. On the second, which
+ * folded them behind one button: "the UI is terrible... nothing to do with the
+ * left hand, we don't want it following that at all."
  *
- * WHY ON THE WRIST AT ALL: the page is DOM, and DOM is not composited into an
+ * He is right, and the reason is worth writing down so nobody puts it back: to
+ * press a button on your own hand you must hold that hand still, look at it,
+ * and point at it with the other one. A control that moves whenever you move
+ * the limb you aim with is a control you chase. Anything mounted on a hand has
+ * to be worth that, and a settings menu is not.
+ *
+ * So it sits where a belt buckle would: a little in front of you, below your
+ * head, following where you are and which way you are facing but NOT your
+ * hands and not your head's pitch. Look down and it is there; walk and it comes
+ * with you; wave and it does not move at all.
+ *
+ * WHY IN 3D AT ALL: the page is DOM, and DOM is not composited into an
  * immersive frame. Every control Inkstone built is present and invisible the
  * moment the headset goes on. These are the ones you need while standing up.
  *
@@ -30,12 +41,29 @@ import type { VoiceChat } from "./useVoiceChat";
  * the microphone on), and the button says what it will do before it does it.
  */
 
-/** Where the panel sits relative to the wrist: above it, tilted toward the face. */
-const OFFSET = new THREE.Vector3(0, 0.14, -0.02);
+/**
+ * Where the panel sits relative to you.
+ *
+ * `AHEAD` is how far in front, `HEIGHT` is how far off the floor — absolute,
+ * not relative to the head, so it stays at your waist whether you are standing
+ * or sitting forward. `EASE` is how quickly it catches up when you turn: it
+ * lags deliberately, because a panel welded to your gaze can never be looked
+ * away from, and one that snaps is worse than one that drifts.
+ */
+const AHEAD = 0.62;
+const HEIGHT = 1.02;
+const EASE = 0.12;
+/** Past this much turn it starts following. Below it, stay put. */
+const SLACK = 0.5;
 
-export function WristVoice({
-  /** The left wrist in room space, or null when that hand is not tracked. */
-  wrist,
+export function RoomControls({
+  /**
+   * Where the player is and which way they are facing, read fresh each frame.
+   *
+   * A function rather than a value: this is read at frame rate and a prop would
+   * mean re-rendering the whole panel ninety times a second to move one group.
+   */
+  anchor,
   /** Who the room thinks you are, for the group-chat line. */
   you,
   /** Which WebHarness room to post into, when there is one. */
@@ -46,7 +74,7 @@ export function WristVoice({
   onTogglePassthrough,
   voice,
 }: {
-  wrist: { p: { x: number; y: number; z: number }; q: THREE.Quaternion } | null;
+  anchor: () => { at: { x: number; z: number }; yaw: number } | null;
   you: string | null;
   groupRoom: string | null;
   passthrough: boolean;
@@ -145,19 +173,41 @@ export function WristVoice({
     return () => input.current?.dispose();
   }, [capabilities.recognition, post]);
 
-  // The panel rides the wrist, driven per frame rather than through React: a
-  // hand moves at headset frame rate and routing that through state would
-  // re-render this tree ninety times a second to move one group.
+  const facing = useRef<number | null>(null);
+
+  /**
+   * The panel follows you, driven per frame rather than through React: a head
+   * moves at headset frame rate and routing that through state would re-render
+   * this tree ninety times a second to move one group.
+   *
+   * It follows your POSITION immediately and your DIRECTION lazily, and only
+   * once you have turned past a few tens of degrees. Turning your head to look
+   * at something must not drag the menu across your view — you would never be
+   * able to look away from it — but walking away from it and leaving it behind
+   * would be worse.
+   */
   useFrame(() => {
     const node = group.current;
+    const body = anchor();
     if (!node) return;
-    node.visible = wrist !== null;
-    if (!wrist) return;
-    node.position.set(wrist.p.x, wrist.p.y, wrist.p.z);
-    node.quaternion.copy(wrist.q);
-    node.translateX(OFFSET.x);
-    node.translateY(OFFSET.y);
-    node.translateZ(OFFSET.z);
+    node.visible = body !== null;
+    if (!body) return;
+
+    if (facing.current === null) facing.current = body.yaw;
+    // Shortest way round, so turning past a half-circle does not send the panel
+    // the long way about.
+    let delta = body.yaw - facing.current;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    if (Math.abs(delta) > SLACK) facing.current += delta * EASE;
+
+    const yaw = facing.current;
+    node.position.set(
+      body.at.x - Math.sin(yaw) * AHEAD,
+      HEIGHT,
+      body.at.z - Math.cos(yaw) * AHEAD,
+    );
+    node.rotation.set(0, yaw, 0);
   });
 
   const step = WRIST_BUTTON.height + WRIST_BUTTON.gap;

@@ -12,7 +12,7 @@ import { ROOM, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
 import { VoidSphere } from "./Backdrop";
-import { WristVoice } from "./WristVoice";
+import { RoomControls } from "./RoomControls";
 import type { VoiceChat } from "./useVoiceChat";
 import type { ClientMessage, Pose } from "../../shared/space-wire";
 
@@ -106,18 +106,15 @@ export function ImmersivePlayer({
    */
   const originSpace = useXR((state) => state.originReferenceSpace);
   const [arrivalFacing] = useState(() => facingFor(openPanels));
-  const wristRef = useRef<{ p: Vec3; q: THREE.Quaternion } | null>(null);
-  // Re-rendered at a human rate rather than a frame rate: the panel's POSITION
-  // is driven per frame from the ref inside WristVoice, and this only has to
-  // tell React whether the hand exists at all.
-  const [wristLive, setWristLive] = useState(false);
-  useEffect(() => {
-    const timer = window.setInterval(
-      () => setWristLive(wristRef.current !== null),
-      250,
-    );
-    return () => window.clearInterval(timer);
-  }, []);
+  /**
+   * Where the player's body is, for the controls to hang in front of.
+   *
+   * The head's horizontal position and yaw — not its height and not its pitch.
+   * Looking down at your feet must not tip the menu away from you, and
+   * crouching must not drag it to the floor.
+   */
+  const bodyRef = useRef<{ at: Vec3; yaw: number } | null>(null);
+  const bodyAnchor = useCallback(() => bodyRef.current, []);
 
   useXRControllerLocomotion(
     origin,
@@ -235,17 +232,20 @@ export function ImmersivePlayer({
     held.current.left = heldHand(held.current.left, liveLeft, now);
     held.current.right = heldHand(held.current.right, liveRight, now);
 
-    // The wrist controls ride the LIVE pose, not the held one. A held hand is
-    // a claim about where a hand was a moment ago, which is fine for an avatar
-    // somebody else is looking at and wrong for a button you are trying to
-    // press — a control floating where your hand used to be is a control that
-    // cannot be pressed, and worse, looks like it can.
-    wristRef.current = liveLeft
-      ? {
-          p: liveLeft.p,
-          q: new THREE.Quaternion(liveLeft.q.x, liveLeft.q.y, liveLeft.q.z, liveLeft.q.w),
-        }
-      : null;
+    // Where the controls hang: the head's own position and heading, taken
+    // from the measured head rather than from the XROrigin, so the panel is in
+    // front of the PERSON and not in front of where they happened to arrive.
+    if (head) {
+      const q = new THREE.Quaternion(head.q.x, head.q.y, head.q.z, head.q.w);
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+      bodyRef.current = {
+        at: head.p,
+        // Heading only. `atan2` of the forward vector's x and z ignores pitch
+        // and roll entirely, which is the point: look at the ceiling and the
+        // menu stays where your body is.
+        yaw: Math.atan2(-forward.x, -forward.z),
+      };
+    }
 
     send({
       type: "move",
@@ -271,12 +271,10 @@ export function ImmersivePlayer({
         rotation={[0, arrivalFacing, 0]}
       />
       {passthrough ? null : <VoidSphere />}
-      {/* The controls you need while standing in the room, on your wrist,
-        because everything Inkstone built is DOM and a session shows none of
-        it. Mounted whether or not the hand is tracked right now — it hides
-        itself — so that it does not lose its transcript on a dropout. */}
-      <WristVoice
-        wrist={wristLive ? wristRef.current : null}
+      {/* The controls you need while standing in the room. In front of you at
+        body level, not on a hand — see the note at the top of RoomControls. */}
+      <RoomControls
+        anchor={bodyAnchor}
         you={you}
         groupRoom={groupRoom}
         passthrough={passthrough}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientMessage, ServerMessage, VoiceSignal } from "../../shared/space-wire";
+import { callList, shouldCall } from "./voice-pairing";
 
 /**
  * Hearing each other, in the room.
@@ -65,8 +66,8 @@ export function useVoiceChat(
   const microphone = useRef<MediaStream | null>(null);
   const peers = useRef(new Map<string, RTCPeerConnection>());
   const sounds = useRef(new Map<string, HTMLAudioElement>());
-  const live = useRef({ on, you });
-  live.current = { on, you };
+  const live = useRef({ on, you, others });
+  live.current = { on, you, others };
 
   const drop = useCallback((actorId: string) => {
     peers.current.get(actorId)?.close();
@@ -208,9 +209,7 @@ export function useVoiceChat(
         // everybody who came later, which is most people.
         setOthers(message.voice);
         const me = live.current.you ?? message.you;
-        if (live.current.on) {
-          for (const actorId of message.voice) if (me < actorId) void call(actorId);
-        }
+        if (live.current.on) for (const actorId of callList(me, message.voice)) void call(actorId);
         return;
       }
       if (message.type === "voicePresence") {
@@ -229,7 +228,7 @@ export function useVoiceChat(
         // Both ends hear about each other at the same moment. The lower id
         // calls; the other waits, or the two offers cross and collapse.
         const me = live.current.you;
-        if (live.current.on && me && me < message.actorId) void call(message.actorId);
+        if (live.current.on && me && shouldCall(me, message.actorId)) void call(message.actorId);
         return;
       }
       if (message.type === "voice") {
@@ -265,9 +264,29 @@ export function useVoiceChat(
         // Announced only AFTER the microphone is actually open. Telling the
         // room first would have people calling a caller with nothing to send.
         send({ type: "voicePresence", on: true });
+
+        /**
+         * AND CALL WHOEVER IS ALREADY TALKING.
+         *
+         * Without this the room deadlocks whenever the lower-numbered person
+         * switches on SECOND, which is what happened the first time two people
+         * tried it. Nikk turned his microphone on, then Bai Wei turned hers on;
+         * "baiwei2" sorts below "nikk2" so Bai Wei was the one who had to
+         * place the call — but switching on only ANNOUNCED, it never called
+         * anybody, and Nikk, hearing the announcement, correctly declined
+         * because his id is the higher one. Nobody called. They stood two
+         * metres apart in silence and there was no error anywhere, because
+         * nothing had failed: nothing had been attempted.
+         *
+         * `others` is read from the ref rather than the closure — the set is
+         * filled by announcements that arrived before this callback was made,
+         * which is precisely the case that was broken.
+         */
+        const me = live.current.you;
+        if (me) for (const actorId of callList(me, live.current.others)) void call(actorId);
       })();
     },
-    [drop, send],
+    [call, drop, send],
   );
 
   // Everything stops when this unmounts: leaving a microphone open after
