@@ -40,7 +40,13 @@ export function Transcript({
                   className="space-said-heard"
                   title="Transcribed from a microphone, so it is a guess at what was said"
                 >
-                  {utterance.confidence === null
+                  {/* A ZERO IS NOT A MEASUREMENT. `speech.ts` stopped recording
+                      them, but every sentence spoken into a headset before that
+                      is stored as 0 and would otherwise keep announcing that
+                      the machine was nought per cent sure of somebody's words.
+                      It was never sure of anything: the engine returned no
+                      figure and a zero stood in for it. */}
+                  {!utterance.confidence
                     ? "voice"
                     : `voice ${Math.round(utterance.confidence * 100)}%`}
                 </span>
