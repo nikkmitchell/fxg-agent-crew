@@ -160,9 +160,21 @@ export function WristVoice({
   const rows: { label: string; tone?: "normal" | "muted" | "live"; onTap: () => void }[] = [];
 
   if (!open) {
+    // STOP IS ALWAYS ONE TAP, never behind a menu. Inkstone's review: an
+    // always-on microphone needs an immediate stop, and "tap to open, then find
+    // the right button" is not immediate when what you want is to stop talking
+    // to a room. So while it is listening the folded panel IS the stop control,
+    // and the settings move to a second row under it.
+    if (listening) {
+      rows.push({
+        label: alwaysOn ? "Stop — sending as you speak" : "Stop listening",
+        tone: "live",
+        onTap: () => input.current?.stop(),
+      });
+    }
     rows.push({
-      label: listening ? "Listening — tap to open" : "Settings",
-      tone: listening ? "live" : "normal",
+      label: listening ? "Settings" : alwaysOn ? "Settings — speech set to auto-send" : "Settings",
+      tone: "normal",
       onTap: () => setOpen(true),
     });
   } else {
