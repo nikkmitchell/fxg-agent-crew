@@ -42,6 +42,8 @@ export type SpaceConnection = {
    * be read, so something has to re-render when one arrives.
    */
   heard: Utterance[];
+  /** The newest utterance received live on the socket. History never enters here. */
+  liveUtterance: Utterance | null;
 };
 
 /** How much of the conversation to keep in memory. Older lines are on the server. */
@@ -59,6 +61,7 @@ const retryDelayMs = (attempt: number) => Math.min(30_000, 1_000 * 2 ** Math.min
 export function useSpaceSocket(enabled: boolean): SpaceConnection {
   const [status, setStatus] = useState<SpaceStatus>({ state: "connecting" });
   const [heard, setHeard] = useState<Utterance[]>([]);
+  const [liveUtterance, setLiveUtterance] = useState<Utterance | null>(null);
   const [roster, setRoster] = useState<
     { actorId: string; kind: "human" | "agent" | null; connected: boolean; because: string | null }[]
   >([]);
@@ -130,6 +133,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           // list is a transcript. Capped so a room left open all day does not
           // grow without limit.
           setHeard((previous) => [...previous, message.utterance].slice(-HEARD_LIMIT));
+          setLiveUtterance(message.utterance);
           return;
         }
         peopleRef.current = message.people;
@@ -206,7 +210,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
   };
 
-  return { status, peopleRef, roster, send, onSnapshot, heard };
+  return { status, peopleRef, roster, send, onSnapshot, heard, liveUtterance };
 }
 
 /**

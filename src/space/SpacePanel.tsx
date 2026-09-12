@@ -4,6 +4,7 @@ import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
 import { RoomLoading } from "./RoomLoading";
 import type { Utterance } from "../../shared/voice";
+import { VoiceControls } from "./VoiceControls";
 
 /**
  * The Space tab.
@@ -289,6 +290,8 @@ export function SpacePanel() {
         )}
 
         <Transcript heard={connection.heard} />
+
+        <VoiceControls connection={connection} />
 
         <h2>In the room</h2>
         <label className="space-setting">
