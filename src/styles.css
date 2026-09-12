@@ -877,6 +877,10 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-said-to { color: var(--muted); }
 /* Marked because a transcript is a guess and typed text is not. */
 .space-said-heard { margin-left: 6px; padding: 1px 5px; border-radius: 4px; background: var(--line); color: var(--ink); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+/* A written message IS the message, so it reads like one — same size as a
+   spoken line, not the smaller grey of an aside. `pre-wrap` because someone who
+   typed paragraphs meant them. */
+.space-transcript .space-said-written { margin-top: 2px; font-size: 14px; color: var(--ink); white-space: pre-wrap; }
 .space-transcript details { margin-top: 4px; font-size: 13px; }
 .space-transcript summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .space-voice { margin: 0 0 18px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 9px; }

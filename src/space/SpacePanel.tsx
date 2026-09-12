@@ -84,11 +84,23 @@ function Transcript({ heard }: { heard: Utterance[] }) {
               ) : null}
             </p>
             {utterance.say ? <p className="space-said">{utterance.say}</p> : null}
+            {/* WHETHER THE DETAIL IS FOLDED DEPENDS ON WHETHER IT IS THE MESSAGE.
+                An utterance with a `say` has already told you what it is about,
+                so its detail is elaboration and folds away. An utterance with
+                NO `say` — which is every typed message, because the voice
+                controls put written words in `detail` so they are not read
+                aloud — has nothing else in it. Folding that showed the room a
+                name and the word "Detail", and you had to click to find out
+                whether anything had been said to you at all. */}
             {utterance.detail ? (
-              <details>
-                <summary>Detail</summary>
-                <p>{utterance.detail}</p>
-              </details>
+              utterance.say ? (
+                <details>
+                  <summary>Detail</summary>
+                  <p>{utterance.detail}</p>
+                </details>
+              ) : (
+                <p className="space-said-written">{utterance.detail}</p>
+              )
             ) : null}
           </li>
         ))}
