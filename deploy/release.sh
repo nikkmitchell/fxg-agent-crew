@@ -149,7 +149,11 @@ after=$("${SSH[@]}" "$TARGET" "systemctl show fxg-crew -p NRestarts --value")
 # compares what it last photographed against what this build says there is.
 panels=$(node -e "import('./dist-server/server/space/stills.js').then(m => console.log(m.STILL_TABS.length))" 2>/dev/null || echo "")
 if [ -n "$panels" ]; then
-  shot=$("${SSH[@]}" "$TARGET" "journalctl -u fxg-stills -n 200 --no-pager 2>/dev/null | grep -o 'rendered [0-9]*/[0-9]*' | tail -1" || true)
+  # SINCE THE RESTART, not the last line in the journal. Reading the whole
+  # journal made this fail its first real deploy on a line the previous
+  # renderer had written minutes earlier — the check was right that the numbers
+  # disagreed and wrong about which process said so.
+  shot=$("${SSH[@]}" "$TARGET" "since=\$(systemctl show fxg-stills -p ActiveEnterTimestamp --value); journalctl -u fxg-stills --since \"\$since\" --no-pager 2>/dev/null | grep -o 'rendered [0-9]*/[0-9]*' | tail -1" || true)
   if [ -z "$shot" ]; then
     # Nobody has been in the room since the restart, so it has had nothing to
     # do. Said out loud rather than passed silently: an unchecked thing that
