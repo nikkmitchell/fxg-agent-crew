@@ -96,6 +96,24 @@ export function StillPanel({
     if (materialRef.current) materialRef.current.needsUpdate = true;
   }, [shot]);
 
+  /**
+   * How old, in words a person can read at a glance.
+   *
+   * It printed raw seconds, which is fine at 5s and meaningless at 46294 — and
+   * the stale case is exactly when the number matters, because the renderer
+   * sleeps when nobody is looking and the FIRST thing a headset sees can be
+   * hours old until the next cycle lands. "photograph, 46294s old" is a number
+   * nobody converts in their head while wearing a headset.
+   */
+  const ageInWords = (seconds: number): string => {
+    if (seconds < 90) return `${seconds}s old`;
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 90) return `${minutes} min old`;
+    const hours = Math.round(seconds / 3600);
+    if (hours < 36) return `${hours} hours old`;
+    return `${Math.round(hours / 24)} days old`;
+  };
+
   const caption = useMemo(() => {
     // SHORT. The texture is one line squeezed to fit its canvas, so a long
     // sentence arrives as condensed mush — which is what "unclear text" looked
@@ -103,7 +121,7 @@ export function StillPanel({
     const text = problem
       ? `${station.label} — ${problem}`
       : shot
-        ? `${station.label} — photograph, ${shot.ageSeconds}s old`
+        ? `${station.label} — photograph, ${ageInWords(shot.ageSeconds)}`
         : `${station.label} — loading`;
     return makeLabelTexture(text, { pixelsPerLine: 48 });
   }, [station.label, problem, shot]);
