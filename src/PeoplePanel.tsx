@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import type { CrewTask } from "./event-core";
 import type { ActorProfile, Ownership } from "./profiles";
 import type { Membership } from "./membership";
-import { BoardError, board, toCrewProject, toCrewTask, toProfile } from "./board-client";
+import { board, toCrewProject, toCrewTask, toProfile } from "./board-client";
 import type { CrewProject } from "./event-core";
 import { People } from "./People";
 import type { Session } from "./use-session";
+import { ApiError } from "./api-request";
 
 
 /**
@@ -49,7 +50,7 @@ export function PeoplePanel({ session }: { session: Session | null }) {
     } catch (cause) {
       // A 401 is "sign in", not "something broke". Conflating them sends
       // someone looking for a fault that is really a session.
-      if (cause instanceof BoardError && cause.status === 401) {
+      if (cause instanceof ApiError && cause.status === 401) {
         setState("signed_out");
         return;
       }

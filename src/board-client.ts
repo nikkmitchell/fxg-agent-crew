@@ -7,43 +7,13 @@
  * discovered by re-reading the log.
  */
 
-const base = () => `${import.meta.env.BASE_URL}bff/board`;
+import { requestJson } from "./api-request";
+import { base } from "./router";
 
-export type Refusal = { code: string; error: string };
+const boardRoot = `${base}/bff/board`;
 
-export class BoardError extends Error {
-  constructor(readonly code: string, message: string, readonly status: number) {
-    super(message);
-    this.name = "BoardError";
-  }
-}
-
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${base()}${path}`, {
-    ...init,
-    headers: { ...(init?.body ? { "content-type": "application/json" } : {}), ...(init?.headers ?? {}) },
-  });
-  if (response.status === 204) return undefined as T;
-
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    body = undefined;
-  }
-  if (!response.ok) {
-    const refusal = body as Refusal | undefined;
-    // The server's refusal is a sentence written for a person. Keep it: a
-    // generic "something went wrong" throws away the only part that says what
-    // to do next.
-    throw new BoardError(
-      refusal?.code ?? "UNKNOWN",
-      refusal?.error ?? `the server refused this (${response.status})`,
-      response.status,
-    );
-  }
-  return body as T;
-}
+const call = <T>(path: string, init?: RequestInit): Promise<T> =>
+  requestJson<T>(`${boardRoot}${path}`, init ?? {});
 
 export const board = {
   projects: () => call<{ projects: Array<Record<string, unknown>> }>("/projects"),
@@ -97,7 +67,7 @@ export const board = {
       body: file,
     }),
 
-  blobUrl: (id: string) => `${base()}/blobs/${encodeURIComponent(id)}`,
+  blobUrl: (id: string) => `${boardRoot}/blobs/${encodeURIComponent(id)}`,
 };
 
 /* ------------------------------------------------------------- shape ------ */

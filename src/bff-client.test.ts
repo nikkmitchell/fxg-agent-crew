@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bff, BffRequestError } from "./bff-client";
+import { bff } from "./bff-client";
+import { ApiError } from "./api-request";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -31,7 +32,7 @@ describe("bff client", () => {
   it("preserves stable error codes and retry semantics", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ code: "UPSTREAM_UNAVAILABLE", error: "try again" }, 502)));
     const error = await bff.rooms().catch((caught) => caught);
-    expect(error).toBeInstanceOf(BffRequestError);
+    expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ code: "UPSTREAM_UNAVAILABLE", status: 502, retryable: true, reauth: false });
   });
 

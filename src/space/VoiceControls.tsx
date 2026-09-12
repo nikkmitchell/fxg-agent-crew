@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { DETAIL_LIMIT, SPOKEN_LIMIT, type Utterance, type UtteranceInput } from "../../shared/voice";
 import type { SpaceConnection } from "./useSpaceSocket";
 import { createSpeechInput, speakSay, speechCapabilities, type SpeechInput, type SpeechOutput } from "./speech";
-
-type ErrorBody = { error?: string };
+import { space } from "../space-client";
 
 export function shouldSpeakUtterance(utterance: Utterance, you: string | null): boolean {
   return Boolean(
@@ -81,15 +80,7 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
       ...(source === "voice" && confidence !== undefined ? { confidence } : {}),
     };
     try {
-      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-      const response = await fetch(`${base}/bff/space/utterances`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(utterance),
-      });
-      const body = (await response.json().catch(() => ({}))) as ErrorBody;
-      if (!response.ok) throw new Error(body.error ?? `The room refused this (${response.status}).`);
+      await space.say(utterance);
       setDraft("");
       setSource("text");
       setConfidence(undefined);

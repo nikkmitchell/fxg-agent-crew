@@ -5,6 +5,7 @@ import { Identity } from "./Identity";
 import type { Session } from "./use-session";
 import { groupByLineage } from "./lineage";
 import type { Membership } from "./membership";
+import { base } from "./router";
 
 export type Actor = {
   username: string;
@@ -474,7 +475,7 @@ export function People({
                 <ul className="person-tasks">
                   {actor.owns.slice(0, 6).map((task) => (
                     <li key={task.id}>
-                      <a href={`${import.meta.env.BASE_URL}board#task-${task.id}`}>{task.title}</a>
+                      <a href={`${base}/board#task-${task.id}`}>{task.title}</a>
                       <span>{task.status.replace("_", " ")}</span>
                     </li>
                   ))}

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { ApiError, requestJson } from "./api-request";
+import { base } from "./router";
 
 type BuildInfo = {
   commit: string | null;
@@ -27,18 +29,19 @@ export function BuildPanel() {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch(`${import.meta.env.BASE_URL}bff/build`, { credentials: "include" });
-        if (response.status === 401) {
-          if (!cancelled) setState("signed_out");
-          return;
-        }
-        if (!response.ok) throw new Error(String(response.status));
-        const body = (await response.json()) as BuildInfo;
+        // Through the shared client: it already turns a 401 into an ApiError
+        // carrying the status, which is the only thing this needed a raw fetch
+        // for.
+        const body = await requestJson<BuildInfo>(`${base}/bff/build`);
         if (!cancelled) {
           setInfo(body);
           setState("ready");
         }
-      } catch {
+      } catch (cause) {
+        if (cause instanceof ApiError && cause.status === 401) {
+          if (!cancelled) setState("signed_out");
+          return;
+        }
         if (!cancelled) setState("error");
       }
     })();

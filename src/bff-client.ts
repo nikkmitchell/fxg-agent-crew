@@ -1,47 +1,16 @@
-import type { BffError, LoginRequest, MeResponse, MessagePage, RoomDetail, RoomSummary } from "../shared/contracts";
+import type { LoginRequest, MeResponse, MessagePage, RoomDetail, RoomSummary } from "../shared/contracts";
+import { requestJson } from "./api-request";
+import { base } from "./router";
 
-type ErrorBody = BffError & { code?: string };
-
-const bffRoot = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/bff`;
-
-export class BffRequestError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly code: string,
-    readonly reauth: boolean,
-  ) {
-    super(message);
-    this.name = "BffRequestError";
-  }
-
-  get retryable(): boolean {
-    return this.code === "UPSTREAM_UNAVAILABLE" || this.status >= 500;
-  }
-}
-
-async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    credentials: "same-origin",
-    headers: {
-      ...(init.body ? { "content-type": "application/json" } : {}),
-      ...init.headers,
-    },
-  });
-
-  const body = await response.json().catch(() => undefined) as T | ErrorBody | undefined;
-  if (!response.ok) {
-    const error = body as ErrorBody | undefined;
-    throw new BffRequestError(
-      error?.error ?? `request failed (${response.status})`,
-      response.status,
-      error?.code ?? (response.status === 401 ? "SESSION_EXPIRED" : "UNKNOWN"),
-      error?.reauth ?? false,
-    );
-  }
-  return body as T;
-}
+/**
+ * The WebHarness half of saha.ing's API: who you are, which rooms you are in,
+ * and what was said in them. Every one of these is a proxy — the server holds
+ * your WebHarness token and this never sees it.
+ *
+ * The request core and the error type are shared with `board-client`; see
+ * `api-request.ts` for why there used to be two of each.
+ */
+const bffRoot = `${base}/bff`;
 
 export const bff = {
   me: (signal?: AbortSignal) => requestJson<MeResponse>(`${bffRoot}/me`, { signal }),

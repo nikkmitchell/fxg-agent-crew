@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { bff } from "./bff-client";
 
 export type Session = { username: string; kind?: "human" | "agent" };
 
@@ -16,9 +17,10 @@ export function useSession(): Session | null {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch(`${import.meta.env.BASE_URL}bff/me`, { credentials: "include" });
-        if (!response.ok) return;
-        const body = (await response.json()) as Session;
+        // `bff.me()` rather than a fetch of the same URL: one client, one
+        // error type, and the response shape comes from shared/contracts.ts
+        // instead of a cast written here.
+        const body = await bff.me();
         if (!cancelled) setSession(body);
       } catch {
         // Offline or upstream down. Staying null renders "not signed in", which

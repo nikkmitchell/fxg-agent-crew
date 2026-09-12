@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Html } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { base } from "../router";
+import { ApiError } from "../api-request";
+import { space } from "../space-client";
 import { facingArc, placementRefusal } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
 
@@ -205,16 +206,14 @@ export function Movable({
 /** Tell the server where a panel went. Returns a refusal sentence, or null. */
 export async function savePlacement(place: Placement): Promise<string | null> {
   try {
-    const response = await fetch(`${base}/bff/space/panels/${encodeURIComponent(place.id)}/place`, {
-      method: "PUT",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ position: place.position, rotationY: place.rotationY }),
-    });
-    if (response.ok) return null;
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
-    return body.error ?? `The room would not put it there (${response.status}).`;
-  } catch {
-    return "That move did not reach the room, so nobody else will see it.";
+    await space.placePanel(place);
+    return null;
+  } catch (cause) {
+    // The server's refusal says which rule was broken and is worth showing;
+    // anything else means the move never arrived, which is a different thing
+    // to tell somebody.
+    return cause instanceof ApiError
+      ? cause.message
+      : "That move did not reach the room, so nobody else will see it.";
   }
 }

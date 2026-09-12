@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { LoginRequest } from "../shared/contracts";
-import { bff, BffRequestError } from "./bff-client";
+import { bff } from "./bff-client";
+import { ApiError } from "./api-request";
 import { initialConnectionState, reduceConnection } from "./connection-state";
+import { backoff } from "./backoff";
 
-export const retryDelay = (attempt: number) => Math.min(1_000 * 2 ** Math.max(0, attempt - 1), 15_000);
+/**
+ * A long poll that has been failing for a minute is rarely fixed by another
+ * second, so this backs off further than the room's socket does.
+ */
+export const retryDelay = (attempt: number) => backoff(attempt, 15_000);
 
 /**
  * A floor on how often we may ask for messages.
@@ -24,7 +30,7 @@ export const retryDelay = (attempt: number) => Math.min(1_000 * 2 ** Math.max(0,
  */
 export const MIN_POLL_INTERVAL_MS = 500;
 
-const errorCode = (error: unknown) => error instanceof BffRequestError ? error.code : "UPSTREAM_UNAVAILABLE";
+const errorCode = (error: unknown) => error instanceof ApiError ? error.code : "UPSTREAM_UNAVAILABLE";
 
 const waitForRetry = (delay: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
   const timer = window.setTimeout(resolve, delay);
@@ -123,7 +129,7 @@ export function useWebharnessRoom() {
           if (controller.signal.aborted) return;
           const code = errorCode(error);
           dispatch({ type: "POLL_FAILED", code });
-          if (!(error instanceof BffRequestError) || !error.retryable) return;
+          if (!(error instanceof ApiError) || !error.retryable) return;
           attempt += 1;
           await waitForRetry(retryDelay(attempt), controller.signal).catch(() => undefined);
         }

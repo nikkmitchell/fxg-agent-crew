@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Transcript } from "./space/Transcript";
-import { base } from "./router";
+import { space } from "./space-client";
 import type { Utterance } from "../shared/voice";
 
 /**
@@ -27,16 +27,12 @@ export function SaidPanel() {
     let stopped = false;
     const read = async () => {
       try {
-        const response = await fetch(`${base}/bff/space/utterances?limit=${KEEP}`, {
-          credentials: "same-origin",
-        });
-        if (!response.ok) throw new Error(String(response.status));
-        const body = (await response.json()) as { utterances?: Utterance[] };
+        const body = await space.said(KEEP);
         if (stopped) return;
         setFailed(false);
         // Oldest first: the server hands back newest-first because that is the
         // cheap query, and a conversation reads downward.
-        setHeard([...(body.utterances ?? [])].reverse());
+        setHeard([...body.utterances].reverse());
       } catch {
         // KEEP WHAT WE HAVE and say the reading stopped. Blanking the panel on
         // one failed poll would look like everybody had gone quiet, which is a

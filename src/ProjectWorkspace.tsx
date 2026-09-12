@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { currentProject, useCurrentProject } from "./current-project";
 import type { CrewProject, CrewTask } from "./event-core";
-import type { Tab } from "./router";
+import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
 import { BOARD_COLUMNS, calculateProjectProgress } from "./project-model";
@@ -9,9 +9,11 @@ import { byPriority, nextUnclaimed, priorityLabel } from "./priority";
 import { ROLES, canManageMembership, membersOf, type Membership, type Role } from "./membership";
 import { Identity } from "./Identity";
 import type { ActorProfile } from "./profiles";
-import { BoardError, board, toCrewProject, toCrewTask, toProfile } from "./board-client";
+import { board, toCrewProject, toCrewTask, toProfile } from "./board-client";
 import { MoodBoard, type Board } from "./MoodBoard";
 import { briefBudget, describeBudget } from "../shared/message-budget";
+import { ApiError } from "./api-request";
+import { bff } from "./bff-client";
 
 
 type ProjectState = {
@@ -23,28 +25,6 @@ type ProjectState = {
 };
 type Me = { username: string; kind?: "human" | "agent" };
 
-/** An error that kept the server's machine-readable code, not just its prose. */
-class RequestFailed extends Error {
-  constructor(message: string, readonly code?: string) {
-    super(message);
-    this.name = "RequestFailed";
-  }
-}
-
-async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    // The code is retained so callers can distinguish "you are signed out"
-    // from "this failed". Matching on the prose would break the moment the
-    // wording changed.
-    throw new RequestFailed(
-      typeof body.error === "string" ? body.error : `Request failed (${response.status})`,
-      typeof body.code === "string" ? body.code : undefined,
-    );
-  }
-  return body as T;
-}
 
 /**
  * The brief editor, which knows what it can actually save.
@@ -158,7 +138,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       const [list, people, current] = await Promise.all([
         board.projects(),
         board.people(),
-        json<Me>(`${import.meta.env.BASE_URL}bff/me`),
+        bff.me(),
       ]);
       // One project's cards are fetched with the project, so switching projects
       // is one request rather than a re-fold of everything.
@@ -186,7 +166,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       setStale(false);
       hasLoadedRef.current = true;
     } catch (cause) {
-      const code = cause instanceof RequestFailed ? cause.code : undefined;
+      const code = cause instanceof ApiError ? cause.code : undefined;
       if (code === "SESSION_EXPIRED") {
         setSignedOut(true);
         setError("");
@@ -325,7 +305,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       // The server's refusal is a sentence, not a code. Keeping it is the
       // difference between "you are not a member of saha; treat this as a
       // request pending a manager" and "Could not save".
-      setError(cause instanceof BoardError ? cause.message : cause instanceof Error ? cause.message : "Could not save");
+      setError(cause instanceof ApiError ? cause.message : cause instanceof Error ? cause.message : "Could not save");
     } finally {
       setBusy(false);
     }
@@ -766,7 +746,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                     // so jumping to a card is linkable and survives a refresh
                     // like every other location in this app.
                     setSelectedId(selected.id);
-                    const target = `${import.meta.env.BASE_URL}board#task-${entry.taskId}`;
+                    const target = `${base}/board#task-${entry.taskId}`;
                     window.history.pushState({}, "", target);
                     window.dispatchEvent(new PopStateEvent("popstate"));
                   }}
@@ -801,7 +781,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
               // "everything is taken" is a real answer rather than a blank.
               const next = nextUnclaimed(tasks);
               return next ? (
-                <a className="next-up" href={`${import.meta.env.BASE_URL}board#task-${next.id}`}>
+                <a className="next-up" href={`${base}/board#task-${next.id}`}>
                   Next unclaimed: <b>{next.title}</b>
                   {next.priority !== undefined ? <span> · {priorityLabel(next.priority)}</span> : <span> · untriaged</span>}
                 </a>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { DEFAULT_OPEN_PANELS, STATIONS } from "../../shared/space-layout";
-import { base } from "../router";
+import { ApiError } from "../api-request";
+import { space } from "../space-client";
 
 /**
  * Which panels you have open, as the server knows it.
@@ -43,10 +44,8 @@ export function usePanelChoices(enabled: boolean): PanelChoices {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch(`${base}/bff/space/panels`, { credentials: "same-origin" });
-        if (!response.ok) return;
-        const body = (await response.json()) as { open?: unknown };
-        if (!cancelled && Array.isArray(body.open)) setOpenState(body.open as string[]);
+        const body = await space.panels();
+        if (!cancelled) setOpenState(body.open);
       } catch {
         // Keep the defaults. A room showing everything is a better failure than
         // a room showing nothing, and the panels themselves say when they are
@@ -68,25 +67,17 @@ export function usePanelChoices(enabled: boolean): PanelChoices {
     );
     void (async () => {
       try {
-        const response = await fetch(`${base}/bff/space/panels/${encodeURIComponent(id)}`, {
-          method: "PUT",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ open: next }),
-        });
-        const body = (await response.json().catch(() => ({}))) as {
-          open?: unknown;
-          error?: string;
-        };
-        if (!response.ok) {
-          setOpenState(before);
-          setRefusal(body.error ?? "The room would not change that.");
-          return;
-        }
-        if (Array.isArray(body.open)) setOpenState(body.open as string[]);
-      } catch {
+        const body = await space.setPanelOpen(id, next);
+        setOpenState(body.open);
+      } catch (cause) {
         setOpenState(before);
-        setRefusal("That change did not reach the room, so nothing was saved.");
+        // The server's refusal is a sentence written for a person; an
+        // ApiError carries it verbatim. Anything else never reached the room.
+        setRefusal(
+          cause instanceof ApiError
+            ? cause.message
+            : "That change did not reach the room, so nothing was saved.",
+        );
       }
     })();
   }, [open]);

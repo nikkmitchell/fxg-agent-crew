@@ -8,6 +8,9 @@ import type {
 } from "../../shared/space-wire";
 import type { Utterance } from "../../shared/voice";
 import type { Vec3 } from "../../shared/space-layout";
+import { base } from "../router";
+import { backoff } from "../backoff";
+import { space } from "../space-client";
 
 /**
  * The room's connection.
@@ -66,13 +69,15 @@ export type SpaceConnection = {
 const HEARD_LIMIT = 60;
 
 const socketUrl = (): string => {
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.host}${base}/bff/space/socket`;
 };
 
-/** Backoff, capped. A tab left open overnight must not hammer the server. */
-const retryDelayMs = (attempt: number) => Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5));
+/**
+ * Backoff, capped low: somebody is standing in a room waiting for this to come
+ * back. `attemptRef` counts retries already made, so the first one is number 1.
+ */
+const retryDelayMs = (retriesSoFar: number) => backoff(retriesSoFar + 1, 30_000);
 
 export function useSpaceSocket(enabled: boolean): SpaceConnection {
   const [status, setStatus] = useState<SpaceStatus>({ state: "connecting" });
@@ -227,12 +232,8 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
      */
     void (async () => {
       try {
-        const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-        const response = await fetch(`${base}/bff/space/utterances?limit=${HEARD_LIMIT}`, {
-          credentials: "same-origin",
-        });
-        if (!response.ok || disposed) return;
-        const { utterances } = (await response.json()) as { utterances: Utterance[] };
+        const { utterances } = await space.said(HEARD_LIMIT);
+        if (disposed) return;
         setHeard((live) => {
           const seen = new Set(live.map((one) => one.id));
           return [...utterances.filter((one) => !seen.has(one.id)), ...live]

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { base } from "../router";
+import { bff } from "../bff-client";
+import { space } from "../space-client";
 import { WRIST_BUTTON, WristButton } from "./Backdrop";
 import { createSpeechInput, speechCapabilities, type SpeechInput } from "./speech";
 import { planVoice, type VoiceDestination } from "./voice-routing";
@@ -113,27 +114,15 @@ export function RoomControls({
     for (const item of plan.posts) {
       try {
         if (item.to === "room") {
-          const response = await fetch(`${base}/bff/space/utterances`, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              say: item.say,
-              source: "voice",
-              ...(item.confidence !== undefined ? { confidence: item.confidence } : {}),
-            }),
+          await space.say({
+            say: item.say,
+            source: "voice",
+            ...(item.confidence !== undefined ? { confidence: item.confidence } : {}),
           });
-          if (!response.ok) failures.push("the room");
         } else if (!room) {
           failures.push("the group chat (no room)");
         } else {
-          const response = await fetch(`${base}/bff/rooms/${encodeURIComponent(room)}/messages`, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ content: item.content }),
-          });
-          if (!response.ok) failures.push("the group chat");
+          await bff.sendMessage(room, item.content);
         }
       } catch {
         failures.push(item.to === "room" ? "the room" : "the group chat");

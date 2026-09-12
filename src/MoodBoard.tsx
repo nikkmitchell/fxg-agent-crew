@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { readableInk } from "./avatar";
-import { BoardError, board } from "./board-client";
+import { board } from "./board-client";
+import { ApiError } from "./api-request";
 
 /**
  * A mood board.
@@ -125,7 +126,7 @@ export function MoodBoard({ board: model, canEdit, onChanged }: {
       await work();
       onChanged();
     } catch (cause) {
-      setError(cause instanceof BoardError ? cause.message : "That did not save.");
+      setError(cause instanceof ApiError ? cause.message : "That did not save.");
     } finally {
       setBusy(false);
     }
