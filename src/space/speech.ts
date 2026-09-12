@@ -119,7 +119,15 @@ export function createSpeechInput(options: {
   };
 
   return {
-    start: () => { if (!disposed) recognition.start(); },
+    start: () => {
+      if (disposed) return;
+      try {
+        recognition.start();
+      } catch {
+        options.onFailure(recognitionFailure("start-failed"));
+        options.onPhase("idle");
+      }
+    },
     stop: () => { if (!disposed) recognition.stop(); },
     dispose: () => {
       disposed = true;
@@ -158,14 +166,20 @@ export function speakSay(options: {
     });
     options.onPhase("idle");
   };
-  scope.speechSynthesis.speak(utterance);
+  try {
+    scope.speechSynthesis.speak(utterance);
+  } catch {
+    utterance.onerror?.({ error: "synthesis-failed" });
+  }
   return {
     cancel: () => {
+      if (cancelled) return;
       cancelled = true;
       utterance.onstart = null;
       utterance.onend = null;
       utterance.onerror = null;
       scope.speechSynthesis?.cancel();
+      options.onPhase("idle");
     },
   };
 }

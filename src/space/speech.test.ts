@@ -24,6 +24,52 @@ class FakeUtterance {
 }
 
 describe("browser speech boundary", () => {
+  it("reports a synchronous microphone start failure without throwing", () => {
+    const failure = vi.fn();
+    const phase = vi.fn();
+    const input = createSpeechInput({
+      scope: { webkitSpeechRecognition: FakeRecognition as any },
+      onPhase: phase, onInterim: vi.fn(), onFinal: vi.fn(), onFailure: failure,
+    });
+    FakeRecognition.latest.start.mockImplementation(() => { throw new Error("unavailable"); });
+    expect(() => input?.start()).not.toThrow();
+    expect(failure).toHaveBeenCalledOnce();
+    expect(phase).toHaveBeenLastCalledWith("idle");
+  });
+
+  it("clears speaking on cancellation even when the browser sends no end event", () => {
+    const phase = vi.fn();
+    let utterance: FakeUtterance;
+    const output = speakSay({
+      say: "Reply",
+      scope: {
+        SpeechSynthesisUtterance: FakeUtterance as any,
+        speechSynthesis: { speak: (item) => { utterance = item as FakeUtterance; }, cancel: vi.fn() },
+      },
+      onPhase: phase, onFailure: vi.fn(),
+    });
+    utterance!.onstart?.();
+    output?.cancel();
+    expect(phase.mock.calls).toEqual([["speaking"], ["idle"]]);
+    output?.cancel();
+    expect(phase).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports synchronous playback failure while retaining text fallback", () => {
+    const failure = vi.fn();
+    const phase = vi.fn();
+    expect(() => speakSay({
+      say: "Reply",
+      scope: {
+        SpeechSynthesisUtterance: FakeUtterance as any,
+        speechSynthesis: { speak: () => { throw new Error("unavailable"); }, cancel: vi.fn() },
+      },
+      onPhase: phase, onFailure: failure,
+    })).not.toThrow();
+    expect(failure).toHaveBeenCalledOnce();
+    expect(phase).toHaveBeenLastCalledWith("idle");
+  });
+
   it("reports recognition and synthesis independently", () => {
     expect(speechCapabilities({})).toEqual({ recognition: false, synthesis: false });
     expect(speechCapabilities({ webkitSpeechRecognition: FakeRecognition as any })).toEqual({
