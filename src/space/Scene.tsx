@@ -5,6 +5,7 @@ import {
   ROOM,
   STATIONS,
   WALK_SPEED,
+  facingFor,
   type Vec3,
 } from "../../shared/space-layout";
 import { base } from "../router";
@@ -187,11 +188,14 @@ function Me({
   connection,
   reducedMotion,
   active,
+  openPanels,
 }: {
   connection: SpaceConnection;
   reducedMotion: boolean;
   /** False in a headset session: the player's own body steers then, not WASD. */
   active: boolean;
+  /** What this person has open, which decides which way they arrive facing. */
+  openPanels: string[];
 }) {
   const { camera, gl, invalidate } = useThree();
   const held = useRef(new Set<string>());
@@ -202,13 +206,24 @@ function Me({
     [connection.send],
   );
 
+  // ONLY ON ARRIVAL, which is why `openPanels` is read through a ref rather
+  // than listed as a dependency. Closing a panel while you are standing there
+  // must not spin you round to re-centre what is left; being turned by the room
+  // while you are looking at something is disorienting in a window and
+  // genuinely unpleasant in a headset.
+  const panelsOnArrival = useRef(openPanels);
+  panelsOnArrival.current = openPanels;
+  const arrived = useRef(false);
   useEffect(() => {
+    if (arrived.current) return;
+    arrived.current = true;
     camera.position.set(ROOM.spawn.x, EYE_HEIGHT, ROOM.spawn.z);
-    // Facing the task board on the far wall, which is where a newcomer should
-    // be looking. A three.js camera looks down -Z at yaw 0, and the board is at
-    // negative Z, so 0 is the answer — the first version used Math.PI and put
-    // every newcomer's nose against the back wall.
-    yaw.current = 0;
+    // Facing the middle of whatever this person has open. A three.js camera
+    // looks down -Z at yaw 0, which is straight up the arc, so a full set of
+    // panels leaves this at 0 — but somebody who has closed everything except
+    // the panel at one end would otherwise arrive looking at empty space with
+    // their one panel off the edge of the screen.
+    yaw.current = facingFor(panelsOnArrival.current);
     camera.rotation.set(0, yaw.current, 0, "YXZ");
   }, [camera]);
 
@@ -377,6 +392,7 @@ export default function Scene({
   comfort,
   onImmersiveChange,
   inHeadset,
+  openPanels,
 }: {
   connection: SpaceConnection;
   reducedMotion: boolean;
@@ -384,6 +400,8 @@ export default function Scene({
   onImmersiveChange: (inSession: boolean) => void;
   /** True once a headset session is live. */
   inHeadset: boolean;
+  /** The panel ids this person has open. Everything else is not drawn at all. */
+  openPanels: string[];
 }) {
   const you = connection.status.state === "open" ? connection.status.you : null;
 
@@ -421,20 +439,22 @@ export default function Scene({
           they are not there. DOM is not composited into an immersive frame, so
           leaving them mounted would keep three copies of the app running to
           draw nothing, and leaving the spaces empty told nobody anything. */}
-        {inHeadset
-          ? // Photographs of the same pages, taken on the server. The live panels
-            // are DOM and a session draws 3D only.
-            Object.values(STATIONS).map((station) => (
-              <StillPanel
-                key={station.id}
-                station={station}
-                base={base}
-                active={inHeadset}
-              />
-            ))
-          : Object.values(STATIONS).map((station) => (
+        {/* ONLY WHAT YOU HAVE OPEN, and unmounted rather than hidden: a live
+          panel is an iframe running the whole app, and three of those drawing
+          nothing behind a `visible={false}` is the same waste as leaving them
+          up in a headset. */}
+        {openPanels
+          .map((id) => STATIONS[id])
+          .filter((station) => station !== undefined)
+          .map((station) =>
+            inHeadset ? (
+              // Photographs of the same pages, taken on the server. The live
+              // panels are DOM and a session draws 3D only.
+              <StillPanel key={station.id} station={station} base={base} active={inHeadset} />
+            ) : (
               <WebPanel key={station.id} station={station} base={base} />
-            ))}
+            ),
+          )}
         <Crowd
           peopleRef={connection.peopleRef}
           roster={connection.roster}
@@ -446,6 +466,7 @@ export default function Scene({
           connection={connection}
           reducedMotion={reducedMotion}
           active={!inHeadset}
+          openPanels={openPanels}
         />
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
@@ -453,6 +474,7 @@ export default function Scene({
           comfort={comfort}
           send={connection.send}
           onChange={onImmersiveChange}
+          openPanels={openPanels}
         />
       </XR>
     </Canvas>

@@ -383,4 +383,33 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX utterances_to ON utterances(to_actor, id);
     `,
   },
+  {
+    id: 11,
+    name: "space panels",
+    sql: `
+      -- Which panels a person has open in the room.
+      --
+      -- PER PERSON, because nobody else's understanding of the room depends on
+      -- whether I am currently looking at the mood boards. Closing one is
+      -- tidying my own desk, not taking it off the wall.
+      --
+      -- A ROW ONLY WHERE SOMEBODY DECIDED. No row means "has never said", which
+      -- is a different fact from "wants it closed", and the defaults in
+      -- shared/space-layout.ts are what the first kind gets. Writing a full set
+      -- of rows for everyone on first sight would turn a silence into a
+      -- preference nobody expressed.
+      --
+      -- Panel POSITIONS are deliberately not here. They are shared: the server
+      -- computes where an agent walks from where its panel is, so if my copy of
+      -- the board were somewhere else than yours, one of us would watch an
+      -- agent walk to empty space and be told it had gone to the board.
+      CREATE TABLE space_panel_open (
+        actor_id TEXT NOT NULL,
+        panel_id TEXT NOT NULL,
+        open     INTEGER NOT NULL CHECK (open IN (0, 1)),
+        at       TEXT NOT NULL,
+        PRIMARY KEY (actor_id, panel_id)
+      );
+    `,
+  },
 ];

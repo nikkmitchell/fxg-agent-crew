@@ -8,7 +8,7 @@ import {
   useXRInputSourceState,
 } from "@react-three/xr";
 import * as THREE from "three";
-import { ROOM, type Vec3 } from "../../shared/space-layout";
+import { ROOM, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
 import { PassthroughButton, VoidSphere } from "./Backdrop";
@@ -50,12 +50,14 @@ export function ImmersivePlayer({
   passthrough,
   passthroughAvailable,
   onTogglePassthrough,
+  openPanels,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
   passthrough: boolean;
   passthroughAvailable: boolean;
   onTogglePassthrough: () => void;
+  openPanels: string[];
 }) {
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
@@ -89,6 +91,7 @@ export function ImmersivePlayer({
    * put through the origin's world matrix to become a room coordinate.
    */
   const originSpace = useXR((state) => state.originReferenceSpace);
+  const [arrivalFacing] = useState(() => facingFor(openPanels));
 
   useXRControllerLocomotion(
     origin,
@@ -217,7 +220,16 @@ export function ImmersivePlayer({
 
   return (
     <>
-      <XROrigin ref={origin} position={[ROOM.spawn.x, 0, ROOM.spawn.z]}>
+      {/* Turned toward whatever this person has open, for the same reason the
+        window is: arriving in a headset looking at the gap where you closed a
+        panel is worse than arriving in a window looking at it, because you
+        cannot see the settings that would tell you why. Read once, on the first
+        render of the session — the room must never turn you mid-session. */}
+      <XROrigin
+        ref={origin}
+        position={[ROOM.spawn.x, 0, ROOM.spawn.z]}
+        rotation={[0, arrivalFacing, 0]}
+      >
         <PassthroughButton
           passthrough={passthrough}
           supported={passthroughAvailable}
@@ -269,10 +281,12 @@ export function Immersive({
   comfort,
   send,
   onChange,
+  openPanels,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
   onChange: (inSession: boolean) => void;
+  openPanels: string[];
 }) {
   const session = useXR((state) => state.session);
   const mode = useXR((state) => state.mode);
@@ -296,6 +310,7 @@ export function Immersive({
       passthrough={available && passthrough}
       passthroughAvailable={available}
       onTogglePassthrough={togglePassthrough}
+      openPanels={openPanels}
     />
   ) : null;
 }

@@ -16,6 +16,7 @@ import { registerBuildRoutes } from "./routes/build.js";
 import { registerBoardRoutes } from "./routes/board.js";
 import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
 import { Activity } from "./space/activity.js";
+import { registerPanelRoutes } from "./space/panels.js";
 import { registerStillRoutes } from "./space/stills.js";
 import { registerUtteranceRoutes } from "./space/utterances.js";
 import { openDatabase } from "./db/open.js";
@@ -117,6 +118,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerBoardRoutes(scoped, config, sessions, database, config.blobRoot);
     registerSpaceRoutes(scoped, config, sessions, space);
     registerStillRoutes(scoped, config, sessions);
+    registerPanelRoutes(scoped, { database, sessions, config });
     registerUtteranceRoutes(
       scoped,
       config,

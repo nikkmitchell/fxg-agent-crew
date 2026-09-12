@@ -5,6 +5,8 @@ import { DEFAULT_COMFORT, type Comfort } from "./comfort";
 import { RoomLoading } from "./RoomLoading";
 import type { Utterance } from "../../shared/voice";
 import { VoiceControls } from "./VoiceControls";
+import { usePanelChoices } from "./usePanelChoices";
+import { ProjectChooser } from "../ProjectChooser";
 
 /**
  * The Space tab.
@@ -127,6 +129,7 @@ export function SpacePanel() {
   const [comfort, setComfort] = useState<Comfort>(DEFAULT_COMFORT);
   const [inHeadset, setInHeadset] = useState(false);
   const [headsetAvailable, setHeadsetAvailable] = useState<boolean | null>(null);
+  const panels = usePanelChoices(entered);
 
   /**
    * Is there a headset to enter?
@@ -255,6 +258,7 @@ export function SpacePanel() {
             comfort={comfort}
             onImmersiveChange={setInHeadset}
             inHeadset={inHeadset}
+            openPanels={panels.open}
           />
         </Suspense>
         {/* Connecting gets the big treatment too: until the socket is open the
@@ -304,6 +308,32 @@ export function SpacePanel() {
         <Transcript heard={connection.heard} />
 
         <VoiceControls connection={connection} />
+
+        {/* WHAT IS ON THE ARC, and which project it is showing.
+            Both live here rather than on a settings page because in this room
+            the panels ARE the tabs: closing one or changing project changes
+            what is hanging in front of you, and walking out to a settings page
+            to do it is the errand a space is supposed to remove. */}
+        <section className="space-panel-picker">
+          <h2>Panels</h2>
+          <p className="muted-note">
+            Yours alone — closing one does not take it off anybody else's arc. Where each panel
+            hangs is shared, because an agent walks to a panel's actual position.
+          </p>
+          {panels.catalogue.map((panel) => (
+            <label key={panel.id} className="space-setting">
+              <input
+                type="checkbox"
+                checked={panels.open.includes(panel.id)}
+                onChange={(event) => panels.setOpen(panel.id, event.currentTarget.checked)}
+              />
+              <span>{panel.label}</span>
+            </label>
+          ))}
+          {panels.refusal ? <p role="status">{panels.refusal}</p> : null}
+        </section>
+
+        <ProjectChooser />
 
         <h2>In the room</h2>
         <label className="space-setting">

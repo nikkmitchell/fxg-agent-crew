@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { DESK_CAPACITY, ROOM, STATIONS, deskFor } from "./space-layout";
+import {
+  DEFAULT_OPEN_PANELS,
+  DESK_CAPACITY,
+  ROOM,
+  STATIONS,
+  deskFor,
+  facingFor,
+} from "./space-layout";
 
 /**
  * The layout has to agree with itself.
@@ -49,5 +56,78 @@ describe("every fixed position is somewhere a person can actually stand", () => 
       const gap = Math.hypot(at.x - ROOM.spawn.x, at.z - ROOM.spawn.z);
       expect(gap, `desk for actor-${i} is ${gap.toFixed(2)}m from the spawn point`).toBeGreaterThan(0.8);
     }
+  });
+});
+
+describe("the panel arc", () => {
+  it("spaces panels far enough apart that they do not overlap", () => {
+    const places = Object.values(STATIONS).map((station) => station.surface.position);
+    for (let i = 1; i < places.length; i += 1) {
+      const gap = Math.hypot(places[i].x - places[i - 1].x, places[i].z - places[i - 1].z);
+      // Centre to centre must clear the panel width, or two panels intersect
+      // and the room shows you a seam instead of a board.
+      expect(gap).toBeGreaterThan(4.2);
+    }
+  });
+
+  it("turns every panel to face the person standing in front of it", () => {
+    for (const station of Object.values(STATIONS)) {
+      const { position, rotationY } = station.surface;
+      // A plane with no rotation faces +z, so its normal is (sin ry, cos ry).
+      const normal = { x: Math.sin(rotationY), z: Math.cos(rotationY) };
+      const toStand = {
+        x: station.stand.x - position.x,
+        z: station.stand.z - position.z,
+      };
+      const length = Math.hypot(toStand.x, toStand.z);
+      const alignment = (normal.x * toStand.x + normal.z * toStand.z) / length;
+      expect(alignment).toBeCloseTo(1, 5);
+    }
+  });
+
+  it("puts the place you stand between the panel and the spawn point", () => {
+    for (const station of Object.values(STATIONS)) {
+      const panelToSpawn = Math.hypot(
+        ROOM.spawn.x - station.surface.position.x,
+        ROOM.spawn.z - station.surface.position.z,
+      );
+      const standToSpawn = Math.hypot(
+        ROOM.spawn.x - station.stand.x,
+        ROOM.spawn.z - station.stand.z,
+      );
+      expect(standToSpawn).toBeLessThan(panelToSpawn);
+    }
+  });
+
+  it("offers every catalogue panel by default", () => {
+    expect([...DEFAULT_OPEN_PANELS].sort()).toEqual(Object.keys(STATIONS).sort());
+  });
+});
+
+describe("which way you face on arrival", () => {
+  it("looks up the middle of the arc when everything is open", () => {
+    expect(facingFor(DEFAULT_OPEN_PANELS)).toBeCloseTo(0, 6);
+  });
+
+  it("turns toward a single panel rather than leaving it off the edge", () => {
+    for (const id of Object.keys(STATIONS)) {
+      const yaw = facingFor([id]);
+      // Face the panel: rotating the -Z axis by this yaw should point at it.
+      const heading = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
+      const toPanel = {
+        x: STATIONS[id].surface.position.x - ROOM.spawn.x,
+        z: STATIONS[id].surface.position.z - ROOM.spawn.z,
+      };
+      const length = Math.hypot(toPanel.x, toPanel.z);
+      expect((heading.x * toPanel.x + heading.z * toPanel.z) / length).toBeCloseTo(1, 5);
+    }
+  });
+
+  it("faces forward rather than anywhere arbitrary when nothing is open", () => {
+    expect(facingFor([])).toBe(0);
+  });
+
+  it("ignores a panel id it does not recognise instead of steering by it", () => {
+    expect(facingFor(["people", "whiteboard"])).toBeCloseTo(facingFor(["people"]), 6);
   });
 });

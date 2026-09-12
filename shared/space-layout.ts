@@ -52,37 +52,128 @@ export const ROOM = {
 } as const;
 
 /**
- * A shallow arc of three panels, all facing the spawn point.
+ * A shallow arc of panels, all facing the spawn point.
  *
  * Angled inward rather than laid flat on imaginary walls: with nothing else in
  * the scene, a panel you are looking at edge-on is simply gone, and there is no
  * room geometry left to tell you it is there.
+ *
+ * COMPUTED RATHER THAN TYPED OUT, since the fourth panel arrived. Three
+ * hand-placed positions were fine; four meant re-deriving all of them by hand
+ * and getting the spacing wrong, and a fifth would mean doing it again. The arc
+ * below spaces whatever is in the catalogue evenly and turns each panel to face
+ * the person standing at the focus.
  */
-const PANEL = { width: 4.2, height: 2.6 } as const;
+const PANEL = { width: 4.0, height: 2.5 } as const;
 
-export const STATIONS: Record<string, Station> = {
-  taskBoard: {
-    id: "taskBoard",
-    stand: { x: 0, y: 0, z: 2.2 },
-    surface: { position: { x: 0, y: 1.65, z: -1.2 }, ...PANEL, rotationY: 0 },
-    label: "Board",
-    tab: "board",
-  },
-  moodBoard: {
-    id: "moodBoard",
-    stand: { x: -4.2, y: 0, z: 2.4 },
-    surface: { position: { x: -5.1, y: 1.65, z: 0.6 }, ...PANEL, rotationY: 0.52 },
-    label: "Mood boards",
-    tab: "mood",
-  },
-  people: {
-    id: "people",
-    stand: { x: 4.2, y: 0, z: 2.4 },
-    surface: { position: { x: 5.1, y: 1.65, z: 0.6 }, ...PANEL, rotationY: -0.52 },
-    label: "People",
-    tab: "people",
-  },
-};
+/**
+ * The circle the panels hang on.
+ *
+ * The focus sits just in front of the spawn point rather than on it, so the
+ * outermost panels are beside you rather than behind you. The radius is the
+ * reading distance: closer and the centre panel fills your view, further and
+ * the text on it stops being legible in a headset.
+ *
+ * THE SPREAD IS THE COMPROMISE, and it is worth saying which way it falls.
+ * Four panels wide enough to read cannot all sit within one view: fitting them
+ * means pushing them far enough away that the text goes. So the two inner
+ * panels are in front of you and the outer two are a head-turn to either side.
+ * That is right in a headset, where turning your head costs nothing and is most
+ * of what a room is for, and it is why the flat view lets you drag to look.
+ * Somebody who would rather have fewer, closer panels closes one.
+ */
+const ARC = { focus: { x: 0, z: 5.2 }, radius: 7.0, spread: (120 * Math.PI) / 180 } as const;
+
+/** How far in front of its panel somebody stands to attend to it. */
+const STAND_BACK = 1.8;
+
+/**
+ * One panel's place on the arc, by its position in the catalogue.
+ *
+ * `turn` is measured from straight ahead, negative to the left. A panel facing
+ * the focus has `rotationY = -turn`, because a plane with no rotation faces +z
+ * and the focus is at +z from every panel on the arc.
+ */
+export function arcPlacement(index: number, count: number): {
+  surface: Station["surface"];
+  stand: Vec3;
+} {
+  // A single panel goes straight ahead rather than at one end of nothing.
+  const turn = count < 2 ? 0 : -ARC.spread / 2 + (ARC.spread * index) / (count - 1);
+  const x = ARC.focus.x + ARC.radius * Math.sin(turn);
+  const z = ARC.focus.z - ARC.radius * Math.cos(turn);
+  // Toward the focus, which is also the direction the panel faces.
+  const toward = { x: Math.sin(turn) * -1, z: Math.cos(turn) };
+  return {
+    surface: { position: { x, y: 1.65, z }, ...PANEL, rotationY: -turn },
+    stand: { x: x + toward.x * STAND_BACK, y: 0, z: z + toward.z * STAND_BACK },
+  };
+}
+
+/**
+ * Every panel this room knows how to show, left to right along the arc.
+ *
+ * ORDER IS POSITION, so this list is not alphabetical and should not be sorted.
+ * The Board sits nearest the middle because it is the thing people come here to
+ * look at; Chat is at one end because you talk while facing the room rather
+ * than while reading.
+ */
+const CATALOGUE: { id: string; label: string; tab: string }[] = [
+  { id: "moodBoard", label: "Mood boards", tab: "mood" },
+  { id: "taskBoard", label: "Board", tab: "board" },
+  { id: "people", label: "People", tab: "people" },
+  { id: "chat", label: "Chat", tab: "chat" },
+];
+
+export const STATIONS: Record<string, Station> = Object.fromEntries(
+  CATALOGUE.map((entry, index) => [
+    entry.id,
+    { ...entry, ...arcPlacement(index, CATALOGUE.length) } satisfies Station,
+  ]),
+);
+
+/**
+ * Which panels a person sees when they have never said otherwise.
+ *
+ * All of them. A room that starts half empty makes you go and find a settings
+ * page before it shows you anything, and the whole point of the arc is that
+ * what you need is already in front of you.
+ */
+export const DEFAULT_OPEN_PANELS: string[] = CATALOGUE.map((entry) => entry.id);
+
+/**
+ * Which way to face on arrival, given what this person has open.
+ *
+ * The arc is shared and fixed, so somebody who closes everything except the
+ * panel at one end of it would otherwise arrive looking at the middle of an
+ * empty room with their one panel off the edge of the screen. Turning to face
+ * the middle of what they actually have open costs nothing and removes the
+ * whole class of "I closed things and now there is nothing there".
+ *
+ * Yaw in the three.js sense: a camera at yaw 0 looks down -Z, which is straight
+ * up the middle of the arc, so a full set of panels returns 0.
+ */
+export function facingFor(openPanelIds: string[], from: Vec3 = ROOM.spawn): number {
+  const open = openPanelIds.map((id) => STATIONS[id]).filter((station) => station !== undefined);
+  if (open.length === 0) return 0;
+  // The mean of the directions rather than the direction of the mean: two
+  // panels either side of you average to a point between them, which is
+  // correct, but averaging positions of panels at very different distances
+  // would lean toward the far one for no reason.
+  let x = 0;
+  let z = 0;
+  for (const station of open) {
+    const dx = station.surface.position.x - from.x;
+    const dz = station.surface.position.z - from.z;
+    const length = Math.hypot(dx, dz) || 1;
+    x += dx / length;
+    z += dz / length;
+  }
+  // atan2(x, -z): -Z is yaw 0 and +X is a positive (leftward in three's
+  // right-handed Y-up) rotation... which is to say a panel to your right needs
+  // a NEGATIVE yaw, hence the sign.
+  return Math.atan2(x, -z) * -1;
+}
 
 /**
  * Desks, assigned deterministically by actor id.
