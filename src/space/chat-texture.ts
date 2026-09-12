@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { avatarRecipe } from "../avatar";
 import type { RoomMessage } from "./useRoomFeed";
 
 /**
@@ -17,6 +18,13 @@ import type { RoomMessage } from "./useRoomFeed";
  *
  * NEWEST AT THE BOTTOM and older scrolled off the top, because a panel in a
  * headset cannot be scrolled and the useful end of a conversation is the end.
+ *
+ * ONE BUBBLE PER SPEAKER, COLOURED BY WHO THEY ARE. The colour comes from
+ * `avatarRecipe`, the same FNV-1a hash of the username that draws their mark on
+ * the People page and their figure in the room — so the colour of a message is
+ * the colour of the person, everywhere, and there is no second palette to drift
+ * out of step with the first. Never decoration: at a glance across a room, hue
+ * is the only thing that separates two speakers.
  */
 
 const WIDTH = 1024;
@@ -34,14 +42,44 @@ export type ChatPaint = {
   trouble: string | null;
 };
 
-/** Split one message body into lines that fit, longest-first, greedily. */
-function wrap(context: CanvasRenderingContext2D, text: string, width: number): string[] {
+/** A rounded rectangle path. `roundRect` is not in every engine we run in. */
+function roundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+): void {
+  const r = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.arcTo(x + width, y, x + width, y + height, r);
+  context.arcTo(x + width, y + height, x, y + height, r);
+  context.arcTo(x, y + height, x, y, r);
+  context.arcTo(x, y, x + width, y, r);
+  context.closePath();
+}
+
+/**
+ * Split one message body into lines that fit.
+ *
+ * Exported because it is the only part of the painting that can be tested
+ * without a 2D context: measuring is injected, so a test can supply a ruler
+ * that says one character is one unit. The colours and the rounded corners
+ * below are drawing code and are NOT tested — they are checked by looking.
+ */
+export function wrap(
+  measure: { measureText(text: string): { width: number } },
+  text: string,
+  width: number,
+): string[] {
   const lines: string[] = [];
   for (const paragraph of text.split("\n")) {
     let line = "";
     for (const word of paragraph.split(/\s+/)) {
       const candidate = line ? `${line} ${word}` : word;
-      if (context.measureText(candidate).width <= width || !line) line = candidate;
+      if (measure.measureText(candidate).width <= width || !line) line = candidate;
       else {
         lines.push(line);
         line = word;
@@ -90,7 +128,7 @@ export function paintChat(
     const message = paint.messages[i];
     context.font = `400 ${BODY_SIZE}px ui-sans-serif, system-ui, sans-serif`;
     const lines = wrap(context, message.content, innerWidth);
-    const height = NAME_SIZE + 6 + lines.length * LINE + GAP;
+    const height = NAME_SIZE + 6 + lines.length * LINE + GAP + 16;
     if (used + height > bottom - top) break;
     used += height;
     blocks.unshift({
@@ -104,19 +142,43 @@ export function paintChat(
 
   let y = bottom - used;
   for (const block of blocks) {
+    const recipe = avatarRecipe(block.name);
+    const height = NAME_SIZE + 6 + block.lines.length * LINE;
+    const widest = Math.max(
+      ...block.lines.map((line) => {
+        context.font = `400 ${BODY_SIZE}px ui-sans-serif, system-ui, sans-serif`;
+        return context.measureText(line).width;
+      }),
+      (() => {
+        context.font = `600 ${NAME_SIZE}px ui-sans-serif, system-ui, sans-serif`;
+        return context.measureText(`${block.name}  ${block.when}`).width;
+      })(),
+    );
+
+    // The bubble: the speaker's own paper, with their accent down the leading
+    // edge so two people with similar papers are still told apart.
+    context.fillStyle = recipe.paper;
+    roundedRect(context, PAD, y - 10, Math.min(widest + 28, innerWidth), height + 16, 12);
+    context.fill();
+    context.fillStyle = recipe.accent;
+    roundedRect(context, PAD, y - 10, 6, height + 16, 3);
+    context.fill();
+
+    const textLeft = PAD + 18;
     context.font = `600 ${NAME_SIZE}px ui-sans-serif, system-ui, sans-serif`;
-    context.fillStyle = "#1f2430";
-    context.fillText(block.name, PAD, y);
+    context.fillStyle = recipe.ink;
+    context.fillText(block.name, textLeft, y);
     const nameWidth = context.measureText(block.name).width;
     context.font = `400 ${NAME_SIZE - 3}px ui-sans-serif, system-ui, sans-serif`;
-    context.fillStyle = "#a09a8c";
-    context.fillText(block.when, PAD + nameWidth + 10, y + 2);
+    context.globalAlpha = 0.62;
+    context.fillText(block.when, textLeft + nameWidth + 10, y + 2);
+    context.globalAlpha = 1;
     y += NAME_SIZE + 6;
 
     context.font = `400 ${BODY_SIZE}px ui-sans-serif, system-ui, sans-serif`;
-    context.fillStyle = "#2b2f38";
+    context.fillStyle = recipe.ink;
     for (const line of block.lines) {
-      context.fillText(line, PAD, y);
+      context.fillText(line, textLeft, y);
       y += LINE;
     }
     y += GAP;

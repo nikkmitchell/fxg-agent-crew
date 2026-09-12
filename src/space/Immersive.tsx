@@ -11,7 +11,7 @@ import * as THREE from "three";
 import { ROOM, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
-import { PassthroughButton, VoidSphere } from "./Backdrop";
+import { VoidSphere } from "./Backdrop";
 import { WristVoice } from "./WristVoice";
 import type { ClientMessage, Pose } from "../../shared/space-wire";
 
@@ -259,24 +259,27 @@ export function ImmersivePlayer({
         panel is worse than arriving in a window looking at it, because you
         cannot see the settings that would tell you why. Read once, on the first
         render of the session — the room must never turn you mid-session. */}
+      {/* The controls used to hang off the origin here. They are on the wrist
+        now, all of them behind one button — see WristVoice. */}
       <XROrigin
         ref={origin}
         position={[ROOM.spawn.x, 0, ROOM.spawn.z]}
         rotation={[0, arrivalFacing, 0]}
-      >
-        <PassthroughButton
-          passthrough={passthrough}
-          supported={passthroughAvailable}
-          blendMode={blendMode}
-          onToggle={onTogglePassthrough}
-        />
-      </XROrigin>
+      />
       {passthrough ? null : <VoidSphere />}
       {/* The controls you need while standing in the room, on your wrist,
         because everything Inkstone built is DOM and a session shows none of
         it. Mounted whether or not the hand is tracked right now — it hides
         itself — so that it does not lose its transcript on a dropout. */}
-      <WristVoice wrist={wristLive ? wristRef.current : null} you={you} groupRoom={groupRoom} />
+      <WristVoice
+        wrist={wristLive ? wristRef.current : null}
+        you={you}
+        groupRoom={groupRoom}
+        passthrough={passthrough}
+        passthroughAvailable={passthroughAvailable}
+        blendMode={blendMode}
+        onTogglePassthrough={onTogglePassthrough}
+      />
       {/*
         The floor you can teleport onto. It is deliberately invisible: the room
         has no floor by design, and drawing one to make teleport work would put

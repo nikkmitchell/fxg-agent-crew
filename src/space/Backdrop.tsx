@@ -8,18 +8,14 @@ import { makeLabelTexture } from "./label-texture";
  * WHY THIS IS A SPHERE AND NOT A SETTING. Whether a headset shows passthrough
  * is fixed when the session starts: an `immersive-ar` session blends what the
  * cameras see behind whatever we draw, an `immersive-vr` session does not, and
- * nothing can change that without ending the session and asking again. Asking
- * again means the room disappearing and coming back, which is a horrible answer
- * to "I would rather not see my kitchen".
+ * nothing can change that without ending the session and asking again. Ending
+ * it means the room disappearing and coming back, which is a horrible answer to
+ * "I would rather not see my kitchen".
  *
  * So the session is always `immersive-ar` where the device has it, and the
  * black void is a thing we DRAW: a sphere around the room, painted on the
- * inside. Hiding it shows the kitchen; showing it is the void Nikk asked for
- * originally. The toggle is instant and costs one draw call.
- *
- * On a device with no passthrough at all the sphere changes nothing — the
- * session is black behind it either way — and the button says so rather than
- * pretending to have done something.
+ * inside. Hiding it shows the room you are in; showing it is the void. The
+ * toggle is instant and costs one draw call.
  */
 export function VoidSphere() {
   // Inside the camera's far plane (60) and outside the room's far corner
@@ -33,63 +29,45 @@ export function VoidSphere() {
 }
 
 /**
- * The switch, within reach.
+ * One button on the wrist panel.
  *
- * It hangs off the player rather than sitting somewhere in the room, because a
- * control you have to walk back to is a control you do not use. Down and to the
- * left, roughly where you would wear a watch: out of the way of the boards,
- * found by looking down.
- *
- * It is a plain mesh with an `onClick`, which in a session means a controller
- * ray or a pinch — the same gesture that works everything else, so there is
- * nothing new to learn and nothing that needs a thumbstick.
+ * A plain mesh with an `onClick`, which in a session means a controller ray or
+ * a pinch — the same gesture that works everything else, so there is nothing
+ * new to learn and nothing that needs a thumbstick.
  */
-export function PassthroughButton({
-  passthrough,
-  supported,
-  blendMode,
-  onToggle,
-}: {
-  passthrough: boolean;
-  /** False when the session is not one that can show passthrough at all. */
-  supported: boolean;
-  /** The session's own `environmentBlendMode`, printed when it says no. */
-  blendMode: string | null;
-  onToggle: () => void;
-}) {
-  const label = useMemo(() => {
-    // NAMING THE BLEND MODE WHEN IT REFUSES, because this button is the only
-    // instrument anybody has inside a headset. "No passthrough here" left Nikk
-    // and me guessing on an Aura; "this headset says: opaque" is a fact I can
-    // act on without being in the room.
-    const text = !supported
-      ? `No passthrough — this headset says: ${blendMode ?? "nothing yet"}`
-      : passthrough
-        ? "Passthrough — tap for void"
-        : "Black void — tap for passthrough";
-    return makeLabelTexture(text, { pixelsPerLine: 38, lines: 2 });
-  }, [passthrough, supported, blendMode]);
+export const WRIST_BUTTON = { width: 0.3, height: 0.075, gap: 0.012 } as const;
 
+export function WristButton({
+  label,
+  y,
+  tone = "normal",
+  onTap,
+}: {
+  label: string;
+  y: number;
+  tone?: "normal" | "muted" | "live";
+  onTap: () => void;
+}) {
+  const texture = useMemo(
+    () => makeLabelTexture(label, { pixelsPerLine: 38, lines: 2 }),
+    [label],
+  );
+  const colour = tone === "live" ? "#6f86c9" : tone === "muted" ? "#2a2f3a" : "#1b2231";
   return (
-    <group position={[-0.28, 0.95, -0.42]} rotation={[-0.5, 0.35, 0]}>
+    <group position={[0, y, 0]}>
       <mesh
         onClick={(event) => {
           event.stopPropagation();
-          if (supported) onToggle();
+          onTap();
         }}
       >
-        <planeGeometry args={[0.3, 0.075]} />
-        <meshBasicMaterial
-          color={supported ? "#1b2231" : "#2a2a2a"}
-          transparent
-          opacity={0.88}
-          side={THREE.DoubleSide}
-        />
+        <planeGeometry args={[WRIST_BUTTON.width, WRIST_BUTTON.height]} />
+        <meshBasicMaterial color={colour} transparent opacity={0.9} side={THREE.DoubleSide} />
       </mesh>
-      {label ? (
+      {texture ? (
         <mesh position={[0, 0, 0.001]} raycast={() => null}>
-          <planeGeometry args={[0.3, 0.075]} />
-          <meshBasicMaterial map={label} transparent depthWrite={false} />
+          <planeGeometry args={[WRIST_BUTTON.width, WRIST_BUTTON.height]} />
+          <meshBasicMaterial map={texture} transparent depthWrite={false} />
         </mesh>
       ) : null}
     </group>
