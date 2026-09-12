@@ -75,6 +75,7 @@ export function SpacePanel() {
   const [inHeadset, setInHeadset] = useState(false);
   const [headsetAvailable, setHeadsetAvailable] = useState<boolean | null>(null);
   const panels = usePanelChoices(entered);
+  const [panelTrouble, setPanelTrouble] = useState<string | null>(null);
 
   /**
    * Is there a headset to enter?
@@ -204,6 +205,7 @@ export function SpacePanel() {
             onImmersiveChange={setInHeadset}
             inHeadset={inHeadset}
             openPanels={panels.open}
+            onPanelTrouble={setPanelTrouble}
           />
         </Suspense>
         {/* Connecting gets the big treatment too: until the socket is open the
@@ -275,7 +277,12 @@ export function SpacePanel() {
               <span>{panel.label}</span>
             </label>
           ))}
+          <p className="muted-note">
+            Drag the bar along the top of a panel to move it. Where a panel hangs is shared: it
+            moves for everyone, and the agents that walk to it follow.
+          </p>
           {panels.refusal ? <p role="status">{panels.refusal}</p> : null}
+          {panelTrouble ? <p role="status">{panelTrouble}</p> : null}
         </section>
 
         <ProjectChooser />

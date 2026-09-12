@@ -18,6 +18,9 @@ import { WebPanel } from "./WebPanel";
 import { StillPanel } from "./StillPanel";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
+import { Movable, savePlacement } from "./Movable";
+import { defaultPlacement } from "../../shared/panel-place";
+import type { Placement } from "../../shared/space-wire";
 
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
 
@@ -391,6 +394,11 @@ function OnDemand({ connection }: { connection: SpaceConnection }) {
   return null;
 }
 
+/** Where a panel is now: the server's word, or the computed arc until it speaks. */
+function placeOf(places: Placement[], id: string): Placement {
+  return places.find((place) => place.id === id) ?? (defaultPlacement(id) as Placement);
+}
+
 export default function Scene({
   connection,
   reducedMotion,
@@ -398,6 +406,7 @@ export default function Scene({
   onImmersiveChange,
   inHeadset,
   openPanels,
+  onPanelTrouble,
 }: {
   connection: SpaceConnection;
   reducedMotion: boolean;
@@ -407,6 +416,8 @@ export default function Scene({
   inHeadset: boolean;
   /** The panel ids this person has open. Everything else is not drawn at all. */
   openPanels: string[];
+  /** Said out loud when a panel cannot go where it was dropped. */
+  onPanelTrouble: (why: string | null) => void;
 }) {
   const you = connection.status.state === "open" ? connection.status.you : null;
   // Which WebHarness room the wrist control posts into when you choose to tell
@@ -462,21 +473,32 @@ export default function Scene({
         {openPanels
           .map((id) => STATIONS[id])
           .filter((station) => station !== undefined)
-          .map((station) =>
-            !inHeadset ? (
-              <WebPanel key={station.id} station={station} base={base} />
-            ) : station.id === "chat" ? (
-              // NOT A PHOTOGRAPH. The server's renderer has no WebHarness
-              // token, so its picture of the chat is the sentence saying the
-              // room could not be read. This one is drawn from the viewer's own
-              // session — see ChatPanel3D.
-              <ChatPanel3D key={station.id} station={station} />
-            ) : (
-              // Photographs of the same pages, taken on the server. The live
-              // panels are DOM and a session draws 3D only.
-              <StillPanel key={station.id} station={station} base={base} active={inHeadset} />
-            ),
-          )}
+          .map((station) => (
+            <Movable
+              key={station.id}
+              // The server's word if it has spoken, and the computed arc until
+              // then — so the room draws itself on the first frame rather than
+              // appearing empty and filling in when the socket opens.
+              place={placeOf(connection.places, station.id)}
+              inHeadset={inHeadset}
+              onPlaced={(next) => void savePlacement(next).then(onPanelTrouble)}
+              onTrouble={onPanelTrouble}
+            >
+              {!inHeadset ? (
+                <WebPanel station={station} base={base} />
+              ) : station.id === "chat" ? (
+                // NOT A PHOTOGRAPH. The server's renderer has no WebHarness
+                // token, so its picture of the chat is the sentence saying the
+                // room could not be read. This one is drawn from the viewer's
+                // own session — see ChatPanel3D.
+                <ChatPanel3D station={station} />
+              ) : (
+                // Photographs of the same pages, taken on the server. The live
+                // panels are DOM and a session draws 3D only.
+                <StillPanel station={station} base={base} active={inHeadset} />
+              )}
+            </Movable>
+          ))}
         <Crowd
           peopleRef={connection.peopleRef}
           roster={connection.roster}

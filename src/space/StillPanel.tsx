@@ -158,8 +158,7 @@ export function StillPanel({
 
   return (
     <group
-      position={[station.surface.position.x, station.surface.position.y, station.surface.position.z]}
-      rotation={[0, station.surface.rotationY, 0]}
+      /* Placed by the <Movable> around it — see the note in WebPanel. */
     >
       <mesh>
         <planeGeometry args={[station.surface.width, station.surface.height]} />

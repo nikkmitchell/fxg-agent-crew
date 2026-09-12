@@ -16,7 +16,8 @@ import { registerBuildRoutes } from "./routes/build.js";
 import { registerBoardRoutes } from "./routes/board.js";
 import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
 import { Activity } from "./space/activity.js";
-import { registerPanelRoutes } from "./space/panels.js";
+import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
+import { standFor } from "../shared/panel-place.js";
 import { registerStillRoutes } from "./space/stills.js";
 import { registerUtteranceRoutes } from "./space/utterances.js";
 import { openDatabase } from "./db/open.js";
@@ -103,7 +104,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // What makes them move: the audit table, read forward from the end of it.
   // Started here rather than on the first socket, so an agent that acts while
   // nobody is watching is already in the right place when someone arrives.
-  const activity = new Activity(database, space.presence);
+  // The stands are read fresh on every mapped row rather than captured, so an
+  // agent walks to where its panel is NOW — see the note in Activity.
+  const panelPlaces = new PanelPlaces(database);
+  const activity = new Activity(database, space.presence, Date.now, () =>
+    Object.fromEntries(panelPlaces.all().map((place) => [place.id, standFor(place)])),
+  );
   activity.onError = (error) => app.log.error({ error }, "space activity poll failed");
   activity.start();
 
@@ -116,9 +122,14 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerProjectRoutes(scoped, config, sessions, client);
     registerBuildRoutes(scoped, config, sessions);
     registerBoardRoutes(scoped, config, sessions, database, config.blobRoot);
-    registerSpaceRoutes(scoped, config, sessions, space);
+    registerSpaceRoutes(scoped, config, sessions, space, () => panelPlaces.all());
     registerStillRoutes(scoped, config, sessions);
-    registerPanelRoutes(scoped, { database, sessions, config });
+    registerPanelRoutes(scoped, {
+      database,
+      sessions,
+      config,
+      announce: (panel, by) => space.broadcast({ type: "panelMoved", panel, by }),
+    });
     registerUtteranceRoutes(
       scoped,
       config,

@@ -883,6 +883,12 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-transcript .space-said-written { margin-top: 2px; font-size: 14px; color: var(--ink); white-space: pre-wrap; }
 .space-transcript details { margin-top: 4px; font-size: 13px; }
 .space-transcript summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+/* The grab bar above a movable panel. A DOM element, because the WebGL canvas
+   under it is pointer-events:none so the panel iframes stay clickable. */
+.panel-grip { border: 0; border-radius: 6px; padding: 3px 14px; cursor: grab; font-size: 15px; line-height: 1; letter-spacing: .2em; color: #cdd4e6; background: rgba(30,36,52,.82); touch-action: none; user-select: none; }
+.panel-grip:hover { background: rgba(52,62,88,.92); }
+.panel-grip.is-dragging { cursor: grabbing; background: #6f86c9; color: #0b0d12; }
+
 /* The WebHarness room, read-only, as the Chat panel embeds it. */
 .chat-feed { display: grid; gap: 10px; max-width: 760px; }
 .chat-feed ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }

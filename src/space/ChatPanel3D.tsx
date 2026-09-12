@@ -36,9 +36,10 @@ export function ChatPanel3D({ station }: { station: Station }) {
 
   useEffect(() => () => texture.dispose(), [texture]);
 
-  const { position, width, height, rotationY } = station.surface;
+  // Drawn at its own origin; the <Movable> around it owns the position.
+  const { width, height } = station.surface;
   return (
-    <mesh position={[position.x, position.y, position.z]} rotation={[0, rotationY, 0]}>
+    <mesh>
       <planeGeometry args={[width, height]} />
       {/* Unlit, like the photographs beside it: a scene light falling across
           one panel and not the others would read as a rendering fault. */}

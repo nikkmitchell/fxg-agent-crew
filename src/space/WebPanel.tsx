@@ -55,8 +55,10 @@ export function WebPanel({ station, base }: { station: Station; base: string }) 
 
   return (
     <group
-      position={[station.surface.position.x, station.surface.position.y, station.surface.position.z]}
-      rotation={[0, station.surface.rotationY, 0]}
+      /* NO POSITION HERE. The panel is drawn at its own origin and placed by
+         the <Movable> around it, which owns the live position — panels can be
+         dragged, so their place is shared state and not a constant in the
+         layout any more. Positioning here as well would place them twice. */
     >
       {/* A thin backing plane behind the DOM. Without it a panel has no edges
           in the void and its white page bleeds into nothing. */}

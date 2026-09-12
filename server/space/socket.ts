@@ -6,6 +6,7 @@ import type { WebSocket } from "@fastify/websocket";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
+import type { Placement } from "../../shared/space-wire.js";
 import { parseClientMessage, type ServerMessage, type WirePerson } from "../../shared/space-wire.js";
 import { Presence, STALE_AFTER_MS } from "./presence.js";
 
@@ -168,6 +169,13 @@ export function registerSpaceRoutes(
   config: Config,
   sessions: SessionStore,
   hub: SpaceHub,
+  /**
+   * Where the panels currently hang, read at the moment somebody arrives.
+   *
+   * Passed in rather than imported so this file keeps knowing nothing about the
+   * database — the socket's job is who is here and where they are.
+   */
+  panelsNow: () => Placement[],
 ): void {
   app.get("/bff/space/socket", { websocket: true }, (socket, request) => {
     const session = sessions.get(request.cookies[config.cookieName]);
@@ -187,7 +195,16 @@ export function registerSpaceRoutes(
     }
 
     hub.attach(actorId, session.kind, socket);
-    hub.send(socket, { type: "welcome", you: actorId, now: Date.now(), people: hub.snapshot() });
+    hub.send(socket, {
+      type: "welcome",
+      you: actorId,
+      now: Date.now(),
+      people: hub.snapshot(),
+      // Once, on arrival. Panels move when somebody drags one, and repeating
+      // four placements in every snapshot to say "still there" is traffic that
+      // looks free until there are twenty people in the room.
+      panels: panelsNow(),
+    });
 
     socket.on("message", (raw: Buffer | string) => {
       const message = parseClientMessage(raw.toString());

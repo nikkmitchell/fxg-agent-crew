@@ -412,4 +412,34 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 12,
+    name: "space panel places",
+    sql: `
+      -- Where a panel has been moved to.
+      --
+      -- SHARED, unlike which panels you have open, and the asymmetry is the
+      -- whole design. The server works out where an agent should walk from
+      -- where its panel is; a per-person arrangement would have one of us
+      -- watching an agent cross to empty space while the room insisted it had
+      -- gone to the board. Moving a panel is moving furniture.
+      --
+      -- A ROW ONLY WHERE SOMEBODY MOVED ONE. No row means the panel is where
+      -- shared/space-layout.ts computes it, which keeps "nobody has touched
+      -- this" distinguishable from "somebody put it back".
+      --
+      -- WHO AND WHEN are recorded because this is a change to a shared place.
+      -- A board that is not where you left it should be answerable without
+      -- asking around.
+      CREATE TABLE space_panel_place (
+        panel_id   TEXT PRIMARY KEY,
+        x          REAL NOT NULL,
+        y          REAL NOT NULL,
+        z          REAL NOT NULL,
+        rotation_y REAL NOT NULL,
+        moved_by   TEXT NOT NULL,
+        moved_at   TEXT NOT NULL
+      );
+    `,
+  },
 ];

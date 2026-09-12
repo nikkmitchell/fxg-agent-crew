@@ -13,6 +13,17 @@
 import type { Vec3 } from "./space-layout.js";
 import type { Utterance } from "./voice.js";
 
+/**
+ * Where a panel hangs.
+ *
+ * SHARED, not per person, and that is load-bearing rather than a simplification.
+ * The server works out where an agent should walk from where its panel is, so
+ * if my copy of the board were somewhere else than yours, one of us would watch
+ * an agent cross to empty space while the room insisted it had gone to the
+ * board. Moving a panel is moving furniture: it moves for everybody.
+ */
+export type Placement = { id: string; position: Vec3; rotationY: number };
+
 /** Orientation as a quaternion, in wire order. */
 export type Quat = { x: number; y: number; z: number; w: number };
 
@@ -78,8 +89,26 @@ export type ServerMessage =
       /** Server time when this was sent, so a client can size its clock skew. */
       now: number;
       people: WirePerson[];
+      /**
+       * Where every panel currently hangs.
+       *
+       * Sent once, on arrival, rather than in every snapshot: panels move when
+       * somebody drags one, which is rare, and repeating four placements ten
+       * times a second to say "still there" is the kind of traffic that looks
+       * free until there are twenty people in the room.
+       */
+      panels: Placement[];
     }
   | { type: "snapshot"; now: number; people: WirePerson[] }
+  /**
+   * Somebody moved a panel.
+   *
+   * An EVENT, like `said`, for the same reason: a snapshot is current state and
+   * is safe to miss, while this is a change and missing it leaves a panel drawn
+   * where it no longer is. A client that reconnects gets the full set in
+   * `welcome`.
+   */
+  | { type: "panelMoved"; panel: Placement; by: string }
   /**
    * Somebody said something.
    *

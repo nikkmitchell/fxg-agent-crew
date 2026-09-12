@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { ClientMessage, Pose, ServerMessage, WirePerson } from "../../shared/space-wire";
+import type {
+  ClientMessage,
+  Placement,
+  Pose,
+  ServerMessage,
+  WirePerson,
+} from "../../shared/space-wire";
 import type { Utterance } from "../../shared/voice";
 import type { Vec3 } from "../../shared/space-layout";
 
@@ -44,6 +50,8 @@ export type SpaceConnection = {
   heard: Utterance[];
   /** The newest utterance received live on the socket. History never enters here. */
   liveUtterance: Utterance | null;
+  /** Where every panel hangs. Empty until the socket says; see the note above. */
+  places: Placement[];
 };
 
 /** How much of the conversation to keep in memory. Older lines are on the server. */
@@ -62,6 +70,14 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
   const [status, setStatus] = useState<SpaceStatus>({ state: "connecting" });
   const [heard, setHeard] = useState<Utterance[]>([]);
   const [liveUtterance, setLiveUtterance] = useState<Utterance | null>(null);
+  /**
+   * Where the panels hang, which is shared and can change under you.
+   *
+   * Empty until `welcome` arrives. The scene falls back to the computed arc
+   * while it is, so the room draws itself on the first frame rather than
+   * appearing empty and then filling in.
+   */
+  const [places, setPlaces] = useState<Placement[]>([]);
   const [roster, setRoster] = useState<
     { actorId: string; kind: "human" | "agent" | null; connected: boolean; because: string | null }[]
   >([]);
@@ -128,6 +144,16 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           setStatus({ state: "refused", reason: message.reason });
           return;
         }
+        if (message.type === "panelMoved") {
+          // Somebody dragged a panel. Replaced by id rather than appended:
+          // this is a position, not an event, and the newest one is the only
+          // one worth keeping.
+          setPlaces((previous) => [
+            ...previous.filter((place) => place.id !== message.panel.id),
+            message.panel,
+          ]);
+          return;
+        }
         if (message.type === "said") {
           // Appended rather than replacing: an utterance is an event, and the
           // list is a transcript. Capped so a room left open all day does not
@@ -141,7 +167,10 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           const next = rosterOf(message.people);
           return sameRoster(previous, next) ? previous : next;
         });
-        if (message.type === "welcome") setStatus({ state: "open", you: message.you });
+        if (message.type === "welcome") {
+          setStatus({ state: "open", you: message.you });
+          setPlaces(message.panels);
+        }
         onSnapshot.current?.();
       });
 
@@ -210,7 +239,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
   };
 
-  return { status, peopleRef, roster, send, onSnapshot, heard, liveUtterance };
+  return { status, peopleRef, roster, send, onSnapshot, heard, liveUtterance, places };
 }
 
 /**

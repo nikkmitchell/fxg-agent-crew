@@ -1,4 +1,6 @@
 import { STATIONS, deskFor, type Vec3 } from "../../shared/space-layout.js";
+import { defaultPlacement, standFor } from "../../shared/panel-place.js";
+import type { Placement } from "../../shared/space-wire.js";
 
 /**
  * Where an action puts the person who did it.
@@ -40,10 +42,28 @@ export type Destination = {
   because: string | null;
 };
 
-/** A card was touched. The task board is on the far wall. */
-const atTaskBoard = (because: string): Destination => ({ at: STATIONS.taskBoard.stand, because });
-const atMoodBoard = (because: string): Destination => ({ at: STATIONS.moodBoard.stand, because });
-const atPeople = (because: string): Destination => ({ at: STATIONS.people.stand, because });
+/**
+ * Where the panels are, as far as this mapping is concerned.
+ *
+ * PASSED IN RATHER THAN IMPORTED, since panels became movable. The whole claim
+ * this file makes is "that agent is at the board because it touched a card" —
+ * and the moment somebody drags the board and this keeps sending people to
+ * where it used to be, the claim is false and looks like a movement bug. A
+ * parameter keeps the function pure and keeps the disagreement impossible.
+ *
+ * Missing entries fall back to the arc, so a caller that has not read the
+ * database yet gets the untouched layout rather than the origin.
+ */
+export type PanelStands = Partial<Record<string, Vec3>>;
+
+const standAt = (panels: PanelStands, id: string): Vec3 =>
+  panels[id] ?? standFor(defaultPlacement(id) as Placement);
+
+/** Somebody was at a panel, and why. */
+const atPanel = (panels: PanelStands, id: string, because: string): Destination => ({
+  at: standAt(panels, id),
+  because,
+});
 
 /**
  * Map one row to a place to stand.
@@ -53,40 +73,40 @@ const atPeople = (because: string): Destination => ({ at: STATIONS.people.stand,
  * recognise their action would be an invention, and it is the kind that looks
  * completely normal.
  */
-export function destinationFor(row: AuditRow): Destination | null {
+export function destinationFor(row: AuditRow, panels: PanelStands = {}): Destination | null {
   if (row.entity === "task") {
     switch (row.action) {
       case "comment":
-        return atTaskBoard("commented on a card");
+        return atPanel(panels, "taskBoard", "commented on a card");
       case "transition":
-        return atTaskBoard("moved a card");
+        return atPanel(panels, "taskBoard", "moved a card");
       case "create":
-        return atTaskBoard("wrote a new card");
+        return atPanel(panels, "taskBoard", "wrote a new card");
       case "update":
-        return atTaskBoard("edited a card");
+        return atPanel(panels, "taskBoard", "edited a card");
       case "claim":
-        return atTaskBoard("claimed a card");
+        return atPanel(panels, "taskBoard", "claimed a card");
       case "accept":
-        return atTaskBoard("accepted a card");
+        return atPanel(panels, "taskBoard", "accepted a card");
       case "release":
-        return atTaskBoard("let go of a card");
+        return atPanel(panels, "taskBoard", "let go of a card");
       default:
-        return atTaskBoard("worked on a card");
+        return atPanel(panels, "taskBoard", "worked on a card");
     }
   }
 
   if (row.entity === "board" || row.entity === "board_item") {
-    if (row.action === "add") return atMoodBoard("pinned something up");
-    if (row.action === "remove") return atMoodBoard("took something down");
-    if (row.action === "create") return atMoodBoard("started a mood board");
-    return atMoodBoard("was at the mood boards");
+    if (row.action === "add") return atPanel(panels, "moodBoard", "pinned something up");
+    if (row.action === "remove") return atPanel(panels, "moodBoard", "took something down");
+    if (row.action === "create") return atPanel(panels, "moodBoard", "started a mood board");
+    return atPanel(panels, "moodBoard", "was at the mood boards");
   }
 
   if (row.entity === "membership" || row.entity === "ownership") {
-    if (row.action === "grant") return atPeople("granted access");
-    if (row.action === "revoke") return atPeople("ended a link");
-    if (row.action === "accept") return atPeople("accepted a link");
-    return atPeople("was sorting out who is who");
+    if (row.action === "grant") return atPanel(panels, "people", "granted access");
+    if (row.action === "revoke") return atPanel(panels, "people", "ended a link");
+    if (row.action === "accept") return atPanel(panels, "people", "accepted a link");
+    return atPanel(panels, "people", "was sorting out who is who");
   }
 
   if (row.entity === "profile") {
@@ -96,7 +116,7 @@ export function destinationFor(row: AuditRow): Destination | null {
 
   if (row.entity === "project") {
     // A project is the board's frame, so the board is where it happens.
-    return atTaskBoard("started a project");
+    return atPanel(panels, "taskBoard", "started a project");
   }
 
   // Deliberately not a fallback destination. See above.

@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
-import { destinationFor, restingPlace, type AuditRow } from "./destinations.js";
+import { destinationFor, restingPlace, type AuditRow, type PanelStands } from "./destinations.js";
 import type { Presence } from "./presence.js";
 
 /**
@@ -43,6 +43,19 @@ export class Activity {
     private readonly db: DatabaseSync,
     private readonly presence: Presence,
     private readonly now: () => number = Date.now,
+    /**
+     * Where each panel's standing place currently is.
+     *
+     * Read at the moment a row is mapped, not cached: somebody can drag the
+     * board between one tick and the next, and an agent that then walks to
+     * where the board used to be makes the room's central claim false in the
+     * most confusing possible way — the label above their head would still say
+     * "commented on a card".
+     *
+     * Defaults to the untouched arc so a caller that has no panel store (every
+     * existing test) behaves exactly as before.
+     */
+    private readonly panelStands: () => PanelStands = () => ({}),
   ) {}
 
   /**
@@ -69,7 +82,7 @@ export class Activity {
     for (const row of rows) {
       this.lastSeenId = Math.max(this.lastSeenId, row.id);
       if (NOT_A_PERSON.has(row.actorId)) continue;
-      const destination = destinationFor(row);
+      const destination = destinationFor(row, this.panelStands());
       // An action this room has nothing to say about leaves everyone where they
       // are. It does not send them to a default corner.
       if (!destination) continue;
