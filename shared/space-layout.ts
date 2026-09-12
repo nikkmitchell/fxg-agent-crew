@@ -154,14 +154,21 @@ export function arcPlacement(index: number, count: number): {
  * Every panel this room knows how to show, left to right along the arc.
  *
  * ORDER IS POSITION, so this list is not alphabetical and should not be sorted.
- * The Board sits nearest the middle because it is the thing people come here to
- * look at; Chat is at one end because you talk while facing the room rather
- * than while reading.
+ *
+ * The Board sits IN THE MIDDLE because it is the thing people come here to look
+ * at, and the two conversation panels — what was said in the room, and the
+ * WebHarness chat — are together at one end, because you talk while facing the
+ * room rather than while reading.
+ *
+ * That claim used to be a comment and the comment went stale the moment it
+ * mattered: adding a fifth panel pushed the Board off centre and nothing
+ * noticed, because the tests checked spacing and facing but not which panel you
+ * are looking at when you arrive. There is now a test for it.
  */
 const CATALOGUE: { id: string; label: string; tab: string; drawnInSession?: boolean }[] = [
   { id: "moodBoard", label: "Mood boards", tab: "mood" },
-  { id: "taskBoard", label: "Board", tab: "board" },
   { id: "people", label: "People", tab: "people" },
+  { id: "taskBoard", label: "Board", tab: "board" },
   /**
    * THE ROOM'S OWN TRANSCRIPT, which is not the same thing as the chat below.
    *

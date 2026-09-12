@@ -206,6 +206,6 @@ describe("keeping a browser off an idle box", () => {
     // panel edits this line, which is the point: a new panel that nobody
     // photographs is a blank rectangle in a headset, and the edit is where you
     // find that out.
-    expect(STILL_TABS).toEqual(["mood", "board", "people", "said"]);
+    expect(STILL_TABS).toEqual(["mood", "people", "board", "said"]);
   });
 });

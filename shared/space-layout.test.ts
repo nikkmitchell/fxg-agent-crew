@@ -131,3 +131,31 @@ describe("which way you face on arrival", () => {
     expect(facingFor(["people", "whiteboard"])).toBeCloseTo(facingFor(["people"]), 6);
   });
 });
+
+describe("which panel you are looking at when you arrive", () => {
+  it("puts the Board in the middle of the arc", () => {
+    /**
+     * This was a comment for a day and the comment went stale the moment it
+     * mattered: adding the fifth panel pushed the Board off centre and nothing
+     * noticed, because spacing and facing were tested and position in the row
+     * was not. A claim about what somebody sees deserves a mechanism.
+     */
+    const spawn = ROOM.spawn;
+    const bearing = (id: string) => {
+      const p = STATIONS[id].surface.position;
+      return Math.abs(Math.atan2(p.x - spawn.x, -(p.z - spawn.z)));
+    };
+    const nearest = Object.keys(STATIONS).reduce((best, id) =>
+      bearing(id) < bearing(best) ? id : best,
+    );
+    expect(nearest).toBe("taskBoard");
+  });
+
+  it("keeps the two conversation panels next to each other", () => {
+    // Said and Chat are both places words go. Splitting them across the arc
+    // would mean turning your head one way to speak and the other to check it
+    // arrived.
+    const order = Object.keys(STATIONS);
+    expect(Math.abs(order.indexOf("said") - order.indexOf("chat"))).toBe(1);
+  });
+});
