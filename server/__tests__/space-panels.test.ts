@@ -320,3 +320,105 @@ describe("an agent walks to where the panel actually is", () => {
     expect(withMoves?.at).toEqual(destinationFor(row)?.at);
   });
 });
+
+/**
+ * How big a panel is.
+ *
+ * The bug these are here to stop coming back is one I shipped and then caught
+ * in the browser: the size had a column, a shared rule and a refusal message,
+ * and was silently dropped by the two pieces in between — the client did not
+ * send it and the route did not read it. Everything looked right and nothing
+ * changed size. So the round trip is what gets tested, not the rule on its own.
+ */
+describe("resizing a panel", () => {
+  const sized = (scale: number | undefined) => ({
+    position: { x: 0, y: 1.6, z: 0 },
+    rotationY: 0,
+    ...(scale !== undefined ? { scale } : {}),
+  });
+
+  const placesOf = async (app: ReturnType<typeof boot>["app"], cookie: string) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/bff/space/panels",
+      headers: { cookie },
+    });
+    return (JSON.parse(response.body) as { places: { id: string; scale?: number }[] }).places;
+  };
+
+  it("keeps the size it was given, and hands it back", async () => {
+    const { app, as } = boot();
+    const cookie = as("nikk");
+    const response = await app.inject({
+      method: "PUT",
+      url: "/bff/space/panels/taskBoard/place",
+      headers: { cookie },
+      payload: sized(1.6),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).placement.scale).toBeCloseTo(1.6, 6);
+
+    const stored = (await placesOf(app, cookie)).find((place) => place.id === "taskBoard");
+    expect(stored?.scale).toBeCloseTo(1.6, 6);
+    await app.close();
+  });
+
+  it("is one size for everybody, because a panel is furniture", async () => {
+    const { app, as } = boot();
+    await app.inject({
+      method: "PUT",
+      url: "/bff/space/panels/taskBoard/place",
+      headers: { cookie: as("nikk") },
+      payload: sized(2),
+    });
+    const seen = (await placesOf(app, as("baiwei"))).find((place) => place.id === "taskBoard");
+    expect(seen?.scale).toBeCloseTo(2, 6);
+    await app.close();
+  });
+
+  it("a placement sent without a size is stored at its normal size", async () => {
+    // An older tab dragging a panel sends no scale at all. That must mean
+    // "leave it alone", not "this panel has no size".
+    const { app, as } = boot();
+    const cookie = as("nikk");
+    const response = await app.inject({
+      method: "PUT",
+      url: "/bff/space/panels/taskBoard/place",
+      headers: { cookie },
+      payload: sized(undefined),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).placement.scale).toBe(1);
+    await app.close();
+  });
+
+  it("refuses a size nobody could read, and says why", async () => {
+    const { app, as } = boot();
+    for (const [scale, why] of [
+      [0.05, /readable/],
+      [9, /cover the panels behind/],
+    ] as const) {
+      const response = await app.inject({
+        method: "PUT",
+        url: "/bff/space/panels/taskBoard/place",
+        headers: { cookie: as("nikk") },
+        payload: sized(scale),
+      });
+      expect(response.statusCode).toBe(422);
+      expect(JSON.parse(response.body).error).toMatch(why);
+    }
+    await app.close();
+  });
+
+  it("refuses a size that is not a number rather than ignoring it", async () => {
+    const { app, as } = boot();
+    const response = await app.inject({
+      method: "PUT",
+      url: "/bff/space/panels/taskBoard/place",
+      headers: { cookie: as("nikk") },
+      payload: { position: { x: 0, y: 1.6, z: 0 }, rotationY: 0, scale: "big" },
+    });
+    expect(response.statusCode).toBe(400);
+    await app.close();
+  });
+});

@@ -15,6 +15,7 @@ import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
 import type { RoomFeed } from "./useRoomFeed";
 import type { PanelChoices } from "./usePanelChoices";
+import type { PanelArrange } from "./usePanelArrange";
 import type { VoiceChat } from "./useVoiceChat";
 import type { Utterance } from "../../shared/voice";
 import type { ClientMessage, Pose } from "../../shared/space-wire";
@@ -63,6 +64,7 @@ export function ImmersivePlayer({
   liveUtterance,
   feed,
   panels,
+  arrange,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -84,6 +86,8 @@ export function ImmersivePlayer({
   feed: RoomFeed;
   /** Which panels are on the arc, so the headset can change it too. */
   panels: PanelChoices;
+  /** Moving and resizing, which are settings rather than a separate control. */
+  arrange: PanelArrange;
 }) {
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
@@ -297,6 +301,7 @@ export function ImmersivePlayer({
         liveUtterance={liveUtterance}
         feed={feed}
         panels={panels}
+        arrange={arrange}
       />
       {/*
         The floor you can teleport onto. It is deliberately invisible: the room
@@ -349,6 +354,7 @@ export function Immersive({
   liveUtterance,
   feed,
   panels,
+  arrange,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -361,6 +367,7 @@ export function Immersive({
   liveUtterance: Utterance | null;
   feed: RoomFeed;
   panels: PanelChoices;
+  arrange: PanelArrange;
 }) {
   const session = useXR((state) => state.session);
   /**
@@ -399,6 +406,7 @@ export function Immersive({
       liveUtterance={liveUtterance}
       feed={feed}
       panels={panels}
+      arrange={arrange}
     />
   ) : null;
 }

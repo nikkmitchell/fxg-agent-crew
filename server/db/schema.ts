@@ -442,4 +442,21 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 13,
+    name: "space panel size",
+    sql: `
+      -- How big each panel is, as a multiple of its designed size.
+      --
+      -- SHARED, for the same reason position is: an agent walks to a panel's
+      -- actual place, and a panel somebody has made twice the size occupies
+      -- more of the arc for everybody. Size is furniture too.
+      --
+      -- DEFAULT 1 RATHER THAN NULL, so every placement stored before panels
+      -- could be resized reads back as its designed size instead of as an
+      -- absence the renderer has to interpret. Nobody loses an arrangement
+      -- they had already made.
+      ALTER TABLE space_panel_place ADD COLUMN scale REAL NOT NULL DEFAULT 1;
+    `,
+  },
 ];

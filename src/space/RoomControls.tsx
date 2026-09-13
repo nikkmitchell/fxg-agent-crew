@@ -9,6 +9,7 @@ import { shouldSpeakUtterance } from "./VoiceControls";
 import { newestId, replyToSpeak } from "./reply-speech";
 import type { RoomFeed } from "./useRoomFeed";
 import type { PanelChoices } from "./usePanelChoices";
+import type { PanelArrange } from "./usePanelArrange";
 import type { Utterance } from "../../shared/voice";
 import { planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
@@ -82,6 +83,7 @@ export function RoomControls({
   liveUtterance,
   feed,
   panels,
+  arrange,
 }: {
   anchor: () => { at: { x: number; z: number }; yaw: number } | null;
   you: string | null;
@@ -98,6 +100,8 @@ export function RoomControls({
   feed: RoomFeed;
   /** Which panels are hanging on the arc, and the way to change it. */
   panels: PanelChoices;
+  /** Whether a panel is currently being moved or resized. */
+  arrange: PanelArrange;
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
@@ -411,6 +415,38 @@ export function RoomControls({
         label: `${shown ? "\u2713" : "\u00b7"} ${panel.label}`,
         tone: shown ? "live" : "muted",
         onTap: () => panels.setOpen(panel.id, !shown),
+      });
+
+      /**
+       * MOVE AND RESIZE, PER PANEL, AND ONLY FOR ONES THAT ARE UP.
+       *
+       * Offering to move a panel that is not in the room would be a control
+       * with nothing to act on. One row that cycles rather than two switches,
+       * because the three states are mutually exclusive and a menu you reach
+       * from inside a headset should be short: the row says what tapping the
+       * PANEL will now do, which is the thing you are about to do next.
+       */
+      if (!shown) continue;
+      const mode = arrange.modeOf(panel.id);
+      rows.push({
+        label:
+          mode === "locked"
+            ? `   ${panel.label}: fixed in place`
+            : mode === "move"
+              ? `   ${panel.label}: drag it to move`
+              : `   ${panel.label}: drag it to resize`,
+        tone: mode === "locked" ? "muted" : "live",
+        onTap: () => arrange.cycle(panel.id),
+      });
+    }
+
+    // ONE WAY OUT OF ALL OF IT. Somebody who has unlocked three panels and
+    // wants to go back to reading them should not have to find three rows.
+    if (arrange.anyUnlocked) {
+      rows.push({
+        label: "Fix every panel in place",
+        tone: "normal",
+        onTap: () => arrange.lockAll(),
       });
     }
     if (panels.refusal) {

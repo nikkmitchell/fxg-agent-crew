@@ -5,6 +5,7 @@ import {
   defaultPlacement,
   normaliseRotation,
   placementRefusal,
+  scaleOf,
 } from "../../shared/panel-place.js";
 import type { Placement } from "../../shared/space-wire.js";
 import type { SessionStore } from "../session.js";
@@ -81,12 +82,24 @@ export class PanelPlaces {
   /** Every panel, moved or not, in catalogue order. */
   all(): Placement[] {
     const rows = this.database
-      .prepare("SELECT panel_id, x, y, z, rotation_y FROM space_panel_place")
-      .all() as { panel_id: string; x: number; y: number; z: number; rotation_y: number }[];
+      .prepare("SELECT panel_id, x, y, z, rotation_y, scale FROM space_panel_place")
+      .all() as {
+      panel_id: string;
+      x: number;
+      y: number;
+      z: number;
+      rotation_y: number;
+      scale: number;
+    }[];
     const moved = new Map(
       rows.map((row) => [
         row.panel_id,
-        { id: row.panel_id, position: { x: row.x, y: row.y, z: row.z }, rotationY: row.rotation_y },
+        {
+          id: row.panel_id,
+          position: { x: row.x, y: row.y, z: row.z },
+          rotationY: row.rotation_y,
+          scale: row.scale,
+        },
       ]),
     );
     return Object.keys(STATIONS).map(
@@ -112,14 +125,15 @@ export class PanelPlaces {
       id: place.id,
       position: place.position,
       rotationY: normaliseRotation(place.rotationY),
+      scale: scaleOf(place),
     };
     this.database
       .prepare(
-        `INSERT INTO space_panel_place (panel_id, x, y, z, rotation_y, moved_by, moved_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO space_panel_place (panel_id, x, y, z, rotation_y, scale, moved_by, moved_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(panel_id) DO UPDATE SET
            x = excluded.x, y = excluded.y, z = excluded.z,
-           rotation_y = excluded.rotation_y,
+           rotation_y = excluded.rotation_y, scale = excluded.scale,
            moved_by = excluded.moved_by, moved_at = excluded.moved_at`,
       )
       .run(
@@ -128,6 +142,7 @@ export class PanelPlaces {
         stored.position.y,
         stored.position.z,
         stored.rotationY,
+        stored.scale ?? 1,
         by,
         at,
       );
@@ -200,7 +215,10 @@ export function registerPanelRoutes(
    * better than a fire-and-forget frame — the socket carries positions, which
    * are safe to miss, and this is not.
    */
-  app.put<{ Params: { id: string }; Body: { position?: unknown; rotationY?: unknown } }>(
+  app.put<{
+    Params: { id: string };
+    Body: { position?: unknown; rotationY?: unknown; scale?: unknown };
+  }>(
     "/bff/space/panels/:id/place",
     async (request, reply) => {
       const session = requireSession(request, reply);
@@ -218,12 +236,24 @@ export function registerPanelRoutes(
           .code(400)
           .send({ code: "BAD_PLACE", error: "a place needs x, y, z and rotationY" });
       }
+      /**
+       * SIZE IS OPTIONAL, and absent is different from wrong.
+       *
+       * A client that predates resizing sends no scale at all, and refusing
+       * those would break every drag from an older tab. Absent means "leave it
+       * as it is"; a scale that is present and not a number is a bug worth
+       * saying out loud rather than quietly ignoring.
+       */
+      if (body.scale !== undefined && typeof body.scale !== "number") {
+        return reply.code(400).send({ code: "BAD_PLACE", error: "scale must be a number" });
+      }
 
       const result = places.place(
         {
           id: request.params.id,
           position: { x: position.x, y: position.y, z: position.z },
           rotationY: body.rotationY,
+          ...(body.scale !== undefined ? { scale: body.scale } : {}),
         },
         session.username,
         new Date().toISOString(),

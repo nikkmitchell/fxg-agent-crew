@@ -7,6 +7,9 @@ import type { Utterance } from "../../shared/voice";
 import { VoiceControls } from "./VoiceControls";
 import { Transcript } from "./Transcript";
 import { usePanelChoices } from "./usePanelChoices";
+import { usePanelArrange } from "./usePanelArrange";
+import { placeOf, savePlacement } from "./panel-placement";
+import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
 import { useVoiceChat } from "./useVoiceChat";
 import { ProjectChooser } from "../ProjectChooser";
 import { PanelGrips } from "./PanelGrips";
@@ -77,6 +80,7 @@ export function SpacePanel() {
   const [inHeadset, setInHeadset] = useState(false);
   const [headsetAvailable, setHeadsetAvailable] = useState<boolean | null>(null);
   const panels = usePanelChoices(entered);
+  const arrange = usePanelArrange();
   const [panelTrouble, setPanelTrouble] = useState<string | null>(null);
   /**
    * Live voice, held HERE rather than inside the scene.
@@ -219,6 +223,7 @@ export function SpacePanel() {
             onImmersiveChange={setInHeadset}
             inHeadset={inHeadset}
             panels={panels}
+            arrange={arrange}
             onPanelTrouble={setPanelTrouble}
             voice={voice}
           />
@@ -309,16 +314,54 @@ export function SpacePanel() {
             Yours alone — closing one does not take it off anybody else's arc. Where each panel
             hangs is shared, because an agent walks to a panel's actual position.
           </p>
-          {panels.catalogue.map((panel) => (
-            <label key={panel.id} className="space-setting">
-              <input
-                type="checkbox"
-                checked={panels.open.includes(panel.id)}
-                onChange={(event) => panels.setOpen(panel.id, event.currentTarget.checked)}
-              />
-              <span>{panel.label}</span>
-            </label>
-          ))}
+          {panels.catalogue.map((panel) => {
+            const open = panels.open.includes(panel.id);
+            const place = placeOf(connection.places, panel.id);
+            const size = scaleOf(place);
+            const resize = (to: number) => {
+              const next = Math.min(PANEL_SCALE.max, Math.max(PANEL_SCALE.min, to));
+              void savePlacement({ ...place, scale: next }).then(setPanelTrouble);
+            };
+            return (
+              <div key={panel.id} className="space-setting-row">
+                <label className="space-setting">
+                  <input
+                    type="checkbox"
+                    checked={open}
+                    onChange={(event) => panels.setOpen(panel.id, event.currentTarget.checked)}
+                  />
+                  <span>{panel.label}</span>
+                </label>
+                {/* SIZE, HERE RATHER THAN AS A DRAG. In the room you resize a
+                    panel by pulling its face, which needs a ray or a pointer the
+                    canvas can receive — and in this window the canvas is
+                    `pointer-events: none` so the live pages stay clickable. Two
+                    buttons do the same job without a gesture that cannot work
+                    here. The size itself is shared either way. */}
+                {open ? (
+                  <span className="space-setting-size">
+                    <button
+                      type="button"
+                      onClick={() => resize(size - 0.2)}
+                      disabled={size <= PANEL_SCALE.min + 0.001}
+                      aria-label={`Make ${panel.label} smaller`}
+                    >
+                      −
+                    </button>
+                    <span aria-live="polite">{Math.round(size * 100)}%</span>
+                    <button
+                      type="button"
+                      onClick={() => resize(size + 0.2)}
+                      disabled={size >= PANEL_SCALE.max - 0.001}
+                      aria-label={`Make ${panel.label} bigger`}
+                    >
+                      +
+                    </button>
+                  </span>
+                ) : null}
+              </div>
+            );
+          })}
           <p className="muted-note">
             Drag the bar along the top of a panel to move it. Where a panel hangs is shared: it
             moves for everyone, and the agents that walk to it follow.
