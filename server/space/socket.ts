@@ -6,7 +6,7 @@ import type { WebSocket } from "@fastify/websocket";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
-import type { Placement } from "../../shared/space-wire.js";
+import type { Placement, Showing } from "../../shared/space-wire.js";
 import { parseClientMessage, type ServerMessage, type WirePerson } from "../../shared/space-wire.js";
 import { Presence, STALE_AFTER_MS } from "./presence.js";
 
@@ -207,6 +207,12 @@ export function registerSpaceRoutes(
    * database — the socket's job is who is here and where they are.
    */
   panelsNow: () => Placement[],
+  /**
+   * What the room is showing, read on arrival for the same reason as the
+   * panels: it changes rarely, and repeating it in every snapshot is traffic
+   * that looks free until the room is full.
+   */
+  showingNow: () => Showing,
 ): void {
   app.get("/bff/space/socket", { websocket: true }, (socket, request) => {
     const session = sessions.get(request.cookies[config.cookieName]);
@@ -235,6 +241,7 @@ export function registerSpaceRoutes(
       // four placements in every snapshot to say "still there" is traffic that
       // looks free until there are twenty people in the room.
       panels: panelsNow(),
+      showing: showingNow(),
       // Who to call on arrival. Yourself excluded: a second tab of your own is
       // still you, and calling it would put your own microphone in your ears.
       voice: [...hub.voices].filter((id) => id !== actorId),

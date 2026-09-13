@@ -18,7 +18,31 @@ const KEY = "saha-project";
 
 const listeners = new Set<(id: string) => void>();
 
+/**
+ * A project named in the URL wins, for this page only.
+ *
+ * WHY THIS EXISTS: the room shows the same project to everybody in it, and the
+ * room's panels are iframes of these very tabs. Without this, a panel would
+ * show whatever the VIEWER last picked at their own desk — so two people
+ * standing at the same wall would see different boards on it, which is the one
+ * thing the shared choice exists to prevent.
+ *
+ * NOT WRITTEN BACK TO localStorage, deliberately. Being shown a project in the
+ * room is not the same as choosing it, and having the room quietly rewrite
+ * somebody's own setting would mean leaving the room changed what their desk
+ * shows. Read `?project=` as "show me this now", not "this is my choice".
+ */
+function projectInUrl(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get("project");
+  } catch {
+    return null;
+  }
+}
+
 export function currentProject(): string {
+  const named = projectInUrl();
+  if (named) return named;
   try {
     return localStorage.getItem(KEY) ?? "";
   } catch {

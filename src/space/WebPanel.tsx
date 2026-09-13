@@ -45,13 +45,33 @@ const PIXELS_PER_METRE = 320;
  */
 const DREI_PIXELS_PER_UNIT = 40;
 
-export function WebPanel({ station, base }: { station: Station; base: string }) {
+export function WebPanel({
+  station,
+  base,
+  project,
+}: {
+  station: Station;
+  base: string;
+  /**
+   * The project the ROOM is showing, which is not the viewer's own choice.
+   *
+   * Passed into the page rather than left to the iframe's own localStorage: two
+   * people standing at the same wall must see the same board on it, and without
+   * this each would see whichever project they last picked at their desk.
+   */
+  project: string | null;
+}) {
   const width = Math.round(station.surface.width * PIXELS_PER_METRE);
   const height = Math.round(station.surface.height * PIXELS_PER_METRE);
 
   // Stable across re-renders: changing an iframe's src reloads the page inside
   // it, which would throw away scroll position and any half-typed comment.
-  const src = useMemo(() => `${base}/${station.tab}?embed=1`, [base, station.tab]);
+  // Changing the PROJECT is the one case where reloading is right — the panel
+  // is meant to be showing something else now.
+  const src = useMemo(
+    () => `${base}/${station.tab}?embed=1${project ? `&project=${encodeURIComponent(project)}` : ""}`,
+    [base, station.tab, project],
+  );
 
   return (
     <group
