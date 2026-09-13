@@ -189,6 +189,32 @@ describe("the space socket", () => {
     inkstone.socket.close();
   });
 
+  it("broadcasts an equivalent one-turn facing when a client yaw has accumulated", async () => {
+    const { origin, as } = await boot();
+    const nikk = await connect(origin, as("nikk"));
+    await nikk.next("welcome");
+    const inkstone = await connect(origin, as("inkstone", "agent"));
+    await inkstone.next("welcome");
+
+    nikk.socket.send(JSON.stringify({
+      type: "move",
+      at: { x: 1, y: 0, z: 1 },
+      facing: 0.5 - Math.PI * 2 * 3,
+    }));
+
+    const seen = await inkstone.where(
+      (message) =>
+        message.type === "snapshot" &&
+        message.people.some((person) => person.actorId === "nikk" && person.at.x === 1),
+      "nikk's normalized facing",
+    );
+    if (seen.type !== "snapshot") throw new Error("unreachable");
+    expect(seen.people.find((person) => person.actorId === "nikk")?.facing).toBeCloseTo(0.5, 10);
+
+    nikk.socket.close();
+    inkstone.socket.close();
+  });
+
   it("broadcasts an occupant's self-controlled avatar state", async () => {
     const { origin, as } = await boot();
     const inkstone = await connect(origin, as("inkstone", "agent"));
