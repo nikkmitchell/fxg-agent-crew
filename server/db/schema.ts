@@ -459,4 +459,42 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE space_panel_place ADD COLUMN scale REAL NOT NULL DEFAULT 1;
     `,
   },
+  {
+    id: 14,
+    name: "what the room is showing",
+    sql: `
+      -- Which project's board, and which mood board, the ROOM is showing.
+      --
+      -- SHARED, AND THAT IS THE WHOLE POINT. Every other "which project" in
+      -- this app is per-browser, in localStorage, and says so: changing it
+      -- does not change what anybody else sees. The room is the opposite.
+      -- Nikk: "if one user changes what board is being show, it should update
+      -- for everyone, and agents should be aware."
+      --
+      -- The reason it has to be shared rather than merely convenient: people
+      -- stand in this room together and talk about what is on the wall. Two
+      -- people looking at different boards while pointing at "that card" is a
+      -- conversation that cannot work. It is the same argument as panel
+      -- position, which is already shared for the same reason.
+      --
+      -- ONE ROW, pinned by a CHECK, because "what the room is showing" is a
+      -- single fact and a table that can hold two of them will eventually hold
+      -- two of them.
+      --
+      -- NULL MEANS NOBODY HAS CHOSEN, which the room must show as such rather
+      -- than silently picking the first project — a room that guesses is a room
+      -- that lies about what it was told.
+      --
+      -- WHO AND WHEN, like panel places: this is a change to a shared thing,
+      -- and "why is the wall showing something else" should be answerable
+      -- without asking around.
+      CREATE TABLE space_showing (
+        only_row   INTEGER PRIMARY KEY CHECK (only_row = 1),
+        project_id TEXT,
+        board_id   TEXT,
+        set_by     TEXT NOT NULL,
+        set_at     TEXT NOT NULL
+      );
+    `,
+  },
 ];

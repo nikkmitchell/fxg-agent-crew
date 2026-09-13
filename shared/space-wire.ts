@@ -41,6 +41,25 @@ export type Placement = {
   scale?: number;
 };
 
+/**
+ * What the room is showing: one project's board, and one of its mood boards.
+ *
+ * SHARED BY THE ROOM, unlike `current-project.ts`, which is this browser's own
+ * choice and says so on the settings page. Both exist on purpose: at a desk,
+ * changing project is a private act; in a room full of people looking at the
+ * same wall, it is not.
+ *
+ * NULL MEANS NOBODY HAS CHOSEN YET, and the room shows that rather than
+ * defaulting to whichever project sorts first.
+ */
+export type Showing = {
+  projectId: string | null;
+  boardId: string | null;
+  /** Who last changed it, and when, because it is a shared change. */
+  setBy: string | null;
+  setAt: string | null;
+};
+
 /** Orientation as a quaternion, in wire order. */
 export type Quat = { x: number; y: number; z: number; w: number };
 
@@ -115,6 +134,8 @@ export type ServerMessage =
        * free until there are twenty people in the room.
        */
       panels: Placement[];
+      /** What the room is showing, so an arriving viewer is not briefly blank. */
+      showing: Showing;
       /**
        * Who already has their microphone open.
        *
@@ -135,6 +156,15 @@ export type ServerMessage =
    * `welcome`.
    */
   | { type: "panelMoved"; panel: Placement; by: string }
+  /**
+   * Somebody changed what the room is showing.
+   *
+   * Broadcast rather than polled, because the point of it being shared is
+   * that everyone is looking at the same wall: a board that changed for you
+   * five seconds before it changed for the person beside you is the problem
+   * this is meant to solve, in miniature.
+   */
+  | { type: "showing"; showing: Showing }
   /**
    * Somebody said something.
    *

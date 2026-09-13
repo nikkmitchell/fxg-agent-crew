@@ -16,6 +16,8 @@ import { RoomControls } from "./RoomControls";
 import type { RoomFeed } from "./useRoomFeed";
 import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
+import type { Showing } from "../../shared/space-wire";
+import type { RoomShowingChoices } from "./useRoomShowing";
 import type { VoiceChat } from "./useVoiceChat";
 import type { Utterance } from "../../shared/voice";
 import type { ClientMessage, Pose } from "../../shared/space-wire";
@@ -65,6 +67,8 @@ export function ImmersivePlayer({
   feed,
   panels,
   arrange,
+  showing,
+  showingChoices,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -88,6 +92,9 @@ export function ImmersivePlayer({
   panels: PanelChoices;
   /** Moving and resizing, which are settings rather than a separate control. */
   arrange: PanelArrange;
+  /** What the room is showing, shared by everybody standing in it. */
+  showing: Showing;
+  showingChoices: RoomShowingChoices;
 }) {
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
@@ -302,6 +309,8 @@ export function ImmersivePlayer({
         feed={feed}
         panels={panels}
         arrange={arrange}
+        showing={showing}
+        showingChoices={showingChoices}
       />
       {/*
         The floor you can teleport onto. It is deliberately invisible: the room
@@ -355,6 +364,8 @@ export function Immersive({
   feed,
   panels,
   arrange,
+  showing,
+  showingChoices,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -368,6 +379,8 @@ export function Immersive({
   feed: RoomFeed;
   panels: PanelChoices;
   arrange: PanelArrange;
+  showing: Showing;
+  showingChoices: RoomShowingChoices;
 }) {
   const session = useXR((state) => state.session);
   /**
@@ -407,6 +420,8 @@ export function Immersive({
       feed={feed}
       panels={panels}
       arrange={arrange}
+      showing={showing}
+      showingChoices={showingChoices}
     />
   ) : null;
 }

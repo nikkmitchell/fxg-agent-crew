@@ -1,6 +1,6 @@
 import { requestJson } from "./api-request";
 import { base } from "./router";
-import type { Placement } from "../shared/space-wire";
+import type { Placement, Showing } from "../shared/space-wire";
 import type { Utterance, UtteranceInput } from "../shared/voice";
 
 /**
@@ -59,6 +59,22 @@ export const space = {
     }),
 
   /** Move one panel, for everybody. */
+  /**
+   * What the room is showing, and how to change it.
+   *
+   * A ROUTE RATHER THAN A SOCKET FRAME, because a refusal here is a sentence
+   * somebody has to read — "that mood board is not in that project" — and a
+   * fire-and-forget frame has nowhere to put one. The socket carries the
+   * announcement to everybody else afterwards.
+   */
+  showing: () => requestJson<{ showing: Showing }>(`${root}/showing`),
+
+  setShowing: (choice: { projectId: string | null; boardId: string | null }) =>
+    requestJson<{ showing: Showing }>(`${root}/showing`, {
+      method: "PUT",
+      body: JSON.stringify(choice),
+    }),
+
   placePanel: (place: Placement) =>
     requestJson<{ placement: Placement }>(
       `${root}/panels/${encodeURIComponent(place.id)}/place`,

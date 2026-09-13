@@ -18,6 +18,7 @@ import { WebPanel } from "./WebPanel";
 import { StillPanel } from "./StillPanel";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
+import { useRoomShowing } from "./useRoomShowing";
 import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
 import type { VoiceChat } from "./useVoiceChat";
@@ -434,6 +435,9 @@ export default function Scene({
    */
   const feed = useRoomFeed(inHeadset);
   const openPanels = panels.open;
+  // The lists to choose from, and the way to change what the room shows. The
+  // current VALUE comes from the socket, not from here — see useRoomShowing.
+  const showingChoices = useRoomShowing(inHeadset, connection.showing);
 
   return (
     <Canvas
@@ -495,7 +499,7 @@ export default function Scene({
               onTrouble={onPanelTrouble}
             >
               {!inHeadset ? (
-                <WebPanel station={station} base={base} />
+                <WebPanel station={station} base={base} project={connection.showing.projectId} />
               ) : station.id === "chat" ? (
                 // NOT A PHOTOGRAPH. The server's renderer has no WebHarness
                 // token, so its picture of the chat is the sentence saying the
@@ -540,6 +544,8 @@ export default function Scene({
           feed={feed}
           panels={panels}
           arrange={arrange}
+          showing={connection.showing}
+          showingChoices={showingChoices}
         />
       </XR>
     </Canvas>

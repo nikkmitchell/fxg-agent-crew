@@ -4,6 +4,7 @@ import type {
   Placement,
   Pose,
   ServerMessage,
+  Showing,
   WirePerson,
 } from "../../shared/space-wire";
 import type { Utterance } from "../../shared/voice";
@@ -56,6 +57,14 @@ export type SpaceConnection = {
   /** Where every panel hangs. Empty until the socket says; see the note above. */
   places: Placement[];
   /**
+   * What the room is showing, as everybody in it sees it.
+   *
+   * Carried on the socket rather than fetched, so a change one person makes
+   * reaches the rest of the room at once — which is the only reason it is
+   * shared state instead of a setting.
+   */
+  showing: Showing;
+  /**
    * Listen to every frame the server sends, raw.
    *
    * For things this hook deliberately does not interpret — voice signalling is
@@ -91,6 +100,12 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
    * appearing empty and then filling in.
    */
   const [places, setPlaces] = useState<Placement[]>([]);
+  const [showing, setShowing] = useState<Showing>({
+    projectId: null,
+    boardId: null,
+    setBy: null,
+    setAt: null,
+  });
   /**
    * Anybody who wants every frame, as it arrives.
    *
@@ -179,6 +194,12 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           ]);
           return;
         }
+        if (message.type === "showing") {
+          // Somebody changed what is on the wall. A position, not an event:
+          // only the newest answer matters.
+          setShowing(message.showing);
+          return;
+        }
         if (message.type === "said") {
           // Appended rather than replacing: an utterance is an event, and the
           // list is a transcript. Capped so a room left open all day does not
@@ -195,6 +216,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
         if (message.type === "welcome") {
           setStatus({ state: "open", you: message.you });
           setPlaces(message.panels);
+          setShowing(message.showing);
         }
         onSnapshot.current?.();
       });
@@ -267,7 +289,18 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     };
   }, []);
 
-  return { status, peopleRef, roster, send, onSnapshot, heard, liveUtterance, places, subscribe };
+  return {
+    status,
+    peopleRef,
+    roster,
+    send,
+    onSnapshot,
+    heard,
+    liveUtterance,
+    places,
+    showing,
+    subscribe,
+  };
 }
 
 /**

@@ -16,7 +16,9 @@ import { registerBuildRoutes } from "./routes/build.js";
 import { registerBoardRoutes } from "./routes/board.js";
 import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
 import { Activity } from "./space/activity.js";
+import { BoardReads } from "./db/reads.js";
 import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
+import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { standFor } from "../shared/panel-place.js";
 import { registerStillRoutes } from "./space/stills.js";
 import { registerUtteranceRoutes } from "./space/utterances.js";
@@ -107,6 +109,10 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // The stands are read fresh on every mapped row rather than captured, so an
   // agent walks to where its panel is NOW — see the note in Activity.
   const panelPlaces = new PanelPlaces(database);
+  // What the room is showing, shared by everyone standing in it. `BoardReads`
+  // is passed in so a choice can be checked against what actually exists
+  // rather than stored and discovered wrong by everybody at once later.
+  const roomShowing = new RoomShowing(database, new BoardReads(database));
   const activity = new Activity(database, space.presence, Date.now, () =>
     Object.fromEntries(panelPlaces.all().map((place) => [place.id, standFor(place)])),
   );
@@ -122,13 +128,26 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerProjectRoutes(scoped, config, sessions, client);
     registerBuildRoutes(scoped, config, sessions);
     registerBoardRoutes(scoped, config, sessions, database, config.blobRoot);
-    registerSpaceRoutes(scoped, config, sessions, space, () => panelPlaces.all());
+    registerSpaceRoutes(
+      scoped,
+      config,
+      sessions,
+      space,
+      () => panelPlaces.all(),
+      () => roomShowing.current(),
+    );
     registerStillRoutes(scoped, config, sessions);
     registerPanelRoutes(scoped, {
       database,
       sessions,
       config,
       announce: (panel, by) => space.broadcast({ type: "panelMoved", panel, by }),
+    });
+    registerShowingRoutes(scoped, {
+      showing: roomShowing,
+      sessions,
+      config,
+      announce: (showing) => space.broadcast({ type: "showing", showing }),
     });
     registerUtteranceRoutes(
       scoped,

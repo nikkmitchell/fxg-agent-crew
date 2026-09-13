@@ -10,6 +10,8 @@ import { newestId, replyToSpeak } from "./reply-speech";
 import type { RoomFeed } from "./useRoomFeed";
 import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
+import type { Showing } from "../../shared/space-wire";
+import type { RoomShowingChoices } from "./useRoomShowing";
 import type { Utterance } from "../../shared/voice";
 import { planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
@@ -84,6 +86,8 @@ export function RoomControls({
   feed,
   panels,
   arrange,
+  showing,
+  showingChoices,
 }: {
   anchor: () => { at: { x: number; z: number }; yaw: number } | null;
   you: string | null;
@@ -102,6 +106,10 @@ export function RoomControls({
   panels: PanelChoices;
   /** Whether a panel is currently being moved or resized. */
   arrange: PanelArrange;
+  /** What the room is showing, as everybody in it sees it. */
+  showing: Showing;
+  /** What it could show, and how to change it for everybody. */
+  showingChoices: RoomShowingChoices;
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
@@ -437,6 +445,68 @@ export function RoomControls({
               : `   ${panel.label}: drag it to resize`,
         tone: mode === "locked" ? "muted" : "live",
         onTap: () => arrange.cycle(panel.id),
+      });
+    }
+
+    /**
+     * WHAT THE ROOM IS SHOWING — for everybody, not just you.
+     *
+     * This is the one control in this menu that changes what other people are
+     * looking at, so it says so on every row. Nikk: "if one user changes what
+     * board is being show, it should update for everyone."
+     *
+     * The project list is offered as a row each rather than a cycle, because
+     * cycling through projects means passing through other people's boards on
+     * the way — every step is a change everybody in the room sees.
+     */
+    const projects = showingChoices.projects;
+    if (projects === null) {
+      rows.push({ label: "Projects could not be read", tone: "muted", onTap: () => {} });
+    } else if (projects.length === 0) {
+      rows.push({ label: "There are no projects yet", tone: "muted", onTap: () => {} });
+    } else {
+      for (const project of projects) {
+        const on = showing.projectId === project.id;
+        rows.push({
+          label: `${on ? "\u2713" : "\u00b7"} Room shows: ${project.name}`,
+          tone: on ? "live" : "normal",
+          onTap: () =>
+            showingChoices.choose(
+              // Tapping the one already showing turns it off rather than doing
+              // nothing — otherwise there is no way back to showing nothing.
+              on ? { projectId: null, boardId: null } : { projectId: project.id, boardId: null },
+            ),
+        });
+      }
+    }
+
+    // The mood boards of whatever the room is on. Only ever the legal ones:
+    // the server refuses a board from another project, and offering one would
+    // be inviting a refusal.
+    if (showing.projectId && showingChoices.boards && showingChoices.boards.length > 0) {
+      for (const moodBoard of showingChoices.boards) {
+        const on = showing.boardId === moodBoard.id;
+        rows.push({
+          label: `${on ? "\u2713" : "\u00b7"} Mood board: ${moodBoard.title}`,
+          tone: on ? "live" : "normal",
+          onTap: () =>
+            showingChoices.choose({
+              projectId: showing.projectId,
+              boardId: on ? null : moodBoard.id,
+            }),
+        });
+      }
+    }
+
+    if (showingChoices.refusal) {
+      rows.push({ label: showingChoices.refusal, tone: "muted", onTap: () => {} });
+    } else if (showing.setBy) {
+      // WHO CHANGED IT. A wall that is showing something else should be
+      // answerable without asking around.
+      rows.push({
+        label: `Set by ${showing.setBy}`,
+        tone: "muted",
+        onTap: () => {},
       });
     }
 
