@@ -65,7 +65,43 @@ for (const [username, kind] of people) {
 // Nothing in this file runs on a deployed server, so nothing invented here can
 // reach a real screen.
 space.presence.sendTo("Inkstone", "agent", deskFor("Inkstone"), "placed by the dev harness");
-space.presence.sendTo("unstated-kind", null, deskFor("unstated-kind"), "placed by the dev harness");
+// Plumbline too, so all three chosen bodies can be seen side by side: Inkstone
+// in Observer, Plumbline in Anchor, and an unnamed actor in the default.
+space.presence.sendTo("Plumbline", "agent", deskFor("Plumbline"), "placed by the dev harness");
+
+// A figure with HANDS IN KNOWN PLACES, so the arm solver can be checked rather
+// than admired. Plumbline's right hand is held high and out; the left is low
+// and across the body. If the arms do not end at those two points, the IK is
+// wrong — which is exactly how it was caught being wrong before.
+{
+  // IN FRONT OF THE SPAWN POINT, facing it, so checking the arms needs no
+  // camera work at all — you arrive looking straight at them.
+  const desk = { x: 0.9, y: 0, z: 3.6 };
+  const still = { x: 0, y: 0, z: 0, w: 1 };
+  space.presence.moveSelf("Plumbline", desk, Math.PI, {
+    head: { p: { x: desk.x, y: 1.62, z: desk.z }, q: still },
+    hands: {
+      right: { p: { x: desk.x + 0.55, y: 1.55, z: desk.z - 0.15 }, q: still },
+      left: { p: { x: desk.x + 0.12, y: 0.95, z: desk.z - 0.35 }, q: still },
+    },
+  });
+}
+// The SAME pose on the default model, standing next to it, so a wrong arm can
+// be blamed on the solver or on one model's rig rather than guessed at.
+{
+  const at = { x: -1.4, y: 0, z: 3.6 };
+  const still = { x: 0, y: 0, z: 0, w: 1 };
+  // `moveSelf` only poses somebody already in the room; `sendTo` is what puts
+  // them there.
+  space.presence.sendTo("unstated-kind", null, at, "placed by the dev harness");
+  space.presence.moveSelf("unstated-kind", at, Math.PI, {
+    head: { p: { x: at.x, y: 1.62, z: at.z }, q: still },
+    hands: {
+      right: { p: { x: at.x + 0.55, y: 1.55, z: at.z - 0.15 }, q: still },
+      left: { p: { x: at.x + 0.12, y: 0.95, z: at.z - 0.35 }, q: still },
+    },
+  });
+}
 
 // A board to act on, so activity-driven movement can be exercised for real
 // rather than simulated. The ids are printed because the point of this harness

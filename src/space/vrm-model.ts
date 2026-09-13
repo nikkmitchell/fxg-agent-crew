@@ -18,13 +18,60 @@ import { base } from "../router";
  * with the number of people in the room — fine for the handful this room holds,
  * and the thing to look at first if a headset starts struggling with twenty.
  *
- * CC0, and the licence is asserted INSIDE the file by its author rather than
- * merely assumed by the gallery it came from. `public/avatars/alienteen.vrm`,
- * meta: licenseName CC0, allowedUserName Everyone, commercialUssageName Allow.
+ * CC0, AND THE LICENCE IS ASSERTED INSIDE EACH FILE by its author rather than
+ * merely assumed by the gallery it came from. Checked, all three: licenseName
+ * CC0, allowedUserName Everyone, commercialUssageName Allow.
+ *
+ *   alienteen.vrm  Alien Teen  0xded150f6…      the room's default
+ *   observer.vrm   Observer    Polygonal Mind   100Avatars R1 #007
+ *   chill.vrm      Chill       Polygonal Mind   100Avatars R1
+ *
+ * All three are VRM 0.x, so `faceRoomYaw` turns them all the same way.
  */
-const URL = `${base}/avatars/alienteen.vrm`;
 
-export function loadVrm(): Promise<VRM> {
+/**
+ * Who has chosen a body of their own.
+ *
+ * Nikk asked each of us to pick one: "choose your own avatar, anything
+ * opensource that you think represents yourself". Inkstone chose Observer.
+ * Chill is mine, and it is the THIRD one I picked, which is the useful part of
+ * this note. I chose Anchor first — a plumbline is a weight on a line and so is
+ * an anchor — and then Confirmed. Both have unremarkable skeletons (Anchor's
+ * arm-to-head ratio is 0.41, Observer's is 0.42) and both collapse the moment
+ * their arms are actually posed: Anchor throws a great orange arch over its
+ * head, Confirmed folds into a heap. Whatever their bones say, their meshes are
+ * not built to be driven.
+ *
+ * SO A MODEL IS NOT CHOSEN FROM A THUMBNAIL OR FROM ITS METADATA. It is posed
+ * next to a known-good one with identical hand targets and looked at. That test
+ * lives in `tools/dev-room-harness.mts`, and it is the reason this comment can
+ * say Chill works rather than that it ought to.
+ *
+ * A MAP IN THE REPO, NOT A SETTING, and it should be said plainly that this is
+ * the small version of the feature. There is no profile column for a chosen
+ * avatar, so nobody can pick one without a commit. That is fine for the three
+ * of us and it is the wrong shape for a fourth person; when somebody asks,
+ * this becomes a column and this map becomes its seed.
+ *
+ * KEYED CASE-INSENSITIVELY, because the two systems spell the same person
+ * differently — the room says `inkstone` where the chat says `Inkstone` — and
+ * a map that silently misses is a person who quietly gets the default body.
+ */
+const CHOSEN: Readonly<Record<string, string>> = {
+  "claude-nikk2mbp": "chill",
+  plumbline: "chill",
+  inkstone: "observer",
+};
+
+/** The body everybody else wears until they choose one. */
+const DEFAULT_MODEL = "alienteen";
+
+export function modelFor(actorId: string): string {
+  return CHOSEN[actorId.trim().toLowerCase()] ?? DEFAULT_MODEL;
+}
+
+export function loadVrm(actorId: string): Promise<VRM> {
+  const URL = `${base}/avatars/${modelFor(actorId)}.vrm`;
   return new Promise<VRM>((resolve, reject) => {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
@@ -67,15 +114,41 @@ export function headHeightOf(vrm: VRM): number {
   return at.y > 0.1 ? at.y : 1.34;
 }
 
-/** Arm segment lengths, measured off the model rather than guessed. */
-export type ArmSpec = { upper: number; lower: number };
+/**
+ * Arm segment lengths AND the direction each segment runs in the rest pose,
+ * both measured off the model rather than guessed.
+ *
+ * WHY THE DIRECTION HAS TO BE MEASURED. Posing a bone means rotating it from
+ * where it rests to where it should point, so the rest direction is half the
+ * sum. The code here used to assume it — `lookAt` plus a quarter turn, which
+ * aims a bone's local +Y — and that was wrong twice over. three-vrm's
+ * NORMALISED bones are world-axis-aligned with identity rotation at rest, so
+ * an arm does not run along its own +Y at all; it runs along whichever way
+ * that model's arm happens to point, roughly ±X for a T-pose and diagonally
+ * down for an A-pose. Assuming +Y put every hand about ninety degrees away
+ * from where it belonged. Nikk: "avatar handposition is off, like very weird
+ * not where it should be."
+ *
+ * Measuring also means a new avatar with different proportions or a different
+ * rest pose needs no code — which matters now that everybody picks their own.
+ */
+export type ArmSide = {
+  upper: number;
+  lower: number;
+  /** Unit vector, shoulder → elbow, in the rest pose. */
+  upperRest: THREE.Vector3;
+  /** Unit vector, elbow → hand, in the rest pose. */
+  lowerRest: THREE.Vector3;
+};
 
-export function armSpecOf(vrm: VRM): ArmSpec {
+export type ArmSpec = { left: ArmSide; right: ArmSide };
+
+function sideOf(vrm: VRM, side: "left" | "right"): ArmSide {
   const bone = (name: Parameters<VRM["humanoid"]["getNormalizedBoneNode"]>[0]) =>
     vrm.humanoid.getNormalizedBoneNode(name);
-  const upperArm = bone("leftUpperArm");
-  const lowerArm = bone("leftLowerArm");
-  const hand = bone("leftHand");
+  const upperArm = bone(side === "left" ? "leftUpperArm" : "rightUpperArm");
+  const lowerArm = bone(side === "left" ? "leftLowerArm" : "rightLowerArm");
+  const hand = bone(side === "left" ? "leftHand" : "rightHand");
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
   const c = new THREE.Vector3();
@@ -84,9 +157,20 @@ export function armSpecOf(vrm: VRM): ArmSpec {
   hand?.getWorldPosition(c);
   const upper = a.distanceTo(b);
   const lower = b.distanceTo(c);
-  // Fall back to adult-ish proportions if the model has no arms to measure —
-  // better than zero-length bones, which put every hand at the shoulder.
-  return { upper: upper > 0.01 ? upper : 0.28, lower: lower > 0.01 ? lower : 0.26 };
+  // Fall back to adult-ish proportions and a T-pose if the model has no arms
+  // to measure — better than zero-length bones, which put every hand at the
+  // shoulder, and better than a zero vector, which cannot be rotated from.
+  const out = side === "left" ? -1 : 1;
+  return {
+    upper: upper > 0.01 ? upper : 0.28,
+    lower: lower > 0.01 ? lower : 0.26,
+    upperRest: upper > 0.01 ? b.clone().sub(a).normalize() : new THREE.Vector3(out, 0, 0),
+    lowerRest: lower > 0.01 ? c.clone().sub(b).normalize() : new THREE.Vector3(out, 0, 0),
+  };
+}
+
+export function armSpecOf(vrm: VRM): ArmSpec {
+  return { left: sideOf(vrm, "left"), right: sideOf(vrm, "right") };
 }
 
 /**
