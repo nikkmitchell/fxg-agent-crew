@@ -17,6 +17,25 @@ import type { Vec3 } from "./space-layout.js";
 export const PANEL_Y = { min: 0.9, max: 3.4 } as const;
 
 /**
+ * How much bigger or smaller than its designed size a panel may be made.
+ *
+ * BOUNDED AT BOTH ENDS, and both bounds are about being able to use the room
+ * rather than about taste. Below the floor a panel is a postage stamp with
+ * unreadable text, which is indistinguishable from a panel that failed to load.
+ * Above the ceiling one panel fills the arc and hides the others behind it,
+ * including the ones somebody would need in order to shrink it again.
+ */
+export const PANEL_SCALE = { min: 0.4, max: 2.5 } as const;
+
+/** The size of a panel nobody has resized. */
+export const DEFAULT_SCALE = 1;
+
+/** A placement's size, with the stored-before-resizing-existed case handled. */
+export function scaleOf(place: Placement): number {
+  return place.scale ?? DEFAULT_SCALE;
+}
+
+/**
  * How close to the rail a panel may be pushed.
  *
  * Bigger than the walking margin: a person clamped to the boundary must still
@@ -39,6 +58,16 @@ export function placementRefusal(place: Placement): string | null {
   }
   if (place.position.y < PANEL_Y.min) return "that is too low to read without crouching";
   if (place.position.y > PANEL_Y.max) return "that is above where anybody can read it";
+
+  if (place.scale !== undefined) {
+    if (!Number.isFinite(place.scale)) return "that size is not a number";
+    if (place.scale < PANEL_SCALE.min) {
+      return `that is smaller than ${PANEL_SCALE.min} of its normal size; the writing on it would not be readable`;
+    }
+    if (place.scale > PANEL_SCALE.max) {
+      return `that is bigger than ${PANEL_SCALE.max} times its normal size; it would cover the panels behind it`;
+    }
+  }
   return null;
 }
 
