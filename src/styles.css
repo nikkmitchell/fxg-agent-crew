@@ -935,3 +935,8 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
   padding: 0.1rem 0.4rem;
   line-height: 1.4;
 }
+
+/* A still of a mood board is as tall as the board, not 60dvh with a scrollbar.
+   Its height is set inline from the items; this only removes the clipping and
+   the scroll affordance, neither of which means anything in a photograph. */
+.moodboard-surface.is-still { min-height: 0; overflow: visible; }
