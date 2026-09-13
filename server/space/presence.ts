@@ -243,10 +243,15 @@ export class Presence {
     occupant.speakingTo = null;
     occupant.because = because;
     occupant.lastActed = this.now();
-    // Acting takes an agent's posture back: whatever it declared, it is
-    // demonstrably working now, and the audit trail is the better witness.
-    occupant.declaredPosture = false;
-    occupant.avatar.posture = "thinking";
+    // AGENTS ONLY. A person has a posture of their own and nothing here should
+    // describe it — the renderer ignores it for humans, but wrong data that
+    // happens not to be read is still wrong, and somebody will read it later.
+    if (occupant.kind === "agent") {
+      // Acting takes an agent's posture back: whatever it declared, it is
+      // demonstrably working now, and the audit trail is the better witness.
+      occupant.declaredPosture = false;
+      occupant.avatar.posture = "thinking";
+    }
     occupant.lastSeen = this.now();
   }
 
@@ -303,7 +308,7 @@ export class Presence {
       if (occupant.kind !== "agent") continue;
       if (occupant.declaredPosture) continue;
       const working = occupant.lastActed !== null && occupant.lastActed > busySince;
-      occupant.avatar.posture = working ? "thinking" : "meditating";
+      occupant.avatar.posture = working ? "thinking" : "sleeping";
     }
   }
 
@@ -459,8 +464,28 @@ export class Presence {
   leave(actorId: string): void {
     const occupant = this.occupants.get(actorId);
     if (!occupant) return;
-    // A human who disconnects leaves. An agent that was only ever placed by
-    // activity has no connection to lose.
+
+    /**
+     * A PERSON LEAVES. AN AGENT GOES BACK TO BEING AT ITS DESK.
+     *
+     * This used to delete anybody whose socket closed, which was right when
+     * only people held sockets. It is wrong now, and the way it was wrong is
+     * worth writing down: an agent that opened a socket — to watch the room,
+     * to read what was said — was ERASED from the room the moment it closed
+     * one. Nikk and Baiwei both looked for me in the live room and found
+     * nothing, while the same code showed me perfectly in a local one where I
+     * had never connected at all. Looking cost me my presence.
+     *
+     * An agent's presence is not a socket. It is placed by what it does, it
+     * stands at its desk between times, and it is still there whether or not
+     * anything of its is currently listening. Closing a connection makes it
+     * DISCONNECTED — which the room already draws differently, with a broken
+     * ring — not absent.
+     */
+    if (occupant.kind === "agent") {
+      occupant.connected = false;
+      return;
+    }
     if (occupant.connected) this.occupants.delete(actorId);
   }
 

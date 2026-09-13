@@ -14,14 +14,6 @@ export type AgentMotionFrame = {
   rightUpperLeg: Rotation;
   rightLowerLeg: Rotation;
   expressions: { blink: number; aa: number; happy: number; sad: number; relaxed: number };
-  /**
-   * How far to lower the whole body, in metres at the model's own scale.
-   *
-   * Needed for sitting: a cross-legged figure's hips are near the floor, and
-   * rotating the legs alone leaves it standing with its knees bent in the air.
-   * Zero for every standing posture, which is nearly all of them.
-   */
-  rootDrop: number;
 };
 
 const rotation = (x = 0, y = 0, z = 0): Rotation => ({ x, y, z });
@@ -82,7 +74,6 @@ export function agentMotionFrame({
     leftLowerLeg: rotation(),
     rightUpperLeg: rotation(),
     rightLowerLeg: rotation(),
-    rootDrop: 0,
     expressions: {
       blink,
       aa: speaking
@@ -118,27 +109,24 @@ export function agentMotionFrame({
    * this and win, because those are responses to somebody and a posture is
    * merely what you were doing until they arrived.
    */
-  if (!moving && avatar.posture === "meditating") {
-    // Sitting cross-legged. The hips drop nearly to the floor, the thighs
-    // rotate out and forward, and the knees fold. The arms come to rest on
-    // them. It is an invention — no agent has legs anybody measured — but an
-    // agent is declared as an agent, so nothing here is pretending to be
-    // tracked.
-    frame.rootDrop = 0.52;
-    frame.leftUpperLeg = rotation(-1.32, 0.32, 0.62);
-    frame.rightUpperLeg = rotation(-1.32, -0.32, -0.62);
-    frame.leftLowerLeg = rotation(1.62, 0, 0);
-    frame.rightLowerLeg = rotation(1.62, 0, 0);
-    frame.leftUpperArm = rotation(0.34, 0, 1.16);
-    frame.leftLowerArm = rotation(-0.3, 0, 0.34);
-    frame.rightUpperArm = rotation(0.34, 0, -1.16);
-    frame.rightLowerArm = rotation(-0.3, 0, -0.34);
-    // The head settles, and the breath slows — that is most of what reads as
-    // meditating rather than sitting.
-    frame.head.x += 0.16;
-    frame.chest.x = reducedMotion ? 0 : Math.sin(seconds * 0.55 + phase) * 0.04;
-    frame.expressions.blink = reducedMotion ? 0 : Math.min(1, frame.expressions.blink + 0.55);
-    frame.expressions.relaxed = Math.max(frame.expressions.relaxed, 0.4);
+  if (!moving && avatar.posture === "sleeping") {
+    /**
+     * A STANDING DOZE, not a sit.
+     *
+     * Everything here is a small change to the resting stance: the head comes
+     * forward, the eyes close, the breath slows and deepens, the arms hang a
+     * little heavier. Nothing is repositioned, so there is no pose to get
+     * wrong — which is the whole reason it looks like this rather than like
+     * somebody sitting down. See the note in shared/avatar-motion.ts.
+     */
+    frame.head.x += 0.26;
+    frame.chest.x = reducedMotion ? 0.02 : 0.02 + Math.sin(seconds * 0.5 + phase) * 0.045;
+    frame.leftUpperArm.z += 0.06;
+    frame.rightUpperArm.z -= 0.06;
+    // Eyes closed. Not a blink that happens to be shut — held, which is what
+    // makes it read as asleep rather than as a very slow blinker.
+    frame.expressions.blink = 1;
+    frame.expressions.relaxed = Math.max(frame.expressions.relaxed, 0.45);
   } else if (!moving && avatar.posture === "thinking") {
     // A hand to the chin. The other arm folds across, which is what an arm
     // does when the first one is busy holding your face up.

@@ -64,7 +64,7 @@ for (const [username, kind] of people) {
 // audit poller uses, with a reason that says plainly where it came from.
 // Nothing in this file runs on a deployed server, so nothing invented here can
 // reach a real screen.
-space.presence.sendTo("Inkstone", "agent", deskFor("Inkstone"), "placed by the dev harness");
+space.presence.sendTo("Inkstone", "agent", { x: -1.3, y: 0, z: 3.6 }, "placed by the dev harness");
 // Plumbline too, so all three chosen bodies can be seen side by side: Inkstone
 // in Observer, Plumbline in Anchor, and an unnamed actor in the default.
 space.presence.sendTo("Plumbline", "agent", deskFor("Plumbline"), "placed by the dev harness");
@@ -76,20 +76,21 @@ space.presence.sendTo("Plumbline", "agent", deskFor("Plumbline"), "placed by the
 {
   // IN FRONT OF THE SPAWN POINT, facing it, so checking the arms needs no
   // camera work at all — you arrive looking straight at them.
-  const desk = { x: 0.9, y: 0, z: 3.6 };
+  const desk = { x: 1.3, y: 0, z: 3.6 };
   const still = { x: 0, y: 0, z: 0, w: 1 };
-  space.presence.moveSelf("Plumbline", desk, Math.PI, {
-    head: { p: { x: desk.x, y: 1.62, z: desk.z }, q: still },
-    hands: {
-      right: { p: { x: desk.x + 0.55, y: 1.55, z: desk.z - 0.15 }, q: still },
-      left: { p: { x: desk.x + 0.12, y: 0.95, z: desk.z - 0.35 }, q: still },
-    },
-  });
+  void still;
+  // No head and no hands: an agent reports neither, and the posture is what
+  // drives the whole body. Sent rather than moved, so the room owns it.
+  space.presence.sendTo("Plumbline", "agent", desk, "placed by the dev harness");
+  // One of each posture, side by side, because the only way to know whether a
+  // pose looks like sitting is to look at it next to one that is standing.
+  space.presence.animate("Plumbline", { posture: "thinking" }, "agent");
+  space.presence.animate("Inkstone", { posture: "sleeping" }, "agent");
 }
 // The SAME pose on the default model, standing next to it, so a wrong arm can
 // be blamed on the solver or on one model's rig rather than guessed at.
 {
-  const at = { x: -1.4, y: 0, z: 3.6 };
+  const at = { x: -4.2, y: 0, z: 3.6 };
   const still = { x: 0, y: 0, z: 0, w: 1 };
   // `moveSelf` only poses somebody already in the room; `sendTo` is what puts
   // them there.
