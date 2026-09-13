@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
 import { SPOKEN_LIMIT } from "../../shared/voice.js";
+import { facingToward } from "../space/presence.js";
 
 /**
  * Saying things in the room.
@@ -46,6 +47,37 @@ describe("saying something", () => {
     expect(utterance.actorId).toBe("nikk");
     expect(utterance.source).toBe("voice");
     expect(utterance.confidence).toBeCloseTo(0.9);
+    await app.close();
+  });
+
+  it("turns an agent speaker toward the person addressed", async () => {
+    const { app, as, space } = boot();
+    space.presence.join("Nikk", "human", true);
+    space.presence.moveSelf("Nikk", { x: 2, y: 0, z: 1 }, 0);
+
+    const response = await say(app, as("Inkstone", "agent"), {
+      say: "I have the next task.",
+      to: "Nikk",
+      source: "text",
+    });
+    expect(response.statusCode).toBe(200);
+    const inkstone = space.presence.find("Inkstone")!;
+    expect(inkstone.speakingTo?.actorId).toBe("Nikk");
+    expect(inkstone.facing).toBeCloseTo(
+      facingToward(inkstone.at, space.presence.find("Nikk")!.at),
+      6,
+    );
+    await app.close();
+  });
+
+  it("does not invent spoken gaze for written-only detail", async () => {
+    const { app, as, space } = boot();
+    await say(app, as("Inkstone", "agent"), {
+      detail: "A written project note.",
+      to: "Nikk",
+      source: "text",
+    });
+    expect(space.presence.find("Inkstone")).toBeUndefined();
     await app.close();
   });
 

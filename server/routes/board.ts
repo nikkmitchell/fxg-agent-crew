@@ -41,6 +41,11 @@ export function registerBoardRoutes(
   sessions: SessionStore,
   db: import("node:sqlite").DatabaseSync,
   blobRoot: string,
+  observeRead?: (
+    actorId: string,
+    kind: "human" | "agent" | null,
+    view: "tasks" | "mood",
+  ) => void,
 ): void {
   const reads = new BoardReads(db);
   const store = new BoardStore(db);
@@ -132,10 +137,22 @@ export function registerBoardRoutes(
     return reply.send({ projects: reads.projects() });
   });
 
-  app.get<{ Params: { id: string } }>("/bff/board/projects/:id", async (request, reply) => {
-    if (!requireSession(request, reply)) return reply;
+  app.get<{ Params: { id: string }; Querystring: { view?: string } }>("/bff/board/projects/:id", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const requestedView = request.query.view;
+    if (requestedView !== undefined && requestedView !== "tasks" && requestedView !== "mood") {
+      return reply.code(400).send({
+        code: "BAD_VIEW",
+        error: "view must be 'tasks' or 'mood'",
+      });
+    }
     const view = reads.project(request.params.id);
     if (!view) return reply.code(404).send({ code: "NOT_FOUND", error: "no such project" });
+    // The query is an explicit declaration of what this otherwise combined
+    // payload is being read for. Only a successful authenticated read moves the
+    // avatar; a typo or a missing project is not evidence of attention.
+    if (requestedView) observeRead?.(session.username, session.kind ?? null, requestedView);
     return reply.send(view);
   });
 

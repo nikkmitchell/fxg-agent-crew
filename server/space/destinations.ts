@@ -1,4 +1,4 @@
-import { STATIONS, deskFor, type Vec3 } from "../../shared/space-layout.js";
+import { deskFor, type Vec3 } from "../../shared/space-layout.js";
 import { defaultPlacement, standFor } from "../../shared/panel-place.js";
 import type { Placement } from "../../shared/space-wire.js";
 
@@ -30,6 +30,8 @@ export type AuditRow = {
 
 export type Destination = {
   at: Vec3;
+  /** Final body yaw. Null means retain whichever way the walk left them facing. */
+  facing: number | null;
   /**
    * Why they are there, in words, for the label above their head.
    *
@@ -54,16 +56,22 @@ export type Destination = {
  * Missing entries fall back to the arc, so a caller that has not read the
  * database yet gets the untouched layout rather than the origin.
  */
-export type PanelStands = Partial<Record<string, Vec3>>;
+export type PanelPlaces = Partial<Record<string, Placement>>;
 
-const standAt = (panels: PanelStands, id: string): Vec3 =>
-  panels[id] ?? standFor(defaultPlacement(id) as Placement);
+const placeOf = (panels: PanelPlaces, id: string): Placement =>
+  panels[id] ?? (defaultPlacement(id) as Placement);
 
 /** Somebody was at a panel, and why. */
-const atPanel = (panels: PanelStands, id: string, because: string): Destination => ({
-  at: standAt(panels, id),
-  because,
-});
+const atPanel = (panels: PanelPlaces, id: string, because: string): Destination => {
+  const place = placeOf(panels, id);
+  return {
+    at: standFor(place),
+    // A panel and the avatar reading it have the same yaw: the panel's front is
+    // +Z, while the avatar's front is -Z, and they stand on that +Z side.
+    facing: place.rotationY,
+    because,
+  };
+};
 
 /**
  * Map one row to a place to stand.
@@ -73,7 +81,7 @@ const atPanel = (panels: PanelStands, id: string, because: string): Destination 
  * recognise their action would be an invention, and it is the kind that looks
  * completely normal.
  */
-export function destinationFor(row: AuditRow, panels: PanelStands = {}): Destination | null {
+export function destinationFor(row: AuditRow, panels: PanelPlaces = {}): Destination | null {
   if (row.entity === "task") {
     switch (row.action) {
       case "comment":
@@ -111,7 +119,7 @@ export function destinationFor(row: AuditRow, panels: PanelStands = {}): Destina
 
   if (row.entity === "profile") {
     // Your own desk: this is about you, not about a shared surface.
-    return { at: deskFor(row.actorId), because: "updated their profile" };
+    return { at: deskFor(row.actorId), facing: null, because: "updated their profile" };
   }
 
   if (row.entity === "project") {
@@ -131,5 +139,18 @@ export function destinationFor(row: AuditRow, panels: PanelStands = {}): Destina
  * evidence they are idle, only an absence of evidence that they are not.
  */
 export function restingPlace(actorId: string): Destination {
-  return { at: deskFor(actorId), because: null };
+  return { at: deskFor(actorId), facing: null, because: null };
+}
+
+/**
+ * An authenticated read is evidence of attention even though it is not a board
+ * mutation and therefore does not belong in the durable audit table.
+ */
+export function destinationForRead(
+  view: "tasks" | "mood",
+  panels: PanelPlaces = {},
+): Destination {
+  return view === "mood"
+    ? atPanel(panels, "moodBoard", "was considering the mood board")
+    : atPanel(panels, "taskBoard", "was checking tasks");
 }

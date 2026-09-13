@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Presence, STALE_AFTER_MS } from "../space/presence.js";
+import { facingToward, Presence, STALE_AFTER_MS } from "../space/presence.js";
 import { ROOM, WALK_SPEED, deskFor } from "../../shared/space-layout.js";
 
 /**
@@ -82,6 +82,13 @@ describe("moving", () => {
 });
 
 describe("walking", () => {
+  it("computes yaw for the avatar's -Z forward axis", () => {
+    const yaw = facingToward({ x: 0, y: 0, z: 0 }, { x: 2, y: 0, z: 0 });
+    const forward = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
+    expect(forward.x).toBeCloseTo(1, 6);
+    expect(forward.z).toBeCloseTo(0, 6);
+  });
+
   it("crosses the room at walking speed rather than teleporting", () => {
     const presence = at({ now: 0 });
     presence.join("plumbline", "agent", false);
@@ -103,6 +110,44 @@ describe("walking", () => {
     presence.sendTo("plumbline", "agent", { x: 0, y: 0, z: -3.6 }, "posted");
     for (let i = 0; i < 100; i += 1) presence.tick(0.1);
     expect(presence.find("plumbline")!.at).toEqual({ x: 0, y: 0, z: -3.6 });
+  });
+
+  it("faces the direction of travel and then the surface on arrival", () => {
+    const presence = at({ now: 0 });
+    presence.join("plumbline", "agent", false);
+    const start = { ...presence.find("plumbline")!.at };
+    const destination = { x: start.x + 2, y: 0, z: start.z };
+    presence.sendTo("plumbline", "agent", destination, "checking tasks", -0.75);
+
+    presence.tick(0.1);
+    expect(presence.find("plumbline")!.facing).toBeCloseTo(
+      facingToward(start, destination),
+      6,
+    );
+    for (let i = 0; i < 30; i += 1) presence.tick(0.1);
+    expect(presence.find("plumbline")!.at).toEqual(destination);
+    expect(presence.find("plumbline")!.facing).toBeCloseTo(-0.75, 6);
+  });
+
+  it("keeps a speaker turned toward a moving addressee while the line is live", () => {
+    const clock = { now: 1_000 };
+    const presence = at(clock);
+    presence.join("Inkstone", "agent", false);
+    presence.join("Nikk", "human", true);
+    presence.moveSelf("Nikk", { x: 2, y: 0, z: 2 }, 0);
+    presence.speakTo("Inkstone", "agent", "Nikk", 6_000);
+    presence.tick(0.1);
+
+    const inkstone = presence.find("Inkstone")!;
+    expect(inkstone.facing).toBeCloseTo(facingToward(inkstone.at, { x: 2, y: 0, z: 2 }), 6);
+
+    presence.moveSelf("Nikk", { x: -2, y: 0, z: 1 }, 0);
+    presence.tick(0.1);
+    expect(inkstone.facing).toBeCloseTo(facingToward(inkstone.at, { x: -2, y: 0, z: 1 }), 6);
+
+    clock.now += 6_001;
+    presence.tick(0.1);
+    expect(inkstone.speakingTo).toBeNull();
   });
 
   it("does not move a human — their own client is the authority", () => {
@@ -179,5 +224,58 @@ describe("leaving", () => {
     presence.join("nikk", "human");
     presence.leave("nikk");
     expect(presence.size).toBe(0);
+  });
+});
+
+/**
+ * Whose body the server may turn.
+ *
+ * The rule is the same one that governs hands: a fact a device tells us is not
+ * ours to overwrite with one we worked out. An agent has no device, which is
+ * exactly why it may be walked and turned; a person wearing a headset is
+ * measuring their own facing ninety times a second and sending it.
+ *
+ * Found while merging the locomotion work: the turn-to-speak ran for everybody,
+ * connected or not, so a person in a headset would have had the server and
+ * their own device each insisting on a different facing several times a second.
+ */
+describe("turning a speaker toward the person they address", () => {
+  const room = () => new Presence(() => 1_000);
+
+  it("turns an agent, which has no device to tell us otherwise", () => {
+    const presence = room();
+    presence.join("agent-one", "agent", false);
+    presence.join("listener", "human", false);
+    presence.moveSelf("listener", { x: 4, y: 0, z: 0 }, 0);
+    const before = presence.find("agent-one")?.facing;
+
+    presence.speakTo("agent-one", "agent", "listener", 5_000);
+    expect(presence.find("agent-one")?.facing).not.toBe(before);
+  });
+
+  it("NEVER turns a connected person — their own headset is the authority", () => {
+    const presence = room();
+    presence.join("nikk", "human", true);
+    presence.join("baiwei", "human", true);
+    presence.moveSelf("nikk", { x: 0, y: 0, z: 0 }, 1.23);
+    presence.moveSelf("baiwei", { x: 4, y: 0, z: 4 }, 0);
+
+    presence.speakTo("nikk", "human", "baiwei", 5_000);
+    expect(presence.find("nikk")?.facing).toBe(1.23);
+
+    // And not on the next tick either, which is where it would have shown up
+    // as a body snapping back and forth rather than as one wrong frame.
+    presence.tick(0.1);
+    expect(presence.find("nikk")?.facing).toBe(1.23);
+  });
+
+  it("leaves a connected person's position alone while they speak", () => {
+    const presence = room();
+    presence.join("nikk", "human", true);
+    presence.join("baiwei", "human", false);
+    presence.moveSelf("nikk", { x: 1, y: 0, z: 2 }, 0.5);
+    presence.speakTo("nikk", "human", "baiwei", 5_000);
+    presence.tick(1);
+    expect(presence.find("nikk")?.at).toEqual({ x: 1, y: 0, z: 2 });
   });
 });

@@ -19,7 +19,6 @@ import { Activity } from "./space/activity.js";
 import { BoardReads } from "./db/reads.js";
 import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
 import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
-import { standFor } from "../shared/panel-place.js";
 import { registerStillRoutes } from "./space/stills.js";
 import { registerUtteranceRoutes } from "./space/utterances.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
@@ -115,7 +114,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // rather than stored and discovered wrong by everybody at once later.
   const roomShowing = new RoomShowing(database, new BoardReads(database));
   const activity = new Activity(database, space.presence, Date.now, () =>
-    Object.fromEntries(panelPlaces.all().map((place) => [place.id, standFor(place)])),
+    Object.fromEntries(panelPlaces.all().map((place) => [place.id, place])),
   );
   activity.onError = (error) => app.log.error({ error }, "space activity poll failed");
   activity.start();
@@ -128,7 +127,14 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerRoomRoutes(scoped, config, sessions, client);
     registerProjectRoutes(scoped, config, sessions, client);
     registerBuildRoutes(scoped, config, sessions);
-    registerBoardRoutes(scoped, config, sessions, database, config.blobRoot);
+    registerBoardRoutes(
+      scoped,
+      config,
+      sessions,
+      database,
+      config.blobRoot,
+      (actorId, kind, view) => activity.observeRead(actorId, kind, view),
+    );
     registerSpaceRoutes(
       scoped,
       config,
@@ -157,6 +163,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       database,
       (utterance) => space.broadcast({ type: "said", utterance }),
       (actorId, utteranceId) => space.presence.attend(actorId, utteranceId),
+      (actorId, kind, targetActorId, durationMs) =>
+        space.presence.speakTo(actorId, kind, targetActorId, durationMs),
     );
     registerAvatarRoutes(
       scoped,

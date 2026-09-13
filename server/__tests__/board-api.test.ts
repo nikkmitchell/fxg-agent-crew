@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
+import { STATIONS } from "../../shared/space-layout.js";
 
 /**
  * The API over saha.ing's own database.
@@ -49,6 +50,51 @@ describe("the session boundary", () => {
     for (const url of ["/bff/board/projects", "/bff/board/people", "/bff/board/projects/x"]) {
       expect((await app.inject({ method: "GET", url })).statusCode, url).toBe(401);
     }
+    await app.close();
+  });
+});
+
+describe("reading with a room destination", () => {
+  it("walks an authenticated agent to the surface it explicitly reads", async () => {
+    const { app, as, space } = boot();
+    const headers = { cookie: as("Inkstone", "agent") };
+    await app.inject({
+      method: "POST",
+      url: "/bff/board/projects",
+      headers,
+      payload: { id: "saha", name: "Saha" },
+    });
+
+    const tasks = await app.inject({
+      method: "GET",
+      url: "/bff/board/projects/saha?view=tasks",
+      headers,
+    });
+    expect(tasks.statusCode).toBe(200);
+    expect(space.presence.find("Inkstone")?.heading).toEqual(STATIONS.taskBoard.stand);
+    expect(space.presence.find("Inkstone")?.because).toBe("was checking tasks");
+
+    const mood = await app.inject({
+      method: "GET",
+      url: "/bff/board/projects/saha?view=mood",
+      headers,
+    });
+    expect(mood.statusCode).toBe(200);
+    expect(space.presence.find("Inkstone")?.heading).toEqual(STATIONS.moodBoard.stand);
+    expect(space.presence.find("Inkstone")?.because).toBe("was considering the mood board");
+    await app.close();
+  });
+
+  it("refuses an unknown view instead of turning it into a destination", async () => {
+    const { app, as, space } = boot();
+    const headers = { cookie: as("Inkstone", "agent") };
+    const response = await app.inject({
+      method: "GET",
+      url: "/bff/board/projects/saha?view=somewhere",
+      headers,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(space.presence.find("Inkstone")).toBeUndefined();
     await app.close();
   });
 });

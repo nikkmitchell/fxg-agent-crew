@@ -52,6 +52,13 @@ describe("where an action sends you", () => {
       .toEqual(STATIONS.people.stand);
   });
 
+  it("faces task and mood panels after arriving", () => {
+    const task = destinationFor({ id: 1, actorId: "a", action: "create", entity: "task", entityId: "t" });
+    const mood = destinationFor({ id: 2, actorId: "a", action: "add", entity: "board_item", entityId: "i" });
+    expect(task?.facing).toBeCloseTo(STATIONS.taskBoard.surface.rotationY, 6);
+    expect(mood?.facing).toBeCloseTo(STATIONS.moodBoard.surface.rotationY, 6);
+  });
+
   it("sends a profile edit to that person's own desk, not to a shared wall", () => {
     const destination = destinationFor({ id: 1, actorId: "Plumbline", action: "update", entity: "profile", entityId: "Plumbline" });
     expect(destination?.at).toEqual(deskFor("Plumbline"));
@@ -63,7 +70,7 @@ describe("where an action sends you", () => {
   });
 
   it("says nothing rather than 'idle' when there is no recent evidence", () => {
-    expect(restingPlace("Plumbline")).toEqual({ at: deskFor("Plumbline"), because: null });
+    expect(restingPlace("Plumbline")).toEqual({ at: deskFor("Plumbline"), facing: null, because: null });
   });
 });
 
@@ -93,6 +100,31 @@ describe("reading the audit table", () => {
     expect(plumbline?.because).toBe("commented on a card");
     // And the sentence describes the action, never its contents.
     expect(plumbline?.because).not.toContain("a comment");
+  });
+
+  it("moves a real mood-board writer to the mood board", () => {
+    const { store, activity, presence } = boot();
+    const projectId = project(store, "Inkstone");
+    const boardId = store.createBoard({ id: "Inkstone", kind: "agent" }, projectId, "Direction");
+    store.addBoardItem({ id: "Inkstone", kind: "agent" }, boardId, {
+      kind: "note",
+      text: "Quiet materials",
+    });
+
+    activity.step();
+    expect(presence.find("Inkstone")?.heading).toEqual(STATIONS.moodBoard.stand);
+    expect(presence.find("Inkstone")?.because).toBe("pinned something up");
+  });
+
+  it("moves an explicit authenticated read to the requested surface", () => {
+    const { activity, presence } = boot();
+    activity.observeRead("Inkstone", "agent", "tasks");
+    expect(presence.find("Inkstone")?.heading).toEqual(STATIONS.taskBoard.stand);
+    expect(presence.find("Inkstone")?.because).toBe("was checking tasks");
+
+    activity.observeRead("Inkstone", "agent", "mood");
+    expect(presence.find("Inkstone")?.heading).toEqual(STATIONS.moodBoard.stand);
+    expect(presence.find("Inkstone")?.because).toBe("was considering the mood board");
   });
 
   it("does not replay a row twice", () => {

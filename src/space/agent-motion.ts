@@ -9,6 +9,10 @@ export type AgentMotionFrame = {
   leftLowerArm: Rotation;
   rightUpperArm: Rotation;
   rightLowerArm: Rotation;
+  leftUpperLeg: Rotation;
+  leftLowerLeg: Rotation;
+  rightUpperLeg: Rotation;
+  rightLowerLeg: Rotation;
   expressions: { blink: number; aa: number; happy: number; sad: number; relaxed: number };
 };
 
@@ -36,6 +40,7 @@ export function agentMotionFrame({
   avatar = DEFAULT_AVATAR_STATE,
   attending,
   speaking,
+  moving,
   nowMs,
   reducedMotion,
 }: {
@@ -43,6 +48,7 @@ export function agentMotionFrame({
   avatar?: AvatarState;
   attending: boolean;
   speaking: boolean;
+  moving: boolean;
   nowMs: number;
   reducedMotion: boolean;
 }): AgentMotionFrame {
@@ -64,6 +70,10 @@ export function agentMotionFrame({
     leftLowerArm: rotation(0, 0, 0.12),
     rightUpperArm: rotation(0.08, 0, -1.22),
     rightLowerArm: rotation(0, 0, -0.12),
+    leftUpperLeg: rotation(),
+    leftLowerLeg: rotation(),
+    rightUpperLeg: rotation(),
+    rightLowerLeg: rotation(),
     expressions: {
       blink,
       aa: speaking
@@ -74,6 +84,22 @@ export function agentMotionFrame({
       relaxed: avatar.mood === "focused" ? 0.22 : avatar.mood === "neutral" ? 0.08 : 0,
     },
   };
+
+  if (moving && !reducedMotion) {
+    const gait = Math.sin(seconds * 7.5 + phase);
+    const leftForward = gait * 0.42;
+    const rightForward = -leftForward;
+    frame.leftUpperLeg = rotation(leftForward, 0, 0);
+    frame.rightUpperLeg = rotation(rightForward, 0, 0);
+    // A knee bends on the trailing half of its stride rather than backwards
+    // through the joint. The opposite signs reflect the normalized leg axes.
+    frame.leftLowerLeg = rotation(Math.max(0, -gait) * 0.5, 0, 0);
+    frame.rightLowerLeg = rotation(Math.max(0, gait) * 0.5, 0, 0);
+    if (!attending && !speaking && !avatar.gesture) {
+      frame.leftUpperArm.x += rightForward * 0.32;
+      frame.rightUpperArm.x += leftForward * 0.32;
+    }
+  }
 
   if (attending) {
     frame.rightUpperArm = rotation(-0.38, 0.08, -0.78);
