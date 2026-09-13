@@ -218,7 +218,7 @@ export function SpacePanel() {
             comfort={comfort}
             onImmersiveChange={setInHeadset}
             inHeadset={inHeadset}
-            openPanels={panels.open}
+            panels={panels}
             onPanelTrouble={setPanelTrouble}
             voice={voice}
           />

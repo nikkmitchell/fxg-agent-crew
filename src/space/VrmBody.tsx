@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { VRM, VRMUtils } from "@pixiv/three-vrm";
-import { armSpecOf, headHeightOf, loadVrm, type ArmSpec } from "./vrm-model";
+import { armSpecOf, faceFrontZOf, faceRoomYaw, headHeightOf, loadVrm, type ArmSpec } from "./vrm-model";
 import { elbowFor } from "./two-bone-ik";
 import { headOf } from "./Avatar3D";
 import type { AvatarRecipe } from "../avatar";
@@ -28,10 +28,12 @@ import type { WirePerson } from "../../shared/space-wire";
  *   drawn at reduced opacity, fading toward the floor. It is visible at a
  *   glance which half of a person is known and which half is drawn.
  *
- *   A HAND THAT IS NOT TRACKED HAS NO ARM. When a hand goes untracked the arm
- *   drops out of sight rather than resting somewhere plausible: "I cannot see
- *   that hand" and "that hand is by their side" are different facts and the old
- *   figure was careful about it.
+ *   AN UNTRACKED ARM IS NOT MOVED AT ALL. The old wireframe figure drew no arm
+ *   there, because "I cannot see that hand" and "that hand is by their side"
+ *   are different facts. A full body cannot do that — it is a single skinned
+ *   mesh and an arm cannot be taken out of it — so the arm simply stays where
+ *   the model left it. See the note in the frame loop: for an agent, which
+ *   never reports a hand, that means a T-pose, and animation is what fixes it.
  *
  *   KIND MOVES TO THE FLOOR. The silhouette used to carry human / agent /
  *   never-told. It cannot any more — everybody has the same body — so the ring
@@ -65,8 +67,10 @@ export function VrmBody({
           VRMUtils.deepDispose(loaded.scene);
           return;
         }
-        // The model faces +z by default and this room's figures face -z.
-        VRMUtils.rotateVRM0(loaded);
+        // Turned to match the room's forward, which is -Z. See `faceRoomYaw`:
+        // this used to call `VRMUtils.rotateVRM0`, which faces a model the
+        // other way and put everybody's back to the room.
+        loaded.scene.rotation.y = faceRoomYaw(faceFrontZOf(loaded));
         arms.current = armSpecOf(loaded);
         modelHead.current = headHeightOf(loaded);
         tint(loaded, recipe);
@@ -151,8 +155,31 @@ export function VrmBody({
         side === "left" ? "leftLowerArm" : "rightLowerArm",
       );
       if (!upper || !lower) continue;
-      upper.visible = pose !== null;
-      if (!pose) continue;
+
+      if (!pose) {
+        /**
+         * NOTHING IS DONE TO AN ARM NOBODY IS MOVING — it stays in the model's
+         * rest pose, which is straight out to the side.
+         *
+         * This line used to read `upper.visible = pose !== null`, on the
+         * principle that "I cannot see that hand" and "that hand is by their
+         * side" are different facts. The principle is right and the code never
+         * carried it out: a VRM body is ONE skinned mesh, and a bone is not
+         * drawn — it only supplies a matrix to the vertices — so hiding a bone
+         * node changes nothing at all on screen. It was removed rather than
+         * left in, because a line that looks like it enforces a rule and does
+         * not is worse than no line.
+         *
+         * SO THE ROOM IS CURRENTLY HONEST BY ACCIDENT AND UGLY ON PURPOSE:
+         * every agent stands in a T-pose, because an agent has no controllers
+         * and never reports a hand. Nikk: "agents dont have controllers or
+         * things to control the body position... for agents lets install
+         * something like this for them to auto animate their avatars." That is
+         * the real answer and it is being built; until it lands, an arm that
+         * never moves is at least not pretending to be tracked.
+         */
+        continue;
+      }
 
       upper.getWorldPosition(scratch.shoulder);
       scratch.target.set(pose.p.x, pose.p.y, pose.p.z);

@@ -3,9 +3,12 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { bff } from "../bff-client";
 import { space } from "../space-client";
-import { WRIST_BUTTON, WristButton } from "./Backdrop";
+import { WRIST_BUTTON, WristButton, stackedY } from "./Backdrop";
 import { createSpeechInput, speakSay, speechCapabilities, type SpeechInput, type SpeechOutput } from "./speech";
 import { shouldSpeakUtterance } from "./VoiceControls";
+import { newestId, replyToSpeak } from "./reply-speech";
+import type { RoomFeed } from "./useRoomFeed";
+import type { PanelChoices } from "./usePanelChoices";
 import type { Utterance } from "../../shared/voice";
 import { planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
@@ -77,6 +80,8 @@ export function RoomControls({
   onTogglePassthrough,
   voice,
   liveUtterance,
+  feed,
+  panels,
 }: {
   anchor: () => { at: { x: number; z: number }; yaw: number } | null;
   you: string | null;
@@ -89,6 +94,10 @@ export function RoomControls({
   voice: VoiceChat;
   /** The newest thing said in the room, for reading replies aloud. */
   liveUtterance: Utterance | null;
+  /** The WebHarness chat, which is where the agents actually answer. */
+  feed: RoomFeed;
+  /** Which panels are hanging on the arc, and the way to change it. */
+  panels: PanelChoices;
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
@@ -191,6 +200,74 @@ export function RoomControls({
     return () => input.current?.dispose();
   }, [capabilities.recognition, post]);
 
+  /**
+   * READING THE ANSWER OUT LOUD — the half that was missing.
+   *
+   * Everything around this shipped without it: the state, the refs, the
+   * "Replies read aloud" row, and `speakSay` imported and never called. So the
+   * headset had a switch that said replies were being read and a room that
+   * never made a sound. Nikk: "now we don't have any voice over."
+   *
+   * IT LISTENS TO TWO PLACES, because the conversation happens in two.
+   * `liveUtterance` is somebody in the room speaking to you by name;
+   * `feed` is the WebHarness chat, which is where every agent replies and
+   * therefore where almost all of the answers are. Watching only the first —
+   * which is all the window does — is why this was silent even in the moments
+   * it was working.
+   *
+   * NEVER WHILE THE MICROPHONE IS OPEN. A speaker playing into an open
+   * recogniser is a machine talking to itself.
+   */
+  useEffect(() => {
+    if (!hearReplies) {
+      // Marked as read anyway. Turning sound on must not begin by reading out
+      // whatever was said while it was off.
+      spokenAlready.current = Math.max(spokenAlready.current ?? 0, newestId(feed.messages));
+      return;
+    }
+    if (spokenAlready.current === null) {
+      // Arriving mid-conversation. Everything already on the panel is history,
+      // and reading forty messages at somebody who just put a headset on is
+      // not a welcome.
+      spokenAlready.current = newestId(feed.messages);
+      return;
+    }
+    if (listening) return;
+    const reply = replyToSpeak(feed.messages, spokenAlready.current, you);
+    if (!reply) return;
+    spokenAlready.current = reply.id;
+    speaking.current?.cancel();
+    speaking.current = speakSay({
+      say: reply.say,
+      onPhase: () => {},
+      onFailure: (failure) => setNotice(failure.message),
+    });
+  }, [feed.messages, hearReplies, listening, you]);
+
+  /**
+   * The room's own transcript, when somebody in it speaks TO YOU by name.
+   *
+   * Separate from the chat above because the rule is different and already
+   * written down: `shouldSpeakUtterance` is the window's, and restating it here
+   * would be a second copy of a judgement about when it is acceptable to make
+   * noise at somebody.
+   */
+  const utteranceSpoken = useRef<number | null>(null);
+  useEffect(() => {
+    if (!liveUtterance || utteranceSpoken.current === liveUtterance.id) return;
+    utteranceSpoken.current = liveUtterance.id;
+    if (!hearReplies || listening || !shouldSpeakUtterance(liveUtterance, you)) return;
+    speaking.current?.cancel();
+    speaking.current = speakSay({
+      say: liveUtterance.say ?? "",
+      onPhase: () => {},
+      onFailure: (failure) => setNotice(failure.message),
+    });
+  }, [liveUtterance, hearReplies, listening, you]);
+
+  // Nothing keeps talking after the panel goes away.
+  useEffect(() => () => speaking.current?.cancel(), []);
+
   const facing = useRef<number | null>(null);
 
   /**
@@ -250,8 +327,6 @@ export function RoomControls({
       onTap: () => setOpen(true),
     });
   } else {
-    rows.push({ label: "Close", onTap: () => setOpen(false) });
-
     // TALKING OUT LOUD comes first, above dictation, because it is the thing
     // somebody standing next to another person wants: to be heard by them,
     // rather than to have their words typed into a room.
@@ -313,12 +388,56 @@ export function RoomControls({
       tone: passthroughAvailable ? "normal" : "muted",
       onTap: () => passthroughAvailable && onTogglePassthrough(),
     });
+
+    /**
+     * WHAT IS HANGING ON THE ARC, from inside the headset.
+     *
+     * These toggles existed already — in the DOM settings on the page, which is
+     * exactly where you cannot reach them: the moment the headset goes on the
+     * page is gone, and the arrangement of the room becomes the one thing you
+     * can see and not change. Nikk: "we also need settings to be able to adjust
+     * which board is showing and which content."
+     *
+     * The same `usePanelChoices` the page uses, not a second copy, so a panel
+     * closed in here is closed at the desk too — it is stored on the server for
+     * that reason.
+     *
+     * A tick rather than a word, because the label is the panel's own name and
+     * the state has to be readable at arm's length without being read.
+     */
+    for (const panel of panels.catalogue) {
+      const shown = panels.open.includes(panel.id);
+      rows.push({
+        label: `${shown ? "\u2713" : "\u00b7"} ${panel.label}`,
+        tone: shown ? "live" : "muted",
+        onTap: () => panels.setOpen(panel.id, !shown),
+      });
+    }
+    if (panels.refusal) {
+      rows.push({ label: panels.refusal, tone: "muted", onTap: () => {} });
+    }
+
+    // LAST, so it sits exactly where the Settings button was: the same spot
+    // opens the menu and closes it, and your hand does not have to go looking.
+    rows.push({ label: "Close", onTap: () => setOpen(false) });
   }
 
+  /**
+   * THE MENU GROWS UPWARD FROM THE BUTTON.
+   *
+   * It used to hang down: the first row sat at the anchor and everything else
+   * went below it, which put a long open menu somewhere around your knees.
+   * Nikk: "we want the last item to be at the settings button, so its all above
+   * that." So the LAST row is the anchored one and the list stacks above — and
+   * since the last row is now Close, the thing you tapped to open the menu is
+   * the thing you tap in the same place to shut it.
+   *
+   * The row count changes as the menu opens and as speech comes and goes, and
+   * anchoring the bottom means the rows above shift while the one under your
+   * hand stays put — which is the right way round. The alternative moves the
+   * button out from under you at the moment you reach for it.
+   */
   const said = notice ?? voice.trouble;
-  if (said) {
-    rows.push({ label: said, tone: "muted", onTap: () => setNotice(null) });
-  }
 
   return (
     <group ref={group} visible={false}>
@@ -327,10 +446,17 @@ export function RoomControls({
           key={`${index}-${row.label}`}
           label={row.label}
           tone={row.tone}
-          y={-index * step}
+          y={stackedY(index, rows.length)}
           onTap={row.onTap}
         />
       ))}
+      {/* BELOW THE ANCHOR, deliberately outside the stack. A notice arrives
+          unbidden — a failed send, a microphone that would not open — and if it
+          joined the list it would jog every button up by a row at the exact
+          moment you were reaching for one. */}
+      {said ? (
+        <WristButton label={said} tone="muted" y={-step} onTap={() => setNotice(null)} />
+      ) : null}
     </group>
   );
 }
