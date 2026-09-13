@@ -64,7 +64,13 @@ export const space = {
       `${root}/panels/${encodeURIComponent(place.id)}/place`,
       {
         method: "PUT",
-        body: JSON.stringify({ position: place.position, rotationY: place.rotationY }),
+        // `scale` is sent only when there is one, so a placement made before
+        // panels could be resized does not start asserting a size it never had.
+        body: JSON.stringify({
+          position: place.position,
+          rotationY: place.rotationY,
+          ...(place.scale !== undefined ? { scale: place.scale } : {}),
+        }),
       },
     ),
 };

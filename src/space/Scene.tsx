@@ -19,9 +19,11 @@ import { StillPanel } from "./StillPanel";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
 import type { PanelChoices } from "./usePanelChoices";
+import type { PanelArrange } from "./usePanelArrange";
 import type { VoiceChat } from "./useVoiceChat";
 import { SpatialVoices } from "./SpatialVoices";
-import { Movable, savePlacement } from "./Movable";
+import { Movable } from "./Movable";
+import { placeOf, savePlacement } from "./panel-placement";
 import { defaultPlacement } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
 
@@ -388,10 +390,6 @@ function OnDemand({ connection }: { connection: SpaceConnection }) {
   return null;
 }
 
-/** Where a panel is now: the server's word, or the computed arc until it speaks. */
-function placeOf(places: Placement[], id: string): Placement {
-  return places.find((place) => place.id === id) ?? (defaultPlacement(id) as Placement);
-}
 
 export default function Scene({
   connection,
@@ -400,6 +398,7 @@ export default function Scene({
   onImmersiveChange,
   inHeadset,
   panels,
+  arrange,
   onPanelTrouble,
   voice,
 }: {
@@ -418,6 +417,8 @@ export default function Scene({
    * which is how they drift apart.
    */
   panels: PanelChoices;
+  /** Which panels are being moved or resized, and by which gesture. */
+  arrange: PanelArrange;
   /** Said out loud when a panel cannot go where it was dropped. */
   onPanelTrouble: (why: string | null) => void;
   /** Live voice, owned above the scene so a session change cannot close it. */
@@ -488,6 +489,7 @@ export default function Scene({
               // then — so the room draws itself on the first frame rather than
               // appearing empty and filling in when the socket opens.
               place={placeOf(connection.places, station.id)}
+              mode={arrange.modeOf(station.id)}
               inHeadset={inHeadset}
               onPlaced={(next) => void savePlacement(next).then(onPanelTrouble)}
               onTrouble={onPanelTrouble}
@@ -537,6 +539,7 @@ export default function Scene({
           liveUtterance={connection.liveUtterance}
           feed={feed}
           panels={panels}
+          arrange={arrange}
         />
       </XR>
     </Canvas>

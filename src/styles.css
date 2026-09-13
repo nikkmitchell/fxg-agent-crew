@@ -913,3 +913,25 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-voice .primary-action, .space-voice .text-button { justify-self: start; }
 .space-voice-count, .space-voice-state, .space-voice-interim { font-size: 12px; color: var(--muted); }
 .space-voice-count.over { color: var(--danger, #9f2f24); font-weight: 700; }
+
+/* A panel's row in the picker: its name and tick on one line, its size on the
+   right. The size only appears for a panel that is actually in the room. */
+.space-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.space-setting-size {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.space-setting-size button {
+  min-width: 2rem;
+  padding: 0.1rem 0.4rem;
+  line-height: 1.4;
+}

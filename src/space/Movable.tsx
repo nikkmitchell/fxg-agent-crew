@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { ApiError } from "../api-request";
-import { space } from "../space-client";
-import { facingArc, placementRefusal } from "../../shared/panel-place";
+import { facingArc, placementRefusal, scaleOf } from "../../shared/panel-place";
+import { resizedScale } from "./panel-resize";
+import type { ArrangeMode } from "./usePanelArrange";
 import type { Placement } from "../../shared/space-wire";
 import { dropGrip, onGrabOf, putGrip } from "./grip-positions";
 
@@ -35,12 +35,21 @@ import { dropGrip, onGrabOf, putGrip } from "./grip-positions";
 
 export function Movable({
   place,
+  mode,
   inHeadset,
   onPlaced,
   onTrouble,
   children,
 }: {
   place: Placement;
+  /**
+   * Locked, being moved, or being resized — see usePanelArrange.
+   *
+   * While it is locked the panel is a page you read and click, and only the bar
+   * along its top moves it. Unlocked, the whole face of it becomes the handle,
+   * which is what makes it usable from across the room with a controller ray.
+   */
+  mode: ArrangeMode;
   /** Which handle to offer. See the note above; this is not cosmetic. */
   inHeadset: boolean;
   /** Called once, on release, with where it ended up. Never during the drag. */
@@ -50,7 +59,10 @@ export function Movable({
 }) {
   const group = useRef<THREE.Group>(null);
   const [dragging, setDragging] = useState(false);
+  const gesture = useRef<"move" | "resize">("move");
   const grabOffset = useRef({ x: 0, z: 0 });
+  /** Where the resize started: how far out it was grabbed, and the size then. */
+  const grabbed = useRef({ distance: 1, scale: 1 });
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   const invalidate = useThree((state) => state.invalidate);
@@ -80,16 +92,21 @@ export function Movable({
   );
 
   const begin = useCallback(
-    (clientX: number, clientY: number) => {
+    (clientX: number, clientY: number, kind: "move" | "resize" = "move") => {
       const at = floorPoint(clientX, clientY);
+      gesture.current = kind;
       // Remember where on the panel it was taken hold of, so it does not jump
       // its own centre under the pointer the moment you grab it.
       grabOffset.current = at
         ? { x: place.position.x - at.x, z: place.position.z - at.z }
         : { x: 0, z: 0 };
+      grabbed.current = {
+        distance: at ? Math.hypot(at.x - place.position.x, at.z - place.position.z) : 0,
+        scale: scaleOf(place),
+      };
       setDragging(true);
     },
-    [floorPoint, place.position.x, place.position.z],
+    [floorPoint, place],
   );
 
   const drag = useCallback(
@@ -97,6 +114,16 @@ export function Movable({
       const node = group.current;
       const at = floorPoint(clientX, clientY);
       if (!node || !at) return;
+
+      if (gesture.current === "resize") {
+        // The panel stays where it is; only its size follows the ray. Moving
+        // and resizing at once would mean neither could be done deliberately.
+        const now = Math.hypot(at.x - place.position.x, at.z - place.position.z);
+        node.scale.setScalar(resizedScale(grabbed.current.scale, grabbed.current.distance, now));
+        invalidate();
+        return;
+      }
+
       const x = at.x + grabOffset.current.x;
       const z = at.z + grabOffset.current.z;
       node.position.set(x, place.position.y, z);
@@ -105,7 +132,7 @@ export function Movable({
       // while a panel is being dragged through it.
       invalidate();
     },
-    [floorPoint, invalidate, place.position.y],
+    [floorPoint, invalidate, place.position],
   );
 
   const release = useCallback(() => {
@@ -116,11 +143,13 @@ export function Movable({
       id: place.id,
       position: { x: node.position.x, y: node.position.y, z: node.position.z },
       rotationY: node.rotation.y,
+      scale: node.scale.x,
     };
     const refused = placementRefusal(next);
     if (refused) {
       node.position.set(place.position.x, place.position.y, place.position.z);
       node.rotation.y = place.rotationY;
+      node.scale.setScalar(scaleOf(place));
       invalidate();
       onTrouble(refused);
       return;
@@ -157,6 +186,7 @@ export function Movable({
     if (!node || dragging) return;
     node.position.set(place.position.x, place.position.y, place.position.z);
     node.rotation.y = place.rotationY;
+    node.scale.setScalar(scaleOf(place));
     invalidate();
   }, [dragging, invalidate, place]);
 
@@ -165,6 +195,39 @@ export function Movable({
   return (
     <group ref={group}>
       {children}
+
+      {/*
+        THE WHOLE FACE OF THE PANEL, once it is unlocked.
+
+        A bar along the top is fine for a deliberate nudge and hopeless as the
+        only way to arrange a room from four metres away with a controller ray.
+        Unlocked, the panel itself is the handle — which is what Nikk asked for:
+        "if drag is on we can click on the window and move it."
+
+        IT ONLY EXISTS WHILE UNLOCKED. A permanently invisible plane in front of
+        every panel would swallow every ray aimed at the page behind it, and a
+        board you cannot press is worse than one you cannot move.
+
+        Visible, faintly, because a mode you cannot see is a mode you forget you
+        are in — and this one changes what pressing a board does.
+      */}
+      {inHeadset && mode !== "locked" ? (
+        <mesh
+          position={[0, 0.6, 0.02]}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            begin(event.clientX, event.clientY, mode === "resize" ? "resize" : "move");
+          }}
+        >
+          <planeGeometry args={[4.0, 2.6]} />
+          <meshBasicMaterial
+            color={mode === "resize" ? "#c9a86f" : "#6f86c9"}
+            transparent
+            opacity={dragging ? 0.28 : 0.14}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      ) : null}
 
       {inHeadset ? (
         // A 3D bar the full width of the panel: a big target for a ray from
@@ -191,20 +254,6 @@ export function Movable({
   );
 }
 
-/** Tell the server where a panel went. Returns a refusal sentence, or null. */
-export async function savePlacement(place: Placement): Promise<string | null> {
-  try {
-    await space.placePanel(place);
-    return null;
-  } catch (cause) {
-    // The server's refusal says which rule was broken and is worth showing;
-    // anything else means the move never arrived, which is a different thing
-    // to tell somebody.
-    return cause instanceof ApiError
-      ? cause.message
-      : "That move did not reach the room, so nobody else will see it.";
-  }
-}
 
 
 /**
