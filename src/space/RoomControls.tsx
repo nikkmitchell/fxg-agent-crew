@@ -3,7 +3,8 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { bff } from "../bff-client";
 import { space } from "../space-client";
-import { WRIST_BUTTON, WristButton, stackedY } from "./Backdrop";
+import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
+import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { createSpeechInput, speakSay, speechCapabilities, type SpeechInput, type SpeechOutput } from "./speech";
 import { shouldSpeakUtterance } from "./VoiceControls";
 import { newestId, replyToSpeak } from "./reply-speech";
@@ -61,6 +62,35 @@ import type { VoiceChat } from "./useVoiceChat";
  */
 const AHEAD = 0.62;
 const HEIGHT = 1.02;
+
+/**
+ * Where the settings go once they are OPEN — and it is a different place.
+ *
+ * FURTHER AWAY, because a grid of boxes at arm's length fills your whole view
+ * and cannot be read without turning your head across it. Nikk: "once the
+ * settings are open, ahve them much further in front of the viewer."
+ *
+ * AND HIGHER, nearer eye level. The closed button sits at your waist so it is
+ * out of the way; an open menu you are actually reading should not make you
+ * look at the floor.
+ */
+const OPEN_AHEAD = 1.95;
+const OPEN_HEIGHT = 1.42;
+
+/** One button in the open grid. Wider and taller than the waist buttons. */
+const BOX_BUTTON = { width: 0.56, height: 0.11, gap: 0.018 } as const;
+/** How many buttons a box holds before it spills into another column. */
+const BOX_ROWS = 7;
+const BOX_GAP = 0.08;
+/**
+ * How many boxes stand side by side before the grid wraps onto another row.
+ *
+ * Three at this distance is about fifty degrees across — read with your eyes,
+ * not by turning your head. Five was seventy-five, which is inside a headset's
+ * field of view and still too wide to use comfortably.
+ */
+const BOXES_PER_ROW = 3;
+
 const EASE = 0.12;
 /** Past this much turn it starts following. Below it, stay put. */
 const SLACK = 0.5;
@@ -113,6 +143,17 @@ export function RoomControls({
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
+  /**
+   * Which list you are looking at.
+   *
+   * "root" is the grid of boxes. The two board choices open their own list
+   * instead of putting every project and every mood board into the grid —
+   * Nikk: "lets have when clicking mood board, all mood boards pop up and I
+   * choose the one I want." It is also the honest shape: choosing a board is
+   * one decision, and a decision that changes what everybody in the room is
+   * looking at deserves its own screen rather than a row among twenty.
+   */
+  const [view, setView] = useState<"root" | "work" | "mood" | "panels">("root");
   /**
    * BOTH, BY DEFAULT, IN A HEADSET.
    *
@@ -283,15 +324,54 @@ export function RoomControls({
   const facing = useRef<number | null>(null);
 
   /**
-   * The panel follows you, driven per frame rather than through React: a head
-   * moves at headset frame rate and routing that through state would re-render
-   * this tree ninety times a second to move one group.
+   * WHERE THE OPEN MENU IS PINNED.
+   *
+   * Null while it is closed. Set once, at the moment it opens, to the place in
+   * the ROOM it should hang — and then never touched again until it closes.
+   *
+   * WHY IT STOPS FOLLOWING. The closed button follows you because it is a
+   * thing you reach for; an open menu is a thing you walk up to and read, and
+   * one that keeps repositioning itself while you point at it is a menu you
+   * chase. Nikk: "also have them stop moving, so if you open settings they stay
+   * open." It also means you can step back to see the whole grid, or lean in
+   * to press one button, which you cannot do with something welded to you.
+   */
+  const pinned = useRef<{ x: number; z: number; yaw: number } | null>(null);
+
+  const openMenu = useCallback(() => {
+    const body = anchor();
+    if (body) {
+      // Pinned out in front of where you were STANDING when you opened it,
+      // using the panel's own lagged facing rather than your head's, so it
+      // does not appear off to one side if you happened to be glancing away.
+      const yaw = facing.current ?? body.yaw;
+      pinned.current = {
+        x: body.at.x - Math.sin(yaw) * OPEN_AHEAD,
+        z: body.at.z - Math.cos(yaw) * OPEN_AHEAD,
+        yaw,
+      };
+    }
+    setOpen(true);
+  }, [anchor]);
+
+  const closeMenu = useCallback(() => {
+    pinned.current = null;
+    setView("root");
+    setOpen(false);
+  }, []);
+
+  /**
+   * The panel follows you while CLOSED, driven per frame rather than through
+   * React: a head moves at headset frame rate and routing that through state
+   * would re-render this tree ninety times a second to move one group.
    *
    * It follows your POSITION immediately and your DIRECTION lazily, and only
    * once you have turned past a few tens of degrees. Turning your head to look
    * at something must not drag the menu across your view — you would never be
    * able to look away from it — but walking away from it and leaving it behind
    * would be worse.
+   *
+   * OPEN, it does none of that: it sits where it was pinned. See `pinned`.
    */
   useFrame(() => {
     const node = group.current;
@@ -299,6 +379,13 @@ export function RoomControls({
     if (!node) return;
     node.visible = body !== null;
     if (!body) return;
+
+    const held = pinned.current;
+    if (held) {
+      node.position.set(held.x, OPEN_HEIGHT, held.z);
+      node.rotation.set(0, held.yaw, 0);
+      return;
+    }
 
     if (facing.current === null) facing.current = body.yaw;
     // Shortest way round, so turning past a half-circle does not send the panel
@@ -317,251 +404,314 @@ export function RoomControls({
     node.rotation.set(0, yaw, 0);
   });
 
-  const step = WRIST_BUTTON.height + WRIST_BUTTON.gap;
-  const rows: { label: string; tone?: "normal" | "muted" | "live"; onTap: () => void }[] = [];
+  type Row = { label: string; tone?: "normal" | "muted" | "live"; onTap: () => void };
+  type Box = { title: string; rows: Row[] };
 
-  if (!open) {
-    // STOP IS ALWAYS ONE TAP, never behind a menu. Inkstone's review: an
-    // always-on microphone needs an immediate stop, and "tap to open, then find
-    // the right button" is not immediate when what you want is to stop talking
-    // to a room. So while it is listening the folded panel IS the stop control,
-    // and the settings move to a second row under it.
-    if (listening) {
+  const boxes: Box[] = [];
+
+  if (open && view === "work") {
+    /**
+     * EVERY WORK BOARD, as its own screen.
+     *
+     * One project per row rather than a cycle, because cycling would drag the
+     * whole room through every other project on the way to the one you want —
+     * every step of it a change everybody standing here can see.
+     */
+    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    if (showingChoices.projects === null) {
+      rows.push({ label: "Projects could not be read", tone: "muted", onTap: () => {} });
+    } else if (showingChoices.projects.length === 0) {
+      rows.push({ label: "There are no projects yet", tone: "muted", onTap: () => {} });
+    } else {
       rows.push({
-        label: alwaysOn ? "Stop — sending as you speak" : "Stop listening",
-        tone: "live",
-        onTap: () => input.current?.stop(),
+        label: `${showing.projectId === null ? "✓" : "·"} Show nothing`,
+        tone: showing.projectId === null ? "live" : "normal",
+        onTap: () => showingChoices.choose({ projectId: null, boardId: null }),
       });
-    }
-    rows.push({
-      label: listening ? "Settings" : alwaysOn ? "Settings — speech set to auto-send" : "Settings",
-      tone: "normal",
-      onTap: () => setOpen(true),
-    });
-  } else {
-    // TALKING OUT LOUD comes first, above dictation, because it is the thing
-    // somebody standing next to another person wants: to be heard by them,
-    // rather than to have their words typed into a room.
-    rows.push({
-      label: voice.on
-        ? voice.others.length > 0
-          ? `Talking — you hear ${voice.others.join(", ")}`
-          : "Talking — nobody else has theirs on"
-        : "Talk out loud",
-      tone: voice.on ? "live" : "normal",
-      onTap: () => voice.setOn(!voice.on),
-    });
-
-    rows.push(
-      capabilities.recognition
-        ? {
-            label: listening ? "Stop listening" : alwaysOn ? "Start talking" : "Speak once",
-            tone: listening ? "live" : "normal",
-            onTap: () => (listening ? input.current?.stop() : input.current?.start()),
-          }
-        : {
-            label: "This headset has no speech recognition",
-            tone: "muted",
-            onTap: () => setNotice("There is no microphone available to this browser."),
+      for (const project of showingChoices.projects) {
+        const on = showing.projectId === project.id;
+        rows.push({
+          label: `${on ? "✓" : "·"} ${project.name}`,
+          tone: on ? "live" : "normal",
+          onTap: () => {
+            showingChoices.choose({ projectId: project.id, boardId: null });
+            setView("root");
           },
-    );
-
-    rows.push({
-      label: alwaysOn ? "Sending as you speak" : "Review each one before sending",
-      tone: alwaysOn ? "live" : "normal",
-      onTap: () => setAlwaysOn((on) => !on),
-    });
-
-    rows.push({
-      label: destination === "room" ? "To: the room only" : "To: the room and the agents",
-      onTap: () => setDestination((d) => (d === "room" ? "room-and-agents" : "room")),
-    });
-
-    rows.push({
-      label: hearReplies ? "Replies read aloud" : "Replies stay silent",
-      tone: hearReplies ? "live" : "normal",
-      onTap: () => setHearReplies((on) => !on),
-    });
-
-    if (!alwaysOn) {
-      rows.push({
-        label: sending ? "Sending…" : heard ? `Send: ${heard}` : "Nothing heard yet",
-        tone: !heard || sending ? "muted" : "normal",
-        onTap: () => void post(heard),
-      });
+        });
+      }
     }
-
-    rows.push({
-      label: !passthroughAvailable
-        ? `No passthrough — this headset says: ${blendMode ?? "nothing yet"}`
-        : passthrough
-          ? "Passthrough — tap for void"
-          : "Black void — tap for passthrough",
-      tone: passthroughAvailable ? "normal" : "muted",
-      onTap: () => passthroughAvailable && onTogglePassthrough(),
+    boxes.push({ title: "Work board — for everyone", rows });
+  } else if (open && view === "mood") {
+    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    if (!showing.projectId) {
+      // The server refuses a mood board with no project, and offering a list
+      // here would be inviting that refusal.
+      rows.push({ label: "Choose a work board first", tone: "muted", onTap: () => {} });
+    } else if (showingChoices.boards === null) {
+      rows.push({ label: "Mood boards could not be read", tone: "muted", onTap: () => {} });
+    } else if (showingChoices.boards.length === 0) {
+      rows.push({ label: "This project has no mood boards", tone: "muted", onTap: () => {} });
+    } else {
+      rows.push({
+        label: `${showing.boardId === null ? "✓" : "·"} Show none`,
+        tone: showing.boardId === null ? "live" : "normal",
+        onTap: () => showingChoices.choose({ projectId: showing.projectId, boardId: null }),
+      });
+      for (const moodBoard of showingChoices.boards) {
+        const on = showing.boardId === moodBoard.id;
+        rows.push({
+          label: `${on ? "✓" : "·"} ${moodBoard.title}`,
+          tone: on ? "live" : "normal",
+          onTap: () => {
+            showingChoices.choose({ projectId: showing.projectId, boardId: moodBoard.id });
+            setView("root");
+          },
+        });
+      }
+    }
+    boxes.push({ title: "Mood board — for everyone", rows });
+  } else if (open) {
+    boxes.push({
+      title: "Talking",
+      rows: [
+        {
+          label: voice.on
+            ? voice.others.length > 0
+              ? `Talking — you hear ${voice.others.join(", ")}`
+              : "Talking — nobody else has theirs on"
+            : "Talk out loud",
+          tone: voice.on ? "live" : "normal",
+          onTap: () => voice.setOn(!voice.on),
+        },
+        capabilities.recognition
+          ? {
+              label: listening ? "Stop listening" : alwaysOn ? "Start talking" : "Speak once",
+              tone: listening ? "live" : "normal",
+              onTap: () => (listening ? input.current?.stop() : input.current?.start()),
+            }
+          : {
+              label: "This headset has no speech recognition",
+              tone: "muted",
+              onTap: () => setNotice("There is no microphone available to this browser."),
+            },
+        {
+          label: alwaysOn ? "Sending as you speak" : "Review each one before sending",
+          tone: alwaysOn ? "live" : "normal",
+          onTap: () => setAlwaysOn((on) => !on),
+        },
+        {
+          label: destination === "room" ? "To: the room only" : "To: the room and the agents",
+          onTap: () => setDestination((d) => (d === "room" ? "room-and-agents" : "room")),
+        },
+        {
+          label: hearReplies ? "Replies read aloud" : "Replies stay silent",
+          tone: hearReplies ? "live" : "normal",
+          onTap: () => setHearReplies((on) => !on),
+        },
+        ...(alwaysOn
+          ? []
+          : [
+              {
+                label: sending ? "Sending…" : heard ? `Send: ${heard}` : "Nothing heard yet",
+                tone: (!heard || sending ? "muted" : "normal") as Row["tone"],
+                onTap: () => void post(heard),
+              },
+            ]),
+      ],
     });
 
     /**
-     * WHAT IS HANGING ON THE ARC, from inside the headset.
+     * WHAT THE ROOM IS SHOWING — two rows, each opening its own list.
      *
-     * These toggles existed already — in the DOM settings on the page, which is
-     * exactly where you cannot reach them: the moment the headset goes on the
-     * page is gone, and the arrangement of the room becomes the one thing you
-     * can see and not change. Nikk: "we also need settings to be able to adjust
-     * which board is showing and which content."
-     *
-     * The same `usePanelChoices` the page uses, not a second copy, so a panel
-     * closed in here is closed at the desk too — it is stored on the server for
-     * that reason.
-     *
-     * A tick rather than a word, because the label is the panel's own name and
-     * the state has to be readable at arm's length without being read.
+     * Every row in this box changes what other people are looking at, so it
+     * says "for everyone" and names who set it last. A wall that is showing
+     * something else should be answerable without asking around.
      */
+    const projectName =
+      showingChoices.projects?.find((project) => project.id === showing.projectId)?.name ?? null;
+    const boardName =
+      showingChoices.boards?.find((moodBoard) => moodBoard.id === showing.boardId)?.title ?? null;
+    boxes.push({
+      title: "The room shows — for everyone",
+      rows: [
+        {
+          label: `Work board: ${projectName ?? (showing.projectId ? showing.projectId : "none")}`,
+          tone: showing.projectId ? "live" : "normal",
+          onTap: () => setView("work"),
+        },
+        {
+          label: `Mood board: ${boardName ?? (showing.boardId ? showing.boardId : "none")}`,
+          tone: showing.boardId ? "live" : "normal",
+          onTap: () => setView("mood"),
+        },
+        ...(showingChoices.refusal
+          ? [{ label: showingChoices.refusal, tone: "muted" as const, onTap: () => {} }]
+          : showing.setBy
+            ? [{ label: `Set by ${showing.setBy}`, tone: "muted" as const, onTap: () => {} }]
+            : []),
+      ],
+    });
+
+    boxes.push({
+      title: "Room",
+      rows: [
+        { label: "Panels…", onTap: () => setView("panels") },
+        {
+          label: !passthroughAvailable
+            ? `No passthrough — this headset says: ${blendMode ?? "nothing yet"}`
+            : passthrough
+              ? "Passthrough — tap for void"
+              : "Black void — tap for passthrough",
+          tone: passthroughAvailable ? "normal" : "muted",
+          onTap: () => passthroughAvailable && onTogglePassthrough(),
+        },
+        { label: "Close settings", onTap: closeMenu },
+      ],
+    });
+  } else if (open && view === "panels") {
+    const panelRows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
     for (const panel of panels.catalogue) {
       const shown = panels.open.includes(panel.id);
-      rows.push({
-        label: `${shown ? "\u2713" : "\u00b7"} ${panel.label}`,
+      panelRows.push({
+        label: `${shown ? "✓" : "·"} ${panel.label}`,
         tone: shown ? "live" : "muted",
         onTap: () => panels.setOpen(panel.id, !shown),
       });
-
-      /**
-       * MOVE AND RESIZE, PER PANEL, AND ONLY FOR ONES THAT ARE UP.
-       *
-       * Offering to move a panel that is not in the room would be a control
-       * with nothing to act on. One row that cycles rather than two switches,
-       * because the three states are mutually exclusive and a menu you reach
-       * from inside a headset should be short: the row says what tapping the
-       * PANEL will now do, which is the thing you are about to do next.
-       */
       if (!shown) continue;
       const mode = arrange.modeOf(panel.id);
-      rows.push({
+      panelRows.push({
         label:
           mode === "locked"
-            ? `   ${panel.label}: fixed in place`
+            ? `   ${panel.label}: fixed`
             : mode === "move"
-              ? `   ${panel.label}: drag it to move`
-              : `   ${panel.label}: drag it to resize`,
+              ? `   ${panel.label}: drag to move`
+              : `   ${panel.label}: drag to resize`,
         tone: mode === "locked" ? "muted" : "live",
         onTap: () => arrange.cycle(panel.id),
       });
     }
-
-    /**
-     * WHAT THE ROOM IS SHOWING — for everybody, not just you.
-     *
-     * This is the one control in this menu that changes what other people are
-     * looking at, so it says so on every row. Nikk: "if one user changes what
-     * board is being show, it should update for everyone."
-     *
-     * The project list is offered as a row each rather than a cycle, because
-     * cycling through projects means passing through other people's boards on
-     * the way — every step is a change everybody in the room sees.
-     */
-    const projects = showingChoices.projects;
-    if (projects === null) {
-      rows.push({ label: "Projects could not be read", tone: "muted", onTap: () => {} });
-    } else if (projects.length === 0) {
-      rows.push({ label: "There are no projects yet", tone: "muted", onTap: () => {} });
-    } else {
-      for (const project of projects) {
-        const on = showing.projectId === project.id;
-        rows.push({
-          label: `${on ? "\u2713" : "\u00b7"} Room shows: ${project.name}`,
-          tone: on ? "live" : "normal",
-          onTap: () =>
-            showingChoices.choose(
-              // Tapping the one already showing turns it off rather than doing
-              // nothing — otherwise there is no way back to showing nothing.
-              on ? { projectId: null, boardId: null } : { projectId: project.id, boardId: null },
-            ),
-        });
-      }
-    }
-
-    // The mood boards of whatever the room is on. Only ever the legal ones:
-    // the server refuses a board from another project, and offering one would
-    // be inviting a refusal.
-    if (showing.projectId && showingChoices.boards && showingChoices.boards.length > 0) {
-      for (const moodBoard of showingChoices.boards) {
-        const on = showing.boardId === moodBoard.id;
-        rows.push({
-          label: `${on ? "\u2713" : "\u00b7"} Mood board: ${moodBoard.title}`,
-          tone: on ? "live" : "normal",
-          onTap: () =>
-            showingChoices.choose({
-              projectId: showing.projectId,
-              boardId: on ? null : moodBoard.id,
-            }),
-        });
-      }
-    }
-
-    if (showingChoices.refusal) {
-      rows.push({ label: showingChoices.refusal, tone: "muted", onTap: () => {} });
-    } else if (showing.setBy) {
-      // WHO CHANGED IT. A wall that is showing something else should be
-      // answerable without asking around.
-      rows.push({
-        label: `Set by ${showing.setBy}`,
-        tone: "muted",
-        onTap: () => {},
-      });
-    }
-
-    // ONE WAY OUT OF ALL OF IT. Somebody who has unlocked three panels and
-    // wants to go back to reading them should not have to find three rows.
     if (arrange.anyUnlocked) {
-      rows.push({
-        label: "Fix every panel in place",
-        tone: "normal",
-        onTap: () => arrange.lockAll(),
-      });
+      panelRows.push({ label: "Fix every panel in place", onTap: () => arrange.lockAll() });
     }
     if (panels.refusal) {
-      rows.push({ label: panels.refusal, tone: "muted", onTap: () => {} });
+      panelRows.push({ label: panels.refusal, tone: "muted", onTap: () => {} });
     }
-
-    // LAST, so it sits exactly where the Settings button was: the same spot
-    // opens the menu and closes it, and your hand does not have to go looking.
-    rows.push({ label: "Close", onTap: () => setOpen(false) });
+    boxes.push({ title: "Panels", rows: panelRows });
   }
 
-  /**
-   * THE MENU GROWS UPWARD FROM THE BUTTON.
-   *
-   * It used to hang down: the first row sat at the anchor and everything else
-   * went below it, which put a long open menu somewhere around your knees.
-   * Nikk: "we want the last item to be at the settings button, so its all above
-   * that." So the LAST row is the anchored one and the list stacks above — and
-   * since the last row is now Close, the thing you tapped to open the menu is
-   * the thing you tap in the same place to shut it.
-   *
-   * The row count changes as the menu opens and as speech comes and goes, and
-   * anchoring the bottom means the rows above shift while the one under your
-   * hand stays put — which is the right way round. The alternative moves the
-   * button out from under you at the moment you reach for it.
-   */
+  // Boxes become columns, and a box taller than `BOX_ROWS` continues into
+  // another column beside it rather than growing down past the floor — which
+  // is what made the single column unusable. See menu-columns.ts.
+  const columns = toColumns(boxes, BOX_ROWS);
+
+  const columnWidth = BOX_BUTTON.width;
+  const tallest = columns.reduce((most, column) => Math.max(most, column.rows.length), 0);
+  const boxHeight = tallest * (BOX_BUTTON.height + BOX_BUTTON.gap);
+  const slots = gridSlots(columns.length, BOXES_PER_ROW);
+  // Every row of boxes is the height of the TALLEST column, so the headings
+  // line up across a row instead of stepping down raggedly.
+  const rowStep = boxHeight + 0.22;
+  const rowCount = slots.length > 0 ? slots[slots.length - 1].row + 1 : 0;
+  // Centred vertically too, so a two-row grid does not sit with its first row
+  // at eye level and its second somewhere near your shins.
+  // Centred on the CONTENT, not on the box origins: a box hangs downward from
+  // its origin, so centring the origins would put the whole grid half a box too
+  // low — which at two rows is the difference between reading it and crouching.
+  const gridTop = ((rowCount - 1) * rowStep) / 2 + boxHeight / 2;
+
   const said = notice ?? voice.trouble;
+  const closedStep = WRIST_BUTTON.height + WRIST_BUTTON.gap;
 
   return (
     <group ref={group} visible={false}>
-      {rows.map((row, index) => (
-        <WristButton
-          key={`${index}-${row.label}`}
-          label={row.label}
-          tone={row.tone}
-          y={stackedY(index, rows.length)}
-          onTap={row.onTap}
-        />
-      ))}
-      {/* BELOW THE ANCHOR, deliberately outside the stack. A notice arrives
+      {open ? (
+        columns.map((column, index) => (
+          <ButtonBox
+            key={`${index}-${column.title}`}
+            title={column.title}
+            x={columnX(slots[index].col, slots[index].inRow, columnWidth, BOX_GAP)}
+            y={gridTop - slots[index].row * rowStep}
+            width={columnWidth}
+            height={boxHeight}
+          >
+            {column.rows.map((row, at) => (
+              <WristButton
+                key={`${at}-${row.label}`}
+                label={row.label}
+                tone={row.tone}
+                y={-at * (BOX_BUTTON.height + BOX_BUTTON.gap)}
+                width={BOX_BUTTON.width}
+                height={BOX_BUTTON.height}
+                onTap={row.onTap}
+              />
+            ))}
+          </ButtonBox>
+        ))
+      ) : (
+        <>
+          {/*
+            CLOSED: A GEAR AND A MICROPHONE, SIDE BY SIDE.
+
+            Talking used to live inside the settings, which meant three taps and
+            a menu between you and saying something — in a room whose whole
+            purpose is talking to the people and agents in it. Nikk: "beside it
+            add in the start talking button that is usualy inside the settings,
+            that way we can start talking easily."
+
+            The talk button is the wider of the two because it is the one you
+            press constantly and the one you must be able to hit without aiming.
+          */}
+          <WristButton
+            label="⚙"
+            glyph
+            x={-0.19}
+            y={0}
+            width={0.14}
+            height={0.14}
+            tone={listening ? "muted" : "normal"}
+            onTap={openMenu}
+          />
+          <WristButton
+            label={
+              listening
+                ? alwaysOn
+                  ? "Stop — sending as you speak"
+                  : "Stop listening"
+                : capabilities.recognition
+                  ? alwaysOn
+                    ? "Start talking"
+                    : "Speak once"
+                  : "No microphone here"
+            }
+            x={0.09}
+            y={0}
+            width={0.42}
+            height={0.14}
+            tone={listening ? "live" : capabilities.recognition ? "normal" : "muted"}
+            onTap={() => {
+              if (!capabilities.recognition) {
+                setNotice("There is no microphone available to this browser.");
+                return;
+              }
+              if (listening) input.current?.stop();
+              else input.current?.start();
+            }}
+          />
+        </>
+      )}
+
+      {/* BELOW EVERYTHING, deliberately outside the grid. A notice arrives
           unbidden — a failed send, a microphone that would not open — and if it
-          joined the list it would jog every button up by a row at the exact
-          moment you were reaching for one. */}
+          joined a column it would jog every button in it at the exact moment
+          you were reaching for one. */}
       {said ? (
-        <WristButton label={said} tone="muted" y={-step} onTap={() => setNotice(null)} />
+        <WristButton
+          label={said}
+          tone="muted"
+          y={open ? -gridTop - (rowCount - 1) * rowStep - boxHeight - 0.18 : -closedStep - 0.06}
+          width={open ? 0.9 : 0.55}
+          onTap={() => setNotice(null)}
+        />
       ) : null}
     </group>
   );
