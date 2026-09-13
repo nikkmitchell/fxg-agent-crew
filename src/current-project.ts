@@ -40,6 +40,22 @@ function projectInUrl(): string | null {
   }
 }
 
+/**
+ * One mood board named in the URL, for the same reason as the project.
+ *
+ * The room can be pointed at a single mood board, and the room's panels are
+ * these very tabs — so the tab has to be able to show one board rather than
+ * all of them. Empty means "show them all", which is what the tab does at a
+ * desk and what it should keep doing there.
+ */
+export function boardInUrl(): string {
+  try {
+    return new URLSearchParams(window.location.search).get("board") ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function currentProject(): string {
   const named = projectInUrl();
   if (named) return named;

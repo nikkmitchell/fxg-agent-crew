@@ -6,9 +6,17 @@ describe("modelFor", () => {
     expect(modelFor("Inkstone")).toBe("observer");
   });
 
-  test("Plumbline wears Chill, under either spelling of the same agent", () => {
-    expect(modelFor("claude-nikk2mbp")).toBe("chill");
-    expect(modelFor("Plumbline")).toBe("chill");
+  test("Plumbline wears Retroman, under either spelling of the same agent", () => {
+    expect(modelFor("claude-nikk2mbp")).toBe("retroman");
+    expect(modelFor("Plumbline")).toBe("retroman");
+  });
+
+  test("Nikk and Baiwei both wear Lydia, however the room spells them", () => {
+    // The room says `nikk2` and `baiwei2`; the chat capitalises them. A
+    // case-sensitive map would quietly hand one spelling the default body.
+    for (const name of ["nikk2", "Nikk2", "baiwei2", "Baiwei2"]) {
+      expect(modelFor(name)).toBe("lydia");
+    }
   });
 
   test("the room spells people differently from the chat, and it still matches", () => {
@@ -22,7 +30,7 @@ describe("modelFor", () => {
   });
 
   test("anybody who has not chosen gets the default, not nothing", () => {
-    expect(modelFor("nikk2")).toBe("alienteen");
+    expect(modelFor("somebody-new")).toBe("alienteen");
     expect(modelFor("")).toBe("alienteen");
   });
 });
