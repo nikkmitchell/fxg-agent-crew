@@ -5,6 +5,7 @@ import { avatarRecipe } from "../avatar";
 import { makeLabelTexture } from "./label-texture";
 import { bodySpec, ringIsBroken } from "./avatar-shape";
 import { VrmBody } from "./VrmBody";
+import { approachPoint, approachQuaternion } from "./easing";
 import type { Pose, WirePerson } from "../../shared/space-wire";
 import type { Vec3 } from "../../shared/space-layout";
 
@@ -138,7 +139,6 @@ const Hand = ({ colour, boxy, groupRef }: {
 
 /** Reused so the frame loop allocates nothing. */
 const scratch = {
-  position: new THREE.Vector3(),
   quaternion: new THREE.Quaternion(),
   euler: new THREE.Euler(),
 };
@@ -151,20 +151,12 @@ function approach(
   delta: number,
   snap: boolean,
 ): void {
-  scratch.position.set(to.x, to.y, to.z);
-  if (snap) {
-    object.position.copy(scratch.position);
-    return;
-  }
-  const gap = scratch.position.distanceTo(object.position);
-  if (gap < 0.0005) return;
-  object.position.lerp(scratch.position, Math.min(1, (metresPerSecond * delta) / gap));
+  approachPoint(object.position, to, metresPerSecond, delta, snap);
 }
 
 function turnToward(object: THREE.Object3D, q: Pose["q"], delta: number, snap: boolean): void {
   scratch.quaternion.set(q.x, q.y, q.z, q.w);
-  if (snap) object.quaternion.copy(scratch.quaternion);
-  else object.quaternion.slerp(scratch.quaternion, Math.min(1, delta * 14));
+  approachQuaternion(object.quaternion, scratch.quaternion, 14, delta, snap);
 }
 
 export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying }: Avatar3DProps) {
@@ -344,7 +336,13 @@ export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying
       <Hand groupRef={rightRef} colour={recipe.paper} boxy={spec.shape === "boxy"} />
       </>
       ) : (
-        <VrmBody live={live} recipe={recipe} onFailed={onBodyFailed} />
+        <VrmBody
+          actorId={actorId}
+          live={live}
+          recipe={recipe}
+          reducedMotion={reducedMotion}
+          onFailed={onBodyFailed}
+        />
       )}
 
       {/* The floor ring. Solid for a declared kind; broken for one we were

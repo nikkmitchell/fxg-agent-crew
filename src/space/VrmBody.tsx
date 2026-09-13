@@ -3,6 +3,8 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { VRM, VRMUtils } from "@pixiv/three-vrm";
 import { armSpecOf, faceFrontZOf, faceRoomYaw, headHeightOf, loadVrm, type ArmSpec } from "./vrm-model";
+import { aimSegment } from "./aim-bone";
+import { approachAngle, approachPoint, approachQuaternion } from "./easing";
 import { elbowFor } from "./two-bone-ik";
 import { headOf } from "./Avatar3D";
 import type { AvatarRecipe } from "../avatar";
@@ -44,24 +46,34 @@ import type { WirePerson } from "../../shared/space-wire";
 const WAIST = 0.52;
 
 export function VrmBody({
+  actorId,
   live,
   recipe,
+  reducedMotion,
   onFailed,
 }: {
+  /** Whose body this is, which decides which model they wear. */
+  actorId: string;
   live: () => WirePerson | null | undefined;
   recipe: AvatarRecipe;
+  /**
+   * When true nothing is eased — every pose snaps to the sample that arrived.
+   * Somebody who asked for no animation gets the raw data, not a smoothed lie
+   * about it.
+   */
+  reducedMotion: boolean;
   /** Told when the model cannot be had, so the plain figure is drawn instead. */
   onFailed: () => void;
 }) {
   const [vrm, setVrm] = useState<VRM | null>(null);
-  const arms = useRef<ArmSpec>({ upper: 0.28, lower: 0.26 });
+  const arms = useRef<ArmSpec | null>(null);
   /** The model's own head height, so it can be scaled to the person's. */
   const modelHead = useRef(1.34);
   const root = useRef<THREE.Group>(null);
 
   useEffect(() => {
     let dropped = false;
-    void loadVrm()
+    void loadVrm(actorId)
       .then((loaded) => {
         if (dropped) {
           VRMUtils.deepDispose(loaded.scene);
@@ -80,7 +92,7 @@ export function VrmBody({
     return () => {
       dropped = true;
     };
-  }, [onFailed, recipe]);
+  }, [actorId, onFailed, recipe]);
 
   // Freed on unmount: a body left behind when somebody leaves the room is
   // several megabytes of texture that nothing will ever draw again.
@@ -103,16 +115,47 @@ export function VrmBody({
     [],
   );
 
+  /**
+   * WHERE THIS BODY IS NOW, as opposed to where the last snapshot said.
+   *
+   * Held here rather than read from the wire each frame, because the wire is a
+   * few samples a second and a frame is ninety. Assigning straight from the
+   * sample — which is what this did — is what made the avatars judder while the
+   * old wireframe figures beside them glided: the figures had this and the
+   * bodies did not.
+   *
+   * `settled` is false until the first sample, so somebody who joins does not
+   * glide in from the origin.
+   */
+  const shown = useMemo(
+    () => ({
+      settled: false,
+      at: new THREE.Vector3(),
+      yaw: 0,
+      head: new THREE.Quaternion(),
+      hands: { left: new THREE.Vector3(), right: new THREE.Vector3() },
+      handSeen: { left: false, right: false },
+    }),
+    [],
+  );
+
   useFrame((_, delta) => {
     const person = live();
     const node = root.current;
-    if (!vrm || !person || !node) return;
+    if (!vrm || !person || !node || !arms.current) return;
 
     // FEET ON THE FLOOR, facing the way they are walking. The head is tracked
     // separately below; the body is placed, not measured, and this is the one
     // place that is true of the whole figure.
-    node.position.set(person.at.x, 0, person.at.z);
-    node.rotation.y = person.facing;
+    //
+    // EASED TOWARD THE SAMPLE, never past it. See easing.ts: the body is always
+    // catching up with what the room last said, and never predicting.
+    const snap = reducedMotion || !shown.settled;
+    approachPoint(shown.at, { x: person.at.x, y: 0, z: person.at.z }, 6, delta, snap);
+    shown.yaw = approachAngle(shown.yaw, person.facing, 10, delta, snap);
+    shown.settled = true;
+    node.position.copy(shown.at);
+    node.rotation.y = shown.yaw;
 
     /**
      * SCALED SO ITS HEAD IS WHERE THEIR HEAD IS.
@@ -135,13 +178,18 @@ export function VrmBody({
     if (head) {
       if (person.head) {
         // The measured head orientation, taken into the body's own frame so
-        // that turning the body does not turn the head twice.
+        // that turning the body does not turn the head twice. Against the
+        // SHOWN yaw rather than the sampled one, or the head counter-rotates
+        // against a body that has not finished turning yet — a small wrongness
+        // that reads as the head twitching while the shoulders swing.
         scratch.quaternion.set(person.head.q.x, person.head.q.y, person.head.q.z, person.head.q.w);
-        scratch.euler.set(0, -person.facing, 0);
-        head.quaternion.setFromEuler(scratch.euler).multiply(scratch.quaternion);
+        scratch.euler.set(0, -shown.yaw, 0);
+        scratch.quaternion.premultiply(head.quaternion.setFromEuler(scratch.euler));
       } else {
-        head.quaternion.identity();
+        scratch.quaternion.identity();
       }
+      approachQuaternion(shown.head, scratch.quaternion, 14, delta, snap);
+      head.quaternion.copy(shown.head);
     }
 
     // ARMS REACH THE HANDS, or disappear. See the note above: a hand that is
@@ -181,8 +229,17 @@ export function VrmBody({
         continue;
       }
 
+      // EASED TO THE HAND, like everything else. A hand is the fastest-moving
+      // thing a headset reports and the most obviously choppy when it is not
+      // smoothed; it also gets the highest speed, because a hand really can
+      // cross a metre in a moment and dragging behind reads as lag.
+      const seen = shown.handSeen[side];
+      approachPoint(shown.hands[side], pose.p, 4, delta, snap || !seen);
+      shown.handSeen[side] = true;
+
+      const arm = arms.current[side];
       upper.getWorldPosition(scratch.shoulder);
-      scratch.target.set(pose.p.x, pose.p.y, pose.p.z);
+      scratch.target.copy(shown.hands[side]);
       // Down and away from the body, which is where a human elbow goes.
       scratch.pole.set(side === "left" ? -1 : 1, -2, 0).normalize();
 
@@ -192,12 +249,15 @@ export function VrmBody({
       const elbow = elbowFor(
         scratch.shoulder,
         scratch.target,
-        arms.current.upper * scale,
-        arms.current.lower * scale,
+        arm.upper * scale,
+        arm.lower * scale,
         scratch.pole,
       );
-      aimBoneAt(upper, scratch.elbow.set(elbow.x, elbow.y, elbow.z));
-      aimBoneAt(lower, scratch.target);
+      // Each segment is turned from the direction it RESTS in, measured off
+      // this model, to the direction it needs to point. See aim-bone.ts for
+      // what the previous version assumed and why it could not be right.
+      aimSegment(upper, arm.upperRest, scratch.elbow.set(elbow.x, elbow.y, elbow.z));
+      aimSegment(lower, arm.lowerRest, scratch.target);
     }
 
     // Spring bones and look-at. Cheap, and without it nothing on the model
@@ -214,21 +274,6 @@ export function VrmBody({
   );
 }
 
-/**
- * Point a bone at a world position, keeping its length.
- *
- * Bones are rotations, not positions, so reaching a point means turning the
- * parent until the child lands on it. `lookAt` on the bone itself turns its
- * FORWARD axis, which for a VRM arm is not the direction the bone runs — hence
- * the correction through the parent's inverse.
- */
-function aimBoneAt(bone: THREE.Object3D, target: THREE.Vector3): void {
-  const parent = bone.parent;
-  if (!parent) return;
-  parent.updateWorldMatrix(true, false);
-  bone.lookAt(target);
-  bone.rotateX(Math.PI / 2);
-}
 
 /**
  * Whose body it is.
