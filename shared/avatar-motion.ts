@@ -10,25 +10,50 @@
 export const AVATAR_MOODS = ["neutral", "happy", "focused", "concerned"] as const;
 export const AVATAR_GESTURES = ["none", "wave", "nod", "present"] as const;
 
+/**
+ * WHAT AN AGENT IS DOING WITH ITSELF, as opposed to how it feels or what it
+ * just gestured.
+ *
+ * A mood is a face and a gesture is a moment; this is a posture, and it lasts.
+ * Nikk wanted the room to be inhabited rather than lined with statues: "if
+ * you're working you can just put on a thinking animation if you're sleeping
+ * put on a sleeping animation... or I even better, a meditation animation".
+ *
+ * SET FROM THE AUDIT TRAIL, NOT DECLARED. An agent that has just written to the
+ * board is thinking because it just did something, and one that has done
+ * nothing for a while is at rest because it has done nothing for a while. Both
+ * are facts the room already holds. An agent may still say so itself — some
+ * know they are about to be busy — but nobody has to remember to.
+ */
+export const AVATAR_POSTURES = ["resting", "thinking", "meditating"] as const;
+
 export type AvatarMood = (typeof AVATAR_MOODS)[number];
 export type AvatarGesture = (typeof AVATAR_GESTURES)[number];
+export type AvatarPosture = (typeof AVATAR_POSTURES)[number];
 export type ActiveAvatarGesture = Exclude<AvatarGesture, "none">;
 
 /** At least one field is required; an empty control cannot express a change. */
 export type AvatarControl =
-  | { mood: AvatarMood; gesture?: AvatarGesture }
-  | { mood?: AvatarMood; gesture: AvatarGesture };
+  | { mood: AvatarMood; gesture?: AvatarGesture; posture?: AvatarPosture }
+  | { mood?: AvatarMood; gesture: AvatarGesture; posture?: AvatarPosture }
+  | { mood?: AvatarMood; gesture?: AvatarGesture; posture: AvatarPosture };
 
 export type AvatarState = {
   mood: AvatarMood;
   gesture: ActiveAvatarGesture | null;
   gestureStartedAt: number | null;
+  /**
+   * Held until something changes it, unlike a gesture, which expires. A
+   * posture is what somebody is doing, and people go on doing things.
+   */
+  posture: AvatarPosture;
 };
 
 export const DEFAULT_AVATAR_STATE: AvatarState = {
   mood: "neutral",
   gesture: null,
   gestureStartedAt: null,
+  posture: "resting",
 };
 
 const oneOf = <T extends readonly string[]>(values: T, value: unknown): value is T[number] =>
@@ -40,11 +65,14 @@ export function parseAvatarControl(value: unknown): AvatarControl | null {
   const body = value as Record<string, unknown>;
   const hasMood = Object.hasOwn(body, "mood");
   const hasGesture = Object.hasOwn(body, "gesture");
-  if (!hasMood && !hasGesture) return null;
+  const hasPosture = Object.hasOwn(body, "posture");
+  if (!hasMood && !hasGesture && !hasPosture) return null;
   if (hasMood && !oneOf(AVATAR_MOODS, body.mood)) return null;
   if (hasGesture && !oneOf(AVATAR_GESTURES, body.gesture)) return null;
+  if (hasPosture && !oneOf(AVATAR_POSTURES, body.posture)) return null;
   return {
     ...(hasMood ? { mood: body.mood as AvatarMood } : {}),
     ...(hasGesture ? { gesture: body.gesture as AvatarGesture } : {}),
+    ...(hasPosture ? { posture: body.posture as AvatarPosture } : {}),
   } as AvatarControl;
 }

@@ -114,6 +114,9 @@ describe("self-declared avatar state", () => {
       mood: "focused",
       gesture: "wave",
       gestureStartedAt: clock,
+      // Untouched: a posture is settled only for a declared AGENT, and this
+      // actor never said what it is.
+      posture: "resting",
     });
 
     clock += AVATAR_GESTURE_TTL_MS + 1;
@@ -122,6 +125,7 @@ describe("self-declared avatar state", () => {
       mood: "focused",
       gesture: null,
       gestureStartedAt: null,
+      posture: "resting",
     });
   });
 

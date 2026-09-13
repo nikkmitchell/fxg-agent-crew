@@ -136,6 +136,8 @@ export function VrmBody({
       at: new THREE.Vector3(),
       yaw: 0,
       head: new THREE.Quaternion(),
+      /** How far the body is currently lowered, for sitting. */
+      drop: 0,
     }),
     [],
   );
@@ -208,6 +210,21 @@ export function VrmBody({
           reducedMotion,
         })
       : null;
+
+    /**
+     * SITTING DOWN MOVES THE WHOLE BODY, not just the legs.
+     *
+     * A cross-legged figure's hips are near the floor. Rotating the thighs
+     * alone leaves it standing with its knees folded in front of it, which
+     * reads as a fault rather than as sitting. Eased, so it lowers itself
+     * rather than dropping through the floor the instant a posture changes.
+     *
+     * Scaled with the model, like the arm lengths: the drop is in the model's
+     * own metres, and the model has just been resized to match a head height.
+     */
+    const wantedDrop = automatic ? -automatic.rootDrop * scale : 0;
+    shown.drop = reducedMotion ? wantedDrop : shown.drop + (wantedDrop - shown.drop) * Math.min(1, delta * 3);
+    node.position.y = shown.drop;
 
     const head = vrm.humanoid.getNormalizedBoneNode("head");
     if (head) {
