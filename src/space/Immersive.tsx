@@ -13,6 +13,8 @@ import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
+import type { RoomFeed } from "./useRoomFeed";
+import type { PanelChoices } from "./usePanelChoices";
 import type { VoiceChat } from "./useVoiceChat";
 import type { Utterance } from "../../shared/voice";
 import type { ClientMessage, Pose } from "../../shared/space-wire";
@@ -59,6 +61,8 @@ export function ImmersivePlayer({
   groupRoom,
   voice,
   liveUtterance,
+  feed,
+  panels,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -76,6 +80,10 @@ export function ImmersivePlayer({
   voice: VoiceChat;
   /** The newest thing said in the room, for reading replies aloud. */
   liveUtterance: Utterance | null;
+  /** The WebHarness chat, read once in the scene and passed down. */
+  feed: RoomFeed;
+  /** Which panels are on the arc, so the headset can change it too. */
+  panels: PanelChoices;
 }) {
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
@@ -287,6 +295,8 @@ export function ImmersivePlayer({
         onTogglePassthrough={onTogglePassthrough}
         voice={voice}
         liveUtterance={liveUtterance}
+        feed={feed}
+        panels={panels}
       />
       {/*
         The floor you can teleport onto. It is deliberately invisible: the room
@@ -337,6 +347,8 @@ export function Immersive({
   groupRoom,
   voice,
   liveUtterance,
+  feed,
+  panels,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -347,6 +359,8 @@ export function Immersive({
   voice: VoiceChat;
   /** The newest thing said in the room, for reading replies aloud. */
   liveUtterance: Utterance | null;
+  feed: RoomFeed;
+  panels: PanelChoices;
 }) {
   const session = useXR((state) => state.session);
   /**
@@ -383,6 +397,8 @@ export function Immersive({
       groupRoom={groupRoom}
       voice={voice}
       liveUtterance={liveUtterance}
+      feed={feed}
+      panels={panels}
     />
   ) : null;
 }

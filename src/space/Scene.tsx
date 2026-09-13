@@ -18,6 +18,7 @@ import { WebPanel } from "./WebPanel";
 import { StillPanel } from "./StillPanel";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
+import type { PanelChoices } from "./usePanelChoices";
 import type { VoiceChat } from "./useVoiceChat";
 import { SpatialVoices } from "./SpatialVoices";
 import { Movable, savePlacement } from "./Movable";
@@ -398,7 +399,7 @@ export default function Scene({
   comfort,
   onImmersiveChange,
   inHeadset,
-  openPanels,
+  panels,
   onPanelTrouble,
   voice,
 }: {
@@ -408,8 +409,15 @@ export default function Scene({
   onImmersiveChange: (inSession: boolean) => void;
   /** True once a headset session is live. */
   inHeadset: boolean;
-  /** The panel ids this person has open. Everything else is not drawn at all. */
-  openPanels: string[];
+  /**
+   * Which panels this person has open, and the way to change it.
+   *
+   * THE WHOLE OBJECT rather than just the open ids: the headset settings can
+   * now open and close panels too, and passing the list alone would have meant
+   * a second prop beside it carrying the setter — two halves of one thing,
+   * which is how they drift apart.
+   */
+  panels: PanelChoices;
   /** Said out loud when a panel cannot go where it was dropped. */
   onPanelTrouble: (why: string | null) => void;
   /** Live voice, owned above the scene so a session change cannot close it. */
@@ -424,6 +432,7 @@ export default function Scene({
    * conversation. Read here and passed down.
    */
   const feed = useRoomFeed(inHeadset);
+  const openPanels = panels.open;
 
   return (
     <Canvas
@@ -526,6 +535,8 @@ export default function Scene({
           groupRoom={feed.room}
           voice={voice}
           liveUtterance={connection.liveUtterance}
+          feed={feed}
+          panels={panels}
         />
       </XR>
     </Canvas>

@@ -37,6 +37,24 @@ export function VoidSphere() {
  */
 export const WRIST_BUTTON = { width: 0.3, height: 0.075, gap: 0.012 } as const;
 
+/**
+ * Where row `index` of a stack of `count` sits, relative to the anchor.
+ *
+ * THE STACK GROWS UPWARD: the LAST row is the anchored one, at zero, and
+ * earlier rows go above it. The menu used to hang the other way — first row at
+ * the anchor, the rest below — which put a long open menu down around your
+ * knees. Nikk, from inside a headset: "we want the last item to be at the
+ * settings button, so its all above that."
+ *
+ * The consequence worth keeping is that the row under your hand does not move
+ * when the list changes length. Rows appear and disappear constantly here — the
+ * menu opens, speech starts, a panel toggle changes a label — and anchoring the
+ * top would slide the button out from under you as you reached for it.
+ */
+export function stackedY(index: number, count: number): number {
+  return (count - 1 - index) * (WRIST_BUTTON.height + WRIST_BUTTON.gap);
+}
+
 export function WristButton({
   label,
   y,
