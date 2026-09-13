@@ -300,11 +300,11 @@ describe("turning a speaker toward the person they address", () => {
 describe("posture", () => {
   const room = (clock: () => number) => new Presence(clock);
 
-  it("settles an agent that has done nothing into meditating", () => {
+  it("settles an agent that has done nothing into sleeping", () => {
     const presence = room(() => 10 * 60_000);
     presence.join("plumbline", "agent", false);
     presence.tick(0.1);
-    expect(presence.find("plumbline")?.avatar.posture).toBe("meditating");
+    expect(presence.find("plumbline")?.avatar.posture).toBe("sleeping");
   });
 
   it("an agent that just acted is thinking", () => {
@@ -323,7 +323,7 @@ describe("posture", () => {
 
     now += 6 * 60_000;
     presence.tick(0.1);
-    expect(presence.find("plumbline")?.avatar.posture).toBe("meditating");
+    expect(presence.find("plumbline")?.avatar.posture).toBe("sleeping");
   });
 
   it("NEVER gives a human a posture — they have a body of their own", () => {
@@ -344,7 +344,7 @@ describe("posture", () => {
 
   it("but acting takes it back, because the audit trail is the better witness", () => {
     const presence = room(() => 10 * 60_000);
-    presence.animate("plumbline", { posture: "meditating" }, "agent");
+    presence.animate("plumbline", { posture: "sleeping" }, "agent");
     presence.sendTo("plumbline", "agent", { x: 1, y: 0, z: 1 }, "wrote a card");
     presence.tick(0.1);
     expect(presence.find("plumbline")?.avatar.posture).toBe("thinking");
@@ -381,5 +381,60 @@ describe("who the room moves", () => {
     const presence = new Presence(() => 1_000);
     const spawnish = presence.join("plumbline", "agent", true).at;
     expect(`${spawnish.x},${spawnish.z}`).not.toBe("0,6.2");
+  });
+});
+
+/**
+ * Who stays when a connection drops.
+ *
+ * The bug: an agent that opened a socket to WATCH the room was deleted from it
+ * the moment that socket closed. Nikk and Baiwei both looked for Plumbline in
+ * the live room and saw nobody, while a local room — where it had never
+ * connected — showed it perfectly. Looking cost it its presence.
+ */
+describe("leaving", () => {
+  it("AN AGENT STAYS when its socket closes", () => {
+    const presence = new Presence(() => 1_000);
+    presence.join("plumbline", "agent", true);
+    presence.leave("plumbline");
+    expect(presence.find("plumbline")).toBeDefined();
+  });
+
+  it("and is marked disconnected rather than absent", () => {
+    // The room draws a disconnected figure differently — a broken ring. That
+    // is a true and useful thing to say; deleting it says something false.
+    const presence = new Presence(() => 1_000);
+    presence.join("plumbline", "agent", true);
+    presence.leave("plumbline");
+    expect(presence.find("plumbline")?.connected).toBe(false);
+  });
+
+  it("keeps where the agent was standing", () => {
+    const presence = new Presence(() => 1_000);
+    presence.join("plumbline", "agent", true);
+    presence.sendTo("plumbline", "agent", { x: 2, y: 0, z: 2 }, "wrote a card");
+    presence.tick(5);
+    const before = { ...(presence.find("plumbline")?.at ?? { x: 0, y: 0, z: 0 }) };
+    presence.leave("plumbline");
+    expect(presence.find("plumbline")?.at).toEqual(before);
+  });
+
+  it("a person who disconnects does leave", () => {
+    // A headset that goes dark means we no longer know where that person is,
+    // and saying they are still standing there would be an invention.
+    const presence = new Presence(() => 1_000);
+    presence.join("nikk", "human", true);
+    presence.leave("nikk");
+    expect(presence.find("nikk")).toBeUndefined();
+  });
+
+  it("a disconnected agent survives pruning", () => {
+    let now = 1_000;
+    const presence = new Presence(() => now);
+    presence.join("plumbline", "agent", true);
+    presence.leave("plumbline");
+    now += 10 * 60_000;
+    expect(presence.prune()).not.toContain("plumbline");
+    expect(presence.find("plumbline")).toBeDefined();
   });
 });

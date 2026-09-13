@@ -19,13 +19,24 @@ export const AVATAR_GESTURES = ["none", "wave", "nod", "present"] as const;
  * you're working you can just put on a thinking animation if you're sleeping
  * put on a sleeping animation... or I even better, a meditation animation".
  *
+ * SLEEPING RATHER THAN MEDITATING, and that is a retreat. Meditating was a
+ * cross-legged sit, and posing a seated body by hand — hips dropped, thighs
+ * out, shins crossed — produced something Nikk described as "very weird" and a
+ * screenshot proved was a crumple: legs splayed, one ankle nine centimetres
+ * below the floor. A sit is a whole-body pose and it needs a real animation
+ * clip, not four Euler angles I guessed at. So this is a standing doze — the
+ * rest pose, head bowed, eyes closed, breathing slowed — which is a small
+ * deviation from a stance that already looks right and therefore cannot come
+ * out looking broken. A proper sitting animation needs `@pixiv/three-vrm-
+ * animation` and a licensed .vrma, which is a piece of work of its own.
+ *
  * SET FROM THE AUDIT TRAIL, NOT DECLARED. An agent that has just written to the
  * board is thinking because it just did something, and one that has done
  * nothing for a while is at rest because it has done nothing for a while. Both
  * are facts the room already holds. An agent may still say so itself — some
  * know they are about to be busy — but nobody has to remember to.
  */
-export const AVATAR_POSTURES = ["resting", "thinking", "meditating"] as const;
+export const AVATAR_POSTURES = ["resting", "thinking", "sleeping"] as const;
 
 export type AvatarMood = (typeof AVATAR_MOODS)[number];
 export type AvatarGesture = (typeof AVATAR_GESTURES)[number];

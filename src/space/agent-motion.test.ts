@@ -64,38 +64,43 @@ describe("automatic agent motion", () => {
 /**
  * Postures — what an agent is doing with itself while it stands there.
  *
- * Nikk wanted the room inhabited rather than lined with statues: thinking while
- * working, and something restful while not. These check the two things that
- * would make it look wrong rather than merely different — a figure sitting in
- * mid-air, and a figure meditating while walking across the room.
+ * All of them are STANDING. A cross-legged sit was tried and removed: posing a
+ * seated body by hand produced a crumple with an ankle below the floor, and a
+ * sit needs a real animation clip rather than guessed angles. Each of these is
+ * a small deviation from a stance that already looks right.
  */
 describe("postures", () => {
-  const posed = (posture: "resting" | "thinking" | "meditating", extra = {}) =>
+  const posed = (posture: "resting" | "thinking" | "sleeping", extra = {}) =>
     frame({
       nowMs: 5_000,
       avatar: { mood: "neutral", gesture: null, gestureStartedAt: null, posture },
       ...extra,
     });
 
-  it("stands at rest by default, with its feet on the floor", () => {
+  it("rests with its arms down and its feet under it", () => {
     const at = posed("resting");
-    expect(at.rootDrop).toBe(0);
     expect(at.leftUpperLeg.x).toBe(0);
+    expect(at.leftUpperArm.z).toBeGreaterThan(1);
   });
 
-  it("SITS DOWN to meditate rather than folding its legs in mid-air", () => {
-    // Rotating the legs without dropping the hips leaves a figure standing
-    // with its knees bent in front of it, which reads as broken, not seated.
-    const sitting = posed("meditating");
-    expect(sitting.rootDrop).toBeGreaterThan(0.3);
-    expect(sitting.leftLowerLeg.x).toBeGreaterThan(1);
-    expect(sitting.rightLowerLeg.x).toBeGreaterThan(1);
+  it("CLOSES ITS EYES to sleep, and keeps them closed", () => {
+    // Held shut, not a blink that happens to be down — a slow blinker does not
+    // read as asleep.
+    for (const nowMs of [1_000, 4_000, 9_000]) {
+      const dozing = frame({
+        nowMs,
+        avatar: { mood: "neutral", gesture: null, gestureStartedAt: null, posture: "sleeping" },
+      });
+      expect(dozing.expressions.blink).toBe(1);
+    }
   });
 
-  it("crosses its legs symmetrically", () => {
-    const sitting = posed("meditating");
-    expect(sitting.leftUpperLeg.x).toBeCloseTo(sitting.rightUpperLeg.x, 6);
-    expect(sitting.leftUpperLeg.y).toBeCloseTo(-sitting.rightUpperLeg.y, 6);
+  it("bows its head to sleep but stays on its feet", () => {
+    const dozing = posed("sleeping");
+    const awake = posed("resting");
+    expect(dozing.head.x).toBeGreaterThan(awake.head.x);
+    expect(dozing.leftUpperLeg.x).toBe(0);
+    expect(dozing.rightUpperLeg.x).toBe(0);
   });
 
   it("brings a hand to the chin to think, and only one", () => {
@@ -105,30 +110,22 @@ describe("postures", () => {
     expect(thinking.leftUpperArm.z).toBeGreaterThan(0);
   });
 
-  it("DOES NOT MEDITATE WHILE WALKING", () => {
-    // A posture is what you do while you are still. Sitting cross-legged as
-    // you cross the room is the single most obviously wrong thing this could
-    // produce.
-    const walking = posed("meditating", { moving: true });
-    expect(walking.rootDrop).toBe(0);
+  it("does not doze while walking across the room", () => {
+    const walking = posed("sleeping", { moving: true });
+    expect(walking.expressions.blink).not.toBe(1);
   });
 
-  it("still answers somebody who speaks to it while it is meditating", () => {
-    // Attention beats posture: it is a response to a person, and a posture is
-    // only what you were doing until they turned up.
-    const sitting = posed("meditating");
-    const attentive = posed("meditating", { attending: true });
-    expect(attentive.rightLowerArm.z).not.toBeCloseTo(sitting.rightLowerArm.z, 6);
-    // But it stays sitting — it does not leap to its feet.
-    expect(attentive.rootDrop).toBeGreaterThan(0.3);
+  it("still answers somebody who speaks to it while it is asleep", () => {
+    const dozing = posed("sleeping");
+    const attentive = posed("sleeping", { attending: true });
+    expect(attentive.rightLowerArm.z).not.toBeCloseTo(dozing.rightLowerArm.z, 6);
   });
 
   it("holds still for reduced motion, in every posture", () => {
-    for (const posture of ["resting", "thinking", "meditating"] as const) {
+    for (const posture of ["resting", "thinking", "sleeping"] as const) {
       const a = posed(posture, { reducedMotion: true, nowMs: 1_000 });
       const b = posed(posture, { reducedMotion: true, nowMs: 9_000 });
       expect(a.chest.x).toBe(b.chest.x);
-      expect(a.expressions.blink).toBe(b.expressions.blink);
     }
   });
 });
