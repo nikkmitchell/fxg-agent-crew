@@ -79,6 +79,15 @@ describe("moving", () => {
     presence.moveSelf("ghost", { x: 1, y: 0, z: 1 }, 0);
     expect(presence.size).toBe(0);
   });
+
+  it("keeps a self-reported facing to one readable turn", () => {
+    const presence = at({ now: 1 });
+    presence.join("baiwei", "human");
+
+    presence.moveSelf("baiwei", { x: 1, y: 0, z: 1 }, -Math.PI * 1.5);
+
+    expect(presence.find("baiwei")?.facing).toBeCloseTo(Math.PI / 2, 10);
+  });
 });
 
 describe("walking", () => {

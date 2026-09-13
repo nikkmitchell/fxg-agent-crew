@@ -5,6 +5,7 @@ import {
   type AvatarControl,
   type AvatarState,
 } from "../../shared/avatar-motion.js";
+import { normaliseRotation } from "../../shared/panel-place.js";
 
 /**
  * Who is in the room, and where.
@@ -178,7 +179,13 @@ export class Presence {
     occupant.heading = clamped;
     occupant.destinationFacing = null;
     occupant.speakingTo = null;
-    occupant.facing = facing;
+    // A headset can rotate through the same direction more than once and its
+    // Three.js yaw is allowed to accumulate those turns. Keep the direction,
+    // but not the winding: snapshots are a public room fact and comparisons of
+    // equivalent facings should not have to account for -4.71 versus 1.57.
+    occupant.facing = facing >= -Math.PI && facing <= Math.PI
+      ? facing
+      : normaliseRotation(facing);
     occupant.because = null;
     if (tracked && "head" in tracked) occupant.head = tracked.head ?? null;
     if (tracked?.hands) occupant.hands = tracked.hands;
