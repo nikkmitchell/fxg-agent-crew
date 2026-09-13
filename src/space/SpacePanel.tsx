@@ -9,6 +9,7 @@ import { Transcript } from "./Transcript";
 import { usePanelChoices } from "./usePanelChoices";
 import { useVoiceChat } from "./useVoiceChat";
 import { ProjectChooser } from "../ProjectChooser";
+import { PanelGrips } from "./PanelGrips";
 
 /**
  * The Space tab.
@@ -222,6 +223,13 @@ export function SpacePanel() {
             voice={voice}
           />
         </Suspense>
+        {/* The panel grab handles. Drawn here rather than in the scene: the
+            canvas cannot receive a pointer, drei's Html breaks the panels'
+            occlusion, and a portal cannot escape R3F's reconciler. See
+            grip-positions.ts. Never in a headset, where the handle is a 3D bar
+            you point a ray at. */}
+        <PanelGrips shown={entered && !inHeadset} />
+
         {/* Connecting gets the big treatment too: until the socket is open the
             room has nobody in it, including you, and a small grey line in the
             corner does not distinguish that from a scene that failed. */}

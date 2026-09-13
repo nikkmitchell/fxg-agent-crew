@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Html } from "@react-three/drei";
-import { useThree } from "@react-three/fiber";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { ApiError } from "../api-request";
 import { space } from "../space-client";
 import { facingArc, placementRefusal } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
+import { dropGrip, onGrabOf, putGrip } from "./grip-positions";
 
 /**
  * A panel you can pick up and put somewhere else.
@@ -185,19 +185,7 @@ export function Movable({
         </mesh>
       ) : (
         // A DOM bar, because the canvas beneath it is `pointer-events: none`.
-        <Html position={[0, top, 0.02]} center zIndexRange={[20, 10]}>
-          <button
-            type="button"
-            className={dragging ? "panel-grip is-dragging" : "panel-grip"}
-            aria-label={`Move the ${place.id} panel`}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              begin(event.clientX, event.clientY);
-            }}
-          >
-            ⠿
-          </button>
-        </Html>
+        <PanelGrip id={place.id} worldY={top} onGrab={begin} />
       )}
     </group>
   );
@@ -216,4 +204,50 @@ export async function savePlacement(place: Placement): Promise<string | null> {
       ? cause.message
       : "That move did not reach the room, so nobody else will see it.";
   }
+}
+
+
+/**
+ * Reports where this panel's handle belongs on screen, every frame.
+ *
+ * It draws nothing. `PanelGrips`, outside the Canvas, draws the button — see
+ * `grip-positions.ts` for why it cannot be done in here.
+ */
+function PanelGrip({
+  id,
+  worldY,
+  onGrab,
+}: {
+  id: string;
+  worldY: number;
+  onGrab: (clientX: number, clientY: number) => void;
+}) {
+  const anchor = useRef<THREE.Object3D>(null);
+  const camera = useThree((state) => state.camera);
+  const gl = useThree((state) => state.gl);
+  const at = useMemo(() => new THREE.Vector3(), []);
+
+  useEffect(() => {
+    onGrabOf(id, onGrab);
+  }, [id, onGrab]);
+
+  useEffect(() => () => dropGrip(id), [id]);
+
+  useFrame(() => {
+    const point = anchor.current;
+    if (!point) return;
+    point.getWorldPosition(at);
+    at.project(camera);
+    const rect = gl.domElement.getBoundingClientRect();
+    putGrip({
+      id,
+      x: rect.left + ((at.x + 1) / 2) * rect.width,
+      y: rect.top + ((1 - at.y) / 2) * rect.height,
+      // Behind the camera projects to a mirrored point on the far side of the
+      // screen, which would put a handle nowhere near its panel.
+      shown: at.z <= 1,
+    });
+  });
+
+  return <object3D ref={anchor} position={[0, worldY, 0.02]} />;
 }

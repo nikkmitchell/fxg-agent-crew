@@ -1,9 +1,10 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { avatarRecipe } from "../avatar";
 import { makeLabelTexture } from "./label-texture";
 import { bodySpec, ringIsBroken } from "./avatar-shape";
+import { VrmBody } from "./VrmBody";
 import type { Pose, WirePerson } from "../../shared/space-wire";
 import type { Vec3 } from "../../shared/space-layout";
 
@@ -298,8 +299,21 @@ export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying
     }
   });
 
+  /**
+   * A real body when the model loads, and the plain figure when it does not.
+   *
+   * NOT A PREFERENCE — a fallback. The VRM is 5.6MB from our own origin, and a
+   * headset on a bad connection must still show who is in the room. When it
+   * fails the old figure appears, which is a complete answer rather than a
+   * degraded one: it draws exactly what was measured and nothing else.
+   */
+  const [bodyFailed, setBodyFailed] = useState(false);
+  const onBodyFailed = useCallback(() => setBodyFailed(true), []);
+
   return (
     <group>
+      {bodyFailed ? (
+      <>
       <group ref={torsoRef}>
         <mesh geometry={torso}>
           <meshStandardMaterial color={recipe.paper} roughness={0.75} />
@@ -328,6 +342,10 @@ export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying
 
       <Hand groupRef={leftRef} colour={recipe.paper} boxy={spec.shape === "boxy"} />
       <Hand groupRef={rightRef} colour={recipe.paper} boxy={spec.shape === "boxy"} />
+      </>
+      ) : (
+        <VrmBody live={live} recipe={recipe} onFailed={onBodyFailed} />
+      )}
 
       {/* The floor ring. Solid for a declared kind; broken for one we were
           never given — the 3D equivalent of the dashed outline in Identity.tsx,
