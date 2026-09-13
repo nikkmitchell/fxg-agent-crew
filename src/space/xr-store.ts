@@ -90,3 +90,31 @@ export async function enterRoom(): Promise<void> {
 }
 
 export type { XRStore };
+
+/**
+ * Show or hide the hand and controller models.
+ *
+ * WHY THIS IS A SETTING. Nikk records from inside the headset, and the rendered
+ * hands sit in front of whatever he is recording: "sometimes they get in the
+ * way of in headset recording". Nothing else can move them out of shot — they
+ * are drawn where his hands actually are.
+ *
+ * ONLY THE MODEL GOES. The teleport pointer on the left, the ray on the right
+ * and every pinch and trigger keep working exactly as before, because those are
+ * separate options on the same input source. Hiding the mesh must not quietly
+ * take away the ability to press things, which would be a far worse trade than
+ * the one being asked for.
+ *
+ * The left hand keeps its teleport pointer here too. Restating it is not
+ * duplication of the setup above — `setHand` REPLACES the implementation, so
+ * anything left out is switched off, and on a headset with no thumbstick that
+ * would mean somebody hiding their hands and discovering they can no longer
+ * move.
+ */
+export function showHandModels(shown: boolean): void {
+  const xr = getXRStore();
+  xr.setHand({ model: shown, teleportPointer: true }, "left");
+  xr.setHand({ model: shown }, "right");
+  xr.setController({ model: shown, teleportPointer: true }, "left");
+  xr.setController({ model: shown }, "right");
+}

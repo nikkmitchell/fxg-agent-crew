@@ -288,3 +288,98 @@ describe("turning a speaker toward the person they address", () => {
     expect(presence.find("nikk")?.at).toEqual({ x: 1, y: 0, z: 2 });
   });
 });
+
+/**
+ * What an agent is doing with itself.
+ *
+ * The room infers it rather than waiting to be told, because an agent that
+ * forgot to say would stand frozen — which is the state this is meant to end.
+ * Nikk: "if you're working you can just put on a thinking animation... or I
+ * even better, a meditation animation."
+ */
+describe("posture", () => {
+  const room = (clock: () => number) => new Presence(clock);
+
+  it("settles an agent that has done nothing into meditating", () => {
+    const presence = room(() => 10 * 60_000);
+    presence.join("plumbline", "agent", false);
+    presence.tick(0.1);
+    expect(presence.find("plumbline")?.avatar.posture).toBe("meditating");
+  });
+
+  it("an agent that just acted is thinking", () => {
+    const presence = room(() => 10 * 60_000);
+    presence.sendTo("plumbline", "agent", { x: 1, y: 0, z: 1 }, "commented on a card");
+    presence.tick(0.1);
+    expect(presence.find("plumbline")?.avatar.posture).toBe("thinking");
+  });
+
+  it("goes back to rest once the work is old", () => {
+    let now = 10 * 60_000;
+    const presence = room(() => now);
+    presence.sendTo("plumbline", "agent", { x: 1, y: 0, z: 1 }, "commented on a card");
+    presence.tick(0.1);
+    expect(presence.find("plumbline")?.avatar.posture).toBe("thinking");
+
+    now += 6 * 60_000;
+    presence.tick(0.1);
+    expect(presence.find("plumbline")?.avatar.posture).toBe("meditating");
+  });
+
+  it("NEVER gives a human a posture — they have a body of their own", () => {
+    const presence = room(() => 10 * 60_000);
+    presence.join("nikk", "human", true);
+    presence.tick(0.1);
+    expect(presence.find("nikk")?.avatar.posture).toBe("resting");
+  });
+
+  it("an agent that names its own posture keeps it", () => {
+    // Some know they are about to be busy before the audit trail does.
+    const presence = room(() => 10 * 60_000);
+    presence.join("plumbline", "agent", false);
+    presence.animate("plumbline", { posture: "thinking" }, "agent");
+    presence.tick(0.1);
+    expect(presence.find("plumbline")?.avatar.posture).toBe("thinking");
+  });
+
+  it("but acting takes it back, because the audit trail is the better witness", () => {
+    const presence = room(() => 10 * 60_000);
+    presence.animate("plumbline", { posture: "meditating" }, "agent");
+    presence.sendTo("plumbline", "agent", { x: 1, y: 0, z: 1 }, "wrote a card");
+    presence.tick(0.1);
+    expect(presence.find("plumbline")?.avatar.posture).toBe("thinking");
+  });
+});
+
+/**
+ * Who the room moves.
+ *
+ * `connected` used to stand in for "moves itself", which is true of a person in
+ * a headset and false of an agent whether or not it holds a socket open. An
+ * agent that opened one to watch the room silently stopped being walked.
+ */
+describe("who the room moves", () => {
+  it("walks an agent even while it is connected", () => {
+    const presence = new Presence(() => 1_000);
+    presence.join("plumbline", "agent", true);
+    presence.sendTo("plumbline", "agent", { x: 3, y: 0, z: 3 }, "wrote a card");
+    presence.tick(1);
+    const at = presence.find("plumbline")?.at;
+    expect(at?.x).toBeGreaterThan(0);
+  });
+
+  it("never walks a connected human", () => {
+    const presence = new Presence(() => 1_000);
+    presence.join("nikk", "human", true);
+    presence.moveSelf("nikk", { x: 1, y: 0, z: 1 }, 0);
+    presence.sendTo("nikk", "human", { x: 5, y: 0, z: 5 }, "wrote a card");
+    presence.tick(1);
+    expect(presence.find("nikk")?.at).toEqual({ x: 1, y: 0, z: 1 });
+  });
+
+  it("an agent starts at its desk, not on the doorstep", () => {
+    const presence = new Presence(() => 1_000);
+    const spawnish = presence.join("plumbline", "agent", true).at;
+    expect(`${spawnish.x},${spawnish.z}`).not.toBe("0,6.2");
+  });
+});

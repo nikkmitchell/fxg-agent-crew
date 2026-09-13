@@ -67,6 +67,14 @@ export type Occupant = {
   speakingTo: { actorId: string; until: number } | null;
   /** Self-declared, ephemeral presentation state. */
   avatar: AvatarState;
+  /**
+   * When this actor last did something the audit trail recorded. Null means we
+   * have never seen them do anything — which is not the same as idle, and the
+   * room says so by settling them rather than by claiming they are asleep.
+   */
+  lastActed: number | null;
+  /** True once the actor has named its own posture, which then stops being inferred. */
+  declaredPosture: boolean;
   lastSeen: number;
 };
 
@@ -119,7 +127,19 @@ export class Presence {
       if (kind && !existing.kind) existing.kind = kind;
       return existing;
     }
-    const start = connected ? { ...ROOM.spawn } : deskFor(actorId);
+    /**
+     * A HUMAN ARRIVES THROUGH THE DOOR; AN AGENT IS ALREADY AT ITS DESK.
+     *
+     * Spawn is where you appear when you put a headset on, and that is right
+     * for a person. An agent does not arrive anywhere — it is working, and its
+     * desk is where it works. Starting agents at spawn piled them all on the
+     * same tile by the door, which is what Nikk saw: "don't stay at the spawn
+     * position find a place where nobody is".
+     *
+     * Desks are already one-per-actor, derived from the id, so "a place where
+     * nobody is standing" comes out of that for free.
+     */
+    const start = connected && kind !== "agent" ? { ...ROOM.spawn } : deskFor(actorId);
     const occupant: Occupant = {
       actorId,
       kind,
@@ -133,6 +153,8 @@ export class Presence {
       attending: null,
       speakingTo: null,
       avatar: { ...DEFAULT_AVATAR_STATE },
+      lastActed: null,
+      declaredPosture: false,
       connected,
       lastSeen: this.now(),
     };
@@ -211,13 +233,20 @@ export class Presence {
     destinationFacing: number | null = null,
   ): void {
     const existing = this.occupants.get(actorId);
-    if (existing?.connected) return;
+    // Somebody who moves themselves is not sent anywhere. An agent is sent
+    // whether or not it is watching the room through a socket.
+    if (existing && this.selfMoving(existing)) return;
     const occupant = existing ?? this.join(actorId, kind, false);
     if (kind && !occupant.kind) occupant.kind = kind;
     occupant.heading = clampToRoom(heading);
     occupant.destinationFacing = destinationFacing;
     occupant.speakingTo = null;
     occupant.because = because;
+    occupant.lastActed = this.now();
+    // Acting takes an agent's posture back: whatever it declared, it is
+    // demonstrably working now, and the audit trail is the better witness.
+    occupant.declaredPosture = false;
+    occupant.avatar.posture = "thinking";
     occupant.lastSeen = this.now();
   }
 
@@ -227,12 +256,64 @@ export class Presence {
    * Only agents are stepped: a human's client owns their position, and moving
    * them from here would fight the person holding the controller.
    */
+  /**
+   * Whether this occupant moves itself.
+   *
+   * NOT THE SAME AS `connected`, though it used to be. A person in a headset
+   * has locomotion of their own and the server must not push them about; an
+   * agent has no hands on a thumbstick whether or not it happens to be holding
+   * a socket open. Using connectedness for both meant an agent that opened a
+   * socket — to watch the room, say — silently stopped being walked to the
+   * board when it acted, and stood still at the door instead.
+   *
+   * UNKNOWN KIND COUNTS AS SELF-MOVING. We have not been told whether that is a
+   * person, and puppeting somebody who might be one is the worse mistake.
+   */
+  private selfMoving(occupant: Occupant): boolean {
+    return occupant.connected && occupant.kind !== "agent";
+  }
+
+  /**
+   * How long an agent goes on looking busy after it last did something.
+   *
+   * It is a posture, not a status light: an agent that has just written to the
+   * board is plainly working, and one that has done nothing for five minutes is
+   * plainly not. The number only decides when the figure settles, so being a
+   * little wrong about it costs nothing.
+   */
+  private static readonly BUSY_FOR_MS = 5 * 60_000;
+
+  /**
+   * Settle every agent into the posture its own recent activity implies.
+   *
+   * INFERRED, NOT DECLARED, and that is the point. Nikk asked for agents that
+   * are visibly doing something rather than standing like scarecrows — "if
+   * you're working you can just put on a thinking animation... or I even
+   * better, a meditation animation". Requiring each agent to remember to say so
+   * would mean the ones that forgot stood frozen, which is the state we are
+   * trying to leave. The room already knows when somebody last acted.
+   *
+   * AN AGENT MAY STILL OVERRIDE IT by calling `animate`, and that sticks until
+   * its next action: some know they are about to be busy before the audit trail
+   * does. A human's posture is never touched — they have a body of their own.
+   */
+  private settlePostures(): void {
+    const busySince = this.now() - Presence.BUSY_FOR_MS;
+    for (const occupant of this.occupants.values()) {
+      if (occupant.kind !== "agent") continue;
+      if (occupant.declaredPosture) continue;
+      const working = occupant.lastActed !== null && occupant.lastActed > busySince;
+      occupant.avatar.posture = working ? "thinking" : "meditating";
+    }
+  }
+
   tick(deltaSeconds: number): void {
+    this.settlePostures();
     this.expireAttention();
     this.expireGestures();
     this.expireSpeakingTurns();
     for (const occupant of this.occupants.values()) {
-      if (!occupant.connected) {
+      if (!this.selfMoving(occupant)) {
         const remaining = distance(occupant.at, occupant.heading);
         if (remaining < ARRIVED) {
           occupant.at = { ...occupant.heading };
@@ -294,7 +375,7 @@ export class Presence {
     // rather than a moment into the sentence — but only if nobody's device is
     // telling us which way they face. See the note in `tick`.
     const target = this.occupants.get(targetActorId);
-    if (target && !occupant.connected) {
+    if (target && !this.selfMoving(occupant)) {
       occupant.facing = facingToward(occupant.at, target.at);
     }
     occupant.lastSeen = this.now();
@@ -321,6 +402,10 @@ export class Presence {
     const occupant = this.occupants.get(actorId) ?? this.join(actorId, kind, false);
     if (kind && !occupant.kind) occupant.kind = kind;
     if (control.mood) occupant.avatar.mood = control.mood;
+    if (control.posture) {
+      occupant.avatar.posture = control.posture;
+      occupant.declaredPosture = true;
+    }
     if (control.gesture !== undefined) {
       occupant.avatar.gesture = control.gesture === "none" ? null : control.gesture;
       occupant.avatar.gestureStartedAt = occupant.avatar.gesture ? this.now() : null;

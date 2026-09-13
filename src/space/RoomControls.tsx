@@ -5,6 +5,7 @@ import { bff } from "../bff-client";
 import { space } from "../space-client";
 import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
+import { showHandModels } from "./xr-store";
 import { createSpeechInput, speakSay, speechCapabilities, type SpeechInput, type SpeechOutput } from "./speech";
 import { shouldSpeakUtterance } from "./VoiceControls";
 import { newestId, replyToSpeak } from "./reply-speech";
@@ -168,6 +169,15 @@ export function RoomControls({
    * looking at deserves its own screen rather than a row among twenty.
    */
   const [view, setView] = useState<"root" | "work" | "mood" | "panels">("root");
+  /**
+   * Whether your own hands are drawn.
+   *
+   * ON, obviously, until somebody turns them off. Nikk records from inside the
+   * headset and the rendered hands sit in front of whatever he is recording;
+   * nothing else can move them out of shot, because they are drawn exactly
+   * where his hands are.
+   */
+  const [handsShown, setHandsShown] = useState(true);
   /**
    * BOTH, BY DEFAULT, IN A HEADSET.
    *
@@ -599,6 +609,15 @@ export function RoomControls({
       title: "Room",
       rows: [
         { label: "Panels…", onTap: () => setView("panels") },
+        {
+          label: handsShown ? "Hands shown" : "Hands hidden — for recording",
+          tone: handsShown ? "normal" : "live",
+          onTap: () => {
+            const next = !handsShown;
+            setHandsShown(next);
+            showHandModels(next);
+          },
+        },
         {
           label: !passthroughAvailable
             ? `No passthrough — this headset says: ${blendMode ?? "nothing yet"}`
