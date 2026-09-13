@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { readableInk } from "./avatar";
 import { board } from "./board-client";
 import { ApiError } from "./api-request";
@@ -118,6 +118,15 @@ export function MoodBoard({ board: model, canEdit, still = false, onChanged }: {
 }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  /** How tall this board has to be for nothing to fall off the bottom. */
+  const stillHeight = useMemo(
+    () =>
+      Math.max(
+        340,
+        ...model.items.map((item) => (item.y ?? 0) + (item.h ?? 160) + 20),
+      ),
+    [model.items],
+  );
   const [dragging, setDragging] = useState<string | null>(null);
   const surface = useRef<HTMLDivElement>(null);
 
@@ -280,7 +289,21 @@ export function MoodBoard({ board: model, canEdit, still = false, onChanged }: {
 
       <div
         ref={surface}
-        className={`moodboard-surface${canEdit ? " is-editable" : ""}`}
+        className={`moodboard-surface${canEdit ? " is-editable" : ""}${still ? " is-still" : ""}`}
+        /**
+         * A PHOTOGRAPH CANNOT SCROLL.
+         *
+         * On screen the surface is 60dvh with `overflow: auto`, which is right
+         * — a mood board is often taller than the space it gets, and you scroll
+         * it. In a headset the panel is a still, so anything below that fold is
+         * simply not there, cropped with nothing to say it was cropped. That is
+         * a wall quietly showing you part of a board.
+         *
+         * So a still is exactly as tall as its contents. Measured from the
+         * items rather than guessed, because they are absolutely positioned and
+         * `height: auto` on their container collapses to nothing.
+         */
+        style={still ? { height: stillHeight } : undefined}
         onDragOver={(event) => canEdit && event.preventDefault()}
         onDrop={onDrop}
         aria-label={`${model.name} — ${model.items.length} item${model.items.length === 1 ? "" : "s"}`}
