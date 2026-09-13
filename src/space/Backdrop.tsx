@@ -37,57 +37,94 @@ export function VoidSphere() {
  */
 export const WRIST_BUTTON = { width: 0.3, height: 0.075, gap: 0.012 } as const;
 
-/**
- * Where row `index` of a stack of `count` sits, relative to the anchor.
- *
- * THE STACK GROWS UPWARD: the LAST row is the anchored one, at zero, and
- * earlier rows go above it. The menu used to hang the other way — first row at
- * the anchor, the rest below — which put a long open menu down around your
- * knees. Nikk, from inside a headset: "we want the last item to be at the
- * settings button, so its all above that."
- *
- * The consequence worth keeping is that the row under your hand does not move
- * when the list changes length. Rows appear and disappear constantly here — the
- * menu opens, speech starts, a panel toggle changes a label — and anchoring the
- * top would slide the button out from under you as you reached for it.
- */
-export function stackedY(index: number, count: number): number {
-  return (count - 1 - index) * (WRIST_BUTTON.height + WRIST_BUTTON.gap);
-}
 
 export function WristButton({
   label,
+  x = 0,
   y,
+  width = WRIST_BUTTON.width,
+  height = WRIST_BUTTON.height,
+  /** Bigger text for a label that is a symbol rather than a sentence. */
+  glyph = false,
   tone = "normal",
   onTap,
 }: {
   label: string;
+  x?: number;
   y: number;
+  width?: number;
+  height?: number;
+  glyph?: boolean;
   tone?: "normal" | "muted" | "live";
   onTap: () => void;
 }) {
   const texture = useMemo(
-    () => makeLabelTexture(label, { pixelsPerLine: 38, lines: 2 }),
-    [label],
+    () => makeLabelTexture(label, { pixelsPerLine: glyph ? 84 : 38, lines: glyph ? 1 : 2 }),
+    [label, glyph],
   );
   const colour = tone === "live" ? "#6f86c9" : tone === "muted" ? "#2a2f3a" : "#1b2231";
   return (
-    <group position={[0, y, 0]}>
+    <group position={[x, y, 0]}>
       <mesh
         onClick={(event) => {
           event.stopPropagation();
           onTap();
         }}
       >
-        <planeGeometry args={[WRIST_BUTTON.width, WRIST_BUTTON.height]} />
+        <planeGeometry args={[width, height]} />
         <meshBasicMaterial color={colour} transparent opacity={0.9} side={THREE.DoubleSide} />
       </mesh>
       {texture ? (
         <mesh position={[0, 0, 0.001]} raycast={() => null}>
-          <planeGeometry args={[WRIST_BUTTON.width, WRIST_BUTTON.height]} />
+          <planeGeometry args={[width, height]} />
           <meshBasicMaterial map={texture} transparent depthWrite={false} />
         </mesh>
       ) : null}
+    </group>
+  );
+}
+
+/**
+ * A heading above a group of buttons, and the slab behind the group.
+ *
+ * WHY THE SETTINGS ARE IN BOXES AT ALL. They used to be a single column, which
+ * at eight or ten rows became a strip running from your chin to your knees —
+ * Nikk, from inside a headset: "the in VR settings are almost unusable... have
+ * it set up in seperate boxes." A column is also the reason the board choices
+ * could not be reached: they were at the bottom of it, below the floor.
+ *
+ * The slab is not decoration. Against passthrough — somebody's actual room —
+ * floating text has no ground to sit on and is genuinely hard to read.
+ */
+export function ButtonBox({
+  title,
+  x,
+  y = 0,
+  width,
+  height,
+  children,
+}: {
+  title: string;
+  x: number;
+  y?: number;
+  width: number;
+  height: number;
+  children: React.ReactNode;
+}) {
+  const texture = useMemo(() => makeLabelTexture(title, { pixelsPerLine: 34, lines: 1 }), [title]);
+  return (
+    <group position={[x, y, 0]}>
+      <mesh position={[0, -height / 2 + 0.06, -0.01]} raycast={() => null}>
+        <planeGeometry args={[width + 0.04, height + 0.12]} />
+        <meshBasicMaterial color="#0e1118" transparent opacity={0.82} side={THREE.DoubleSide} />
+      </mesh>
+      {texture ? (
+        <mesh position={[0, 0.11, 0]} raycast={() => null}>
+          <planeGeometry args={[width, 0.075]} />
+          <meshBasicMaterial map={texture} transparent depthWrite={false} />
+        </mesh>
+      ) : null}
+      {children}
     </group>
   );
 }
