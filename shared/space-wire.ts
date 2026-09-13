@@ -22,7 +22,24 @@ import type { Utterance } from "./voice.js";
  * an agent cross to empty space while the room insisted it had gone to the
  * board. Moving a panel is moving furniture: it moves for everybody.
  */
-export type Placement = { id: string; position: Vec3; rotationY: number };
+export type Placement = {
+  id: string;
+  position: Vec3;
+  rotationY: number;
+  /**
+   * How big the panel is, as a multiple of its designed size.
+   *
+   * ONE NUMBER RATHER THAN A WIDTH AND A HEIGHT. A panel is a web page at a
+   * fixed aspect; letting the two axes move independently would stretch the
+   * text on it, and a squashed board is not a smaller board — it is a broken
+   * one. So this scales both together, and the page inside is unchanged.
+   *
+   * OPTIONAL ON THE WIRE, because a placement stored before panels could be
+   * resized has no size in it, and a room that refused those would lose every
+   * arrangement anybody had already made. Absent means 1.
+   */
+  scale?: number;
+};
 
 /** Orientation as a quaternion, in wire order. */
 export type Quat = { x: number; y: number; z: number; w: number };

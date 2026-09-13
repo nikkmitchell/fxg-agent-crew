@@ -5,6 +5,7 @@ import { VRM, VRMUtils } from "@pixiv/three-vrm";
 import { armSpecOf, faceFrontZOf, faceRoomYaw, headHeightOf, loadVrm, type ArmSpec } from "./vrm-model";
 import { aimSegment } from "./aim-bone";
 import { approachAngle, approachPoint, approachQuaternion } from "./easing";
+import { shoulderYaw } from "./shoulder-turn";
 import { elbowFor } from "./two-bone-ik";
 import { headOf } from "./Avatar3D";
 import type { AvatarRecipe } from "../avatar";
@@ -133,8 +134,6 @@ export function VrmBody({
       at: new THREE.Vector3(),
       yaw: 0,
       head: new THREE.Quaternion(),
-      hands: { left: new THREE.Vector3(), right: new THREE.Vector3() },
-      handSeen: { left: false, right: false },
     }),
     [],
   );
@@ -152,7 +151,29 @@ export function VrmBody({
     // catching up with what the room last said, and never predicting.
     const snap = reducedMotion || !shown.settled;
     approachPoint(shown.at, { x: person.at.x, y: 0, z: person.at.z }, 6, delta, snap);
-    shown.yaw = approachAngle(shown.yaw, person.facing, 10, delta, snap);
+
+    /**
+     * THE SHOULDERS FOLLOW THE HEAD once it has turned far enough.
+     *
+     * `facing` is where somebody is WALKING, which for a standing person in a
+     * headset never changes — so before this, you could turn round completely
+     * and your body would stay pointing at the wall while your head span. The
+     * body now turns only by the excess past the limit, so glancing about still
+     * moves nothing. See shoulder-turn.ts.
+     */
+    if (person.head) {
+      scratch.quaternion.set(person.head.q.x, person.head.q.y, person.head.q.z, person.head.q.w);
+      scratch.euler.setFromQuaternion(scratch.quaternion, "YXZ");
+      shown.yaw = approachAngle(
+        shown.yaw,
+        shoulderYaw(person.facing, scratch.euler.y),
+        10,
+        delta,
+        snap,
+      );
+    } else {
+      shown.yaw = approachAngle(shown.yaw, person.facing, 10, delta, snap);
+    }
     shown.settled = true;
     node.position.copy(shown.at);
     node.rotation.y = shown.yaw;
@@ -188,6 +209,18 @@ export function VrmBody({
       } else {
         scratch.quaternion.identity();
       }
+      /**
+       * The head IS eased, unlike the hands, and the difference is deliberate
+       * rather than left over.
+       *
+       * What made the hands wrong was the SPEED CAP: hands cross a metre in a
+       * moment, so a cap in metres per second turns into visible lag and, after
+       * a gap in tracking, a slide in from wherever they were last seen. A
+       * rotation has no such cap — this converges in about seventy
+       * milliseconds, which is below what anybody notices, and it removes the
+       * stepping you would otherwise see on a nearby face at a few samples a
+       * second. If a head ever looks like it is lagging, this is the line.
+       */
       approachQuaternion(shown.head, scratch.quaternion, 14, delta, snap);
       head.quaternion.copy(shown.head);
     }
@@ -229,17 +262,26 @@ export function VrmBody({
         continue;
       }
 
-      // EASED TO THE HAND, like everything else. A hand is the fastest-moving
-      // thing a headset reports and the most obviously choppy when it is not
-      // smoothed; it also gets the highest speed, because a hand really can
-      // cross a metre in a moment and dragging behind reads as lag.
-      const seen = shown.handSeen[side];
-      approachPoint(shown.hands[side], pose.p, 4, delta, snap || !seen);
-      shown.handSeen[side] = true;
-
+      /**
+       * THE HAND IS USED EXACTLY AS REPORTED. Not eased, not clamped, not
+       * corrected.
+       *
+       * It was eased, briefly, along with the body — and that was wrong twice
+       * over. Practically: a hand crosses a metre in a moment, far faster than
+       * the speed cap, so hands trailed behind their owner and slid in from
+       * wherever they were last seen after a reload or a moment untracked.
+       * Nikk: "we just need to be sharing the hand position as it is, like what
+       * the viewer sends out, not changes in hand position."
+       *
+       * And in principle, which is the part worth keeping: a hand is MEASURED.
+       * The body's position between samples is an interpolation of something we
+       * genuinely do not know, and smoothing it claims nothing extra. Smoothing
+       * a hand invents a place the device never said it was. The body eases;
+       * the measured parts do not.
+       */
       const arm = arms.current[side];
       upper.getWorldPosition(scratch.shoulder);
-      scratch.target.copy(shown.hands[side]);
+      scratch.target.set(pose.p.x, pose.p.y, pose.p.z);
       // Down and away from the body, which is where a human elbow goes.
       scratch.pole.set(side === "left" ? -1 : 1, -2, 0).normalize();
 
