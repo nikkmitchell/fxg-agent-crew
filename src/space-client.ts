@@ -2,6 +2,7 @@ import { requestJson } from "./api-request";
 import { base } from "./router";
 import type { Placement, Showing } from "../shared/space-wire";
 import type { Utterance, UtteranceInput } from "../shared/voice";
+import type { AvatarControl, AvatarState } from "../shared/avatar-motion";
 
 /**
  * The browser's side of the room's own API.
@@ -41,6 +42,13 @@ export const space = {
     requestJson<{ ok: true; utterance: Utterance }>(`${root}/utterances`, {
       method: "POST",
       body: JSON.stringify(utterance),
+    }),
+
+  /** Ephemeral self-only avatar control; mood persists for this presence, gestures expire. */
+  animate: (control: AvatarControl) =>
+    requestJson<{ ok: true; avatar: AvatarState }>(`${root}/avatar`, {
+      method: "POST",
+      body: JSON.stringify(control),
     }),
 
   /** The catalogue of panels, which of them you have open, and where they hang. */

@@ -12,6 +12,7 @@
 
 import type { Vec3 } from "./space-layout.js";
 import type { Utterance } from "./voice.js";
+import { parseAvatarControl, type AvatarControl, type AvatarState } from "./avatar-motion.js";
 
 /**
  * Where a panel hangs.
@@ -114,6 +115,8 @@ export type WirePerson = {
    * about the listener, not about the speaker.
    */
   attending: { utteranceId: number } | null;
+  /** Ephemeral mood/gesture chosen by this occupant; never another actor. */
+  avatar: AvatarState;
 };
 
 /** Server → client. */
@@ -234,6 +237,8 @@ export type ClientMessage =
     }
   /** Still here. Cheaper than a move when standing still. */
   | { type: "ping" }
+  /** Change only my own ephemeral avatar state. The server supplies identity. */
+  | ({ type: "avatar" } & AvatarControl)
   /**
    * Pass this to somebody else in the room, as part of setting up a call.
    *
@@ -262,6 +267,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   if (typeof value !== "object" || value === null) return null;
   const message = value as Record<string, unknown>;
   if (message.type === "ping") return { type: "ping" };
+  if (message.type === "avatar") {
+    const control = parseAvatarControl(message);
+    return control ? { type: "avatar", ...control } : null;
+  }
   if (message.type === "move") {
     const at = vec3(message.at);
     if (!at || !isFinite(message.facing)) return null;

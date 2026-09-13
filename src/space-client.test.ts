@@ -74,6 +74,16 @@ describe("writing to the room", () => {
     expect(JSON.parse(init.body)).toEqual({ say: "hello", source: "voice", confidence: 0.8 });
   });
 
+  it("sends a bounded avatar control to its own endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true, avatar: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+    await space.animate({ mood: "focused", gesture: "nod" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain("/bff/space/avatar");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ mood: "focused", gesture: "nod" });
+  });
+
   it("sends only the position and rotation when placing a panel", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ placement: {} }));
     vi.stubGlobal("fetch", fetchMock);

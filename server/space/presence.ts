@@ -1,5 +1,10 @@
 import { ROOM, WALK_SPEED, type Vec3, deskFor } from "../../shared/space-layout.js";
 import type { Pose } from "../../shared/space-wire.js";
+import {
+  DEFAULT_AVATAR_STATE,
+  type AvatarControl,
+  type AvatarState,
+} from "../../shared/avatar-motion.js";
 
 /**
  * Who is in the room, and where.
@@ -55,6 +60,8 @@ export type Occupant = {
    * apparently deep in thought forever.
    */
   attending: { utteranceId: number; since: number } | null;
+  /** Self-declared, ephemeral presentation state. */
+  avatar: AvatarState;
   lastSeen: number;
 };
 
@@ -65,6 +72,9 @@ export type Occupant = {
  * claiming attention within a minute.
  */
 export const ATTENDING_TTL_MS = 60_000;
+
+/** A one-shot gesture cannot leave a crashed agent waving forever. */
+export const AVATAR_GESTURE_TTL_MS = 5_000;
 
 /** Drop an occupant we have not heard from in this long. */
 export const STALE_AFTER_MS = 45_000;
@@ -107,6 +117,7 @@ export class Presence {
       head: null,
       hands: { left: null, right: null },
       attending: null,
+      avatar: { ...DEFAULT_AVATAR_STATE },
       connected,
       lastSeen: this.now(),
     };
@@ -187,6 +198,7 @@ export class Presence {
    */
   tick(deltaSeconds: number): void {
     this.expireAttention();
+    this.expireGestures();
     for (const occupant of this.occupants.values()) {
       if (occupant.connected) continue;
       const remaining = distance(occupant.at, occupant.heading);
@@ -219,11 +231,38 @@ export class Presence {
     occupant.lastSeen = this.now();
   }
 
+  /** Change an actor's own presentation state; callers supply authenticated identity. */
+  animate(
+    actorId: string,
+    control: AvatarControl,
+    kind: "human" | "agent" | null = null,
+  ): AvatarState {
+    const occupant = this.occupants.get(actorId) ?? this.join(actorId, kind, false);
+    if (kind && !occupant.kind) occupant.kind = kind;
+    if (control.mood) occupant.avatar.mood = control.mood;
+    if (control.gesture !== undefined) {
+      occupant.avatar.gesture = control.gesture === "none" ? null : control.gesture;
+      occupant.avatar.gestureStartedAt = occupant.avatar.gesture ? this.now() : null;
+    }
+    occupant.lastSeen = this.now();
+    return { ...occupant.avatar };
+  }
+
   /** Drop declarations nobody renewed. Called from the same tick as everything else. */
   private expireAttention(): void {
     const cutoff = this.now() - ATTENDING_TTL_MS;
     for (const occupant of this.occupants.values()) {
       if (occupant.attending && occupant.attending.since < cutoff) occupant.attending = null;
+    }
+  }
+
+  private expireGestures(): void {
+    const cutoff = this.now() - AVATAR_GESTURE_TTL_MS;
+    for (const occupant of this.occupants.values()) {
+      if (occupant.avatar.gestureStartedAt !== null && occupant.avatar.gestureStartedAt < cutoff) {
+        occupant.avatar.gesture = null;
+        occupant.avatar.gestureStartedAt = null;
+      }
     }
   }
 

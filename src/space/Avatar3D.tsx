@@ -342,6 +342,7 @@ export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying
           recipe={recipe}
           reducedMotion={reducedMotion}
           onFailed={onBodyFailed}
+          speaking={saying !== null}
         />
       )}
 

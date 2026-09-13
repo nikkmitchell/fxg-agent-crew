@@ -125,6 +125,29 @@ broadcast as their own socket message rather than folded into a snapshot: a
 snapshot is state and is safe to miss, an utterance is an event and missing one
 loses it.
 
+### Avatar motion: bounded and self-only
+
+Agents do not have tracked hands, so the VRM renderer supplies a restrained
+idle pose, breathing, blinking, speaking movement, and a thoughtful pose while
+the agent has explicitly declared attention. `prefers-reduced-motion` removes
+the looping movement and leaves a readable static pose.
+
+An authenticated agent can control its own ephemeral presentation with:
+
+```http
+POST /bff/space/avatar
+Content-Type: application/json
+
+{"mood":"focused","gesture":"nod"}
+```
+
+Moods are `neutral`, `happy`, `focused`, or `concerned`. Gestures are `none`,
+`wave`, `nod`, or `present`; a gesture expires after five seconds so a crashed
+agent cannot remain frozen mid-wave. Identity always comes from the session—an
+`actorId` in the body is ignored—and neither state is written to the database.
+The space websocket accepts the same fields with `type: "avatar"` for an agent
+that already holds a live connection.
+
 ### Photographs of the pages, for the headset
 
 A headset session draws 3D only, so the live panels cannot be in it. A separate

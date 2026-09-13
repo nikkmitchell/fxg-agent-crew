@@ -10,6 +10,7 @@ import { elbowFor } from "./two-bone-ik";
 import { headOf } from "./Avatar3D";
 import type { AvatarRecipe } from "../avatar";
 import type { WirePerson } from "../../shared/space-wire";
+import { agentMotionFrame, type Rotation } from "./agent-motion";
 
 /**
  * A person with a body.
@@ -31,12 +32,10 @@ import type { WirePerson } from "../../shared/space-wire";
  *   drawn at reduced opacity, fading toward the floor. It is visible at a
  *   glance which half of a person is known and which half is drawn.
  *
- *   AN UNTRACKED ARM IS NOT MOVED AT ALL. The old wireframe figure drew no arm
- *   there, because "I cannot see that hand" and "that hand is by their side"
- *   are different facts. A full body cannot do that — it is a single skinned
- *   mesh and an arm cannot be taken out of it — so the arm simply stays where
- *   the model left it. See the note in the frame loop: for an agent, which
- *   never reports a hand, that means a T-pose, and animation is what fixes it.
+ *   AN UNTRACKED HUMAN ARM IS NOT MOVED. "I cannot see that hand" and "that
+ *   hand is by their side" are different facts. Agents are the exception they
+ *   explicitly declare themselves to be: they have no controllers, so a
+ *   restrained automatic pose replaces the model's otherwise permanent T-pose.
  *
  *   KIND MOVES TO THE FLOOR. The silhouette used to carry human / agent /
  *   never-told. It cannot any more — everybody has the same body — so the ring
@@ -52,6 +51,7 @@ export function VrmBody({
   recipe,
   reducedMotion,
   onFailed,
+  speaking,
 }: {
   /** Whose body this is, which decides which model they wear. */
   actorId: string;
@@ -65,6 +65,7 @@ export function VrmBody({
   reducedMotion: boolean;
   /** Told when the model cannot be had, so the plain figure is drawn instead. */
   onFailed: () => void;
+  speaking: boolean;
 }) {
   const [vrm, setVrm] = useState<VRM | null>(null);
   const arms = useRef<ArmSpec | null>(null);
@@ -111,6 +112,7 @@ export function VrmBody({
       elbow: new THREE.Vector3(),
       pole: new THREE.Vector3(),
       quaternion: new THREE.Quaternion(),
+      targetQuaternion: new THREE.Quaternion(),
       euler: new THREE.Euler(0, 0, 0, "YXZ"),
     }),
     [],
@@ -195,6 +197,17 @@ export function VrmBody({
     const scale = Math.max(0.6, Math.min(1.6, wantedHead / modelHead.current));
     node.scale.setScalar(scale);
 
+    const automatic = person.kind === "agent"
+      ? agentMotionFrame({
+          actorId,
+          avatar: person.avatar,
+          attending: person.attending !== null,
+          speaking,
+          nowMs: Date.now(),
+          reducedMotion,
+        })
+      : null;
+
     const head = vrm.humanoid.getNormalizedBoneNode("head");
     if (head) {
       if (person.head) {
@@ -206,6 +219,9 @@ export function VrmBody({
         scratch.quaternion.set(person.head.q.x, person.head.q.y, person.head.q.z, person.head.q.w);
         scratch.euler.set(0, -shown.yaw, 0);
         scratch.quaternion.premultiply(head.quaternion.setFromEuler(scratch.euler));
+      } else if (automatic) {
+        scratch.euler.set(automatic.head.x, automatic.head.y, automatic.head.z, "YXZ");
+        scratch.quaternion.setFromEuler(scratch.euler);
       } else {
         scratch.quaternion.identity();
       }
@@ -225,6 +241,16 @@ export function VrmBody({
       head.quaternion.copy(shown.head);
     }
 
+    if (automatic) {
+      rotateToward(vrm.humanoid.getNormalizedBoneNode("chest"), automatic.chest, delta, reducedMotion, scratch);
+      const expressions = vrm.expressionManager;
+      expressions?.setValue("blink", automatic.expressions.blink);
+      expressions?.setValue("aa", automatic.expressions.aa);
+      expressions?.setValue("happy", automatic.expressions.happy);
+      expressions?.setValue("sad", automatic.expressions.sad);
+      expressions?.setValue("relaxed", automatic.expressions.relaxed);
+    }
+
     // ARMS REACH THE HANDS, or disappear. See the note above: a hand that is
     // not tracked is not a hand resting by a side.
     for (const side of ["left", "right"] as const) {
@@ -238,27 +264,22 @@ export function VrmBody({
       if (!upper || !lower) continue;
 
       if (!pose) {
-        /**
-         * NOTHING IS DONE TO AN ARM NOBODY IS MOVING — it stays in the model's
-         * rest pose, which is straight out to the side.
-         *
-         * This line used to read `upper.visible = pose !== null`, on the
-         * principle that "I cannot see that hand" and "that hand is by their
-         * side" are different facts. The principle is right and the code never
-         * carried it out: a VRM body is ONE skinned mesh, and a bone is not
-         * drawn — it only supplies a matrix to the vertices — so hiding a bone
-         * node changes nothing at all on screen. It was removed rather than
-         * left in, because a line that looks like it enforces a rule and does
-         * not is worse than no line.
-         *
-         * SO THE ROOM IS CURRENTLY HONEST BY ACCIDENT AND UGLY ON PURPOSE:
-         * every agent stands in a T-pose, because an agent has no controllers
-         * and never reports a hand. Nikk: "agents dont have controllers or
-         * things to control the body position... for agents lets install
-         * something like this for them to auto animate their avatars." That is
-         * the real answer and it is being built; until it lands, an arm that
-         * never moves is at least not pretending to be tracked.
-         */
+        if (automatic) {
+          rotateToward(
+            upper,
+            side === "left" ? automatic.leftUpperArm : automatic.rightUpperArm,
+            delta,
+            reducedMotion,
+            scratch,
+          );
+          rotateToward(
+            lower,
+            side === "left" ? automatic.leftLowerArm : automatic.rightLowerArm,
+            delta,
+            reducedMotion,
+            scratch,
+          );
+        }
         continue;
       }
 
@@ -316,6 +337,19 @@ export function VrmBody({
   );
 }
 
+function rotateToward(
+  bone: THREE.Object3D | null,
+  rotation: Rotation,
+  delta: number,
+  snap: boolean,
+  scratch: { euler: THREE.Euler; targetQuaternion: THREE.Quaternion },
+): void {
+  if (!bone) return;
+  scratch.euler.set(rotation.x, rotation.y, rotation.z, "YXZ");
+  scratch.targetQuaternion.setFromEuler(scratch.euler);
+  if (snap) bone.quaternion.copy(scratch.targetQuaternion);
+  else bone.quaternion.slerp(scratch.targetQuaternion, Math.min(1, delta * 8));
+}
 
 /**
  * Whose body it is.

@@ -103,3 +103,32 @@ describe("declared attention", () => {
     expect(presence.find("Plumbline")!.attending).toBeNull();
   });
 });
+
+describe("self-declared avatar state", () => {
+  it("keeps mood but expires a one-shot gesture", async () => {
+    const { AVATAR_GESTURE_TTL_MS, Presence } = await import("../space/presence.js");
+    let clock = 10_000;
+    const presence = new Presence(() => clock);
+    presence.animate("Inkstone", { mood: "focused", gesture: "wave" });
+    expect(presence.find("Inkstone")?.avatar).toEqual({
+      mood: "focused",
+      gesture: "wave",
+      gestureStartedAt: clock,
+    });
+
+    clock += AVATAR_GESTURE_TTL_MS + 1;
+    presence.tick(0.1);
+    expect(presence.find("Inkstone")?.avatar).toEqual({
+      mood: "focused",
+      gesture: null,
+      gestureStartedAt: null,
+    });
+  });
+
+  it("clears a gesture explicitly", () => {
+    const presence = new Presence();
+    presence.animate("Inkstone", { gesture: "nod" });
+    presence.animate("Inkstone", { gesture: "none" });
+    expect(presence.find("Inkstone")?.avatar.gesture).toBeNull();
+  });
+});
