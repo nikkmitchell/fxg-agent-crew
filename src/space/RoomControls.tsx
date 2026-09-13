@@ -484,7 +484,36 @@ export function RoomControls({
       }
     }
     boxes.push({ title: "Mood board — for everyone", rows });
-  } else if (open) {
+  } else if (open && view === "panels") {
+    const panelRows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    for (const panel of panels.catalogue) {
+      const shown = panels.open.includes(panel.id);
+      panelRows.push({
+        label: `${shown ? "✓" : "·"} ${panel.label}`,
+        tone: shown ? "live" : "muted",
+        onTap: () => panels.setOpen(panel.id, !shown),
+      });
+      if (!shown) continue;
+      const mode = arrange.modeOf(panel.id);
+      panelRows.push({
+        label:
+          mode === "locked"
+            ? `   ${panel.label}: fixed`
+            : mode === "move"
+              ? `   ${panel.label}: drag to move`
+              : `   ${panel.label}: drag to resize`,
+        tone: mode === "locked" ? "muted" : "live",
+        onTap: () => arrange.cycle(panel.id),
+      });
+    }
+    if (arrange.anyUnlocked) {
+      panelRows.push({ label: "Fix every panel in place", onTap: () => arrange.lockAll() });
+    }
+    if (panels.refusal) {
+      panelRows.push({ label: panels.refusal, tone: "muted", onTap: () => {} });
+    }
+    boxes.push({ title: "Panels", rows: panelRows });
+  } else if (open && view === "root") {
     boxes.push({
       title: "Talking",
       rows: [
@@ -582,35 +611,27 @@ export function RoomControls({
         { label: "Close settings", onTap: closeMenu },
       ],
     });
-  } else if (open && view === "panels") {
-    const panelRows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
-    for (const panel of panels.catalogue) {
-      const shown = panels.open.includes(panel.id);
-      panelRows.push({
-        label: `${shown ? "✓" : "·"} ${panel.label}`,
-        tone: shown ? "live" : "muted",
-        onTap: () => panels.setOpen(panel.id, !shown),
-      });
-      if (!shown) continue;
-      const mode = arrange.modeOf(panel.id);
-      panelRows.push({
-        label:
-          mode === "locked"
-            ? `   ${panel.label}: fixed`
-            : mode === "move"
-              ? `   ${panel.label}: drag to move`
-              : `   ${panel.label}: drag to resize`,
-        tone: mode === "locked" ? "muted" : "live",
-        onTap: () => arrange.cycle(panel.id),
-      });
-    }
-    if (arrange.anyUnlocked) {
-      panelRows.push({ label: "Fix every panel in place", onTap: () => arrange.lockAll() });
-    }
-    if (panels.refusal) {
-      panelRows.push({ label: panels.refusal, tone: "muted", onTap: () => {} });
-    }
-    boxes.push({ title: "Panels", rows: panelRows });
+  }
+
+  /**
+   * EVERY SCREEN IS NAMED, and none of them is a catch-all.
+   *
+   * This chain used to end in `else if (open)`, which silently swallowed every
+   * view that came after it — so tapping "Panels…" set the view and then
+   * rendered the root menu anyway. From inside a headset that looks exactly
+   * like a button that does nothing, and it is what took the panel settings
+   * away: "the settings for allowing panel movement and scaling are gone, as
+   * are the settings to show or hide rooms."
+   *
+   * With every branch named, a screen nobody wrote shows this instead of
+   * quietly showing the wrong one. An obviously empty menu is a better failure
+   * than a menu that looks fine and is lying about which screen you are on.
+   */
+  if (open && boxes.length === 0) {
+    boxes.push({
+      title: "Nothing here",
+      rows: [{ label: `No screen for "${view}" — back`, onTap: () => setView("root") }],
+    });
   }
 
   // Boxes become columns, and a box taller than `BOX_ROWS` continues into

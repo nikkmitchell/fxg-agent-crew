@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { currentProject, useCurrentProject } from "./current-project";
+import { boardInUrl, currentProject, useCurrentProject } from "./current-project";
 import type { CrewProject, CrewTask } from "./event-core";
 import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
@@ -110,6 +110,21 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
    * more often than it polls.
    */
   const [boards, setBoards] = useState<Board[]>([]);
+  /**
+   * Which mood boards to draw: all of them, or the one the URL names.
+   *
+   * The room can be pointed at a single mood board and its panels are these
+   * tabs, so `?board=` narrows the page to that one. A named board that is not
+   * in this project falls back to showing them all rather than an empty page —
+   * that happens when the room's project changes and its board has not caught
+   * up yet, and a blank wall explains nothing.
+   */
+  const namedBoard = useMemo(() => boardInUrl(), []);
+  const shownBoards = useMemo(() => {
+    if (!namedBoard) return boards;
+    const one = boards.filter((moodBoard) => moodBoard.id === namedBoard);
+    return one.length > 0 ? one : boards;
+  }, [boards, namedBoard]);
   const selectedIdRef = useRef(selectedId);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
   const [busy, setBusy] = useState(false);
@@ -874,7 +889,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             </p>
           ) : null}
 
-          {boards.map((moodBoard) => (
+          {shownBoards.map((moodBoard) => (
             <MoodBoard
               key={moodBoard.id}
               board={moodBoard}

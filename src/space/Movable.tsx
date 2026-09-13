@@ -63,6 +63,14 @@ export function Movable({
   const grabOffset = useRef({ x: 0, z: 0 });
   /** Where the resize started: how far out it was grabbed, and the size then. */
   const grabbed = useRef({ distance: 1, scale: 1 });
+  /**
+   * Which pointer is doing the dragging.
+   *
+   * A headset has two, and without this the other hand brushing the panel
+   * mid-drag would take it over. It also means a move event from a pointer that
+   * never grabbed anything is ignored rather than treated as a drag.
+   */
+  const grabbedPointer = useRef<number | null>(null);
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   const invalidate = useThree((state) => state.invalidate);
@@ -73,6 +81,20 @@ export function Movable({
     hit: new THREE.Vector3(),
     ndc: new THREE.Vector2(),
   });
+
+  /**
+   * A world point, flattened to the floor plane the panel moves on.
+   *
+   * In a headset the pointer event already carries the world position where
+   * the ray struck — no screen, no projection, no camera involved. The panel
+   * moves on the floor plane and keeps its height (see the note at the top),
+   * so the height of the strike is deliberately dropped.
+   */
+  const onFloor = useCallback(
+    (point: THREE.Vector3 | undefined): { x: number; z: number } | null =>
+      point ? { x: point.x, z: point.z } : null,
+    [],
+  );
 
   /** Where on the floor, at the panel's height, a screen point lands. */
   const floorPoint = useCallback(
@@ -91,9 +113,24 @@ export function Movable({
     [camera, gl, place.position.y],
   );
 
+  /**
+   * Take hold, at a point on the floor plane.
+   *
+   * A FLOOR POINT RATHER THAN SCREEN COORDINATES, and this is the whole reason
+   * dragging never worked in a headset. It used to take `clientX/clientY` and
+   * cast a ray from the camera through that screen position — which is exactly
+   * right for a mouse and meaningless in an immersive session, where there is
+   * no screen, no cursor, and a controller event carries no useful client
+   * coordinates. Nikk: "on panel movement and rescaling, draggin never worked
+   * on those." It could not have: every drag was computing a ray through the
+   * point (0, 0) of a canvas nobody was looking at.
+   *
+   * The window converts its pointer to a floor point and passes that in; the
+   * headset passes the world position where its ray actually struck the panel.
+   * One piece of maths, two ways of pointing at it.
+   */
   const begin = useCallback(
-    (clientX: number, clientY: number, kind: "move" | "resize" = "move") => {
-      const at = floorPoint(clientX, clientY);
+    (at: { x: number; z: number } | null, kind: "move" | "resize" = "move") => {
       gesture.current = kind;
       // Remember where on the panel it was taken hold of, so it does not jump
       // its own centre under the pointer the moment you grab it.
@@ -106,13 +143,12 @@ export function Movable({
       };
       setDragging(true);
     },
-    [floorPoint, place],
+    [place],
   );
 
   const drag = useCallback(
-    (clientX: number, clientY: number) => {
+    (at: { x: number; z: number } | null) => {
       const node = group.current;
-      const at = floorPoint(clientX, clientY);
       if (!node || !at) return;
 
       if (gesture.current === "resize") {
@@ -132,7 +168,7 @@ export function Movable({
       // while a panel is being dragged through it.
       invalidate();
     },
-    [floorPoint, invalidate, place.position],
+    [invalidate, place.position],
   );
 
   const release = useCallback(() => {
@@ -167,7 +203,7 @@ export function Movable({
    */
   useEffect(() => {
     if (!dragging) return;
-    const move = (event: PointerEvent) => drag(event.clientX, event.clientY);
+    const move = (event: PointerEvent) => drag(floorPoint(event.clientX, event.clientY));
     const up = () => release();
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -177,7 +213,7 @@ export function Movable({
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
     };
-  }, [dragging, drag, release]);
+  }, [dragging, drag, floorPoint, release]);
 
   // Follow the authoritative place whenever it changes and we are not the one
   // moving it — somebody else dragging a panel must move it here too.
@@ -216,7 +252,22 @@ export function Movable({
           position={[0, 0.6, 0.02]}
           onPointerDown={(event) => {
             event.stopPropagation();
-            begin(event.clientX, event.clientY, mode === "resize" ? "resize" : "move");
+            grabbedPointer.current = event.pointerId;
+            // Capture, so the drag survives the ray slipping off the panel for
+            // a frame. Guarded because it is not there on every pointer.
+            (event.target as { setPointerCapture?: (id: number) => void } | null)
+              ?.setPointerCapture?.(event.pointerId);
+            begin(onFloor(event.point), mode === "resize" ? "resize" : "move");
+          }}
+          onPointerMove={(event) => {
+            if (grabbedPointer.current !== event.pointerId) return;
+            event.stopPropagation();
+            drag(onFloor(event.point));
+          }}
+          onPointerUp={(event) => {
+            if (grabbedPointer.current !== event.pointerId) return;
+            grabbedPointer.current = null;
+            release();
           }}
         >
           <planeGeometry args={[4.0, 2.6]} />
@@ -236,7 +287,20 @@ export function Movable({
           position={[0, top, 0.01]}
           onPointerDown={(event) => {
             event.stopPropagation();
-            begin(event.clientX, event.clientY);
+            grabbedPointer.current = event.pointerId;
+            (event.target as { setPointerCapture?: (id: number) => void } | null)
+              ?.setPointerCapture?.(event.pointerId);
+            begin(onFloor(event.point));
+          }}
+          onPointerMove={(event) => {
+            if (grabbedPointer.current !== event.pointerId) return;
+            event.stopPropagation();
+            drag(onFloor(event.point));
+          }}
+          onPointerUp={(event) => {
+            if (grabbedPointer.current !== event.pointerId) return;
+            grabbedPointer.current = null;
+            release();
           }}
         >
           <boxGeometry args={[4.0, 0.14, 0.06]} />
@@ -248,7 +312,11 @@ export function Movable({
         </mesh>
       ) : (
         // A DOM bar, because the canvas beneath it is `pointer-events: none`.
-        <PanelGrip id={place.id} worldY={top} onGrab={begin} />
+        <PanelGrip
+          id={place.id}
+          worldY={top}
+          onGrab={(clientX, clientY) => begin(floorPoint(clientX, clientY))}
+        />
       )}
     </group>
   );

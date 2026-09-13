@@ -58,9 +58,21 @@ import { base } from "../router";
  * a map that silently misses is a person who quietly gets the default body.
  */
 const CHOSEN: Readonly<Record<string, string>> = {
-  "claude-nikk2mbp": "chill",
-  plumbline: "chill",
+  // Retroman, on Nikk's suggestion. Chill was never a compromise for size —
+  // it was simply the first of several usable rigs I measured after Anchor,
+  // my own first pick, turned out to drive enormous stylised arms. Retroman
+  // measures just as well and Nikk thinks it suits me, which is a better
+  // reason to choose between two working models than the order I tested them.
+  "claude-nikk2mbp": "retroman",
+  plumbline: "retroman",
   inkstone: "observer",
+  // Nikk and Baiwei, both Lydia, at Nikk's request. Spelled as the ROOM spells
+  // them — the watcher shows `nikk2` and `baiwei2` — with the dev harness's
+  // `nikk` alongside so the choice can be seen without a headset.
+  nikk2: "lydia",
+  nikk: "lydia",
+  baiwei2: "lydia",
+  baiwei: "lydia",
 };
 
 /** The body everybody else wears until they choose one. */

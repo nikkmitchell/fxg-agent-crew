@@ -56,17 +56,54 @@ async function renderSession(): Promise<string> {
   return ((await response.json()) as { cookie: string }).cookie;
 }
 
+/**
+ * What the room is showing, asked fresh every pass.
+ *
+ * WITHOUT THIS THE HEADSET CANNOT CHANGE ITS BOARDS AT ALL, and that is not a
+ * detail — it is the whole feature failing silently. In a headset the panels
+ * are these photographs, not live pages, so a photograph taken with no project
+ * shows whatever this renderer's own blank session defaults to, forever. Nikk:
+ * "changing the work board and mood board inside of the settings does not do
+ * anything, they still show up as what they were before no matter what I change
+ * them to." The choice was being stored, shared and broadcast correctly; the
+ * camera was simply pointed somewhere else.
+ *
+ * Asked rather than remembered, because somebody may change it between passes,
+ * and a renderer that cached it would go on photographing the old board.
+ */
+async function roomShowing(cookie: string): Promise<{ project: string; board: string }> {
+  try {
+    const response = await fetch(`${APP}/bff/space/showing`, { headers: { cookie } });
+    if (!response.ok) return { project: "", board: "" };
+    const body = (await response.json()) as {
+      showing?: { projectId?: string | null; boardId?: string | null };
+    };
+    return { project: body.showing?.projectId ?? "", board: body.showing?.boardId ?? "" };
+  } catch {
+    // A failed ask must not stop the photographs. Panels showing the default
+    // are better than panels frozen at whatever was there before.
+    return { project: "", board: "" };
+  }
+}
+
 /** One pass over every panel. Returns how many were written. */
 async function photograph(browser: Browser, cookie: string): Promise<number> {
   const [name, value] = cookie.split("=");
   const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
   await context.addCookies([{ name, value, url: APP }]);
+  const showing = await roomShowing(cookie);
   let written = 0;
   try {
     for (const tab of STILL_TABS) {
       const page = await context.newPage();
       try {
-        await page.goto(`${APP}/${tab}?embed=1`, { waitUntil: "networkidle", timeout: 20_000 });
+        const query = new URLSearchParams({ embed: "1" });
+        if (showing.project) query.set("project", showing.project);
+        // The board only means anything on the mood tab; sending it everywhere
+        // would put a parameter in front of pages that would ignore it, which
+        // makes a URL that lies about what decides the page.
+        if (showing.board && tab === "mood") query.set("board", showing.board);
+        await page.goto(`${APP}/${tab}?${query}`, { waitUntil: "networkidle", timeout: 20_000 });
         // The pages poll; `networkidle` can fire before the first payload has
         // been painted. A short settle beats photographing a spinner.
         await page.waitForTimeout(600);
