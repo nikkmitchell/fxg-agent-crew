@@ -1,6 +1,12 @@
 import type { DatabaseSync } from "node:sqlite";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
-import { destinationFor, restingPlace, type AuditRow, type PanelStands } from "./destinations.js";
+import {
+  destinationFor,
+  destinationForRead,
+  restingPlace,
+  type AuditRow,
+  type PanelPlaces,
+} from "./destinations.js";
 import type { Presence } from "./presence.js";
 
 /**
@@ -8,9 +14,9 @@ import type { Presence } from "./presence.js";
  *
  * The `audit` table is already a complete, ordered record of who did what. This
  * reads it forward from the last row it saw and sends the actor to wherever
- * that action happened. Nothing new is recorded and nothing is inferred: if the
- * room shows Plumbline at the task board, there is a row saying Plumbline
- * touched a card, and you can go and read it.
+ * that action happened. Authenticated reads can additionally declare which
+ * half of the combined project payload they are consulting. Nothing is
+ * inferred: a write has an audit row; a read carries a bounded `view` value.
  *
  * WHY POLLING RATHER THAN A HOOK IN BoardStore. A callback fired inside the
  * write transaction would put the room on the critical path of every board
@@ -55,7 +61,7 @@ export class Activity {
      * Defaults to the untouched arc so a caller that has no panel store (every
      * existing test) behaves exactly as before.
      */
-    private readonly panelStands: () => PanelStands = () => ({}),
+    private readonly panelPlaces: () => PanelPlaces = () => ({}),
   ) {}
 
   /**
@@ -82,16 +88,38 @@ export class Activity {
     for (const row of rows) {
       this.lastSeenId = Math.max(this.lastSeenId, row.id);
       if (NOT_A_PERSON.has(row.actorId)) continue;
-      const destination = destinationFor(row, this.panelStands());
+      const destination = destinationFor(row, this.panelPlaces());
       // An action this room has nothing to say about leaves everyone where they
       // are. It does not send them to a default corner.
       if (!destination) continue;
-      this.presence.sendTo(row.actorId, this.kindOf(row.actorId), destination.at, destination.because);
+      this.presence.sendTo(
+        row.actorId,
+        this.kindOf(row.actorId),
+        destination.at,
+        destination.because,
+        destination.facing,
+      );
       this.sentAt.set(row.actorId, this.now());
     }
 
     this.sendStaleHome();
     return rows.length;
+  }
+
+  /**
+   * Place an authenticated reader at the surface they explicitly asked to see.
+   * This is ephemeral evidence, not a database mutation, so it is deliberately
+   * absent from `audit` while sharing the same destination and expiry rules.
+   */
+  observeRead(
+    actorId: string,
+    kind: "human" | "agent" | null,
+    view: "tasks" | "mood",
+  ): void {
+    if (NOT_A_PERSON.has(actorId)) return;
+    const destination = destinationForRead(view, this.panelPlaces());
+    this.presence.sendTo(actorId, kind, destination.at, destination.because, destination.facing);
+    this.sentAt.set(actorId, this.now());
   }
 
   /**
@@ -135,7 +163,7 @@ export class Activity {
       // too — this is the cheap check, not the guarantee.
       if (occupant.connected) continue;
       const home = restingPlace(actorId);
-      this.presence.sendTo(actorId, occupant.kind, home.at, home.because);
+      this.presence.sendTo(actorId, occupant.kind, home.at, home.because, home.facing);
     }
   }
 

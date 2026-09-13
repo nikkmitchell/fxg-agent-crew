@@ -188,15 +188,37 @@ either render per viewer, or drop the feature.
 
 ### Why is that figure standing there?
 
-Every position in the room comes from a row in `audit`. `server/space/activity.ts`
-polls the table forward from the end of it every 500ms and
-`server/space/destinations.ts` maps one row to one place to stand. So "Plumbline
-is at the Board panel" is answerable with a query, not a guess:
+Board **writes** come from `audit`. `server/space/activity.ts` polls the table
+forward from the end of it every 500ms and `server/space/destinations.ts` maps
+one row to one place to stand. So "Plumbline is at the Board panel because it
+changed a card" is answerable with a query, not a guess:
 
 ```sql
 SELECT id, at, actor_id, action, entity, entity_id
   FROM audit WHERE actor_id = 'Plumbline' ORDER BY id DESC LIMIT 5;
 ```
+
+Board **reads** do not mutate the board and therefore do not belong in that
+durable audit. An authenticated agent declares the purpose of the otherwise
+combined project payload on the read itself:
+
+```http
+GET /bff/board/projects/saha?view=tasks
+GET /bff/board/projects/saha?view=mood
+```
+
+The first sends its avatar to the task board; the second sends it to the mood
+board. A missing `view` remains a plain read, because the same payload contains
+both and the server must not guess which one the caller meant. A bad value is
+refused rather than mapped to a plausible-looking place. Both read attention
+and audited writes expire after two minutes and send the avatar back to its
+deterministic desk.
+
+An utterance with both `say` and `to` turns its speaker toward the addressee for
+the same bounded window in which the line is shown above the avatar (6–14
+seconds). The target's live position is resolved on every room tick, so the
+speaker keeps facing a person who walks during the sentence. Written-only
+detail does not create a speaking pose or gaze.
 
 Three things that look like bugs and are not:
 

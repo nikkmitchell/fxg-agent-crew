@@ -8,7 +8,7 @@ import type { SessionStore } from "../session.js";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
 import type { Placement, Showing } from "../../shared/space-wire.js";
 import { parseClientMessage, type ServerMessage, type WirePerson } from "../../shared/space-wire.js";
-import { Presence, STALE_AFTER_MS } from "./presence.js";
+import { isWalking, Presence, STALE_AFTER_MS } from "./presence.js";
 
 /**
  * The socket the room is drawn from.
@@ -72,6 +72,7 @@ export class SpaceHub {
         actorId: occupant.actorId,
         kind: occupant.kind,
         at: occupant.at,
+        moving: isWalking(occupant),
         facing: occupant.facing,
         because: occupant.because,
         connected: occupant.connected,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Presence, STALE_AFTER_MS } from "../space/presence.js";
+import { facingToward, Presence, STALE_AFTER_MS } from "../space/presence.js";
 import { ROOM, WALK_SPEED, deskFor } from "../../shared/space-layout.js";
 
 /**
@@ -82,6 +82,13 @@ describe("moving", () => {
 });
 
 describe("walking", () => {
+  it("computes yaw for the avatar's -Z forward axis", () => {
+    const yaw = facingToward({ x: 0, y: 0, z: 0 }, { x: 2, y: 0, z: 0 });
+    const forward = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
+    expect(forward.x).toBeCloseTo(1, 6);
+    expect(forward.z).toBeCloseTo(0, 6);
+  });
+
   it("crosses the room at walking speed rather than teleporting", () => {
     const presence = at({ now: 0 });
     presence.join("plumbline", "agent", false);
@@ -103,6 +110,44 @@ describe("walking", () => {
     presence.sendTo("plumbline", "agent", { x: 0, y: 0, z: -3.6 }, "posted");
     for (let i = 0; i < 100; i += 1) presence.tick(0.1);
     expect(presence.find("plumbline")!.at).toEqual({ x: 0, y: 0, z: -3.6 });
+  });
+
+  it("faces the direction of travel and then the surface on arrival", () => {
+    const presence = at({ now: 0 });
+    presence.join("plumbline", "agent", false);
+    const start = { ...presence.find("plumbline")!.at };
+    const destination = { x: start.x + 2, y: 0, z: start.z };
+    presence.sendTo("plumbline", "agent", destination, "checking tasks", -0.75);
+
+    presence.tick(0.1);
+    expect(presence.find("plumbline")!.facing).toBeCloseTo(
+      facingToward(start, destination),
+      6,
+    );
+    for (let i = 0; i < 30; i += 1) presence.tick(0.1);
+    expect(presence.find("plumbline")!.at).toEqual(destination);
+    expect(presence.find("plumbline")!.facing).toBeCloseTo(-0.75, 6);
+  });
+
+  it("keeps a speaker turned toward a moving addressee while the line is live", () => {
+    const clock = { now: 1_000 };
+    const presence = at(clock);
+    presence.join("Inkstone", "agent", false);
+    presence.join("Nikk", "human", true);
+    presence.moveSelf("Nikk", { x: 2, y: 0, z: 2 }, 0);
+    presence.speakTo("Inkstone", "agent", "Nikk", 6_000);
+    presence.tick(0.1);
+
+    const inkstone = presence.find("Inkstone")!;
+    expect(inkstone.facing).toBeCloseTo(facingToward(inkstone.at, { x: 2, y: 0, z: 2 }), 6);
+
+    presence.moveSelf("Nikk", { x: -2, y: 0, z: 1 }, 0);
+    presence.tick(0.1);
+    expect(inkstone.facing).toBeCloseTo(facingToward(inkstone.at, { x: -2, y: 0, z: 1 }), 6);
+
+    clock.now += 6_001;
+    presence.tick(0.1);
+    expect(inkstone.speakingTo).toBeNull();
   });
 
   it("does not move a human — their own client is the authority", () => {
