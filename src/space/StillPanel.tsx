@@ -108,6 +108,16 @@ function useStill(tab: string, base: string, active: boolean): { shot: Shot; pro
   return { shot, problem };
 }
 
+/**
+ * How long a photograph counts as current.
+ *
+ * The renderer takes a fresh set every fifteen seconds, so anything inside
+ * this is as live as a still can be and saying its age tells you nothing you
+ * would act on. Past it, something has stopped: the renderer, the session, or
+ * the machine — and then the age is the most useful thing on the panel.
+ */
+const FRESH_SECONDS = 45;
+
 export function StillPanel({
   station,
   base,
@@ -144,17 +154,36 @@ export function StillPanel({
     return `${Math.round(hours / 24)} days old`;
   };
 
+
   const caption = useMemo(() => {
-    // SHORT. The texture is one line squeezed to fit its canvas, so a long
-    // sentence arrives as condensed mush — which is what "unclear text" looked
-    // like in the headset.
+    /**
+     * NO NAME UNDER THE PANEL. Every panel used to be captioned with what it
+     * was — "Mood boards — photograph, 12 seconds old" — under a picture of a
+     * mood board. Nikk: "can you adjust the UI so it no longer has the text
+     * below each board where it says like mood board." He is right: the panel
+     * shows what it is, and a label repeating it is furniture.
+     *
+     * WHAT IS KEPT IS THE PART THAT IS NOT REDUNDANT. A panel in a headset is
+     * a photograph, not the live page, and how old it is cannot be seen by
+     * looking at it. So the caption is now silent while the picture is current
+     * and speaks only when it has something to say: a stale photograph, or a
+     * reason there is none. A still that has quietly stopped updating and a
+     * room where nothing is happening look identical, and only one of them is
+     * a problem.
+     *
+     * SHORT. The texture is one line squeezed to fit its canvas, so a long
+     * sentence arrives as condensed mush — which is what "unclear text" looked
+     * like in the headset.
+     */
     const text = problem
-      ? `${station.label} — ${problem}`
+      ? problem
       : shot
-        ? `${station.label} — photograph, ${ageInWords(shot.ageSeconds)}`
-        : `${station.label} — loading`;
-    return makeLabelTexture(text, { pixelsPerLine: 48 });
-  }, [station.label, problem, shot]);
+        ? shot.ageSeconds > FRESH_SECONDS
+          ? `not updating — ${ageInWords(shot.ageSeconds)}`
+          : null
+        : "loading";
+    return text ? makeLabelTexture(text, { pixelsPerLine: 48 }) : null;
+  }, [problem, shot]);
 
   return (
     <group
