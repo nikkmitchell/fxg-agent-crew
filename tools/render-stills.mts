@@ -97,7 +97,10 @@ async function photograph(browser: Browser, cookie: string): Promise<number> {
     for (const tab of STILL_TABS) {
       const page = await context.newPage();
       try {
-        const query = new URLSearchParams({ embed: "1" });
+        // `still=1` tells the page it is being PHOTOGRAPHED, so it can drop
+        // the controls nobody can press and the headings that repeat what the
+        // panel already is. See src/still-mode.ts.
+        const query = new URLSearchParams({ embed: "1", still: "1" });
         if (showing.project) query.set("project", showing.project);
         // The board only means anything on the mood tab; sending it everywhere
         // would put a parameter in front of pages that would ignore it, which

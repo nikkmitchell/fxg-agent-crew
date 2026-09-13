@@ -134,6 +134,57 @@ export class WebharnessClient {
   }
 
   /** Human login. Returns the upstream token for storage in the session ONLY. */
+  /**
+   * Send a voice message: the recording, and the words the browser heard.
+   *
+   * NOT THROUGH `rawRequest`, which sets `Content-Type: application/json` and
+   * stringifies its body. This is multipart with a file in it, and the boundary
+   * has to be the one `fetch` generates for this exact FormData — a hand-set
+   * content type here produces a body the server cannot parse.
+   *
+   * NOT RETRIED ON 401 either, and that is the same rule as every other write:
+   * a repeat could post the message twice, and a duplicated voice note is worse
+   * than being asked to sign in again.
+   *
+   * WHY SAHA.ING CARRIES THIS AT ALL rather than the browser posting straight
+   * to WebHarness: the WebHarness token lives on this server, keyed to the
+   * session cookie. A browser that could upload directly would need the token,
+   * and then a headset would be holding a credential it has no way to protect.
+   */
+  async sendVoice(
+    token: string,
+    room: string,
+    voice: { audio: Buffer; filename: string; contentType: string; text: string; durationMs: number },
+  ): Promise<unknown> {
+    const form = new FormData();
+    form.append(
+      "file",
+      new Blob([new Uint8Array(voice.audio)], { type: voice.contentType }),
+      voice.filename,
+    );
+    // Sent even when empty. An empty transcript with audio attached is a real
+    // and useful outcome — "I said something and the recogniser did not catch
+    // it" — and it is exactly the case where the recording matters most.
+    form.append("text", voice.text);
+    form.append("durationMs", String(Math.round(voice.durationMs)));
+
+    const response = await fetch(
+      `${this.baseUrl}/api/rooms/${encodeURIComponent(room)}/voice`,
+      { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form },
+    );
+    if (!response.ok) {
+      let detail = response.statusText;
+      try {
+        const parsed = (await response.json()) as { detail?: unknown };
+        if (typeof parsed.detail === "string") detail = parsed.detail;
+      } catch {
+        /* keep statusText */
+      }
+      throw new WebharnessError(response.status, detail);
+    }
+    return await response.json();
+  }
+
   async login(username: string, password: string): Promise<string> {
     const result = await this.request<{ token: string }>("/api/login", {
       method: "POST",

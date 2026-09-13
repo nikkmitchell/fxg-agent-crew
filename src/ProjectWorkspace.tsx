@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { boardInUrl, currentProject, useCurrentProject } from "./current-project";
+import { isStill } from "./still-mode";
 import type { CrewProject, CrewTask } from "./event-core";
 import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
@@ -120,6 +121,13 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
    * up yet, and a blank wall explains nothing.
    */
   const namedBoard = useMemo(() => boardInUrl(), []);
+  /**
+   * Whether this page is a photograph for a headset panel.
+   *
+   * Read once: a page is a still or it is not, and it does not change under
+   * you. Everything it removes is something that cannot be used in a picture.
+   */
+  const still = useMemo(() => isStill(), []);
   const shownBoards = useMemo(() => {
     if (!namedBoard) return boards;
     const one = boards.filter((moodBoard) => moodBoard.id === namedBoard);
@@ -591,7 +599,11 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         * picture. When a refresh fails we keep the data and say when it was last
         * confirmed, instead of blanking the view or letting it pass as current.
         */}
-      {!signedOut && lastUpdated ? (
+      {/* NOT ON A STILL. The panel already reports how old the PHOTOGRAPH is,
+          which is the staleness that matters in a headset; this line reports
+          how old the data behind it was when the picture was taken, and two
+          different ages on one panel is worse than one. */}
+      {!signedOut && lastUpdated && !still ? (
         <p className={`freshness${stale ? " freshness--stale" : ""}`} role="status" aria-live="polite">
           {stale ? (
             <>
@@ -878,14 +890,19 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             * you had six columns of cards above you competing for the same
             * attention. Different activity, different place.
             */}
-          <p className="muted-note">
-            References, palette and tone for <strong>{selected.name}</strong>. Images live on saha.ing —
-            drop them here, or use Add images.
-          </p>
+          {/* The description tells you how to add images, which you cannot do
+              to a photograph. */}
+          {still ? null : (
+            <p className="muted-note">
+              References, palette and tone for <strong>{selected.name}</strong>. Images live on
+              saha.ing — drop them here, or use Add images.
+            </p>
+          )}
 
           {boards.length === 0 ? (
             <p className="empty-note">
-              No mood boards on this project yet.{me?.username ? " Make one below." : ""}
+              No mood boards on this project yet.
+              {me?.username && !still ? " Make one below." : ""}
             </p>
           ) : null}
 
@@ -893,12 +910,16 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             <MoodBoard
               key={moodBoard.id}
               board={moodBoard}
-              canEdit={Boolean(me?.username)}
+              canEdit={!still && Boolean(me?.username)}
+              still={still}
               onChanged={() => void load()}
             />
           ))}
 
-          {me?.username ? (
+          {/* Making a new mood board is another thing you cannot do to a
+              photograph — and in a headset it is the last thing on the panel,
+              so it was taking up the bottom of the wall to offer it. */}
+          {me?.username && !still ? (
             <form
               className="moodboard-new"
               onSubmit={(event) => {

@@ -103,9 +103,17 @@ function Note({
   );
 }
 
-export function MoodBoard({ board: model, canEdit, onChanged }: {
+export function MoodBoard({ board: model, canEdit, still = false, onChanged }: {
   board: Board;
   canEdit: boolean;
+  /**
+   * True when this is being photographed for a headset panel.
+   *
+   * `canEdit` already removes every control, because a photograph cannot be
+   * clicked. This removes the HEADING too — in the room the panel is the mood
+   * board, and a title above it repeats what looking at it already tells you.
+   */
+  still?: boolean;
   onChanged: () => void;
 }) {
   const [error, setError] = useState("");
@@ -240,6 +248,7 @@ export function MoodBoard({ board: model, canEdit, onChanged }: {
 
   return (
     <section className="moodboard">
+      {still ? null : (
       <header className="moodboard-head">
         <h3>{model.name}</h3>
         {canEdit ? (
@@ -265,6 +274,7 @@ export function MoodBoard({ board: model, canEdit, onChanged }: {
           </>
         ) : null}
       </header>
+      )}
 
       {error ? <p className="project-error" role="alert">{error}</p> : null}
 

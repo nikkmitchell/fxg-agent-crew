@@ -83,10 +83,13 @@ socket.on("message", (raw: Buffer) => {
     // in: a hand two metres from its own head is not a hand.
     const reach = (h: typeof left) =>
       h && head ? round(Math.hypot(h.x - head.x, h.y - head.y, h.z - head.z)) : "--";
+    // `because` is the whole point of an agent moving: the room is meant to
+    // say why somebody is standing where they are, not merely that they are.
+    const because = person.because ? ` — ${person.because}` : "";
     const line =
       `${person.actorId}: stand=${at(person.at)} face=${round(person.facing)} ` +
       `head=${at(head)} L=${at(left)} R=${at(right)} ` +
-      `reachL=${reach(left)} reachR=${reach(right)}`;
+      `reachL=${reach(left)} reachR=${reach(right)}${because}`;
     if (last.get(person.actorId) === line) continue;
     last.set(person.actorId, line);
     console.log(`${stamp()} ${line}`);
