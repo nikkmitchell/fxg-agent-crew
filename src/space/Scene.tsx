@@ -525,6 +525,7 @@ export default function Scene({
           you={you}
           groupRoom={feed.room}
           voice={voice}
+          liveUtterance={connection.liveUtterance}
         />
       </XR>
     </Canvas>

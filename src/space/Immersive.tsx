@@ -14,6 +14,7 @@ import { heldHand, NO_HAND, type Held } from "./hand-hold";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
 import type { VoiceChat } from "./useVoiceChat";
+import type { Utterance } from "../../shared/voice";
 import type { ClientMessage, Pose } from "../../shared/space-wire";
 
 /**
@@ -57,6 +58,7 @@ export function ImmersivePlayer({
   you,
   groupRoom,
   voice,
+  liveUtterance,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -72,6 +74,8 @@ export function ImmersivePlayer({
   groupRoom: string | null;
   /** Live voice, owned above the session so entering one cannot close it. */
   voice: VoiceChat;
+  /** The newest thing said in the room, for reading replies aloud. */
+  liveUtterance: Utterance | null;
 }) {
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
@@ -282,6 +286,7 @@ export function ImmersivePlayer({
         blendMode={blendMode}
         onTogglePassthrough={onTogglePassthrough}
         voice={voice}
+        liveUtterance={liveUtterance}
       />
       {/*
         The floor you can teleport onto. It is deliberately invisible: the room
@@ -331,6 +336,7 @@ export function Immersive({
   you,
   groupRoom,
   voice,
+  liveUtterance,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -339,6 +345,8 @@ export function Immersive({
   you: string | null;
   groupRoom: string | null;
   voice: VoiceChat;
+  /** The newest thing said in the room, for reading replies aloud. */
+  liveUtterance: Utterance | null;
 }) {
   const session = useXR((state) => state.session);
   /**
@@ -374,6 +382,7 @@ export function Immersive({
       you={you}
       groupRoom={groupRoom}
       voice={voice}
+      liveUtterance={liveUtterance}
     />
   ) : null;
 }

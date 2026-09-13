@@ -4,7 +4,9 @@ import * as THREE from "three";
 import { bff } from "../bff-client";
 import { space } from "../space-client";
 import { WRIST_BUTTON, WristButton } from "./Backdrop";
-import { createSpeechInput, speechCapabilities, type SpeechInput } from "./speech";
+import { createSpeechInput, speakSay, speechCapabilities, type SpeechInput, type SpeechOutput } from "./speech";
+import { shouldSpeakUtterance } from "./VoiceControls";
+import type { Utterance } from "../../shared/voice";
 import { planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 
@@ -74,6 +76,7 @@ export function RoomControls({
   blendMode,
   onTogglePassthrough,
   voice,
+  liveUtterance,
 }: {
   anchor: () => { at: { x: number; z: number }; yaw: number } | null;
   you: string | null;
@@ -84,11 +87,37 @@ export function RoomControls({
   onTogglePassthrough: () => void;
   /** Live voice between people in the room, owned above the session. */
   voice: VoiceChat;
+  /** The newest thing said in the room, for reading replies aloud. */
+  liveUtterance: Utterance | null;
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
-  const [destination, setDestination] = useState<VoiceDestination>("room");
+  /**
+   * BOTH, BY DEFAULT, IN A HEADSET.
+   *
+   * It used to default to the room alone, and that quietly defeated the point.
+   * The agents do not read the room's own transcript — they live in the
+   * WebHarness chat — so speaking with this set to "the room" meant talking to
+   * the people standing next to you and to nobody else, and you had to
+   * remember to flip a switch for your words to reach the colleagues you were
+   * trying to reach. Nikk's goal is to "chat with my coworkers and our agents";
+   * the default should be the thing he asked for, and the switch is there for
+   * the times he wants the room alone.
+   */
+  const [destination, setDestination] = useState<VoiceDestination>("room-and-agents");
   const [alwaysOn, setAlwaysOn] = useState(false);
+  /**
+   * Whether replies are read out.
+   *
+   * ON BY DEFAULT HERE, unlike in the window. In a window a reply is a line of
+   * text you can glance at; in a headset the transcript is a photograph on a
+   * wall you may not be facing, and the whole exchange is hands-free by
+   * necessity. Somebody who speaks a question into a room and gets no audible
+   * answer has to go and find one, which is not a conversation.
+   */
+  const [hearReplies, setHearReplies] = useState(true);
+  const speaking = useRef<SpeechOutput | null>(null);
+  const spokenAlready = useRef<number | null>(null);
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
@@ -257,8 +286,14 @@ export function RoomControls({
     });
 
     rows.push({
-      label: destination === "room" ? "To: the room" : "To: the room and the chat",
+      label: destination === "room" ? "To: the room only" : "To: the room and the agents",
       onTap: () => setDestination((d) => (d === "room" ? "room-and-agents" : "room")),
+    });
+
+    rows.push({
+      label: hearReplies ? "Replies read aloud" : "Replies stay silent",
+      tone: hearReplies ? "live" : "normal",
+      onTap: () => setHearReplies((on) => !on),
     });
 
     if (!alwaysOn) {
