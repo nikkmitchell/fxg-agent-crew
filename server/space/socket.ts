@@ -78,6 +78,7 @@ export class SpaceHub {
         head: occupant.head,
         hands: occupant.hands,
         attending: occupant.attending ? { utteranceId: occupant.attending.utteranceId } : null,
+        avatar: occupant.avatar,
       }));
   }
 
@@ -256,6 +257,12 @@ export function registerSpaceRoutes(
         if (message.on) hub.voices.add(actorId);
         else hub.voices.delete(actorId);
         hub.broadcast({ type: "voicePresence", actorId, on: message.on });
+        return;
+      }
+      if (message.type === "avatar") {
+        // The actor id comes from the authenticated session, never the frame:
+        // occupants may animate themselves and nobody else.
+        hub.presence.animate(actorId, message);
         return;
       }
       if (message.type === "voice") {

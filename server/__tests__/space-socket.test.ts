@@ -189,6 +189,27 @@ describe("the space socket", () => {
     inkstone.socket.close();
   });
 
+  it("broadcasts an occupant's self-controlled avatar state", async () => {
+    const { origin, as } = await boot();
+    const inkstone = await connect(origin, as("inkstone", "agent"));
+    await inkstone.next("welcome");
+
+    inkstone.send({ type: "avatar", mood: "focused", gesture: "nod", actorId: "not-inkstone" });
+    const seen = await inkstone.where(
+      (message) =>
+        message.type === "snapshot" &&
+        message.people.some((person) => person.actorId === "inkstone" && person.avatar.gesture === "nod"),
+      "the avatar control",
+    );
+    if (seen.type !== "snapshot") throw new Error("unreachable");
+    expect(seen.people.find((person) => person.actorId === "inkstone")?.avatar).toMatchObject({
+      mood: "focused",
+      gesture: "nod",
+    });
+    expect(seen.people.some((person) => person.actorId === "not-inkstone")).toBe(false);
+    inkstone.close();
+  });
+
   it("treats a second tab as a second tab, not a second person", async () => {
     const { origin, as, space } = await boot();
     const cookie = as("nikk");
