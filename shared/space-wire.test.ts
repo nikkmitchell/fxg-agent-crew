@@ -72,3 +72,26 @@ describe("poses on the wire", () => {
     expect(parsed.head).toBeUndefined();
   });
 });
+
+describe("avatar controls on the wire", () => {
+  it("accepts a self-only bounded control", () => {
+    expect(parseClientMessage(JSON.stringify({ type: "avatar", mood: "happy", gesture: "wave" }))).toEqual({
+      type: "avatar",
+      mood: "happy",
+      gesture: "wave",
+    });
+  });
+
+  it("has no field with which to target somebody else", () => {
+    expect(parseClientMessage(JSON.stringify({
+      type: "avatar",
+      actorId: "somebody-else",
+      gesture: "nod",
+    }))).toEqual({ type: "avatar", gesture: "nod" });
+  });
+
+  it("refuses an unknown mood or gesture", () => {
+    expect(parseClientMessage(JSON.stringify({ type: "avatar", mood: "execute" }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ type: "avatar", gesture: 7 }))).toBeNull();
+  });
+});

@@ -22,6 +22,7 @@ import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { standFor } from "../shared/panel-place.js";
 import { registerStillRoutes } from "./space/stills.js";
 import { registerUtteranceRoutes } from "./space/utterances.js";
+import { registerAvatarRoutes } from "./space/avatar.js";
 import { openDatabase } from "./db/open.js";
 
 /**
@@ -156,6 +157,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       database,
       (utterance) => space.broadcast({ type: "said", utterance }),
       (actorId, utteranceId) => space.presence.attend(actorId, utteranceId),
+    );
+    registerAvatarRoutes(
+      scoped,
+      config,
+      sessions,
+      (actorId, kind, control) => space.presence.animate(actorId, control, kind),
     );
   }, { prefix: config.basePath ?? "" });
 
