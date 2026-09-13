@@ -203,6 +203,7 @@ export function VrmBody({
           avatar: person.avatar,
           attending: person.attending !== null,
           speaking,
+          moving: person.moving,
           nowMs: Date.now(),
           reducedMotion,
         })
@@ -243,6 +244,10 @@ export function VrmBody({
 
     if (automatic) {
       rotateToward(vrm.humanoid.getNormalizedBoneNode("chest"), automatic.chest, delta, reducedMotion, scratch);
+      rotateToward(vrm.humanoid.getNormalizedBoneNode("leftUpperLeg"), automatic.leftUpperLeg, delta, reducedMotion, scratch);
+      rotateToward(vrm.humanoid.getNormalizedBoneNode("leftLowerLeg"), automatic.leftLowerLeg, delta, reducedMotion, scratch);
+      rotateToward(vrm.humanoid.getNormalizedBoneNode("rightUpperLeg"), automatic.rightUpperLeg, delta, reducedMotion, scratch);
+      rotateToward(vrm.humanoid.getNormalizedBoneNode("rightLowerLeg"), automatic.rightLowerLeg, delta, reducedMotion, scratch);
       const expressions = vrm.expressionManager;
       expressions?.setValue("blink", automatic.expressions.blink);
       expressions?.setValue("aa", automatic.expressions.aa);

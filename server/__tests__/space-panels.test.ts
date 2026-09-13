@@ -300,23 +300,26 @@ describe("an agent walks to where the panel actually is", () => {
     const untouched = destinationFor(row);
     expect(untouched?.at).toEqual(STATIONS.taskBoard.stand);
 
-    const moved = standFor({ id: "taskBoard", position: { x: 6, y: 1.6, z: -4 }, rotationY: 0 });
+    const moved = { id: "taskBoard", position: { x: 6, y: 1.6, z: -4 }, rotationY: 0 };
     const after = destinationFor(row, { taskBoard: moved });
-    expect(after?.at).toEqual(moved);
+    expect(after?.at).toEqual(standFor(moved));
+    expect(after?.facing).toBe(0);
     expect(after?.because).toBe(untouched?.because);
   });
 
   it("leaves the other panels where they are when one moves", () => {
     const row = { id: 2, actorId: "wren", action: "add", entity: "board_item", entityId: "b1" };
     const after = destinationFor(row, {
-      taskBoard: { x: 99, y: 0, z: 99 },
+      taskBoard: { id: "taskBoard", position: { x: 8, y: 1.6, z: 8 }, rotationY: 0 },
     });
     expect(after?.at).toEqual(STATIONS.moodBoard.stand);
   });
 
   it("sends somebody to their own desk for a profile edit, moved panels or not", () => {
     const row = { id: 3, actorId: "wren", action: "update", entity: "profile", entityId: "wren" };
-    const withMoves = destinationFor(row, { taskBoard: { x: 9, y: 0, z: 9 } });
+    const withMoves = destinationFor(row, {
+      taskBoard: { id: "taskBoard", position: { x: 8, y: 1.6, z: 8 }, rotationY: 0 },
+    });
     expect(withMoves?.at).toEqual(destinationFor(row)?.at);
   });
 });

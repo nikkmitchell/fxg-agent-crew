@@ -84,6 +84,8 @@ export type WirePerson = {
    */
   kind: "human" | "agent" | null;
   at: Vec3;
+  /** True while the server is advancing this avatar toward its destination. */
+  moving: boolean;
   facing: number;
   /** Why they are there, when we know. null is "no recent evidence". */
   because: string | null;

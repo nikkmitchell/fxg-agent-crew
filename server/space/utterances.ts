@@ -81,6 +81,12 @@ export function registerUtteranceRoutes(
   database: DatabaseSync,
   announce: (utterance: Utterance) => void,
   attend: (actorId: string, utteranceId: number | null) => void,
+  speakTo: (
+    actorId: string,
+    kind: "human" | "agent" | null,
+    targetActorId: string,
+    durationMs: number,
+  ) => void,
 ): void {
   const requireSession = makeRequireSession(config, sessions);
   const utterances = new Utterances(database);
@@ -106,6 +112,13 @@ export function registerUtteranceRoutes(
       return reply.code(422).send({ code: "REFUSED", error: result.refused });
     }
 
+    // Match the visible speech window: short lines get a beat to be noticed,
+    // while the spoken cap never leaves somebody turned for more than 14s.
+    // A written-only detail has no speaking window and therefore no gaze.
+    if (result.utterance.say && result.utterance.to) {
+      const duration = Math.min(14_000, Math.max(6_000, 2_000 + result.utterance.say.length * 55));
+      speakTo(session.username, session.kind ?? null, result.utterance.to, duration);
+    }
     announce(result.utterance);
     return reply.send({ ok: true, utterance: result.utterance });
   });

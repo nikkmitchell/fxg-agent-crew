@@ -28,6 +28,8 @@ export type Occupant = {
   at: Vec3;
   /** Where they are heading. Equal to `at` when they have arrived. */
   heading: Vec3;
+  /** Which way to face after arriving at a destination, when that is known. */
+  destinationFacing: number | null;
   /** Radians. Which way they face. */
   facing: number;
   /**
@@ -60,6 +62,8 @@ export type Occupant = {
    * apparently deep in thought forever.
    */
   attending: { utteranceId: number; since: number } | null;
+  /** A recorded, addressed utterance keeps its speaker turned toward its addressee. */
+  speakingTo: { actorId: string; until: number } | null;
   /** Self-declared, ephemeral presentation state. */
   avatar: AvatarState;
   lastSeen: number;
@@ -86,6 +90,14 @@ const clampToRoom = (at: Vec3): Vec3 => ({
 });
 
 const distance = (a: Vec3, b: Vec3) => Math.hypot(b.x - a.x, b.z - a.z);
+const ARRIVED = 0.02;
+
+/** Three.js avatars look down local -Z at yaw zero. */
+export const facingToward = (from: Vec3, to: Vec3): number =>
+  Math.atan2(from.x - to.x, from.z - to.z);
+
+export const isWalking = (occupant: Pick<Occupant, "at" | "heading">): boolean =>
+  distance(occupant.at, occupant.heading) >= ARRIVED;
 
 export class Presence {
   private readonly occupants = new Map<string, Occupant>();
@@ -112,11 +124,13 @@ export class Presence {
       kind,
       at: start,
       heading: start,
+      destinationFacing: null,
       facing: 0,
       because: null,
       head: null,
       hands: { left: null, right: null },
       attending: null,
+      speakingTo: null,
       avatar: { ...DEFAULT_AVATAR_STATE },
       connected,
       lastSeen: this.now(),
@@ -162,6 +176,8 @@ export class Presence {
     const clamped = clampToRoom(at);
     occupant.at = clamped;
     occupant.heading = clamped;
+    occupant.destinationFacing = null;
+    occupant.speakingTo = null;
     occupant.facing = facing;
     occupant.because = null;
     if (tracked && "head" in tracked) occupant.head = tracked.head ?? null;
@@ -180,12 +196,20 @@ export class Presence {
    * non-sequitur. The room said "nikk — wrote a new card" while nikk stood at
    * the door, which is two true facts arranged into a false sentence.
    */
-  sendTo(actorId: string, kind: "human" | "agent" | null, heading: Vec3, because: string | null): void {
+  sendTo(
+    actorId: string,
+    kind: "human" | "agent" | null,
+    heading: Vec3,
+    because: string | null,
+    destinationFacing: number | null = null,
+  ): void {
     const existing = this.occupants.get(actorId);
     if (existing?.connected) return;
     const occupant = existing ?? this.join(actorId, kind, false);
     if (kind && !occupant.kind) occupant.kind = kind;
     occupant.heading = clampToRoom(heading);
+    occupant.destinationFacing = destinationFacing;
+    occupant.speakingTo = null;
     occupant.because = because;
     occupant.lastSeen = this.now();
   }
@@ -199,24 +223,74 @@ export class Presence {
   tick(deltaSeconds: number): void {
     this.expireAttention();
     this.expireGestures();
+    this.expireSpeakingTurns();
     for (const occupant of this.occupants.values()) {
-      if (occupant.connected) continue;
-      const remaining = distance(occupant.at, occupant.heading);
-      if (remaining < 0.02) {
-        occupant.at = { ...occupant.heading };
-        continue;
+      if (!occupant.connected) {
+        const remaining = distance(occupant.at, occupant.heading);
+        if (remaining < ARRIVED) {
+          occupant.at = { ...occupant.heading };
+          if (occupant.destinationFacing !== null) occupant.facing = occupant.destinationFacing;
+        } else {
+          const step = Math.min(WALK_SPEED * deltaSeconds, remaining);
+          const ratio = step / remaining;
+          // Face the direction of travel before taking the step. The avatar's
+          // front is -Z, so this is not the panel-normal atan2 used elsewhere.
+          occupant.facing = facingToward(occupant.at, occupant.heading);
+          occupant.at = {
+            x: occupant.at.x + (occupant.heading.x - occupant.at.x) * ratio,
+            y: 0,
+            z: occupant.at.z + (occupant.heading.z - occupant.at.z) * ratio,
+          };
+          if (step === remaining && occupant.destinationFacing !== null) {
+            occupant.facing = occupant.destinationFacing;
+          }
+        }
+
+        /**
+         * Conversation wins over travel for its short, declared lifetime.
+         * Resolve the other person's CURRENT position each tick, so turning
+         * stays true if they walk while the sentence is being spoken.
+         *
+         * INSIDE THE `!connected` GUARD, and it has to be. A connected person
+         * is wearing the headset that MEASURES which way they are facing, and
+         * that measurement arrives through `moveSelf` every frame. Turning
+         * them from here would have the server and their own device each
+         * insisting on a different answer several times a second — their body
+         * would visibly snap back and forth for everybody else in the room.
+         *
+         * It is the same rule as the hands: a fact we are told by a device is
+         * not ours to overwrite with one we worked out. An agent has no device
+         * to tell us, which is exactly why it may be turned.
+         */
+        const target = occupant.speakingTo
+          ? this.occupants.get(occupant.speakingTo.actorId)
+          : undefined;
+        if (target) occupant.facing = facingToward(occupant.at, target.at);
       }
-      const step = Math.min(WALK_SPEED * deltaSeconds, remaining);
-      const ratio = step / remaining;
-      occupant.at = {
-        x: occupant.at.x + (occupant.heading.x - occupant.at.x) * ratio,
-        y: 0,
-        z: occupant.at.z + (occupant.heading.z - occupant.at.z) * ratio,
-      };
-      // Face the way you are walking. Turning to face a wall you have arrived
-      // at is the difference between standing at the board and standing near it.
-      occupant.facing = Math.atan2(occupant.heading.x - occupant.at.x, occupant.heading.z - occupant.at.z);
     }
+  }
+
+  /** Turn a recorded speaker toward the person their utterance addresses. */
+  speakTo(
+    actorId: string,
+    kind: "human" | "agent" | null,
+    targetActorId: string,
+    durationMs: number,
+  ): void {
+    const occupant = this.occupants.get(actorId) ?? this.join(actorId, kind, false);
+    if (kind && !occupant.kind) occupant.kind = kind;
+    occupant.speakingTo = {
+      actorId: targetActorId,
+      until: this.now() + Math.max(0, durationMs),
+    };
+    // Turned immediately, so the speaker faces the person before the next tick
+    // rather than a moment into the sentence — but only if nobody's device is
+    // telling us which way they face. See the note in `tick`.
+    const target = this.occupants.get(targetActorId);
+    if (target && !occupant.connected) {
+      occupant.facing = facingToward(occupant.at, target.at);
+    }
+    occupant.lastSeen = this.now();
   }
 
   /**
@@ -263,6 +337,13 @@ export class Presence {
         occupant.avatar.gesture = null;
         occupant.avatar.gestureStartedAt = null;
       }
+    }
+  }
+
+  private expireSpeakingTurns(): void {
+    const now = this.now();
+    for (const occupant of this.occupants.values()) {
+      if (occupant.speakingTo && occupant.speakingTo.until <= now) occupant.speakingTo = null;
     }
   }
 
