@@ -91,6 +91,20 @@ const BOX_GAP = 0.08;
  */
 const BOXES_PER_ROW = 3;
 
+/**
+ * The closed pair: a square gear and a wide talk button, with a gap.
+ *
+ * The talk button is three times the width because it is the one pressed
+ * constantly and the one that must be hittable without aiming. The gap is not
+ * cosmetic: two targets that touch edge to edge are two targets a controller
+ * ray confuses, and confusing them means opening a menu when you meant to
+ * start talking.
+ */
+const GEAR = 0.14;
+const TALK = 0.42;
+const CLOSED_GAP = 0.035;
+const CLOSED_PAIR = GEAR + CLOSED_GAP + TALK;
+
 const EASE = 0.12;
 /** Past this much turn it starts following. Below it, stay put. */
 const SLACK = 0.5;
@@ -664,9 +678,14 @@ export function RoomControls({
           <WristButton
             label="⚙"
             glyph
-            x={-0.19}
+            // The pair is centred on you, with a real gap between them. They
+            // used to touch exactly, edge to edge, which on a control you aim
+            // at from across a room with a ray is a mis-tap waiting to happen —
+            // and the mis-tap would be "opened the settings" when you meant
+            // "start talking", or worse, the reverse while you were mid-sentence.
+            x={-CLOSED_PAIR / 2 + GEAR / 2}
             y={0}
-            width={0.14}
+            width={GEAR}
             height={0.14}
             tone={listening ? "muted" : "normal"}
             onTap={openMenu}
@@ -683,9 +702,9 @@ export function RoomControls({
                     : "Speak once"
                   : "No microphone here"
             }
-            x={0.09}
+            x={-CLOSED_PAIR / 2 + GEAR + CLOSED_GAP + TALK / 2}
             y={0}
-            width={0.42}
+            width={TALK}
             height={0.14}
             tone={listening ? "live" : capabilities.recognition ? "normal" : "muted"}
             onTap={() => {
