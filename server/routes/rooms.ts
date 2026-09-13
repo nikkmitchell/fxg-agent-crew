@@ -8,6 +8,17 @@ import { pollMessages } from "../webharness/longpoll.js";
 import { validateTransportMessage } from "../../shared/crew-events.js";
 import { makeRequireSession } from "../require-session.js";
 
+/**
+ * How long and how large a voice note may be.
+ *
+ * Sixty seconds matches what the WebHarness client allows, so a note recorded
+ * in the room and one recorded at a desk obey the same rule. The byte cap is
+ * generous for that minute — Opus is roughly 24 kB a second — and exists to
+ * stop a broken recorder posting a hundred megabytes rather than to ration
+ * anybody.
+ */
+const VOICE_LIMIT = { ms: 60_000, bytes: 8 * 1024 * 1024 } as const;
+
 export function registerRoomRoutes(
   app: FastifyInstance,
   config: Config,
@@ -117,6 +128,84 @@ export function registerRoomRoutes(
       } catch (error) {
         // An abort is the client leaving, not a failure worth reporting.
         if (controller.signal.aborted) return reply;
+        return fail(reply, error);
+      }
+    },
+  );
+
+  /**
+   * A voice note: the recording, and the words the browser heard in it.
+   *
+   * WHY THIS EXISTS. Speech recognition in the room used to stop when the
+   * recogniser decided you had paused, and send whatever it had. Most of what
+   * that loses is not misheard words — it is truncated ones, cut off mid
+   * sentence. Nikk, who uses the WebHarness client daily: "it's like a start
+   * and you start recording and then we stop and sends it and it also sends the
+   * audio... take a look at how accurate it is."
+   *
+   * IT IS THE SAME RECOGNISER. WebHarness runs the browser's Web Speech API,
+   * exactly as we do — its own source says so, and a clip uploaded with no text
+   * comes back with none added. What is better is that YOU choose when the
+   * recording ends, and that the audio arrives with it. The transcript is still
+   * a guess; the difference is that now the guess is checkable, which matters
+   * most in a headset where you cannot proofread before it sends.
+   *
+   * BASE64 IN JSON, NOT MULTIPART, and the cost is stated rather than hidden:
+   * about a third more bytes on the wire. It buys not adding a dependency and a
+   * body parser to this server for one route, and it lets the transcript travel
+   * as an ordinary string instead of a form field. A minute of Opus is a couple
+   * of hundred kilobytes; a third more of that is not worth a parser.
+   */
+  app.post<{
+    Params: { room: string };
+    Body: { audio?: string; contentType?: string; text?: string; durationMs?: number };
+  }>(
+    "/bff/rooms/:room/voice",
+    { bodyLimit: VOICE_LIMIT.bytes },
+    async (request, reply) => {
+      const session = requireSession(request, reply);
+      if (!session) return reply;
+
+      const body = request.body ?? {};
+      const encoded = typeof body.audio === "string" ? body.audio : "";
+      if (!encoded) {
+        return reply.code(400).send({ code: "BAD_REQUEST", error: "a voice note needs audio" });
+      }
+      const audio = Buffer.from(encoded, "base64");
+      if (audio.byteLength === 0) {
+        return reply.code(400).send({ code: "BAD_REQUEST", error: "that audio could not be decoded" });
+      }
+
+      const duration = Number(body.durationMs ?? 0);
+      if (!Number.isFinite(duration) || duration < 0 || duration > VOICE_LIMIT.ms) {
+        return reply
+          .code(400)
+          .send({ code: "BAD_REQUEST", error: `a voice note may be up to ${VOICE_LIMIT.ms / 1000} seconds` });
+      }
+
+      // The transcript is capped like any other message, because that is what
+      // it becomes. Empty is allowed: audio with no words is the case where
+      // the recording is the whole point.
+      const text = (body.text ?? "").trim();
+      if (text.length > 2_000) {
+        return reply.code(400).send({ code: "BAD_REQUEST", error: "that transcript is over 2000 characters" });
+      }
+
+      try {
+        const sent = await client.sendVoice(session.token, request.params.room, {
+          audio,
+          filename: "voice.webm",
+          // Trusted only as far as it is used: it labels the upload, and a
+          // wrong label produces a clip that will not play rather than
+          // anything that runs.
+          contentType: typeof body.contentType === "string" && body.contentType.startsWith("audio/")
+            ? body.contentType
+            : "audio/webm",
+          text,
+          durationMs: duration,
+        });
+        return reply.send(sent);
+      } catch (error) {
         return fail(reply, error);
       }
     },
