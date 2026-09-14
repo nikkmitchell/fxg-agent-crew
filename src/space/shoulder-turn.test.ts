@@ -1,6 +1,27 @@
 import { describe, expect, test } from "vitest";
 import { SHOULDER_LIMIT, shoulderYaw, wrapAngle } from "./shoulder-turn";
 
+/**
+ * The number itself, pinned.
+ *
+ * Every other test in this file is written relative to `SHOULDER_LIMIT`, which
+ * is good design — all of them survived the change from ninety degrees to
+ * forty without an edit. It also means not one of them would notice it drifting
+ * back. Nikk asked for forty from inside a headset, so forty is a decision and
+ * not an implementation detail.
+ */
+describe("the limit itself", () => {
+  test("is forty degrees, the number that was asked for", () => {
+    expect((SHOULDER_LIMIT * 180) / Math.PI).toBeCloseTo(40, 6);
+  });
+
+  test("is a rotation a real neck could hold", () => {
+    // The half of the old ninety-degree reasoning worth keeping: whatever the
+    // body does not follow, a person has to be able to do with their neck.
+    expect((SHOULDER_LIMIT * 180) / Math.PI).toBeLessThanOrEqual(70);
+  });
+});
+
 const near = (a: number, b: number) => expect(wrapAngle(a - b)).toBeCloseTo(0, 10);
 
 describe("shoulderYaw", () => {

@@ -12,12 +12,25 @@
  * the eyes and head at a target; nothing in the library turns a torso to follow
  * a head, so there was nothing to reuse. This is the whole of what was added.
  *
- * NINETY DEGREES IS GENEROUS ON PURPOSE. A real neck manages about seventy each
- * way, and picking the anatomical number would mean the body creeping round
- * constantly in response to ordinary glances. This only moves when somebody
- * really has turned to look behind them.
+ * FORTY DEGREES, DOWN FROM NINETY, AND THE OLD REASONING WAS WRONG BY
+ * OBSERVATION. It used to say: "NINETY DEGREES IS GENEROUS ON PURPOSE. A real
+ * neck manages about seventy each way, and picking the anatomical number would
+ * mean the body creeping round constantly in response to ordinary glances."
+ * The argument is sound and the result was not. Nikk, from inside a headset:
+ * "now the max headturn is 90degrees, but that looks bad, lets move that to be
+ * max of 40 degrees, and then the torso and body turns with it."
+ *
+ * Ninety is most of a quarter turn. A head held that far round while the
+ * shoulders face forward does not read as a glance — it reads as a neck that
+ * has come loose, because no real neck does it. The cost the old comment
+ * predicted is real: at forty the body follows far more often. That is the
+ * thing being asked for. A body that turns with the head is what a person
+ * looks like.
+ *
+ * Forty is also inside what a neck actually manages, which is the point:
+ * anything the body does not follow should be a rotation a person could hold.
  */
-export const SHOULDER_LIMIT = Math.PI / 2;
+export const SHOULDER_LIMIT = (40 * Math.PI) / 180;
 
 /** The same angle, wrapped to (-π, π]. */
 export function wrapAngle(radians: number): number {
