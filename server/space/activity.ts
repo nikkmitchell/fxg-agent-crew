@@ -9,6 +9,7 @@ import {
 } from "./destinations.js";
 import type { Presence } from "./presence.js";
 import type { AgentHome } from "../../shared/agent-home.js";
+import { REVEAL_CAP_MS } from "../../shared/board-freshness.js";
 
 /**
  * What makes agents move.
@@ -64,6 +65,13 @@ export class Activity {
   private readonly sentAt = new Map<string, number>();
   /** When an agent sent somewhere was first seen standing there. */
   private readonly arrivedAt = new Map<string, number>();
+  /**
+   * Board changes waiting for their agent to reach the board, by audit id.
+   * See shared/board-freshness.ts: the card moves when the agent arrives.
+   */
+  private readonly pendingReveal = new Map<number, { key: string; sentAt: number }>();
+  /** When each of those was shown, kept a few minutes for boards still polling. */
+  private readonly revealed = new Map<number, number>();
   private timer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -124,6 +132,17 @@ export class Activity {
       );
       this.sentAt.set(actorKey(row.actorId), this.now());
       this.arrivedAt.delete(actorKey(row.actorId));
+      // An AGENT walking to a panel: hold the card change until it gets there.
+      // A person moves themselves, so theirs shows at once.
+      // Not when nobody has the room open: then nothing walks (the room only
+      // steps figures while somebody is connected) and there is no arrival
+      // for anybody to see, so holding the card back would only delay the
+      // board for people reading it in a window.
+      const occupant = this.presence.find(row.actorId);
+      const watched = this.presence.everyone().some((someone) => someone.connected && someone.kind !== "agent");
+      if (row.entity === "task" && destination.because !== null && occupant?.kind === "agent" && watched) {
+        this.pendingReveal.set(row.id, { key: actorKey(row.actorId), sentAt: this.now() });
+      }
     }
 
     this.sendStaleHome();
@@ -197,6 +216,7 @@ export class Activity {
         }
         const arrived = this.arrivedAt.get(key) ?? now;
         this.arrivedAt.set(key, arrived);
+        this.reveal(key, arrived);
         if (now - arrived < AGENT_AT_PANEL_MS) continue;
       }
       this.sentAt.delete(key);
@@ -214,6 +234,39 @@ export class Activity {
       const home = restingPlace(occupant.actorId, this.homeOf(occupant.actorId));
       this.presence.sendTo(occupant.actorId, occupant.kind, home.at, home.because, home.facing);
     }
+  }
+
+  /** Show every change this agent was carrying, now that it has reached the board. */
+  private reveal(key: string, at: number): void {
+    for (const [auditId, pending] of this.pendingReveal) {
+      if (pending.key !== key) continue;
+      this.pendingReveal.delete(auditId);
+      this.revealed.set(auditId, Math.max(at, pending.sentAt));
+    }
+  }
+
+  /**
+   * When the room should show the board change recorded as `auditId`, or null
+   * while its agent is still on the way. Anything not being held — a person's
+   * change, an old one, one from before a restart — shows at the moment it
+   * was made. Nothing is held longer than REVEAL_CAP_MS.
+   */
+  revealAt(auditId: number, at: string): string | null {
+    const now = this.now();
+    for (const [id, shownAt] of this.revealed) {
+      if (now - shownAt > 5 * 60_000) this.revealed.delete(id);
+    }
+    const shown = this.revealed.get(auditId);
+    if (shown !== undefined) return new Date(shown).toISOString();
+    const pending = this.pendingReveal.get(auditId);
+    if (pending) {
+      if (now - pending.sentAt < REVEAL_CAP_MS) return null;
+      this.pendingReveal.delete(auditId);
+      const capped = pending.sentAt + REVEAL_CAP_MS;
+      this.revealed.set(auditId, capped);
+      return new Date(capped).toISOString();
+    }
+    return at;
   }
 
   start(): void {

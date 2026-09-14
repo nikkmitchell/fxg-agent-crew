@@ -100,6 +100,8 @@ export function toCrewTask(row: Record<string, any>) {
       id: c.id, author: c.author_id, body: c.body, createdAt: c.created_at,
     })),
     links: (row.links ?? []).map((l: Record<string, any>) => ({ label: l.label, href: l.href })),
+    ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
+    ...(row.fresh ? { fresh: row.fresh } : {}),
   };
 }
 

@@ -148,6 +148,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       database,
       config.blobRoot,
       (actorId, kind, view) => activity.observeRead(actorId, kind, view),
+      (auditId, at) => activity.revealAt(auditId, at),
     );
     registerSpaceRoutes(
       scoped,

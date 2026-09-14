@@ -2,6 +2,7 @@ import type { ActorProfile, Ownership } from "./profiles.js";
 import type { Membership, Role } from "./membership.js";
 import { grantMembership, revokeMembership } from "./membership.js";
 import { confirmOwnership, declareOwnership, revokeOwnership } from "./profiles.js";
+import type { TaskFreshness } from "../shared/board-freshness.js";
 
 export type TaskKind = "decision" | "build";
 
@@ -72,6 +73,10 @@ export type CrewTask = {
   comments?: TaskComment[];
   links?: Array<{ label: string; href: string }>;
   images?: Array<{ label: string; href: string }>;
+  /** When the card last changed at all, for tucking away cards finished long ago. */
+  updatedAt?: string;
+  /** Present when the card moved or was created recently. See shared/board-freshness.ts. */
+  fresh?: TaskFreshness;
 };
 
 export type TaskComment = { id: string; author: string; body: string; createdAt: string };

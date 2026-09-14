@@ -15,6 +15,7 @@ import { MoodBoard, type Board } from "./MoodBoard";
 import { briefBudget, describeBudget } from "../shared/message-budget";
 import { ApiError } from "./api-request";
 import { bff } from "./bff-client";
+import { boardIsLively, glowAt, longFinished, shownStatus } from "../shared/board-freshness";
 
 
 type ProjectState = {
@@ -99,6 +100,10 @@ function BriefForm({
 
 export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "overview" | "board" | "mood" | "mine"> }) {
   const [state, setState] = useState<ProjectState>({ projects: [], tasks: [] });
+  /** Whether a card is glowing or pending, read by the polling loop. */
+  const livelyRef = useRef(false);
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
   const [me, setMe] = useState<Me | null>(null);
   const [viewedUsername, setViewedUsername] = useState("");
   // The project now lives in one place, because Settings changes it from a
@@ -234,8 +239,17 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     };
     const start = () => {
       window.clearInterval(timer);
-      timer = window.setInterval(tick, 15_000);
+      // FOUR SECONDS ON THE BOARD: a card an agent moves is shown when the agent
+      // reaches the board, and a fifteen-second poll turned "when it arrives"
+      // into "up to fifteen seconds after". Other tabs keep the slower beat.
+      timer = window.setInterval(tick, tabRef.current === "board" ? 4_000 : 15_000);
     };
+    // A LIVELIER BEAT while a card is glowing or waiting for its agent, so the
+    // change lands when the agent does and the fade is seen as a fade. Checked
+    // every two seconds against the latest state, not by restarting the loop.
+    const quick = window.setInterval(() => {
+      if (document.visibilityState === "visible" && livelyRef.current) void load();
+    }, 2_000);
     const onVisibility = () => {
       // Refresh immediately on return rather than waiting out the interval: the
       // first thing someone does after switching back is read the screen.
@@ -246,9 +260,10 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.clearInterval(timer);
+      window.clearInterval(quick);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [load]);
+  }, [load, tab]);
 
   useEffect(() => {
     const sync = () => setHashTaskId(window.location.hash.replace(/^#task-/, ""));
@@ -273,6 +288,42 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
   const selected = state.projects.find((project) => project.id === selectedId);
   const tasks = state.tasks.filter((task) => task.projectId === selectedId);
+  /**
+   * NOW, for the glow. Ticks once a second only while something is glowing or
+   * waiting to be revealed; a still board does not re-render for nothing.
+   */
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const lively = boardIsLively(tasks, nowMs);
+  livelyRef.current = lively;
+  useEffect(() => {
+    if (!lively) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [lively]);
+  useEffect(() => {
+    // A fresh load can bring a new change while the clock is idle.
+    setNowMs(Date.now());
+  }, [state]);
+  /** Done cards opened back up from their one-line summary, by id. */
+  const [openedDone, setOpenedDone] = useState<Set<string>>(() => new Set());
+  /** Whether cards finished long ago are shown. Remembered in this browser. */
+  const [showOldDone, setShowOldDone] = useState(() => {
+    try {
+      return window.localStorage.getItem("saha.board.show-old-done") === "yes";
+    } catch {
+      return false;
+    }
+  });
+  const toggleOldDone = () => {
+    setShowOldDone((shown) => {
+      try {
+        window.localStorage.setItem("saha.board.show-old-done", shown ? "no" : "yes");
+      } catch {
+        // The choice lasts this visit only.
+      }
+      return !shown;
+    });
+  };
 
   /**
    * What the durable log says about an actor — nothing more.
@@ -457,7 +508,12 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
    * threading six props through for no gain.
    */
   const renderCard = (task: CrewTask) => (
-    <article className="task-card" id={`task-${task.id}`} key={task.id}>
+    <article
+      className={glowAt(nowMs, task.fresh) > 0 ? "task-card task-card--fresh" : "task-card"}
+      id={`task-${task.id}`}
+      key={task.id}
+      style={{ "--fresh": glowAt(nowMs, task.fresh).toFixed(3) } as React.CSSProperties}
+    >
                     <h4>{task.title}</h4>
 
                     <p className="card-meta">
@@ -832,7 +888,13 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
           <div className="board-columns">
             {BOARD_COLUMNS.map((column) => {
               // Most urgent first, untriaged last but not treated as lowest.
-              const items = byPriority(tasks.filter((task) => task.status === column.status));
+              // Drawn where the ROOM should see them: a card whose agent is still
+              // walking over stays in its old column (or out, if it is new).
+              const inColumn = byPriority(tasks.filter((task) => shownStatus(task) === column.status));
+              const hiddenOld = column.status === "done" && (still || !showOldDone)
+                ? inColumn.filter((task) => longFinished(task, nowMs) && glowAt(nowMs, task.fresh) === 0)
+                : [];
+              const items = hiddenOld.length ? inColumn.filter((task) => !hiddenOld.includes(task)) : inColumn;
               return (
                 <section
                   className="board-column"
@@ -845,7 +907,43 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                   </header>
 
                   <div className="column-cards">
-                    {items.map((task) => renderCard(task))}
+                    {items.map((task) =>
+                      /**
+                       * DONE CARDS ARE ONE LINE. Nikk: "have the tasks that are done
+                       * auto minimize so they are just a simple line of what it was,
+                       * so they don't build up infinitely". Still bright for their
+                       * first minute, so a card that has just finished is seen
+                       * finishing; tap a line to open the card.
+                       */
+                      column.status === "done" && !openedDone.has(task.id) && glowAt(nowMs, task.fresh) === 0 ? (
+                        <button
+                          type="button"
+                          className="done-line"
+                          id={`task-${task.id}`}
+                          key={task.id}
+                          title="Open this card"
+                          onClick={() => setOpenedDone((opened) => new Set(opened).add(task.id))}
+                        >
+                          <span aria-hidden="true">✓</span>
+                          <span className="done-line-title">{task.title}</span>
+                          {task.owners?.length ? <span className="done-line-owner">{task.owners.join(", ")}</span> : null}
+                        </button>
+                      ) : (
+                        renderCard(task)
+                      ),
+                    )}
+
+                    {/* A way to put away cards finished long ago, in case even
+                        one line each builds up too much. */}
+                    {column.status === "done" && (hiddenOld.length > 0 || (showOldDone && inColumn.some((task) => longFinished(task, nowMs)))) ? (
+                      still ? (
+                        <p className="done-older-note">{hiddenOld.length} finished earlier, not shown</p>
+                      ) : (
+                        <button type="button" className="done-older-toggle" onClick={toggleOldDone}>
+                          {showOldDone ? "Hide cards finished days ago" : `Show ${hiddenOld.length} finished days ago`}
+                        </button>
+                      )
+                    ) : null}
 
                     {column.status === "backlog" ? (
                       <details className="add-card-wrap">

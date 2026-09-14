@@ -461,6 +461,25 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 
 .task-card { padding: 11px 12px; border: 1px solid var(--line); background: var(--surface); transition: transform .12s var(--ease), box-shadow .12s var(--ease); }
 .task-card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(37,34,27,.09); }
+/* A card that was just added or moved: bright, fading to normal over a minute.
+   `--fresh` runs from 1 to 0 and is set by the page each second. */
+.task-card--fresh {
+  background: color-mix(in srgb, #ffd23f calc(var(--fresh) * 70%), var(--surface));
+  border-color: color-mix(in srgb, #f2a100 calc(var(--fresh) * 100%), var(--line));
+  box-shadow: 0 0 calc(var(--fresh) * 22px) calc(var(--fresh) * 3px) rgba(255, 184, 0, calc(var(--fresh) * 0.75));
+}
+/* A finished card, reduced to one line so the column does not grow forever. */
+.done-line {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 4px 10px;
+  border: 1px solid var(--line); background: var(--canvas); color: var(--muted);
+  font: inherit; font-size: 12px; text-align: left; cursor: pointer;
+}
+.done-line:hover { color: var(--ink); background: var(--surface); }
+.done-line-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.done-line-owner { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.done-older-toggle { justify-self: start; padding: 6px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.done-older-toggle:hover { color: var(--ink); }
+.done-older-note { margin: 4px; color: var(--muted); font-size: 12px; }
 .task-card h4 { margin: 0 0 8px; font-size: 14px; line-height: 1.35; }
 .card-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 6px; }
 .card-meta .kind-chip { margin-left: 0; }

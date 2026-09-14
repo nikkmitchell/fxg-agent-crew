@@ -46,6 +46,8 @@ export function registerBoardRoutes(
     kind: "human" | "agent" | null,
     view: "tasks" | "mood",
   ) => void,
+  /** When the room should show a board change: see shared/board-freshness.ts. */
+  revealOf: (auditId: number, at: string) => string | null = (_id, at) => at,
 ): void {
   const reads = new BoardReads(db);
   const store = new BoardStore(db);
@@ -153,7 +155,20 @@ export function registerBoardRoutes(
     // payload is being read for. Only a successful authenticated read moves the
     // avatar; a typo or a missing project is not evidence of attention.
     if (requestedView) observeRead?.(session.username, session.kind ?? null, requestedView);
-    return reply.send(view);
+    // Each recently changed card says when the room should show the change.
+    const tasks = view.tasks.map(({ lastChange, ...task }) =>
+      lastChange
+        ? {
+            ...task,
+            fresh: {
+              changedAt: lastChange.at,
+              revealAt: revealOf(lastChange.auditId, lastChange.at),
+              ...(lastChange.previousStatus ? { previousStatus: lastChange.previousStatus } : {}),
+            },
+          }
+        : task,
+    );
+    return reply.send({ ...view, tasks });
   });
 
   app.get("/bff/board/people", async (request, reply) => {

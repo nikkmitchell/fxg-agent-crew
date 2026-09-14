@@ -56,10 +56,43 @@ export class BoardReads {
       SELECT l.* FROM task_links l JOIN tasks t ON t.id = l.task_id WHERE t.project_id = ?
     `).all(projectId) as Array<Record<string, unknown>>;
 
+    /**
+     * THE LATEST MOVE OR CREATION OF EACH CARD, recent ones only.
+     *
+     * For the glow and the reveal-on-arrival (see shared/board-freshness.ts),
+     * which only ever care about the last few minutes. Bounded by time so the
+     * query does not grow with the whole history of the board.
+     */
+    const since = new Date(Date.now() - 10 * 60_000).toISOString();
+    const changes = this.db.prepare(`
+      SELECT a.id, a.at, a.actor_id, a.action, a.entity_id, a.before FROM audit a
+      JOIN tasks t ON t.id = a.entity_id
+      WHERE a.entity = 'task' AND a.action IN ('create', 'transition') AND t.project_id = ? AND a.at >= ?
+      ORDER BY a.id
+    `).all(projectId, since) as Array<{ id: number; at: string; actor_id: string; action: string; entity_id: string; before: string | null }>;
+    const lastChange = new Map<string, { auditId: number; at: string; actorId: string; previousStatus?: string }>();
+    for (const change of changes) {
+      let previousStatus: string | undefined;
+      if (change.action === "transition" && change.before) {
+        try {
+          previousStatus = (JSON.parse(change.before) as { status?: string }).status;
+        } catch {
+          previousStatus = undefined;
+        }
+      }
+      lastChange.set(change.entity_id, {
+        auditId: change.id,
+        at: change.at,
+        actorId: change.actor_id,
+        ...(previousStatus ? { previousStatus } : {}),
+      });
+    }
+
     return {
       project: { ...project, goals },
       tasks: tasks.map((task) => ({
         ...task,
+        lastChange: lastChange.get(task.id as string) ?? null,
         owners: owners.filter((o) => o.task_id === task.id).map((o) => o.actor_id),
         acceptedBy: owners.filter((o) => o.task_id === task.id && o.accepted === 1).map((o) => o.actor_id),
         comments: comments.filter((c) => c.task_id === task.id),
