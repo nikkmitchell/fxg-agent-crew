@@ -238,6 +238,22 @@ describe("sharing a screen for an agent", () => {
     await app.close();
   });
 
+  it("says which screens belong to agents, so an agent's screen never drops into the row above everybody", async () => {
+    // Nikk: an agent's screen should not "just float super high up above us".
+    // The room places an agent's screen at the agent, and must know it is an
+    // agent's even while that agent is not standing in the room.
+    const { app, as, database } = boot();
+    seed(database, "Sill", "agent");
+    seed(database, "Nikk2", "human");
+    const key = (await app.inject({ method: "POST", url: "/bff/space/screens/key", headers: { cookie: as("Nikk2") }, payload: { for: "Sill" } })).json().key;
+    await upload(app, { "x-screen-key": key }, webp(1));
+    await upload(app, { cookie: as("Nikk2") }, webp(2));
+    const list = await app.inject({ method: "GET", url: "/bff/space/screens", headers: { cookie: as("Nikk2") } });
+    const kinds = Object.fromEntries(list.json().screens.map((s: { actorId: string; kind: string | null }) => [s.actorId, s.kind]));
+    expect(kinds).toEqual({ Sill: "agent", Nikk2: "human" });
+    await app.close();
+  });
+
   it("offers every agent in the share-as menu, and not yourself twice", async () => {
     const { app, as, database } = boot();
     seed(database, "Sill", "agent");

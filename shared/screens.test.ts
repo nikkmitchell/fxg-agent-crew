@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { SCREEN_ROW, captureSize, screenLabel, screenPlacement, screenSize } from "./screens";
+import { deskFor } from "./space-layout";
+import { AGENT_SCREEN, SCREEN_ROW, agentScreenPose, agentScreenShown, captureSize, screenLabel, screenPlacement, screenSize } from "./screens";
 
 describe("where shared screens hang", () => {
   it("puts a single screen straight ahead", () => {
@@ -65,5 +66,68 @@ describe("how a screen is named in the room", () => {
 
   it("names both when somebody shared it for them", () => {
     expect(screenLabel({ actorId: "Sill", sharedBy: "Nikk2" })).toBe("Sill's screen · shared by Nikk2");
+  });
+});
+
+describe("an agent's own screen", () => {
+  const desk = deskFor("Sill");
+  const person = (over: Record<string, unknown> = {}) => ({
+    actorId: "Sill", at: desk, moving: false, because: null, attending: null, avatar: { posture: "thinking" }, ...over,
+  });
+
+  it("shows while the agent is working at its own space", () => {
+    expect(agentScreenShown(person())).toBe(true);
+  });
+
+  it("goes away while the agent walks", () => {
+    expect(agentScreenShown(person({ moving: true }))).toBe(false);
+  });
+
+  it("goes away while the agent is at a board, and comes back when it returns", () => {
+    // Nikk: "their screen can disappear if they go walk to the mood board or
+    // walk to the job board... once they finish... they reopen their screen".
+    const away = { x: desk.x + 3, z: desk.z - 4 };
+    expect(agentScreenShown(person({ because: "commented on a card", at: away }))).toBe(false);
+    expect(agentScreenShown(person({ because: "was considering the mood board", at: away }))).toBe(false);
+    expect(agentScreenShown(person({ because: null }))).toBe(true);
+  });
+
+  it("stays up when the agent was walked to its OWN desk with a reason", () => {
+    // Updating a profile sends an agent home labelled "updated their profile".
+    // That is its own space, not a board.
+    expect(agentScreenShown(person({ because: "updated their profile" }))).toBe(true);
+    const board = { x: desk.x, z: desk.z - 5 };
+    expect(agentScreenShown(person({ because: "commented on a card", at: board }))).toBe(false);
+  });
+
+  it("does not show over an agent that has gone quiet, even if its share is still running", () => {
+    // Nikk: "it usually doesn't appear unless they're working on something".
+    expect(agentScreenShown(person({ avatar: { posture: "sleeping" } }))).toBe(false);
+  });
+
+  it("shows while an agent has said it is composing a reply", () => {
+    expect(agentScreenShown(person({ avatar: { posture: "sleeping" }, attending: { utteranceId: 4 } }))).toBe(true);
+  });
+
+  it("sits in front of the agent, whichever way it faces", () => {
+    // Facing 0 looks toward -Z; the screen must be on that side of the agent.
+    const ahead = agentScreenPose({ x: 1, z: 1 }, 0).position;
+    expect(ahead.z).toBeLessThan(1);
+    expect(ahead.x).toBeCloseTo(1, 6);
+    for (const facing of [0, 1, -2, Math.PI]) {
+      const { position } = agentScreenPose({ x: 2, z: -3 }, facing);
+      expect(Math.hypot(position.x - 2, position.z + 3)).toBeCloseTo(AGENT_SCREEN.ahead, 6);
+      // And along the direction presence.ts's facingToward means by `facing`.
+      const target = { x: 2 - Math.sin(facing), z: -3 - Math.cos(facing) };
+      const expected = Math.atan2(2 - target.x, -3 - target.z);
+      expect(Math.cos(expected - facing)).toBeCloseTo(1, 6);
+    }
+  });
+
+  it("is a personal monitor, smaller than a wall screen, and never stretched", () => {
+    const size = screenSize(1920, 1080, AGENT_SCREEN);
+    expect(size.width).toBeLessThanOrEqual(AGENT_SCREEN.width + 1e-9);
+    expect(size.width / size.height).toBeCloseTo(1920 / 1080, 6);
+    expect(AGENT_SCREEN.width).toBeLessThan(SCREEN_ROW.width);
   });
 });

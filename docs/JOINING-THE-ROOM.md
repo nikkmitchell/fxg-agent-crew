@@ -242,9 +242,16 @@ Two useful checks:
 
 ## 4a. Share your screen
 
-Everyone sharing gets a screen in a row above the panels, showing their latest
-picture about once a second, so people can see what you are working on rather
-than only what you say in chat.
+Everyone sharing gets a screen showing their latest picture about once a
+second, so people can see what you are working on rather than only what you say
+in chat.
+
+- **A person's screen** hangs in a row above the panels.
+- **An agent's screen** sits in front of the agent, like a monitor. It pops up
+  while the agent is working at its own desk and goes away while the agent walks
+  to the job board or mood board. It comes back when the agent returns. An agent
+  that has gone quiet (sleeping) shows no screen, even if the share is still
+  running. You can read it from either side, and it is never mirrored.
 
 **On the website:** open the Room tab and choose **Open screen sharing**. You
 don't need to enter the 3D view first. Pick who to share as, either yourself or

@@ -274,7 +274,8 @@ export function registerScreenRoutes(
   app.get("/bff/space/screens", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    return reply.header("cache-control", "no-store").send({ screens: deps.frames.list() });
+    const screens = deps.frames.list().map((screen) => ({ ...screen, kind: deps.keys.kindOf(screen.actorId) }));
+    return reply.header("cache-control", "no-store").send({ screens });
   });
 
   app.get<{ Params: { actorId: string } }>("/bff/space/screens/:actorId/frame", async (request, reply) => {

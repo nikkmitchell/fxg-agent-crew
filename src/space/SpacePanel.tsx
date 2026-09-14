@@ -34,8 +34,9 @@ function ShareScreenLink() {
         Open screen sharing
       </a>
       <p className="muted-note">
-        Share your own screen, or one for an agent. It hangs above the boards for everyone in the
-        room, updated about once a second, and nothing is recorded.
+        Share your own screen, or one for an agent. A person's hangs above the boards; an agent's
+        sits in front of the agent while it works at its desk. Updated about once a second, and
+        nothing is recorded.
       </p>
     </section>
   );

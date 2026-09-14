@@ -5,6 +5,7 @@
  * server refuses at, written in two places, is a share that silently fails the
  * first time somebody's screen has more detail on it than usual.
  */
+import { deskFor } from "./space-layout.js";
 
 export const SCREEN_LIMITS = {
   /**
@@ -50,6 +51,13 @@ export type ScreenSummary = {
   /** Increments on every frame from anybody, so a viewer can tell a new one from a repeat. */
   seq: number;
   updatedAt: string;
+  /**
+   * What the actors table says this actor is, when the list is served. The room
+   * puts an agent's screen at the agent and nowhere else, and needs to know an
+   * agent is one even while that agent is not standing in the room — otherwise
+   * its screen would drop back into the row above everybody.
+   */
+  kind?: "human" | "agent" | null;
 };
 
 /**
@@ -141,13 +149,17 @@ export function screenPlacement(index: number, count: number): {
  * all — a tall terminal, an ultrawide monitor — so the plane takes the
  * picture's aspect, bounded by the row's width and height.
  */
-export function screenSize(imageWidth: number, imageHeight: number): { width: number; height: number } {
-  if (!(imageWidth > 0) || !(imageHeight > 0)) return { width: SCREEN_ROW.width, height: SCREEN_ROW.maxHeight };
+export function screenSize(
+  imageWidth: number,
+  imageHeight: number,
+  bounds: { width: number; maxHeight: number } = SCREEN_ROW,
+): { width: number; height: number } {
+  if (!(imageWidth > 0) || !(imageHeight > 0)) return { width: bounds.width, height: bounds.maxHeight };
   const aspect = imageWidth / imageHeight;
-  let width = SCREEN_ROW.width;
+  let width = bounds.width;
   let height = width / aspect;
-  if (height > SCREEN_ROW.maxHeight) {
-    height = SCREEN_ROW.maxHeight;
+  if (height > bounds.maxHeight) {
+    height = bounds.maxHeight;
     width = height * aspect;
   }
   return { width, height };
@@ -170,4 +182,90 @@ export function screenLabel(summary: Pick<ScreenSummary, "actorId" | "sharedBy">
     return `${summary.actorId}'s screen`;
   }
   return `${summary.actorId}'s screen · shared by ${sharer}`;
+}
+
+/**
+ * An AGENT'S screen sits in front of the agent, not in the row above the boards.
+ *
+ * Nikk, from inside the room: "if an agent has their screen being shared it
+ * doesn't just float super high up above us... when the agent is actually
+ * working on anything... they pop up their screen... and then their screen can
+ * disappear if they go walk to the mood board or walk to the job board... once
+ * they finish... they can go back to their space and then they reopen their
+ * screen." And: "if I look over an agent I can see the screen in front of them".
+ *
+ * A monitor in front of whoever is using it. Agents are drawn at half height,
+ * so their eyes are near 0.8 m; the screen spans about 0.65–1.25 m around that,
+ * which puts it in a standing person's line of sight when looking over the
+ * agent's shoulder as well as in front of the agent itself.
+ */
+const AGENT_SCREEN_DESK_RADIUS = 1.0;
+
+export const AGENT_SCREEN = {
+  /** How far in front of the agent, along the way it is facing. */
+  ahead: 0.55,
+  /** Centre height. */
+  y: 0.95,
+  /** A personal monitor, well short of the 2.8 m wall screens. */
+  width: 1.1,
+  maxHeight: 0.62,
+} as const;
+
+/**
+ * Where an agent's screen goes, given where the agent stands and faces.
+ *
+ * AN AGENT FACING `f` LOOKS ALONG (-sin f, 0, -cos f): the room's forward is
+ * -Z and `facingToward` in presence.ts is atan2(from - to). So the screen is
+ * placed that way. A plane turned by `f` faces back toward the agent, which is
+ * the side the agent reads; the other side is drawn too — see ScreenWall.
+ */
+export function agentScreenPose(at: { x: number; z: number }, facing: number): {
+  position: { x: number; y: number; z: number };
+  rotationY: number;
+} {
+  return {
+    position: {
+      x: at.x - Math.sin(facing) * AGENT_SCREEN.ahead,
+      y: AGENT_SCREEN.y,
+      z: at.z - Math.cos(facing) * AGENT_SCREEN.ahead,
+    },
+    rotationY: facing,
+  };
+}
+
+/**
+ * Whether an agent's shared screen should be showing right now.
+ *
+ * ONLY WHILE IT IS WORKING AT ITS OWN SPACE, in Nikk's words. Every signal here
+ * is one the room already has, rather than a new thing agents must report:
+ *
+ *   - not walking — the screen goes away while it crosses the room
+ *   - not at a board — `because` says why it is somewhere else ("commented on
+ *     a card", "was checking tasks"). It is null at an agent's own desk, with
+ *     one exception: updating a profile walks an agent to its OWN desk with a
+ *     reason attached. So a reason only hides the screen away from that desk.
+ *   - working — its posture is `thinking`, which the server infers for five
+ *     minutes after it last did something, or it has declared it is composing
+ *     a reply. An agent that has gone quiet is `sleeping`, and its screen with it.
+ *
+ * Frames arriving is NOT evidence of work: a share left running would keep a
+ * screen up all day over an agent that did nothing, which is exactly what this
+ * exists to stop.
+ */
+export function agentScreenShown(person: {
+  actorId: string;
+  at: { x: number; z: number };
+  moving: boolean;
+  because: string | null;
+  attending: unknown;
+  avatar?: { posture?: string } | null;
+}): boolean {
+  if (person.moving) return false;
+  if (person.because !== null) {
+    // Desks are 1.2 m apart at the closest, and the room may nudge an arrival
+    // aside to keep two figures from overlapping, so 1 m says "this desk".
+    const desk = deskFor(person.actorId);
+    if (Math.hypot(person.at.x - desk.x, person.at.z - desk.z) > AGENT_SCREEN_DESK_RADIUS) return false;
+  }
+  return person.avatar?.posture === "thinking" || (person.attending !== null && person.attending !== undefined);
 }

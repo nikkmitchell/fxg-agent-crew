@@ -514,10 +514,10 @@ export default function Scene({
               )}
             </Movable>
           ))}
-        {/* Everybody's shared screen, in a row above the panels. A texture on a
-          plane, so it is the same in the window and in a headset. Nothing at
-          all while nobody is sharing. */}
-        <ScreenWall base={base} />
+        {/* Shared screens. A person's hangs in the row above the panels; an
+          agent's sits in front of the agent, only while it is working there.
+          Textures on planes, so the same in the window and in a headset. */}
+        <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         <Crowd
           peopleRef={connection.peopleRef}
           roster={connection.roster}
