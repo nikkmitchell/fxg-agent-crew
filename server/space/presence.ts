@@ -6,6 +6,7 @@ import {
   type AvatarState,
 } from "../../shared/avatar-motion.js";
 import { normaliseRotation } from "../../shared/panel-place.js";
+import { standingRoomNear } from "../../shared/standing-room.js";
 
 /**
  * Who is in the room, and where.
@@ -238,7 +239,29 @@ export class Presence {
     if (existing && this.selfMoving(existing)) return;
     const occupant = existing ?? this.join(actorId, kind, false);
     if (kind && !occupant.kind) occupant.kind = kind;
-    occupant.heading = clampToRoom(heading);
+    /**
+     * NOT ON TOP OF SOMEBODY ELSE.
+     *
+     * `destinationFor` returns ONE point per panel and returns the same one to
+     * everybody, so two agents that both commented on a card were both sent to
+     * identical coordinates and stood inside each other. Nikk, from a headset:
+     * "now both agents are standing in the same place looking at the board".
+     *
+     * AGAINST EVERYBODY'S HEADING, NOT THEIR CURRENT POSITION, and that is the
+     * whole reason this works. Two agents sent to the same board are both a
+     * long way off at the moment they are sent, so comparing where they are
+     * standing would find the target empty for both and they would converge on
+     * it anyway. `heading` is where each one has already claimed it will end
+     * up — and `moveSelf` keeps a person's heading equal to their position, so
+     * a human counts as claiming the ground they are on.
+     *
+     * The mover is excluded: a figure is always nought metres from itself.
+     */
+    const taken: { x: number; z: number }[] = [];
+    for (const other of this.occupants.values()) {
+      if (other !== occupant) taken.push(other.heading);
+    }
+    occupant.heading = standingRoomNear(clampToRoom(heading), taken, occupant.actorId, clampToRoom);
     occupant.destinationFacing = destinationFacing;
     occupant.speakingTo = null;
     occupant.because = because;
