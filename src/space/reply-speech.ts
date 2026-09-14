@@ -26,6 +26,8 @@ export type SpokenReply = {
   /** The message this came from, so the caller can mark it read. */
   id: number;
   say: string;
+  /** Who wrote it, so it can be read in their own voice. */
+  speaker: string;
   /** True when there is more of it, and the speech says so. */
   shortened: boolean;
 };
@@ -54,7 +56,12 @@ export function replyToSpeak(
   }
   if (!newest) return null;
   const { say, shortened } = shorten(newest.content.trim());
-  return { id: newest.id, say: say ? `${newest.username} says: ${say}` : `${newest.username} replied.`, shortened };
+  return {
+    id: newest.id,
+    say: say ? `${newest.username} says: ${say}` : `${newest.username} replied.`,
+    speaker: newest.username,
+    shortened,
+  };
 }
 
 /**

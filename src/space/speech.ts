@@ -1,3 +1,4 @@
+import { voiceFor } from "./agent-voice";
 /** Browser speech lives behind this boundary so unsupported browsers stay text-first. */
 export type SpeechPhase = "idle" | "listening" | "speaking";
 
@@ -24,6 +25,10 @@ type Recognition = {
 type RecognitionConstructor = new () => Recognition;
 type Utterance = {
   text: string;
+  voice?: unknown;
+  pitch?: number;
+  rate?: number;
+  volume?: number;
   onstart: (() => void) | null;
   onend: (() => void) | null;
   onerror: ((event: { error?: string }) => void) | null;
@@ -32,7 +37,7 @@ type SpeechGlobals = {
   navigator?: { language?: string };
   SpeechRecognition?: RecognitionConstructor;
   webkitSpeechRecognition?: RecognitionConstructor;
-  speechSynthesis?: { speak(utterance: Utterance): void; cancel(): void };
+  speechSynthesis?: { speak(utterance: Utterance): void; cancel(): void; getVoices?(): { lang: string }[] };
   SpeechSynthesisUtterance?: new (text: string) => Utterance;
 };
 
@@ -565,6 +570,10 @@ export type SpeechOutput = { cancel(): void };
 export function speakSay(options: {
   say: string;
   scope?: SpeechGlobals;
+  /** Who is speaking, so an agent is read in its own voice. See agent-voice.ts. */
+  speaker?: string;
+  /** How loud, from 0 to 1 — quieter for a speaker further away. */
+  volume?: number;
   onPhase: (phase: SpeechPhase) => void;
   onFailure: (failure: SpeechFailure) => void;
 }): SpeechOutput | null {
@@ -574,6 +583,14 @@ export function speakSay(options: {
   if (!say) return null;
 
   const utterance = new scope.SpeechSynthesisUtterance(say);
+  if (options.speaker) {
+    const voices = scope.speechSynthesis.getVoices?.() ?? [];
+    const choice = voiceFor(options.speaker, voices, scope.navigator?.language ?? "en");
+    if (choice.voiceIndex !== null) utterance.voice = voices[choice.voiceIndex];
+    utterance.pitch = choice.pitch;
+    utterance.rate = choice.rate;
+  }
+  if (options.volume !== undefined) utterance.volume = Math.max(0, Math.min(1, options.volume));
   let cancelled = false;
   utterance.onstart = () => { if (!cancelled) options.onPhase("speaking"); };
   utterance.onend = () => { if (!cancelled) options.onPhase("idle"); };

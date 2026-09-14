@@ -4,6 +4,7 @@ import type { SpaceConnection } from "./useSpaceSocket";
 import { createSteadyRecorder, speakSay, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
 import { space } from "../space-client";
 import { holdReload } from "../update-reload";
+import { volumeAt } from "./agent-voice";
 
 export function shouldSpeakUtterance(utterance: Utterance, you: string | null): boolean {
   return Boolean(
@@ -62,8 +63,15 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
     // must never feed a reply back into active recognition.
     consideredUtteranceRef.current = utterance.id;
     if (!hearReplies || listening || !shouldSpeakUtterance(utterance, you)) return;
+    // In the speaker's own voice, as loud as they are near you. See agent-voice.ts.
+    const people = connection.peopleRef.current ?? [];
+    const find = (id: string | null) => (id ? people.find((person) => person.actorId.toLowerCase() === id.toLowerCase()) : undefined);
+    const speaker = find(utterance.actorId);
+    const me = find(you);
     outputRef.current = speakSay({
       say: utterance.say ?? "",
+      speaker: utterance.actorId,
+      volume: volumeAt(speaker && me ? Math.hypot(speaker.at.x - me.at.x, speaker.at.z - me.at.z) : null),
       onPhase: (phase) => setSpeaking(phase === "speaking"),
       onFailure: (failure) => setNotice(failure.message),
     });

@@ -22,6 +22,7 @@ import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 import { holdReload } from "../update-reload";
 import { createSystemKeyboard, type SystemKeyboard } from "./system-keyboard";
+import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
 
 /**
@@ -143,6 +144,7 @@ export function RoomControls({
   showing,
   showingChoices,
   agents,
+  positionOf,
 }: {
   anchor: () => { at: { x: number; z: number }; yaw: number } | null;
   you: string | null;
@@ -167,6 +169,8 @@ export function RoomControls({
   showingChoices: RoomShowingChoices;
   /** The agents in the room right now, for placing them. */
   agents: string[];
+  /** Where somebody is standing, for reading them aloud as loud as they are near. */
+  positionOf: (actorId: string) => { x: number; z: number } | null;
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
@@ -245,6 +249,13 @@ export function RoomControls({
   const session = useXR((state) => state.session);
   const confidence = useRef<number | undefined>(undefined);
   const capabilities = useMemo(() => speechCapabilities(), []);
+
+  /** How far away somebody is standing from this person's head, or null if unknown. */
+  const distanceTo = (actorId: string): number | null => {
+    const me = anchor();
+    const them = positionOf(actorId);
+    return me && them ? Math.hypot(me.at.x - them.x, me.at.z - them.z) : null;
+  };
 
   // Read by the recognition callbacks, which are created once and would
   // otherwise close over the first value of everything they touch.
@@ -422,6 +433,9 @@ export function RoomControls({
     speaking.current?.cancel();
     speaking.current = speakSay({
       say: reply.say,
+      // In the writer's own voice, as loud as they are near. See agent-voice.ts.
+      speaker: reply.speaker,
+      volume: volumeAt(distanceTo(reply.speaker)),
       onPhase: () => {},
       onFailure: (failure) => setNotice(failure.message),
     });
@@ -443,6 +457,8 @@ export function RoomControls({
     speaking.current?.cancel();
     speaking.current = speakSay({
       say: liveUtterance.say ?? "",
+      speaker: liveUtterance.actorId,
+      volume: volumeAt(distanceTo(liveUtterance.actorId)),
       onPhase: () => {},
       onFailure: (failure) => setNotice(failure.message),
     });

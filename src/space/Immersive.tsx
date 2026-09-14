@@ -467,6 +467,9 @@ export function ImmersivePlayer({
         showing={showing}
         showingChoices={showingChoices}
         agents={agents}
+        positionOf={(actorId) =>
+          (peopleRef.current ?? []).find((person) => person.actorId.toLowerCase() === actorId.toLowerCase())?.at ?? null
+        }
       />
       {/*
         The floor you can teleport onto. It is deliberately invisible: the room
