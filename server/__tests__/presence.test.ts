@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { facingToward, Presence, STALE_AFTER_MS } from "../space/presence.js";
 import { ROOM, WALK_SPEED, deskFor } from "../../shared/space-layout.js";
+import { AMBIENT_PAUSE_MIN_MS, CONVERSATION_FAR } from "../space/social-motion.js";
 
 /**
  * Who is in the room.
@@ -185,6 +186,43 @@ describe("walking", () => {
     clock.now += 6_001;
     presence.tick(0.1);
     expect(inkstone.speakingTo).toBeNull();
+    expect(inkstone.because).toBeNull();
+  });
+
+  it("walks an agent close enough to have an addressed conversation", () => {
+    const clock = { now: 1_000 };
+    const presence = at(clock);
+    const agent = presence.join("Inkstone", "agent", false);
+    presence.join("Nikk", "human", true);
+    presence.moveSelf("Nikk", { x: -4, y: 0, z: -4 }, 0);
+    const before = Math.hypot(agent.at.x + 4, agent.at.z + 4);
+
+    presence.speakTo("Inkstone", "agent", "Nikk", 14_000);
+    for (let step = 0; step < 120; step += 1) {
+      clock.now += 100;
+      presence.tick(0.1);
+    }
+
+    const after = Math.hypot(agent.at.x + 4, agent.at.z + 4);
+    expect(after).toBeLessThan(before);
+    expect(after).toBeLessThanOrEqual(CONVERSATION_FAR);
+    expect(agent.because).toBe("talking with Nikk");
+  });
+
+  it("follows the addressee instead of talking toward where they used to be", () => {
+    const clock = { now: 1_000 };
+    const presence = at(clock);
+    const agent = presence.join("Inkstone", "agent", false);
+    presence.join("Nikk", "human", true);
+    presence.moveSelf("Nikk", { x: -4, y: 0, z: -4 }, 0);
+    presence.speakTo("Inkstone", "agent", "Nikk", 14_000);
+    presence.tick(0.1);
+    const firstHeading = { ...agent.heading };
+
+    presence.moveSelf("Nikk", { x: 4, y: 0, z: -4 }, 0);
+    clock.now += 100;
+    presence.tick(0.1);
+    expect(agent.heading).not.toEqual(firstHeading);
   });
 
   it("does not move a human — their own client is the authority", () => {
@@ -376,6 +414,35 @@ describe("posture", () => {
     presence.sendTo("plumbline", "agent", { x: 1, y: 0, z: 1 }, "wrote a card");
     presence.tick(0.1);
     expect(presence.find("plumbline")?.avatar.posture).toBe("thinking");
+  });
+});
+
+describe("ambient movement", () => {
+  it("gives an unoccupied agent an occasional local walk without inventing a reason", () => {
+    const clock = { now: 0 };
+    const presence = at(clock);
+    const agent = presence.join("Plumbline", "agent", false);
+    const home = { ...agent.at };
+
+    presence.tick(0.1);
+    clock.now = AMBIENT_PAUSE_MIN_MS + 22_001;
+    presence.tick(0.1);
+
+    expect(agent.heading).not.toEqual(home);
+    expect(agent.because).toBeNull();
+  });
+
+  it("never lets ambience pull an agent away from purposeful work", () => {
+    const clock = { now: 0 };
+    const presence = at(clock);
+    const destination = { x: -2, y: 0, z: -3 };
+    const agent = presence.join("Plumbline", "agent", false);
+    presence.sendTo("Plumbline", "agent", destination, "checking tasks");
+
+    clock.now = AMBIENT_PAUSE_MIN_MS + 22_001;
+    presence.tick(0.1);
+    expect(agent.heading).toEqual(destination);
+    expect(agent.because).toBe("checking tasks");
   });
 });
 
