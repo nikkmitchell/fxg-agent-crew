@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DETAIL_LIMIT, SPOKEN_LIMIT, refusalFor } from "./voice";
+import { DETAIL_LIMIT, SPOKEN_LIMIT, refusalFor, CHAT_MESSAGE_LIMIT, splitForChat } from "./voice";
 
 /**
  * How much an agent may say out loud.
@@ -70,6 +70,53 @@ describe("how the words arrived", () => {
   it("refuses a confidence that is not a probability", () => {
     for (const confidence of [-0.1, 1.2, Number.NaN]) {
       expect(refusalFor({ say: "hi", source: "voice", confidence }), String(confidence)).toBeTruthy();
+    }
+  });
+});
+
+describe("splitting a long voice message for the chat", () => {
+  const long = (sentences: number) =>
+    Array.from({ length: sentences }, (_, i) => `This is sentence number ${i + 1} of a long voice message.`).join(" ");
+
+  it("leaves a message that already fits as one part", () => {
+    expect(splitForChat("short and sweet")).toEqual(["short and sweet"]);
+  });
+
+  it("never produces a part over the chat limit, however long the input", () => {
+    // The failure this fixes: WebHarness refuses a message over 2000
+    // characters, so a long dictation bounced off the chat.
+    const parts = splitForChat(long(200));
+    expect(parts.length).toBeGreaterThan(1);
+    for (const part of parts) expect(part.length).toBeLessThanOrEqual(CHAT_MESSAGE_LIMIT);
+  });
+
+  it("loses nothing: the parts rejoin into exactly the original words", () => {
+    // A splitter that drops the space it cut at, or a word at a seam, is the
+    // quiet loss this whole change exists to prevent.
+    const text = long(200);
+    expect(splitForChat(text).join(" ")).toBe(text);
+  });
+
+  it("leaves room for a part number in front of every part", () => {
+    const reserve = "(99/99) ".length;
+    for (const part of splitForChat(long(200), CHAT_MESSAGE_LIMIT, reserve)) {
+      expect(`(99/99) ${part}`.length).toBeLessThanOrEqual(CHAT_MESSAGE_LIMIT);
+    }
+  });
+
+  it("cuts between sentences when it can", () => {
+    for (const part of splitForChat(long(200)).slice(0, -1)) {
+      expect(part.endsWith(".")).toBe(true);
+    }
+  });
+
+  it("cuts between words, never inside one, when a sentence is itself too long", () => {
+    const text = Array.from({ length: 800 }, (_, i) => `word${i}`).join(" ");
+    const parts = splitForChat(text);
+    expect(parts.join(" ")).toBe(text);
+    for (const part of parts) {
+      expect(part.length).toBeLessThanOrEqual(CHAT_MESSAGE_LIMIT);
+      expect(part.startsWith("word")).toBe(true);
     }
   });
 });

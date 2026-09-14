@@ -67,6 +67,68 @@ export function splitSpoken(text: string, limit = SPOKEN_LIMIT): { say?: string;
   return { say: words.slice(0, cut).trim(), detail: words.slice(cut).trim() };
 }
 
+/**
+ * The most a single chat message may carry, in characters.
+ *
+ * NOT OURS TO RAISE. WebHarness refuses a message over two thousand characters
+ * — `post.py` says so in as many words, "the room accepts 2000" — so no amount
+ * of deleting checks on this side makes a longer message arrive. What this side
+ * CAN choose is whether a long voice message is refused, or sent in parts.
+ */
+export const CHAT_MESSAGE_LIMIT = 2_000;
+
+/**
+ * Break text into pieces that each fit in one chat message, losing nothing.
+ *
+ * WHY THIS EXISTS. Voice messages were still maxing out after the spoken limit
+ * came off. Nikk: "please finish the update so that it doesn't max out on
+ * characters in voice messages." The spoken half had been fixed; the half that
+ * goes to the group chat was still one message, and WebHarness still refuses
+ * anything over two thousand characters — so a long dictation was accepted by
+ * the room and bounced by the chat, and the person was told it failed.
+ *
+ * EVERY CHARACTER SURVIVES, and joining the pieces with single spaces gives
+ * back the original words in order. That is checked by a test, because a
+ * splitter that silently drops the space it cut at, or a word at the seam, is
+ * exactly the quiet loss this project exists not to have.
+ *
+ * CUT AT A SENTENCE, THEN A WORD, NEVER INSIDE A WORD. A part that ends
+ * "I would not" and a next part that begins "merge this" is readable; a part
+ * that ends "mer" is not. Only a single unbroken run longer than the whole
+ * limit — a pasted URL, say — is cut mid-token, because there is nowhere else.
+ *
+ * `reserve` leaves room on each part for whatever the caller puts in front of
+ * it, such as "(2/3) ", so the numbering can never push a part over the limit.
+ */
+export function splitForChat(text: string, limit = CHAT_MESSAGE_LIMIT, reserve = 0): string[] {
+  const words = text.trim();
+  if (!words) return [];
+  const room = Math.max(1, limit - reserve);
+  if (words.length <= room) return [words];
+
+  const parts: string[] = [];
+  let rest = words;
+  while (rest.length > room) {
+    const window = rest.slice(0, room + 1);
+    // Prefer the last sentence end inside the window.
+    let cut = -1;
+    const sentence = /[.!?…]+["')\]]*\s/g;
+    for (let match = sentence.exec(window); match; match = sentence.exec(window)) {
+      const end = match.index + match[0].trimEnd().length;
+      if (end <= room) cut = end;
+    }
+    // Otherwise the last space, so no word is split.
+    if (cut <= 0) {
+      const space = window.lastIndexOf(" ");
+      cut = space > 0 ? space : room;
+    }
+    parts.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) parts.push(rest);
+  return parts;
+}
+
 /** The longest written part. Generous — nobody has to listen to it. */
 export const DETAIL_LIMIT = 20_000;
 

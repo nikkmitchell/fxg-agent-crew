@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DETAIL_LIMIT, SPOKEN_LIMIT, type Utterance, type UtteranceInput } from "../../shared/voice";
+import { DETAIL_LIMIT, SPOKEN_LIMIT, splitSpoken, type Utterance, type UtteranceInput } from "../../shared/voice";
 import type { SpaceConnection } from "./useSpaceSocket";
 import { createSpeechInput, speakSay, speechCapabilities, type SpeechInput, type SpeechOutput } from "./speech";
 import { space } from "../space-client";
@@ -73,8 +73,22 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
     if (!words || sending || overLimit || recipientMissing) return;
     setSending(true);
     setNotice(null);
+    /**
+     * A LONG VOICE DRAFT IS SPLIT, NOT BLOCKED.
+     *
+     * Over 240 characters this used to disable Send and ask you to "Shorten
+     * this draft or send it as written text" — the window panel's copy of the
+     * limit the headset and the server had already stopped refusing on. Nikk:
+     * "please finish the update so that it doesn't max out on characters in
+     * voice messages." The opening sentences are spoken; the rest is written
+     * beside them; nothing is lost. See `splitSpoken` for why it cuts at a
+     * sentence and never mid-clause.
+     */
+    const spoken = source === "voice" ? splitSpoken(words) : null;
     const utterance: UtteranceInput = {
-      ...(source === "voice" ? { say: words } : { detail: words }),
+      ...(spoken
+        ? { ...(spoken.say ? { say: spoken.say } : {}), ...(spoken.detail ? { detail: spoken.detail } : {}) }
+        : { detail: words }),
       ...(to ? { to } : {}),
       source,
       ...(source === "voice" && confidence !== undefined ? { confidence } : {}),
@@ -92,7 +106,13 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
     }
   };
 
-  const limit = source === "voice" ? SPOKEN_LIMIT : DETAIL_LIMIT;
+  /**
+   * ONE CEILING FOR BOTH NOW, the written one. Voice used to be held to the
+   * spoken limit here, which blocked anything past eight seconds of speech even
+   * though the rest could simply be written down.
+   */
+  const limit = DETAIL_LIMIT;
+  const spokenPreview = source === "voice" ? splitSpoken(draft.trim()) : null;
   const people = connection.roster.filter((person) => person.actorId !== you);
   const recipientMissing = Boolean(to && !people.some((person) => person.actorId === to));
   const overLimit = draft.trim().length > limit;
@@ -128,7 +148,11 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
         />
       </label>
       <p className={draft.length > limit ? "space-voice-count over" : "space-voice-count"}>
-        {draft.length} / {limit} characters{source === "voice" ? " spoken" : " written"}
+        {source === "voice" && spokenPreview?.detail
+          ? spokenPreview.say
+            ? `${spokenPreview.say.length} characters spoken, ${spokenPreview.detail.length} written`
+            : `${draft.trim().length} characters written — one sentence too long to say aloud`
+          : `${draft.length} characters${source === "voice" ? " spoken" : " written"}`}
       </p>
       {source === "voice" ? (
         <button type="button" className="text-button" disabled={sending} onClick={() => {
@@ -137,7 +161,7 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
           setNotice("This draft will be sent as written detail and will not be read aloud.");
         }}>Send as written text instead</button>
       ) : null}
-      {overLimit ? <p role="status">Shorten this draft{source === "voice" ? " or send it as written text" : ""} before sending. Your words have been kept.</p> : null}
+      {overLimit ? <p role="status">This draft is over {DETAIL_LIMIT.toLocaleString()} characters. Your words have been kept.</p> : null}
 
       <label>
         <span>Address</span>

@@ -1,4 +1,4 @@
-import { SPOKEN_LIMIT } from "../../shared/voice";
+import { SPOKEN_LIMIT, splitSpoken } from "../../shared/voice";
 import type { RoomMessage } from "./useRoomFeed";
 
 /**
@@ -78,9 +78,21 @@ export function newestId(messages: readonly RoomMessage[]): number {
 
 function shorten(text: string): { say: string; shortened: boolean } {
   if (text.length <= SPOKEN_LIMIT) return { say: text, shortened: false };
-  // Cut at a word rather than mid-syllable; a hard slice sounds like a fault.
-  const cut = text.slice(0, SPOKEN_LIMIT);
-  const lastSpace = cut.lastIndexOf(" ");
-  const head = (lastSpace > SPOKEN_LIMIT / 2 ? cut.slice(0, lastSpace) : cut).trimEnd();
-  return { say: `${head}… there is more of that on the Chat panel.`, shortened: true };
+  /**
+   * WHOLE SENTENCES ONLY, never a sentence cut off where it ran out of room.
+   *
+   * This cut at the last WORD that fit, which avoids a sound like a fault and
+   * still stops mid-sentence — and a reply heard as "I would not" when it said
+   * "I would not merge this until the tests pass" is a reply you acted on
+   * without hearing. It now speaks the opening sentences that fit, by the same
+   * rule the room uses for what it says aloud, and points at the rest.
+   *
+   * When not even the first sentence fits, it says so rather than reading half
+   * of it: better told there is a long message than handed a misquote.
+   */
+  const spoken = splitSpoken(text);
+  if (!spoken.say) {
+    return { say: "There is a long message on the Chat panel.", shortened: true };
+  }
+  return { say: `${spoken.say} There is more of that on the Chat panel.`, shortened: true };
 }

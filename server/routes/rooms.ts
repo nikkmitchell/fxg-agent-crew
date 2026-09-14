@@ -6,6 +6,7 @@ import { WebharnessClient } from "../webharness/client.js";
 import { classify } from "../webharness/errors.js";
 import { pollMessages } from "../webharness/longpoll.js";
 import { validateTransportMessage } from "../../shared/crew-events.js";
+import { CHAT_MESSAGE_LIMIT, splitForChat } from "../../shared/voice.js";
 import { makeRequireSession } from "../require-session.js";
 
 /**
@@ -186,10 +187,16 @@ export function registerRoomRoutes(
       // The transcript is capped like any other message, because that is what
       // it becomes. Empty is allowed: audio with no words is the case where
       // the recording is the whole point.
-      const text = (body.text ?? "").trim();
-      if (text.length > 2_000) {
-        return reply.code(400).send({ code: "BAD_REQUEST", error: "that transcript is over 2000 characters" });
-      }
+      /**
+       * A LONG TRANSCRIPT IS NOT A REASON TO LOSE THE RECORDING.
+       *
+       * This refused the whole voice note — audio included — when its
+       * transcript passed two thousand characters. The first part now travels
+       * with the audio and the rest follows as ordinary messages, in order, so
+       * the recording and every word of the transcript both arrive.
+       */
+      const transcriptParts = splitForChat((body.text ?? "").trim(), CHAT_MESSAGE_LIMIT);
+      const text = transcriptParts[0] ?? "";
 
       try {
         const sent = await client.sendVoice(session.token, request.params.room, {
@@ -204,6 +211,25 @@ export function registerRoomRoutes(
           text,
           durationMs: duration,
         });
+        for (let index = 1; index < transcriptParts.length; index += 1) {
+          try {
+            await client.request<Message>(
+              `/api/rooms/${encodeURIComponent(request.params.room)}/messages`,
+              {
+                method: "POST",
+                token: session.token,
+                body: { content: `(transcript continued, part ${index + 1} of ${transcriptParts.length}) ${transcriptParts[index]}` },
+              },
+            );
+          } catch {
+            // The audio and the first part arrived; say plainly how much of the
+            // rest did, rather than reporting the note as wholly sent.
+            return reply.code(502).send({
+              code: "PARTIAL",
+              error: `the voice note arrived with ${index} of ${transcriptParts.length} transcript parts`,
+            });
+          }
+        }
         return reply.send(sent);
       } catch (error) {
         return fail(reply, error);
@@ -217,23 +243,53 @@ export function registerRoomRoutes(
       const session = requireSession(request, reply);
       if (!session) return reply;
       const content = request.body?.content?.trim();
-      if (!content || content.length > 2_000) {
-        return reply.code(400).send({ code: "BAD_REQUEST", error: "message must be between 1 and 2000 characters" });
+      if (!content) {
+        return reply.code(400).send({ code: "BAD_REQUEST", error: "a message needs something in it" });
       }
 
-      try {
-        const rawMessage = await client.request<Message>(
-          `/api/rooms/${encodeURIComponent(request.params.room)}/messages`,
-          { method: "POST", token: session.token, body: { content } },
-        );
-        const checked = validateTransportMessage(rawMessage);
-        if (!checked.ok) {
-          return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "invalid message response" });
+      /**
+       * POSTED IN PARTS, NOT REFUSED, when it is longer than one message.
+       *
+       * This refused anything over two thousand characters, which is
+       * WebHarness's own ceiling and so looked like the honest thing to do.
+       * It meant a long voice message was accepted by the room and bounced by
+       * the chat. Nikk: "please finish the update so that it doesn't max out on
+       * characters in voice messages." The ceiling is upstream's and cannot be
+       * raised from here; what can be chosen is whether a long message fails or
+       * arrives in order.
+       *
+       * STOPS AT THE FIRST PART THAT FAILS and reports how far it got, rather
+       * than carrying on and leaving a hole in the middle of what was said. The
+       * reply is the LAST message that arrived, which keeps the response the
+       * single Message it has always been for every existing caller.
+       */
+      const parts = splitForChat(content, CHAT_MESSAGE_LIMIT);
+      let last: Message | null = null;
+      for (let index = 0; index < parts.length; index += 1) {
+        try {
+          const rawMessage = await client.request<Message>(
+            `/api/rooms/${encodeURIComponent(request.params.room)}/messages`,
+            { method: "POST", token: session.token, body: { content: parts[index] } },
+          );
+          const checked = validateTransportMessage(rawMessage);
+          if (!checked.ok) {
+            return reply.code(502).send({
+              code: "UPSTREAM_UNAVAILABLE",
+              error: parts.length > 1
+                ? `invalid message response at part ${index + 1} of ${parts.length}`
+                : "invalid message response",
+            });
+          }
+          last = checked.value;
+        } catch (error) {
+          if (index === 0) return fail(reply, error);
+          return reply.code(502).send({
+            code: "PARTIAL",
+            error: `sent ${index} of ${parts.length} parts; the rest did not arrive`,
+          });
         }
-        return reply.send(checked.value);
-      } catch (error) {
-        return fail(reply, error);
       }
+      return reply.send(last);
     },
   );
 }

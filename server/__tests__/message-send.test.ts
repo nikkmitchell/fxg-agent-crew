@@ -42,7 +42,67 @@ describe("POST /bff/rooms/:room/messages", () => {
     expect(response.body).not.toContain("upstream-secret");
   });
 
-  it.each(["", "   ", "x".repeat(2_001)])("rejects invalid content without calling upstream", async (content) => {
+  it("sends a message longer than one WebHarness message in parts, in order, losing nothing", async () => {
+    /**
+     * THIS USED TO BE REFUSED with a 400 — `"x".repeat(2_001)` sat in the
+     * table below alongside the empty strings as "invalid content". Two
+     * thousand characters is WebHarness's ceiling and cannot be raised from
+     * here, but refusing meant a long voice message reached the room and
+     * bounced off the chat. Nikk: "please finish the update so that it doesn't
+     * max out on characters in voice messages."
+     */
+    let id = 100;
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init: { body: string }) => {
+      const content = JSON.parse(init.body).content as string;
+      id += 1;
+      return new Response(JSON.stringify({
+        id, username: "nikk", content, msgType: "text",
+        createdAt: "2026-09-03T04:00:00Z", updatedAt: "2026-09-03T04:00:00Z", streaming: false,
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { app, sid } = setup();
+    const long = Array.from({ length: 120 }, (_, i) => `Sentence ${i + 1} of a long dictated message.`).join(" ");
+    expect(long.length).toBeGreaterThan(2_000);
+
+    const response = await app.inject({
+      method: "POST", url: "/bff/rooms/AgentParty/messages", cookies: { fxg_sid: sid }, payload: { content: long },
+    });
+    expect(response.statusCode).toBe(200);
+
+    const sent = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).content as string);
+    expect(sent.length).toBeGreaterThan(1);
+    for (const part of sent) expect(part.length).toBeLessThanOrEqual(2_000);
+    expect(sent.join(" "), "every word, in order").toBe(long);
+    // The reply is still one Message — the last to arrive — for every caller
+    // that already expects exactly that.
+    expect(response.json()).toMatchObject({ id: 100 + sent.length });
+  });
+
+  it("stops at the first part that fails and says how far it got", async () => {
+    // Carrying on after a failure would post part three with part two missing:
+    // a hole in the middle of what somebody said that nobody is told about.
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (_url: string, init: { body: string }) => {
+      calls += 1;
+      if (calls === 2) return new Response("upstream down", { status: 503 });
+      return new Response(JSON.stringify({
+        id: calls, username: "nikk", content: JSON.parse(init.body).content, msgType: "text",
+        createdAt: "2026-09-03T04:00:00Z", updatedAt: "2026-09-03T04:00:00Z", streaming: false,
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }));
+    const { app, sid } = setup();
+    const long = Array.from({ length: 200 }, (_, i) => `Sentence ${i + 1} of a long dictated message.`).join(" ");
+    const response = await app.inject({
+      method: "POST", url: "/bff/rooms/AgentParty/messages", cookies: { fxg_sid: sid }, payload: { content: long },
+    });
+    expect(response.statusCode).toBe(502);
+    expect(response.json().code).toBe("PARTIAL");
+    expect(response.json().error).toMatch(/sent 1 of \d+ parts/);
+    expect(calls, "nothing after the failed part").toBe(2);
+  });
+
+  it.each(["", "   "])("rejects empty content without calling upstream", async (content) => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const { app, sid } = setup();

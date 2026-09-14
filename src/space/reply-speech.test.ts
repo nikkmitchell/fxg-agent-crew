@@ -58,12 +58,26 @@ describe("replyToSpeak", () => {
     expect(replyToSpeak([message(1, "Nikk2", "hi")], 0, null)?.say).toBe("Nikk2 says: hi");
   });
 
-  test("a long message is cut at a word and says there is more", () => {
-    const long = "word ".repeat(200).trim();
+  test("a long message is read in whole sentences and says there is more", () => {
+    // It used to cut at the last WORD that fit, which still stopped
+    // mid-sentence: "I would not" heard in place of "I would not merge this
+    // until the tests pass". Whole sentences only now.
+    const long = Array.from({ length: 30 }, (_, i) => `This is sentence ${i + 1}.`).join(" ");
     const spoken = replyToSpeak([message(1, "Inkstone", long)], 0, "nikk2");
     expect(spoken?.shortened).toBe(true);
-    expect(spoken?.say).toContain("there is more of that on the Chat panel");
-    expect(spoken?.say).not.toContain("wor…");
+    expect(spoken?.say).toContain("There is more of that on the Chat panel");
+    // What is read ends on a full stop before the pointer — never mid-sentence.
+    const read = spoken?.say.replace(/^Inkstone says: /, "").replace(/ There is more of that on the Chat panel\.$/, "");
+    expect(read?.endsWith(".")).toBe(true);
+    expect(long.startsWith(read ?? "\u0000")).toBe(true);
+  });
+
+  test("a single sentence too long to say is pointed at, not read in half", () => {
+    const unbroken = "word ".repeat(200).trim();
+    const spoken = replyToSpeak([message(1, "Inkstone", unbroken)], 0, "nikk2");
+    expect(spoken?.shortened).toBe(true);
+    expect(spoken?.say).toContain("There is a long message on the Chat panel");
+    expect(spoken?.say).not.toContain("word word");
   });
 
   test("a message at the limit is read whole", () => {

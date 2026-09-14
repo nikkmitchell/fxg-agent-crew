@@ -231,7 +231,13 @@ export function RoomControls({
     }
     setSending(true);
     const failures: string[] = [];
+    // STOP THE CHAT AT THE FIRST PART THAT FAILS. A long transcript is now
+    // several messages in order, and carrying on past a failure would post
+    // part three with part two missing — a gap in the middle of somebody's
+    // sentence that nobody is told about.
+    let chatStopped = false;
     for (const item of plan.posts) {
+      if (item.to === "group-chat" && chatStopped) continue;
       try {
         if (item.to === "room") {
           // THE WRITTEN REMAINDER GOES TOO. `planVoice` splits anything too
@@ -252,7 +258,16 @@ export function RoomControls({
           await bff.sendMessage(room, item.content);
         }
       } catch {
-        failures.push(item.to === "room" ? "the room" : "the group chat");
+        if (item.to === "room") failures.push("the room");
+        else {
+          chatStopped = true;
+          const parts = plan.posts.filter((post) => post.to === "group-chat");
+          failures.push(
+            parts.length > 1
+              ? `the group chat (stopped at part ${parts.indexOf(item) + 1} of ${parts.length})`
+              : "the group chat",
+          );
+        }
       }
     }
     setSending(false);

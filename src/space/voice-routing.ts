@@ -1,4 +1,4 @@
-import { refusalFor, splitSpoken, type UtteranceInput } from "../../shared/voice";
+import { CHAT_MESSAGE_LIMIT, refusalFor, splitForChat, splitSpoken, type UtteranceInput } from "../../shared/voice";
 
 /**
  * Where a spoken sentence goes.
@@ -90,7 +90,28 @@ export function planVoice(
     // an agent acting on a misheard word should be able to see that it might
     // have been misheard.
     const heading = options.speaker ? `${options.speaker} said in the room` : "Said in the room";
-    posts.push({ to: "group-chat", content: `${heading} (voice transcript): ${words}` });
+    /**
+     * IN PARTS WHEN IT IS LONG, NEVER REFUSED.
+     *
+     * This was one message, and WebHarness refuses anything over two thousand
+     * characters — so a long dictation reached the room and bounced off the
+     * chat, and the speaker was told it failed. Nikk: "please finish the update
+     * so that it doesn't max out on characters in voice messages."
+     *
+     * Every part carries the full heading and a part number, so an agent that
+     * reads only part two still knows it was a transcript, who said it, and
+     * that there is more of it. The reserve leaves room for both, so the label
+     * can never push a part over the limit.
+     */
+    const label = (index: number, total: number) =>
+      total === 1
+        ? `${heading} (voice transcript): `
+        : `${heading} (voice transcript, part ${index + 1} of ${total}): `;
+    const reserve = label(98, 99).length;
+    const parts = splitForChat(words, CHAT_MESSAGE_LIMIT, reserve);
+    parts.forEach((part, index) => {
+      posts.push({ to: "group-chat", content: `${label(index, parts.length)}${part}` });
+    });
   }
 
   return { posts, refused: null };

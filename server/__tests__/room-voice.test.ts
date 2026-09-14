@@ -56,14 +56,19 @@ describe("sending a voice note", () => {
     await app.close();
   });
 
-  it("refuses a transcript over the message limit", async () => {
+  it("no longer refuses a voice note because its transcript is long", async () => {
+    // This refused the WHOLE voice note, audio included, once the transcript
+    // passed two thousand characters — losing the recording because the words
+    // were long. Now the first part travels with the audio and the rest follows
+    // as messages. Upstream is absent in this test, so it does not succeed;
+    // what matters is that it is no longer refused on our side for length.
     const { app, as } = boot();
     const response = await send(app, as("nikk"), {
       audio: clip,
       durationMs: 1_000,
-      text: "x".repeat(2_001),
+      text: Array.from({ length: 120 }, (_, i) => `Sentence ${i + 1} said aloud.`).join(" "),
     });
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).not.toBe(400);
     await app.close();
   });
 

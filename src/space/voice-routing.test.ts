@@ -81,3 +81,32 @@ describe("where a spoken sentence goes", () => {
     expect(chat.content).toContain(said);
   });
 });
+
+describe("a long transcript sent to the room and the agents", () => {
+  it("reaches the group chat in labelled parts that each fit, instead of bouncing", () => {
+    // WebHarness refuses a message over 2000 characters, so this used to be
+    // accepted by the room and refused by the chat. Every part now says who
+    // spoke, that it is a transcript, and which part of how many it is.
+    const long = Array.from({ length: 150 }, (_, i) => `This is sentence ${i + 1} of what I said.`).join(" ");
+    const plan = planVoice(long, "room-and-agents", { speaker: "Nikk2" });
+    expect(plan.refused).toBeNull();
+
+    const chat = plan.posts.filter((post) => post.to === "group-chat");
+    expect(chat.length).toBeGreaterThan(1);
+    chat.forEach((post, index) => {
+      if (post.to !== "group-chat") return;
+      expect(post.content.length).toBeLessThanOrEqual(2_000);
+      expect(post.content).toContain(`Nikk2 said in the room (voice transcript, part ${index + 1} of ${chat.length}): `);
+    });
+    const words = chat
+      .map((post) => (post.to === "group-chat" ? post.content.replace(/^.*?\): /, "") : ""))
+      .join(" ");
+    expect(words, "every word survives, in order").toBe(long);
+  });
+
+  it("keeps a short transcript as a single unnumbered message", () => {
+    const plan = planVoice("hello Sill", "room-and-agents", { speaker: "Nikk2" });
+    const chat = plan.posts.filter((post) => post.to === "group-chat");
+    expect(chat).toEqual([{ to: "group-chat", content: "Nikk2 said in the room (voice transcript): hello Sill" }]);
+  });
+});
