@@ -61,8 +61,39 @@ const stamp = () => new Date().toISOString().slice(11, 19);
 /** Only print when something actually changed, or the log is unreadable. */
 const last = new Map<string, string>();
 
-socket.on("open", () => console.log(`${stamp()} watching`));
-socket.on("close", () => { console.log(`${stamp()} closed`); process.exit(0); });
+/**
+ * PING, OR BE DROPPED AFTER FORTY-FIVE SECONDS.
+ *
+ * `Presence.prune` removes any CONNECTED occupant whose `lastSeen` is older
+ * than STALE_AFTER_MS, and `lastSeen` only advances when the client SENDS
+ * something. A headset sends its head and hands every frame, so a person never
+ * goes stale. A watcher only listens, so it went stale every time: the room
+ * sent `refused — no messages for 45 seconds` and closed, at almost exactly 62
+ * seconds, twice in a row, and this tool exits 0 on a close — so the failure
+ * looked like a clean finish. That is the same shape as the backgrounded-with-&
+ * trap in docs/JOINING-THE-ROOM.md: the room looks identical whether nobody is
+ * talking or nobody is listening.
+ *
+ * A `ping` IS THE RIGHT FRAME and `moveSelf` is not. Ping refreshes presence
+ * and says nothing else; sending a position would have this tool claim where
+ * an agent is standing, which is the room's job and the one rule the whole
+ * design turns on. Twenty seconds leaves two pings inside every window.
+ */
+const PING_MS = 20_000;
+let heartbeat: NodeJS.Timeout | null = null;
+
+socket.on("open", () => {
+  console.log(`${stamp()} watching`);
+  heartbeat = setInterval(() => {
+    if (socket.readyState === 1) socket.send(JSON.stringify({ type: "ping" }));
+  }, PING_MS);
+  heartbeat.unref?.();
+});
+socket.on("close", () => {
+  if (heartbeat) clearInterval(heartbeat);
+  console.log(`${stamp()} closed`);
+  process.exit(0);
+});
 socket.on("error", (error: Error) => { console.error(`${stamp()} ${error.message}`); process.exit(1); });
 
 socket.on("message", (raw: Buffer) => {
