@@ -5,8 +5,6 @@ export const CONVERSATION_DISTANCE = 1.35;
 export const CONVERSATION_FAR = 1.8;
 
 /** Idle agents pause between small, local walks instead of pacing continuously. */
-export const AMBIENT_PAUSE_MIN_MS = 18_000;
-const AMBIENT_PAUSE_SPREAD_MS = 22_000;
 
 const hash = (value: string): number => [...value].reduce(
   (accumulated, character) =>
@@ -50,35 +48,3 @@ export function conversationPlace(speaker: Vec3, listener: Vec3, actorId: string
   };
 }
 
-/** Stable per-agent pauses keep a group from setting off in lockstep. */
-export function ambientPauseMs(actorId: string, sequence: number): number {
-  return AMBIENT_PAUSE_MIN_MS
-    + Math.round(unit(`${actorId}:pause:${sequence}`) * AMBIENT_PAUSE_SPREAD_MS);
-}
-
-/**
- * A small circuit around the actor's desk.
- *
- * This movement carries no reason label: it is atmosphere requested for the
- * room, not evidence that the actor did work. The back desk row is pulled
- * inward before the radius is applied so nobody walks along the wall.
- */
-export function ambientPlace(actorId: string, sequence: number): Vec3 {
-  const desk = deskFor(actorId);
-  const centre = {
-    x: desk.x,
-    z: Math.min(desk.z, ROOM.depth / 2 - 2.1),
-  };
-  const angle = unit(`${actorId}:angle:${sequence}`) * Math.PI * 2;
-  const radius = 0.7 + unit(`${actorId}:radius:${sequence}`) * 0.9;
-  const candidate = {
-    x: centre.x + Math.cos(angle) * radius,
-    y: 0,
-    z: centre.z + Math.sin(angle) * radius,
-  };
-  return {
-    x: Math.max(-ROOM.width / 2 + 0.65, Math.min(ROOM.width / 2 - 0.65, candidate.x)),
-    y: 0,
-    z: Math.max(-ROOM.depth / 2 + 0.65, Math.min(ROOM.depth / 2 - 0.65, candidate.z)),
-  };
-}

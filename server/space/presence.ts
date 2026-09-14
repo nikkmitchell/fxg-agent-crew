@@ -8,12 +8,7 @@ import {
 } from "../../shared/avatar-motion.js";
 import { normaliseRotation } from "../../shared/panel-place.js";
 import { standingRoomNear } from "../../shared/standing-room.js";
-import {
-  CONVERSATION_FAR,
-  ambientPauseMs,
-  ambientPlace,
-  conversationPlace,
-} from "./social-motion.js";
+import { CONVERSATION_FAR, conversationPlace } from "./social-motion.js";
 
 /**
  * Who is in the room, and where.
@@ -118,7 +113,6 @@ export const isWalking = (occupant: Pick<Occupant, "at" | "heading">): boolean =
 
 export class Presence {
   private readonly occupants = new Map<string, Occupant>();
-  private readonly ambient = new Map<string, { nextAt: number; sequence: number }>();
 
   constructor(
     private readonly now: () => number = Date.now,
@@ -318,7 +312,6 @@ export class Presence {
       // demonstrably working now, and the audit trail is the better witness.
       this.actedOverDeclaration(occupant);
       occupant.avatar.posture = "thinking";
-      this.deferAmbient(actorId);
     }
     occupant.lastSeen = this.now();
   }
@@ -404,56 +397,15 @@ export class Presence {
     }
   }
 
-  /**
-   * Give a still, unoccupied agent an occasional local walk.
-   *
-   * This never competes with work, attention or conversation, and it never
-   * carries a reason label. A label is a claim backed by an audit row; an
-   * ambient circuit is simply how the requested room behaves.
+  /*
+   * NO AMBIENT WANDERING. There was a gentle idle circuit around each agent's
+   * desk, added so agents would not stand like statues. Nikk, from a headset:
+   * "sometimes agents just walk around randomly — we do not want that, we do
+   * not need any random walking for no reason", and "sleeping agents should
+   * actually sleep". An agent now moves for work, for a conversation, or when
+   * someone tells it to, and otherwise stays put. Life comes from animation in
+   * place, not from walking about.
    */
-  private planAmbientMotion(): void {
-    const now = this.now();
-    for (const occupant of this.occupants.values()) {
-      if (occupant.kind !== "agent") continue;
-      // KEYED THE SAME WAY THE OCCUPANTS ARE. Keyed by the display spelling,
-      // `Nikk2` and `nikk2` would each accumulate their own pause timer for one
-      // actor, and `leave` would clear neither reliably.
-      const key = actorKey(occupant.actorId);
-      const state = this.ambient.get(key) ?? {
-        nextAt: now + ambientPauseMs(occupant.actorId, 0),
-        sequence: 0,
-      };
-      this.ambient.set(key, state);
-
-      const occupied = occupant.because !== null
-        || occupant.attending !== null
-        || occupant.speakingTo !== null;
-      if (occupied) {
-        state.nextAt = now + ambientPauseMs(occupant.actorId, state.sequence);
-        continue;
-      }
-      if (isWalking(occupant) || now < state.nextAt) continue;
-
-      // THROUGH `roomFor`, so an idle circuit cannot walk through somebody.
-      // Measured before this line existed: agent-on-agent was safe by
-      // construction, because each wander circles its own resting place — 0 of
-      // 120 pairs closer than 0.8 m. A HUMAN was not, because resting places
-      // are derived from a name and there are only twelve of them, so
-      // `deskFor("Inkstone")` and `deskFor("nikk2")` are the same point and
-      // Inkstone would circle through Nikk while Nikk stood there.
-      occupant.heading = this.roomFor(occupant, ambientPlace(occupant.actorId, state.sequence));
-      occupant.destinationFacing = facingToward(occupant.heading, ROOM.spawn);
-      state.sequence += 1;
-      state.nextAt = now + ambientPauseMs(occupant.actorId, state.sequence);
-    }
-  }
-
-  private deferAmbient(actorId: string): void {
-    const key = actorKey(actorId);
-    const state = this.ambient.get(key) ?? { nextAt: 0, sequence: 0 };
-    state.nextAt = this.now() + ambientPauseMs(actorId, state.sequence);
-    this.ambient.set(key, state);
-  }
 
   /** Keep an agent at conversational distance as the other person moves. */
   private approachConversation(occupant: Occupant, target: Occupant): void {
@@ -479,7 +431,6 @@ export class Presence {
     this.expireAttention();
     this.expireGestures();
     this.expireSpeakingTurns();
-    this.planAmbientMotion();
     for (const occupant of this.occupants.values()) {
       if (!this.selfMoving(occupant)) {
         /**
@@ -557,7 +508,6 @@ export class Presence {
       this.approachConversation(occupant, target);
       occupant.facing = facingToward(occupant.at, target.at);
       occupant.because = `talking with ${target.actorId}`;
-      this.deferAmbient(actorId);
     }
     occupant.lastSeen = this.now();
   }
@@ -663,7 +613,6 @@ export class Presence {
         const reason = `talking with ${occupant.speakingTo.actorId}`;
         if (occupant.because === reason) occupant.because = null;
         occupant.speakingTo = null;
-        this.deferAmbient(occupant.actorId);
       }
     }
   }
@@ -743,7 +692,6 @@ export class Presence {
     }
     if (occupant.connected) {
       this.occupants.delete(key);
-      this.ambient.delete(key);
     }
   }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { facingToward, Presence, STALE_AFTER_MS } from "../space/presence.js";
 import { ROOM, WALK_SPEED, deskFor } from "../../shared/space-layout.js";
-import { AMBIENT_PAUSE_MIN_MS, CONVERSATION_FAR } from "../space/social-motion.js";
+import { CONVERSATION_FAR } from "../space/social-motion.js";
 import { PERSONAL_SPACE } from "../../shared/standing-room.js";
 
 /**
@@ -469,70 +469,41 @@ describe("posture", () => {
   });
 });
 
-describe("ambient movement", () => {
-  it("gives an unoccupied agent an occasional local walk without inventing a reason", () => {
+describe("no wandering", () => {
+  it("leaves an idle agent exactly where it is, however long nothing happens", () => {
+    // Nikk: "sometimes agents just walk around randomly — we do not want that".
     const clock = { now: 0 };
     const presence = at(clock);
     const agent = presence.join("Plumbline", "agent", false);
     const home = { ...agent.at };
-
-    presence.tick(0.1);
-    clock.now = AMBIENT_PAUSE_MIN_MS + 22_001;
-    presence.tick(0.1);
-
-    expect(agent.heading).not.toEqual(home);
+    for (let minute = 1; minute <= 60; minute += 1) {
+      clock.now = minute * 60_000;
+      presence.tick(0.1);
+      expect(agent.heading, `minute ${minute}`).toEqual(home);
+    }
     expect(agent.because).toBeNull();
   });
 
-  it("never lets an idle circuit walk an agent through a person", () => {
-    /**
-     * The bug this closes, found by merging two green branches. The ambient
-     * wander circles an agent's resting place and consulted nobody, and resting
-     * places are derived from a name out of only twelve slots — so
-     * `deskFor("Inkstone")` and `deskFor("nikk2")` are the SAME point. Nikk
-     * standing at theirs meant Inkstone doing laps through them.
-     *
-     * Agent-on-agent was already safe by construction and measured so; this is
-     * about the human, which is what Nikk actually asked for: "agents shouldnt'
-     * stand in a space where another agent or human is".
-     */
+  it("does not put an arriving agent inside a person standing on its resting place", () => {
+    // Resting places come from a name out of twelve slots, so
+    // `deskFor("Inkstone")` and `deskFor("nikk2")` are the same point.
     const clock = { now: 0 };
     const presence = at(clock);
-
-    // A person standing exactly on the point the agent's circuit is centred on.
     const centre = deskFor("Inkstone");
     presence.join("nikk2", "human", true);
     presence.moveSelf("nikk2", centre, 0);
-
     const agent = presence.join("Inkstone", "agent", false);
-    // ARRIVING IS ALSO A PLACEMENT. The first version of this test failed here,
-    // 0.00 m from the person, before any wander had happened — `join` sent the
-    // agent to its resting place whoever was standing on it.
     const arrival = Math.hypot(agent.heading.x - centre.x, agent.heading.z - centre.z);
     expect(arrival, "an agent must not arrive inside somebody").toBeGreaterThanOrEqual(PERSONAL_SPACE);
-
-    // A first tick so the wander's timer starts, as the ambience tests above do.
-    presence.tick(0.1);
-
-    // Several circuits, because the wander picks a new angle each time and one
-    // pass proves nothing about the next.
-    for (let step = 1; step <= 8; step += 1) {
-      clock.now = (AMBIENT_PAUSE_MIN_MS + 22_001) * step;
-      presence.tick(0.1);
-      const gap = Math.hypot(agent.heading.x - centre.x, agent.heading.z - centre.z);
-      expect(gap, `circuit ${step} headed ${gap.toFixed(2)}m from the person`)
-        .toBeGreaterThanOrEqual(PERSONAL_SPACE);
-    }
   });
 
-  it("never lets ambience pull an agent away from purposeful work", () => {
+  it("still walks an agent to its work", () => {
     const clock = { now: 0 };
     const presence = at(clock);
     const destination = { x: -2, y: 0, z: -3 };
     const agent = presence.join("Plumbline", "agent", false);
     presence.sendTo("Plumbline", "agent", destination, "checking tasks");
-
-    clock.now = AMBIENT_PAUSE_MIN_MS + 22_001;
+    clock.now = 60_000;
     presence.tick(0.1);
     expect(agent.heading).toEqual(destination);
     expect(agent.because).toBe("checking tasks");
