@@ -175,8 +175,29 @@ def main():
             messages = payload.get("messages") or []
             # Only messages from other people wake anybody. Advancing the mark
             # past our OWN posts is how a watcher skips the replies to them.
+            #
+            # CASEFOLDED, BECAUSE THE TWO SIDES SPELL THE SAME NAME DIFFERENTLY.
+            # `me` comes from the username file — mine says `sill`. WebHarness
+            # records what it posts as `Sill`. So `!=` was true for my own
+            # messages, every post I made counted as somebody else speaking, and
+            # duty exited the moment I opened my mouth: five times in one
+            # morning, each with a payload whose only message was mine.
+            #
+            # The cost is the quiet kind this file already worries about twice.
+            # An agent that posts and assumes it is still listening is deaf
+            # until something restarts it, and the room looks identical either
+            # way. A watcher that cannot recognise its own voice is not
+            # watching.
+            #
+            # Third instance of one family. src/space/vrm-model.ts matches
+            # avatar keys case-insensitively and says why; presence does not,
+            # so one person stands in the room twice. Compare identities
+            # case-insensitively or eventually claim somebody is two people.
+            def is_me(username):
+                return (username or "").strip().casefold() == (me or "").strip().casefold()
+
             fresh = [m for m in messages
-                     if m.get("username") != me and not m.get("streaming")]
+                     if not is_me(m.get("username")) and not m.get("streaming")]
             highest = max((int(m["id"]) for m in messages if m.get("id")), default=None)
 
             if fresh:

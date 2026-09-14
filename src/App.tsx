@@ -10,7 +10,8 @@ import { Settings } from "./Settings";
 import { SaidPanel } from "./SaidPanel";
 import { ChatFeed } from "./ChatFeed";
 import { useCurrentProject } from "./current-project";
-import { useSession } from "./use-session";
+import { useViewer } from "./use-session";
+import SignIn, { CannotTell } from "./SignIn";
 import { board } from "./board-client";
 
 /**
@@ -82,7 +83,7 @@ function TabContent({
   onOpenChat,
 }: {
   tab: Tab;
-  session: ReturnType<typeof useSession>;
+  session: { username: string; kind?: "human" | "agent" } | null;
   /** True inside an iframe panel. The room refuses to contain itself. */
   embedded: boolean;
   onOpenChat: () => void;
@@ -146,7 +147,7 @@ export default function App() {
     typeof window === "undefined" ? DEFAULT_TAB : tabFromPath(window.location.pathname),
   );
   const [liveRoomOpen, setLiveRoomOpen] = useState(false);
-  const session = useSession();
+  const viewer = useViewer();
 
   // Back/forward must work. Without this the URL changes and the view does
   // not, which is worse than having no routing at all.
@@ -164,6 +165,15 @@ export default function App() {
   useEffect(() => {
     document.title = `${TAB_META[tab].label} — Mission Control`;
   }, [tab]);
+
+  /**
+   * The session the rest of the app draws from.
+   *
+   * Derived rather than passed straight through, because below this point the
+   * gate has already guaranteed there is one — but the panels take a nullable
+   * session and there is no reason to make them all change for that.
+   */
+  const session = viewer.status === "signed-in" ? viewer.session : null;
 
   /**
    * The selected project's NAME, for the Settings button.
@@ -206,6 +216,35 @@ export default function App() {
    * only thing removed is chrome.
    */
   const embedded = new URLSearchParams(window.location.search).get("embed") === "1";
+
+  /**
+   * THE GATE, in front of BOTH the embedded and the full render.
+   *
+   * Nikk asked for it everywhere on saha.ing, and everywhere has to include the
+   * panels the room hangs on its walls — those are same-origin iframes of this
+   * same app, so an ungated embed would be a signed-out Board inside a room.
+   * In practice the room cannot be reached without a session anyway, which is
+   * why gating it costs nothing and leaving it ungated would only ever show
+   * somebody an emptier version of the truth.
+   *
+   * AFTER EVERY HOOK. React requires the same hooks in the same order on every
+   * render, so the returns have to sit below all of them — not beside
+   * `useViewer` where they would read better.
+   *
+   * `checking` DRAWS NOTHING rather than drawing the sign-in for a moment.
+   * Flashing a password field at somebody who turns out to be signed in trains
+   * them to type a password whenever the page is slow, which is the habit worth
+   * least in a product whose premise is that you can trust who said what.
+   */
+  if (viewer.status === "checking") {
+    return <main className="signin" id="workroom" aria-busy="true" />;
+  }
+  if (viewer.status === "anonymous") {
+    return <SignIn onSignedIn={viewer.recheck} />;
+  }
+  if (viewer.status === "unreachable") {
+    return <CannotTell why={viewer.why} onRetry={viewer.recheck} />;
+  }
 
   if (embedded) {
     return (

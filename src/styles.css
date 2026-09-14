@@ -940,3 +940,20 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
    Its height is set inline from the items; this only removes the clipping and
    the scroll affordance, neither of which means anything in a photograph. */
 .moodboard-surface.is-still { min-height: 0; overflow: visible; }
+
+/* THE SIGN-IN GATE, deliberately borrowing .room-login's idiom rather than
+   inventing a second form language: same 46px control height, same 6px radius,
+   same uppercase labels. The room's password form and this one are the only two
+   places in the app that ask for anything secret, and they should look related.
+   Centred in the viewport with no rail, because the rail is navigation for an
+   app this viewer cannot reach yet. */
+.signin { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--canvas); }
+.signin-card { display: grid; gap: 9px; width: min(420px, 100%); padding: 32px; border: 1px solid var(--ink); border-radius: 8px; background: var(--surface); box-shadow: 0 18px 50px rgba(31,30,26,.10); }
+.signin-card header { margin-bottom: 6px; }
+.signin-card h1 { margin: 0; font-size: 26px; }
+.signin-lede { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.signin-card label { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.signin-card input { min-height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--canvas); font: inherit; }
+.signin-card button { min-height: 46px; margin-top: 8px; border: 0; border-radius: 6px; background: var(--ink); color: white; font-size: 14px; font-weight: 800; cursor: pointer; }
+.signin-card button[disabled] { opacity: .6; cursor: progress; }
+.signin-refusal { margin: 4px 0 0; padding: 10px 12px; border-left: 3px solid var(--vermilion); background: color-mix(in srgb, var(--vermilion) 8%, var(--surface)); font-size: 13px; line-height: 1.5; }
