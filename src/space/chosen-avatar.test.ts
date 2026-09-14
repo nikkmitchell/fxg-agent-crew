@@ -11,6 +11,12 @@ describe("modelFor", () => {
     expect(modelFor("Plumbline")).toBe("retroman");
   });
 
+  test("Sill wears Shiro, however the room spells it", () => {
+    for (const name of ["sill", "Sill", " SILL "]) {
+      expect(modelFor(name)).toBe("shiro");
+    }
+  });
+
   test("Nikk and Baiwei both wear Lydia, however the room spells them", () => {
     // The room says `nikk2` and `baiwei2`; the chat capitalises them. A
     // case-sensitive map would quietly hand one spelling the default body.
