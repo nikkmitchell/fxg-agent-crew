@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { Station } from "../../shared/space-layout";
 import { makeLabelTexture } from "./label-texture";
+import { GROWING_PANELS, grownPanel } from "../../shared/panel-growth";
 
 /**
  * A photograph of the real page, for inside a headset.
@@ -19,7 +20,7 @@ import { makeLabelTexture } from "./label-texture";
 /** How often to fetch a newer photograph. Matches the renderer's own cadence. */
 const REFRESH_MS = 15_000;
 
-type Shot = { texture: THREE.Texture; ageSeconds: number } | null;
+type Shot = { texture: THREE.Texture; ageSeconds: number; imageWidth: number; imageHeight: number } | null;
 
 function useStill(tab: string, base: string, active: boolean): { shot: Shot; problem: string | null } {
   const [shot, setShot] = useState<Shot>(null);
@@ -89,7 +90,7 @@ function useStill(tab: string, base: string, active: boolean): { shot: Shot; pro
         previous.current?.dispose();
         previous.current = texture;
         setProblem(null);
-        setShot({ texture, ageSeconds });
+        setShot({ texture, ageSeconds, imageWidth: image.naturalWidth, imageHeight: image.naturalHeight });
       } catch {
         if (!cancelled) setProblem("could not reach the server");
       }
@@ -185,12 +186,25 @@ export function StillPanel({
     return text ? makeLabelTexture(text, { pixelsPerLine: 48 }) : null;
   }, [problem, shot]);
 
+  /**
+   * THE TASK BOARD'S PHOTOGRAPH IS AS TALL AS THE BOARD (the renderer takes the
+   * whole page), so the plane takes the picture's shape and grows upward. See
+   * shared/panel-growth.ts. Every other panel keeps its set shape.
+   */
+  const panel = grownPanel(
+    station.surface.height,
+    GROWING_PANELS.has(station.id) && shot && shot.imageWidth > 0
+      ? station.surface.width * (shot.imageHeight / shot.imageWidth)
+      : null,
+  );
+
   return (
     <group
       /* Placed by the <Movable> around it — see the note in WebPanel. */
     >
+      <group position={[0, panel.lift, 0]}>
       <mesh>
-        <planeGeometry args={[station.surface.width, station.surface.height]} />
+        <planeGeometry args={[station.surface.width, panel.height]} />
         {/*
           ONE MATERIAL, NOT TWO BRANCHES, and both of the things below are
           load-bearing. The first version swapped between two <meshBasicMaterial>
@@ -220,11 +234,12 @@ export function StillPanel({
           squashed to a third of its width and read as unclear smudging rather
           than as words. */}
       {caption ? (
-        <mesh position={[0, -station.surface.height / 2 - 0.3, 0.01]}>
+        <mesh position={[0, -panel.height / 2 - 0.3, 0.01]}>
           <planeGeometry args={[2.4, 0.6]} />
           <meshBasicMaterial map={caption} transparent />
         </mesh>
       ) : null}
+      </group>
     </group>
   );
 }

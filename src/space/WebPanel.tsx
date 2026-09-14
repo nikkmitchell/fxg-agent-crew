@@ -1,5 +1,6 @@
 import { Html } from "@react-three/drei";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { GROWING_PANELS, grownPanel } from "../../shared/panel-growth";
 import type { Station } from "../../shared/space-layout";
 
 /**
@@ -62,7 +63,32 @@ export function WebPanel({
   project: string | null;
 }) {
   const width = Math.round(station.surface.width * PIXELS_PER_METRE);
-  const height = Math.round(station.surface.height * PIXELS_PER_METRE);
+  /**
+   * HOW TALL THE PAGE INSIDE IS, for the panel that grows (see
+   * shared/panel-growth.ts). Read from the embedded page itself — it is the
+   * same origin — every second and a half, which is quicker than the board
+   * refreshes.
+   */
+  const frame = useRef<HTMLIFrameElement>(null);
+  const grows = GROWING_PANELS.has(station.id);
+  const [contentPx, setContentPx] = useState<number | null>(null);
+  useEffect(() => {
+    if (!grows) return;
+    const measure = () => {
+      const page = frame.current?.contentDocument?.querySelector(".app-embed") as HTMLElement | null;
+      if (!page) return;
+      const next = Math.ceil(page.scrollHeight);
+      setContentPx((previous) => (previous !== null && Math.abs(previous - next) < 8 ? previous : next));
+    };
+    const timer = window.setInterval(measure, 1500);
+    return () => window.clearInterval(timer);
+  }, [grows]);
+  const TITLE_PX = 34;
+  const panel = grownPanel(
+    station.surface.height,
+    grows && contentPx !== null ? (contentPx + TITLE_PX) / PIXELS_PER_METRE : null,
+  );
+  const height = Math.round(panel.height * PIXELS_PER_METRE);
 
   // Stable across re-renders: changing an iframe's src reloads the page inside
   // it, which would throw away scroll position and any half-typed comment.
@@ -82,8 +108,9 @@ export function WebPanel({
     >
       {/* A thin backing plane behind the DOM. Without it a panel has no edges
           in the void and its white page bleeds into nothing. */}
+      <group position={[0, panel.lift, 0]}>
       <mesh position={[0, 0, -0.02]}>
-        <planeGeometry args={[station.surface.width + 0.12, station.surface.height + 0.12]} />
+        <planeGeometry args={[station.surface.width + 0.12, panel.height + 0.12]} />
         <meshBasicMaterial color="#1c1f26" />
       </mesh>
 
@@ -114,12 +141,14 @@ export function WebPanel({
         <div className="space-panel-frame" style={{ width, height }}>
           <div className="space-panel-title">{station.label}</div>
           <iframe
+            ref={frame}
             title={station.label}
             src={src}
             style={{ width, height: height - 34, border: 0, display: "block", background: "#fbfaf6" }}
           />
         </div>
       </Html>
+      </group>
     </group>
   );
 }

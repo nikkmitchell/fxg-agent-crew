@@ -110,7 +110,9 @@ async function photograph(browser: Browser, cookie: string): Promise<number> {
         // The pages poll; `networkidle` can fire before the first payload has
         // been painted. A short settle beats photographing a spinner.
         await page.waitForTimeout(600);
-        const shot = await page.screenshot({ type: "png" });
+        // THE WHOLE BOARD, not the first screenful: the headset draws the task
+        // board as tall as its cards (see shared/panel-growth.ts).
+        const shot = await page.screenshot({ type: "png", fullPage: tab === "board" });
         // Written beside the target and renamed, because the app may be reading
         // the file at this instant and a half-written PNG is a broken panel.
         // rename(2) within a directory is atomic.
