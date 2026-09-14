@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { planVoice } from "./voice-routing";
-import { SPOKEN_LIMIT } from "../../shared/voice";
+import { planText, planVoice } from "./voice-routing";
+import { CHAT_MESSAGE_LIMIT, DETAIL_LIMIT, SPOKEN_LIMIT } from "../../shared/voice";
 
 describe("where a spoken sentence goes", () => {
   it("sends to the room and nowhere else by default", () => {
@@ -108,5 +108,43 @@ describe("a long transcript sent to the room and the agents", () => {
     const plan = planVoice("hello Sill", "room-and-agents", { speaker: "Nikk2" });
     const chat = plan.posts.filter((post) => post.to === "group-chat");
     expect(chat).toEqual([{ to: "group-chat", content: "Nikk2 said in the room (voice transcript): hello Sill" }]);
+  });
+});
+
+describe("text entered through a headset system keyboard", () => {
+  it("sends written detail to the room rather than pretending it was spoken", () => {
+    expect(planText("hello Baiwei", "room").posts).toEqual([
+      { to: "room", detail: "hello Baiwei" },
+    ]);
+  });
+
+  it("labels the agents' copy as written, not as a voice transcript", () => {
+    const plan = planText("please check the avatar", "room-and-agents", { speaker: "Nikk2" });
+    expect(plan.posts).toEqual([
+      { to: "room", detail: "please check the avatar" },
+      { to: "group-chat", content: "Nikk2 wrote in the room: please check the avatar" },
+    ]);
+    expect(JSON.stringify(plan.posts)).not.toContain("voice transcript");
+  });
+
+  it("keeps long keyboard dictation in ordered chat-sized parts", () => {
+    const words = Array.from({ length: 150 }, (_, index) => `Written sentence ${index + 1}.`).join(" ");
+    const chat = planText(words, "room-and-agents", { speaker: "Nikk2" }).posts.filter(
+      (post) => post.to === "group-chat",
+    );
+    expect(chat.length).toBeGreaterThan(1);
+    expect(chat.every((post) => post.to === "group-chat" && post.content.length <= CHAT_MESSAGE_LIMIT)).toBe(true);
+    const restored = chat
+      .map((post) => (post.to === "group-chat" ? post.content.replace(/^.*?: /, "") : ""))
+      .join(" ");
+    expect(restored).toBe(words);
+  });
+
+  it("refuses blank and over-limit drafts without making posts", () => {
+    expect(planText("   ", "room-and-agents")).toMatchObject({ posts: [], refused: expect.any(String) });
+    expect(planText("x".repeat(DETAIL_LIMIT + 1), "room-and-agents")).toMatchObject({
+      posts: [],
+      refused: expect.stringContaining("limit"),
+    });
   });
 });

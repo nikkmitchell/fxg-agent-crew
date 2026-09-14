@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
+import { XRDomOverlay } from "@react-three/xr";
 import * as THREE from "three";
 import { bff } from "../bff-client";
 import { space } from "../space-client";
@@ -16,8 +17,8 @@ import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
 import type { Showing } from "../../shared/space-wire";
 import type { RoomShowingChoices } from "./useRoomShowing";
-import type { Utterance } from "../../shared/voice";
-import { planVoice, type VoiceDestination } from "./voice-routing";
+import { DETAIL_LIMIT, type Utterance } from "../../shared/voice";
+import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 import { holdReload } from "../update-reload";
 
@@ -217,9 +218,13 @@ export function RoomControls({
     return () => holdReload("room-microphone", false);
   }, [listening]);
   const [heard, setHeard] = useState("");
+  const [textEntryOpen, setTextEntryOpen] = useState(false);
+  const [keyboardFocused, setKeyboardFocused] = useState(false);
+  const [written, setWritten] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const input = useRef<SteadyRecorder | null>(null);
+  const writtenInput = useRef<HTMLTextAreaElement | null>(null);
   const confidence = useRef<number | undefined>(undefined);
   const capabilities = useMemo(() => speechCapabilities(), []);
 
@@ -228,12 +233,15 @@ export function RoomControls({
   const live = useRef({ alwaysOn, destination, groupRoom, you });
   live.current = { alwaysOn, destination, groupRoom, you };
 
-  const post = useCallback(async (transcript: string) => {
+  const post = useCallback(async (words: string, source: "voice" | "text" = "voice") => {
     const { destination: to, groupRoom: room, you: me } = live.current;
-    const plan = planVoice(transcript, to, { confidence: confidence.current, speaker: me ?? undefined });
+    const plan =
+      source === "voice"
+        ? planVoice(words, to, { confidence: confidence.current, speaker: me ?? undefined })
+        : planText(words, to, { speaker: me ?? undefined });
     if (plan.refused) {
       setNotice(plan.refused);
-      return;
+      return false;
     }
     setSending(true);
     const failures: string[] = [];
@@ -255,7 +263,7 @@ export function RoomControls({
           await space.say({
             ...(item.say ? { say: item.say } : {}),
             ...(item.detail ? { detail: item.detail } : {}),
-            source: "voice",
+            source,
             ...(item.confidence !== undefined ? { confidence: item.confidence } : {}),
           });
         } else if (!room) {
@@ -280,13 +288,42 @@ export function RoomControls({
     // NAMED INDIVIDUALLY. Being told your words reached the agents when they
     // did not is the quiet failure this product exists not to have.
     if (failures.length === 0) {
-      setHeard("");
-      confidence.current = undefined;
+      if (source === "voice") {
+        setHeard("");
+        confidence.current = undefined;
+      }
       setNotice(to === "room" ? "Sent to the room." : "Sent to the room and the chat.");
+      return true;
     } else {
       setNotice(`Did not reach ${failures.join(" or ")}. Your words are still here.`);
+      return false;
     }
   }, []);
+
+  const openTextEntry = useCallback(() => {
+    setTextEntryOpen(true);
+    setNotice(null);
+    // If the field is already mounted (for example after dismissing the Quest
+    // keyboard without sending), focus it in this same XR select gesture.
+    writtenInput.current?.focus();
+  }, []);
+
+  // A real textarea is the important part: focusing it opens the headset's
+  // system keyboard, whose own microphone provides dictation on Quest even
+  // though the browser does not expose SpeechRecognition to this page.
+  useEffect(() => {
+    if (!textEntryOpen) return;
+    const frame = window.requestAnimationFrame(() => writtenInput.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [textEntryOpen]);
+
+  const sendWritten = useCallback(async () => {
+    const delivered = await post(written, "text");
+    if (!delivered) return;
+    setWritten("");
+    setKeyboardFocused(false);
+    setTextEntryOpen(false);
+  }, [post, written]);
 
   useEffect(() => {
     if (!capabilities.recognition) return;
@@ -616,9 +653,8 @@ export function RoomControls({
               },
             }
           : {
-              label: "This headset has no speech recognition",
-              tone: "muted",
-              onTap: () => setNotice("There is no microphone available to this browser."),
+              label: "Type or dictate with the system keyboard",
+              onTap: openTextEntry,
             },
         {
           label: alwaysOn ? "Sending as you speak" : "Review each one before sending",
@@ -750,6 +786,7 @@ export function RoomControls({
   const closedStep = WRIST_BUTTON.height + WRIST_BUTTON.gap;
 
   return (
+    <>
     <group ref={group} visible={false}>
       {open ? (
         columns.map((column, index) => (
@@ -829,14 +866,30 @@ export function RoomControls({
             * words.
             */}
           <WristButton
-            label={micGlyph({ sending, listening, heard, alwaysOn })}
+            label={
+              capabilities.recognition
+                ? micGlyph({ sending, listening, heard, alwaysOn })
+                : sending
+                  ? "…"
+                  : written.trim() && !keyboardFocused
+                    ? "▲"
+                    : "⌨"
+            }
             glyph
             x={-CLOSED_PAIR / 2 + GEAR + CLOSED_GAP + TALK / 2}
             y={0}
             width={TALK}
             height={0.14}
-            tone={listening ? "live" : capabilities.recognition ? "normal" : "muted"}
+            tone={listening ? "live" : "normal"}
             onTap={() => {
+              // Quest has no Web Speech recognition, but its system keyboard
+              // has its own microphone. The same prominent control opens a
+              // real textarea there instead of leading to a dead-end refusal.
+              if (!capabilities.recognition) {
+                if (written.trim() && !keyboardFocused) void sendWritten();
+                else openTextEntry();
+                return;
+              }
               // THE DECISION LIVES IN `mic-press.ts`, not here. It is the part
               // that was wrong, and a handler in a component this suite cannot
               // render is a handler nobody can check.
@@ -899,5 +952,70 @@ export function RoomControls({
         />
       ) : null}
     </group>
+      {textEntryOpen ? (
+        <XRDomOverlay className="quest-dictation-overlay">
+          <form
+            className="quest-dictation-card"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void sendWritten();
+            }}
+          >
+            <label htmlFor="quest-dictation-input">Write in the room</label>
+            <textarea
+              ref={writtenInput}
+              id="quest-dictation-input"
+              value={written}
+              rows={4}
+              maxLength={DETAIL_LIMIT + 1}
+              inputMode="text"
+              enterKeyHint="send"
+              autoCapitalize="sentences"
+              autoCorrect="on"
+              spellCheck
+              disabled={sending}
+              onFocus={() => setKeyboardFocused(true)}
+              onBlur={() => {
+                setKeyboardFocused(false);
+                if (written.trim()) setNotice("Text ready — review it, then press Send or ▲.");
+              }}
+              onChange={(event) => setWritten(event.currentTarget.value)}
+            />
+            <p className="quest-dictation-help">
+              Tap the box, then tap the microphone on the Quest keyboard to dictate. Review the
+              words here and send when they are right.
+            </p>
+            <p className={written.length > DETAIL_LIMIT ? "quest-dictation-count over" : "quest-dictation-count"}>
+              {written.length.toLocaleString()} / {DETAIL_LIMIT.toLocaleString()}
+            </p>
+            {notice ? <p role="status">{notice}</p> : null}
+            <div className="quest-dictation-actions">
+              <button
+                type="button"
+                className="text-button"
+                disabled={sending}
+                onClick={() => {
+                  setKeyboardFocused(false);
+                  setTextEntryOpen(false);
+                }}
+              >
+                Keep draft and close
+              </button>
+              <button
+                type="submit"
+                className="primary-action"
+                disabled={!written.trim() || written.length > DETAIL_LIMIT || sending}
+              >
+                {sending
+                  ? "Sending…"
+                  : live.current.destination === "room"
+                    ? "Send to room"
+                    : "Send to room and agents"}
+              </button>
+            </div>
+          </form>
+        </XRDomOverlay>
+      ) : null}
+    </>
   );
 }
