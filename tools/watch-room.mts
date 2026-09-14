@@ -55,8 +55,55 @@ if (!auth.ok) {
 const cookie = (auth.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
 console.log(`signed in to ${SITE}\n`);
 
-const socket = new WebSocket(`${SITE.replace(/^http/, "ws")}/bff/space/socket`, { headers: { cookie } });
 const stamp = () => new Date().toISOString().slice(11, 19);
+
+/**
+ * IT RECONNECTS. It used to exit on close, and that made an agent vanish from
+ * the room on every deploy.
+ *
+ * Presence is ephemeral by design — presence.ts: "After a restart we genuinely
+ * do not know where anyone is standing, so the room is empty until people
+ * reconnect." Every release restarts the service, which closes every socket,
+ * and this tool then called `process.exit(0)` and was gone. I deployed four
+ * times in a morning and was absent from the room after each one. Nikk, from a
+ * headset: "I don't see you in room you should always be in room if you are in
+ * chat."
+ *
+ * So a close is a reason to come back, not a reason to stop. The token is
+ * re-exchanged each time because the old session cookie dies with the process
+ * that issued it.
+ */
+const RECONNECT_MIN_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
+let backoff = RECONNECT_MIN_MS;
+
+const connect = async (): Promise<void> => {
+  let sessionCookie = cookie;
+  try {
+    // A fresh exchange: after a restart the server has forgotten the old one.
+    const again = await fetch(`${SITE}/bff/agent-session`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: webharnessToken() }),
+    });
+    if (again.ok) {
+      sessionCookie = (again.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
+    }
+  } catch {
+    // Keep the cookie we have and let the socket decide.
+  }
+  attach(new WebSocket(`${SITE.replace(/^http/, "ws")}/bff/space/socket`, {
+    headers: { cookie: sessionCookie },
+  }));
+};
+
+const again = () => {
+  console.log(`${stamp()} reconnecting in ${Math.round(backoff / 1000)}s`);
+  setTimeout(() => {
+    void connect();
+    backoff = Math.min(backoff * 2, RECONNECT_MAX_MS);
+  }, backoff);
+};
 
 /** Only print when something actually changed, or the log is unreadable. */
 const last = new Map<string, string>();
@@ -82,21 +129,31 @@ const last = new Map<string, string>();
 const PING_MS = 20_000;
 let heartbeat: NodeJS.Timeout | null = null;
 
-socket.on("open", () => {
-  console.log(`${stamp()} watching`);
-  heartbeat = setInterval(() => {
-    if (socket.readyState === 1) socket.send(JSON.stringify({ type: "ping" }));
-  }, PING_MS);
-  heartbeat.unref?.();
-});
-socket.on("close", () => {
-  if (heartbeat) clearInterval(heartbeat);
-  console.log(`${stamp()} closed`);
-  process.exit(0);
-});
-socket.on("error", (error: Error) => { console.error(`${stamp()} ${error.message}`); process.exit(1); });
+function attach(socket: InstanceType<typeof WebSocket>): void {
+  socket.on("open", () => {
+    console.log(`${stamp()} watching`);
+    // A successful connection earns a fresh budget; otherwise a long uptime
+    // followed by one blip would wait half a minute to come back.
+    backoff = RECONNECT_MIN_MS;
+    heartbeat = setInterval(() => {
+      if (socket.readyState === 1) socket.send(JSON.stringify({ type: "ping" }));
+    }, PING_MS);
+    heartbeat.unref?.();
+  });
+  socket.on("close", () => {
+    if (heartbeat) clearInterval(heartbeat);
+    console.log(`${stamp()} closed`);
+    again();
+  });
+  socket.on("error", (error: Error) => {
+    // Logged, not fatal. A refused connection during a restart is the ordinary
+    // case, and exiting on it is how presence was lost in the first place.
+    console.error(`${stamp()} ${error.message}`);
+  });
+  socket.on("message", onMessage);
+}
 
-socket.on("message", (raw: Buffer) => {
+function onMessage(raw: Buffer): void {
   const message = JSON.parse(String(raw));
   if (message.type === "welcome") {
     console.log(`${stamp()} welcome: you=${message.you}`);
@@ -125,4 +182,6 @@ socket.on("message", (raw: Buffer) => {
     last.set(person.actorId, line);
     console.log(`${stamp()} ${line}`);
   }
-});
+}
+
+void connect();
