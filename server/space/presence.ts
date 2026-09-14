@@ -6,6 +6,12 @@ import {
   type AvatarState,
 } from "../../shared/avatar-motion.js";
 import { normaliseRotation } from "../../shared/panel-place.js";
+import {
+  CONVERSATION_FAR,
+  ambientPauseMs,
+  ambientPlace,
+  conversationPlace,
+} from "./social-motion.js";
 
 /**
  * Who is in the room, and where.
@@ -110,6 +116,7 @@ export const isWalking = (occupant: Pick<Occupant, "at" | "heading">): boolean =
 
 export class Presence {
   private readonly occupants = new Map<string, Occupant>();
+  private readonly ambient = new Map<string, { nextAt: number; sequence: number }>();
 
   constructor(private readonly now: () => number = Date.now) {}
 
@@ -251,6 +258,7 @@ export class Presence {
       // demonstrably working now, and the audit trail is the better witness.
       occupant.declaredPosture = false;
       occupant.avatar.posture = "thinking";
+      this.deferAmbient(actorId);
     }
     occupant.lastSeen = this.now();
   }
@@ -312,13 +320,68 @@ export class Presence {
     }
   }
 
+  /**
+   * Give a still, unoccupied agent an occasional local walk.
+   *
+   * This never competes with work, attention or conversation, and it never
+   * carries a reason label. A label is a claim backed by an audit row; an
+   * ambient circuit is simply how the requested room behaves.
+   */
+  private planAmbientMotion(): void {
+    const now = this.now();
+    for (const occupant of this.occupants.values()) {
+      if (occupant.kind !== "agent") continue;
+      const state = this.ambient.get(occupant.actorId) ?? {
+        nextAt: now + ambientPauseMs(occupant.actorId, 0),
+        sequence: 0,
+      };
+      this.ambient.set(occupant.actorId, state);
+
+      const occupied = occupant.because !== null
+        || occupant.attending !== null
+        || occupant.speakingTo !== null;
+      if (occupied) {
+        state.nextAt = now + ambientPauseMs(occupant.actorId, state.sequence);
+        continue;
+      }
+      if (isWalking(occupant) || now < state.nextAt) continue;
+
+      occupant.heading = ambientPlace(occupant.actorId, state.sequence);
+      occupant.destinationFacing = facingToward(occupant.heading, ROOM.spawn);
+      state.sequence += 1;
+      state.nextAt = now + ambientPauseMs(occupant.actorId, state.sequence);
+    }
+  }
+
+  private deferAmbient(actorId: string): void {
+    const state = this.ambient.get(actorId) ?? { nextAt: 0, sequence: 0 };
+    state.nextAt = this.now() + ambientPauseMs(actorId, state.sequence);
+    this.ambient.set(actorId, state);
+  }
+
+  /** Keep an agent at conversational distance as the other person moves. */
+  private approachConversation(occupant: Occupant, target: Occupant): void {
+    const gap = distance(occupant.at, target.at);
+    if (gap > CONVERSATION_FAR) {
+      occupant.heading = conversationPlace(occupant.at, target.at, occupant.actorId);
+      occupant.destinationFacing = null;
+    } else {
+      occupant.heading = { ...occupant.at };
+    }
+  }
+
   tick(deltaSeconds: number): void {
     this.settlePostures();
     this.expireAttention();
     this.expireGestures();
     this.expireSpeakingTurns();
+    this.planAmbientMotion();
     for (const occupant of this.occupants.values()) {
       if (!this.selfMoving(occupant)) {
+        const conversationTarget = occupant.speakingTo
+          ? this.occupants.get(occupant.speakingTo.actorId)
+          : undefined;
+        if (conversationTarget) this.approachConversation(occupant, conversationTarget);
         const remaining = distance(occupant.at, occupant.heading);
         if (remaining < ARRIVED) {
           occupant.at = { ...occupant.heading };
@@ -355,10 +418,9 @@ export class Presence {
          * not ours to overwrite with one we worked out. An agent has no device
          * to tell us, which is exactly why it may be turned.
          */
-        const target = occupant.speakingTo
-          ? this.occupants.get(occupant.speakingTo.actorId)
-          : undefined;
-        if (target) occupant.facing = facingToward(occupant.at, target.at);
+        if (conversationTarget) {
+          occupant.facing = facingToward(occupant.at, conversationTarget.at);
+        }
       }
     }
   }
@@ -372,16 +434,19 @@ export class Presence {
   ): void {
     const occupant = this.occupants.get(actorId) ?? this.join(actorId, kind, false);
     if (kind && !occupant.kind) occupant.kind = kind;
+    const target = this.occupants.get(targetActorId);
     occupant.speakingTo = {
-      actorId: targetActorId,
+      actorId: target?.actorId ?? targetActorId,
       until: this.now() + Math.max(0, durationMs),
     };
     // Turned immediately, so the speaker faces the person before the next tick
     // rather than a moment into the sentence — but only if nobody's device is
     // telling us which way they face. See the note in `tick`.
-    const target = this.occupants.get(targetActorId);
     if (target && !this.selfMoving(occupant)) {
+      this.approachConversation(occupant, target);
       occupant.facing = facingToward(occupant.at, target.at);
+      occupant.because = `talking with ${target.actorId}`;
+      this.deferAmbient(actorId);
     }
     occupant.lastSeen = this.now();
   }
@@ -440,7 +505,12 @@ export class Presence {
   private expireSpeakingTurns(): void {
     const now = this.now();
     for (const occupant of this.occupants.values()) {
-      if (occupant.speakingTo && occupant.speakingTo.until <= now) occupant.speakingTo = null;
+      if (occupant.speakingTo && occupant.speakingTo.until <= now) {
+        const reason = `talking with ${occupant.speakingTo.actorId}`;
+        if (occupant.because === reason) occupant.because = null;
+        occupant.speakingTo = null;
+        this.deferAmbient(occupant.actorId);
+      }
     }
   }
 
@@ -486,7 +556,10 @@ export class Presence {
       occupant.connected = false;
       return;
     }
-    if (occupant.connected) this.occupants.delete(actorId);
+    if (occupant.connected) {
+      this.occupants.delete(actorId);
+      this.ambient.delete(actorId);
+    }
   }
 
   everyone(): Occupant[] {

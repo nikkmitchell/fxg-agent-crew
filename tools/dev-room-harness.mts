@@ -50,14 +50,50 @@ const people: [string, "human" | "agent"][] = [
   ["Inkstone", "agent"],
 ];
 
+const harnessSessions = new Map(
+  people.map(([username, kind]) => [
+    username,
+    sessions.create(username, "dev-harness-not-a-real-token", kind),
+  ]),
+);
+
+/**
+ * One-click entry for visual QA. The old instruction required pasting a live
+ * session cookie into browser devtools, which is both awkward and exactly the
+ * wrong habit for a security-sensitive application. This route exists only in
+ * the loopback, in-memory harness guarded above.
+ */
+app.get<{ Params: { username: string } }>("/dev/as/:username", (request, reply) => {
+  const sid = harnessSessions.get(request.params.username);
+  if (!sid) return reply.code(404).send("no such harness actor");
+  reply.header(
+    "set-cookie",
+    `${config.cookieName}=${sid}; Path=/; HttpOnly; SameSite=Lax`,
+  );
+  return reply.redirect("/room");
+});
+
+/** Trigger one visible, addressed conversation without writing fake history. */
+app.get<{ Params: { speaker: string; listener: string } }>(
+  "/dev/demo/conversation/:speaker/:listener",
+  (request, reply) => {
+    const speaker = people.find(([username]) => username === request.params.speaker);
+    const listener = people.find(([username]) => username === request.params.listener);
+    if (!speaker || !listener) return reply.code(404).send("no such harness actor");
+    space.presence.join(listener[0], listener[1], false);
+    space.presence.speakTo(speaker[0], speaker[1], listener[0], 14_000);
+    return reply.send({ ok: true, speaker: speaker[0], listener: listener[0] });
+  },
+);
+
 await app.listen({ port: PORT, host: "127.0.0.1" });
 
 console.log(`\n  http://127.0.0.1:${PORT}/room\n`);
-console.log("  paste one of these into the console to become that person:\n");
+console.log("  open one of these local links to become that person:\n");
 for (const [username, kind] of people) {
-  const sid = sessions.create(username, "dev-harness-not-a-real-token", kind);
-  console.log(`  document.cookie = "${config.cookieName}=${sid}; path=/"   // ${username} (${kind})`);
+  console.log(`  http://127.0.0.1:${PORT}/dev/as/${encodeURIComponent(username)}   // ${username} (${kind})`);
 }
+console.log(`\n  http://127.0.0.1:${PORT}/dev/demo/conversation/Inkstone/nikk   // watch Inkstone approach nikk`);
 
 // Two figures at desks with no browser attached, to check the dimmed ring and
 // the unknown-kind silhouette. Placed by hand through the same `sendTo` the
