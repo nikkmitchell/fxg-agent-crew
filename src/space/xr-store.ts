@@ -28,6 +28,16 @@ export function getXRStore(): XRStore {
     hand: { left: { teleportPointer: true }, default: true },
     controller: { left: { teleportPointer: true }, default: true },
     /**
+     * QUEST SYSTEM KEYBOARD INPUT.
+     *
+     * The keyboard itself only needs a real DOM input to be focused, but the
+     * review card can also be composited over an XR session on browsers that
+     * support the optional DOM Overlay feature. Keep the request explicit:
+     * RoomControls contains that textarea now, so this is no longer a library
+     * default we happen to benefit from.
+     */
+    domOverlay: true,
+    /**
      * The emulator only activates on localhost when there is no real WebXR, and
      * it is the only way any of the immersive code gets exercised without
      * hardware. Left on deliberately: the assets it needs are separate chunks

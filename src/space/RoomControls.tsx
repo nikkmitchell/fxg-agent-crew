@@ -787,7 +787,7 @@ export function RoomControls({
 
   return (
     <>
-    <group ref={group} visible={false}>
+      <group ref={group} visible={false}>
       {open ? (
         columns.map((column, index) => (
           <ButtonBox
@@ -951,7 +951,7 @@ export function RoomControls({
           onTap={() => setNotice(null)}
         />
       ) : null}
-    </group>
+      </group>
       {textEntryOpen ? (
         <XRDomOverlay className="quest-dictation-overlay">
           <form
@@ -985,7 +985,13 @@ export function RoomControls({
               Tap the box, then tap the microphone on the Quest keyboard to dictate. Review the
               words here and send when they are right.
             </p>
-            <p className={written.length > DETAIL_LIMIT ? "quest-dictation-count over" : "quest-dictation-count"}>
+            <p
+              className={
+                written.length > DETAIL_LIMIT
+                  ? "quest-dictation-count over"
+                  : "quest-dictation-count"
+              }
+            >
               {written.length.toLocaleString()} / {DETAIL_LIMIT.toLocaleString()}
             </p>
             {notice ? <p role="status">{notice}</p> : null}
