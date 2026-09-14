@@ -41,6 +41,12 @@ export const SCREEN_LIMITS = {
 
 export type ScreenSummary = {
   actorId: string;
+  /**
+   * The person who put this screen up for `actorId`, or null when the actor
+   * shared their own. The room shows it, so a screen shared FOR an agent is
+   * never mistaken for one the agent shared itself.
+   */
+  sharedBy: string | null;
   /** Increments on every frame from anybody, so a viewer can tell a new one from a repeat. */
   seq: number;
   updatedAt: string;
@@ -155,4 +161,13 @@ export function captureSize(sourceWidth: number, sourceHeight: number): { width:
   if (!(sourceWidth > 0) || !(sourceHeight > 0)) return { width: SCREEN_LIMITS.width, height: SCREEN_LIMITS.height };
   const scale = Math.min(1, SCREEN_LIMITS.width / sourceWidth, SCREEN_LIMITS.height / sourceHeight);
   return { width: Math.max(1, Math.round(sourceWidth * scale)), height: Math.max(1, Math.round(sourceHeight * scale)) };
+}
+
+/** How the room names a screen: whose it is, and who put it up if that differs. */
+export function screenLabel(summary: Pick<ScreenSummary, "actorId" | "sharedBy">): string {
+  const sharer = summary.sharedBy;
+  if (!sharer || sharer.trim().toLowerCase() === summary.actorId.trim().toLowerCase()) {
+    return `${summary.actorId}'s screen`;
+  }
+  return `${summary.actorId}'s screen · shared by ${sharer}`;
 }

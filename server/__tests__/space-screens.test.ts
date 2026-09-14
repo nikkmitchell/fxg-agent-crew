@@ -189,3 +189,62 @@ describe("recognising an image", () => {
     expect(sniffImage(Buffer.from(""))).toBeNull();
   });
 });
+
+describe("sharing a screen for an agent", () => {
+  /** Actor rows are what say who is an agent; the test database starts empty. */
+  const seed = (database: { prepare(sql: string): { run(...args: unknown[]): unknown } }, id: string, kind: "human" | "agent") =>
+    database.prepare("INSERT INTO actors (id, kind, first_seen_at, updated_at) VALUES (?,?,?,?)")
+      .run(id, kind, "2026-09-14T00:00:00Z", "2026-09-14T00:00:00Z");
+
+  it("lets a signed-in person share for an agent, and labels it with both names", async () => {
+    // Nikk: "you can open it and set which agent it is sharing for".
+    const { app, as, database } = boot();
+    seed(database, "Sill", "agent");
+    const nikk = as("Nikk2");
+    const minted = await app.inject({ method: "POST", url: "/bff/space/screens/key", headers: { cookie: nikk }, payload: { for: "sill" } });
+    expect(minted.statusCode).toBe(200);
+    expect(minted.json().for, "spelled as the actors table spells it").toBe("Sill");
+
+    await upload(app, { "x-screen-key": minted.json().key }, webp());
+    const list = await app.inject({ method: "GET", url: "/bff/space/screens", headers: { cookie: nikk } });
+    // The room must never claim Sill shared this: it says who did.
+    expect(list.json().screens).toEqual([expect.objectContaining({ actorId: "Sill", sharedBy: "Nikk2" })]);
+    await app.close();
+  });
+
+  it("records nobody else when you share your own screen", async () => {
+    const { app, as } = boot();
+    await upload(app, { cookie: as("Nikk2") }, webp());
+    const list = await app.inject({ method: "GET", url: "/bff/space/screens", headers: { cookie: as("Nikk2") } });
+    expect(list.json().screens[0].sharedBy).toBeNull();
+    await app.close();
+  });
+
+  it("does NOT let anyone share under another PERSON's name", async () => {
+    // A label saying who shared it does not make a screen under a human's name
+    // acceptable — that is impersonation whatever the small print says.
+    const { app, as, database } = boot();
+    seed(database, "baiwei2", "human");
+    const response = await app.inject({ method: "POST", url: "/bff/space/screens/key", headers: { cookie: as("Nikk2") }, payload: { for: "baiwei2" } });
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error).toMatch(/not an agent/);
+    await app.close();
+  });
+
+  it("refuses a name nobody has ever been", async () => {
+    const { app, as } = boot();
+    const response = await app.inject({ method: "POST", url: "/bff/space/screens/key", headers: { cookie: as("Nikk2") }, payload: { for: "nobody-at-all" } });
+    expect(response.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it("offers every agent in the share-as menu, and not yourself twice", async () => {
+    const { app, as, database } = boot();
+    seed(database, "Sill", "agent");
+    seed(database, "Inkstone", "agent");
+    seed(database, "Nikk2", "human");
+    const response = await app.inject({ method: "GET", url: "/bff/space/screens/sharers", headers: { cookie: as("Inkstone", "agent") } });
+    expect(response.json()).toEqual({ you: "Inkstone", agents: ["Sill"] });
+    await app.close();
+  });
+});

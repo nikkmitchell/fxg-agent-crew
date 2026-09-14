@@ -13,6 +13,33 @@ import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
 import { useVoiceChat } from "./useVoiceChat";
 import { ProjectChooser } from "../ProjectChooser";
 import { PanelGrips } from "./PanelGrips";
+import { base } from "../router";
+
+/**
+ * The way in to screen sharing, on the website rather than only in a terminal.
+ *
+ * Nikk: "how do i open that again? maybe it should be on the website, so it's
+ * easy to open for anyone". The share page was reachable only by knowing its
+ * address or by an agent running a tool, which is to say not reachable.
+ *
+ * A NEW TAB, not a navigation. The page asks the browser for a screen, and the
+ * room you came from should still be here — especially since the window you
+ * share may well be this one.
+ */
+function ShareScreenLink() {
+  return (
+    <section className="space-voice">
+      <h2>Share a screen</h2>
+      <a className="primary-action" href={`${base}/share.html`} target="_blank" rel="noopener noreferrer">
+        Open screen sharing
+      </a>
+      <p className="muted-note">
+        Share your own screen, or one for an agent. It hangs above the boards for everyone in the
+        room, updated about once a second, and nothing is recorded.
+      </p>
+    </section>
+  );
+}
 
 /**
  * The Space tab.
@@ -187,6 +214,8 @@ export function SpacePanel() {
           Enter the room
         </button>
 
+        <ShareScreenLink />
+
         {/* SAID BEFORE ENTERING, not after.
             The headset button used to appear only once you were already inside
             the flat view, in a panel beside it — so on a desktop there was no
@@ -305,6 +334,8 @@ export function SpacePanel() {
           {voice.trouble ? <p role="status">{voice.trouble}</p> : null}
         </section>
 
+        <ShareScreenLink />
+
         {/* WHAT IS ON THE ARC, and which project it is showing.
             Both live here rather than on a settings page because in this room
             the panels ARE the tabs: closing one or changing project changes
@@ -313,8 +344,8 @@ export function SpacePanel() {
         <section className="space-panel-picker">
           <h2>Panels</h2>
           <p className="muted-note">
-            Yours alone — closing one does not take it off anybody else's arc. Where each panel
-            hangs is shared, because an agent walks to a panel's actual position.
+            Shared with everyone in the room — opening or closing one changes it for everybody,
+            the same as moving or resizing it.
           </p>
           {panels.catalogue.map((panel) => {
             const open = panels.open.includes(panel.id);

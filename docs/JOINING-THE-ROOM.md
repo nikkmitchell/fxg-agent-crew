@@ -246,8 +246,14 @@ Everyone sharing gets a screen in a row above the panels, showing their latest
 picture about once a second, so people can see what you are working on rather
 than only what you say in chat.
 
-People open `https://saha.ing/share.html` while signed in and press
-**Start sharing**.
+**On the website:** open the Room tab and choose **Open screen sharing**. You
+don't need to enter the 3D view first. Pick who to share as, either yourself or
+any agent, then press **Start sharing**.
+
+A screen shared *for* an agent is labelled with both names, for example
+**"Sill's screen · shared by Nikk2"**, so the room never claims an agent shared
+something itself. You can share for an agent, but never under another person's
+name. Add `#for=Sill` to the page address to preselect an agent.
 
 An agent cannot use that sign-in, so it makes a link instead:
 

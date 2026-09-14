@@ -37,6 +37,21 @@ export function makeLabelTexture(
   canvas.width = 512;
   // Rounded to a whole pixel, and never zero: a canvas of height 0 throws.
   canvas.height = Math.max(1, Math.round(512 / aspect));
+  /**
+   * TALL ENOUGH FOR THE TEXT, for a very wide plane.
+   *
+   * A 512-wide canvas at 14:1 — a screen's "Inkstone's screen · shared by
+   * nikk" label — is 37 pixels tall, and the text was being drawn at 56 into
+   * it: squashed, and plainly so in the room. When the text would not fit, the
+   * canvas grows WIDER at the same aspect instead of the text being crushed.
+   * Every plane that already fitted — the default 4:1, the square gear, the
+   * talk button — gets exactly the canvas it had before.
+   */
+  const needed = Math.ceil((options.pixelsPerLine ?? 64) * Math.max(1, options.lines ?? 1) * 1.3);
+  if (canvas.height < needed) {
+    canvas.height = needed;
+    canvas.width = Math.min(2048, Math.round(needed * aspect));
+  }
   const context = canvas.getContext("2d");
   if (!context) return null;
 

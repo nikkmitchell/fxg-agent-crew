@@ -33,6 +33,8 @@ import { SCREEN_LIMITS, sniffImage, type ScreenSummary } from "../../shared/scre
 
 type Frame = {
   actorId: string;
+  /** Who put it up for `actorId`; null when the actor shared their own. */
+  sharedBy: string | null;
   bytes: Buffer;
   type: string;
   seq: number;
@@ -50,9 +52,9 @@ export class ScreenFrames {
     return actorId.trim().toLowerCase();
   }
 
-  put(actorId: string, bytes: Buffer, type: string): number {
+  put(actorId: string, bytes: Buffer, type: string, sharedBy: string | null = null): number {
     this.seq += 1;
-    this.frames.set(this.key(actorId), { actorId, bytes, type, seq: this.seq, at: this.now() });
+    this.frames.set(this.key(actorId), { actorId, sharedBy, bytes, type, seq: this.seq, at: this.now() });
     return this.seq;
   }
 
@@ -79,7 +81,12 @@ export class ScreenFrames {
         this.frames.delete(key);
         continue;
       }
-      live.push({ actorId: frame.actorId, seq: frame.seq, updatedAt: new Date(frame.at).toISOString() });
+      live.push({
+        actorId: frame.actorId,
+        sharedBy: frame.sharedBy,
+        seq: frame.seq,
+        updatedAt: new Date(frame.at).toISOString(),
+      });
     }
     return live.sort((a, b) => a.actorId.localeCompare(b.actorId));
   }
@@ -118,25 +125,38 @@ export class ShareKeys {
     private readonly now: () => number = Date.now,
   ) {}
 
-  mint(actorId: string): { key: string; expiresAt: string } {
+  mint(actorId: string, sharedBy: string | null = null): { key: string; expiresAt: string } {
     const key = randomBytes(24).toString("base64url");
     const expiresAt = this.now() + SCREEN_LIMITS.keyTtlMs;
     this.database.prepare("DELETE FROM screen_share_keys WHERE actor_key = ?").run(actorId.trim().toLowerCase());
     this.database
-      .prepare("INSERT INTO screen_share_keys (key_hash, actor_id, actor_key, expires_at) VALUES (?, ?, ?, ?)")
-      .run(hashKey(key), actorId, actorId.trim().toLowerCase(), expiresAt);
+      .prepare("INSERT INTO screen_share_keys (key_hash, actor_id, actor_key, expires_at, shared_by) VALUES (?, ?, ?, ?, ?)")
+      .run(hashKey(key), actorId, actorId.trim().toLowerCase(), expiresAt, sharedBy);
     return { key, expiresAt: new Date(expiresAt).toISOString() };
   }
 
-  /** The actor a key belongs to, or null if it is unknown or expired. */
-  resolve(key: string): string | null {
+  /** Whose screen a key uploads, and who made it — or null if unknown or expired. */
+  resolve(key: string): { actorId: string; sharedBy: string | null } | null {
     if (!key) return null;
     const row = this.database
-      .prepare("SELECT actor_id, expires_at FROM screen_share_keys WHERE key_hash = ?")
-      .get(hashKey(key)) as { actor_id: string; expires_at: number } | undefined;
+      .prepare("SELECT actor_id, expires_at, shared_by FROM screen_share_keys WHERE key_hash = ?")
+      .get(hashKey(key)) as { actor_id: string; expires_at: number; shared_by: string | null } | undefined;
     if (!row) return null;
     if (row.expires_at < this.now()) return null;
-    return row.actor_id;
+    return { actorId: row.actor_id, sharedBy: row.shared_by };
+  }
+
+  /** Agents a person may share a screen for, by the actors table's own kind. */
+  agents(): string[] {
+    return (this.database.prepare("SELECT id FROM actors WHERE kind = 'agent' ORDER BY id").all() as { id: string }[])
+      .map((row) => row.id);
+  }
+
+  kindOf(actorId: string): "human" | "agent" | null {
+    const row = this.database
+      .prepare("SELECT kind FROM actors WHERE lower(id) = lower(?)")
+      .get(actorId.trim()) as { kind: "human" | "agent" | null } | undefined;
+    return row?.kind ?? null;
   }
 
   revoke(actorId: string): void {
@@ -163,32 +183,63 @@ export function registerScreenRoutes(
    * log file. The page carries it in the link's #fragment, which a browser
    * never sends to the server, and moves it into this header itself.
    */
-  const uploader = (request: FastifyRequest): string | null => {
+  const uploader = (request: FastifyRequest): { actorId: string; sharedBy: string | null } | null => {
     const header = request.headers["x-screen-key"];
     const key = Array.isArray(header) ? header[0] : header;
     if (key) return deps.keys.resolve(key);
     const session = deps.sessions.get(request.cookies[deps.config.cookieName]);
-    return session?.username ?? null;
+    return session ? { actorId: session.username, sharedBy: null } : null;
   };
 
   // Raw image bodies are already parsed as buffers app-wide — see the upload
   // parsers in server/index.ts — so this adds none of its own. The size cap is
   // the route's `bodyLimit`, and the real gate is `sniffImage` on the bytes.
 
-  app.post("/bff/space/screens/key", async (request, reply) => {
+  /**
+   * Who you may share a screen as: yourself, or any agent.
+   *
+   * Nikk: "you can open it and set which agent it is sharing for". Any agent,
+   * not only ones you own — the ownerships table "confers nothing", and on the
+   * live service Sill and Inkstone have no owner — because the screen is
+   * labelled with your name as well as theirs. Never another PERSON: putting a
+   * screen up under a human's name is impersonation whatever the label says.
+   */
+  app.get("/bff/space/screens/sharers", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    return reply.send(deps.keys.mint(session.username));
+    const you = session.username;
+    const agents = deps.keys.agents().filter((id) => id.toLowerCase() !== you.toLowerCase());
+    return reply.header("cache-control", "no-store").send({ you, agents });
+  });
+
+  app.post<{ Body: { for?: unknown } | undefined }>("/bff/space/screens/key", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const wanted = typeof request.body?.for === "string" ? request.body.for.trim() : "";
+    const self = !wanted || wanted.toLowerCase() === session.username.toLowerCase();
+    if (self) return reply.send(deps.keys.mint(session.username));
+
+    if (deps.keys.kindOf(wanted) !== "agent") {
+      return reply.code(403).send({
+        code: "NOT_ALLOWED",
+        error: `you can share a screen as yourself or for an agent, and ${wanted} is not an agent`,
+      });
+    }
+    // Spelled as the actors table spells it, so the label matches the name the
+    // rest of the room uses for that agent.
+    const canonical = deps.keys.agents().find((id) => id.toLowerCase() === wanted.toLowerCase()) ?? wanted;
+    return reply.send({ ...deps.keys.mint(canonical, session.username), for: canonical });
   });
 
   app.put<{ Body: Buffer }>(
     "/bff/space/screens/frame",
     { bodyLimit: SCREEN_LIMITS.bytes },
     async (request, reply) => {
-      const actorId = uploader(request);
-      if (!actorId) {
+      const who = uploader(request);
+      if (!who) {
         return reply.code(401).send({ code: "NOT_ALLOWED", error: "sign in, or use a current share link" });
       }
+      const { actorId, sharedBy } = who;
       if (NOT_A_PERSON.has(actorId)) {
         return reply.code(403).send({ code: "NOT_ALLOWED", error: `${actorId} is not a person` });
       }
@@ -206,17 +257,17 @@ export function registerScreenRoutes(
       if (!type) {
         return reply.code(415).send({ code: "BAD_FRAME", error: "a frame must be a WebP, JPEG or PNG image" });
       }
-      const seq = deps.frames.put(actorId, body, type);
+      const seq = deps.frames.put(actorId, body, type, sharedBy);
       return reply.send({ ok: true, seq });
     },
   );
 
   app.delete("/bff/space/screens/frame", async (request, reply) => {
-    const actorId = uploader(request);
-    if (!actorId) {
+    const who = uploader(request);
+    if (!who) {
       return reply.code(401).send({ code: "NOT_ALLOWED", error: "sign in, or use a current share link" });
     }
-    deps.frames.clear(actorId);
+    deps.frames.clear(who.actorId);
     return reply.send({ ok: true });
   });
 

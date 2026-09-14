@@ -576,4 +576,24 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX screen_share_keys_actor ON screen_share_keys (actor_key);
     `,
   },
+  {
+    id: 17,
+    name: "who a screen was shared by",
+    sql: `
+      -- A person may now share a screen FOR an agent, choosing the agent from
+      -- the share page. Nikk: "you can open it and set which agent it is
+      -- sharing for".
+      --
+      -- NOT GATED ON OWNERSHIP, deliberately. The ownerships table says of
+      -- itself that it "confers nothing" — lineage, not permission — and on the
+      -- live service Sill and Inkstone have no owner at all, so gating on it
+      -- would have let nobody share for them.
+      --
+      -- ATTRIBUTED INSTEAD. Whoever makes the link is recorded here, and the
+      -- room labels the screen with both names — "Sill's screen, shared by
+      -- Nikk2" — so the room never claims an agent shared something it did
+      -- not. NULL means the actor shared their own screen.
+      ALTER TABLE screen_share_keys ADD COLUMN shared_by TEXT;
+    `,
+  },
 ];

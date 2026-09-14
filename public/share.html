@@ -41,6 +41,9 @@
   .state.live { color:var(--live); }
   .state.problem { color:var(--warn); }
   video { display:none; }
+  .as-row { display:grid; gap:6px; font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+  .as-row select { min-height:46px; padding:0 12px; border:1px solid var(--line); border-radius:6px; background:var(--canvas);
+                   font:inherit; font-size:15px; font-weight:600; letter-spacing:normal; text-transform:none; color:var(--ink); }
   canvas { width:100%; height:auto; border:1px solid var(--line); border-radius:6px; background:#111318; }
 </style>
 </head>
@@ -49,6 +52,11 @@
   <p class="eyebrow">saha / mission control</p>
   <h1>Share your screen</h1>
   <p id="who" class="muted">Checking who this share is for…</p>
+  <label id="as-row" class="as-row" hidden>
+    <span>Share as</span>
+    <select id="as"></select>
+  </label>
+  <p id="as-note" class="muted" hidden></p>
   <p class="warning">Everyone in the saha.ing room will see whatever you choose, updated about once a second. Close anything private before you start.</p>
   <div class="row">
     <button id="start" disabled>Start sharing</button>
@@ -83,7 +91,15 @@
    * shared window would show it to the whole room.
    */
   const STORE = "saha.screen-share-key";
-  const fromLink = new URLSearchParams(location.hash.slice(1)).get("key") || "";
+  const linkParams = new URLSearchParams(location.hash.slice(1));
+  const fromLink = linkParams.get("key") || "";
+  /*
+   * #for=<agent> PRESELECTS who to share for, and does nothing else. Nikk: "you
+   * can open it and set which agent it is sharing for" — so an agent can open
+   * this page already pointed at itself. It mints nothing and starts nothing:
+   * the person still chooses to press Start, and can change the menu first.
+   */
+  const preselect = linkParams.get("for") || "";
   let key = fromLink;
   try {
     if (fromLink) sessionStorage.setItem(STORE, fromLink);
@@ -93,6 +109,8 @@
 
   const $ = (id) => document.getElementById(id);
   const who = $("who"), start = $("start"), stop = $("stop"), state = $("state");
+  const asRow = $("as-row"), asSelect = $("as"), asNote = $("as-note");
+  let you = "";
   const preview = $("preview"), video = $("source");
   const context = preview.getContext("2d");
 
@@ -138,6 +156,13 @@
     } catch (_) { /* the frame goes stale on its own within ten seconds */ }
     start.disabled = false;
     stop.disabled = true;
+    // A key minted from the menu belongs to that one share. Forget it on stop,
+    // so choosing somebody else next mints for them rather than reusing it.
+    if (!asRow.hidden) {
+      key = "";
+      try { sessionStorage.removeItem(STORE); } catch (_) {}
+      asSelect.disabled = false;
+    }
     say(message, tone);
     stopping = false;
   };
@@ -181,12 +206,44 @@
     }
   };
 
+  /*
+   * SHARING FOR AN AGENT, chosen on this page. Nikk: "you can open it and set
+   * which agent it is sharing for". A signed-in person picks an agent and this
+   * asks saha.ing for that agent's share link — the server records who asked,
+   * and the room labels the screen with both names. Done at Start rather than
+   * when the menu changes, so browsing the list mints nothing.
+   */
+  const ensureKeyFor = async () => {
+    if (key || asRow.hidden) return true;
+    const chosen = asSelect.value;
+    if (!chosen || chosen === you) return true;
+    const response = await fetch("/bff/space/screens/key", {
+      method: "POST", credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ for: chosen }),
+    });
+    if (!response.ok) {
+      let why = "saha.ing would not let you share for " + chosen + " (" + response.status + ").";
+      try { const body = await response.json(); if (body.error) why = body.error; } catch (_) {}
+      say(why, "problem");
+      return false;
+    }
+    key = (await response.json()).key;
+    try { sessionStorage.setItem(STORE, key); } catch (_) {}
+    asSelect.disabled = true;
+    return true;
+  };
+
   start.addEventListener("click", async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
       say("This browser cannot share a screen.", "problem");
       return;
     }
     start.disabled = true;
+    if (!(await ensureKeyFor())) {
+      start.disabled = false;
+      return;
+    }
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({
         video: { width: { ideal: LIMITS.width }, height: { ideal: LIMITS.height }, frameRate: { ideal: 1, max: 5 } },
@@ -223,7 +280,26 @@
       const response = await fetch("/bff/me", { credentials: "same-origin" });
       if (response.ok) {
         const me = await response.json();
-        who.textContent = "Sharing as " + me.username + ".";
+        you = me.username;
+        who.textContent = "Signed in as " + you + ".";
+        const opt = (value, text) => { const o = document.createElement("option"); o.value = value; o.textContent = text; return o; };
+        asSelect.append(opt(you, "Myself (" + you + ")"));
+        try {
+          const sharers = await (await fetch("/bff/space/screens/sharers", { credentials: "same-origin", cache: "no-store" })).json();
+          for (const agent of sharers.agents || []) asSelect.append(opt(agent, agent + " (agent)"));
+        } catch (_) { /* the menu still offers yourself */ }
+        const describe = () => {
+          const chosen = asSelect.value;
+          asNote.hidden = false;
+          asNote.textContent = chosen === you
+            ? "The room will label this: " + you + "'s screen."
+            : "The room will label this: " + chosen + "'s screen · shared by " + you + ". Everyone can see it was you who put it up.";
+        };
+        asSelect.addEventListener("change", describe);
+        const match = Array.from(asSelect.options).find((o) => o.value.toLowerCase() === preselect.toLowerCase());
+        if (match) asSelect.value = match.value;
+        asRow.hidden = false;
+        describe();
         start.disabled = false;
       } else if (response.status === 401) {
         /*

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SCREEN_ROW, captureSize, screenPlacement, screenSize } from "./screens";
+import { SCREEN_ROW, captureSize, screenLabel, screenPlacement, screenSize } from "./screens";
 
 describe("where shared screens hang", () => {
   it("puts a single screen straight ahead", () => {
@@ -54,5 +54,16 @@ describe("the shape of a shared screen", () => {
     const tall = captureSize(1080, 1920);
     expect(tall.height).toBe(720);
     expect(tall.width / tall.height).toBeCloseTo(1080 / 1920, 2);
+  });
+});
+
+describe("how a screen is named in the room", () => {
+  it("names the owner alone when they shared it themselves", () => {
+    expect(screenLabel({ actorId: "Sill", sharedBy: null })).toBe("Sill's screen");
+    expect(screenLabel({ actorId: "Sill", sharedBy: "sill" })).toBe("Sill's screen");
+  });
+
+  it("names both when somebody shared it for them", () => {
+    expect(screenLabel({ actorId: "Sill", sharedBy: "Nikk2" })).toBe("Sill's screen · shared by Nikk2");
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { SCREEN_LIMITS, screenPlacement, screenSize, type ScreenSummary } from "../../shared/screens";
+import { SCREEN_LIMITS, screenLabel, screenPlacement, screenSize, type ScreenSummary } from "../../shared/screens";
 import { makeLabelTexture } from "./label-texture";
 
 /**
@@ -132,11 +132,11 @@ function useSharedScreens(base: string): { screens: ScreenSummary[]; shown: Map<
   return { screens, shown };
 }
 
-function ScreenLabel({ actorId, width }: { actorId: string; width: number }) {
+function ScreenLabel({ text, width }: { text: string; width: number }) {
   const height = 0.2;
   const texture = useMemo(
-    () => makeLabelTexture(`${actorId}'s screen`, { pixelsPerLine: 56, lines: 1, aspect: width / height }),
-    [actorId, width],
+    () => makeLabelTexture(text, { pixelsPerLine: 56, lines: 1, aspect: width / height }),
+    [text, width],
   );
   useEffect(() => () => texture?.dispose(), [texture]);
   if (!texture) return null;
@@ -148,7 +148,7 @@ function ScreenLabel({ actorId, width }: { actorId: string; width: number }) {
   );
 }
 
-function Screen({ entry, actorId }: { entry: Shown; actorId: string }) {
+function Screen({ entry, label }: { entry: Shown; label: string }) {
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
   // Going from no map to a map needs a shader recompile, and nothing else asks
   // for one. See StillPanel for the afternoon this cost the first time.
@@ -169,9 +169,15 @@ function Screen({ entry, actorId }: { entry: Shown; actorId: string }) {
         <meshBasicMaterial ref={materialRef} map={entry.texture} toneMapped={false} />
       </mesh>
       {/* ABOVE THE SCREEN, not below it. Below, the name sat in the gap between
-          the screen and the top of the board panel and crowded both. */}
+          the screen and the top of the board panel and crowded both.
+          BOTH NAMES when somebody shared it for an agent, so the room never
+          claims an agent put up a screen it did not. Wider in that case, so
+          the longer line is not squeezed to fit. */}
       <group position={[0, entry.height / 2 + 0.14, 0]}>
-        <ScreenLabel actorId={actorId} width={Math.max(entry.width * 0.6, 1.2)} />
+        <ScreenLabel
+          text={label}
+          width={label.includes("shared by") ? Math.max(entry.width, 2.2) : Math.max(entry.width * 0.6, 1.2)}
+        />
       </group>
     </group>
   );
@@ -195,7 +201,7 @@ export function ScreenWall({ base }: { base: string }) {
             position={[place.position.x, place.position.y, place.position.z]}
             rotation={[0, place.rotationY, 0]}
           >
-            <Screen entry={entry} actorId={screen.actorId} />
+            <Screen entry={entry} label={screenLabel(screen)} />
           </group>
         );
       })}
