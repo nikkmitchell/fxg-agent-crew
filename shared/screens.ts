@@ -5,7 +5,6 @@
  * server refuses at, written in two places, is a share that silently fails the
  * first time somebody's screen has more detail on it than usual.
  */
-import { deskFor } from "./space-layout.js";
 
 export const SCREEN_LIMITS = {
   /**
@@ -199,8 +198,6 @@ export function screenLabel(summary: Pick<ScreenSummary, "actorId" | "sharedBy">
  * which puts it in a standing person's line of sight when looking over the
  * agent's shoulder as well as in front of the agent itself.
  */
-const AGENT_SCREEN_DESK_RADIUS = 1.0;
-
 export const AGENT_SCREEN = {
   /** How far in front of the agent, along the way it is facing. */
   ahead: 0.55,
@@ -241,9 +238,8 @@ export function agentScreenPose(at: { x: number; z: number }, facing: number): {
  *
  *   - not walking — the screen goes away while it crosses the room
  *   - not at a board — `because` says why it is somewhere else ("commented on
- *     a card", "was checking tasks"). It is null at an agent's own desk, with
- *     one exception: updating a profile walks an agent to its OWN desk with a
- *     reason attached. So a reason only hides the screen away from that desk.
+ *     a card", "was checking tasks"), and is null at the agent's own space,
+ *     whether that is its desk or a home somebody placed it at.
  *   - working — its posture is `thinking`, which the server infers for five
  *     minutes after it last did something, or it has declared it is composing
  *     a reply. An agent that has gone quiet is `sleeping`, and its screen with it.
@@ -253,19 +249,12 @@ export function agentScreenPose(at: { x: number; z: number }, facing: number): {
  * exists to stop.
  */
 export function agentScreenShown(person: {
-  actorId: string;
-  at: { x: number; z: number };
   moving: boolean;
   because: string | null;
   attending: unknown;
   avatar?: { posture?: string } | null;
 }): boolean {
   if (person.moving) return false;
-  if (person.because !== null) {
-    // Desks are 1.2 m apart at the closest, and the room may nudge an arrival
-    // aside to keep two figures from overlapping, so 1 m says "this desk".
-    const desk = deskFor(person.actorId);
-    if (Math.hypot(person.at.x - desk.x, person.at.z - desk.z) > AGENT_SCREEN_DESK_RADIUS) return false;
-  }
+  if (person.because !== null) return false;
   return person.avatar?.posture === "thinking" || (person.attending !== null && person.attending !== undefined);
 }

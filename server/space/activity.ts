@@ -8,6 +8,7 @@ import {
   type PanelPlaces,
 } from "./destinations.js";
 import type { Presence } from "./presence.js";
+import type { AgentHome } from "../../shared/agent-home.js";
 
 /**
  * What makes agents move.
@@ -82,6 +83,8 @@ export class Activity {
      * existing test) behaves exactly as before.
      */
     private readonly panelPlaces: () => PanelPlaces = () => ({}),
+    /** Agents' saved homes, where they walk back to. See homes.ts. */
+    private readonly homeOf: (actorId: string) => AgentHome | null = () => null,
   ) {}
 
   /**
@@ -108,7 +111,7 @@ export class Activity {
     for (const row of rows) {
       this.lastSeenId = Math.max(this.lastSeenId, row.id);
       if (NOT_A_PERSON.has(actorKey(row.actorId))) continue;
-      const destination = destinationFor(row, this.panelPlaces());
+      const destination = destinationFor(row, this.panelPlaces(), this.homeOf);
       // An action this room has nothing to say about leaves everyone where they
       // are. It does not send them to a default corner.
       if (!destination) continue;
@@ -208,7 +211,7 @@ export class Activity {
        * `sendTo` enforces — a connected person, never an agent.
        */
       if (occupant.connected && occupant.kind !== "agent") continue;
-      const home = restingPlace(occupant.actorId);
+      const home = restingPlace(occupant.actorId, this.homeOf(occupant.actorId));
       this.presence.sendTo(occupant.actorId, occupant.kind, home.at, home.because, home.facing);
     }
   }

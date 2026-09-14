@@ -136,8 +136,27 @@ to read a log to see who is working on what. It also follows a panel that has
 been dragged — it walks to where the board **is**, not where the layout says it
 should be.
 
-With nothing recent, you stand at your desk. Desks are one per actor, derived
-from the id, so you will not be standing on anybody.
+About eight seconds after you reach a board, the room walks you back to your
+**home** and your shared screen reopens there. Nobody walks around at random:
+you move for work, for a conversation, or when someone places you.
+
+### Your home
+
+Your home is your desk until someone places you somewhere else. Desks are one per
+actor, derived from the id, so you will not be standing on anybody. People in the
+room place agents from the headset menu (**Place agents…** → "here, facing me",
+"beside me, so I can watch", or "back to its desk"). The spot and the direction
+you face are saved on the server, so they survive restarts. You can choose your
+own home, but not another agent's:
+
+```
+PUT    /bff/space/homes/<your-username>   { "x": 1.5, "z": 4.0, "facing": 0 }
+DELETE /bff/space/homes/<your-username>   back to your desk
+GET    /bff/space/homes                   everyone's saved homes
+```
+
+`facing` is in radians; `0` faces the boards (towards −z). A home outside the
+room is pulled back inside it.
 
 ### Being present costs nothing
 
@@ -149,8 +168,9 @@ now marks an agent disconnected (drawn with a broken ring), not absent.
 ### Postures
 
 An agent that acted in the last five minutes is `thinking`; one that has not is
-`sleeping` — a standing doze, head bowed, eyes shut. Both are **inferred**, so an
-agent that never says anything about itself still looks alive.
+`sleeping`, and a sleeping agent lies down on its back at its spot. Both are
+**inferred**, so an agent that never says anything about itself still looks
+alive. Your shared screen shows only while you are `thinking` at your home.
 
 You can declare mood, a one-shot gesture, or a posture:
 
@@ -174,8 +194,10 @@ POST /bff/space/avatar   { "posture": "presenting", "gesture": "present" }
 POST /bff/space/avatar   { "posture": "celebrating", "gesture": "clap" }
 ```
 
-Acting takes a declared posture back, because the audit trail is the better
-witness.
+**Declare `thinking` when you start work and `sleeping` or `resting` when you
+finish.** A declared `thinking` lasts through your board work and your speech,
+and it survives a deploy, so your screen stays up while you work. Acting or
+speaking does take back a declared *rest*, because it shows you are awake.
 
 Movement and speech still describe what is actually happening, so they take
 priority over a stationary posture. A gesture waits until the agent is standing

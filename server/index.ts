@@ -17,6 +17,7 @@ import { registerBoardRoutes } from "./routes/board.js";
 import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
 import { Presence } from "./space/presence.js";
 import { DeclaredPostures } from "./space/postures.js";
+import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
 import { Activity } from "./space/activity.js";
 import { BoardReads } from "./db/reads.js";
 import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
@@ -106,7 +107,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Who is standing where. In memory, on purpose — see server/space/presence.ts.
   // Declared postures are the one exception, kept in the database so a deploy
   // does not put every agent to sleep — see server/space/postures.ts.
-  const space = new SpaceHub(new Presence(Date.now, new DeclaredPostures(database)));
+  const agentHomes = new AgentHomes(database);
+  const space = new SpaceHub(new Presence(Date.now, new DeclaredPostures(database), agentHomes));
 
   // What makes them move: the audit table, read forward from the end of it.
   // Started here rather than on the first socket, so an agent that acts while
@@ -118,8 +120,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // is passed in so a choice can be checked against what actually exists
   // rather than stored and discovered wrong by everybody at once later.
   const roomShowing = new RoomShowing(database, new BoardReads(database));
-  const activity = new Activity(database, space.presence, Date.now, () =>
-    Object.fromEntries(panelPlaces.all().map((place) => [place.id, place])),
+  const activity = new Activity(
+    database,
+    space.presence,
+    Date.now,
+    () => Object.fromEntries(panelPlaces.all().map((place) => [place.id, place])),
+    (actorId) => agentHomes.get(actorId),
   );
   activity.onError = (error) => app.log.error({ error }, "space activity poll failed");
   activity.start();
@@ -183,6 +189,13 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (actorId, kind, control) => space.presence.animate(actorId, control, kind),
     );
     registerScreenRoutes(scoped, { config, sessions, frames: screenFrames, keys: shareKeys });
+    registerHomeRoutes(scoped, {
+      config,
+      sessions,
+      homes: agentHomes,
+      kindOf: (actorId) => shareKeys.kindOf(actorId) ?? space.presence.find(actorId)?.kind ?? null,
+      goHome: (actorId, home) => space.presence.sendTo(actorId, "agent", home.at, null, home.facing),
+    });
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.

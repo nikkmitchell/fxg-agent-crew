@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { deskFor } from "./space-layout";
 import { AGENT_SCREEN, SCREEN_ROW, agentScreenPose, agentScreenShown, captureSize, screenLabel, screenPlacement, screenSize } from "./screens";
 
 describe("where shared screens hang", () => {
@@ -70,9 +69,8 @@ describe("how a screen is named in the room", () => {
 });
 
 describe("an agent's own screen", () => {
-  const desk = deskFor("Sill");
   const person = (over: Record<string, unknown> = {}) => ({
-    actorId: "Sill", at: desk, moving: false, because: null, attending: null, avatar: { posture: "thinking" }, ...over,
+    moving: false, because: null, attending: null, avatar: { posture: "thinking" }, ...over,
   });
 
   it("shows while the agent is working at its own space", () => {
@@ -86,18 +84,9 @@ describe("an agent's own screen", () => {
   it("goes away while the agent is at a board, and comes back when it returns", () => {
     // Nikk: "their screen can disappear if they go walk to the mood board or
     // walk to the job board... once they finish... they reopen their screen".
-    const away = { x: desk.x + 3, z: desk.z - 4 };
-    expect(agentScreenShown(person({ because: "commented on a card", at: away }))).toBe(false);
-    expect(agentScreenShown(person({ because: "was considering the mood board", at: away }))).toBe(false);
+    expect(agentScreenShown(person({ because: "commented on a card" }))).toBe(false);
+    expect(agentScreenShown(person({ because: "was considering the mood board" }))).toBe(false);
     expect(agentScreenShown(person({ because: null }))).toBe(true);
-  });
-
-  it("stays up when the agent was walked to its OWN desk with a reason", () => {
-    // Updating a profile sends an agent home labelled "updated their profile".
-    // That is its own space, not a board.
-    expect(agentScreenShown(person({ because: "updated their profile" }))).toBe(true);
-    const board = { x: desk.x, z: desk.z - 5 };
-    expect(agentScreenShown(person({ because: "commented on a card", at: board }))).toBe(false);
   });
 
   it("does not show over an agent that has gone quiet, even if its share is still running", () => {

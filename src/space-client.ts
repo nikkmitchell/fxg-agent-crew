@@ -3,6 +3,7 @@ import { base } from "./router";
 import type { Placement, Showing } from "../shared/space-wire";
 import type { Utterance, UtteranceInput } from "../shared/voice";
 import type { AvatarControl, AvatarState } from "../shared/avatar-motion";
+import type { AgentHome } from "../shared/agent-home";
 
 /**
  * The browser's side of the room's own API.
@@ -43,6 +44,20 @@ export const space = {
       method: "POST",
       body: JSON.stringify(utterance),
     }),
+
+  /**
+   * Give an agent a home: where it stands and which way it faces, saved on
+   * the server. It walks there straight away. See shared/agent-home.ts.
+   */
+  placeAgent: (actorId: string, home: AgentHome) =>
+    requestJson<{ ok: true; home: AgentHome }>(`${root}/homes/${encodeURIComponent(actorId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ x: home.at.x, z: home.at.z, facing: home.facing }),
+    }),
+
+  /** Send an agent back to its desk, forgetting the home it was given. */
+  clearAgentHome: (actorId: string) =>
+    requestJson<{ ok: true }>(`${root}/homes/${encodeURIComponent(actorId)}`, { method: "DELETE" }),
 
   /** Ephemeral self-only avatar control; mood persists for this presence, gestures expire. */
   animate: (control: AvatarControl) =>

@@ -611,4 +611,22 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 19,
+    name: "agent homes",
+    sql: `
+      -- Where each agent lives in the room and which way it faces, set by a
+      -- person ("stand here facing me") or by the agent itself. No row means
+      -- its desk, as before. See server/space/homes.ts.
+      CREATE TABLE agent_homes (
+        actor_key TEXT PRIMARY KEY,
+        actor_id  TEXT NOT NULL,
+        x         REAL NOT NULL,
+        z         REAL NOT NULL,
+        facing    REAL NOT NULL,
+        set_by    TEXT NOT NULL,
+        set_at    TEXT NOT NULL
+      );
+    `,
+  },
 ];

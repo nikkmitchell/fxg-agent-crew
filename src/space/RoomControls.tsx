@@ -21,6 +21,7 @@ import { DETAIL_LIMIT, type Utterance } from "../../shared/voice";
 import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 import { holdReload } from "../update-reload";
+import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
 
 /**
  * The room's controls, in front of you at body level.
@@ -140,6 +141,7 @@ export function RoomControls({
   arrange,
   showing,
   showingChoices,
+  agents,
 }: {
   anchor: () => { at: { x: number; z: number }; yaw: number } | null;
   you: string | null;
@@ -162,6 +164,8 @@ export function RoomControls({
   showing: Showing;
   /** What it could show, and how to change it for everybody. */
   showingChoices: RoomShowingChoices;
+  /** The agents in the room right now, for placing them. */
+  agents: string[];
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
@@ -175,7 +179,7 @@ export function RoomControls({
    * one decision, and a decision that changes what everybody in the room is
    * looking at deserves its own screen rather than a row among twenty.
    */
-  const [view, setView] = useState<"root" | "work" | "mood" | "panels">("root");
+  const [view, setView] = useState<"root" | "work" | "mood" | "panels" | "agents">("root");
   /**
    * Whether your own hands are drawn.
    *
@@ -611,6 +615,45 @@ export function RoomControls({
       panelRows.push({ label: panels.refusal, tone: "muted", onTap: () => {} });
     }
     boxes.push({ title: "Panels", rows: panelRows });
+  } else if (open && view === "agents") {
+    /**
+     * WHERE AGENTS LIVE, set from where you stand.
+     *
+     * Nikk: "I want you to be standing over here facing me or I want you to be
+     * standing beside me facing away from me so I can watch your work". Each
+     * choice is worked out from your own position and heading at the moment you
+     * tap, saved on the server as that agent's home, and the agent walks there.
+     */
+    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    if (agents.length === 0) rows.push({ label: "No agents in the room", tone: "muted", onTap: () => {} });
+    const placeWith = (agent: string, choose: (me: { at: { x: number; z: number }; facing: number }) => AgentHome, done: string) => () => {
+      const me = anchor();
+      if (!me) {
+        setNotice("Cannot tell where you are standing yet.");
+        return;
+      }
+      space
+        .placeAgent(agent, choose({ at: me.at, facing: me.yaw }))
+        .then(() => setNotice(`${agent} ${done}`))
+        .catch((error: unknown) => setNotice(error instanceof Error ? error.message : `Could not move ${agent}.`));
+    };
+    for (const agent of agents) {
+      rows.push(
+        { label: `${agent}: here, facing me`, onTap: placeWith(agent, homeFacingMe, "is coming to stand in front of you.") },
+        { label: `${agent}: beside me, so I can watch`, onTap: placeWith(agent, homeBesideMe, "is coming to work beside you.") },
+        {
+          label: `${agent}: back to its desk`,
+          tone: "muted",
+          onTap: () => {
+            space
+              .clearAgentHome(agent)
+              .then(() => setNotice(`${agent} is going back to its desk.`))
+              .catch((error: unknown) => setNotice(error instanceof Error ? error.message : `Could not move ${agent}.`));
+          },
+        },
+      );
+    }
+    boxes.push({ title: "Where agents live", rows });
   } else if (open && view === "root") {
     boxes.push({
       title: "Talking",
@@ -720,6 +763,7 @@ export function RoomControls({
       title: "Room",
       rows: [
         { label: "Panels…", onTap: () => setView("panels") },
+        { label: "Place agents…", onTap: () => setView("agents") },
         {
           label: handsShown ? "Hands shown" : "Hands hidden — for recording",
           tone: handsShown ? "normal" : "live",

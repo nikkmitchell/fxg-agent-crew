@@ -551,6 +551,7 @@ export default function Scene({
           arrange={arrange}
           showing={connection.showing}
           showingChoices={showingChoices}
+          agents={connection.roster.filter((person) => person.kind === "agent").map((person) => person.actorId)}
         />
       </XR>
     </Canvas>

@@ -1,4 +1,5 @@
 import { deskFor, type Vec3 } from "../../shared/space-layout.js";
+import type { AgentHome } from "../../shared/agent-home.js";
 import { defaultPlacement, standFor } from "../../shared/panel-place.js";
 import type { Placement } from "../../shared/space-wire.js";
 
@@ -81,7 +82,12 @@ const atPanel = (panels: PanelPlaces, id: string, because: string): Destination 
  * recognise their action would be an invention, and it is the kind that looks
  * completely normal.
  */
-export function destinationFor(row: AuditRow, panels: PanelPlaces = {}): Destination | null {
+export function destinationFor(
+  row: AuditRow,
+  panels: PanelPlaces = {},
+  /** An agent's saved home, when it has one. See server/space/homes.ts. */
+  homeOf: (actorId: string) => AgentHome | null = () => null,
+): Destination | null {
   if (row.entity === "task") {
     switch (row.action) {
       case "comment":
@@ -118,8 +124,10 @@ export function destinationFor(row: AuditRow, panels: PanelPlaces = {}): Destina
   }
 
   if (row.entity === "profile") {
-    // Your own desk: this is about you, not about a shared surface.
-    return { at: deskFor(row.actorId), facing: null, because: "updated their profile" };
+    // Your own space: this is about you, not about a shared surface. No
+    // reason label, because an agent at home needs no explanation — and the
+    // room shows an agent's screen only while nothing is labelled "why here".
+    return restingPlace(row.actorId, homeOf(row.actorId));
   }
 
   if (row.entity === "project") {
@@ -138,7 +146,8 @@ export function destinationFor(row: AuditRow, panels: PanelPlaces = {}): Destina
  * true across restarts. The sentence is null rather than "idle" — we have no
  * evidence they are idle, only an absence of evidence that they are not.
  */
-export function restingPlace(actorId: string): Destination {
+export function restingPlace(actorId: string, home: AgentHome | null = null): Destination {
+  if (home) return { at: home.at, facing: home.facing, because: null };
   return { at: deskFor(actorId), facing: null, because: null };
 }
 

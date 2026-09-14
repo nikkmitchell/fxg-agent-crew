@@ -1,5 +1,6 @@
 import { ROOM, WALK_SPEED, actorKey, type Vec3, deskFor } from "../../shared/space-layout.js";
 import type { PostureMemory } from "./postures.js";
+import type { AgentHome } from "../../shared/agent-home.js";
 import type { Pose } from "../../shared/space-wire.js";
 import {
   DEFAULT_AVATAR_STATE,
@@ -122,6 +123,8 @@ export class Presence {
      * unchanged. See postures.ts.
      */
     private readonly postures: PostureMemory | null = null,
+    /** Agents' saved homes; without one, an agent's home is its desk. See homes.ts. */
+    private readonly homes: { get(actorId: string): AgentHome | null } | null = null,
   ) {}
 
   /**
@@ -157,7 +160,9 @@ export class Presence {
      * Desks are already one-per-actor, derived from the id, so "a place where
      * nobody is standing" comes out of that for free.
      */
-    const wanted = connected && kind !== "agent" ? { ...ROOM.spawn } : deskFor(actorId);
+    // An agent with a saved home arrives there, facing the way it was placed.
+    const home = connected && kind !== "agent" ? null : (this.homes?.get(actorId) ?? null);
+    const wanted = connected && kind !== "agent" ? { ...ROOM.spawn } : (home?.at ?? deskFor(actorId));
     /**
      * NOT ON TOP OF WHOEVER IS ALREADY THERE, at the moment of arriving.
      *
@@ -182,7 +187,7 @@ export class Presence {
       at: start,
       heading: start,
       destinationFacing: null,
-      facing: 0,
+      facing: home?.facing ?? 0,
       because: null,
       head: null,
       hands: { left: null, right: null },

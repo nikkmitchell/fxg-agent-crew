@@ -79,6 +79,7 @@ export function ImmersivePlayer({
   arrange,
   showing,
   showingChoices,
+  agents,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -105,6 +106,8 @@ export function ImmersivePlayer({
   /** What the room is showing, shared by everybody standing in it. */
   showing: Showing;
   showingChoices: RoomShowingChoices;
+  /** Agents in the room, for placing them from the menu. */
+  agents: string[];
 }) {
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
@@ -420,6 +423,7 @@ export function ImmersivePlayer({
         arrange={arrange}
         showing={showing}
         showingChoices={showingChoices}
+        agents={agents}
       />
       {/*
         The floor you can teleport onto. It is deliberately invisible: the room
@@ -475,6 +479,7 @@ export function Immersive({
   arrange,
   showing,
   showingChoices,
+  agents,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -490,6 +495,7 @@ export function Immersive({
   arrange: PanelArrange;
   showing: Showing;
   showingChoices: RoomShowingChoices;
+  agents: string[];
 }) {
   const session = useXR((state) => state.session);
   /**
@@ -531,6 +537,7 @@ export function Immersive({
       arrange={arrange}
       showing={showing}
       showingChoices={showingChoices}
+      agents={agents}
     />
   ) : null;
 }
