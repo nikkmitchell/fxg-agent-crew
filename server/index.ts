@@ -18,6 +18,7 @@ import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
 import { Presence } from "./space/presence.js";
 import { DeclaredPostures } from "./space/postures.js";
 import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
+import { Touches, registerTouchRoutes } from "./space/touch.js";
 import { Activity } from "./space/activity.js";
 import { BoardReads } from "./db/reads.js";
 import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
@@ -108,6 +109,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Declared postures are the one exception, kept in the database so a deploy
   // does not put every agent to sleep — see server/space/postures.ts.
   const agentHomes = new AgentHomes(database);
+  const touches = new Touches(database);
   const space = new SpaceHub(new Presence(Date.now, new DeclaredPostures(database), agentHomes));
 
   // What makes them move: the audit table, read forward from the end of it.
@@ -157,7 +159,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       space,
       () => panelPlaces.all(),
       () => roomShowing.current(),
+      touches,
     );
+    registerTouchRoutes(scoped, { config, sessions, hub: space, touches });
     registerStillRoutes(scoped, config, sessions);
     registerPanelRoutes(scoped, {
       database,

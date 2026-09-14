@@ -629,4 +629,19 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 20,
+    name: "how agents feel about being touched",
+    sql: `
+      -- Each agent's own choice, part by part: likes, dislikes or neutral.
+      -- Stored as JSON and validated on the way in and out. See
+      -- shared/touch.ts and server/space/touch.ts.
+      CREATE TABLE agent_touch_preferences (
+        actor_key   TEXT PRIMARY KEY,
+        actor_id    TEXT NOT NULL,
+        preferences TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+    `,
+  },
 ];

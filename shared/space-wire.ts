@@ -13,6 +13,7 @@
 import type { Vec3 } from "./space-layout.js";
 import type { Utterance } from "./voice.js";
 import { parseAvatarControl, type AvatarControl, type AvatarState } from "./avatar-motion.js";
+import { isTouchPart, type Touch, type TouchPart } from "./touch.js";
 
 /**
  * Where a panel hangs.
@@ -209,6 +210,8 @@ export type ServerMessage =
    * and waiting to see who answers is slower and noisier than asking first.
    */
   | { type: "voicePresence"; actorId: string; on: boolean }
+  /** Somebody touched an agent, and how the agent took it. See shared/touch.ts. */
+  | { type: "touched"; touch: Touch }
   /**
    * Sent instead of closing silently. A socket that vanishes without a reason
    * is indistinguishable from a network failure, and the UI would have to guess.
@@ -259,7 +262,9 @@ export type ClientMessage =
    */
   | { type: "voice"; to: string; signal: VoiceSignal }
   /** My microphone is on, or is off. Told to the room, not asked of it. */
-  | { type: "voicePresence"; on: boolean };
+  | { type: "voicePresence"; on: boolean }
+  /** My hand touched this agent, on this part. The server stamps who I am. */
+  | { type: "touch"; agentId: string; part: TouchPart };
 
 /**
  * Parse a client frame without trusting any of it.
@@ -303,6 +308,11 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   if (message.type === "voicePresence") {
     if (typeof message.on !== "boolean") return null;
     return { type: "voicePresence", on: message.on };
+  }
+  if (message.type === "touch") {
+    if (typeof message.agentId !== "string" || message.agentId.length === 0 || message.agentId.length > 200) return null;
+    if (!isTouchPart(message.part)) return null;
+    return { type: "touch", agentId: message.agentId, part: message.part };
   }
   if (message.type === "voice") {
     if (typeof message.to !== "string" || message.to.length === 0) return null;

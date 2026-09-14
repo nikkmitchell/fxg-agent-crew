@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
   TeleportTarget,
@@ -31,7 +31,8 @@ import type { Showing } from "../../shared/space-wire";
 import type { RoomShowingChoices } from "./useRoomShowing";
 import type { VoiceChat } from "./useVoiceChat";
 import type { Utterance } from "../../shared/voice";
-import type { ClientMessage, Pose } from "../../shared/space-wire";
+import type { ClientMessage, Pose, WirePerson } from "../../shared/space-wire";
+import { TOUCH_COOLDOWN_MS, agentTouchPoints, touchedPart } from "../../shared/touch";
 
 /**
  * Standing in the room, rather than looking at it.
@@ -81,6 +82,7 @@ export function ImmersivePlayer({
   showing,
   showingChoices,
   agents,
+  peopleRef,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -109,10 +111,14 @@ export function ImmersivePlayer({
   showingChoices: RoomShowingChoices;
   /** Agents in the room, for placing them from the menu. */
   agents: string[];
+  /** Everyone in the room, live, for noticing when a hand touches an agent. */
+  peopleRef: RefObject<WirePerson[]>;
 }) {
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
   const held = useRef<{ left: Held; right: Held }>({ left: NO_HAND, right: NO_HAND });
+  /** When this person last touched each agent, so a resting hand is one touch. */
+  const lastTouch = useRef(new Map<string, number>());
   /** The palm joystick, one per hand — see palm-joystick.ts. */
   const joystick = useRef<{ left: JoystickState; right: JoystickState }>({ left: IDLE, right: IDLE });
   const balls = {
@@ -363,6 +369,31 @@ export function ImmersivePlayer({
     held.current.left = heldHand(held.current.left, liveLeft, now);
     held.current.right = heldHand(held.current.right, liveRight, now);
 
+    /**
+     * TOUCHING AN AGENT. A live hand (not a remembered one) within reach of a
+     * part of an agent's body sends a touch; the agent reacts as it chose. See
+     * shared/touch.ts. A buzz on a controller, where there is one, so the
+     * person feels it land. Rate-limited here and again on the server.
+     */
+    for (const [side, hand] of [["left", liveLeft], ["right", liveRight]] as const) {
+      if (!hand) continue;
+      for (const agent of peopleRef.current ?? []) {
+        if (agent.kind !== "agent" || agent.actorId === you) continue;
+        const part = touchedPart(
+          hand.p,
+          agentTouchPoints({ at: agent.at, facing: agent.facing, lying: agent.avatar.posture === "sleeping" && !agent.moving }),
+        );
+        if (!part) continue;
+        const last = lastTouch.current.get(agent.actorId) ?? -Infinity;
+        if (now - last < TOUCH_COOLDOWN_MS) continue;
+        lastTouch.current.set(agent.actorId, now);
+        send({ type: "touch", agentId: agent.actorId, part });
+        const controller = side === "left" ? leftController : rightController;
+        const actuator = (controller?.inputSource.gamepad as (Gamepad & { hapticActuators?: { pulse?: (v: number, ms: number) => unknown }[] }) | undefined)?.hapticActuators?.[0];
+        void actuator?.pulse?.(0.35, 50);
+      }
+    }
+
     // Where the controls hang: the head's own position and heading, taken
     // from the measured head rather than from the XROrigin, so the panel is in
     // front of the PERSON and not in front of where they happened to arrive.
@@ -492,6 +523,7 @@ export function Immersive({
   showing,
   showingChoices,
   agents,
+  peopleRef,
 }: {
   comfort: Comfort;
   send: (message: ClientMessage) => void;
@@ -508,6 +540,7 @@ export function Immersive({
   showing: Showing;
   showingChoices: RoomShowingChoices;
   agents: string[];
+  peopleRef: RefObject<WirePerson[]>;
 }) {
   const session = useXR((state) => state.session);
   /**
@@ -550,6 +583,7 @@ export function Immersive({
       showing={showing}
       showingChoices={showingChoices}
       agents={agents}
+      peopleRef={peopleRef}
     />
   ) : null;
 }

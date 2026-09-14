@@ -9,6 +9,7 @@ import { NOT_A_PERSON, actorKey } from "../../shared/space-layout.js";
 import type { Placement, Showing } from "../../shared/space-wire.js";
 import { parseClientMessage, type ServerMessage, type WirePerson } from "../../shared/space-wire.js";
 import { isWalking, Presence, STALE_AFTER_MS } from "./presence.js";
+import { touchAgent, type Touches } from "./touch.js";
 
 /**
  * The socket the room is drawn from.
@@ -221,6 +222,8 @@ export function registerSpaceRoutes(
    * that looks free until the room is full.
    */
   showingNow: () => Showing,
+  /** Touches and agents' feelings about them. Optional so older tests run unchanged. */
+  touches: Touches | null = null,
 ): void {
   app.get("/bff/space/socket", { websocket: true }, (socket, request) => {
     const session = sessions.get(request.cookies[config.cookieName]);
@@ -284,6 +287,11 @@ export function registerSpaceRoutes(
         // The actor id comes from the authenticated session, never the frame:
         // occupants may animate themselves and nobody else.
         hub.presence.animate(actorId, message);
+        return;
+      }
+      if (message.type === "touch") {
+        // Who touched is the session, never the frame.
+        if (touches) touchAgent(hub, touches, actorId, message.agentId, message.part);
         return;
       }
       if (message.type === "voice") {

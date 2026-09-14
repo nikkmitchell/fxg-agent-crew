@@ -188,7 +188,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
         // voice signalling is the only user today and it is deliberately not
         // interpreted here, because this hook's job is who is in the room.
         for (const listener of listeners.current) listener(message);
-        if (message.type === "voice" || message.type === "voicePresence") return;
+        if (message.type === "voice" || message.type === "voicePresence" || message.type === "touched") return;
         if (message.type === "refused") {
           setStatus({ state: "refused", reason: message.reason });
           return;

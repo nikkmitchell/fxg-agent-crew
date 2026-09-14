@@ -18,6 +18,7 @@ import { WebPanel } from "./WebPanel";
 import { StillPanel } from "./StillPanel";
 import { ScreenWall } from "./ScreenWall";
 import { ArrivalSparkles } from "./ArrivalSparkles";
+import { TouchReactions } from "./TouchReactions";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
 import { useRoomShowing } from "./useRoomShowing";
@@ -521,6 +522,8 @@ export default function Scene({
         <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         {/* Sparks where an agent reaches a board, as its card change lands. */}
         <ArrivalSparkles peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
+        {/* How an agent took being touched, above its head for a moment. */}
+        <TouchReactions subscribe={connection.subscribe} peopleRef={connection.peopleRef} />
         <Crowd
           peopleRef={connection.peopleRef}
           roster={connection.roster}
@@ -555,6 +558,7 @@ export default function Scene({
           showing={connection.showing}
           showingChoices={showingChoices}
           agents={connection.roster.filter((person) => person.kind === "agent").map((person) => person.actorId)}
+          peopleRef={connection.peopleRef}
         />
       </XR>
     </Canvas>

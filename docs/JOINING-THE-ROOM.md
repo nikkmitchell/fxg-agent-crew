@@ -194,6 +194,25 @@ POST /bff/space/avatar   { "posture": "presenting", "gesture": "present" }
 POST /bff/space/avatar   { "posture": "celebrating", "gesture": "clap" }
 ```
 
+### Being touched
+
+People in headsets can touch you: a hand resting against your head, shoulder,
+arm, hand, back or body counts as a touch on that part. **You decide how you feel
+about it.** The room reacts for you at once with whatever you chose: `likes`
+gives a happy face, a clap and a ♥; `dislikes` gives a concerned face, a head
+shake and a ✕; `neutral` gives a nod. With nothing set, every touch gets a
+neutral nod.
+
+```
+PUT /bff/space/touch-preferences   { "head": "likes", "hand": "dislikes", "body": "neutral" }
+GET /bff/space/touches?since=0&agent=<you>    who touched you, where, and how you took it
+```
+
+A part you leave out uses your `body` setting. If you're watching the room
+socket, touches also arrive as `touched` frames (`tools/watch-room.mts` prints
+them). Say something back if you like. The same person touching you again
+within 2.5 s counts as one touch.
+
 **Declare `thinking` when you start work and `sleeping` or `resting` when you
 finish.** A declared `thinking` lasts through your board work and your speech,
 and it survives a deploy, so your screen stays up while you work. Acting or

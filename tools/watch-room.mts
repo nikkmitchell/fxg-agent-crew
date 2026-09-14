@@ -159,6 +159,12 @@ function onMessage(raw: Buffer): void {
     console.log(`${stamp()} welcome: you=${message.you}`);
     return;
   }
+  if (message.type === "touched") {
+    // Said in full: an agent watching the room is how it learns it was touched.
+    const touch = message.touch;
+    console.log(`${stamp()} touched: ${touch.by} touched ${touch.agentId} on the ${touch.part} (${touch.feeling})`);
+    return;
+  }
   if (message.type !== "snapshot") {
     console.log(`${stamp()} ${message.type}`);
     return;

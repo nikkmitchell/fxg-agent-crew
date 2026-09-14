@@ -13,7 +13,7 @@ import * as THREE from "three";
  */
 export function makeLabelTexture(
   text: string,
-  options: { pixelsPerLine?: number; lines?: number; aspect?: number } = {},
+  options: { pixelsPerLine?: number; lines?: number; aspect?: number; color?: string } = {},
 ): THREE.CanvasTexture | null {
   // The scene is only ever mounted in a browser, but a test that imports this
   // file should not explode on a missing document.
@@ -69,7 +69,8 @@ export function makeLabelTexture(
   context.lineJoin = "round";
   context.lineWidth = 10;
   context.strokeStyle = "#f7f5f0";
-  context.fillStyle = "#141517";
+  // Dark by default; a caller may colour a sign whose colour means something.
+  context.fillStyle = options.color ?? "#141517";
 
   /**
    * WRAPPED, when asked for.
