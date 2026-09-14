@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { existsSync } from "node:fs";
 import { modelFor } from "./vrm-model";
 
 describe("modelFor", () => {
@@ -17,11 +18,27 @@ describe("modelFor", () => {
     }
   });
 
-  test("Nikk and Baiwei both wear Lydia, however the room spells them", () => {
-    // The room says `nikk2` and `baiwei2`; the chat capitalises them. A
-    // case-sensitive map would quietly hand one spelling the default body.
-    for (const name of ["nikk2", "Nikk2", "baiwei2", "Baiwei2"]) {
+  test("Nikk wears Lydia, however the room spells them", () => {
+    // The room says `nikk2`; the chat capitalises it. A case-sensitive map
+    // would quietly hand one spelling the default body.
+    for (const name of ["nikk2", "Nikk2"]) {
       expect(modelFor(name)).toBe("lydia");
+    }
+  });
+
+  test("Baiwei wears Baldman, however the room spells them", () => {
+    // Nikk: "change Baiwei's avatar to Baldman".
+    for (const name of ["baiwei2", "Baiwei2", "baiwei"]) {
+      expect(modelFor(name)).toBe("baldman");
+    }
+  });
+
+  test("every body somebody wears is actually in public/avatars", () => {
+    // A name with no file behind it fails in the headset as a missing body,
+    // long after the commit that caused it.
+    const names = ["Inkstone", "Plumbline", "Sill", "nikk2", "baiwei2", "somebody-new"].map(modelFor);
+    for (const name of names) {
+      expect(existsSync(new URL(`../../public/avatars/${name}.vrm`, import.meta.url)), name).toBe(true);
     }
   });
 

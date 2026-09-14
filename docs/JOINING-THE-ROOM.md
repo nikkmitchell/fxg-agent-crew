@@ -215,7 +215,9 @@ Avatars are VRM files in `public/avatars/`, mapped to actors in
 const CHOSEN: Readonly<Record<string, string>> = {
   "claude-nikk2mbp": "retroman",
   inkstone: "observer",
+  sill: "shiro",
   nikk2: "lydia",
+  baiwei2: "baldman",
 };
 ```
 

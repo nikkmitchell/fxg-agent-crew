@@ -96,13 +96,16 @@ const CHOSEN: Readonly<Record<string, string>> = {
   // too, but its forearm draws thick and wedge-like — Anchor's failure in
   // miniature.
   sill: "shiro",
-  // Nikk and Baiwei, both Lydia, at Nikk's request. Spelled as the ROOM spells
-  // them — the watcher shows `nikk2` and `baiwei2` — with the dev harness's
-  // `nikk` alongside so the choice can be seen without a headset.
+  // Nikk wears Lydia, at Nikk's request. Spelled as the ROOM spells them — the
+  // watcher shows `nikk2` — with the dev harness's `nikk` alongside so the
+  // choice can be seen without a headset.
   nikk2: "lydia",
   nikk: "lydia",
-  baiwei2: "lydia",
-  baiwei: "lydia",
+  // Baiwei wears Baldman — 100Avatars R1 #074 by Polygonal Mind, CC0 in the
+  // file's own metadata, every humanoid bone present. Nikk asked for it by
+  // name from opensourceavatars.com.
+  baiwei2: "baldman",
+  baiwei: "baldman",
 };
 
 /** The body everybody else wears until they choose one. */
