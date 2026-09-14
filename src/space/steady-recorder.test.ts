@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSteadyRecorder } from "./speech";
+import { createSteadyRecorder, foldRevisions } from "./speech";
 
 /**
  * A recogniser that behaves the way the real ones do, so the recorder can be
@@ -39,6 +39,16 @@ class FakeRecognition {
     const last = this.results[this.results.length - 1];
     if (last && !last.isFinal) this.results[this.results.length - 1] = { transcript, isFinal, confidence };
     else this.results.push({ transcript, isFinal, confidence });
+    const firstChanged = this.results.length - 1;
+    const results = this.results.map((r) => Object.assign([{ transcript: r.transcript, confidence: r.confidence }], { isFinal: r.isFinal, length: 1 }));
+    this.onresult?.({ resultIndex: firstChanged, results: Object.assign(results, { length: results.length }) });
+  }
+  /**
+   * What Chromium on Android does instead: a NEW result for every word heard,
+   * each holding the whole phrase so far, most of them already marked final.
+   */
+  hearAgain(transcript: string, isFinal = true) {
+    this.results.push({ transcript, isFinal });
     const firstChanged = this.results.length - 1;
     const results = this.results.map((r) => Object.assign([{ transcript: r.transcript, confidence: r.confidence }], { isFinal: r.isFinal, length: 1 }));
     this.onresult?.({ resultIndex: firstChanged, results: Object.assign(results, { length: results.length }) });
@@ -179,13 +189,15 @@ describe("recording that keeps going until you say stop", () => {
   it("does not show phrases again after they were posted and cleared", () => {
     // Always-on mode posts each phrase and clears; the engine then re-sends the
     // whole run with its next result.
-    const { recorder, seen, engine } = make();
+    const { recorder, clock, seen, engine } = make();
     recorder.start();
     engine().hear("first sentence", true);
+    clock.advance(1000);
     expect(seen.phrases).toEqual(["first sentence"]);
     recorder.clear();
     engine().hear("second sentence", true);
     expect(seen.text).toBe("second sentence");
+    clock.advance(1000);
     expect(seen.phrases, "each phrase announced once").toEqual(["first sentence", "second sentence"]);
   });
 
@@ -202,5 +214,80 @@ describe("recording that keeps going until you say stop", () => {
     engine().running = false;
     clock.advance(2000);
     expect(engine().starts).toBeGreaterThan(attempts);
+  });
+});
+
+describe("a headset browser that reports every word as a new result", () => {
+  // Nikk's message after the steady recorder went live, from a headset:
+  // "is the please deploy is the please deploy and is the please deploy and
+  // publish is the please deploy and publish everything ..." — ten parts of
+  // chat for a few sentences. Chromium on Android sends the phrase so far as a
+  // new, final result with every word.
+  const growing = (phrase: string) => phrase.split(" ").map((_, i, all) => all.slice(0, i + 1).join(" "));
+
+  it("keeps each phrase once, not once per word", async () => {
+    const { recorder, engine } = make();
+    recorder.start();
+    for (const partial of growing("please deploy and publish everything that Inkstone has done")) engine().hearAgain(partial);
+    const finished = recorder.finish();
+    engine().end();
+    expect((await finished).text).toBe("please deploy and publish everything that Inkstone has done");
+  });
+
+  it("keeps separate phrases in the same run, in order", async () => {
+    const { recorder, engine } = make();
+    recorder.start();
+    for (const partial of growing("Plumbline is offline")) engine().hearAgain(partial);
+    for (const partial of growing("so I need Sill to merge it")) engine().hearAgain(partial);
+    const finished = recorder.finish();
+    engine().end();
+    expect((await finished).text).toBe("Plumbline is offline so I need Sill to merge it");
+  });
+
+  it("takes the engine's correction of the last word instead of keeping both", async () => {
+    const { recorder, engine } = make();
+    recorder.start();
+    engine().hearAgain("Plumbline is of");
+    engine().hearAgain("Plumbline is offline");
+    engine().hearAgain("Plumbline is offline so I need seal");
+    engine().hearAgain("Plumbline is offline so I need Sill");
+    const finished = recorder.finish();
+    engine().end();
+    expect((await finished).text).toBe("Plumbline is offline so I need Sill");
+  });
+
+  it("posts a phrase once when talking out loud, then only the words added after a pause", () => {
+    const { recorder, clock, seen, engine } = make();
+    recorder.start();
+    for (const partial of growing("hey so I thought")) engine().hearAgain(partial);
+    expect(seen.phrases, "nothing posted word by word").toEqual([]);
+    clock.advance(1000);
+    expect(seen.phrases).toEqual(["hey so I thought"]);
+    recorder.clear();
+    // A pause long enough to post, then the engine carries on with the SAME
+    // growing phrase.
+    engine().hearAgain("hey so I thought you're putting tasks on the board");
+    expect(seen.text).toBe("you're putting tasks on the board");
+    clock.advance(1000);
+    expect(seen.phrases).toEqual(["hey so I thought", "you're putting tasks on the board"]);
+  });
+
+  it("still keeps desktop Chrome's separate phrases, which never repeat each other", () => {
+    expect(
+      foldRevisions([
+        { text: "can you look at the board", final: true },
+        { text: "and then deploy it", final: true },
+        { text: "thanks", final: false },
+      ]).map((r) => r.text),
+    ).toEqual(["can you look at the board", "and then deploy it", "thanks"]);
+  });
+
+  it("does not treat two phrases that merely start with the same word as one", () => {
+    expect(
+      foldRevisions([
+        { text: "is it deployed", final: true },
+        { text: "is the board updated", final: true },
+      ]).map((r) => r.text),
+    ).toEqual(["is it deployed", "is the board updated"]);
   });
 });

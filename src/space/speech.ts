@@ -157,6 +157,57 @@ export function createSpeechInput(options: {
 }
 
 /**
+ * One run's results with the engine's revisions folded together.
+ *
+ * WHY. Chromium on Android — which is what the Quest and the Aura run — does
+ * not report a continuous run the way desktop Chrome does. Desktop sends each
+ * phrase once, as its own result. Android sends a NEW result every time it
+ * hears another word, each holding the whole phrase so far, and marks most of
+ * them final. Joining them gave Nikk's messages the shape "is the / is the
+ * please / is the please deploy / is the please deploy and ...", every phrase
+ * repeated at every length.
+ *
+ * So a result that continues or corrects the one before it replaces it rather
+ * than being added after it. "Continues" is a prefix match after ignoring case
+ * and punctuation, which also catches a last word still being revised ("is of"
+ * then "is offline"). A result that shares two or more leading words and
+ * differs only in its last word counts as a correction. Anything else is a new
+ * phrase — which is every result desktop Chrome sends, so desktop is unchanged.
+ */
+export type HeardResult = { text: string; final: boolean; confidence?: number };
+
+const normalise = (text: string) =>
+  text.toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").replace(/\s+/g, " ").trim();
+
+function revises(earlier: string, later: string): boolean {
+  const a = normalise(earlier);
+  const b = normalise(later);
+  if (!a || !b) return true;
+  if (b.startsWith(a) || a.startsWith(b)) return true;
+  const aw = a.split(" ");
+  const bw = b.split(" ");
+  const shared = Math.min(aw.length, bw.length) - 1;
+  if (shared < 2) return false;
+  for (let index = 0; index < shared; index += 1) if (aw[index] !== bw[index]) return false;
+  return true;
+}
+
+export function foldRevisions(results: HeardResult[]): HeardResult[] {
+  const folded: HeardResult[] = [];
+  for (const result of results) {
+    const text = result.text.trim();
+    if (!text) continue;
+    const last = folded[folded.length - 1];
+    if (last && revises(last.text, text)) folded[folded.length - 1] = { ...result, text };
+    else folded.push({ ...result, text });
+  }
+  return folded;
+}
+
+/** How long a phrase must go unchanged before it is announced to `onPhrase`. */
+const PHRASE_SETTLE_MS = 900;
+
+/**
  * Recording that keeps going until you say stop.
  *
  * WHY THIS EXISTS. Recognition ran with `continuous = false`, so the browser
@@ -232,24 +283,74 @@ export function createSteadyRecorder(options: {
   let disposed = false;
   /** Finished phrases from runs that have ended, in order. */
   let kept: string[] = [];
-  /** Finished phrases from the run in progress. */
+  /** Finished phrases from the run in progress, revisions folded (see foldRevisions). */
   let runFinals: string[] = [];
   /**
-   * How many of this run's phrases `clear()` has already disposed of. The
-   * engine re-sends a run's earlier phrases with every update, so without this
-   * words that were posted and cleared would reappear on the next result.
+   * How much of each of this run's phrases `clear()` has already disposed of.
+   * The engine re-sends a run's earlier phrases with every update — and on
+   * Android keeps extending the last one — so without this, words that were
+   * posted and cleared would reappear on the next result.
    */
-  let skip = 0;
+  let cleared: string[] = [];
   let interim = "";
   const confidences: number[] = [];
+  let runConfidences: number[] = [];
+  /** What `onPhrase` has been told of each of this run's phrases so far. */
+  let announced: string[] = [];
+  let phraseTimer: unknown = null;
   let restartTimer: unknown = null;
   let failures = 0;
   let finishing: { resolve: (value: { text: string; confidence?: number }) => void; guard: unknown } | null = null;
 
-  const words = () => [...kept, ...runFinals.slice(skip)].map((part) => part.trim()).filter(Boolean).join(" ");
+  /** What is left of `text` once `already` has been taken off its front. */
+  const beyond = (text: string, already: string | undefined) => {
+    if (!already) return text;
+    const a = normalise(already);
+    if (!normalise(text).startsWith(a)) return "";
+    // Walk the original text until as many normalised characters as `already`
+    // has have gone by, so the remainder keeps its own case and punctuation.
+    const taken = a.replace(/ /g, "").length;
+    let seen = 0;
+    let index = 0;
+    while (index < text.length && seen < taken) {
+      if (/[\p{L}\p{N}']/u.test(text[index])) seen += 1;
+      index += 1;
+    }
+    return text.slice(index).replace(/^[^\p{L}\p{N}']+/u, "");
+  };
+  const runWords = () => runFinals.map((phrase, index) => beyond(phrase, cleared[index]));
+  const words = () => [...kept, ...runWords()].map((part) => part.trim()).filter(Boolean).join(" ");
   const report = () => options.onText([words(), interim.trim()].filter(Boolean).join(" "));
-  const confidence = () =>
-    confidences.length > 0 ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length : undefined;
+  const confidence = () => {
+    const all = [...confidences, ...runConfidences];
+    return all.length > 0 ? all.reduce((sum, value) => sum + value, 0) / all.length : undefined;
+  };
+
+  /**
+   * Tell `onPhrase` about finished words, once each.
+   *
+   * NOT THE MOMENT A RESULT IS MARKED FINAL. On Android "final" arrives with
+   * every word, and a mode that posts each phrase would post "hey", then "hey
+   * so", then "hey so I thought". A phrase is announced when something new has
+   * started after it, when it has gone unchanged for a moment, or when the run
+   * ends — and if the engine later extends a phrase already announced, only
+   * the new words go out.
+   */
+  const announce = (upTo: number) => {
+    if (!options.onPhrase) return;
+    for (let index = 0; index < Math.min(upTo, runFinals.length); index += 1) {
+      const phrase = runFinals[index];
+      const fresh = beyond(phrase, announced[index]).trim();
+      if (normalise(phrase).startsWith(normalise(announced[index] ?? ""))) announced[index] = phrase;
+      if (!fresh) continue;
+      const value = runConfidences[index];
+      options.onPhrase(value !== undefined ? { text: fresh, confidence: value } : { text: fresh });
+    }
+  };
+  const cancelPhraseTimer = () => {
+    if (phraseTimer !== null) clearTimer(phraseTimer);
+    phraseTimer = null;
+  };
 
   const settle = () => {
     if (!finishing) return;
@@ -283,29 +384,37 @@ export function createSteadyRecorder(options: {
 
   recognition.onresult = (event) => {
     // The results of THIS run, rebuilt whole each time: in continuous mode the
-    // engine revises earlier phrases, and appending blindly would duplicate them.
-    const finals: string[] = [];
-    let guess = "";
+    // engine revises earlier phrases, and appending blindly would duplicate
+    // them. Then folded, for the engines that report a phrase once per word.
+    const heard: HeardResult[] = [];
     for (let index = 0; index < event.results.length; index += 1) {
       const result = event.results[index];
-      const transcript = result?.[0]?.transcript ?? "";
-      if (result?.isFinal) {
-        finals.push(transcript);
-        if (index >= event.resultIndex) {
-          const value = result[0]?.confidence;
-          if (typeof value === "number" && Number.isFinite(value) && value > 0) confidences.push(value);
-          options.onPhrase?.(
-            typeof value === "number" && value > 0 ? { text: transcript.trim(), confidence: value } : { text: transcript.trim() },
-          );
-        }
-      } else {
-        guess += transcript;
-      }
+      const value = result?.[0]?.confidence;
+      heard.push({
+        text: result?.[0]?.transcript ?? "",
+        final: Boolean(result?.isFinal),
+        ...(typeof value === "number" && Number.isFinite(value) && value > 0 ? { confidence: value } : {}),
+      });
     }
-    runFinals = finals;
-    interim = guess;
+    const folded = foldRevisions(heard);
+    const last = folded[folded.length - 1];
+    const guess = last && !last.final ? last : null;
+    const done = guess ? folded.slice(0, -1) : folded;
+    runFinals = done.map((phrase) => phrase.text);
+    runConfidences = done.flatMap((phrase) => (phrase.confidence !== undefined ? [phrase.confidence] : []));
+    interim = guess?.text ?? "";
     failures = 0;
     report();
+
+    // Everything before the last phrase is finished: something came after it.
+    announce(done.length - 1);
+    cancelPhraseTimer();
+    if (options.onPhrase && done.length > 0) {
+      phraseTimer = setTimer(() => {
+        phraseTimer = null;
+        announce(runFinals.length);
+      }, PHRASE_SETTLE_MS);
+    }
   };
 
   recognition.onerror = (event) => {
@@ -323,9 +432,14 @@ export function createSteadyRecorder(options: {
   recognition.onend = () => {
     running = false;
     if (disposed) return;
-    kept = [...kept, ...runFinals.slice(skip)];
+    cancelPhraseTimer();
+    announce(runFinals.length);
+    kept = [...kept, ...runWords()];
+    confidences.push(...runConfidences);
     runFinals = [];
-    skip = 0;
+    runConfidences = [];
+    cleared = [];
+    announced = [];
     if (finishing || !recording) {
       settle();
       return;
@@ -339,7 +453,9 @@ export function createSteadyRecorder(options: {
       if (disposed || recording) return;
       kept = [];
       runFinals = [];
-      skip = 0;
+      runConfidences = [];
+      cleared = [];
+      announced = [];
       interim = "";
       confidences.length = 0;
       failures = 0;
@@ -356,6 +472,7 @@ export function createSteadyRecorder(options: {
         }
         if (restartTimer !== null) clearTimer(restartTimer);
         restartTimer = null;
+        cancelPhraseTimer();
         const wasRecording = recording;
         recording = false;
         options.onRecording(false);
@@ -379,10 +496,13 @@ export function createSteadyRecorder(options: {
     cancel: () => {
       if (restartTimer !== null) clearTimer(restartTimer);
       restartTimer = null;
+      cancelPhraseTimer();
       recording = false;
       kept = [];
       runFinals = [];
-      skip = 0;
+      runConfidences = [];
+      cleared = [];
+      announced = [];
       interim = "";
       options.onRecording(false);
       if (running) recognition.abort();
@@ -390,8 +510,9 @@ export function createSteadyRecorder(options: {
     },
     clear: () => {
       kept = [];
-      // Not emptied: the engine still holds them and will send them again.
-      skip = runFinals.length;
+      // Not emptied: the engine still holds them and will send them again,
+      // possibly longer. Remember how much of each has been disposed of.
+      cleared = [...runFinals];
       interim = "";
       confidences.length = 0;
       report();
@@ -399,6 +520,7 @@ export function createSteadyRecorder(options: {
     dispose: () => {
       disposed = true;
       recording = false;
+      cancelPhraseTimer();
       if (restartTimer !== null) clearTimer(restartTimer);
       recognition.onstart = null;
       recognition.onresult = null;
