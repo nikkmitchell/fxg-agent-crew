@@ -14,21 +14,33 @@
  * run from a wearer's chin to below the floor with every test passing.
  */
 
-/** How far in front of the wearer the closed pair floats. Unchanged. */
-export const CLOSED_AHEAD = 0.62;
+/**
+ * How far in front of the wearer the closed pair floats.
+ *
+ * BROUGHT IN FROM 0.62. Nikk asked for it "closer to the user" after the first
+ * pass. 0.50 is still outside a comfortable reach — a controller ray does not
+ * need contact — and it keeps the pair away from the near clip plane, which is
+ * where a panel starts to clip through itself as you lean.
+ */
+export const CLOSED_AHEAD = 0.5;
 
 /**
  * How far off the floor, absolute rather than relative to the head, so it stays
  * put whether you are standing or leaning forward.
  *
- * LOWERED FROM 1.02. Nikk, from inside a headset: "the settings button is too
- * high up, can you make it lower so it doesn't block anyones view". At 1.02 it
- * sat at waist height and straight up, which put it through the middle of the
- * view of anything standing a couple of metres away — including a person you
- * are talking to. 0.86 is upper-thigh: still an easy reach downward, and below
- * the band a conversation happens in.
+ * LOWERED TWICE. It was 1.02 — waist height and straight up, which put it
+ * through the middle of the view of anything standing a couple of metres away,
+ * including a person you were talking to. Nikk: "too high up, can you make it
+ * lower so it doesn't block anyones view". 0.86 was the first answer and was
+ * still too high from inside a headset: "it should be more lower". 0.72 is
+ * mid-thigh.
+ *
+ * THE FLOOR ON THIS IS NOT COMFORT, IT IS REACH. Much below about 0.6 and a
+ * seated wearer is reaching into their own lap, and the pair starts competing
+ * with the floor for the same pixels. If it is still too high, say so again
+ * and this is the number — but expect the next stop to be the last.
  */
-export const CLOSED_HEIGHT = 0.86;
+export const CLOSED_HEIGHT = 0.72;
 
 /** Where the eyes are, for working out the angle down to the panel. A standing
  * adult in this room measures 1.55-1.65; the middle of that is close enough for
@@ -54,15 +66,19 @@ export function squareOnTilt(
 /**
  * How much of that to actually apply.
  *
- * NOT ALL OF IT, and this is the part to argue with. Pointing the face straight
- * at the eyes lays the panel nearly flat — a tray at thigh height, which reads
- * as a thing to put something on rather than a thing to press, and which loses
- * its own silhouette from any other angle. Nikk asked for "facing up a bit
- * more", which is a nudge and not a right angle. Half is the nudge.
+ * NOT ALL OF IT, but more than it was. Pointing the face straight at the eyes
+ * lays the panel nearly flat — a tray at thigh height reads as somewhere to put
+ * something rather than something to press, and it loses its own silhouette
+ * from every other angle. So this stays a fraction.
  *
- * At the numbers above that is about 25 degrees of pitch out of a possible 50.
+ * RAISED FROM HALF TO 0.7, because half was not enough from inside a headset:
+ * Nikk asked twice, "facing up a bit more" and then "pointed upwards a little
+ * more". Lowering the pair also steepens the angle down to it, so the same
+ * fraction would have tilted it further anyway — 0.7 of a steeper angle is a
+ * markedly flatter panel than 0.5 of the old one, and the numbers below say by
+ * how much.
  */
-export const TILT_FRACTION = 0.5;
+export const TILT_FRACTION = 0.7;
 
 /** The pitch applied to the closed pair, in radians. Positive means the face
  * points upward; see `closedControlPose` for the sign that reaches Three.js. */

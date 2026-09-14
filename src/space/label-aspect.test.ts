@@ -19,6 +19,23 @@ const planesIn = (source: string): [number, number][] =>
   );
 
 describe("text planes", () => {
+  it("shapes a button's label canvas like the button, rather than assuming 4:1", async () => {
+    // THE RULE THIS FILE STATES, APPLIED TO THE FILE IT DID NOT CHECK. The
+    // settings gear is a 0.14 x 0.14 square taking a 4:1 texture, so its glyph
+    // was squeezed to a quarter of its width — "weirdly shaped, like its
+    // stretched", from inside a headset. A test that knows stretching is the
+    // failure mode and only ever looked at StillPanel.tsx is half a test.
+    const source = await import("node:fs").then((fs) =>
+      fs.readFileSync(new URL("./Backdrop.tsx", import.meta.url), "utf8"),
+    );
+    // Asserted on the source rather than by rendering, for the same reason the
+    // check below is: this suite has no renderer, and the numbers must come out
+    // of the component so it cannot pass while the scene says otherwise.
+    expect(source, "WristButton must tell makeLabelTexture the plane's aspect")
+      .toMatch(/makeLabelTexture\([\s\S]*?aspect:\s*width\s*\/\s*height/);
+  });
+
+
   it("keeps the still panel's caption at the texture's own aspect", async () => {
     const source = await import("node:fs").then((fs) =>
       fs.readFileSync(new URL("./StillPanel.tsx", import.meta.url), "utf8"),

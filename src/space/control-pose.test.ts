@@ -66,13 +66,19 @@ describe("which way the closed controls face", () => {
     expect(closedTilt()).toBeGreaterThan(0);
   });
 
-  it("tilts a nudge, not all the way flat", () => {
-    // Pointing the face straight at the eyes lays it nearly horizontal — a
-    // tray at thigh height, which reads as somewhere to put something. Nikk
-    // asked for "a bit more".
-    expect(closedTilt()).toBeLessThan(squareOnTilt());
+  it("tilts short of flat, by a margin worth seeing", () => {
+    // THE PROPERTY, NOT A DEGREE CEILING. This asserted "< 40 degrees" and
+    // failed the moment Nikk asked for more tilt and a lower panel — the panel
+    // is now 42.3, and the test was wrong rather than the panel. A fixed
+    // ceiling is a second opinion about the design competing with
+    // TILT_FRACTION, which is where the decision actually lives.
+    //
+    // What must stay true is that the face never points straight at the eyes,
+    // because that lays a thigh-height panel flat enough to read as a tray
+    // rather than a control. Ten degrees of daylight is the claim.
+    expect(deg(squareOnTilt()) - deg(closedTilt())).toBeGreaterThan(10);
+    // And that it is a real tilt rather than a rounding error.
     expect(deg(closedTilt())).toBeGreaterThan(10);
-    expect(deg(closedTilt())).toBeLessThan(40);
   });
 
   it("is exactly the stated fraction of square-on, so the number is not magic", () => {
