@@ -638,13 +638,43 @@ export class Presence {
   prune(): string[] {
     const cutoff = this.now() - STALE_AFTER_MS;
     const dropped: string[] = [];
-    for (const [key, occupant] of this.occupants) {
+    for (const [, occupant] of this.occupants) {
       // Agents are placed by activity rather than by a heartbeat, so they are
       // kept: an agent standing at its desk having done nothing for an hour is
       // a true statement, and dropping it would claim it had left.
       if (!occupant.connected) continue;
       if (occupant.lastSeen < cutoff) {
-        this.occupants.delete(key);
+        /**
+         * GOING QUIET IS NOT LEAVING, AND IT IS NOT MOVING EITHER.
+         *
+         * This used to DELETE them. The socket was still open — a closed one
+         * goes through `leave` instead — so all that had happened was that a
+         * client stopped sending for forty-five seconds: a headset set down, a
+         * tab in the background, a laptop asleep. Deleting them meant the next
+         * frame they sent re-joined them, and `join` puts a person at the
+         * spawn point. So somebody who paused was teleported to the door.
+         *
+         * Nikk, from a headset: "when a user is not currently receiving any
+         * information they go back to the spawn point and they stand with a T
+         * post... they should stay where they are in the same position and
+         * height and to start idling."
+         *
+         * So they stay, exactly where they were. The figure idles by itself
+         * because no tracking is arriving — see the untracked branch in
+         * VrmBody — and the position is simply the last thing their own device
+         * actually reported, which is the most honest thing the room can show.
+         *
+         * STILL COUNTED AS CONNECTED, deliberately. `selfMoving` is
+         * `connected && kind !== "agent"`, so clearing the flag would make the
+         * audit trail start walking a person about — the one thing the room
+         * must never do to somebody wearing a headset.
+         *
+         * THE COST, SAID PLAINLY: a socket that dies without a close frame now
+         * leaves a figure standing there. That is a ghost, and it is the price
+         * of not teleporting people who paused. A close still removes them, and
+         * a genuinely dead socket is rarer than somebody putting a headset
+         * down.
+         */
         dropped.push(occupant.actorId);
       }
     }

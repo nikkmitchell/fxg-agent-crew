@@ -78,6 +78,13 @@ export function VrmBody({
   const [vrm, setVrm] = useState<VRM | null>(null);
   const arms = useRef<ArmSpec | null>(null);
   /** The model's own head height, so it can be scaled to the person's. */
+/**
+ * How much of the measured height to actually draw.
+ *
+ * Asked for from inside a headset. See the note where it is applied: the
+ * arithmetic it multiplies is correct, and correct was reading wrong.
+ */
+const HEIGHT_FRACTION = 0.5;
   const modelHead = useRef(1.34);
   const root = useRef<THREE.Group>(null);
   const animation = useRef<AgentAnimationPlayer | null>(null);
@@ -223,7 +230,25 @@ export function VrmBody({
      * not produce a four-metre person.
      */
     const wantedHead = headOf(person).y;
-    const scale = Math.max(0.6, Math.min(1.6, wantedHead / modelHead.current));
+    /**
+     * HALF THE HEIGHT THE MEASUREMENT ASKS FOR.
+     *
+     * Nikk, from inside a headset, twice: "the avatars are still way too tall
+     * can we make the avatars just always be a Max of 50% of their current
+     * height".
+     *
+     * This is a decision I cannot check and did not make. Matching a model's
+     * head to the head the room reports is the arithmetic that has always been
+     * here and it is not wrong — a 1.6 m person drawn 1.6 m tall is correct in
+     * every sense except how it reads at conversational distance in a room
+     * this size, which is the only sense that matters and the only one I have
+     * no access to. Halving is drastic on paper; the person who can see it has
+     * asked for it twice.
+     *
+     * ONE CONSTANT, so dialling it back is one number rather than a hunt. If
+     * 0.5 turns out to be too far, this is the line.
+     */
+    const scale = Math.max(0.6, Math.min(1.6, wantedHead / modelHead.current)) * HEIGHT_FRACTION;
     node.scale.setScalar(scale);
 
     const authored = person.kind === "agent" ? animation.current : null;
@@ -241,7 +266,25 @@ export function VrmBody({
       );
     }
 
-    const automatic = person.kind === "agent"
+    /**
+     * AN UNTRACKED BODY IDLES; IT DOES NOT STAND IN A T.
+     *
+     * This used to be agents only, so a PERSON whose tracking stopped — headset
+     * off, controllers down, client gone quiet — got no bone rotations at all
+     * and fell back to the VRM rest pose, which is a T. Nikk: "they stand with
+     * a T post... they should stay where they are in the same position and
+     * height and to start idling."
+     *
+     * IT DOES NOT BREAK THE RULE, and that is worth being exact about. The rule
+     * is that a fact a device reports is not ours to overwrite. An untracked
+     * limb is not a reported fact — nothing was said about it — and a T-pose is
+     * every bit as much our invention as an idle is, just a worse-looking one
+     * that also reads as broken. Where a device IS reporting, the measurement
+     * still wins: the hands below use `person.hands` whenever it has them, and
+     * this only fills the silence.
+     */
+    const untracked = !person.head && !person.hands.left && !person.hands.right;
+    const automatic = person.kind === "agent" || untracked
       ? agentMotionFrame({
           actorId,
           avatar: person.avatar,

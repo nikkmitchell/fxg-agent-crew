@@ -260,17 +260,50 @@ describe("walking", () => {
 });
 
 describe("leaving", () => {
-  it("forgets a connected person who has gone silent", () => {
+  it("keeps a silent person exactly where they were, and says so", () => {
+    /**
+     * THIS USED TO ASSERT THEY WERE FORGOTTEN, and being forgotten is what
+     * teleported them. The socket is still open — a closed one goes through
+     * `leave` — so all that happened is a client stopped sending for
+     * forty-five seconds: a headset put down, a tab in the background. Deleting
+     * them meant their next frame re-joined them, and `join` puts a person at
+     * the spawn point.
+     *
+     * Nikk, from a headset: "they should stay where they are in the same
+     * position and height and to start idling."
+     *
+     * Still REPORTED by prune, because the socket layer uses that list to tell
+     * a client it has gone stale. Reported and kept are different things.
+     */
     const clock = { now: 0 };
     const presence = at(clock);
-    presence.join("nikk", "human");
+    const person = presence.join("nikk", "human");
+    presence.moveSelf("nikk", { x: 2.5, y: 0, z: -1.5 }, 0.4);
+    const wasAt = { ...person.at };
 
     clock.now = STALE_AFTER_MS - 1;
     expect(presence.prune()).toEqual([]);
 
     clock.now = STALE_AFTER_MS + 1;
-    expect(presence.prune()).toEqual(["nikk"]);
-    expect(presence.size).toBe(0);
+    expect(presence.prune(), "the client is still told it went stale").toEqual(["nikk"]);
+    expect(presence.size, "but they are still in the room").toBe(1);
+    expect(presence.find("nikk")?.at, "and have not been moved").toEqual(wasAt);
+  });
+
+  it("does not let the audit trail start walking somebody who merely paused", () => {
+    // `selfMoving` is `connected && kind !== "agent"`, so clearing the flag on
+    // a quiet person would hand their body to the activity poller — the one
+    // thing the room must never do to somebody wearing a headset.
+    const clock = { now: 0 };
+    const presence = at(clock);
+    presence.join("nikk", "human");
+    presence.moveSelf("nikk", { x: 1, y: 0, z: 1 }, 0);
+    clock.now = STALE_AFTER_MS + 1;
+    presence.prune();
+
+    presence.sendTo("nikk", "human", { x: -4, y: 0, z: 4 }, "commented on a card");
+    expect(presence.find("nikk")?.at).toEqual({ x: 1, y: 0, z: 1 });
+    expect(presence.find("nikk")?.because, "and no reason is pinned on them").toBeNull();
   });
 
   it("keeps an agent placed by activity — silence is not departure for them", () => {
@@ -284,15 +317,19 @@ describe("leaving", () => {
     expect(presence.find("plumbline")).toBeDefined();
   });
 
-  it("does not resurrect someone already pruned", () => {
+  it("still forgets somebody whose socket actually closed", () => {
+    // The distinction the change turns on: going quiet is not leaving, and
+    // leaving still is. `leave` is called on a close and still removes a
+    // person, so the old guarantee — that a heartbeat cannot resurrect
+    // somebody who has gone — holds where it was actually about departure.
     const clock = { now: 0 };
     const presence = at(clock);
     presence.join("nikk", "human");
-    clock.now = STALE_AFTER_MS + 1;
-    presence.prune();
+    presence.leave("nikk");
+    expect(presence.size).toBe(0);
 
     presence.heard("nikk");
-    expect(presence.size).toBe(0);
+    expect(presence.size, "a heartbeat does not bring them back").toBe(0);
   });
 
   it("leaves the room when a human disconnects", () => {
