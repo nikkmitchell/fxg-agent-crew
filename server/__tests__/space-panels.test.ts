@@ -80,7 +80,18 @@ describe("choosing panels", () => {
     await app.close();
   });
 
-  it("keeps one person's choice out of another person's room", async () => {
+  it("carries one person's choice into everybody's room", async () => {
+    /**
+     * THIS TEST USED TO ASSERT THE OPPOSITE, and it was right to at the time —
+     * "keeps one person's choice out of another person's room", because
+     * panels.ts argued that what you have open is yours alone since nothing
+     * anybody else sees depends on it. Nothing does. But Nikk, having used it:
+     * "Now the enabled or dissabled boards/panels are not syned, we want this
+     * to also be synced, have it the same as position and scale of boards."
+     *
+     * Inverted rather than deleted, so the reversal is visible in the history
+     * instead of the old rule quietly disappearing.
+     */
     const { app, as } = boot();
     await app.inject({
       method: "PUT",
@@ -93,7 +104,42 @@ describe("choosing panels", () => {
       url: "/bff/space/panels",
       headers: { cookie: as("nikk") },
     });
-    expect(other.json().open).toContain("people");
+    expect(other.json().open).not.toContain("people");
+    await app.close();
+  });
+
+  it("refuses the last panel on everybody's behalf, not just the closer's", async () => {
+    // The refusal existed before and protected one person's own room. Shared,
+    // it protects a room full of people who are not looking at a settings
+    // menu and would have no idea why the walls went bare.
+    const { app, as } = boot();
+    const catalogue = (await app.inject({
+      method: "GET", url: "/bff/space/panels", headers: { cookie: as("wren") },
+    })).json().open as string[];
+
+    // Close everything but the last, as one person.
+    for (const id of catalogue.slice(0, -1)) {
+      const put = await app.inject({
+        method: "PUT", url: `/bff/space/panels/${id}`,
+        headers: { cookie: as("wren") }, payload: { open: false },
+      });
+      expect(put.statusCode, `closing ${id}`).toBe(200);
+    }
+
+    // Somebody ELSE now tries to close the one that is left.
+    const last = catalogue[catalogue.length - 1];
+    const refused = await app.inject({
+      method: "PUT", url: `/bff/space/panels/${last}`,
+      headers: { cookie: as("nikk") }, payload: { open: false },
+    });
+    expect(refused.statusCode).toBe(422);
+    expect(refused.json().error).toMatch(/everybody/);
+
+    // And the room still has it.
+    const after = await app.inject({
+      method: "GET", url: "/bff/space/panels", headers: { cookie: as("nikk") },
+    });
+    expect(after.json().open).toEqual([last]);
     await app.close();
   });
 

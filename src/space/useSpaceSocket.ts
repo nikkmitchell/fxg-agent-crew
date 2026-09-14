@@ -57,6 +57,14 @@ export type SpaceConnection = {
   /** Where every panel hangs. Empty until the socket says; see the note above. */
   places: Placement[];
   /**
+   * Which panels the room has open, or null until the room has said.
+   *
+   * NULL IS NOT "NONE". Before the socket answers we do not know, and showing
+   * an empty arc would be a claim — the same distinction `showing` makes for
+   * the project nobody has chosen.
+   */
+  openPanels: string[] | null;
+  /**
    * What the room is showing, as everybody in it sees it.
    *
    * Carried on the socket rather than fetched, so a change one person makes
@@ -100,6 +108,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
    * appearing empty and then filling in.
    */
   const [places, setPlaces] = useState<Placement[]>([]);
+  const [openPanels, setOpenPanels] = useState<string[] | null>(null);
   const [showing, setShowing] = useState<Showing>({
     projectId: null,
     boardId: null,
@@ -192,6 +201,14 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
             ...previous.filter((place) => place.id !== message.panel.id),
             message.panel,
           ]);
+          return;
+        }
+        if (message.type === "panelsOpen") {
+          // WHICH PANELS EXIST IS SHARED NOW, so this arrives the same way a
+          // move does. A position rather than an event: the frame carries the
+          // whole set, so only the newest answer matters and a missed frame
+          // cannot leave this drifting from the room.
+          setOpenPanels(message.open);
           return;
         }
         if (message.type === "showing") {
@@ -298,6 +315,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     heard,
     liveUtterance,
     places,
+    openPanels,
     showing,
     subscribe,
   };

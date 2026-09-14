@@ -162,6 +162,15 @@ export type ServerMessage =
    */
   | { type: "panelMoved"; panel: Placement; by: string }
   /**
+   * Somebody opened or closed a panel, for everybody.
+   *
+   * The whole set rather than the one that changed: a client that misses a
+   * frame would otherwise hold a set that drifts further from the room with
+   * every change, and there are four panels — sending all of them costs
+   * nothing and cannot desynchronise.
+   */
+  | { type: "panelsOpen"; open: string[]; by: string }
+  /**
    * Somebody changed what the room is showing.
    *
    * Broadcast rather than polled, because the point of it being shared is

@@ -149,6 +149,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       config,
       announce: (panel, by) => space.broadcast({ type: "panelMoved", panel, by }),
+      announceOpen: (open, by) => space.broadcast({ type: "panelsOpen", open, by }),
     });
     registerShowingRoutes(scoped, {
       showing: roomShowing,

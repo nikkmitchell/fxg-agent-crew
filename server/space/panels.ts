@@ -19,11 +19,26 @@ import { makeRequireSession } from "../require-session.js";
  * smallest possible store for that: a row per decision, no row where nobody has
  * decided, and the defaults from `shared/space-layout.ts` filling the gap.
  *
- * WHY THIS IS SEPARATE FROM WHERE THE PANELS ARE. Positions are shared, because
- * the server computes an agent's destination from its panel's position — a
- * per-person arrangement would have me watching an agent walk to empty air
- * while the room told me it had gone to the board. What you have OPEN is yours
- * alone, because nothing anybody else sees depends on it.
+ * SHARED, LIKE POSITION AND SCALE — and this file used to argue the opposite,
+ * so the old reasoning is kept because it was not wrong, only answering a
+ * different question: "Positions are shared, because the server computes an
+ * agent's destination from its panel's position... What you have OPEN is yours
+ * alone, because nothing anybody else sees depends on it."
+ *
+ * Nothing does break when each person has their own set, which is what that
+ * argued. But necessity is not the same as fit. Nikk, having used it: "Now the
+ * enabled or dissabled boards/panels are not syned, we want this to also be
+ * synced, have it the same as position and scale of boards." Dragging a panel
+ * already moves it for everybody and resizing already resizes it for
+ * everybody; a room where the furniture is shared but which furniture EXISTS
+ * is private is a strange half-room.
+ *
+ * THE CONSEQUENCE, SAID PLAINLY: closing a panel now closes it for everyone,
+ * including somebody reading it in a headset. That is the same deal as
+ * dragging, which already pulls a board out from under a reader — but more
+ * noticeable, because a panel that vanishes is harder to follow than one that
+ * slides. Hence `set_by` and `set_at`: "why has the mood board gone" should be
+ * answerable without asking around.
  */
 export class PanelChoices {
   constructor(private readonly database: DatabaseSync) {}
@@ -35,10 +50,10 @@ export class PanelChoices {
    * and its panels have a left-to-right, and a settings list that reshuffles as
    * you click is a settings list you cannot use.
    */
-  openFor(actorId: string): string[] {
+  open(): string[] {
     const rows = this.database
-      .prepare("SELECT panel_id, open FROM space_panel_open WHERE actor_id = ?")
-      .all(actorId) as { panel_id: string; open: number }[];
+      .prepare("SELECT panel_id, open FROM space_panel_shown")
+      .all() as { panel_id: string; open: number }[];
     const decided = new Map(rows.map((row) => [row.panel_id, row.open === 1]));
     return Object.keys(STATIONS).filter(
       (id) => decided.get(id) ?? DEFAULT_OPEN_PANELS.includes(id),
@@ -46,20 +61,25 @@ export class PanelChoices {
   }
 
   /** Record a decision. Returns null when it was accepted, a sentence when not. */
-  set(actorId: string, panelId: string, open: boolean, at: string): string | null {
+  set(panelId: string, open: boolean, by: string, at: string): string | null {
     if (!(panelId in STATIONS)) return `there is no panel called "${panelId}"`;
     // REFUSING TO CLOSE THE LAST ONE. An empty arc is indistinguishable from a
     // room that failed to load, and the way out of it is a settings list the
     // person has just learned they cannot see. Cheaper to say no.
-    if (!open && this.openFor(actorId).filter((id) => id !== panelId).length === 0) {
-      return "that is the last panel you have open; the room would be empty and you could not get back";
+    //
+    // NOW A REFUSAL ON EVERYBODY'S BEHALF, which is a stronger reason for it
+    // rather than a weaker one: closing the last panel would empty the room
+    // for every person in it, including people not looking at a settings menu
+    // and with no idea why the walls went bare.
+    if (!open && this.open().filter((id) => id !== panelId).length === 0) {
+      return "that is the last panel open; the room would be empty for everybody and nobody could get back";
     }
     this.database
       .prepare(
-        `INSERT INTO space_panel_open (actor_id, panel_id, open, at) VALUES (?, ?, ?, ?)
-         ON CONFLICT(actor_id, panel_id) DO UPDATE SET open = excluded.open, at = excluded.at`,
+        `INSERT INTO space_panel_shown (panel_id, open, set_by, set_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(panel_id) DO UPDATE SET open = excluded.open, set_by = excluded.set_by, set_at = excluded.set_at`,
       )
-      .run(actorId, panelId, open ? 1 : 0, at);
+      .run(panelId, open ? 1 : 0, by, at);
     return null;
   }
 }
@@ -157,12 +177,14 @@ export function registerPanelRoutes(
     sessions,
     config,
     announce,
+    announceOpen,
   }: {
     database: DatabaseSync;
     sessions: SessionStore;
     config: Config;
     /** Tell everyone in the room, so a panel moves under their eyes. */
     announce: (placement: Placement, by: string) => void;
+    announceOpen: (open: string[], by: string) => void;
   },
 ) {
   const requireSession = makeRequireSession(config, sessions);
@@ -179,7 +201,7 @@ export function registerPanelRoutes(
         label: station.label,
         tab: station.tab,
       })),
-      open: choices.openFor(session.username),
+      open: choices.open(),
       places: places.all(),
     });
   });
@@ -194,15 +216,20 @@ export function registerPanelRoutes(
         return reply.code(400).send({ code: "BAD_OPEN", error: "open must be true or false" });
       }
       const refused = choices.set(
-        session.username,
         request.params.id,
         open,
+        session.username,
         new Date().toISOString(),
       );
       // 422 rather than 400: the request was understood and declined on its
       // merits, and the sentence is the point.
       if (refused) return reply.code(422).send({ code: "REFUSED", error: refused });
-      return reply.send({ open: choices.openFor(session.username) });
+      const shown = choices.open();
+      // TOLD TO EVERYBODY, like a move. Without this the person who clicked
+      // sees it and nobody else does until they reload — which is the bug this
+      // change exists to fix, merely moved from the database to the socket.
+      announceOpen(shown, session.username);
+      return reply.send({ open: shown });
     },
   );
 

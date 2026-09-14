@@ -4,7 +4,13 @@ import { ApiError } from "../api-request";
 import { space } from "../space-client";
 
 /**
- * Which panels you have open, as the server knows it.
+ * Which panels THE ROOM has open, as the server knows it.
+ *
+ * NOT YOURS ANY MORE. This was per-person, and Nikk asked for it to be shared
+ * like position and scale: "Now the enabled or dissabled boards/panels are not
+ * syned, we want this to also be synced." So somebody else closing a panel has
+ * to reach this hook while it is on screen, which is what `fromRoom` is for —
+ * the socket carries the whole set on every change.
  *
  * SERVER-SIDE RATHER THAN `localStorage`, which is the obvious place and the
  * wrong one here. You arrange the room sitting at a desk and then put a headset
@@ -33,7 +39,17 @@ const CATALOGUE: PanelChoice[] = Object.values(STATIONS).map((station) => ({
   tab: station.tab,
 }));
 
-export function usePanelChoices(enabled: boolean): PanelChoices {
+export function usePanelChoices(
+  enabled: boolean,
+  /**
+   * The set the room last broadcast, or null before it has said anything.
+   *
+   * PASSED IN RATHER THAN SUBSCRIBED HERE, because the socket is already open
+   * one level up and a second subscription would mean two connections
+   * disagreeing about the same four booleans.
+   */
+  fromRoom: string[] | null = null,
+): PanelChoices {
   // Starts at the defaults rather than empty, so the room draws its panels on
   // the first frame instead of appearing bare and then filling in.
   const [open, setOpenState] = useState<string[]>(DEFAULT_OPEN_PANELS);
@@ -56,6 +72,20 @@ export function usePanelChoices(enabled: boolean): PanelChoices {
       cancelled = true;
     };
   }, [enabled]);
+
+  /**
+   * SOMEBODY ELSE CHANGED IT.
+   *
+   * Applied straight, with no merge: the frame carries the whole set and the
+   * room is the authority now. Merging would invent a third arrangement that
+   * neither person chose.
+   *
+   * It is also what makes the optimistic update below safe to keep — the
+   * server's broadcast arrives moments later and overwrites any guess.
+   */
+  useEffect(() => {
+    if (fromRoom) setOpenState(fromRoom);
+  }, [fromRoom]);
 
   const setOpen = useCallback((id: string, next: boolean) => {
     setRefusal(null);

@@ -79,7 +79,9 @@ export function SpacePanel() {
   const [comfort, setComfort] = useState<Comfort>(DEFAULT_COMFORT);
   const [inHeadset, setInHeadset] = useState(false);
   const [headsetAvailable, setHeadsetAvailable] = useState<boolean | null>(null);
-  const panels = usePanelChoices(entered);
+  // The room's open set is fed in from the socket, so a panel somebody else
+  // closes closes here too rather than on the next reload.
+  const panels = usePanelChoices(entered, connection.openPanels);
   const arrange = usePanelArrange();
   const [panelTrouble, setPanelTrouble] = useState<string | null>(null);
   /**

@@ -497,4 +497,53 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 15,
+    name: "which panels the room has open",
+    sql: `
+      -- WHICH PANELS ARE OPEN IS NOW SHARED, and this reverses a deliberate
+      -- decision rather than filling a gap. space_panel_open, added in
+      -- migration 11, is keyed by actor precisely because panels.ts argued:
+      -- "What you have OPEN is yours alone, because nothing anybody else sees
+      -- depends on it."
+      --
+      -- That argument is about NECESSITY and it is correct — nothing breaks
+      -- when we each have our own set. It is not an argument that it feels
+      -- right. Nikk, having used it: "Now the enabled or dissabled
+      -- boards/panels are not syned, we want this to also be synced, have it
+      -- the same as position and scale of boards." Dragging a panel already
+      -- moves it for everybody and resizing already resizes it for everybody;
+      -- a room where the furniture is shared but which furniture EXISTS is
+      -- private is a strange half-room.
+      --
+      -- SEEDED FROM THE MOST RECENT DECISION PER PANEL, not from a union and
+      -- not from one chosen person's arrangement. A union would silently open
+      -- panels somebody had deliberately closed; picking a person would need
+      -- a rule about which person. The latest decision is the latest thing a
+      -- human actually expressed about that panel, and "at" already records
+      -- when.
+      --
+      -- THE OLD TABLE IS LEFT IN PLACE, unused. Nikk: "we can easily roll back
+      -- if anything breaks" — and a rollback that finds its data gone is not a
+      -- rollback. Nothing reads it after this migration.
+      CREATE TABLE space_panel_shown (
+        panel_id TEXT PRIMARY KEY,
+        open     INTEGER NOT NULL CHECK (open IN (0, 1)),
+        -- WHO AND WHEN, like places and showing: this is a change to a shared
+        -- thing, and "why has the mood board gone" should be answerable
+        -- without asking around.
+        set_by   TEXT NOT NULL,
+        set_at   TEXT NOT NULL
+      );
+
+      INSERT INTO space_panel_shown (panel_id, open, set_by, set_at)
+      SELECT panel_id, open, actor_id, at
+        FROM space_panel_open AS chosen
+       WHERE at = (
+               SELECT MAX(at) FROM space_panel_open AS latest
+                WHERE latest.panel_id = chosen.panel_id
+             )
+       GROUP BY panel_id;
+    `,
+  },
 ];
