@@ -5,6 +5,7 @@ import { bff } from "../bff-client";
 import { space } from "../space-client";
 import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
+import { micGlyph, micPress } from "./mic-press";
 import { closedControlPose } from "./control-pose";
 import { showHandModels } from "./xr-store";
 import { createSpeechInput, speakSay, speechCapabilities, type SpeechInput, type SpeechOutput } from "./speech";
@@ -273,7 +274,9 @@ export function RoomControls({
           // between every sentence. Recognition ends itself on each utterance.
           window.setTimeout(() => input.current?.start(), 250);
         } else {
-          setNotice("Tap Send, or speak again.");
+          // NAMES THE BUTTON THEY JUST PRESSED. It used to say "Tap Send",
+          // and the only Send was a row inside the settings menu.
+          setNotice("Press the mic again to send, or speak again to add to it.");
         }
       },
       onFailure: (failure) => setNotice(failure.message),
@@ -741,30 +744,70 @@ export function RoomControls({
             tone={listening ? "muted" : "normal"}
             onTap={openMenu}
           />
+          {/*
+            * ONE BUTTON, TWO PRESSES: press to talk, press again to send.
+            *
+            * WHAT WAS WRONG. Recognition ends itself after each utterance, and
+            * the default mode then set a notice reading "Tap Send, or speak
+            * again" — while the only Send control lived INSIDE the settings
+            * menu. So from a headset the microphone looked broken: you pressed
+            * it, you spoke, and nothing was ever sent, because sending meant
+            * opening a menu and finding a row in it. Nikk: "the audio sending
+            * to room and space doesn't work... I just click once on the mic
+            * button, and then click another time and it sends."
+            *
+            * So the second press sends. It also sends when recognition has
+            * already stopped on its own and words are waiting, which is the
+            * common case — the button is "deal with what I said" rather than
+            * strictly a toggle. `alwaysOn` still posts each sentence as it
+            * lands and needs no second press; there the button just stops.
+            *
+            * A MIC RATHER THAN A SENTENCE, also asked for. The label was a
+            * whole phrase, which on a control you glance at is worse than a
+            * symbol — and the symbol is only legible now because label
+            * textures take the shape of their plane. Its accessible name is
+            * still carried by the notice line, which says what happened in
+            * words.
+            */}
           <WristButton
-            label={
-              listening
-                ? alwaysOn
-                  ? "Stop — sending as you speak"
-                  : "Stop listening"
-                : capabilities.recognition
-                  ? alwaysOn
-                    ? "Start talking"
-                    : "Speak once"
-                  : "No microphone here"
-            }
+            label={micGlyph({ sending, listening, heard, alwaysOn })}
+            glyph
             x={-CLOSED_PAIR / 2 + GEAR + CLOSED_GAP + TALK / 2}
             y={0}
             width={TALK}
             height={0.14}
             tone={listening ? "live" : capabilities.recognition ? "normal" : "muted"}
             onTap={() => {
-              if (!capabilities.recognition) {
-                setNotice("There is no microphone available to this browser.");
-                return;
+              // THE DECISION LIVES IN `mic-press.ts`, not here. It is the part
+              // that was wrong, and a handler in a component this suite cannot
+              // render is a handler nobody can check.
+              switch (micPress({
+                available: capabilities.recognition,
+                listening,
+                sending,
+                heard,
+                alwaysOn,
+              })) {
+                case "refuse":
+                  setNotice("There is no microphone available to this browser.");
+                  return;
+                case "start":
+                  input.current?.start();
+                  return;
+                case "stop":
+                  input.current?.stop();
+                  return;
+                case "stopAndSend":
+                  // Stopped first, so the final result lands before the post.
+                  input.current?.stop();
+                  void post(heard);
+                  return;
+                case "send":
+                  void post(heard);
+                  return;
+                case "ignore":
+                  return;
               }
-              if (listening) input.current?.stop();
-              else input.current?.start();
             }}
           />
         </>
