@@ -12,6 +12,37 @@ import { createXRStore, type XRStore } from "@react-three/xr";
  */
 let store: XRStore | null = null;
 
+/**
+ * PINCH TO TELEPORT, OFF UNLESS SOMEBODY TURNS IT ON.
+ *
+ * Nikk, once the palm joystick worked: "remove the pinch to teleport but...
+ * keep it in... add it into the settings and have it be off by default... if
+ * you're on hand controls it's the palm up movement". A pinch is also how you
+ * press things, so a teleport arc on the left hand fired when it was not
+ * wanted — the "very finicky" that started the joystick.
+ *
+ * HANDS ONLY. A controller's teleport is a deliberate trigger pull, and a
+ * controller has a thumbstick besides; neither was the complaint.
+ *
+ * Remembered in this browser, because it is a preference about one person's
+ * hands, not about the room.
+ */
+const PINCH_TELEPORT_KEY = "saha.pinch-teleport";
+
+function readPinchTeleport(): boolean {
+  try {
+    return window.localStorage.getItem(PINCH_TELEPORT_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+
+const handOptions = { model: true, pinchTeleport: readPinchTeleport() };
+
+export function pinchTeleportEnabled(): boolean {
+  return handOptions.pinchTeleport;
+}
+
 export function getXRStore(): XRStore {
   store ??= createXRStore({
     /**
@@ -25,7 +56,7 @@ export function getXRStore(): XRStore {
      * plain ray for pointing at things. `default: true` leaves every other
      * input source exactly as it was.
      */
-    hand: { left: { teleportPointer: true }, default: true },
+    hand: { left: { teleportPointer: handOptions.pinchTeleport }, default: true },
     controller: { left: { teleportPointer: true }, default: true },
     /**
      * QUEST SYSTEM KEYBOARD INPUT.
@@ -115,16 +146,30 @@ export type { XRStore };
  * take away the ability to press things, which would be a far worse trade than
  * the one being asked for.
  *
- * The left hand keeps its teleport pointer here too. Restating it is not
- * duplication of the setup above — `setHand` REPLACES the implementation, so
- * anything left out is switched off, and on a headset with no thumbstick that
- * would mean somebody hiding their hands and discovering they can no longer
- * move.
+ * Every option is restated each time, from `handOptions`. `setHand` REPLACES
+ * the implementation, so anything left out is switched off — hiding the hands
+ * must not also switch off the teleport somebody chose to turn on.
  */
 export function showHandModels(shown: boolean): void {
+  handOptions.model = shown;
+  applyHandOptions();
+}
+
+/** Turn pinch-to-teleport on the left hand on or off, and remember the choice. */
+export function setPinchTeleport(on: boolean): void {
+  handOptions.pinchTeleport = on;
+  try {
+    window.localStorage.setItem(PINCH_TELEPORT_KEY, on ? "on" : "off");
+  } catch {
+    // A private window keeps the choice for this session only.
+  }
+  applyHandOptions();
+}
+
+function applyHandOptions(): void {
   const xr = getXRStore();
-  xr.setHand({ model: shown, teleportPointer: true }, "left");
-  xr.setHand({ model: shown }, "right");
-  xr.setController({ model: shown, teleportPointer: true }, "left");
-  xr.setController({ model: shown }, "right");
+  xr.setHand({ model: handOptions.model, teleportPointer: handOptions.pinchTeleport }, "left");
+  xr.setHand({ model: handOptions.model }, "right");
+  xr.setController({ model: handOptions.model, teleportPointer: true }, "left");
+  xr.setController({ model: handOptions.model }, "right");
 }

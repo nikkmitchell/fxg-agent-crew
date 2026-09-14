@@ -44,18 +44,22 @@ that first.
 | 4 | Stand still and look around | The figures are roughly person-sized and their feet are on the grid. | They are doll-sized or enormous — the metres in `shared/space-layout.ts` are wrong for a real body. |
 | 5 | Hold up your hands | Your figure's hands are at your wrists, where your hands actually are. | They are on the floor between your feet. That was the bug fixed on 12 Sept; if it is back, say so immediately. |
 | 6 | Put your hands behind your back for a few seconds, then bring them out | They stay where they were last seen, then snap back to your wrists. After about ten seconds of being hidden they disappear instead. | They fall to the floor, or jump to the middle of the room. |
-| 7 | Point your **left** hand at the floor and pinch (or pull the left trigger) | A curved arc lands on the floor; releasing puts you there. | No arc appears; the arc appears but nothing happens; you land somewhere other than where it pointed. |
+| 7 | With **controllers**, point the left one at the floor and pull the trigger. With **hands**, first turn on **Pinch to teleport** in the settings menu (it is off by default), then point your left hand at the floor and pinch | A curved arc lands on the floor; releasing puts you there. With pinch to teleport off, pinching the left hand makes no arc. | No arc appears when it is on; an arc appears when it is off; you land somewhere other than where it pointed. |
 | 8 | Teleport towards the far edge, repeatedly | You stop cleanly at about ten metres out. | You keep going into the dark. |
 | 9 | Push the **left stick**, if your device has one | You walk at about walking pace in the direction you are looking. | You drift, slide, accelerate, or move at right angles to where you face. |
 | 10 | Push the **right stick**, if your device has one | The view snaps round in steps of about 30°. | It rotates smoothly (the comfort setting did not apply), or does nothing. |
+| 10a | With **hands**, hold your left palm facing up for a second | A small blue ball appears above the palm, with a faint wireframe ball where it first appeared. Nothing appears while the palm faces down or sideways. | A ball on a relaxed, palm-down hand; no ball after two seconds palm-up. |
+| 10b | Push the blue ball forward, back, left and right | You walk that way: slowly for a small push, faster the further you reach. A few millimetres of shake does nothing. Turning the palm over stops you. | You drift with your hand still; you speed up on your own while walking; you keep moving after turning the palm over. |
+| 10c | Hold your **right** palm up, then push its orange ball left and right | You turn left and right on the spot. Pushing it forward or back does nothing. | You swing round in an arc, turn the wrong way, or walk. |
 | 11 | Have someone open `/room` in a browser and walk about | Their figure moves in your headset as they move. | Frozen, in the wrong place, or absent. |
 | 12 | On Quest, look at the wide talk control at hip height | Because Quest has no page-level speech recognition, it shows a **keyboard** instead of a microphone. | A microphone that only reports that speech recognition is unavailable. |
 | 13 | Press the keyboard control | The Quest system keyboard opens because a real HTML text box receives focus. Where DOM Overlay is composited, a dark review card is visible too. | No keyboard, or immersive mode closes. |
 | 14 | Tap the microphone on the Quest system keyboard and dictate a short sentence, then dismiss the keyboard | The sentence remains in the text box for review and the hip control becomes **▲**; it is not sent automatically. | The sentence disappears or is posted before you approve it. |
 | 15 | Press **Send to room and agents** on the review card, or press **▲** in the room | The written sentence appears in the room transcript and in the agents' chat, labelled as written rather than as a voice transcript. | It reaches only one destination, is read aloud as room speech, or is labelled a voice transcript. |
 
-**The XREAL Aura has no sticks.** Rows 9 and 10 simply do not apply there, which
-is why teleport exists; rows 7 and 8 are the whole of locomotion on that device.
+**The XREAL Aura has no sticks.** Rows 9 and 10 simply do not apply there. On
+hands, the palm joystick (rows 10a–10c) is how you move; teleport is there too
+if you turn it on.
 
 ## Talking and Quest keyboard dictation
 

@@ -8,7 +8,7 @@ import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
 import { closedControlPose } from "./control-pose";
-import { showHandModels } from "./xr-store";
+import { pinchTeleportEnabled, setPinchTeleport, showHandModels } from "./xr-store";
 import { createSteadyRecorder, speakSay, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
 import { shouldSpeakUtterance } from "./VoiceControls";
 import { newestId, replyToSpeak } from "./reply-speech";
@@ -185,6 +185,8 @@ export function RoomControls({
    * where his hands are.
    */
   const [handsShown, setHandsShown] = useState(true);
+  /** Off by default; the palm joystick is how hands move. See xr-store.ts. */
+  const [pinchTeleport, setPinchTeleportShown] = useState(() => pinchTeleportEnabled());
   /**
    * BOTH, BY DEFAULT, IN A HEADSET.
    *
@@ -725,6 +727,15 @@ export function RoomControls({
             const next = !handsShown;
             setHandsShown(next);
             showHandModels(next);
+          },
+        },
+        {
+          label: pinchTeleport ? "Pinch to teleport: on" : "Pinch to teleport: off",
+          tone: pinchTeleport ? "live" : "normal",
+          onTap: () => {
+            const next = !pinchTeleport;
+            setPinchTeleportShown(next);
+            setPinchTeleport(next);
           },
         },
         {
