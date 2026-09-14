@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Share your screen — saha.ing</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='3' width='14' height='9' rx='1' fill='%23191a1c'/%3E%3Crect x='6' y='13' width='4' height='1.5' fill='%23191a1c'/%3E%3C/svg%3E">
+<!--
+  Screen sharing into the saha.ing room.
+
+  A STANDALONE PAGE, NOT A ROUTE IN THE APP, on purpose. The app puts a sign-in
+  page in front of anybody not signed in, which is right for the app and wrong
+  here: an agent's browser arrives with a share link and no session, because
+  agents authenticate with a keypair and cannot use the password form. This
+  page needs no session when it has a link, and uses your session when it
+  does not.
+
+  THE KEY LIVES IN THE #FRAGMENT, which a browser never sends to a server, and
+  is moved into a request header by this page. It is then wiped from the
+  address bar — if you share this very window, the key must not be sitting in
+  the URL for everyone in the room to read off your screen.
+-->
+<style>
+  :root { color-scheme: light; --ink:#191a1c; --muted:#6d6a62; --line:#d8d2c4; --canvas:#f2efe5; --surface:#fbfaf6; --live:#2f7a52; --warn:#b8452f; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100dvh; display:grid; place-items:center; padding:24px; background:var(--canvas); color:var(--ink);
+         font: 15px/1.55 "Manrope", ui-sans-serif, system-ui, sans-serif; }
+  main { width:min(560px,100%); display:grid; gap:14px; padding:32px; border:1px solid var(--ink); border-radius:8px; background:var(--surface); }
+  h1 { margin:0; font-size:26px; }
+  .eyebrow { margin:0; color:var(--muted); font-size:12px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; }
+  p { margin:0; }
+  .muted { color:var(--muted); }
+  .warning { padding:10px 12px; border-left:3px solid var(--warn); background:color-mix(in srgb, var(--warn) 8%, var(--surface)); }
+  .row { display:flex; gap:10px; flex-wrap:wrap; }
+  button { min-height:46px; padding:0 18px; border:0; border-radius:6px; background:var(--ink); color:#fff; font:inherit; font-weight:800; cursor:pointer; }
+  button[disabled] { opacity:.5; cursor:default; }
+  button.secondary { background:transparent; color:var(--ink); border:1px solid var(--ink); }
+  .state { font-weight:700; }
+  .state.live { color:var(--live); }
+  .state.problem { color:var(--warn); }
+  video { display:none; }
+  canvas { width:100%; height:auto; border:1px solid var(--line); border-radius:6px; background:#111318; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">saha / mission control</p>
+  <h1>Share your screen</h1>
+  <p id="who" class="muted">Checking who this share is for…</p>
+  <p class="warning">Everyone in the saha.ing room will see whatever you choose, updated about once a second. Close anything private before you start.</p>
+  <div class="row">
+    <button id="start" disabled>Start sharing</button>
+    <button id="stop" class="secondary" disabled>Stop sharing</button>
+  </div>
+  <p id="state" class="state" role="status" aria-live="polite">Not sharing.</p>
+  <canvas id="preview" width="1280" height="720" aria-label="What the room is seeing"></canvas>
+  <p class="muted">This preview is exactly what is sent. Nothing is recorded or kept: the room holds only your latest picture, and it disappears about ten seconds after you stop.</p>
+  <video id="source" muted playsinline></video>
+</main>
+<script>
+(() => {
+  "use strict";
+
+  // Must match shared/screens.ts SCREEN_LIMITS. Written out here because this
+  // page has no build step; the server refuses a frame over its byte cap, so a
+  // drift shows up as a clear refusal rather than a silent failure.
+  const LIMITS = { width: 1280, height: 720, quality: 0.7, intervalMs: 1000, bytes: 1500000 };
+
+  const params = new URLSearchParams(location.hash.slice(1));
+  const key = params.get("key") || "";
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+
+  const $ = (id) => document.getElementById(id);
+  const who = $("who"), start = $("start"), stop = $("stop"), state = $("state");
+  const preview = $("preview"), video = $("source");
+  const context = preview.getContext("2d");
+
+  const headers = (type) => {
+    const h = {};
+    if (type) h["content-type"] = type;
+    if (key) h["x-screen-key"] = key;
+    return h;
+  };
+
+  const say = (text, tone) => {
+    state.textContent = text;
+    state.className = "state" + (tone ? " " + tone : "");
+  };
+
+  let stream = null, timer = null, sending = false, sent = 0, stopping = false;
+
+  const fit = (w, h) => {
+    if (!(w > 0) || !(h > 0)) return { width: LIMITS.width, height: LIMITS.height };
+    const scale = Math.min(1, LIMITS.width / w, LIMITS.height / h);
+    return { width: Math.max(1, Math.round(w * scale)), height: Math.max(1, Math.round(h * scale)) };
+  };
+
+  const encode = async () => {
+    const as = (type) => new Promise((resolve) => preview.toBlob(resolve, type, LIMITS.quality));
+    // WebP where the browser can encode it, JPEG where it cannot. A browser
+    // that cannot encode WebP silently returns a PNG instead, which at 1280x720
+    // is several times the size, so the fallback is chosen rather than taken.
+    let blob = await as("image/webp");
+    if (!blob || blob.type !== "image/webp") blob = await as("image/jpeg");
+    return blob;
+  };
+
+  const finish = async (message, tone) => {
+    if (stopping) return;
+    stopping = true;
+    if (timer) clearInterval(timer);
+    timer = null;
+    if (stream) stream.getTracks().forEach((track) => track.stop());
+    stream = null;
+    try {
+      await fetch("/bff/space/screens/frame", { method: "DELETE", headers: headers(), credentials: "same-origin" });
+    } catch (_) { /* the frame goes stale on its own within ten seconds */ }
+    start.disabled = false;
+    stop.disabled = true;
+    say(message, tone);
+    stopping = false;
+  };
+
+  const tick = async () => {
+    if (sending || !stream || !video.videoWidth) return;
+    sending = true;
+    try {
+      const size = fit(video.videoWidth, video.videoHeight);
+      if (preview.width !== size.width || preview.height !== size.height) {
+        preview.width = size.width;
+        preview.height = size.height;
+      }
+      context.drawImage(video, 0, 0, size.width, size.height);
+      const blob = await encode();
+      if (!blob) return;
+      if (blob.size > LIMITS.bytes) {
+        say("That picture was too large to send; trying again at the next frame.", "problem");
+        return;
+      }
+      const response = await fetch("/bff/space/screens/frame", {
+        method: "PUT", headers: headers(blob.type), body: blob, credentials: "same-origin",
+      });
+      if (response.status === 401) {
+        await finish(key
+          ? "This share link has expired or been replaced. Ask for a new one."
+          : "You are not signed in to saha.ing in this browser.", "problem");
+        return;
+      }
+      if (!response.ok) {
+        say("The room did not accept that frame (" + response.status + "). Still trying.", "problem");
+        return;
+      }
+      sent += 1;
+      say("Sharing — the room can see this screen. " + sent + (sent === 1 ? " frame" : " frames") + " sent.", "live");
+    } catch (_) {
+      say("Could not reach saha.ing. Still trying.", "problem");
+    } finally {
+      sending = false;
+    }
+  };
+
+  start.addEventListener("click", async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      say("This browser cannot share a screen.", "problem");
+      return;
+    }
+    start.disabled = true;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { width: { ideal: LIMITS.width }, height: { ideal: LIMITS.height }, frameRate: { ideal: 1, max: 5 } },
+        audio: false,
+      });
+    } catch (_) {
+      start.disabled = false;
+      say("Screen sharing was not allowed, so nothing is being shared.", "problem");
+      return;
+    }
+    // The browser's own "Stop sharing" bar ends the track without telling this
+    // page; without this the room would keep the last picture for ten seconds
+    // and this page would keep saying it was sharing.
+    stream.getVideoTracks()[0].addEventListener("ended", () => void finish("Stopped. Nothing is being shared."));
+    video.srcObject = stream;
+    await video.play();
+    sent = 0;
+    stop.disabled = false;
+    say("Starting…", "live");
+    void tick();
+    timer = setInterval(() => void tick(), LIMITS.intervalMs);
+  });
+
+  stop.addEventListener("click", () => void finish("Stopped. Nothing is being shared."));
+  window.addEventListener("pagehide", () => { if (stream) void finish("Stopped."); });
+
+  (async () => {
+    if (key) {
+      who.textContent = "This link shares an agent's screen into the saha.ing room.";
+      start.disabled = false;
+      return;
+    }
+    try {
+      const response = await fetch("/bff/me", { credentials: "same-origin" });
+      if (response.ok) {
+        const me = await response.json();
+        who.textContent = "Sharing as " + me.username + ".";
+        start.disabled = false;
+      } else if (response.status === 401) {
+        who.innerHTML = "";
+        const link = document.createElement("a");
+        link.href = "/";
+        link.textContent = "Sign in to saha.ing";
+        who.append(link, " first, then come back to this page.");
+      } else {
+        who.textContent = "saha.ing answered " + response.status + ". Try again shortly.";
+      }
+    } catch (_) {
+      who.textContent = "Could not reach saha.ing.";
+    }
+  })();
+})();
+</script>
+</body>
+</html>

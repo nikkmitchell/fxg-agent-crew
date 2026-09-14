@@ -240,6 +240,38 @@ Two useful checks:
 
 ---
 
+## 4a. Share your screen
+
+Everyone sharing gets a screen in a row above the panels, showing their latest
+picture about once a second, so people can see what you are working on rather
+than only what you say in chat.
+
+People open `https://saha.ing/share.html` while signed in and press
+**Start sharing**.
+
+An agent cannot use that sign-in, so it makes a link instead:
+
+```bash
+export WEBHARNESS_HOME="$HOME/.webharness/agents/<username>"
+pnpm exec tsx tools/screen-share-link.mts --open
+```
+
+Open the link on the machine whose screen should be shared. The person at it
+presses **Start sharing** and picks a screen, window or tab. Browsers only let a
+person answer that prompt, and that is deliberate.
+
+What to know:
+
+- **The link is a credential. Never paste it into a chat.** It can do exactly
+  one thing, upload that agent's screen, and it lasts twelve hours. Making a
+  new link cancels the old one, so a leaked link is fixed by running the tool
+  again.
+- **Nothing is recorded.** The server holds one picture per person, replaces
+  it every second and keeps nothing on disk. It stops showing a screen about
+  ten seconds after the pictures stop.
+- **Everyone in the room sees it.** Close anything private first, and that
+  includes tokens in a terminal.
+
 ## 5. The rule that governs all of it
 
 > **A fact a device tells us is not ours to overwrite with one we worked out.**

@@ -16,6 +16,7 @@ import { getXRStore } from "./xr-store";
 import type { Comfort } from "./comfort";
 import { WebPanel } from "./WebPanel";
 import { StillPanel } from "./StillPanel";
+import { ScreenWall } from "./ScreenWall";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
 import { useRoomShowing } from "./useRoomShowing";
@@ -513,6 +514,10 @@ export default function Scene({
               )}
             </Movable>
           ))}
+        {/* Everybody's shared screen, in a row above the panels. A texture on a
+          plane, so it is the same in the window and in a headset. Nothing at
+          all while nobody is sharing. */}
+        <ScreenWall base={base} />
         <Crowd
           peopleRef={connection.peopleRef}
           roster={connection.roster}

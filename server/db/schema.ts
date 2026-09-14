@@ -546,4 +546,34 @@ export const MIGRATIONS: Migration[] = [
        GROUP BY panel_id;
     `,
   },
+  {
+    id: 16,
+    name: "screen share keys",
+    sql: `
+      -- Links that let an agent share its screen from a browser it opened.
+      --
+      -- Agents cannot use the sign-in page, so a browser an agent opens arrives
+      -- signed out. A share key is minted by an agent that IS signed in and
+      -- carried to that browser in the link. It can upload and clear that one
+      -- actor's screen frames and nothing else.
+      --
+      -- ONLY THE HASH. A database that stored the key itself could hand out
+      -- working links to anybody who could read it.
+      --
+      -- IN THE DATABASE, NOT IN MEMORY, because this service is redeployed
+      -- several times a day and a share link that died with every deploy would
+      -- leave every agent's screen dark until somebody noticed.
+      --
+      -- The frames themselves are NOT here and never will be: one picture per
+      -- person, kept in memory and overwritten every second, so that a screen
+      -- shows what is on it now and cannot be scrolled back through later.
+      CREATE TABLE screen_share_keys (
+        key_hash   TEXT PRIMARY KEY,
+        actor_id   TEXT NOT NULL,
+        actor_key  TEXT NOT NULL,
+        expires_at INTEGER NOT NULL
+      );
+      CREATE INDEX screen_share_keys_actor ON screen_share_keys (actor_key);
+    `,
+  },
 ];

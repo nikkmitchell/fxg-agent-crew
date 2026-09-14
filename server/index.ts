@@ -22,6 +22,7 @@ import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { registerStillRoutes } from "./space/stills.js";
 import { registerUtteranceRoutes } from "./space/utterances.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
+import { ScreenFrames, ShareKeys, registerScreenRoutes } from "./space/screens.js";
 import { openDatabase } from "./db/open.js";
 
 /**
@@ -122,6 +123,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // A prefix lets Wilson mount this beside classic chat at /space without
   // stealing its routes. With the default empty prefix, existing URLs remain
   // /bff/* and the app remains a standalone service.
+  const screenFrames = new ScreenFrames();
+  const shareKeys = new ShareKeys(database);
+
   app.register(async (scoped) => {
     registerAuthRoutes(scoped, config, sessions, client);
     registerRoomRoutes(scoped, config, sessions, client);
@@ -174,6 +178,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       (actorId, kind, control) => space.presence.animate(actorId, control, kind),
     );
+    registerScreenRoutes(scoped, { config, sessions, frames: screenFrames, keys: shareKeys });
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.
