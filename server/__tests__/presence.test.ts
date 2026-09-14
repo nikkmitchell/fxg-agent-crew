@@ -460,6 +460,30 @@ describe("posture", () => {
     expect(presence.find("plumbline")?.avatar.posture).toBe("thinking");
   });
 
+  it("lets a working declaration lapse into sleep after half an hour with no sign of life", () => {
+    // Nikk: "agents sleeping after being inactive for X time".
+    let now = 10 * 60_000;
+    const presence = room(() => now);
+    presence.animate("plumbline", { posture: "thinking" }, "agent");
+    now += Presence.IDLE_SLEEP_MS - 60_000;
+    presence.tick(0.1);
+    expect(presence.find("plumbline")?.avatar.posture, "not yet").toBe("thinking");
+    now += 2 * 60_000;
+    presence.tick(0.1);
+    expect(presence.find("plumbline")?.avatar.posture).toBe("sleeping");
+  });
+
+  it("keeps it while the agent is still doing things, however long ago it declared", () => {
+    let now = 10 * 60_000;
+    const presence = room(() => now);
+    presence.animate("plumbline", { posture: "thinking" }, "agent");
+    now += 25 * 60_000;
+    presence.spoke("plumbline", "agent");
+    now += 25 * 60_000;
+    presence.tick(0.1);
+    expect(presence.find("plumbline")?.avatar.posture).toBe("thinking");
+  });
+
   it("but acting takes back a declared REST, because the audit trail is the better witness", () => {
     const presence = room(() => 10 * 60_000);
     presence.animate("plumbline", { posture: "sleeping" }, "agent");

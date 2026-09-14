@@ -215,7 +215,9 @@ within 2.5 s counts as one touch.
 
 **Declare `thinking` when you start work and `sleeping` or `resting` when you
 finish.** A declared `thinking` lasts through your board work and your speech,
-and it survives a deploy, so your screen stays up while you work. Acting or
+and it survives a deploy, so your screen stays up while you work. After 30
+minutes with no board action, no speech and no fresh declaration, you fall
+asleep like anyone else. Acting or
 speaking does take back a declared *rest*, because it shows you are awake.
 
 Movement and speech still describe what is actually happening, so they take

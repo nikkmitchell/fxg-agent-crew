@@ -79,6 +79,8 @@ export type Occupant = {
   lastActed: number | null;
   /** True once the actor has named its own posture, which then stops being inferred. */
   declaredPosture: boolean;
+  /** When that posture was named, for letting an unattended "thinking" lapse. */
+  declaredAt: number | null;
   lastSeen: number;
 };
 
@@ -196,6 +198,7 @@ export class Presence {
       avatar: { ...DEFAULT_AVATAR_STATE },
       lastActed: null,
       declaredPosture: false,
+      declaredAt: null,
       connected,
       lastSeen: this.now(),
     };
@@ -205,6 +208,8 @@ export class Presence {
     if (declared) {
       occupant.avatar.posture = declared;
       occupant.declaredPosture = true;
+      // The clock starts again after a restart: the room cannot know when it was said.
+      occupant.declaredAt = this.now();
     }
     this.occupants.set(key, occupant);
     return occupant;
@@ -378,6 +383,9 @@ export class Presence {
    */
   private static readonly BUSY_FOR_MS = 5 * 60_000;
 
+  /** How long a declared "thinking" lasts with no action, speech or renewal. */
+  static readonly IDLE_SLEEP_MS = 30 * 60_000;
+
   /**
    * Settle every agent into the posture its own recent activity implies.
    *
@@ -393,10 +401,30 @@ export class Presence {
    * does. A human's posture is never touched — they have a body of their own.
    */
   private settlePostures(): void {
-    const busySince = this.now() - Presence.BUSY_FOR_MS;
+    const now = this.now();
+    const busySince = now - Presence.BUSY_FOR_MS;
     for (const occupant of this.occupants.values()) {
       if (occupant.kind !== "agent") continue;
-      if (occupant.declaredPosture) continue;
+      if (occupant.declaredPosture) {
+        /**
+         * A WORKING DECLARATION LAPSES WITH NO SIGN OF LIFE. Nikk asked for
+         * "agents sleeping after being inactive for X time". "Thinking" is kept
+         * through an agent's work and speech (see actedOverDeclaration), so an
+         * agent that declared it and then went quiet would otherwise stand
+         * working — screen up — for good. After IDLE_SLEEP_MS with no action,
+         * no speech and no fresh declaration, it goes to sleep like any other.
+         */
+        if (occupant.avatar.posture === "thinking") {
+          const lastSign = Math.max(occupant.declaredAt ?? 0, occupant.lastActed ?? 0);
+          if (now - lastSign > Presence.IDLE_SLEEP_MS) {
+            occupant.declaredPosture = false;
+            occupant.declaredAt = null;
+            this.postures?.forget(occupant.actorId);
+            occupant.avatar.posture = "sleeping";
+          }
+        }
+        continue;
+      }
       const working = occupant.lastActed !== null && occupant.lastActed > busySince;
       occupant.avatar.posture = working ? "thinking" : "sleeping";
     }
@@ -583,6 +611,7 @@ export class Presence {
     if (control.posture) {
       occupant.avatar.posture = control.posture;
       occupant.declaredPosture = true;
+      occupant.declaredAt = this.now();
       this.postures?.remember(actorId, control.posture);
     }
     if (control.gesture !== undefined) {
