@@ -343,6 +343,7 @@ export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying
           reducedMotion={reducedMotion}
           onFailed={onBodyFailed}
           speaking={saying !== null}
+          agent={kind === "agent"}
         />
       )}
 

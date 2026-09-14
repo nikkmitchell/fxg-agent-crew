@@ -11,6 +11,11 @@ import { headOf } from "./Avatar3D";
 import type { AvatarRecipe } from "../avatar";
 import type { WirePerson } from "../../shared/space-wire";
 import { agentMotionFrame, type Rotation } from "./agent-motion";
+import {
+  agentAnimationState,
+  createAgentAnimationPlayer,
+  type AgentAnimationPlayer,
+} from "./agent-animation";
 
 /**
  * A person with a body.
@@ -52,6 +57,7 @@ export function VrmBody({
   reducedMotion,
   onFailed,
   speaking,
+  agent,
 }: {
   /** Whose body this is, which decides which model they wear. */
   actorId: string;
@@ -66,12 +72,15 @@ export function VrmBody({
   /** Told when the model cannot be had, so the plain figure is drawn instead. */
   onFailed: () => void;
   speaking: boolean;
+  /** Only agents receive authored animation; measured humans remain authoritative. */
+  agent: boolean;
 }) {
   const [vrm, setVrm] = useState<VRM | null>(null);
   const arms = useRef<ArmSpec | null>(null);
   /** The model's own head height, so it can be scaled to the person's. */
   const modelHead = useRef(1.34);
   const root = useRef<THREE.Group>(null);
+  const animation = useRef<AgentAnimationPlayer | null>(null);
 
   useEffect(() => {
     let dropped = false;
@@ -104,6 +113,26 @@ export function VrmBody({
     },
     [vrm],
   );
+
+  useEffect(() => {
+    if (!vrm || !agent) return;
+    let dropped = false;
+    void createAgentAnimationPlayer(vrm)
+      .then((player) => {
+        if (dropped) player.dispose();
+        else animation.current = player;
+      })
+      .catch((error: unknown) => {
+        // The procedural pose remains as an offline fallback. Losing optional
+        // motion must never make a successfully loaded body disappear.
+        console.warn("Agent animation unavailable; retaining fallback pose", error);
+      });
+    return () => {
+      dropped = true;
+      animation.current?.dispose();
+      animation.current = null;
+    };
+  }, [agent, vrm]);
 
   const scratch = useMemo(
     () => ({
@@ -197,6 +226,21 @@ export function VrmBody({
     const scale = Math.max(0.6, Math.min(1.6, wantedHead / modelHead.current));
     node.scale.setScalar(scale);
 
+    const authored = person.kind === "agent" ? animation.current : null;
+    if (authored) {
+      authored.update(
+        delta,
+        agentAnimationState({
+          moving: person.moving,
+          speaking,
+          attending: person.attending !== null,
+          posture: person.avatar.posture,
+          reducedMotion,
+        }),
+        reducedMotion,
+      );
+    }
+
     const automatic = person.kind === "agent"
       ? agentMotionFrame({
           actorId,
@@ -221,34 +265,44 @@ export function VrmBody({
         scratch.quaternion.set(person.head.q.x, person.head.q.y, person.head.q.z, person.head.q.w);
         scratch.euler.set(0, -shown.yaw, 0);
         scratch.quaternion.premultiply(head.quaternion.setFromEuler(scratch.euler));
-      } else if (automatic) {
-        scratch.euler.set(automatic.head.x, automatic.head.y, automatic.head.z, "YXZ");
-        scratch.quaternion.setFromEuler(scratch.euler);
-      } else {
-        scratch.quaternion.identity();
+        approachQuaternion(shown.head, scratch.quaternion, 14, delta, snap);
+        head.quaternion.copy(shown.head);
+      } else if (!authored || person.avatar.gesture === "nod") {
+        if (automatic) {
+          scratch.euler.set(automatic.head.x, automatic.head.y, automatic.head.z, "YXZ");
+          scratch.quaternion.setFromEuler(scratch.euler);
+        } else {
+          scratch.quaternion.identity();
+        }
+        /**
+         * The head IS eased, unlike the hands, and the difference is deliberate
+         * rather than left over.
+         *
+         * What made the hands wrong was the SPEED CAP: hands cross a metre in a
+         * moment, so a cap in metres per second turns into visible lag and, after
+         * a gap in tracking, a slide in from wherever they were last seen. A
+         * rotation has no such cap — this converges in about seventy
+         * milliseconds, which is below what anybody notices, and it removes the
+         * stepping you would otherwise see on a nearby face at a few samples a
+         * second. If a head ever looks like it is lagging, this is the line.
+         */
+        approachQuaternion(shown.head, scratch.quaternion, 14, delta, snap);
+        head.quaternion.copy(shown.head);
       }
-      /**
-       * The head IS eased, unlike the hands, and the difference is deliberate
-       * rather than left over.
-       *
-       * What made the hands wrong was the SPEED CAP: hands cross a metre in a
-       * moment, so a cap in metres per second turns into visible lag and, after
-       * a gap in tracking, a slide in from wherever they were last seen. A
-       * rotation has no such cap — this converges in about seventy
-       * milliseconds, which is below what anybody notices, and it removes the
-       * stepping you would otherwise see on a nearby face at a few samples a
-       * second. If a head ever looks like it is lagging, this is the line.
-       */
-      approachQuaternion(shown.head, scratch.quaternion, 14, delta, snap);
-      head.quaternion.copy(shown.head);
     }
 
-    if (automatic) {
+    if (automatic && !authored) {
       rotateToward(vrm.humanoid.getNormalizedBoneNode("chest"), automatic.chest, delta, reducedMotion, scratch);
       rotateToward(vrm.humanoid.getNormalizedBoneNode("leftUpperLeg"), automatic.leftUpperLeg, delta, reducedMotion, scratch);
       rotateToward(vrm.humanoid.getNormalizedBoneNode("leftLowerLeg"), automatic.leftLowerLeg, delta, reducedMotion, scratch);
       rotateToward(vrm.humanoid.getNormalizedBoneNode("rightUpperLeg"), automatic.rightUpperLeg, delta, reducedMotion, scratch);
       rotateToward(vrm.humanoid.getNormalizedBoneNode("rightLowerLeg"), automatic.rightLowerLeg, delta, reducedMotion, scratch);
+    }
+
+    // Expressions are deliberately layered over authored body motion. They
+    // carry live speaking and explicit room mood, neither of which belongs in
+    // a canned clip.
+    if (automatic) {
       const expressions = vrm.expressionManager;
       expressions?.setValue("blink", automatic.expressions.blink);
       expressions?.setValue("aa", automatic.expressions.aa);
@@ -270,7 +324,10 @@ export function VrmBody({
       if (!upper || !lower) continue;
 
       if (!pose) {
-        if (automatic) {
+        // Authored clips own untracked arms. An explicit wave/nod/present is a
+        // live room command, so that small overlay is still allowed to win.
+        const manualArmGesture = person.avatar.gesture === "wave" || person.avatar.gesture === "present";
+        if (automatic && (!authored || manualArmGesture)) {
           rotateToward(
             upper,
             side === "left" ? automatic.leftUpperArm : automatic.rightUpperArm,
