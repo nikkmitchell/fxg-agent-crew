@@ -39,6 +39,34 @@ describe("joining", () => {
     expect(presence.find("nikk")?.at).toEqual({ x: 2, y: 0, z: 2 });
   });
 
+  it("does not create an audit-driven twin when identity case differs", () => {
+    const presence = at({ now: 1_000 });
+    presence.join("nikk2", "human", true);
+    presence.moveSelf("nikk2", { x: 2, y: 0, z: 2 }, 0.4);
+
+    // The board records this same person as `Nikk2`. Presence used to miss the
+    // connected occupant and create a second headless body at the task board.
+    presence.sendTo("Nikk2", "human", { x: -3, y: 0, z: -3 }, "wrote a new card");
+
+    expect(presence.size).toBe(1);
+    expect(presence.find("NIKK2")).toBe(presence.find("nikk2"));
+    expect(presence.everyone()[0]).toMatchObject({
+      actorId: "nikk2",
+      at: { x: 2, y: 0, z: 2 },
+      heading: { x: 2, y: 0, z: 2 },
+      because: null,
+    });
+  });
+
+  it("uses a live session's spelling when an audit-created body existed first", () => {
+    const presence = at({ now: 1_000 });
+    presence.sendTo("Nikk2", "human", { x: -3, y: 0, z: -3 }, "wrote a new card");
+    presence.join("nikk2", "human", true);
+
+    expect(presence.size).toBe(1);
+    expect(presence.everyone()[0]?.actorId).toBe("nikk2");
+  });
+
   it("learns a kind it did not have, but never overwrites one it did", () => {
     const presence = at({ now: 1 });
     presence.join("unknown", null);

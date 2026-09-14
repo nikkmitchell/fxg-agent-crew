@@ -102,6 +102,23 @@ describe("reading the audit table", () => {
     expect(plumbline?.because).not.toContain("a comment");
   });
 
+  it("does not create a second body when audit and room spell one person differently", () => {
+    const { store, activity, presence } = boot();
+    presence.join("nikk2", "human", true);
+    presence.moveSelf("nikk2", { x: 2, y: 0, z: 2 }, 0);
+
+    store.createProject(human("Nikk2"), { name: "same person, different case" });
+    activity.step();
+
+    expect(presence.size).toBe(1);
+    expect(presence.find("Nikk2")).toBe(presence.find("nikk2"));
+    expect(presence.everyone()[0]).toMatchObject({
+      actorId: "nikk2",
+      at: { x: 2, y: 0, z: 2 },
+      because: null,
+    });
+  });
+
   it("moves a real mood-board writer to the mood board", () => {
     const { store, activity, presence } = boot();
     const projectId = project(store, "Inkstone");
