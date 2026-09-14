@@ -54,7 +54,7 @@ export function replyToSpeak(
   }
   if (!newest) return null;
   const { say, shortened } = shorten(newest.content.trim());
-  return { id: newest.id, say: `${newest.username} says: ${say}`, shortened };
+  return { id: newest.id, say: say ? `${newest.username} says: ${say}` : `${newest.username} replied.`, shortened };
 }
 
 /**
@@ -91,8 +91,17 @@ function shorten(text: string): { say: string; shortened: boolean } {
    * of it: better told there is a long message than handed a misquote.
    */
   const spoken = splitSpoken(text);
-  if (!spoken.say) {
-    return { say: "There is a long message on the Chat panel.", shortened: true };
-  }
-  return { say: `${spoken.say} There is more of that on the Chat panel.`, shortened: true };
+  /**
+   * NO POINTER AT THE END. This used to append "There is more of that on the
+   * Chat panel." to every reply it shortened, which in practice was nearly all
+   * of them. Nikk: "you always say there's more of that on the chat panel can
+   * we remove that so you don't have to say that at the end of everything...
+   * we can see". The Chat panel is in view; announcing it after every reply was
+   * a sentence of noise per message. The reply now simply stops at the end of
+   * a sentence.
+   *
+   * An empty `say` means not even the first sentence fits; `replyToSpeak` then
+   * says only who replied, rather than reading half of a sentence.
+   */
+  return { say: spoken.say ?? "", shortened: true };
 }
