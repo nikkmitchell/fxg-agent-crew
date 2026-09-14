@@ -8,7 +8,15 @@
  */
 
 export const AVATAR_MOODS = ["neutral", "happy", "focused", "concerned"] as const;
-export const AVATAR_GESTURES = ["none", "wave", "nod", "present"] as const;
+export const AVATAR_GESTURES = [
+  "none",
+  "wave",
+  "nod",
+  "present",
+  "clap",
+  "shrug",
+  "disagree",
+] as const;
 
 /**
  * WHAT AN AGENT IS DOING WITH ITSELF, as opposed to how it feels or what it
@@ -36,7 +44,15 @@ export const AVATAR_GESTURES = ["none", "wave", "nod", "present"] as const;
  * are facts the room already holds. An agent may still say so itself — some
  * know they are about to be busy — but nobody has to remember to.
  */
-export const AVATAR_POSTURES = ["resting", "thinking", "sleeping"] as const;
+export const AVATAR_POSTURES = [
+  "resting",
+  "thinking",
+  "sleeping",
+  "listening",
+  "presenting",
+  "celebrating",
+  "relaxed",
+] as const;
 
 export type AvatarMood = (typeof AVATAR_MOODS)[number];
 export type AvatarGesture = (typeof AVATAR_GESTURES)[number];

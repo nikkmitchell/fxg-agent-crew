@@ -12,6 +12,8 @@ describe("avatar controls", () => {
   it("allows either field independently", () => {
     expect(parseAvatarControl({ gesture: "none" })).toEqual({ gesture: "none" });
     expect(parseAvatarControl({ mood: "happy" })).toEqual({ mood: "happy" });
+    expect(parseAvatarControl({ posture: "listening" })).toEqual({ posture: "listening" });
+    expect(parseAvatarControl({ gesture: "clap" })).toEqual({ gesture: "clap" });
   });
 
   it("refuses arbitrary animation names and empty controls", () => {

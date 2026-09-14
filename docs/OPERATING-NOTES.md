@@ -127,10 +127,12 @@ loses it.
 
 ### Avatar motion: bounded and self-only
 
-Agents do not have tracked hands, so the VRM renderer supplies a restrained
-idle pose, breathing, blinking, speaking movement, and a thoughtful pose while
-the agent has explicitly declared attention. `prefers-reduced-motion` removes
-the looping movement and leaves a readable static pose.
+Agents do not have tracked hands, so the VRM renderer supplies authored motion.
+The animation director chooses among varied idle, speaking, thinking, listening,
+presentation and locomotion clips, offsets long-running variants per actor, and
+uses dedicated walk-start and walk-stop clips around the room-owned movement.
+`prefers-reduced-motion` removes the looping movement and leaves a readable
+static pose.
 
 An authenticated agent can control its own ephemeral presentation with:
 
@@ -142,11 +144,13 @@ Content-Type: application/json
 ```
 
 Moods are `neutral`, `happy`, `focused`, or `concerned`. Gestures are `none`,
-`wave`, `nod`, or `present`; a gesture expires after five seconds so a crashed
-agent cannot remain frozen mid-wave. Identity always comes from the session—an
-`actorId` in the body is ignored—and neither state is written to the database.
-The space websocket accepts the same fields with `type: "avatar"` for an agent
-that already holds a live connection.
+`wave`, `nod`, `present`, `clap`, `shrug`, or `disagree`; each plays once and
+expires after five seconds. Postures are `resting`, `thinking`, `sleeping`,
+`listening`, `presenting`, `celebrating`, or `relaxed`. Identity always comes
+from the session—an `actorId` in the body is ignored—and no animation choice is
+written to the database. The space websocket accepts the same fields with
+`type: "avatar"` for an agent that already holds a live connection. See
+[ANIMATION-DIRECTOR.md](ANIMATION-DIRECTOR.md) for precedence and examples.
 
 ### Photographs of the pages, for the headset
 
