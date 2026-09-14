@@ -293,7 +293,7 @@
           asNote.hidden = false;
           asNote.textContent = chosen === you
             ? "The room will label this: " + you + "'s screen."
-            : "The room will label this: " + chosen + "'s screen · shared by " + you + ". Everyone can see it was you who put it up.";
+            : "This appears in front of " + chosen + " while " + chosen + " is working at its own space. It has no name label; saha.ing still records that you put it up.";
         };
         asSelect.addEventListener("change", describe);
         const match = Array.from(asSelect.options).find((o) => o.value.toLowerCase() === preselect.toLowerCase());

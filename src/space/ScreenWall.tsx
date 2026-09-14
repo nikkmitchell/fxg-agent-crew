@@ -240,13 +240,11 @@ function WallScreen({ entry, label }: { entry: Shown; label: string }) {
 function AgentScreen({
   actorId,
   entry,
-  label,
   peopleRef,
   reducedMotion,
 }: {
   actorId: string;
   entry: Shown;
-  label: string;
   peopleRef: RefObject<WirePerson[]>;
   reducedMotion: boolean;
 }) {
@@ -274,11 +272,12 @@ function AgentScreen({
   });
 
   return (
+    // NO NAME ABOVE IT. Nikk: "we don't need that UI because the screens pop up
+    // in front of the agents so we know... whose screen it is because we're
+    // going to see that it's right in front of them". The row keeps its labels:
+    // a person's screen hangs away from the person, so nothing else says whose.
     <group ref={group} visible={false}>
       <ScreenFace texture={entry.texture} width={size.width} height={size.height} />
-      <group position={[0, size.height / 2 + 0.1, 0]}>
-        <ScreenLabel text={label} width={Math.max(size.width, label.includes("shared by") ? 1.6 : 0.9)} height={0.13} />
-      </group>
     </group>
   );
 }
@@ -340,7 +339,6 @@ export function ScreenWall({
             key={screen.actorId}
             actorId={screen.actorId}
             entry={entry}
-            label={screenLabel(screen)}
             peopleRef={peopleRef}
             reducedMotion={reducedMotion}
           />

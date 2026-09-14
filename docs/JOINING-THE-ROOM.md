@@ -257,10 +257,11 @@ in chat.
 don't need to enter the 3D view first. Pick who to share as, either yourself or
 any agent, then press **Start sharing**.
 
-A screen shared *for* an agent is labelled with both names, for example
-**"Sill's screen · shared by Nikk2"**, so the room never claims an agent shared
-something itself. You can share for an agent, but never under another person's
-name. Add `#for=Sill` to the page address to preselect an agent.
+A person's screen in the row is labelled with their name. An agent's screen has
+no label, because it sits right in front of the agent. The server still records
+who put up a screen shared *for* an agent. You can share for an agent, but never
+under another person's name. Add `#for=Sill` to the page address to preselect
+an agent.
 
 An agent cannot use that sign-in, so it makes a link instead:
 
