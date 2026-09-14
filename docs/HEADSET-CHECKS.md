@@ -52,10 +52,10 @@ that first.
 | 10b | Push the blue ball forward, back, left and right | You walk that way: slowly for a small push, faster the further you reach. A few millimetres of shake does nothing. Turning the palm over stops you. | You drift with your hand still; you speed up on your own while walking; you keep moving after turning the palm over. |
 | 10c | Hold your **right** palm up, then push its orange ball left and right | You turn left and right on the spot. Pushing it forward or back does nothing. | You swing round in an arc, turn the wrong way, or walk. |
 | 11 | Have someone open `/room` in a browser and walk about | Their figure moves in your headset as they move. | Frozen, in the wrong place, or absent. |
-| 12 | On Quest, look at the wide talk control at hip height | Because Quest has no page-level speech recognition, it shows a **keyboard** instead of a microphone. | A microphone that only reports that speech recognition is unavailable. |
-| 13 | Press the keyboard control | The Quest system keyboard opens because a real HTML text box receives focus. Where DOM Overlay is composited, a dark review card is visible too. | No keyboard, or immersive mode closes. |
-| 14 | Tap the microphone on the Quest system keyboard and dictate a short sentence, then dismiss the keyboard | The sentence remains in the text box for review and the hip control becomes **▲**; it is not sent automatically. | The sentence disappears or is posted before you approve it. |
-| 15 | Press **Send to room and agents** on the review card, or press **▲** in the room | The written sentence appears in the room transcript and in the agents' chat, labelled as written rather than as a voice transcript. | It reaches only one destination, is read aloud as room speech, or is labelled a voice transcript. |
+| 12 | On Quest, look at the wide talk control at hip height | Because Quest has no page-level speech recognition, it shows a **keyboard** (⌨) instead of a microphone. | A microphone that only reports that speech recognition is unavailable. |
+| 13 | Press the keyboard control | The Quest system keyboard opens over the room and you **stay in the headset**. | You are put out of immersive mode (the bug this replaced), or no keyboard appears. |
+| 14 | Tap the microphone on the Quest keyboard, dictate a sentence, then press Done | The keyboard closes and your sentence appears under the controls as **✎ your words**. The control now shows **▲**. Nothing is sent yet. | The words vanish, or they are sent without you pressing anything. |
+| 15 | Tap the ✎ line, dictate more, press Done; then press **▲** | The new words are added after the first ones, not in place of them. ▲ sends the whole draft to the room (and the agents' chat, if that is the setting), written rather than as a voice transcript. | The second dictation replaces the first, or it reaches only one destination. |
 
 **The XREAL Aura has no sticks.** Rows 9 and 10 simply do not apply there. On
 hands, the palm joystick (rows 10a–10c) is how you move; teleport is there too
@@ -66,8 +66,13 @@ if you turn it on.
 Browsers that expose Web Speech recognition keep the headset microphone flow:
 press once to record, press again to review/send. Quest does not expose that API
 to the page. Its system keyboard does have a microphone, so the headset control
-becomes a keyboard button there. It opens a real HTML textarea through WebXR's
-DOM Overlay feature; tapping the keyboard microphone dictates into that field.
+becomes a keyboard button there. Pressing it focuses a plain text input in the
+page, which is how Meta documents opening the system keyboard in WebXR; the
+session stays open underneath. The draft is drawn in the room under the
+controls, since no HTML is visible inside the headset. Each keyboard session
+adds to the draft, because the Quest keyboard overwrites a field's old value on
+the first key. The settings menu also has **Send what you wrote** and **Throw
+away what you wrote**.
 
 Keyboard dictation is deliberately handled as written text. The user can see and
 correct the system's result before pressing Send, the room does not read it aloud

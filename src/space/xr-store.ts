@@ -58,16 +58,12 @@ export function getXRStore(): XRStore {
      */
     hand: { left: { teleportPointer: handOptions.pinchTeleport }, default: true },
     controller: { left: { teleportPointer: true }, default: true },
-    /**
-     * QUEST SYSTEM KEYBOARD INPUT.
-     *
-     * The keyboard itself only needs a real DOM input to be focused, but the
-     * review card can also be composited over an XR session on browsers that
-     * support the optional DOM Overlay feature. Keep the request explicit:
-     * RoomControls contains that textarea now, so this is no longer a library
-     * default we happen to benefit from.
+    /*
+     * NO DOM OVERLAY. It was requested for a Quest text card, and tapping that
+     * card put a Quest user out of the headset. Quest Browser does not
+     * composite a DOM overlay into the session; its system keyboard opens from
+     * a plain focused text input instead. See src/space/system-keyboard.ts.
      */
-    domOverlay: true,
     /**
      * The emulator only activates on localhost when there is no real WebXR, and
      * it is the only way any of the immersive code gets exercised without

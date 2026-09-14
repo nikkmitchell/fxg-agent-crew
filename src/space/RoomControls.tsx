@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { XRDomOverlay } from "@react-three/xr";
+import { useXR } from "@react-three/xr";
 import * as THREE from "three";
 import { bff } from "../bff-client";
 import { space } from "../space-client";
@@ -21,6 +21,7 @@ import { DETAIL_LIMIT, type Utterance } from "../../shared/voice";
 import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 import { holdReload } from "../update-reload";
+import { createSystemKeyboard, type SystemKeyboard } from "./system-keyboard";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
 
 /**
@@ -224,13 +225,24 @@ export function RoomControls({
     return () => holdReload("room-microphone", false);
   }, [listening]);
   const [heard, setHeard] = useState("");
-  const [textEntryOpen, setTextEntryOpen] = useState(false);
+  /** Whether the headset's system keyboard is up right now. */
   const [keyboardFocused, setKeyboardFocused] = useState(false);
+  /** Words from the system keyboard, kept between keyboard sessions until sent. */
   const [written, setWritten] = useState("");
+  // A written draft lives only in this component, not in any text box on the
+  // page, so a deploy's reload would otherwise throw it away unseen.
+  useEffect(() => {
+    holdReload("written-draft", written.trim() !== "");
+    return () => holdReload("written-draft", false);
+  }, [written]);
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const input = useRef<SteadyRecorder | null>(null);
-  const writtenInput = useRef<HTMLTextAreaElement | null>(null);
+  const keyboard = useRef<SystemKeyboard | null>(null);
+  /** The draft as of this render, for a tap handler that must not wait for one. */
+  const writtenNow = useRef("");
+  writtenNow.current = written;
+  const session = useXR((state) => state.session);
   const confidence = useRef<number | undefined>(undefined);
   const capabilities = useMemo(() => speechCapabilities(), []);
 
@@ -306,29 +318,38 @@ export function RoomControls({
     }
   }, []);
 
-  const openTextEntry = useCallback(() => {
-    setTextEntryOpen(true);
-    setNotice(null);
-    // If the field is already mounted (for example after dismissing the Quest
-    // keyboard without sending), focus it in this same XR select gesture.
-    writtenInput.current?.focus();
+  useEffect(() => {
+    keyboard.current = createSystemKeyboard({
+      onDraft: setWritten,
+      onShown: (shown) => {
+        setKeyboardFocused(shown);
+        if (!shown) setNotice(null);
+      },
+    });
+    return () => {
+      keyboard.current?.dispose();
+      keyboard.current = null;
+    };
   }, []);
 
-  // A real textarea is the important part: focusing it opens the headset's
-  // system keyboard, whose own microphone provides dictation on Quest even
-  // though the browser does not expose SpeechRecognition to this page.
-  useEffect(() => {
-    if (!textEntryOpen) return;
-    const frame = window.requestAnimationFrame(() => writtenInput.current?.focus());
-    return () => window.cancelAnimationFrame(frame);
-  }, [textEntryOpen]);
+  /**
+   * Open the system keyboard, INSIDE the tap that asked for it. See
+   * system-keyboard.ts for why that matters and what the old version did.
+   */
+  const openTextEntry = useCallback(() => {
+    const supported = (session as (XRSession & { isSystemKeyboardSupported?: boolean }) | null)?.isSystemKeyboardSupported;
+    if (supported === false) {
+      setNotice("This headset's browser has no keyboard inside the room.");
+      return;
+    }
+    setNotice(null);
+    keyboard.current?.open(writtenNow.current);
+  }, [session]);
 
   const sendWritten = useCallback(async () => {
     const delivered = await post(written, "text");
     if (!delivered) return;
     setWritten("");
-    setKeyboardFocused(false);
-    setTextEntryOpen(false);
   }, [post, written]);
 
   useEffect(() => {
@@ -698,9 +719,15 @@ export function RoomControls({
               },
             }
           : {
-              label: "Type or dictate with the system keyboard",
+              label: written.trim() ? "Add to what you wrote" : "Type or dictate with the system keyboard",
               onTap: openTextEntry,
             },
+        ...(written.trim()
+          ? [
+              { label: "Send what you wrote", tone: "live" as const, onTap: () => void sendWritten() },
+              { label: "Throw away what you wrote", tone: "muted" as const, onTap: () => setWritten("") },
+            ]
+          : []),
         {
           label: alwaysOn ? "Sending as you speak" : "Review each one before sending",
           tone: alwaysOn ? "live" : "normal",
@@ -837,7 +864,16 @@ export function RoomControls({
   // low — which at two rows is the difference between reading it and crouching.
   const gridTop = ((rowCount - 1) * rowStep) / 2 + boxHeight / 2;
 
-  const said = notice ?? voice.trouble;
+  /**
+   * THE WRITTEN DRAFT IS SHOWN IN THE ROOM, on the line under the controls.
+   * The keyboard's own text box is invisible and the old HTML card cannot be
+   * seen in a headset, so this is the only place to read back what the Quest
+   * keyboard took down before sending it.
+   */
+  const draftPreview = written.trim()
+    ? `✎ ${written.length > 90 ? `…${written.slice(-89)}` : written}`
+    : null;
+  const said = notice ?? voice.trouble ?? (keyboardFocused ? null : draftPreview);
   const closedStep = WRIST_BUTTON.height + WRIST_BUTTON.gap;
 
   return (
@@ -1003,80 +1039,14 @@ export function RoomControls({
           tone="muted"
           y={open ? -gridTop - (rowCount - 1) * rowStep - boxHeight - 0.18 : -closedStep - 0.06}
           width={open ? 0.9 : 0.55}
-          onTap={() => setNotice(null)}
+          onTap={() => {
+            // Tapping the draft adds to it; tapping a notice dismisses it.
+            if (!notice && !voice.trouble && draftPreview) openTextEntry();
+            else setNotice(null);
+          }}
         />
       ) : null}
       </group>
-      {textEntryOpen ? (
-        <XRDomOverlay className="quest-dictation-overlay">
-          <form
-            className="quest-dictation-card"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void sendWritten();
-            }}
-          >
-            <label htmlFor="quest-dictation-input">Write in the room</label>
-            <textarea
-              ref={writtenInput}
-              id="quest-dictation-input"
-              value={written}
-              rows={4}
-              maxLength={DETAIL_LIMIT + 1}
-              inputMode="text"
-              enterKeyHint="send"
-              autoCapitalize="sentences"
-              autoCorrect="on"
-              spellCheck
-              disabled={sending}
-              onFocus={() => setKeyboardFocused(true)}
-              onBlur={() => {
-                setKeyboardFocused(false);
-                if (written.trim()) setNotice("Text ready — review it, then press Send or ▲.");
-              }}
-              onChange={(event) => setWritten(event.currentTarget.value)}
-            />
-            <p className="quest-dictation-help">
-              Tap the box, then tap the microphone on the Quest keyboard to dictate. Review the
-              words here and send when they are right.
-            </p>
-            <p
-              className={
-                written.length > DETAIL_LIMIT
-                  ? "quest-dictation-count over"
-                  : "quest-dictation-count"
-              }
-            >
-              {written.length.toLocaleString()} / {DETAIL_LIMIT.toLocaleString()}
-            </p>
-            {notice ? <p role="status">{notice}</p> : null}
-            <div className="quest-dictation-actions">
-              <button
-                type="button"
-                className="text-button"
-                disabled={sending}
-                onClick={() => {
-                  setKeyboardFocused(false);
-                  setTextEntryOpen(false);
-                }}
-              >
-                Keep draft and close
-              </button>
-              <button
-                type="submit"
-                className="primary-action"
-                disabled={!written.trim() || written.length > DETAIL_LIMIT || sending}
-              >
-                {sending
-                  ? "Sending…"
-                  : live.current.destination === "room"
-                    ? "Send to room"
-                    : "Send to room and agents"}
-              </button>
-            </div>
-          </form>
-        </XRDomOverlay>
-      ) : null}
     </>
   );
 }

@@ -914,60 +914,6 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-voice-count, .space-voice-state, .space-voice-interim { font-size: 12px; color: var(--muted); }
 .space-voice-count.over { color: var(--danger, #9f2f24); font-weight: 700; }
 
-/*
-  A REAL DOM TEXTAREA INSIDE WEBXR.
-
-  Quest does not give the page Web Speech recognition, but focusing an HTML
-  textarea opens its system keyboard and that keyboard has its own microphone.
-  @react-three/xr tunnels this card into the session's DOM-overlay root; the
-  transparent remainder stays click-through so it does not take the room's
-  controller rays away while the composer is open.
-*/
-.quest-dictation-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  align-items: end;
-  justify-items: center;
-  padding: clamp(18px, 4vh, 48px);
-  box-sizing: border-box;
-  pointer-events: none;
-  font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
-  color: #f6f2e9;
-}
-.quest-dictation-card {
-  width: min(760px, 92vw);
-  display: grid;
-  gap: 12px;
-  padding: clamp(18px, 3vw, 28px);
-  box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 18px;
-  background: rgba(18, 20, 25, 0.94);
-  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.55);
-  pointer-events: auto;
-}
-.quest-dictation-card > label { font-size: 18px; font-weight: 700; }
-.quest-dictation-card textarea {
-  width: 100%;
-  min-height: 120px;
-  box-sizing: border-box;
-  padding: 14px 16px;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  border-radius: 12px;
-  background: #fff;
-  color: #15171b;
-  font: 20px/1.45 Manrope, ui-sans-serif, system-ui, sans-serif;
-  resize: none;
-}
-.quest-dictation-card textarea:focus { outline: 4px solid rgba(239, 182, 80, 0.8); outline-offset: 2px; }
-.quest-dictation-help, .quest-dictation-count { margin: 0; color: #d6d2c8; font-size: 14px; }
-.quest-dictation-count { justify-self: end; }
-.quest-dictation-count.over { color: #ff9e8e; font-weight: 700; }
-.quest-dictation-card [role="status"] { margin: 0; color: #f6d68e; }
-.quest-dictation-actions { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
-.quest-dictation-actions button { min-height: 48px; padding-inline: 18px; }
 
 /* A panel's row in the picker: its name and tick on one line, its size on the
    right. The size only appears for a panel that is actually in the room. */
