@@ -15,6 +15,8 @@ import { registerProjectRoutes } from "./routes/projects.js";
 import { registerBuildRoutes } from "./routes/build.js";
 import { registerBoardRoutes } from "./routes/board.js";
 import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
+import { Presence } from "./space/presence.js";
+import { DeclaredPostures } from "./space/postures.js";
 import { Activity } from "./space/activity.js";
 import { BoardReads } from "./db/reads.js";
 import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
@@ -102,7 +104,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   app.register(websocket);
 
   // Who is standing where. In memory, on purpose — see server/space/presence.ts.
-  const space = new SpaceHub();
+  // Declared postures are the one exception, kept in the database so a deploy
+  // does not put every agent to sleep — see server/space/postures.ts.
+  const space = new SpaceHub(new Presence(Date.now, new DeclaredPostures(database)));
 
   // What makes them move: the audit table, read forward from the end of it.
   // Started here rather than on the first socket, so an agent that acts while

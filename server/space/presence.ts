@@ -1,4 +1,5 @@
 import { ROOM, WALK_SPEED, actorKey, type Vec3, deskFor } from "../../shared/space-layout.js";
+import type { PostureMemory } from "./postures.js";
 import type { Pose } from "../../shared/space-wire.js";
 import {
   DEFAULT_AVATAR_STATE,
@@ -119,7 +120,15 @@ export class Presence {
   private readonly occupants = new Map<string, Occupant>();
   private readonly ambient = new Map<string, { nextAt: number; sequence: number }>();
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(
+    private readonly now: () => number = Date.now,
+    /**
+     * Where declared postures are kept across a restart. Optional so every
+     * existing test, and anything that wants a purely in-memory room, is
+     * unchanged. See postures.ts.
+     */
+    private readonly postures: PostureMemory | null = null,
+  ) {}
 
   /**
    * Someone arrived. They start at their own desk rather than at the origin,
@@ -191,6 +200,13 @@ export class Presence {
       connected,
       lastSeen: this.now(),
     };
+    // What this actor last said it was doing, if it said so before a restart
+    // and has not acted since.
+    const declared = this.postures?.recall(actorId) ?? null;
+    if (declared) {
+      occupant.avatar.posture = declared;
+      occupant.declaredPosture = true;
+    }
     this.occupants.set(key, occupant);
     return occupant;
   }
@@ -301,6 +317,7 @@ export class Presence {
       // Acting takes an agent's posture back: whatever it declared, it is
       // demonstrably working now, and the audit trail is the better witness.
       occupant.declaredPosture = false;
+      this.postures?.forget(actorId);
       occupant.avatar.posture = "thinking";
       this.deferAmbient(actorId);
     }
@@ -567,7 +584,10 @@ export class Presence {
     occupant.lastActed = this.now();
     // An agent that declared a posture and then spoke is demonstrably awake;
     // the audit trail is the better witness, exactly as it is for `sendTo`.
-    if (occupant.kind === "agent") occupant.declaredPosture = false;
+    if (occupant.kind === "agent") {
+      occupant.declaredPosture = false;
+      this.postures?.forget(actorId);
+    }
     occupant.lastSeen = this.now();
   }
 
@@ -595,6 +615,7 @@ export class Presence {
     if (control.posture) {
       occupant.avatar.posture = control.posture;
       occupant.declaredPosture = true;
+      this.postures?.remember(actorId, control.posture);
     }
     if (control.gesture !== undefined) {
       occupant.avatar.gesture = control.gesture === "none" ? null : control.gesture;

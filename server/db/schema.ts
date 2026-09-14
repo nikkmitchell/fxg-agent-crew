@@ -596,4 +596,19 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE screen_share_keys ADD COLUMN shared_by TEXT;
     `,
   },
+  {
+    id: 18,
+    name: "declared postures survive a restart",
+    sql: `
+      -- What an agent has SAID about itself — "I am working" — so a deploy does
+      -- not put every agent to sleep and hide its shared screen. Positions stay
+      -- in memory; see server/space/postures.ts for why this one thing does not.
+      CREATE TABLE declared_postures (
+        actor_key   TEXT PRIMARY KEY,
+        actor_id    TEXT NOT NULL,
+        posture     TEXT NOT NULL,
+        declared_at INTEGER NOT NULL
+      );
+    `,
+  },
 ];
