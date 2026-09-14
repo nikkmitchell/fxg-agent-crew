@@ -5,7 +5,7 @@ import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
-import { NOT_A_PERSON } from "../../shared/space-layout.js";
+import { NOT_A_PERSON, actorKey } from "../../shared/space-layout.js";
 import type { Placement, Showing } from "../../shared/space-wire.js";
 import { parseClientMessage, type ServerMessage, type WirePerson } from "../../shared/space-wire.js";
 import { isWalking, Presence, STALE_AFTER_MS } from "./presence.js";
@@ -38,26 +38,32 @@ export class SpaceHub {
   }
 
   attach(actorId: string, kind: "human" | "agent" | null, socket: WebSocket): void {
-    const existing = this.sockets.get(actorId);
+    const key = actorKey(actorId);
+    const existing = this.sockets.get(key);
     if (existing) existing.add(socket);
-    else this.sockets.set(actorId, new Set([socket]));
+    else this.sockets.set(key, new Set([socket]));
     this.presence.join(actorId, kind, true);
     this.start();
   }
 
   detach(actorId: string, socket: WebSocket): void {
-    const sockets = this.sockets.get(actorId);
+    const key = actorKey(actorId);
+    const sockets = this.sockets.get(key);
     if (!sockets) return;
     sockets.delete(socket);
     if (sockets.size > 0) return;
     // The last tab closed. Now they have actually left.
-    this.sockets.delete(actorId);
+    this.sockets.delete(key);
     // AND THEIR MICROPHONE IS NOT ON ANY MORE, whatever they last said about
     // it. A name left in this set is somebody every newcomer tries to call and
     // nobody ever reaches. Announced as well as removed, so people already in
     // the room tear down the connection rather than waiting on silence.
-    if (this.voices.delete(actorId)) {
-      this.broadcast({ type: "voicePresence", actorId, on: false });
+    if (this.voices.delete(key)) {
+      this.broadcast({
+        type: "voicePresence",
+        actorId: this.presence.find(key)?.actorId ?? actorId,
+        on: false,
+      });
     }
     this.presence.leave(actorId);
     if (this.sockets.size === 0) this.stop();
@@ -112,7 +118,7 @@ export class SpaceHub {
   readonly voices = new Set<string>();
 
   deliver(actorId: string, message: ServerMessage): boolean {
-    const sockets = this.sockets.get(actorId);
+    const sockets = this.sockets.get(actorKey(actorId));
     if (!sockets || sockets.size === 0) return false;
     for (const socket of sockets) this.send(socket, message);
     return true;
@@ -150,7 +156,7 @@ export class SpaceHub {
       // Pruned for silence: close whatever sockets are still nominally attached
       // so the client learns it has been dropped instead of watching a frozen
       // room.
-      for (const socket of this.sockets.get(actorId) ?? []) {
+      for (const socket of this.sockets.get(actorKey(actorId)) ?? []) {
         this.send(socket, {
           type: "refused",
           reason: `no messages for ${Math.round(STALE_AFTER_MS / 1000)} seconds — reconnecting`,
@@ -161,7 +167,7 @@ export class SpaceHub {
           // Already gone.
         }
       }
-      this.sockets.delete(actorId);
+      this.sockets.delete(actorKey(actorId));
     }
     if (this.sockets.size === 0) {
       this.stop();
@@ -227,7 +233,7 @@ export function registerSpaceRoutes(
     }
 
     const actorId = session.username;
-    if (NOT_A_PERSON.has(actorId)) {
+    if (NOT_A_PERSON.has(actorKey(actorId))) {
       hub.send(socket, { type: "refused", reason: `${actorId} is not a person` });
       socket.close(1008, "not a person");
       return;
@@ -246,7 +252,9 @@ export function registerSpaceRoutes(
       showing: showingNow(),
       // Who to call on arrival. Yourself excluded: a second tab of your own is
       // still you, and calling it would put your own microphone in your ears.
-      voice: [...hub.voices].filter((id) => id !== actorId),
+      voice: [...hub.voices]
+        .filter((key) => key !== actorKey(actorId))
+        .map((key) => hub.presence.find(key)?.actorId ?? key),
     });
 
     socket.on("message", (raw: Buffer | string) => {
@@ -262,9 +270,14 @@ export function registerSpaceRoutes(
       if (message.type === "voicePresence") {
         // Told to the room, not asked of it: whether somebody's microphone is
         // on is theirs to state, and nobody else's to infer from silence.
-        if (message.on) hub.voices.add(actorId);
-        else hub.voices.delete(actorId);
-        hub.broadcast({ type: "voicePresence", actorId, on: message.on });
+        const key = actorKey(actorId);
+        if (message.on) hub.voices.add(key);
+        else hub.voices.delete(key);
+        hub.broadcast({
+          type: "voicePresence",
+          actorId: hub.presence.find(key)?.actorId ?? actorId,
+          on: message.on,
+        });
         return;
       }
       if (message.type === "avatar") {
@@ -282,7 +295,8 @@ export function registerSpaceRoutes(
         // Refused to a stranger rather than dropped: an unanswered call and a
         // call that was never delivered look identical from the caller's side,
         // and only one of them is worth retrying.
-        if (!hub.deliver(message.to, { type: "voice", from: actorId, signal: message.signal })) {
+        const from = hub.presence.find(actorId)?.actorId ?? actorId;
+        if (!hub.deliver(message.to, { type: "voice", from, signal: message.signal })) {
           hub.send(socket, {
             type: "voicePresence",
             actorId: message.to,

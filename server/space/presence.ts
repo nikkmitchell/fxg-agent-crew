@@ -1,4 +1,4 @@
-import { ROOM, WALK_SPEED, type Vec3, deskFor } from "../../shared/space-layout.js";
+import { ROOM, WALK_SPEED, actorKey, type Vec3, deskFor } from "../../shared/space-layout.js";
 import type { Pose } from "../../shared/space-wire.js";
 import {
   DEFAULT_AVATAR_STATE,
@@ -118,11 +118,18 @@ export class Presence {
    * so two people joining at once do not appear inside one another.
    */
   join(actorId: string, kind: "human" | "agent" | null, connected = true): Occupant {
-    const existing = this.occupants.get(actorId);
+    const key = actorKey(actorId);
+    const existing = this.occupants.get(key);
     if (existing) {
       // A second connection for the same actor is a reconnect or a second tab,
       // not a second person. Keep the position; do not spawn a twin.
+      const wasConnected = existing.connected;
       existing.connected = existing.connected || connected;
+      // A live authenticated session is stronger evidence for how this actor
+      // spells their name in the room than an audit row that arrived first.
+      // A later case-variant tab does not get to rename an already-connected
+      // person; first live spelling wins for that presence.
+      if (connected && !wasConnected) existing.actorId = actorId;
       existing.lastSeen = this.now();
       if (kind && !existing.kind) existing.kind = kind;
       return existing;
@@ -158,7 +165,7 @@ export class Presence {
       connected,
       lastSeen: this.now(),
     };
-    this.occupants.set(actorId, occupant);
+    this.occupants.set(key, occupant);
     return occupant;
   }
 
@@ -170,7 +177,7 @@ export class Presence {
    * connect again and are announced properly.
    */
   heard(actorId: string): void {
-    const occupant = this.occupants.get(actorId);
+    const occupant = this.occupants.get(actorKey(actorId));
     if (occupant) occupant.lastSeen = this.now();
   }
 
@@ -194,7 +201,7 @@ export class Presence {
      */
     tracked?: { head?: Pose | null; hands?: { left: Pose | null; right: Pose | null } },
   ): void {
-    const occupant = this.occupants.get(actorId);
+    const occupant = this.occupants.get(actorKey(actorId));
     if (!occupant) return;
     const clamped = clampToRoom(at);
     occupant.at = clamped;
@@ -232,7 +239,7 @@ export class Presence {
     because: string | null,
     destinationFacing: number | null = null,
   ): void {
-    const existing = this.occupants.get(actorId);
+    const existing = this.occupants.get(actorKey(actorId));
     // Somebody who moves themselves is not sent anywhere. An agent is sent
     // whether or not it is watching the room through a socket.
     if (existing && this.selfMoving(existing)) return;
@@ -356,7 +363,7 @@ export class Presence {
          * to tell us, which is exactly why it may be turned.
          */
         const target = occupant.speakingTo
-          ? this.occupants.get(occupant.speakingTo.actorId)
+          ? this.occupants.get(actorKey(occupant.speakingTo.actorId))
           : undefined;
         if (target) occupant.facing = facingToward(occupant.at, target.at);
       }
@@ -370,7 +377,7 @@ export class Presence {
     targetActorId: string,
     durationMs: number,
   ): void {
-    const occupant = this.occupants.get(actorId) ?? this.join(actorId, kind, false);
+    const occupant = this.occupants.get(actorKey(actorId)) ?? this.join(actorId, kind, false);
     if (kind && !occupant.kind) occupant.kind = kind;
     occupant.speakingTo = {
       actorId: targetActorId,
@@ -379,7 +386,7 @@ export class Presence {
     // Turned immediately, so the speaker faces the person before the next tick
     // rather than a moment into the sentence — but only if nobody's device is
     // telling us which way they face. See the note in `tick`.
-    const target = this.occupants.get(targetActorId);
+    const target = this.occupants.get(actorKey(targetActorId));
     if (target && !this.selfMoving(occupant)) {
       occupant.facing = facingToward(occupant.at, target.at);
     }
@@ -393,7 +400,7 @@ export class Presence {
    * answer keeps the state alive without the room having to guess.
    */
   attend(actorId: string, utteranceId: number | null): void {
-    const occupant = this.occupants.get(actorId) ?? this.join(actorId, null, false);
+    const occupant = this.occupants.get(actorKey(actorId)) ?? this.join(actorId, null, false);
     occupant.attending = utteranceId === null ? null : { utteranceId, since: this.now() };
     occupant.lastSeen = this.now();
   }
@@ -404,7 +411,7 @@ export class Presence {
     control: AvatarControl,
     kind: "human" | "agent" | null = null,
   ): AvatarState {
-    const occupant = this.occupants.get(actorId) ?? this.join(actorId, kind, false);
+    const occupant = this.occupants.get(actorKey(actorId)) ?? this.join(actorId, kind, false);
     if (kind && !occupant.kind) occupant.kind = kind;
     if (control.mood) occupant.avatar.mood = control.mood;
     if (control.posture) {
@@ -448,21 +455,22 @@ export class Presence {
   prune(): string[] {
     const cutoff = this.now() - STALE_AFTER_MS;
     const dropped: string[] = [];
-    for (const [actorId, occupant] of this.occupants) {
+    for (const [key, occupant] of this.occupants) {
       // Agents are placed by activity rather than by a heartbeat, so they are
       // kept: an agent standing at its desk having done nothing for an hour is
       // a true statement, and dropping it would claim it had left.
       if (!occupant.connected) continue;
       if (occupant.lastSeen < cutoff) {
-        this.occupants.delete(actorId);
-        dropped.push(actorId);
+        this.occupants.delete(key);
+        dropped.push(occupant.actorId);
       }
     }
     return dropped;
   }
 
   leave(actorId: string): void {
-    const occupant = this.occupants.get(actorId);
+    const key = actorKey(actorId);
+    const occupant = this.occupants.get(key);
     if (!occupant) return;
 
     /**
@@ -486,7 +494,7 @@ export class Presence {
       occupant.connected = false;
       return;
     }
-    if (occupant.connected) this.occupants.delete(actorId);
+    if (occupant.connected) this.occupants.delete(key);
   }
 
   everyone(): Occupant[] {
@@ -494,7 +502,7 @@ export class Presence {
   }
 
   find(actorId: string): Occupant | undefined {
-    return this.occupants.get(actorId);
+    return this.occupants.get(actorKey(actorId));
   }
 
   get size(): number {

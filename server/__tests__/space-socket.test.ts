@@ -257,6 +257,27 @@ describe("the space socket", () => {
     await until(() => space.presence.size === 0, "the room to empty");
   });
 
+  it("treats case variants as tabs of one person", async () => {
+    const { origin, as, space } = await boot();
+    const lower = await connect(origin, as("nikk2"));
+    await lower.next("welcome");
+    const titleCase = await connect(origin, as("Nikk2"));
+    const welcome = await titleCase.next("welcome");
+
+    if (welcome.type !== "welcome") throw new Error("unreachable");
+    expect(welcome.people.map((person) => person.actorId)).toEqual(["nikk2"]);
+    expect(space.presence.size).toBe(1);
+    expect(space.connectedActors).toBe(1);
+    expect(space.connectedSockets).toBe(2);
+
+    lower.close();
+    await until(() => space.connectedSockets === 1, "the case-variant tab to close");
+    expect(space.presence.size).toBe(1);
+
+    titleCase.close();
+    await until(() => space.presence.size === 0, "the final case-variant tab to close");
+  });
+
   it("ignores a frame it cannot read instead of dropping the socket", async () => {
     const { origin, as, space } = await boot();
     const nikk = await connect(origin, as("nikk"));
@@ -335,6 +356,19 @@ describe("setting up a call between two people in the room", () => {
     wren.close();
     nikk.close();
     inkstone.close();
+  });
+
+  it("delivers a call when the addressee uses different identity casing", async () => {
+    const { origin, as } = await boot();
+    const wren = await connect(origin, as("wren"));
+    const nikk = await connect(origin, as("nikk2"));
+
+    wren.send({ type: "voice", to: "Nikk2", signal: offer });
+
+    const heard = await nikk.where((message) => message.type === "voice", "the case-insensitive call");
+    expect(heard).toEqual({ type: "voice", from: "wren", signal: offer });
+    wren.close();
+    nikk.close();
   });
 
   it("stamps the sender from the session, not from the frame", async () => {

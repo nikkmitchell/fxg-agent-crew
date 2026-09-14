@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import { base } from "../router";
+import { actorKey } from "../../shared/space-layout";
 
 /**
  * One body per person, because a VRM cannot be cloned.
@@ -108,7 +109,7 @@ const CHOSEN: Readonly<Record<string, string>> = {
 const DEFAULT_MODEL = "alienteen";
 
 export function modelFor(actorId: string): string {
-  return CHOSEN[actorId.trim().toLowerCase()] ?? DEFAULT_MODEL;
+  return CHOSEN[actorKey(actorId)] ?? DEFAULT_MODEL;
 }
 
 export function loadVrm(actorId: string): Promise<VRM> {

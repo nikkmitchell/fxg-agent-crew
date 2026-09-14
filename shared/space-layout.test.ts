@@ -57,6 +57,11 @@ describe("every fixed position is somewhere a person can actually stand", () => 
       expect(gap, `desk for actor-${i} is ${gap.toFixed(2)}m from the spawn point`).toBeGreaterThan(0.8);
     }
   });
+
+  it("gives case variants of one identity the same desk", () => {
+    expect(deskFor("Nikk2")).toEqual(deskFor("nikk2"));
+    expect(deskFor(" Inkstone ")).toEqual(deskFor("inkstone"));
+  });
 });
 
 describe("the panel arc", () => {

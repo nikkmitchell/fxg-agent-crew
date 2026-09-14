@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { NOT_A_PERSON } from "../../shared/space-layout.js";
+import { NOT_A_PERSON, actorKey } from "../../shared/space-layout.js";
 import {
   destinationFor,
   destinationForRead,
@@ -87,7 +87,7 @@ export class Activity {
 
     for (const row of rows) {
       this.lastSeenId = Math.max(this.lastSeenId, row.id);
-      if (NOT_A_PERSON.has(row.actorId)) continue;
+      if (NOT_A_PERSON.has(actorKey(row.actorId))) continue;
       const destination = destinationFor(row, this.panelPlaces());
       // An action this room has nothing to say about leaves everyone where they
       // are. It does not send them to a default corner.
@@ -99,7 +99,7 @@ export class Activity {
         destination.because,
         destination.facing,
       );
-      this.sentAt.set(row.actorId, this.now());
+      this.sentAt.set(actorKey(row.actorId), this.now());
     }
 
     this.sendStaleHome();
@@ -116,10 +116,10 @@ export class Activity {
     kind: "human" | "agent" | null,
     view: "tasks" | "mood",
   ): void {
-    if (NOT_A_PERSON.has(actorId)) return;
+    if (NOT_A_PERSON.has(actorKey(actorId))) return;
     const destination = destinationForRead(view, this.panelPlaces());
     this.presence.sendTo(actorId, kind, destination.at, destination.because, destination.facing);
-    this.sentAt.set(actorId, this.now());
+    this.sentAt.set(actorKey(actorId), this.now());
   }
 
   /**
@@ -135,13 +135,14 @@ export class Activity {
    * declared yet" and that can change the moment somebody fills in a profile.
    */
   private kindOf(actorId: string): "human" | "agent" | null {
-    const cached = this.kinds.get(actorId);
+    const key = actorKey(actorId);
+    const cached = this.kinds.get(key);
     if (cached) return cached;
     const row = this.db.prepare("SELECT kind FROM actors WHERE id = ?").get(actorId) as
       | { kind: "human" | "agent" | null }
       | undefined;
     const kind = row?.kind ?? null;
-    if (kind) this.kinds.set(actorId, kind);
+    if (kind) this.kinds.set(key, kind);
     return kind;
   }
 
@@ -154,16 +155,16 @@ export class Activity {
    */
   private sendStaleHome(): void {
     const cutoff = this.now() - ATTENTION_MS;
-    for (const [actorId, at] of this.sentAt) {
+    for (const [key, at] of this.sentAt) {
       if (at > cutoff) continue;
-      this.sentAt.delete(actorId);
-      const occupant = this.presence.find(actorId);
+      this.sentAt.delete(key);
+      const occupant = this.presence.find(key);
       if (!occupant) continue;
       // Somebody with a live socket walks themselves. `sendTo` enforces that
       // too — this is the cheap check, not the guarantee.
       if (occupant.connected) continue;
-      const home = restingPlace(actorId);
-      this.presence.sendTo(actorId, occupant.kind, home.at, home.because, home.facing);
+      const home = restingPlace(occupant.actorId);
+      this.presence.sendTo(occupant.actorId, occupant.kind, home.at, home.because, home.facing);
     }
   }
 
