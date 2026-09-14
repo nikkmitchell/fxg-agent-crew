@@ -13,6 +13,7 @@ import { useCurrentProject } from "./current-project";
 import { useViewer } from "./use-session";
 import SignIn, { CannotTell } from "./SignIn";
 import { board } from "./board-client";
+import { startUpdateReload } from "./update-reload";
 
 /**
  * Mission Control.
@@ -148,6 +149,9 @@ export default function App() {
   );
   const [liveRoomOpen, setLiveRoomOpen] = useState(false);
   const viewer = useViewer();
+
+  // A deploy reloads every open page once it is safe to — see update-reload.ts.
+  useEffect(() => startUpdateReload(), []);
 
   // Back/forward must work. Without this the URL changes and the view does
   // not, which is worse than having no routing at all.

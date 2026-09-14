@@ -3,6 +3,7 @@ import { DETAIL_LIMIT, SPOKEN_LIMIT, splitSpoken, type Utterance, type Utterance
 import type { SpaceConnection } from "./useSpaceSocket";
 import { createSteadyRecorder, speakSay, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
 import { space } from "../space-client";
+import { holdReload } from "../update-reload";
 
 export function shouldSpeakUtterance(utterance: Utterance, you: string | null): boolean {
   return Boolean(
@@ -26,6 +27,11 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
   const [confidence, setConfidence] = useState<number | undefined>();
   const [interim, setInterim] = useState("");
   const [listening, setListening] = useState(false);
+  // No reload for a new deploy in the middle of a recording.
+  useEffect(() => {
+    holdReload("voice-microphone", listening);
+    return () => holdReload("voice-microphone", false);
+  }, [listening]);
   const [speaking, setSpeaking] = useState(false);
   const [hearReplies, setHearReplies] = useState(false);
   const [to, setTo] = useState("");

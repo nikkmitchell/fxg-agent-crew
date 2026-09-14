@@ -19,6 +19,7 @@ import type { RoomShowingChoices } from "./useRoomShowing";
 import type { Utterance } from "../../shared/voice";
 import { planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
+import { holdReload } from "../update-reload";
 
 /**
  * The room's controls, in front of you at body level.
@@ -210,6 +211,11 @@ export function RoomControls({
   const speaking = useRef<SpeechOutput | null>(null);
   const spokenAlready = useRef<number | null>(null);
   const [listening, setListening] = useState(false);
+  // No reload for a new deploy in the middle of a recording.
+  useEffect(() => {
+    holdReload("room-microphone", listening);
+    return () => holdReload("room-microphone", false);
+  }, [listening]);
   const [heard, setHeard] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
