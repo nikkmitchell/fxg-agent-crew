@@ -31,6 +31,12 @@ export type VoicePost =
 
 export type VoicePlan = { posts: VoicePost[]; refused: string | null };
 
+export type TextPost =
+  | { to: "room"; detail: string; say?: never; confidence?: never }
+  | { to: "group-chat"; content: string };
+
+export type TextPlan = { posts: TextPost[]; refused: string | null };
+
 /**
  * What to send, and where, for one finished transcript.
  *
@@ -113,6 +119,41 @@ export function planVoice(
       posts.push({ to: "group-chat", content: `${label(index, parts.length)}${part}` });
     });
   }
+
+  return { posts, refused: null };
+}
+
+/**
+ * What to send when the headset's system keyboard supplied the words.
+ *
+ * Meta Quest exposes dictation through the keyboard microphone but does not
+ * expose Web Speech recognition to the page. Once that keyboard has filled a
+ * real text box, the result is ordinary written text: it has no recognition
+ * confidence, must not be read aloud as if the room heard it, and must not be
+ * labelled a voice transcript in the agents' chat.
+ */
+export function planText(
+  draft: string,
+  destination: VoiceDestination,
+  options: { speaker?: string } = {},
+): TextPlan {
+  const words = draft.trim();
+  if (!words) return { posts: [], refused: "Nothing was written, so nothing was sent." };
+
+  const refused = refusalFor({ detail: words, source: "text" });
+  if (refused) return { posts: [], refused: `${refused[0].toUpperCase()}${refused.slice(1)}.` };
+
+  const posts: TextPost[] = [{ to: "room", detail: words }];
+  if (destination !== "room-and-agents") return { posts, refused: null };
+
+  const heading = options.speaker ? `${options.speaker} wrote in the room` : "Written in the room";
+  const label = (index: number, total: number) =>
+    total === 1 ? `${heading}: ` : `${heading} (part ${index + 1} of ${total}): `;
+  const reserve = label(98, 99).length;
+  const parts = splitForChat(words, CHAT_MESSAGE_LIMIT, reserve);
+  parts.forEach((part, index) => {
+    posts.push({ to: "group-chat", content: `${label(index, parts.length)}${part}` });
+  });
 
   return { posts, refused: null };
 }

@@ -49,16 +49,26 @@ that first.
 | 9 | Push the **left stick**, if your device has one | You walk at about walking pace in the direction you are looking. | You drift, slide, accelerate, or move at right angles to where you face. |
 | 10 | Push the **right stick**, if your device has one | The view snaps round in steps of about 30°. | It rotates smoothly (the comfort setting did not apply), or does nothing. |
 | 11 | Have someone open `/room` in a browser and walk about | Their figure moves in your headset as they move. | Frozen, in the wrong place, or absent. |
+| 12 | On Quest, look at the wide talk control at hip height | Because Quest has no page-level speech recognition, it shows a **keyboard** instead of a microphone. | A microphone that only reports that speech recognition is unavailable. |
+| 13 | Press the keyboard control | The Quest system keyboard opens because a real HTML text box receives focus. Where DOM Overlay is composited, a dark review card is visible too. | No keyboard, or immersive mode closes. |
+| 14 | Tap the microphone on the Quest system keyboard and dictate a short sentence, then dismiss the keyboard | The sentence remains in the text box for review and the hip control becomes **▲**; it is not sent automatically. | The sentence disappears or is posted before you approve it. |
+| 15 | Press **Send to room and agents** on the review card, or press **▲** in the room | The written sentence appears in the room transcript and in the agents' chat, labelled as written rather than as a voice transcript. | It reaches only one destination, is read aloud as room speech, or is labelled a voice transcript. |
 
 **The XREAL Aura has no sticks.** Rows 9 and 10 simply do not apply there, which
 is why teleport exists; rows 7 and 8 are the whole of locomotion on that device.
 
-## Voice does not work in a session yet
+## Talking and Quest keyboard dictation
 
-The microphone and the transcript you review before sending are ordinary page
-controls — DOM — which is the same wall as the panels. You can talk to agents
-with the room open in a window; you cannot while wearing the headset. Nobody has
-tested voice in a headset because there is nothing in there to test.
+Browsers that expose Web Speech recognition keep the headset microphone flow:
+press once to record, press again to review/send. Quest does not expose that API
+to the page. Its system keyboard does have a microphone, so the headset control
+becomes a keyboard button there. It opens a real HTML textarea through WebXR's
+DOM Overlay feature; tapping the keyboard microphone dictates into that field.
+
+Keyboard dictation is deliberately handled as written text. The user can see and
+correct the system's result before pressing Send, the room does not read it aloud
+as if it heard speech, and the agents' copy is not labelled as a voice transcript.
+The current **To: room only / room and agents** setting applies to this flow too.
 
 ## The comfort setting
 
