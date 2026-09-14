@@ -20,6 +20,53 @@
  */
 export const SPOKEN_LIMIT = 240;
 
+/**
+ * Split something too long to say into the part that is said and the rest.
+ *
+ * NOBODY IS REFUSED FOR LENGTH ANY MORE. Nikk, blocked mid-sentence by the old
+ * behaviour: "ok i just got a message sending bug. 'that is 353 characters to
+ * say out loud, the limiti is...' please remove any limit here."
+ *
+ * The old rule refused, and argued for it: "REFUSING rather than truncating is
+ * the same rule the profile keys follow: silently shortening tells the sender
+ * their words were used when they were not — and with speech the sender cannot
+ * hear what actually came out, so they would never find out." Every word of
+ * that is about DISCARDING words. It is right about that and it chose the wrong
+ * remedy: refusing does not save the sentence, it throws the whole thing away
+ * and makes the person say it again, shorter, into a headset they cannot type
+ * into.
+ *
+ * SO NOTHING IS DISCARDED AND NOTHING IS REFUSED. The opening is spoken, the
+ * remainder is written down beside it, and the speaker keeps every word. That
+ * is not truncation — truncation loses the end, and this puts the end where it
+ * can be read.
+ *
+ * IT CUTS AT A SENTENCE, NEVER MID-SENTENCE, which is the part that matters.
+ * Stopping mid-clause is how "I would not merge this" becomes "I would", and
+ * then the room really has said something nobody said. If the first sentence
+ * alone is longer than the cap, the whole thing goes to `detail` and nothing is
+ * spoken: better silent than misquoted.
+ */
+export function splitSpoken(text: string, limit = SPOKEN_LIMIT): { say?: string; detail?: string } {
+  const words = text.trim();
+  if (!words) return {};
+  if (words.length <= limit) return { say: words };
+
+  // Sentence ends, in order, with the punctuation kept on the spoken half.
+  const ends: number[] = [];
+  const pattern = /[.!?…]+[\s"')\]]*/g;
+  for (let match = pattern.exec(words); match; match = pattern.exec(words)) {
+    ends.push(match.index + match[0].trimEnd().length);
+  }
+  const fits = ends.filter((end) => end <= limit);
+  if (fits.length === 0) {
+    // One very long sentence. Say nothing rather than half of it.
+    return { detail: words };
+  }
+  const cut = fits[fits.length - 1];
+  return { say: words.slice(0, cut).trim(), detail: words.slice(cut).trim() };
+}
+
 /** The longest written part. Generous — nobody has to listen to it. */
 export const DETAIL_LIMIT = 20_000;
 
@@ -53,10 +100,18 @@ export type Utterance = {
 /**
  * Why an utterance was refused, in the sender's terms.
  *
- * Returns null when it is fine. REFUSING rather than truncating is the same
- * rule the profile keys follow: silently shortening tells the sender their
- * words were used when they were not — and with speech the sender cannot hear
- * what actually came out, so they would never find out.
+ * Returns null when it is fine.
+ *
+ * LENGTH IS NOT A REFUSAL ANY MORE. This used to say: "REFUSING rather than
+ * truncating is the same rule the profile keys follow: silently shortening
+ * tells the sender their words were used when they were not — and with speech
+ * the sender cannot hear what actually came out, so they would never find
+ * out." That is a correct worry about DISCARDING words, and refusal was the
+ * wrong answer to it — it discards all of them and makes somebody in a headset
+ * say the whole thing again. `splitSpoken` keeps every word instead.
+ *
+ * Everything else here still refuses, because the rest are real faults rather
+ * than a sentence being long.
  */
 export function refusalFor(input: UtteranceInput): string | null {
   const say = input.say?.trim() ?? "";
@@ -64,12 +119,10 @@ export function refusalFor(input: UtteranceInput): string | null {
 
   if (!say && !detail) return "an utterance needs something in it";
 
-  if (say.length > SPOKEN_LIMIT) {
-    return (
-      `that is ${say.length} characters to say out loud; the limit is ${SPOKEN_LIMIT}. ` +
-      "Put the long version in `detail` — it is written down and not read aloud."
-    );
-  }
+  // NO LONGER REFUSED FOR LENGTH. `splitSpoken` puts the overflow in `detail`
+  // instead, so a long sentence costs a reader nothing and a speaker nothing.
+  // See the note on that function for why refusing was the wrong remedy for a
+  // right concern.
   if (detail.length > DETAIL_LIMIT) {
     return `that detail is ${detail.length} characters; the limit is ${DETAIL_LIMIT}`;
   }

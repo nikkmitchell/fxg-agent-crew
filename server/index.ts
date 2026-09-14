@@ -164,6 +164,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       database,
       (utterance) => space.broadcast({ type: "said", utterance }),
       (actorId, utteranceId) => space.presence.attend(actorId, utteranceId),
+      (actorId, kind) => space.presence.spoke(actorId, kind),
       (actorId, kind, targetActorId, durationMs) =>
         space.presence.speakTo(actorId, kind, targetActorId, durationMs),
     );

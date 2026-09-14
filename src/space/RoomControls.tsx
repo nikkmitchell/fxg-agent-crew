@@ -234,8 +234,15 @@ export function RoomControls({
     for (const item of plan.posts) {
       try {
         if (item.to === "room") {
+          // THE WRITTEN REMAINDER GOES TOO. `planVoice` splits anything too
+          // long to say into a spoken opening and a written rest; dropping
+          // `detail` here would lose the end of somebody's sentence while
+          // telling them it was sent, which is the exact failure the split
+          // exists to avoid. `say` is omitted when a single sentence was too
+          // long to speak at all — better silent than misquoted.
           await space.say({
-            say: item.say,
+            ...(item.say ? { say: item.say } : {}),
+            ...(item.detail ? { detail: item.detail } : {}),
             source: "voice",
             ...(item.confidence !== undefined ? { confidence: item.confidence } : {}),
           });

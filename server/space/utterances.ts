@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
-import { refusalFor, type Utterance, type UtteranceInput } from "../../shared/voice.js";
+import { refusalFor, splitSpoken, type Utterance, type UtteranceInput } from "../../shared/voice.js";
 import { makeRequireSession } from "../require-session.js";
 
 /**
@@ -38,8 +38,21 @@ export class Utterances {
     const refused = refusalFor(input);
     if (refused) return { refused };
 
-    const say = input.say?.trim() || null;
-    const detail = input.detail?.trim() || null;
+    /**
+     * SPLIT HERE TOO, not only in the browser.
+     *
+     * `planVoice` splits a long transcript before sending, which covers the
+     * microphone. It does not cover an agent posting straight to this endpoint,
+     * and that is how the walls of text got into the room in the first place —
+     * so the rule belongs where it is enforced rather than where it is
+     * convenient. Nothing is discarded: the opening is spoken and the rest
+     * joins whatever written detail was already there.
+     */
+    const offered = input.say?.trim() ?? "";
+    const spokenSplit = splitSpoken(offered);
+    const say = spokenSplit.say?.trim() || null;
+    const carried = [spokenSplit.detail, input.detail?.trim()].filter(Boolean).join("\n\n");
+    const detail = carried || null;
     const to = input.to?.trim() || null;
 
     // Addressing a thing that is not a person. Refused rather than accepted and
@@ -81,6 +94,7 @@ export function registerUtteranceRoutes(
   database: DatabaseSync,
   announce: (utterance: Utterance) => void,
   attend: (actorId: string, utteranceId: number | null) => void,
+  spoke: (actorId: string, kind: "human" | "agent" | null) => void,
   speakTo: (
     actorId: string,
     kind: "human" | "agent" | null,
@@ -111,6 +125,22 @@ export function registerUtteranceRoutes(
       // not told why will simply say it again.
       return reply.code(422).send({ code: "REFUSED", error: result.refused });
     }
+
+    /**
+     * SPEAKING COUNTS AS BEING AWAKE, whoever it was aimed at.
+     *
+     * This used to happen only for ADDRESSED speech, as a side effect of
+     * turning the speaker toward the listener below. So an agent talking to the
+     * room at large was left with whatever posture it had — which, for one that
+     * had not touched the board in five minutes, is `sleeping`. It stood there
+     * with its eyes shut and its words over its head.
+     */
+    // ONLY WHEN SOMETHING WAS ACTUALLY SAID ALOUD. A detail-only note is
+    // writing, not speech, and it deliberately touches nothing in the room —
+    // `space-utterances.test.ts` asserts that no gaze is invented for one, and
+    // creating an occupant for a silent note would be the same kind of
+    // invention by a different route.
+    if (result.utterance.say) spoke(session.username, session.kind ?? null);
 
     // Match the visible speech window: short lines get a beat to be noticed,
     // while the spoken cap never leaves somebody turned for more than 14s.

@@ -16,11 +16,18 @@ describe("what may be spoken aloud", () => {
     expect(refusalFor({ say: "Moved that card to review.", source: "text" })).toBeNull();
   });
 
-  it("refuses a speech, and says where to put it instead", () => {
-    const refusal = refusalFor({ say: words(200), source: "text" });
-    expect(refusal).toBeTruthy();
-    // The refusal has to be actionable. A speaker told only "no" says it again.
-    expect(refusal).toContain("detail");
+  it("no longer refuses a speech for being long, it splits it", () => {
+    /**
+     * THIS TEST USED TO ASSERT A REFUSAL, and the reasoning behind that
+     * refusal was about discarding words: "silently shortening tells the
+     * sender their words were used when they were not". Correct worry, wrong
+     * remedy — refusing discards ALL of them and makes somebody in a headset
+     * say the whole thing again. Nikk, blocked by it mid-sentence: "please
+     * remove any limit here."
+     *
+     * Inverted rather than deleted, so the reversal is in the history.
+     */
+    expect(refusalFor({ say: words(200), source: "text" })).toBeNull();
   });
 
   it("lets the same words through when they are written rather than spoken", () => {

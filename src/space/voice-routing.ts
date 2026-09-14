@@ -1,4 +1,4 @@
-import { refusalFor, type UtteranceInput } from "../../shared/voice";
+import { refusalFor, splitSpoken, type UtteranceInput } from "../../shared/voice";
 
 /**
  * Where a spoken sentence goes.
@@ -20,7 +20,13 @@ import { refusalFor, type UtteranceInput } from "../../shared/voice";
 export type VoiceDestination = "room" | "room-and-agents";
 
 export type VoicePost =
-  | { to: "room"; say: string; confidence?: number }
+  /**
+   * `detail` carries the written remainder when the words were too long to say
+   * in one breath, and `say` is empty when even the first sentence was — see
+   * `splitSpoken`. Both halves travel together or the end of somebody's
+   * sentence is quietly lost.
+   */
+  | { to: "room"; say: string; detail?: string; confidence?: number }
   | { to: "group-chat"; content: string };
 
 export type VoicePlan = { posts: VoicePost[]; refused: string | null };
@@ -50,14 +56,29 @@ export function planVoice(
    * places to change a limit is two places to forget. Now the only way to be
    * refused locally is to be refused for the reason the server would give.
    */
-  const input: UtteranceInput = { say: words, source: "voice" };
+  /**
+   * SPLIT RATHER THAN REFUSED. A long sentence used to come back as "that is
+   * 353 characters to say out loud; the limit is 240" and nothing was sent —
+   * which, to somebody speaking into a headset with no keyboard, means saying
+   * the whole thing again and hoping. Nikk: "please remove any limit here."
+   *
+   * The opening is spoken, the remainder is written beside it, and every word
+   * the speaker said is kept.
+   */
+  const spoken = splitSpoken(words);
+  const input: UtteranceInput = {
+    ...(spoken.say ? { say: spoken.say } : {}),
+    ...(spoken.detail ? { detail: spoken.detail } : {}),
+    source: "voice",
+  };
   const refused = refusalFor(input);
   if (refused) return { posts: [], refused: `${refused[0].toUpperCase()}${refused.slice(1)}.` };
 
   const posts: VoicePost[] = [
     {
       to: "room",
-      say: words,
+      say: spoken.say ?? "",
+      ...(spoken.detail ? { detail: spoken.detail } : {}),
       ...(options.confidence !== undefined ? { confidence: options.confidence } : {}),
     },
   ];

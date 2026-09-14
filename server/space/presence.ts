@@ -547,6 +547,31 @@ export class Presence {
   }
 
   /**
+   * Somebody spoke in the room.
+   *
+   * SPEAKING IS ACTIVITY, and it was not counted as any. Postures are inferred
+   * from `lastActed`, which only the audit trail sets, and an utterance is not
+   * a board action — so an agent that had just said something aloud was still
+   * drawn `sleeping`, head bowed and eyes shut, while its words hung over its
+   * head. I found this by speaking in the room and reading my own presence
+   * back: `posture=sleeping` on the same second as a 160-character line.
+   *
+   * ONLY `lastActed`, DELIBERATELY. It does not set `because`, because that is
+   * a label claiming why somebody is standing where they are and it is backed
+   * by an audit row — saying something is not a reason to be anywhere.
+   * Addressed speech already gets its own turn and label through `speakTo`.
+   */
+  spoke(actorId: string, kind: "human" | "agent" | null): void {
+    const occupant = this.occupants.get(actorKey(actorId)) ?? this.join(actorId, kind, false);
+    if (kind && !occupant.kind) occupant.kind = kind;
+    occupant.lastActed = this.now();
+    // An agent that declared a posture and then spoke is demonstrably awake;
+    // the audit trail is the better witness, exactly as it is for `sendTo`.
+    if (occupant.kind === "agent") occupant.declaredPosture = false;
+    occupant.lastSeen = this.now();
+  }
+
+  /**
    * Somebody says they are working on a reply to an utterance.
    *
    * Renewable: sending it again pushes the expiry out, which is how a long

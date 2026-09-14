@@ -51,10 +51,21 @@ describe("where a spoken sentence goes", () => {
     }
   });
 
-  it("refuses something too long to say, before the server has to", () => {
-    const plan = planVoice("x".repeat(SPOKEN_LIMIT + 1), "room");
-    expect(plan.posts).toEqual([]);
-    expect(plan.refused).toContain(String(SPOKEN_LIMIT + 1));
+  it("splits something too long to say, rather than refusing it", () => {
+    // It used to refuse here so the server would not have to. Nothing is
+    // refused for length any more, and nothing is lost: the opening is spoken
+    // and the remainder is written down beside it.
+    const long = `${"word ".repeat(80).trim()}. And a second sentence that goes on.`;
+    const plan = planVoice(long, "room");
+    expect(plan.refused).toBeNull();
+    const room = plan.posts.find((post) => post.to === "room");
+    expect(room, "still goes to the room").toBeTruthy();
+    if (room && room.to === "room") {
+      expect(room.say.length).toBeLessThanOrEqual(SPOKEN_LIMIT);
+      expect(room.detail, "the rest is kept, not dropped").toBeTruthy();
+      // Every word survives somewhere.
+      expect(`${room.say} ${room.detail}`.replace(/\s+/g, " ")).toContain("second sentence");
+    }
   });
 
   it("accepts exactly the limit", () => {

@@ -81,23 +81,55 @@ describe("saying something", () => {
     await app.close();
   });
 
-  it("REFUSES a speech rather than shortening it", async () => {
+  it("splits a long speech instead of refusing it, and keeps every word", async () => {
+    /**
+     * THIS USED TO ASSERT A 422 and that nothing was written, arguing "a
+     * truncated version in the table would be a record of words nobody said".
+     * The worry is right and refusal was the wrong remedy — it recorded
+     * nothing at all and sent the speaker away to try again. Nikk, blocked by
+     * it from inside a headset: "please remove any limit here."
+     *
+     * Split, nothing is invented and nothing is lost: the opening is what was
+     * said aloud and the remainder is written down beside it, both of them the
+     * speaker's own words.
+     */
     const { app, as } = boot();
-    const long = "word ".repeat(SPOKEN_LIMIT).trim();
+    // An early sentence boundary, so there IS something short enough to say.
+    // The single-long-sentence case is the test below.
+    const long = `A short opening sentence. ${"word ".repeat(60).trim()} and a closing nobody should lose.`;
     const response = await say(app, as("Plumbline", "agent"), { say: long, source: "text" });
+    expect(response.statusCode).toBe(200);
 
-    // 422: understood perfectly, declined on its merits.
-    expect(response.statusCode).toBe(422);
-    expect(response.json().error).toContain("detail");
+    const utterance = response.json().utterance;
+    expect(utterance.say).toBe("A short opening sentence.");
+    expect(utterance.say.length).toBeLessThanOrEqual(SPOKEN_LIMIT);
+    expect(utterance.detail, "the rest is written, not dropped").toBeTruthy();
+    expect(`${utterance.say} ${utterance.detail}`).toContain("a closing nobody should lose");
 
-    // And nothing was written. A truncated version in the table would be a
-    // record of words nobody said.
+    // AND IT WAS ACTUALLY RECORDED, which the old test checked the other way
+    // round by asserting the table stayed empty.
     const after = await app.inject({
       method: "GET",
       url: "/bff/space/utterances",
       headers: { cookie: as("nikk") },
     });
-    expect(after.json().utterances).toHaveLength(0);
+    expect(after.json().utterances).toHaveLength(1);
+    await app.close();
+  });
+
+  it("says nothing rather than half a sentence, when one sentence is too long", async () => {
+    // The line that must never be crossed: stopping mid-clause is how
+    // "I would not merge this" becomes "I would", and then the room really has
+    // said something nobody said. So an unbroken sentence past the cap is
+    // written down in full and NOT spoken. Silent beats misquoted.
+    const { app, as } = boot();
+    const unbroken = "word ".repeat(80).trim();
+    const response = await say(app, as("Plumbline", "agent"), { say: unbroken, source: "text" });
+    expect(response.statusCode).toBe(200);
+
+    const utterance = response.json().utterance;
+    expect(utterance.say, "nothing is spoken").toBeNull();
+    expect(utterance.detail, "all of it is written").toBe(unbroken);
     await app.close();
   });
 
