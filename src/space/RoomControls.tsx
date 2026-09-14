@@ -682,12 +682,21 @@ export function RoomControls({
         {
           label: voice.on
             ? voice.others.length > 0
-              ? `Talking — you hear ${voice.others.join(", ")}`
-              : "Talking — nobody else has theirs on"
+              ? `Mic open — talking with ${voice.others.join(", ")}`
+              : "Mic open — tap to close"
             : "Talk out loud",
           tone: voice.on ? "live" : "normal",
           onTap: () => voice.setOn(!voice.on),
         },
+        // Mute anyone, for yourself. Nobody else's hearing changes.
+        ...voice.others.map((name) => {
+          const isMuted = voice.muted.has(name.trim().toLowerCase());
+          return {
+            label: isMuted ? `${name}: muted — tap to hear` : `Mute ${name}`,
+            tone: isMuted ? ("muted" as const) : ("normal" as const),
+            onTap: () => voice.setMuted(name, !isMuted),
+          };
+        }),
         capabilities.recognition
           ? {
               // "Speak once" stopped being true: a recording now runs until it

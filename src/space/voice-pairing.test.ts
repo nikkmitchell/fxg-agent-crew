@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callList, shouldCall } from "./voice-pairing";
+import { callList, shouldCall, shouldDial } from "./voice-pairing";
 
 describe("deciding who dials", () => {
   it("has exactly one caller for any pair, in either direction", () => {
@@ -76,5 +76,27 @@ describe("the deadlock that shipped", () => {
     expect(callList("aaa", ["mmm", "zzz"])).toEqual(["mmm", "zzz"]);
     // And above them, in which case they will dial the newcomer instead.
     expect(callList("zzz", ["aaa", "mmm"])).toEqual([]);
+  });
+});
+
+describe("listening without a microphone", () => {
+  // Nikk: "fix voice chat so users can actually chat naturally".
+  it("has exactly one dialler for every pair where anyone is talking", () => {
+    for (const [a, b] of [["nikk2", "baiwei2"], ["Baiwei2", "nikk2"], ["x", "y"]] as const) {
+      for (const [aTalks, bTalks] of [[true, false], [false, true], [true, true]] as const) {
+        expect(shouldDial(a, b, aTalks, bTalks) !== shouldDial(b, a, bTalks, aTalks), `${a}/${b} ${aTalks}/${bTalks}`).toBe(true);
+      }
+    }
+  });
+
+  it("dials nobody when nobody is talking, and never yourself under another spelling", () => {
+    expect(shouldDial("nikk2", "baiwei2", false, false)).toBe(false);
+    expect(shouldDial("baiwei2", "nikk2", false, false)).toBe(false);
+    expect(shouldDial("Nikk2", "nikk2", true, false)).toBe(false);
+  });
+
+  it("has the talker dial the listener, so a listener hears without opening a microphone", () => {
+    expect(shouldDial("nikk2", "baiwei2", true, false)).toBe(true);
+    expect(shouldDial("baiwei2", "nikk2", false, true)).toBe(false);
   });
 });

@@ -33,3 +33,25 @@ export function shouldCall(me: string, them: string): boolean {
 export function callList(me: string, others: readonly string[]): string[] {
   return others.filter((them) => shouldCall(me, them));
 }
+
+/**
+ * Who dials once LISTENING no longer needs a microphone.
+ *
+ * Nikk: "fix voice chat so users can actually chat naturally through the
+ * app". You could only hear people after opening your own microphone, so a
+ * room where one person was talking sounded empty to everyone who had not
+ * thought to open theirs. Now everybody in the room hears whoever is talking.
+ *
+ * A listener never dials — it has nothing to send and does not announce
+ * itself. Somebody talking dials every listener, and two people talking fall
+ * back to the lower-id rule above. Compared case-insensitively, since the room
+ * and the chat spell the same person differently.
+ */
+export function shouldDial(me: string, them: string, meTalking: boolean, themTalking: boolean): boolean {
+  const a = me.trim().toLowerCase();
+  const b = them.trim().toLowerCase();
+  if (a === b) return false;
+  if (!meTalking) return false;
+  if (!themTalking) return true;
+  return shouldCall(a, b);
+}

@@ -31,11 +31,14 @@ function Voice({
   stream,
   listener,
   peopleRef,
+  muted,
 }: {
   actorId: string;
   stream: MediaStream;
   listener: THREE.AudioListener;
   peopleRef: SpaceConnection["peopleRef"];
+  /** Muted by this listener: silent here, and nowhere else. */
+  muted: boolean;
 }) {
   const audio = useMemo(() => new THREE.PositionalAudio(listener), [listener]);
 
@@ -55,6 +58,10 @@ function Voice({
     };
   }, [audio, stream]);
 
+  useEffect(() => {
+    audio.setVolume(muted ? 0 : 1);
+  }, [audio, muted]);
+
   useFrame(() => {
     const person = peopleRef.current.find((p) => p.actorId === actorId);
     if (!person) return;
@@ -70,13 +77,33 @@ function Voice({
 
 export function SpatialVoices({
   streams,
+  muted,
   peopleRef,
 }: {
   streams: Map<string, MediaStream>;
+  muted: Set<string>;
   peopleRef: SpaceConnection["peopleRef"];
 }) {
   const camera = useThree((state) => state.camera);
   const listener = useMemo(() => new THREE.AudioListener(), []);
+
+  /**
+   * UNLOCK SOUND ON THE FIRST TOUCH. Browsers start an audio context suspended
+   * until the person does something, so a listener who never pressed anything
+   * after entering heard nothing — a voice arriving before any click was
+   * silence with no error. Any press, key or headset select resumes it.
+   */
+  useEffect(() => {
+    const resume = () => {
+      if (listener.context.state !== "running") void listener.context.resume().catch(() => undefined);
+    };
+    const events = ["pointerdown", "keydown", "touchstart"] as const;
+    for (const name of events) window.addEventListener(name, resume, { passive: true });
+    resume();
+    return () => {
+      for (const name of events) window.removeEventListener(name, resume);
+    };
+  }, [listener]);
 
   useEffect(() => {
     // The listener is the ear, so it rides the camera — which in a session is
@@ -99,6 +126,7 @@ export function SpatialVoices({
           stream={stream}
           listener={listener}
           peopleRef={peopleRef}
+          muted={muted.has(actorId.trim().toLowerCase())}
         />
       ))}
     </>

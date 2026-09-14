@@ -539,7 +539,7 @@ export default function Scene({
         />
         {/* Each voice placed where its speaker is standing. Nothing at all
           until somebody opens a microphone. */}
-        <SpatialVoices streams={voice.streams} peopleRef={connection.peopleRef} />
+        <SpatialVoices streams={voice.streams} muted={voice.muted} peopleRef={connection.peopleRef} />
 
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}

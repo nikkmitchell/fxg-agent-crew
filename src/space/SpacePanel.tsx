@@ -123,6 +123,9 @@ export function SpacePanel() {
     connection.send,
     connection.subscribe,
     connection.status.state === "open" ? connection.status.you : null,
+    // Everyone who could be listening: people with the room open. Agents have
+    // no ears in a browser.
+    connection.roster.filter((person) => person.connected && person.kind !== "agent").map((person) => person.actorId),
   );
 
   /**
@@ -329,9 +332,24 @@ export function SpacePanel() {
           </button>
           <p className="muted-note">
             {voice.others.length === 0
-              ? "Nobody else has their microphone on, so there is nobody to hear."
-              : `You can hear: ${voice.others.join(", ")}.`}
+              ? "Nobody else is talking right now. You will hear anyone who opens their microphone, whether or not yours is open."
+              : `Talking now: ${voice.others.join(", ")}.`}
           </p>
+          {voice.others.length > 0 ? (
+            <ul className="voice-mutes">
+              {voice.others.map((name) => {
+                const isMuted = voice.muted.has(name.trim().toLowerCase());
+                return (
+                  <li key={name}>
+                    <span>{name}</span>
+                    <button type="button" className="text-button" onClick={() => voice.setMuted(name, !isMuted)}>
+                      {isMuted ? "Unmute" : "Mute for me"}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
           {voice.trouble ? <p role="status">{voice.trouble}</p> : null}
         </section>
 
