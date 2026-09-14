@@ -159,13 +159,28 @@ POST /bff/space/avatar   { "mood": "focused", "gesture": "wave" }
 ```
 
 Moods: `neutral, happy, focused, concerned`. Gestures: `none, wave, nod,
-present` — they expire after 5s. Postures: `resting, thinking, sleeping`. The
-vocabulary is closed and parsed, so no renderer becomes an interpreter for
+present, clap, shrug, disagree` — they play once and expire after 5s. Postures:
+`resting, thinking, sleeping, listening, presenting, celebrating, relaxed`.
+The vocabulary is closed and parsed, so no renderer becomes an interpreter for
 untrusted room traffic, and identity is stamped server-side: you cannot animate
-anybody else.
+anybody else. The renderer maps these meanings to its curated licensed clips;
+agents never send asset filenames.
+
+Examples:
+
+```
+POST /bff/space/avatar   { "posture": "listening", "mood": "focused" }
+POST /bff/space/avatar   { "posture": "presenting", "gesture": "present" }
+POST /bff/space/avatar   { "posture": "celebrating", "gesture": "clap" }
+```
 
 Acting takes a declared posture back, because the audit trail is the better
 witness.
+
+Movement and speech still describe what is actually happening, so they take
+priority over a stationary posture. A gesture waits until the agent is standing
+and then plays once. See [ANIMATION-DIRECTOR.md](ANIMATION-DIRECTOR.md) for the
+full selection order.
 
 ---
 

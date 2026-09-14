@@ -3,8 +3,11 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import {
   AGENT_ANIMATION_FILES,
+  agentAnimationSelection,
   agentAnimationState,
+  animationVariant,
   lockHorizontalHips,
+  transitionClip,
 } from "./agent-animation";
 
 const state = (changes: Partial<Parameters<typeof agentAnimationState>[0]> = {}) =>
@@ -22,8 +25,16 @@ describe("agent animation selection", () => {
     expect(state({ moving: true })).toBe("walking");
     expect(state({ speaking: true })).toBe("talking");
     expect(state({ posture: "thinking" })).toBe("thinking");
-    expect(state({ attending: true })).toBe("thinking");
+    expect(state({ attending: true })).toBe("listening");
     expect(state()).toBe("idle");
+  });
+
+  it("turns persistent agent choices into distinct authored states", () => {
+    expect(state({ posture: "listening" })).toBe("listening");
+    expect(state({ posture: "presenting" })).toBe("presenting");
+    expect(state({ posture: "celebrating" })).toBe("celebrating");
+    expect(state({ posture: "relaxed" })).toBe("relaxed");
+    expect(state({ speaking: true, posture: "presenting" })).toBe("presenting");
   });
 
   it("lets locomotion win over poses and speech", () => {
@@ -32,6 +43,58 @@ describe("agent animation selection", () => {
 
   it("uses a non-oscillating idle frame when reduced motion is requested", () => {
     expect(state({ moving: true, speaking: true, reducedMotion: true })).toBe("idle");
+  });
+
+  it("uses authored starts and stops only at the locomotion boundary", () => {
+    expect(transitionClip("idle", "walking")).toBe("walkStart");
+    expect(transitionClip("walking", "thinking")).toBe("walkStop");
+    expect(transitionClip("talking", "thinking")).toBeNull();
+  });
+});
+
+describe("animation direction", () => {
+  const selection = (changes: Partial<Parameters<typeof agentAnimationSelection>[0]> = {}) =>
+    agentAnimationSelection({
+      actorId: "Inkstone",
+      moving: false,
+      speaking: false,
+      attending: false,
+      mood: "neutral",
+      posture: "resting",
+      gesture: null,
+      gestureStartedAt: null,
+      reducedMotion: false,
+      nowMs: 1_000,
+      ...changes,
+    });
+
+  it("varies long poses deterministically and offsets actors", () => {
+    expect(animationVariant("idle", "Inkstone", 1_000)).toBe(
+      animationVariant("idle", "Inkstone", 1_000),
+    );
+    const observed = new Set(
+      Array.from({ length: 20 }, (_, index) =>
+        animationVariant("idle", "Inkstone", index * 30_000),
+      ),
+    );
+    expect(observed.size).toBeGreaterThan(1);
+  });
+
+  it("maps mood to a gait without giving the clip ownership of room position", () => {
+    expect(selection({ moving: true, mood: "focused" }).clip).toBe("walkingFast");
+    expect(selection({ moving: true, mood: "concerned" }).clip).toBe("walkingSlow");
+    expect(selection({ moving: true, mood: "neutral" }).clip).toBe("walking");
+  });
+
+  it("plays bounded gestures only while standing and keeps their event token", () => {
+    expect(selection({ gesture: "shrug", gestureStartedAt: 42 })).toMatchObject({
+      gestureClip: "gestureShrug",
+      gestureToken: 42,
+    });
+    expect(selection({ moving: true, gesture: "wave", gestureStartedAt: 42 })).toMatchObject({
+      gestureClip: null,
+      gestureToken: null,
+    });
   });
 });
 

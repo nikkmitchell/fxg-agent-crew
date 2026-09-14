@@ -12,7 +12,7 @@ import type { AvatarRecipe } from "../avatar";
 import type { WirePerson } from "../../shared/space-wire";
 import { agentMotionFrame, type Rotation } from "./agent-motion";
 import {
-  agentAnimationState,
+  agentAnimationSelection,
   createAgentAnimationPlayer,
   type AgentAnimationPlayer,
 } from "./agent-animation";
@@ -264,12 +264,17 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
     if (authored) {
       authored.update(
         delta,
-        agentAnimationState({
+        agentAnimationSelection({
+          actorId,
           moving: person.moving,
           speaking,
           attending: person.attending !== null,
+          mood: person.avatar.mood,
           posture: person.avatar.posture,
+          gesture: person.avatar.gesture,
+          gestureStartedAt: person.avatar.gestureStartedAt,
           reducedMotion,
+          nowMs: Date.now(),
         }),
         reducedMotion,
       );
@@ -319,7 +324,7 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
         scratch.quaternion.premultiply(head.quaternion.setFromEuler(scratch.euler));
         approachQuaternion(shown.head, scratch.quaternion, 14, delta, snap);
         head.quaternion.copy(shown.head);
-      } else if (!authored || person.avatar.gesture === "nod") {
+      } else if (!authored) {
         if (automatic) {
           scratch.euler.set(automatic.head.x, automatic.head.y, automatic.head.z, "YXZ");
           scratch.quaternion.setFromEuler(scratch.euler);
@@ -376,10 +381,9 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
       if (!upper || !lower) continue;
 
       if (!pose) {
-        // Authored clips own untracked arms. An explicit wave/nod/present is a
-        // live room command, so that small overlay is still allowed to win.
-        const manualArmGesture = person.avatar.gesture === "wave" || person.avatar.gesture === "present";
-        if (automatic && (!authored || manualArmGesture)) {
+        // Authored clips own untracked arms, including declared gestures. The
+        // procedural pose remains the complete fallback when clips fail.
+        if (automatic && !authored) {
           rotateToward(
             upper,
             side === "left" ? automatic.leftUpperArm : automatic.rightUpperArm,
