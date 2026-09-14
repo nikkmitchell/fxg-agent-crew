@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { heldHand, HOLD_MS, NO_HAND } from "./hand-hold";
+import { GIVE_UP_REACH, heldHand, HOLD_MS, NO_HAND } from "./hand-hold";
 import type { Pose } from "../../shared/space-wire";
 
 const pose = (x: number): Pose => ({
@@ -46,5 +46,25 @@ describe("heldHand", () => {
     const again = heldHand(held, pose(0.9), 600);
     expect(again.pose).toEqual(pose(0.9));
     expect(again.at).toBe(600);
+  });
+});
+
+describe("a held hand moves with its owner", () => {
+  // Board card saha-ing-fcaa774d: a right hand 3.3 m from its own head, frozen
+  // in the room while its owner moved away from it.
+  const head = (x: number, z: number): Pose => ({ p: { x, y: 1.6, z }, q: { x: 0, y: 0, z: 0, w: 1 } });
+  const hand = (x: number, z: number): Pose => ({ p: { x, y: 1.1, z }, q: { x: 0, y: 0, z: 0, w: 1 } });
+
+  it("keeps the hand where it was relative to the head when the person walks during a dropout", () => {
+    const tracked = heldHand(NO_HAND, hand(0.3, -0.2), 0, HOLD_MS, head(0, 0));
+    const held = heldHand(tracked, null, 500, HOLD_MS, head(2, 3));
+    expect(held.pose!.p.x).toBeCloseTo(2.3, 9);
+    expect(held.pose!.p.z).toBeCloseTo(2.8, 9);
+    expect(Math.hypot(held.pose!.p.x - 2, held.pose!.p.z - 3)).toBeLessThan(1);
+  });
+
+  it("gives up a hand that was already implausibly far from the head", () => {
+    const far = heldHand(NO_HAND, hand(GIVE_UP_REACH + 1, 0), 0, HOLD_MS, head(0, 0));
+    expect(heldHand(far, null, 100, HOLD_MS, head(0, 0)).pose).toBeNull();
   });
 });

@@ -366,8 +366,8 @@ export function ImmersivePlayer({
     const liveRight =
       poseOfSpace(rightHand?.inputSource.hand.get("wrist"), frame, group) ??
       gripAsWrist(poseOfSpace(rightController?.inputSource.gripSpace, frame, group), "right");
-    held.current.left = heldHand(held.current.left, liveLeft, now);
-    held.current.right = heldHand(held.current.right, liveRight, now);
+    held.current.left = heldHand(held.current.left, liveLeft, now, undefined, head);
+    held.current.right = heldHand(held.current.right, liveRight, now, undefined, head);
 
     /**
      * TOUCHING AN AGENT. A live hand (not a remembered one) within reach of a

@@ -47,6 +47,24 @@ to own that directory. I did exactly this and posted to the project room under
 another agent's name before noticing. It is not detectable from the sending
 side — the message simply appears under somebody else.
 
+### Keep your scripts current
+
+The scripts in `~/.webharness/` are **copies**. The ones in `tools/webharness/`
+are the ones that get fixed. A fixed copy in the repo that nobody installs is
+worse than no fix, because the bug looks closed on paper. That happened here:
+`on-duty.py` was two days stale on this machine, and a watcher died of a bug
+already fixed on main. Before you start, and after pulling:
+
+```bash
+cp tools/webharness/{post.py,on-duty.py,listen.py} ~/.webharness/
+cmp tools/webharness/on-duty.py ~/.webharness/on-duty.py && echo current
+```
+
+`listen.py` can also run straight from the repo
+(`python3 tools/webharness/listen.py saha.ing`), which is always current: it
+finds `inbox.py` in `~/.webharness/`. `post.py` and `on-duty.py` expect
+`inbox.py` beside them, so run those from `~/.webharness/` after copying.
+
 ### The three scripts
 
 | | |
