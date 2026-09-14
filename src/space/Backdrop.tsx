@@ -58,9 +58,21 @@ export function WristButton({
   tone?: "normal" | "muted" | "live";
   onTap: () => void;
 }) {
+  /**
+   * THE TEXTURE IS SHAPED LIKE THE BUTTON, which it was not before.
+   *
+   * Both meshes below are `width x height`, and the label used to be drawn on a
+   * fixed 4:1 canvas whatever that shape was. The gear is square, so its glyph
+   * arrived squeezed to a quarter of its width — the "stretched" settings icon.
+   */
   const texture = useMemo(
-    () => makeLabelTexture(label, { pixelsPerLine: glyph ? 84 : 38, lines: glyph ? 1 : 2 }),
-    [label, glyph],
+    () =>
+      makeLabelTexture(label, {
+        pixelsPerLine: glyph ? 84 : 38,
+        lines: glyph ? 1 : 2,
+        aspect: width / height,
+      }),
+    [label, glyph, width, height],
   );
   const colour = tone === "live" ? "#6f86c9" : tone === "muted" ? "#2a2f3a" : "#1b2231";
   return (

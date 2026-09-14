@@ -13,14 +13,30 @@ import * as THREE from "three";
  */
 export function makeLabelTexture(
   text: string,
-  options: { pixelsPerLine?: number; lines?: number } = {},
+  options: { pixelsPerLine?: number; lines?: number; aspect?: number } = {},
 ): THREE.CanvasTexture | null {
   // The scene is only ever mounted in a browser, but a test that imports this
   // file should not explode on a missing document.
   if (typeof document === "undefined") return null;
+  /**
+   * THE CANVAS TAKES THE SHAPE OF THE PLANE IT WILL BE MAPPED ONTO.
+   *
+   * It was always 512x128 — 4:1 — and `label-aspect.test.ts` already spelled
+   * out the consequence: "Mapping that onto a plane of a different aspect does
+   * not crop or letterbox it, it STRETCHES it, and the failure looks like
+   * blurring rather than like a mistake." That test then checked exactly one
+   * file. The settings gear is a 0.14 x 0.14 SQUARE, so it was taking a 4:1
+   * texture into a 1:1 plane and squeezing the glyph to a quarter of its width.
+   * Nikk, from a headset: "settings icon is weirdly shaped, like its stretched".
+   *
+   * Callers that know their plane pass its aspect. The default stays 4:1 so
+   * every existing caller draws exactly what it drew before.
+   */
+  const aspect = options.aspect && options.aspect > 0 ? options.aspect : 512 / 128;
   const canvas = document.createElement("canvas");
   canvas.width = 512;
-  canvas.height = 128;
+  // Rounded to a whole pixel, and never zero: a canvas of height 0 throws.
+  canvas.height = Math.max(1, Math.round(512 / aspect));
   const context = canvas.getContext("2d");
   if (!context) return null;
 
