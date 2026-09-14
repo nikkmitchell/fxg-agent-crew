@@ -19,6 +19,7 @@
     "@fontsource/instrument-serif": "^5.2.8",
     "@fontsource/manrope": "^5.2.8",
     "@pixiv/three-vrm": "^3.5.5",
+    "@pixiv/three-vrm-animation": "3.5.5",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "9.7.0",
     "@react-three/xr": "6.6.30",
