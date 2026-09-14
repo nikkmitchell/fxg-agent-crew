@@ -170,14 +170,36 @@ export function createSpeechInput(options: {
  * So a result that continues or corrects the one before it replaces it rather
  * than being added after it. "Continues" is a prefix match after ignoring case
  * and punctuation, which also catches a last word still being revised ("is of"
- * then "is offline"). A result that shares two or more leading words and
- * differs only in its last word counts as a correction. Anything else is a new
- * phrase — which is every result desktop Chrome sends, so desktop is unchanged.
+ * then "is offline"). "Corrects" is the engine re-sending the same phrase with
+ * a word or two changed — it sent "I'm sorry great great work still I meant to
+ * say..." and then the same sentence with one "great" gone, and both were
+ * kept. So: same first word, and no more than a quarter of the words differ.
+ * Anything else is a new phrase — which is every result desktop Chrome sends,
+ * so desktop is unchanged.
+ *
+ * Folded across runs as well as within one: after a pause the engine may
+ * start its next run by re-sending the phrase it had just finished.
  */
 export type HeardResult = { text: string; final: boolean; confidence?: number };
 
 const normalise = (text: string) =>
   text.toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").replace(/\s+/g, " ").trim();
+
+/** Word-level edit distance, stopping early once it passes `limit`. */
+function wordDistance(a: string[], b: string[], limit: number): number {
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      best = Math.min(best, current[j]);
+    }
+    if (best > limit) return best;
+    previous = current;
+  }
+  return previous[b.length];
+}
 
 function revises(earlier: string, later: string): boolean {
   const a = normalise(earlier);
@@ -186,10 +208,13 @@ function revises(earlier: string, later: string): boolean {
   if (b.startsWith(a) || a.startsWith(b)) return true;
   const aw = a.split(" ");
   const bw = b.split(" ");
-  const shared = Math.min(aw.length, bw.length) - 1;
-  if (shared < 2) return false;
-  for (let index = 0; index < shared; index += 1) if (aw[index] !== bw[index]) return false;
-  return true;
+  if (aw[0] !== bw[0]) return false;
+  const longest = Math.max(aw.length, bw.length);
+  // Two-word phrases need an exact prefix above: "is it" and "is the" are
+  // different questions far more often than one misheard word.
+  if (longest < 3) return false;
+  const limit = Math.max(1, Math.floor(longest / 4));
+  return wordDistance(aw, bw, limit) <= limit;
 }
 
 export function foldRevisions(results: HeardResult[]): HeardResult[] {
@@ -319,7 +344,10 @@ export function createSteadyRecorder(options: {
     return text.slice(index).replace(/^[^\p{L}\p{N}']+/u, "");
   };
   const runWords = () => runFinals.map((phrase, index) => beyond(phrase, cleared[index]));
-  const words = () => [...kept, ...runWords()].map((part) => part.trim()).filter(Boolean).join(" ");
+  const words = () =>
+    foldRevisions([...kept, ...runWords()].map((text) => ({ text, final: true })))
+      .map((phrase) => phrase.text)
+      .join(" ");
   const report = () => options.onText([words(), interim.trim()].filter(Boolean).join(" "));
   const confidence = () => {
     const all = [...confidences, ...runConfidences];

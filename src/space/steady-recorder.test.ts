@@ -272,6 +272,32 @@ describe("a headset browser that reports every word as a new result", () => {
     expect(seen.phrases).toEqual(["hey so I thought", "you're putting tasks on the board"]);
   });
 
+  it("keeps one copy when the engine re-sends a phrase with a word corrected", async () => {
+    // From Nikk's message after the first fix went live: the same sentence
+    // twice, the second without a doubled "great".
+    const { recorder, engine } = make();
+    recorder.start();
+    engine().hearAgain("I'm sorry great great work Sill I meant to say I can now see your screen open");
+    engine().hearAgain("I'm sorry great work Sill I meant to say I can now see your screen open");
+    engine().hearAgain("why are you not in the group");
+    const finished = recorder.finish();
+    engine().end();
+    expect((await finished).text).toBe("I'm sorry great work Sill I meant to say I can now see your screen open why are you not in the group");
+  });
+
+  it("does not repeat a phrase the engine re-sends at the start of its next run", async () => {
+    const { recorder, clock, engine } = make();
+    recorder.start();
+    engine().hearAgain("great work Sill I can see your screen");
+    engine().end();
+    clock.advance(200);
+    engine().hearAgain("great work Sill I can see your screen");
+    engine().hearAgain("why are you not in the group");
+    const finished = recorder.finish();
+    engine().end();
+    expect((await finished).text).toBe("great work Sill I can see your screen why are you not in the group");
+  });
+
   it("still keeps desktop Chrome's separate phrases, which never repeat each other", () => {
     expect(
       foldRevisions([
@@ -287,7 +313,11 @@ describe("a headset browser that reports every word as a new result", () => {
       foldRevisions([
         { text: "is it deployed", final: true },
         { text: "is the board updated", final: true },
+        { text: "is it", final: true },
+        { text: "is the", final: true },
+        { text: "please merge the voice branch", final: true },
+        { text: "please deploy the room branch", final: true },
       ]).map((r) => r.text),
-    ).toEqual(["is it deployed", "is the board updated"]);
+    ).toEqual(["is it deployed", "is the board updated", "is it", "is the", "please merge the voice branch", "please deploy the room branch"]);
   });
 });
