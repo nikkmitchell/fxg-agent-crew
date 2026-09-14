@@ -45,12 +45,26 @@ describe("a card change waits for its agent", () => {
     expect(Date.parse(shown!)).toBe(1_004_000);
   });
 
+  it("does not report a change as shown before the room has even read it", () => {
+    // A board read between a write and the next poll used to say "shown",
+    // then "held" once the row was mapped: a card jumping forward and back.
+    const { store, presence, activity, projectId, lastChange } = boot();
+    presence.join("nikk2", "human", true);
+    presence.join("Plumbline", "agent", false);
+    const taskId = store.createTask({ id: "Plumbline", kind: "agent" }, { projectId, title: "a card" });
+    const change = lastChange(taskId);
+    expect(activity.revealAt(change.auditId, change.at, change.actorId), "not polled yet").toBeNull();
+    activity.step();
+    expect(activity.revealAt(change.auditId, change.at, change.actorId), "polled, agent walking").toBeNull();
+  });
+
   it("shows a person's change straight away — people move themselves", () => {
     const { store, activity, projectId, nikk, lastChange } = boot();
     const taskId = store.createTask(nikk, { projectId, title: "mine" });
-    activity.step();
     const change = lastChange(taskId);
-    expect(activity.revealAt(change.auditId, change.at)).toBe(change.at);
+    expect(activity.revealAt(change.auditId, change.at, change.actorId), "even before the poll").toBe(change.at);
+    activity.step();
+    expect(activity.revealAt(change.auditId, change.at, change.actorId)).toBe(change.at);
   });
 
   it("never holds a change longer than the cap, if the agent never arrives", () => {

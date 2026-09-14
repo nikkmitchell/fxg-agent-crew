@@ -47,7 +47,7 @@ export function registerBoardRoutes(
     view: "tasks" | "mood",
   ) => void,
   /** When the room should show a board change: see shared/board-freshness.ts. */
-  revealOf: (auditId: number, at: string) => string | null = (_id, at) => at,
+  revealOf: (auditId: number, at: string, actorId: string) => string | null = (_id, at) => at,
 ): void {
   const reads = new BoardReads(db);
   const store = new BoardStore(db);
@@ -162,7 +162,7 @@ export function registerBoardRoutes(
             ...task,
             fresh: {
               changedAt: lastChange.at,
-              revealAt: revealOf(lastChange.auditId, lastChange.at),
+              revealAt: revealOf(lastChange.auditId, lastChange.at, lastChange.actorId),
               ...(lastChange.previousStatus ? { previousStatus: lastChange.previousStatus } : {}),
             },
           }

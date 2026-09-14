@@ -251,13 +251,27 @@ export class Activity {
    * change, an old one, one from before a restart — shows at the moment it
    * was made. Nothing is held longer than REVEAL_CAP_MS.
    */
-  revealAt(auditId: number, at: string): string | null {
+  revealAt(auditId: number, at: string, actorId?: string): string | null {
     const now = this.now();
     for (const [id, shownAt] of this.revealed) {
       if (now - shownAt > 5 * 60_000) this.revealed.delete(id);
     }
     const shown = this.revealed.get(auditId);
     if (shown !== undefined) return new Date(shown).toISOString();
+    // NOT YET READ. The poller picks rows up every half second, and a board
+    // read in between used to be told "shown" — so a card jumped to its new
+    // column, back to its old one when the row was mapped, and forward again
+    // on arrival. Unread and recent means "not decided yet".
+    // Only for an agent: a person's own new card should not blink out of the
+    // board they just added it to.
+    if (
+      auditId > this.lastSeenId &&
+      now - Date.parse(at) < REVEAL_CAP_MS &&
+      actorId !== undefined &&
+      this.presence.find(actorId)?.kind === "agent"
+    ) {
+      return null;
+    }
     const pending = this.pendingReveal.get(auditId);
     if (pending) {
       if (now - pending.sentAt < REVEAL_CAP_MS) return null;

@@ -17,6 +17,7 @@ import type { Comfort } from "./comfort";
 import { WebPanel } from "./WebPanel";
 import { StillPanel } from "./StillPanel";
 import { ScreenWall } from "./ScreenWall";
+import { ArrivalSparkles } from "./ArrivalSparkles";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
 import { useRoomShowing } from "./useRoomShowing";
@@ -518,6 +519,8 @@ export default function Scene({
           agent's sits in front of the agent, only while it is working there.
           Textures on planes, so the same in the window and in a headset. */}
         <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
+        {/* Sparks where an agent reaches a board, as its card change lands. */}
+        <ArrivalSparkles peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         <Crowd
           peopleRef={connection.peopleRef}
           roster={connection.roster}
