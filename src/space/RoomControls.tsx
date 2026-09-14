@@ -5,6 +5,7 @@ import { bff } from "../bff-client";
 import { space } from "../space-client";
 import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
+import { closedControlPose } from "./control-pose";
 import { showHandModels } from "./xr-store";
 import { createSpeechInput, speakSay, speechCapabilities, type SpeechInput, type SpeechOutput } from "./speech";
 import { shouldSpeakUtterance } from "./VoiceControls";
@@ -53,16 +54,19 @@ import type { VoiceChat } from "./useVoiceChat";
  */
 
 /**
- * Where the panel sits relative to you.
+ * Where the panel sits relative to you, and which way its face points.
  *
- * `AHEAD` is how far in front, `HEIGHT` is how far off the floor — absolute,
- * not relative to the head, so it stays at your waist whether you are standing
- * or sitting forward. `EASE` is how quickly it catches up when you turn: it
- * lags deliberately, because a panel welded to your gaze can never be looked
- * away from, and one that snaps is worse than one that drifts.
+ * MOVED TO `control-pose.ts`, with the arithmetic that chooses the numbers.
+ * They were a pair of bare constants and a `rotation.set(0, yaw, 0)` in the
+ * frame loop below, which made "why that height, why no tilt" unanswerable
+ * without reading a renderer. The height and the tilt are related — the tilt is
+ * a fraction of the angle down to the panel from the eyes — so they belong in
+ * one place that can be tested.
+ *
+ * `EASE` stays here: it is about how the panel FOLLOWS you rather than where it
+ * is. It lags deliberately, because a panel welded to your gaze can never be
+ * looked away from, and one that snaps is worse than one that drifts.
  */
-const AHEAD = 0.62;
-const HEIGHT = 1.02;
 
 /**
  * Where the settings go once they are OPEN — and it is a different place.
@@ -420,12 +424,19 @@ export function RoomControls({
     if (Math.abs(delta) > SLACK) facing.current += delta * EASE;
 
     const yaw = facing.current;
-    node.position.set(
-      body.at.x - Math.sin(yaw) * AHEAD,
-      HEIGHT,
-      body.at.z - Math.cos(yaw) * AHEAD,
-    );
-    node.rotation.set(0, yaw, 0);
+    const { position, rotation } = closedControlPose(body.at, yaw);
+    node.position.set(position[0], position[1], position[2]);
+    /**
+     * YXZ, NOT THE DEFAULT XYZ, and the pose carries a pitch now.
+     *
+     * XYZ pitches about the WORLD x axis before applying the yaw, so the tilt
+     * would lean the panel sideways for anyone not facing down -Z — and tip it
+     * backwards entirely for anyone facing the other way. YXZ turns the panel
+     * to face the wearer first and then tips that face up, which is what the
+     * request means at every yaw rather than at one of them.
+     */
+    node.rotation.order = "YXZ";
+    node.rotation.set(rotation[0], rotation[1], rotation[2]);
   });
 
   type Row = { label: string; tone?: "normal" | "muted" | "live"; onTap: () => void };
