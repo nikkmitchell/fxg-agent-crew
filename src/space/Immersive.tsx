@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { ROOM, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
+import { gripToWristConvention } from "./tracked-body";
 import {
   IDLE,
   stepJoystick,
@@ -342,12 +343,23 @@ export function ImmersivePlayer({
     // A hand the device cannot locate is HELD where it last was rather than
     // reported as missing or, worse, as being on the floor. `hand-hold.ts` says
     // why, and how long a held hand stays believable.
+    //
+    // ONE ORIENTATION CONVENTION ON THE WIRE: the hand joint's, where -Z runs
+    // toward the fingertips and -Y out of the palm. A controller's grip space
+    // points its axes differently, so it is turned into that convention here,
+    // once, and every body drawing this person can turn the wrist the same way
+    // whichever the device was holding. See gripToWristConvention.
+    const gripAsWrist = (grip: Pose | null, side: "left" | "right"): Pose | null => {
+      if (!grip) return null;
+      const q = gripToWristConvention(new THREE.Quaternion(grip.q.x, grip.q.y, grip.q.z, grip.q.w), side);
+      return { p: grip.p, q: { x: q.x, y: q.y, z: q.z, w: q.w } };
+    };
     const liveLeft =
       poseOfSpace(leftHand?.inputSource.hand.get("wrist"), frame, group) ??
-      poseOfSpace(leftController?.inputSource.gripSpace, frame, group);
+      gripAsWrist(poseOfSpace(leftController?.inputSource.gripSpace, frame, group), "left");
     const liveRight =
       poseOfSpace(rightHand?.inputSource.hand.get("wrist"), frame, group) ??
-      poseOfSpace(rightController?.inputSource.gripSpace, frame, group);
+      gripAsWrist(poseOfSpace(rightController?.inputSource.gripSpace, frame, group), "right");
     held.current.left = heldHand(held.current.left, liveLeft, now);
     held.current.right = heldHand(held.current.right, liveRight, now);
 

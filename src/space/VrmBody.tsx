@@ -17,6 +17,7 @@ import {
   type AgentAnimationPlayer,
 } from "./agent-animation";
 import { lyingPose, shouldLieDown } from "./sleep-pose";
+import { StandingHeight, TrackedBody, measureRig, type Rig } from "./tracked-body";
 
 /**
  * A person with a body.
@@ -91,6 +92,9 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
   /** Between the placed body and the model: tips a sleeping agent onto its back. */
   const pose = useRef<THREE.Group>(null);
   const animation = useRef<AgentAnimationPlayer | null>(null);
+  /** The whole-body solver for a person in a headset. See tracked-body.ts. */
+  const tracked = useRef<TrackedBody | null>(null);
+  const standing = useRef(new StandingHeight());
 
   useEffect(() => {
     let dropped = false;
@@ -106,6 +110,10 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
         loaded.scene.rotation.y = faceRoomYaw(faceFrontZOf(loaded));
         arms.current = armSpecOf(loaded);
         modelHead.current = headHeightOf(loaded);
+        {
+          const rig: Rig = { bone: (name) => loaded.humanoid.getNormalizedBoneNode(name) };
+          tracked.current = new TrackedBody(rig, measureRig(rig, loaded.scene), loaded.scene);
+        }
         tint(loaded, recipe);
         setVrm(loaded);
       })
@@ -177,6 +185,13 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
       head: new THREE.Quaternion(),
       /** How far lying down, 0 standing to 1 flat. See sleep-pose.ts. */
       lie: 0,
+      /** A tracked person's head, eased, in the room: what the solver follows. */
+      headAt: new THREE.Vector3(),
+      headTurn: new THREE.Quaternion(),
+      handTarget: {
+        left: { p: new THREE.Vector3(), q: new THREE.Quaternion() },
+        right: { p: new THREE.Vector3(), q: new THREE.Quaternion() },
+      },
     }),
     [],
   );
@@ -234,7 +249,13 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
      * Clamped, because a tracking glitch reporting a head at four metres must
      * not produce a four-metre person.
      */
-    const wantedHead = headOf(person).y;
+    /**
+     * A PERSON IN A HEADSET is posed by the whole-body solver (tracked-body.ts),
+     * and sized by their STANDING height rather than wherever their head is
+     * this frame, so crouching bends the knees instead of shrinking them.
+     */
+    const inHeadset = person.kind !== "agent" && person.head !== null && tracked.current !== null;
+    const wantedHead = inHeadset ? standing.current.update(person.head!.p.y, delta) : headOf(person).y;
     /**
      * HALF THE HEIGHT THE MEASUREMENT ASKS FOR.
      *
@@ -324,6 +345,32 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
         })
       : null;
 
+
+    if (inHeadset && person.head) {
+      approachPoint(shown.headAt, person.head.p, 8, delta, snap);
+      scratch.targetQuaternion.set(person.head.q.x, person.head.q.y, person.head.q.z, person.head.q.w);
+      approachQuaternion(shown.headTurn, scratch.targetQuaternion, 14, delta, snap);
+      const hand = (side: "left" | "right") => {
+        const reported = person.hands[side];
+        if (!reported) return null;
+        // As reported, not eased: see the note on hands below.
+        const target = shown.handTarget[side];
+        target.p.set(reported.p.x, reported.p.y, reported.p.z);
+        target.q.set(reported.q.x, reported.q.y, reported.q.z, reported.q.w);
+        return target;
+      };
+      node.updateMatrixWorld(true);
+      tracked.current!.pose({
+        head: { p: shown.headAt, q: shown.headTurn },
+        hands: { left: hand("left"), right: hand("right") },
+        bodyYaw: shown.yaw,
+        scale,
+        dt: Math.min(delta, 0.1),
+        snap,
+      });
+      vrm.update(delta);
+      return;
+    }
 
     const head = vrm.humanoid.getNormalizedBoneNode("head");
     if (head) {
