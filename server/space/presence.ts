@@ -154,7 +154,25 @@ export class Presence {
      * Desks are already one-per-actor, derived from the id, so "a place where
      * nobody is standing" comes out of that for free.
      */
-    const start = connected && kind !== "agent" ? { ...ROOM.spawn } : deskFor(actorId);
+    const wanted = connected && kind !== "agent" ? { ...ROOM.spawn } : deskFor(actorId);
+    /**
+     * NOT ON TOP OF WHOEVER IS ALREADY THERE, at the moment of arriving.
+     *
+     * Resting places are derived from a name out of twelve slots, so two actors
+     * share one readily — `deskFor("Inkstone")` and `deskFor("nikk2")` are the
+     * same point. An agent joining went straight to its slot whatever was
+     * standing on it, which put it inside a person before it had done anything
+     * at all. Found by a test aimed at the ambient wander, which never got as
+     * far as wandering because the spawn had already failed.
+     *
+     * A PERSON IS PLACED WHERE THEIR HEADSET SAYS, so this only rearranges an
+     * arrival we are entitled to move. A connected human goes to spawn and
+     * their own client corrects it on the next frame; nudging them would be
+     * overwriting a device's word with our own.
+     */
+    const start = connected && kind !== "agent"
+      ? wanted
+      : standingRoomNear(wanted, [...this.occupants.values()].map((o) => o.heading), actorId, clampToRoom);
     const occupant: Occupant = {
       actorId,
       kind,
@@ -271,11 +289,7 @@ export class Presence {
      *
      * The mover is excluded: a figure is always nought metres from itself.
      */
-    const taken: { x: number; z: number }[] = [];
-    for (const other of this.occupants.values()) {
-      if (other !== occupant) taken.push(other.heading);
-    }
-    occupant.heading = standingRoomNear(clampToRoom(heading), taken, occupant.actorId, clampToRoom);
+    occupant.heading = this.roomFor(occupant, clampToRoom(heading));
     occupant.destinationFacing = destinationFacing;
     occupant.speakingTo = null;
     occupant.because = because;
@@ -299,6 +313,30 @@ export class Presence {
    * Only agents are stepped: a human's client owns their position, and moving
    * them from here would fight the person holding the controller.
    */
+  /**
+   * Where this occupant can actually stand, given everybody else's claim.
+   *
+   * EVERY PLACE THAT SETS A HEADING GOES THROUGH HERE. It used to be only
+   * `sendTo`, which was enough while the audit trail was the only thing that
+   * moved anybody. The motion work added two more — an ambient wander and a
+   * walk toward whoever is being addressed — and both wrote `heading`
+   * directly, so both could walk an agent onto a person. That was not a
+   * mistake in either change; it is what happens when two branches are each
+   * green and only their meeting is wrong.
+   *
+   * AGAINST HEADINGS RATHER THAN POSITIONS, because two agents crossing the
+   * room to the same place are both far from it when they set off. `moveSelf`
+   * keeps a person's heading equal to their position, so somebody standing
+   * still claims the ground under their feet.
+   */
+  private roomFor(occupant: Occupant, want: Vec3): Vec3 {
+    const taken: { x: number; z: number }[] = [];
+    for (const other of this.occupants.values()) {
+      if (other !== occupant) taken.push(other.heading);
+    }
+    return standingRoomNear(want, taken, occupant.actorId, clampToRoom);
+  }
+
   /**
    * Whether this occupant moves itself.
    *
@@ -380,7 +418,14 @@ export class Presence {
       }
       if (isWalking(occupant) || now < state.nextAt) continue;
 
-      occupant.heading = ambientPlace(occupant.actorId, state.sequence);
+      // THROUGH `roomFor`, so an idle circuit cannot walk through somebody.
+      // Measured before this line existed: agent-on-agent was safe by
+      // construction, because each wander circles its own resting place — 0 of
+      // 120 pairs closer than 0.8 m. A HUMAN was not, because resting places
+      // are derived from a name and there are only twelve of them, so
+      // `deskFor("Inkstone")` and `deskFor("nikk2")` are the same point and
+      // Inkstone would circle through Nikk while Nikk stood there.
+      occupant.heading = this.roomFor(occupant, ambientPlace(occupant.actorId, state.sequence));
       occupant.destinationFacing = facingToward(occupant.heading, ROOM.spawn);
       state.sequence += 1;
       state.nextAt = now + ambientPauseMs(occupant.actorId, state.sequence);
@@ -398,7 +443,15 @@ export class Presence {
   private approachConversation(occupant: Occupant, target: Occupant): void {
     const gap = distance(occupant.at, target.at);
     if (gap > CONVERSATION_FAR) {
-      occupant.heading = conversationPlace(occupant.at, target.at, occupant.actorId);
+      // `conversationPlace` already stands 1.35 m off the listener, which is
+      // well clear of personal space, so this never fights the conversation
+      // distance — it only moves the speaker when a THIRD party is standing
+      // where the planner wanted to put them. Two agents addressing the same
+      // person used to be able to choose the same spot.
+      occupant.heading = this.roomFor(
+        occupant,
+        conversationPlace(occupant.at, target.at, occupant.actorId),
+      );
       occupant.destinationFacing = null;
     } else {
       occupant.heading = { ...occupant.at };
