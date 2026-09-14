@@ -37,12 +37,32 @@ export const POLL_MS = 500;
  */
 export const ATTENTION_MS = 120_000;
 
+/**
+ * How long an AGENT stays at a panel once it has got there.
+ *
+ * Nikk, watching from a headset: "you stand at the board for way too long...
+ * when you're working you should go back to your space and then take out your
+ * screen share... you should just go up to the board, place your tasks on the
+ * board, and then return". Two minutes turned an agent filing a card into an
+ * agent loitering at the board, with its screen hidden the whole time.
+ *
+ * COUNTED FROM ARRIVAL, not from the action, because the walk over takes a
+ * different time from every desk. Long enough to see it arrive, face the board
+ * and read the label saying what it did; then it walks home and its screen
+ * opens again. Every further action it takes there starts the count over.
+ * People keep ATTENTION_MS, and an agent that never arrives is still sent home
+ * by it.
+ */
+export const AGENT_AT_PANEL_MS = 8_000;
+
 export class Activity {
   /** The highest audit id already acted on. Rows before it are history. */
   private lastSeenId = 0;
   /** Cached actor kinds. Rarely changes, and re-read when we have no answer. */
   private readonly kinds = new Map<string, "human" | "agent" | null>();
   private readonly sentAt = new Map<string, number>();
+  /** When an agent sent somewhere was first seen standing there. */
+  private readonly arrivedAt = new Map<string, number>();
   private timer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -100,6 +120,7 @@ export class Activity {
         destination.facing,
       );
       this.sentAt.set(actorKey(row.actorId), this.now());
+      this.arrivedAt.delete(actorKey(row.actorId));
     }
 
     this.sendStaleHome();
@@ -120,6 +141,7 @@ export class Activity {
     const destination = destinationForRead(view, this.panelPlaces());
     this.presence.sendTo(actorId, kind, destination.at, destination.because, destination.facing);
     this.sentAt.set(actorKey(actorId), this.now());
+    this.arrivedAt.delete(actorKey(actorId));
   }
 
   /**
@@ -154,15 +176,38 @@ export class Activity {
    * claims an activity that stopped an hour ago.
    */
   private sendStaleHome(): void {
-    const cutoff = this.now() - ATTENTION_MS;
+    const now = this.now();
+    const cutoff = now - ATTENTION_MS;
     for (const [key, at] of this.sentAt) {
-      if (at > cutoff) continue;
-      this.sentAt.delete(key);
       const occupant = this.presence.find(key);
-      if (!occupant) continue;
-      // Somebody with a live socket walks themselves. `sendTo` enforces that
-      // too — this is the cheap check, not the guarantee.
-      if (occupant.connected) continue;
+      if (!occupant) {
+        this.sentAt.delete(key);
+        this.arrivedAt.delete(key);
+        continue;
+      }
+      if (at > cutoff) {
+        if (occupant.kind !== "agent") continue;
+        const there = Math.hypot(occupant.at.x - occupant.heading.x, occupant.at.z - occupant.heading.z) < 0.05;
+        if (!there) {
+          this.arrivedAt.delete(key);
+          continue;
+        }
+        const arrived = this.arrivedAt.get(key) ?? now;
+        this.arrivedAt.set(key, arrived);
+        if (now - arrived < AGENT_AT_PANEL_MS) continue;
+      }
+      this.sentAt.delete(key);
+      this.arrivedAt.delete(key);
+      /**
+       * Somebody who drives their own avatar walks themselves.
+       *
+       * NOT `connected`, which is what this checked, and which kept agents at
+       * the board for good: an agent that holds a socket open to watch the
+       * room is connected, so it was never sent home. Sill stood at the board
+       * with its screen hidden until Nikk asked why. The rule is the one
+       * `sendTo` enforces — a connected person, never an agent.
+       */
+      if (occupant.connected && occupant.kind !== "agent") continue;
       const home = restingPlace(occupant.actorId);
       this.presence.sendTo(occupant.actorId, occupant.kind, home.at, home.because, home.facing);
     }

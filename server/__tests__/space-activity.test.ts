@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { openDatabase } from "../db/open.js";
 import { BoardStore } from "../db/store.js";
-import { Activity, ATTENTION_MS } from "../space/activity.js";
+import { AGENT_AT_PANEL_MS, Activity, ATTENTION_MS } from "../space/activity.js";
 import { destinationFor, restingPlace } from "../space/destinations.js";
 import { Presence } from "../space/presence.js";
 import { STATIONS, deskFor } from "../../shared/space-layout.js";
@@ -192,6 +192,70 @@ describe("reading the audit table", () => {
     expect(plumbline?.heading).toEqual(deskFor("Plumbline"));
     // "No recent evidence", not "idle".
     expect(plumbline?.because).toBeNull();
+  });
+
+  it("walks an AGENT home a few seconds after it reaches the board, not two minutes later", () => {
+    // Nikk: "you should just go up to the board, place your tasks on the
+    // board, and then return" — to its own space, where its screen shows.
+    const { store, activity, presence, tick } = boot();
+    const agent = { id: "Plumbline", kind: "agent" as const };
+    const projectId = project(store, "Plumbline");
+    store.createTask(agent, { projectId, title: "a card" });
+    activity.step();
+    const plumbline = presence.find("Plumbline")!;
+    expect(plumbline.heading).toEqual(STATIONS.taskBoard.stand);
+
+    // Still walking over: however long that takes, it is not sent back mid-walk.
+    tick(AGENT_AT_PANEL_MS * 2);
+    activity.step();
+    expect(plumbline.heading).toEqual(STATIONS.taskBoard.stand);
+
+    // Arrives, and stays long enough to be seen there.
+    plumbline.at = { ...plumbline.heading };
+    activity.step();
+    tick(AGENT_AT_PANEL_MS - 1000);
+    activity.step();
+    expect(plumbline.heading, "not yet").toEqual(STATIONS.taskBoard.stand);
+
+    tick(1001);
+    activity.step();
+    expect(plumbline.heading).toEqual(deskFor("Plumbline"));
+    expect(plumbline.because).toBeNull();
+  });
+
+  it("starts the count again for each further thing the agent does at the board", () => {
+    const { store, activity, presence, tick } = boot();
+    const agent = { id: "Plumbline", kind: "agent" as const };
+    const projectId = project(store, "Plumbline");
+    store.createTask(agent, { projectId, title: "first" });
+    activity.step();
+    const plumbline = presence.find("Plumbline")!;
+    plumbline.at = { ...plumbline.heading };
+    activity.step();
+    tick(AGENT_AT_PANEL_MS - 1000);
+    store.createTask(agent, { projectId, title: "second" });
+    activity.step();
+    tick(2000);
+    activity.step();
+    expect(plumbline.heading, "still placing its second card").toEqual(STATIONS.taskBoard.stand);
+  });
+
+  it("sends an agent home even while it holds a socket open to watch the room", () => {
+    // `connected` used to exempt it, so an agent watching the room stayed at
+    // the board indefinitely.
+    const { store, activity, presence, tick } = boot();
+    const agent = { id: "Sill", kind: "agent" as const };
+    const projectId = project(store, "Sill");
+    presence.join("Sill", "agent", true);
+    store.createTask(agent, { projectId, title: "a card" });
+    activity.step();
+    const sill = presence.find("Sill")!;
+    expect(sill.heading).toEqual(STATIONS.taskBoard.stand);
+    sill.at = { ...sill.heading };
+    activity.step();
+    tick(AGENT_AT_PANEL_MS + 1);
+    activity.step();
+    expect(sill.heading).toEqual(deskFor("Sill"));
   });
 
   it("does not drag a person who is driving their own avatar", () => {
