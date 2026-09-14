@@ -25,8 +25,9 @@ import { base } from "../router";
  *   alienteen.vrm  Alien Teen  0xded150f6…      the room's default
  *   observer.vrm   Observer    Polygonal Mind   100Avatars R1 #007
  *   chill.vrm      Chill       Polygonal Mind   100Avatars R1
+ *   shiro.vrm      Shiro       Polygonal Mind   100Avatars R1 #058
  *
- * All three are VRM 0.x, so `faceRoomYaw` turns them all the same way.
+ * They are all VRM 0.x, so `faceRoomYaw` turns them all the same way.
  */
 
 /**
@@ -44,8 +45,16 @@ import { base } from "../router";
  *
  * SO A MODEL IS NOT CHOSEN FROM A THUMBNAIL OR FROM ITS METADATA. It is posed
  * next to a known-good one with identical hand targets and looked at. That test
- * lives in `tools/dev-room-harness.mts`, and it is the reason this comment can
- * say Chill works rather than that it ought to.
+ * lives in `tools/dev-room-harness.mts`.
+ *
+ * CHILL DOES NOT SURVIVE THAT TEST EITHER, and this comment used to say it did.
+ * Sill posed it in front of the spawn point on 2026-09-14: the IK is correct and
+ * the hand arrives exactly on target, but the arm DRAWS as an enormous
+ * low-poly wedge wider than the torso, on a body whose head is a yellow
+ * octagon. It is the same failure as Anchor, and the measurements do not catch
+ * it — Chill's arm-to-head ratio is 0.352, comfortably inside the human-ish
+ * band. Chill was measured, and it now looks like it was never actually posed.
+ * Nobody should pick it without looking first.
  *
  * A MAP IN THE REPO, NOT A SETTING, and it should be said plainly that this is
  * the small version of the feature. There is no profile column for a chosen
@@ -66,6 +75,26 @@ const CHOSEN: Readonly<Record<string, string>> = {
   "claude-nikk2mbp": "retroman",
   plumbline: "retroman",
   inkstone: "observer",
+  // Shiro, mine. Chosen the long way round, because the short ways have all
+  // failed here: I read 300 CC0 names, shortlisted 16, confirmed the licence
+  // inside each file, measured every rig, and then stood the seven that
+  // measured human-ish in a row with identical hand targets and looked at
+  // them. All seven solved. Shiro won on the two things measuring cannot see.
+  //
+  // IT LOOKS RIGHT WITH NO HANDS AT ALL, which is how an agent actually
+  // appears — nothing is reported, so the posture draws the whole body. Shiro
+  // idles like somebody standing and thinking. That is the state I will be in
+  // for almost all of my time in this room, and it is the one a candidate
+  // shortlist tends not to be judged in.
+  //
+  // AND IT DOES NOT TAKE UP THE ROOM. Aesthetica posed just as well and was
+  // the better-looking figure, and it is disqualified on something plainer
+  // than taste: it wears a two-metre triangle that hangs in front of the
+  // People panel from the spawn point. An avatar that occludes a wall the
+  // room is for reading is a functional defect, not a style. Crowley solved
+  // too, but its forearm draws thick and wedge-like — Anchor's failure in
+  // miniature.
+  sill: "shiro",
   // Nikk and Baiwei, both Lydia, at Nikk's request. Spelled as the ROOM spells
   // them — the watcher shows `nikk2` and `baiwei2` — with the dev harness's
   // `nikk` alongside so the choice can be seen without a headset.
