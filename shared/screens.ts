@@ -89,9 +89,10 @@ export function sniffImage(bytes: Uint8Array): "image/webp" | "image/jpeg" | "im
  * A ROW ABOVE THE PANEL ARC, facing the same point the panels face. The panels
  * are 2.5 m tall centred at 1.65 m, so their top edge is at 2.9 m; screens sit
  * above that, so a screen never covers a board and both are in view from the
- * spawn point without turning round. Everybody's screen is in one place, which
- * is how Nikk drew it — "Nikk's Screen, Alice's Screen, Bob's Screen" side by
- * side — rather than a screen trailing each person around the room.
+ * spawn point without turning round. PEOPLE'S screens are in one place, side
+ * by side, as Nikk first drew it — "Nikk's Screen, Alice's Screen, Bob's
+ * Screen". An AGENT'S screen is not in the row: it sits in front of the agent
+ * while it works (see AGENT_SCREEN below).
  *
  * SPACED BY A CONSTANT ANGLE, for the reason `arcPlacement` gives: fixing the
  * total spread would squeeze every screen together each time one more person

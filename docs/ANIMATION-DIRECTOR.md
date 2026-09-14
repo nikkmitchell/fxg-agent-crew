@@ -37,7 +37,8 @@ Persistent postures:
 
 - `resting`: neutral varied idle.
 - `thinking`: the working family used automatically after audited activity.
-- `sleeping`: standing doze, with the expression layer closing the eyes.
+- `sleeping`: lies down on its back at its spot (a whole-body pose, see
+  `src/space/sleep-pose.ts`), playing only the calmest idle, eyes closed.
 - `listening`: attentive listening clips; declared attention also selects this.
 - `presenting`: more expressive upper-body speaking/standing clips.
 - `celebrating`: applause-based celebration.

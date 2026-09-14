@@ -38,6 +38,10 @@ export const AVATAR_GESTURES = [
  * out looking broken. A proper sitting animation needs `@pixiv/three-vrm-
  * animation` and a licensed .vrma, which is a piece of work of its own.
  *
+ * SINCE THEN: a sleeping agent lies down on its back, posed as a whole body
+ * rather than joint by joint (src/space/sleep-pose.ts). The standing doze
+ * remains as the procedural fallback when the model's clips cannot load.
+ *
  * SET FROM THE AUDIT TRAIL, NOT DECLARED. An agent that has just written to the
  * board is thinking because it just did something, and one that has done
  * nothing for a while is at rest because it has done nothing for a while. Both

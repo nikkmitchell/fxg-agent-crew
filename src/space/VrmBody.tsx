@@ -52,6 +52,15 @@ import { StandingHeight, TrackedBody, measureRig, type Rig } from "./tracked-bod
 /** Where the waist is on this model, as a fraction of its height. */
 const WAIST = 0.52;
 
+/**
+ * How much of the measured height to draw an AGENT at.
+ *
+ * Asked for from inside a headset. See the note where it is applied: the
+ * arithmetic it multiplies is correct, and correct was reading wrong. People
+ * are drawn at their own height.
+ */
+const HEIGHT_FRACTION = 0.5;
+
 export function VrmBody({
   actorId,
   live,
@@ -80,13 +89,6 @@ export function VrmBody({
   const [vrm, setVrm] = useState<VRM | null>(null);
   const arms = useRef<ArmSpec | null>(null);
   /** The model's own head height, so it can be scaled to the person's. */
-/**
- * How much of the measured height to actually draw.
- *
- * Asked for from inside a headset. See the note where it is applied: the
- * arithmetic it multiplies is correct, and correct was reading wrong.
- */
-const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
   const modelHead = useRef(1.34);
   const root = useRef<THREE.Group>(null);
   /** Between the placed body and the model: tips a sleeping agent onto its back. */

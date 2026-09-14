@@ -396,9 +396,11 @@ export class Presence {
    * would mean the ones that forgot stood frozen, which is the state we are
    * trying to leave. The room already knows when somebody last acted.
    *
-   * AN AGENT MAY STILL OVERRIDE IT by calling `animate`, and that sticks until
-   * its next action: some know they are about to be busy before the audit trail
-   * does. A human's posture is never touched — they have a body of their own.
+   * AN AGENT MAY STILL OVERRIDE IT by calling `animate`: some know they are
+   * about to be busy before the audit trail does. A declared "thinking" lasts
+   * through the agent's work and lapses after IDLE_SLEEP_MS of silence; a
+   * declared rest is taken back by its next action (see actedOverDeclaration).
+   * A human's posture is never touched — they have a body of their own.
    */
   private settlePostures(): void {
     const now = this.now();
