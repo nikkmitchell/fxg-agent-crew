@@ -84,7 +84,7 @@ export function VrmBody({
  * Asked for from inside a headset. See the note where it is applied: the
  * arithmetic it multiplies is correct, and correct was reading wrong.
  */
-const HEIGHT_FRACTION = 0.5;
+const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
   const modelHead = useRef(1.34);
   const root = useRef<THREE.Group>(null);
   const animation = useRef<AgentAnimationPlayer | null>(null);
@@ -248,7 +248,16 @@ const HEIGHT_FRACTION = 0.5;
      * ONE CONSTANT, so dialling it back is one number rather than a hunt. If
      * 0.5 turns out to be too far, this is the line.
      */
-    const scale = Math.max(0.6, Math.min(1.6, wantedHead / modelHead.current)) * HEIGHT_FRACTION;
+    /**
+     * AGENTS ONLY. The half height was asked for about agents and applied to
+     * everybody. Nikk: "the Avatar resize looks really good for the agents but
+     * you also resize the human Avatar so that they're half size I only needed
+     * a resize for agents... as far as humans we don't need to change the
+     * sizing of their avatars." A person keeps the height their own headset
+     * reports; an agent has no headset, and its size is ours to choose.
+     */
+    const heightFraction = person.kind === "agent" ? HEIGHT_FRACTION : 1;
+    const scale = Math.max(0.6, Math.min(1.6, wantedHead / modelHead.current)) * heightFraction;
     node.scale.setScalar(scale);
 
     const authored = person.kind === "agent" ? animation.current : null;

@@ -156,6 +156,259 @@ export function createSpeechInput(options: {
   };
 }
 
+/**
+ * Recording that keeps going until you say stop.
+ *
+ * WHY THIS EXISTS. Recognition ran with `continuous = false`, so the browser
+ * ended it at the first pause, and nothing started it again. Nikk, from a
+ * headset: "once my volume goes low the recording stops can we not have that
+ * happen can we have it just steadily record... after they push the button it
+ * stays on audio transcribe and if it auto disconnects just have it reconnect
+ * immediately until they actually tap the button again."
+ *
+ * There was a second fault under the first. Each finished phrase REPLACED what
+ * had been heard, so the prompt "speak again to add to it" was not true:
+ * speaking again after a pause threw the earlier words away.
+ *
+ * So a session is the person's intent, not the browser's. It begins on
+ * `start()` and ends only on `finish()` or `cancel()`. Whenever the recogniser
+ * ends on its own — a pause, a "no-speech" timeout, a network blip — it is
+ * started again straight away, and every final phrase from every run is kept
+ * in order. Only faults a restart cannot fix end a session: microphone access
+ * refused, or no working microphone at all.
+ *
+ * `finish()` WAITS FOR THE LAST WORDS. Stopping a recogniser delivers its final
+ * result a moment later, and the old press-to-send posted the transcript before
+ * that arrived, which could drop the last few words. `finish()` resolves only
+ * once the recogniser has actually ended, with a short safety limit for engines
+ * that never say they have.
+ */
+export type SteadyRecorder = {
+  /** Begin a session. Clears anything from a previous one. */
+  start(): void;
+  /** End the session and resolve with everything heard, last words included. */
+  finish(): Promise<{ text: string; confidence?: number }>;
+  /** End the session and throw the words away. */
+  cancel(): void;
+  /** Forget what has been heard so far without ending the session. */
+  clear(): void;
+  dispose(): void;
+};
+
+/** Faults that another start() cannot fix, so the session ends. */
+const FATAL = new Set(["not-allowed", "service-not-allowed", "audio-capture"]);
+
+export function createSteadyRecorder(options: {
+  scope?: SpeechGlobals;
+  /** Everything heard in this session so far, with the words still being guessed at the end. */
+  onText: (text: string) => void;
+  /** Whether a session is active — the person's intent, not whether the browser is mid-phrase. */
+  onRecording: (recording: boolean) => void;
+  /** Each finished phrase as it lands, for modes that post as they go. */
+  onPhrase?: (phrase: { text: string; confidence?: number }) => void;
+  onFailure: (failure: SpeechFailure) => void;
+  /** How long to wait before starting again after the browser ends a run. */
+  restartDelayMs?: number;
+  setTimer?: (callback: () => void, ms: number) => unknown;
+  clearTimer?: (handle: unknown) => void;
+}): SteadyRecorder | null {
+  const scope = options.scope ?? (globalThis as SpeechGlobals);
+  const Constructor = scope.SpeechRecognition ?? scope.webkitSpeechRecognition;
+  if (!Constructor) return null;
+  const setTimer = options.setTimer ?? ((callback, ms) => setTimeout(callback, ms));
+  const clearTimer = options.clearTimer ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+  const restartDelay = options.restartDelayMs ?? 150;
+
+  const recognition = new Constructor();
+  // Continuous where the engine supports it, which makes a pause far less
+  // likely to end a run at all. The restart below covers the engines that end
+  // it anyway, and every engine eventually does.
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = scope.navigator?.language ?? "en-US";
+
+  let recording = false;
+  let running = false;
+  let disposed = false;
+  /** Finished phrases from runs that have ended, in order. */
+  let kept: string[] = [];
+  /** Finished phrases from the run in progress. */
+  let runFinals: string[] = [];
+  /**
+   * How many of this run's phrases `clear()` has already disposed of. The
+   * engine re-sends a run's earlier phrases with every update, so without this
+   * words that were posted and cleared would reappear on the next result.
+   */
+  let skip = 0;
+  let interim = "";
+  const confidences: number[] = [];
+  let restartTimer: unknown = null;
+  let failures = 0;
+  let finishing: { resolve: (value: { text: string; confidence?: number }) => void; guard: unknown } | null = null;
+
+  const words = () => [...kept, ...runFinals.slice(skip)].map((part) => part.trim()).filter(Boolean).join(" ");
+  const report = () => options.onText([words(), interim.trim()].filter(Boolean).join(" "));
+  const confidence = () =>
+    confidences.length > 0 ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length : undefined;
+
+  const settle = () => {
+    if (!finishing) return;
+    const done = finishing;
+    finishing = null;
+    clearTimer(done.guard);
+    // A phrase the engine never marked final is still words the person said;
+    // keeping it beats sending a sentence with its end missing.
+    const text = [words(), interim.trim()].filter(Boolean).join(" ");
+    interim = "";
+    const value = confidence();
+    done.resolve(value === undefined ? { text } : { text, confidence: value });
+  };
+
+  const launch = () => {
+    if (disposed || !recording || running) return;
+    try {
+      recognition.start();
+      running = true;
+    } catch {
+      // Started too soon after the last run ended; try again shortly rather
+      // than giving up on a session the person has not ended.
+      failures += 1;
+      restartTimer = setTimer(launch, Math.min(2000, restartDelay * 2 ** Math.min(failures, 4)));
+    }
+  };
+
+  recognition.onstart = () => {
+    running = true;
+  };
+
+  recognition.onresult = (event) => {
+    // The results of THIS run, rebuilt whole each time: in continuous mode the
+    // engine revises earlier phrases, and appending blindly would duplicate them.
+    const finals: string[] = [];
+    let guess = "";
+    for (let index = 0; index < event.results.length; index += 1) {
+      const result = event.results[index];
+      const transcript = result?.[0]?.transcript ?? "";
+      if (result?.isFinal) {
+        finals.push(transcript);
+        if (index >= event.resultIndex) {
+          const value = result[0]?.confidence;
+          if (typeof value === "number" && Number.isFinite(value) && value > 0) confidences.push(value);
+          options.onPhrase?.(
+            typeof value === "number" && value > 0 ? { text: transcript.trim(), confidence: value } : { text: transcript.trim() },
+          );
+        }
+      } else {
+        guess += transcript;
+      }
+    }
+    runFinals = finals;
+    interim = guess;
+    failures = 0;
+    report();
+  };
+
+  recognition.onerror = (event) => {
+    if (disposed) return;
+    const code = event.error ?? "unknown";
+    if (FATAL.has(code)) {
+      recording = false;
+      options.onFailure(recognitionFailure(code));
+      options.onRecording(false);
+    }
+    // Everything else — a pause timing out, a dropped connection, an abort —
+    // is followed by onend, which starts the next run.
+  };
+
+  recognition.onend = () => {
+    running = false;
+    if (disposed) return;
+    kept = [...kept, ...runFinals.slice(skip)];
+    runFinals = [];
+    skip = 0;
+    if (finishing || !recording) {
+      settle();
+      return;
+    }
+    // THE RESTART. The browser ended a run the person did not end.
+    restartTimer = setTimer(launch, restartDelay);
+  };
+
+  return {
+    start: () => {
+      if (disposed || recording) return;
+      kept = [];
+      runFinals = [];
+      skip = 0;
+      interim = "";
+      confidences.length = 0;
+      failures = 0;
+      recording = true;
+      options.onRecording(true);
+      report();
+      launch();
+    },
+    finish: () =>
+      new Promise((resolve) => {
+        if (disposed) {
+          resolve({ text: "" });
+          return;
+        }
+        if (restartTimer !== null) clearTimer(restartTimer);
+        restartTimer = null;
+        const wasRecording = recording;
+        recording = false;
+        options.onRecording(false);
+        finishing = {
+          resolve,
+          // Some engines never fire onend after stop(). Two seconds is long
+          // enough for a final result to arrive and short enough not to feel
+          // like the press was ignored.
+          guard: setTimer(settle, 2000),
+        };
+        if (wasRecording && running) {
+          try {
+            recognition.stop();
+          } catch {
+            settle();
+          }
+        } else {
+          settle();
+        }
+      }),
+    cancel: () => {
+      if (restartTimer !== null) clearTimer(restartTimer);
+      restartTimer = null;
+      recording = false;
+      kept = [];
+      runFinals = [];
+      skip = 0;
+      interim = "";
+      options.onRecording(false);
+      if (running) recognition.abort();
+      report();
+    },
+    clear: () => {
+      kept = [];
+      // Not emptied: the engine still holds them and will send them again.
+      skip = runFinals.length;
+      interim = "";
+      confidences.length = 0;
+      report();
+    },
+    dispose: () => {
+      disposed = true;
+      recording = false;
+      if (restartTimer !== null) clearTimer(restartTimer);
+      recognition.onstart = null;
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
+      recognition.abort();
+    },
+  };
+}
+
 export type SpeechOutput = { cancel(): void };
 
 /** Speak only the short `say` field. `detail` never enters this function. */

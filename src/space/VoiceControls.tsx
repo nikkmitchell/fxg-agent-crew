@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DETAIL_LIMIT, SPOKEN_LIMIT, splitSpoken, type Utterance, type UtteranceInput } from "../../shared/voice";
 import type { SpaceConnection } from "./useSpaceSocket";
-import { createSpeechInput, speakSay, speechCapabilities, type SpeechInput, type SpeechOutput } from "./speech";
+import { createSteadyRecorder, speakSay, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
 import { space } from "../space-client";
 
 export function shouldSpeakUtterance(utterance: Utterance, you: string | null): boolean {
@@ -31,20 +31,16 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
   const [to, setTo] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const inputRef = useRef<SpeechInput | null>(null);
+  const inputRef = useRef<SteadyRecorder | null>(null);
   const outputRef = useRef<SpeechOutput | null>(null);
   const consideredUtteranceRef = useRef<number | null>(null);
 
   useEffect(() => {
-    inputRef.current = createSpeechInput({
-      onPhase: (phase) => setListening(phase === "listening"),
-      onInterim: setInterim,
-      onFinal: (result) => {
-        setDraft(result.text);
-        setSource("voice");
-        setConfidence(result.confidence);
-        setNotice("Transcript ready. Review it before sending.");
-      },
+    // The same steady recorder as the headset: it keeps listening through
+    // pauses until "Stop listening" is pressed, and keeps every phrase.
+    inputRef.current = createSteadyRecorder({
+      onRecording: setListening,
+      onText: setInterim,
       onFailure: (failure) => setNotice(failure.message),
     });
     return () => inputRef.current?.dispose();
@@ -125,7 +121,25 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
           type="button"
           className="text-button"
           aria-pressed={listening}
-          onClick={() => listening ? inputRef.current?.stop() : inputRef.current?.start()}
+          onClick={() => {
+            if (!listening) {
+              inputRef.current?.start();
+              return;
+            }
+            void (async () => {
+              const result = await inputRef.current?.finish();
+              setInterim("");
+              const text = result?.text.trim() ?? "";
+              if (!text) {
+                setNotice("Nothing was heard, so nothing was added.");
+                return;
+              }
+              setDraft(text);
+              setSource("voice");
+              setConfidence(result?.confidence);
+              setNotice("Transcript ready. Review it before sending.");
+            })();
+          }}
           disabled={sending}
         >
           {listening ? "Stop listening" : "Use microphone"}

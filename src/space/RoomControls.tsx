@@ -8,7 +8,7 @@ import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
 import { closedControlPose } from "./control-pose";
 import { showHandModels } from "./xr-store";
-import { createSpeechInput, speakSay, speechCapabilities, type SpeechInput, type SpeechOutput } from "./speech";
+import { createSteadyRecorder, speakSay, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
 import { shouldSpeakUtterance } from "./VoiceControls";
 import { newestId, replyToSpeak } from "./reply-speech";
 import type { RoomFeed } from "./useRoomFeed";
@@ -213,7 +213,7 @@ export function RoomControls({
   const [heard, setHeard] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const input = useRef<SpeechInput | null>(null);
+  const input = useRef<SteadyRecorder | null>(null);
   const confidence = useRef<number | undefined>(undefined);
   const capabilities = useMemo(() => speechCapabilities(), []);
 
@@ -284,22 +284,29 @@ export function RoomControls({
 
   useEffect(() => {
     if (!capabilities.recognition) return;
-    input.current = createSpeechInput({
-      onPhase: (phase) => setListening(phase === "listening"),
-      onInterim: setHeard,
-      onFinal: (result) => {
-        setHeard(result.text);
-        confidence.current = result.confidence;
-        if (live.current.alwaysOn) {
-          void post(result.text);
-          // Straight back to listening, so a conversation does not need a tap
-          // between every sentence. Recognition ends itself on each utterance.
-          window.setTimeout(() => input.current?.start(), 250);
-        } else {
-          // NAMES THE BUTTON THEY JUST PRESSED. It used to say "Tap Send",
-          // and the only Send was a row inside the settings menu.
-          setNotice("Press the mic again to send, or speak again to add to it.");
-        }
+    /**
+     * A STEADY RECORDER: it keeps recording until the mic is pressed again.
+     *
+     * Recognition used to end at the first pause and nothing started it again.
+     * Nikk: "once my volume goes low the recording stops... after they push
+     * the button it stays on audio transcribe and if it auto disconnects just
+     * have it reconnect immediately until they actually tap the button again."
+     * See createSteadyRecorder: runs the browser ends are restarted at once,
+     * and every phrase is kept rather than each one replacing the last.
+     */
+    input.current = createSteadyRecorder({
+      onRecording: setListening,
+      onText: (text) => {
+        setHeard(text);
+        if (text && !live.current.alwaysOn) setNotice("Recording — press the mic again to send.");
+      },
+      onPhrase: (phrase) => {
+        if (!live.current.alwaysOn) return;
+        // ALWAYS-ON posts each finished phrase as it lands and keeps recording,
+        // so a conversation needs no tap between sentences.
+        confidence.current = phrase.confidence;
+        if (phrase.text) void post(phrase.text);
+        input.current?.clear();
       },
       onFailure: (failure) => setNotice(failure.message),
     });
@@ -574,9 +581,33 @@ export function RoomControls({
         },
         capabilities.recognition
           ? {
-              label: listening ? "Stop listening" : alwaysOn ? "Start talking" : "Speak once",
+              // "Speak once" stopped being true: a recording now runs until it
+              // is stopped, through any pauses.
+              label: listening ? "Stop recording" : alwaysOn ? "Start talking" : "Start recording",
               tone: listening ? "live" : "normal",
-              onTap: () => (listening ? input.current?.stop() : input.current?.start()),
+              onTap: () => {
+                if (!listening) {
+                  input.current?.start();
+                  return;
+                }
+                /**
+                 * Stopping from the menu KEEPS the words for the mic to send,
+                 * rather than sending from inside a menu or throwing them away.
+                 * In always-on mode the last unsent words are posted, the same
+                 * as every phrase before them was.
+                 */
+                void (async () => {
+                  const result = await input.current?.finish();
+                  const text = result?.text.trim() ?? "";
+                  if (!text) return;
+                  if (result?.confidence !== undefined) confidence.current = result.confidence;
+                  if (live.current.alwaysOn) void post(text);
+                  else {
+                    setHeard(text);
+                    setNotice("Stopped. Press the mic to send what was heard.");
+                  }
+                })();
+              },
             }
           : {
               label: "This headset has no speech recognition",
@@ -814,15 +845,28 @@ export function RoomControls({
                   setNotice("There is no microphone available to this browser.");
                   return;
                 case "start":
+                  setNotice("Recording — press the mic again to send.");
                   input.current?.start();
                   return;
                 case "stop":
-                  input.current?.stop();
-                  return;
                 case "stopAndSend":
-                  // Stopped first, so the final result lands before the post.
-                  input.current?.stop();
-                  void post(heard);
+                  /**
+                   * WAIT FOR THE LAST WORDS, then send. This used to call
+                   * stop() and post straight away, before the final result of
+                   * the phrase in progress had arrived — so the end of a
+                   * message could be missing. `finish()` resolves only once
+                   * the recogniser has really ended.
+                   */
+                  void (async () => {
+                    const result = await input.current?.finish();
+                    const text = result?.text.trim() ?? "";
+                    if (!text) {
+                      setNotice("Nothing was heard, so nothing was sent.");
+                      return;
+                    }
+                    if (result?.confidence !== undefined) confidence.current = result.confidence;
+                    void post(text);
+                  })();
                   return;
                 case "send":
                   void post(heard);
