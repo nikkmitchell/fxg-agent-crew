@@ -446,7 +446,21 @@ describe("posture", () => {
     expect(presence.find("plumbline")?.avatar.posture).toBe("thinking");
   });
 
-  it("but acting takes it back, because the audit trail is the better witness", () => {
+  it("keeps a WORKING declaration through the work itself, rather than falling asleep mid-task", () => {
+    // Declared thinking, then filed a card and spoke: that is working. Taking
+    // the declaration back put the agent to sleep five minutes later and hid
+    // its shared screen while it was still busy.
+    let now = 10 * 60_000;
+    const presence = room(() => now);
+    presence.animate("plumbline", { posture: "thinking" }, "agent");
+    presence.sendTo("plumbline", "agent", { x: 1, y: 0, z: 1 }, "wrote a card");
+    presence.spoke("plumbline", "agent");
+    now += 30 * 60_000;
+    presence.tick(0.1);
+    expect(presence.find("plumbline")?.avatar.posture).toBe("thinking");
+  });
+
+  it("but acting takes back a declared REST, because the audit trail is the better witness", () => {
     const presence = room(() => 10 * 60_000);
     presence.animate("plumbline", { posture: "sleeping" }, "agent");
     presence.sendTo("plumbline", "agent", { x: 1, y: 0, z: 1 }, "wrote a card");

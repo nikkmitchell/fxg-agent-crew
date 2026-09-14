@@ -316,8 +316,7 @@ export class Presence {
     if (occupant.kind === "agent") {
       // Acting takes an agent's posture back: whatever it declared, it is
       // demonstrably working now, and the audit trail is the better witness.
-      occupant.declaredPosture = false;
-      this.postures?.forget(actorId);
+      this.actedOverDeclaration(occupant);
       occupant.avatar.posture = "thinking";
       this.deferAmbient(actorId);
     }
@@ -584,11 +583,25 @@ export class Presence {
     occupant.lastActed = this.now();
     // An agent that declared a posture and then spoke is demonstrably awake;
     // the audit trail is the better witness, exactly as it is for `sendTo`.
-    if (occupant.kind === "agent") {
-      occupant.declaredPosture = false;
-      this.postures?.forget(actorId);
-    }
+    if (occupant.kind === "agent") this.actedOverDeclaration(occupant);
     occupant.lastSeen = this.now();
+  }
+
+  /**
+   * An agent acted or spoke while it had declared a posture.
+   *
+   * A declared REST is taken back: the agent is demonstrably awake, and the
+   * audit trail is the better witness. A declared "thinking" is NOT. Filing a
+   * card or saying something in the room is what working looks like, and
+   * taking the declaration back let the five-minute inference put the agent to
+   * sleep while it was still working — hiding its screen. Nikk, twice: "I do
+   * not see your screen share, why is it not showing now". An agent that has
+   * finished says so by declaring a rest.
+   */
+  private actedOverDeclaration(occupant: Occupant): void {
+    if (occupant.declaredPosture && occupant.avatar.posture === "thinking") return;
+    occupant.declaredPosture = false;
+    this.postures?.forget(occupant.actorId);
   }
 
   /**

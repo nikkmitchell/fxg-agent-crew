@@ -28,18 +28,20 @@ describe("what an agent said it was doing, across a restart", () => {
     expect(sill.avatar.posture).toBe("thinking");
   });
 
-  it("does not come back working once it has acted since, which takes the posture back", () => {
-    const { room } = boot();
-    const before = room();
-    before.animate("Sill", { posture: "thinking" }, "agent");
-    before.sendTo("Sill", "agent", deskFor("Sill"), "moved a card");
-    expect(room().join("Sill", "agent", true).avatar.posture).not.toBe("thinking");
-  });
-
-  it("forgets a declaration when the agent speaks, as the live room does", () => {
+  it("still comes back working after it filed a card and spoke, which is what working looks like", () => {
     const { room, memory } = boot();
     const before = room();
     before.animate("Sill", { posture: "thinking" }, "agent");
+    before.sendTo("Sill", "agent", deskFor("Sill"), "moved a card");
+    before.spoke("Sill", "agent");
+    expect(memory.recall("Sill")).toBe("thinking");
+    expect(room().join("Sill", "agent", true).avatar.posture).toBe("thinking");
+  });
+
+  it("forgets a declared rest once the agent acts, as the live room does", () => {
+    const { room, memory } = boot();
+    const before = room();
+    before.animate("Sill", { posture: "sleeping" }, "agent");
     before.spoke("Sill", "agent");
     expect(memory.recall("Sill")).toBeNull();
   });
