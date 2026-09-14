@@ -16,6 +16,7 @@ import {
   createAgentAnimationPlayer,
   type AgentAnimationPlayer,
 } from "./agent-animation";
+import { lyingPose, shouldLieDown } from "./sleep-pose";
 
 /**
  * A person with a body.
@@ -87,6 +88,8 @@ export function VrmBody({
 const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
   const modelHead = useRef(1.34);
   const root = useRef<THREE.Group>(null);
+  /** Between the placed body and the model: tips a sleeping agent onto its back. */
+  const pose = useRef<THREE.Group>(null);
   const animation = useRef<AgentAnimationPlayer | null>(null);
 
   useEffect(() => {
@@ -172,6 +175,8 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
       at: new THREE.Vector3(),
       yaw: 0,
       head: new THREE.Quaternion(),
+      /** How far lying down, 0 standing to 1 flat. See sleep-pose.ts. */
+      lie: 0,
     }),
     [],
   );
@@ -259,6 +264,15 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
     const heightFraction = person.kind === "agent" ? HEIGHT_FRACTION : 1;
     const scale = Math.max(0.6, Math.min(1.6, wantedHead / modelHead.current)) * heightFraction;
     node.scale.setScalar(scale);
+
+    // A SLEEPING AGENT LIES DOWN, over about a second, and gets up the same way.
+    const lieTarget = shouldLieDown(person) ? 1 : 0;
+    shown.lie = snap ? lieTarget : shown.lie + Math.sign(lieTarget - shown.lie) * Math.min(Math.abs(lieTarget - shown.lie), delta * 0.9);
+    if (pose.current) {
+      const lying = lyingPose(shown.lie, modelHead.current * WAIST);
+      pose.current.rotation.x = lying.rotationX;
+      pose.current.position.set(0, lying.y, lying.z);
+    }
 
     const authored = person.kind === "agent" ? animation.current : null;
     if (authored) {
@@ -451,7 +465,9 @@ const HEIGHT_FRACTION = 0.5; // agents only — see where it is applied
   if (!vrm) return null;
   return (
     <group ref={root}>
-      <primitive object={vrm.scene} />
+      <group ref={pose}>
+        <primitive object={vrm.scene} />
+      </group>
     </group>
   );
 }

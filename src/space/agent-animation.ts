@@ -59,6 +59,7 @@ export type AgentAnimationState =
   | "presenting"
   | "celebrating"
   | "relaxed"
+  | "sleeping"
   | "walking";
 
 export type AgentAnimationSelection = {
@@ -89,6 +90,9 @@ const STATE_POOLS: Record<AgentAnimationState, readonly AgentAnimationClip[]> = 
   presenting: ["talkingOpen", "talkingLeft", "talkingRight"],
   celebrating: ["celebrating"],
   relaxed: ["relaxed", "idleCalm"],
+  // Lying on its back (see sleep-pose.ts): only the calmest idle, so it reads
+  // as breathing rather than as a figure fidgeting flat on the floor.
+  sleeping: ["idleCalm"],
   walking: ["walking"],
 };
 
@@ -100,6 +104,7 @@ const VARIANT_PERIOD_MS: Record<AgentAnimationState, number> = {
   presenting: 12_000,
   celebrating: 30_000,
   relaxed: 24_000,
+  sleeping: 60_000,
   walking: 30_000,
 };
 
@@ -152,6 +157,7 @@ export function agentAnimationState({
   if (posture === "thinking") return "thinking";
   if (posture === "presenting") return "presenting";
   if (posture === "relaxed") return "relaxed";
+  if (posture === "sleeping") return "sleeping";
   return "idle";
 }
 
