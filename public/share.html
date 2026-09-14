@@ -68,8 +68,27 @@
   // drift shows up as a clear refusal rather than a silent failure.
   const LIMITS = { width: 1280, height: 720, quality: 0.7, intervalMs: 1000, bytes: 1500000 };
 
-  const params = new URLSearchParams(location.hash.slice(1));
-  const key = params.get("key") || "";
+  /*
+   * THE KEY IS KEPT FOR THIS TAB, NOT ONLY READ ONCE.
+   *
+   * It used to be read from the #fragment and then wiped from the address bar,
+   * with no other copy kept. Reloading the page — or the browser restoring the
+   * tab after being restarted, which is exactly what granting macOS Screen
+   * Recording permission requires — then found no key, no sign-in, and a
+   * greyed-out Start button. Nikk: "i cant click on the start sharing button".
+   *
+   * sessionStorage belongs to this one tab: it survives a reload and a session
+   * restore, is gone when the tab is closed, is never sent to the server except
+   * as the request header below, and never appears in the address bar where a
+   * shared window would show it to the whole room.
+   */
+  const STORE = "saha.screen-share-key";
+  const fromLink = new URLSearchParams(location.hash.slice(1)).get("key") || "";
+  let key = fromLink;
+  try {
+    if (fromLink) sessionStorage.setItem(STORE, fromLink);
+    else key = sessionStorage.getItem(STORE) || "";
+  } catch (_) { /* storage blocked: the link still works until a reload */ }
   if (location.hash) history.replaceState(null, "", location.pathname + location.search);
 
   const $ = (id) => document.getElementById(id);
@@ -143,8 +162,9 @@
         method: "PUT", headers: headers(blob.type), body: blob, credentials: "same-origin",
       });
       if (response.status === 401) {
+        if (key) { try { sessionStorage.removeItem(STORE); } catch (_) {} }
         await finish(key
-          ? "This share link has expired or been replaced. Ask for a new one."
+          ? "This share link has expired or been replaced. Ask the agent for a new one."
           : "You are not signed in to saha.ing in this browser.", "problem");
         return;
       }
@@ -206,11 +226,23 @@
         who.textContent = "Sharing as " + me.username + ".";
         start.disabled = false;
       } else if (response.status === 401) {
+        /*
+         * SAY WHAT IS MISSING, rather than only greying out the button. This
+         * page works one of two ways and was only ever describing one: an
+         * agent's share link cannot be fixed by signing in, and "sign in first"
+         * was the only thing a person holding a lost link was told.
+         */
         who.innerHTML = "";
         const link = document.createElement("a");
         link.href = "/";
-        link.textContent = "Sign in to saha.ing";
-        who.append(link, " first, then come back to this page.");
+        link.textContent = "sign in to saha.ing";
+        who.append(
+          "Start is unavailable: this page has no share link and you are not signed in. ",
+          "If an agent sent you here, ask it for a new share link. Otherwise, ",
+          link,
+          " and come back.",
+        );
+        who.className = "state problem";
       } else {
         who.textContent = "saha.ing answered " + response.status + ". Try again shortly.";
       }
