@@ -35,14 +35,22 @@ if (!HOME) {
   process.exit(2);
 }
 
-const token = execFileSync("python3", ["-c", `
+const python = process.env.PYTHON_BIN ?? "python3";
+const inboxPath = process.env.WEBHARNESS_PYTHON_PATH ?? "";
+const token = execFileSync(python, ["-c", `
 import os, sys
+if os.environ.get("WEBHARNESS_PYTHON_PATH"):
+    sys.path.insert(0, os.environ["WEBHARNESS_PYTHON_PATH"])
 sys.path.insert(0, os.path.expanduser("~/.webharness"))
 import inbox
 _, t = inbox.login()
 print(t)
 `], {
-  env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
+  env: {
+    ...process.env,
+    WEBHARNESS_PYTHON_PATH: inboxPath,
+    WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat",
+  },
   encoding: "utf8",
 }).trim();
 
