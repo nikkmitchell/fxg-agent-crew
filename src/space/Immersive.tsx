@@ -11,6 +11,16 @@ import * as THREE from "three";
 import { ROOM, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
+import {
+  IDLE,
+  stepJoystick,
+  turnAbout,
+  turnRate,
+  walkVelocity,
+  type JoystickState,
+  type Quat,
+  type Vec,
+} from "./palm-joystick";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
 import type { RoomFeed } from "./useRoomFeed";
@@ -99,6 +109,14 @@ export function ImmersivePlayer({
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
   const held = useRef<{ left: Held; right: Held }>({ left: NO_HAND, right: NO_HAND });
+  /** The palm joystick, one per hand — see palm-joystick.ts. */
+  const joystick = useRef<{ left: JoystickState; right: JoystickState }>({ left: IDLE, right: IDLE });
+  const balls = {
+    left: useRef<THREE.Mesh>(null),
+    leftShadow: useRef<THREE.Mesh>(null),
+    right: useRef<THREE.Mesh>(null),
+    rightShadow: useRef<THREE.Mesh>(null),
+  };
   const scratch = useMemo(
     () => ({
       matrix: new THREE.Matrix4(),
@@ -212,9 +230,84 @@ export function ImmersivePlayer({
     group.position.set(inside.x, 0, inside.z);
   }, []);
 
-  useFrame(({ clock, camera }, _delta, frame) => {
+  /**
+   * A joint's pose in the PLAYER'S frame — the origin's reference space, not
+   * the room. The palm joystick works in this frame on purpose: see the note at
+   * the top of palm-joystick.ts about the runaway it avoids.
+   */
+  const localPose = (space: XRSpace | undefined | null, frame: XRFrame | undefined): { p: Vec; q: Quat } | null => {
+    if (!space || !frame || !originSpace) return null;
+    const located = frame.getPose(space, originSpace);
+    if (!located) return null;
+    const { position: p, orientation: o } = located.transform;
+    return { p: { x: p.x, y: p.y, z: p.z }, q: { x: o.x, y: o.y, z: o.z, w: o.w } };
+  };
+
+  /**
+   * THE PALM JOYSTICK. Every frame, not at the send rate: movement at ten
+   * updates a second would judder.
+   *
+   * Hands only. A controller has a thumbstick for this already, and a
+   * controller's grip held palm-up would otherwise start walking somebody who
+   * is only looking at their watch.
+   */
+  const palmJoystick = (group: THREE.Group, frame: XRFrame | undefined, delta: number) => {
+    const nowMs = performance.now();
+    const palmOf = (hand: typeof leftHand) =>
+      localPose(hand?.inputSource.hand.get("middle-finger-metacarpal") ?? hand?.inputSource.hand.get("wrist"), frame);
+
+    const left = stepJoystick(joystick.current.left, palmOf(leftHand), nowMs);
+    const right = stepJoystick(joystick.current.right, palmOf(rightHand), nowMs);
+    joystick.current.left = left.state;
+    joystick.current.right = right.state;
+
+    const yaw = group.rotation.y;
+    // LEFT WALKS. The velocity is in the player's frame; turn it by the
+    // origin's yaw to move the origin through the room.
+    if (left.state.phase === "active" && left.ball) {
+      const v = walkVelocity(left.state.anchor, left.ball);
+      group.position.x += (v.x * Math.cos(yaw) + v.z * Math.sin(yaw)) * delta;
+      group.position.z += (-v.x * Math.sin(yaw) + v.z * Math.cos(yaw)) * delta;
+    }
+
+    // RIGHT TURNS, about the head so the person stays on the spot.
+    if (right.state.phase === "active" && right.ball && frame && originSpace) {
+      const viewer = frame.getViewerPose(originSpace);
+      if (viewer) {
+        const o = viewer.transform.orientation;
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion(o.x, o.y, o.z, o.w));
+        const headYaw = Math.atan2(-forward.x, -forward.z);
+        const rate = turnRate(right.state.anchor, right.ball, headYaw);
+        if (rate !== 0) {
+          const hp = viewer.transform.position;
+          group.updateWorldMatrix(true, false);
+          const head = new THREE.Vector3(hp.x, hp.y, hp.z).applyMatrix4(group.matrixWorld);
+          const turned = turnAbout({ x: group.position.x, z: group.position.z, yaw }, { x: head.x, z: head.z }, rate * delta);
+          group.position.x = turned.x;
+          group.position.z = turned.z;
+          group.rotation.y = turned.yaw;
+        }
+      }
+    }
+
+    // The balls are children of the origin, so their positions are in the
+    // player's frame already.
+    const show = (mesh: THREE.Mesh | null, where: Vec | null) => {
+      if (!mesh) return;
+      mesh.visible = where !== null;
+      if (where) mesh.position.set(where.x, where.y, where.z);
+    };
+    show(balls.left.current, left.ball);
+    show(balls.leftShadow.current, left.state.phase === "active" ? left.state.anchor : null);
+    show(balls.right.current, right.ball);
+    show(balls.rightShadow.current, right.state.phase === "active" ? right.state.anchor : null);
+  };
+
+  useFrame(({ clock, camera }, delta, frame) => {
     const group = origin.current;
     if (!group) return;
+
+    palmJoystick(group, frame, Math.min(delta, 0.1));
 
     const inside = clampToRoom({ x: group.position.x, z: group.position.z });
     group.position.x = inside.x;
@@ -292,7 +385,23 @@ export function ImmersivePlayer({
         ref={origin}
         position={[ROOM.spawn.x, 0, ROOM.spawn.z]}
         rotation={[0, arrivalFacing, 0]}
-      />
+      >
+        {/* The palm joystick's balls: the one you move, and its shadow where it
+          first appeared. Children of the origin because they live in the
+          player's frame. Hidden until a palm has faced up for a second. */}
+        {(["left", "right"] as const).map((side) => (
+          <group key={side}>
+            <mesh ref={balls[side]} visible={false} raycast={() => null}>
+              <sphereGeometry args={[0.022, 20, 14]} />
+              <meshBasicMaterial color={side === "left" ? "#7cc4ff" : "#ffb86b"} transparent opacity={0.9} depthTest={false} />
+            </mesh>
+            <mesh ref={balls[side === "left" ? "leftShadow" : "rightShadow"]} visible={false} raycast={() => null}>
+              <sphereGeometry args={[0.022, 20, 14]} />
+              <meshBasicMaterial color="#ffffff" transparent opacity={0.25} depthTest={false} wireframe />
+            </mesh>
+          </group>
+        ))}
+      </XROrigin>
       {passthrough ? null : <VoidSphere />}
       {/* The controls you need while standing in the room. In front of you at
         body level, not on a hand — see the note at the top of RoomControls. */}
