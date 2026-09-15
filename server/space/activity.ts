@@ -161,14 +161,38 @@ export class Activity {
         // The time of the ACTION, not of this boot, so an agent that last did
         // something yesterday settles into sleeping rather than standing up and
         // thinking hard because the server happened to restart.
-        const actedAt = Date.parse(row.at);
-        this.presence.restore(
-          row.actorId,
-          destination.at,
-          destination.because,
-          destination.facing,
-          Number.isNaN(actedAt) ? null : actedAt,
-        );
+        const parsed = Date.parse(row.at);
+        const actedAt = Number.isNaN(parsed) ? null : parsed;
+
+        /**
+         * WHERE A FINISHED ACTION LEFT YOU IS NOT WHERE YOU LIVE.
+         *
+         * Sill found this reviewing the first version. `sendStaleHome` walks an
+         * agent back from a panel by iterating `sentAt`, and that map is empty
+         * after a restart, because nothing sent anybody anywhere. So an agent
+         * whose last row was "commented on a card" was rebuilt standing at the
+         * board, with that reason over its head, and stayed there for good —
+         * exactly what Nikk asked us to stop: "you stand at the board for way
+         * too long... place your tasks on the board, and then return."
+         *
+         * It overclaimed in words as well. `because` reads as present tense to
+         * anybody in the room, and a reason from yesterday asserts a recency
+         * that is not there. `restingPlace` already answers with `because:
+         * null`, which is the honest "no recent evidence".
+         *
+         * A row younger than AGENT_AT_PANEL_MS is different: the restart landed
+         * in the middle of a real action — which is precisely what a deploy
+         * does, several times a day — so the agent genuinely is at the panel.
+         * It is put back there AND registered in `sentAt`/`arrivedAt`, so the
+         * ordinary path walks it home exactly as it would have.
+         */
+        const fresh = actedAt !== null && this.now() - actedAt < AGENT_AT_PANEL_MS;
+        const place = fresh ? destination : restingPlace(id, this.homeOf(id));
+        this.presence.restore(id, place.at, place.because, place.facing, actedAt);
+        if (fresh) {
+          this.sentAt.set(actorKey(id), actedAt);
+          this.arrivedAt.set(actorKey(id), actedAt);
+        }
         restored = true;
         break;
       }

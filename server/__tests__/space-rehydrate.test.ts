@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { openDatabase } from "../db/open.js";
 import { BoardStore } from "../db/store.js";
-import { Activity } from "../space/activity.js";
+import { AGENT_AT_PANEL_MS, Activity, ATTENTION_MS } from "../space/activity.js";
 import { Presence } from "../space/presence.js";
 import { STATIONS, deskFor } from "../../shared/space-layout.js";
 
@@ -59,7 +59,7 @@ function start(db: DatabaseSync, now: () => number) {
 }
 
 describe("the room after a restart", () => {
-  it("brings an agent back to the place its own last action derived", () => {
+  it("brings an agent back into the room, standing still rather than walking in", () => {
     const { db, store, projectId } = boot();
     const clock = { now: Date.now() };
     const now = () => clock.now;
@@ -79,12 +79,16 @@ describe("the room after a restart", () => {
     const back = second.presence.find("plumbline");
     expect(back, "the agent is in the room again").toBeDefined();
     expect(back?.kind).toBe("agent");
-    // Standing there already, not walking across the room from its desk: this
-    // is where it was, not a journey it is making now.
-    expect(back?.at).toEqual(STATIONS.taskBoard.stand);
-    expect(back?.heading).toEqual(STATIONS.taskBoard.stand);
-    // And the room can still say WHY it is standing there.
-    expect(back?.because).toBeTruthy();
+    // ALREADY THERE, not on its way. `at` equals `heading`, so the tick loop
+    // has nothing to walk: the agent was standing somewhere before the deploy
+    // and is standing there after it. Sending it a heading instead would
+    // animate a journey that never happened.
+    expect(back?.at).toEqual(back?.heading);
+    // Rebuilt, so nothing of its own is attached: the broken ring, which is
+    // true. A socket is the only thing that makes `connected` true.
+    expect(back?.connected).toBe(false);
+    // WHERE it stands is decided by how recent the action was — see the two
+    // tests below, which is the distinction Sill found missing here.
     expect(task).toBeTruthy();
   });
 
@@ -144,6 +148,63 @@ describe("the room after a restart", () => {
     // would say every agent in the building had just done something. The room
     // would show a night's worth of idle agents all thinking hard.
     expect(second.presence.find("plumbline")?.avatar.posture).not.toBe("thinking");
+  });
+
+  /**
+   * WHERE A FINISHED ACTION LEAVES YOU IS NOT WHERE YOU LIVE.
+   *
+   * Found by Sill reviewing the first version of this. `sendStaleHome` walks an
+   * agent back from a panel by iterating `sentAt` — and that map is empty after
+   * a restart, because nothing sent anybody anywhere. So an agent whose last
+   * row was "commented on a card" was rebuilt standing at the board, with that
+   * reason over its head, and stayed there indefinitely. Exactly the thing Nikk
+   * asked us to stop: "you stand at the board for way too long... place your
+   * tasks on the board, and then return."
+   *
+   * It overclaimed in words too. `because` reads as present tense to anyone in
+   * the room, and a reason from yesterday asserts a recency that is not there.
+   */
+  it("rebuilds an agent at home, not at the panel its last action sent it to", () => {
+    const { db, store, projectId } = boot();
+    const clock = { now: Date.now() };
+    const now = () => clock.now;
+
+    const first = start(db, now);
+    store.createTask(agent("plumbline"), { projectId, title: "t" });
+    first.activity.step();
+    expect(first.presence.find("plumbline")?.heading).toEqual(STATIONS.taskBoard.stand);
+
+    // Long after the action finished — the ordinary case for a restart.
+    clock.now += AGENT_AT_PANEL_MS + 60_000;
+    const second = start(db, now);
+    second.activity.rehydrate();
+
+    const back = second.presence.find("plumbline");
+    expect(back?.at).toEqual(deskFor("plumbline"));
+    // And it does not claim a reason it no longer has.
+    expect(back?.because).toBeNull();
+  });
+
+  it("keeps an agent at the panel when the restart lands on a fresh action", () => {
+    const { db, store, projectId } = boot();
+    const clock = { now: Date.now() };
+    const now = () => clock.now;
+
+    const first = start(db, now);
+    store.createTask(agent("plumbline"), { projectId, title: "t" });
+    first.activity.step();
+
+    // A deploy seconds after a real action, which is what Sill's deploys are.
+    const second = start(db, now);
+    second.activity.rehydrate();
+    expect(second.presence.find("plumbline")?.at).toEqual(STATIONS.taskBoard.stand);
+    expect(second.presence.find("plumbline")?.because).toBeTruthy();
+
+    // And it walks home afterwards like any other agent, rather than standing
+    // at the board for good because the restart lost the bookkeeping.
+    clock.now += AGENT_AT_PANEL_MS + ATTENTION_MS + 1_000;
+    second.activity.step();
+    expect(second.presence.find("plumbline")?.heading).toEqual(deskFor("plumbline"));
   });
 
   it("leaves a person who is already connected exactly where they are", () => {
