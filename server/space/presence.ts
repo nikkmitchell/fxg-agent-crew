@@ -341,6 +341,55 @@ export class Presence {
   }
 
   /**
+   * Put an agent back where the room had already worked out it belongs, after
+   * a restart emptied the building.
+   *
+   * NOT `sendTo`, for two reasons that both matter.
+   *
+   * `sendTo` sets a HEADING and lets `tick` walk the figure there. That is
+   * right for an action — an agent crossing the room IS an audit row, and the
+   * journey is the point. It is wrong here: the agent did not just set off, it
+   * was already standing there before the deploy, and showing it striding in
+   * from its desk would animate a journey that never happened.
+   *
+   * `sendTo` also stamps `lastActed` with the current time, which after a
+   * restart would tell the room that every agent in the building had acted at
+   * the instant of boot. A night's worth of idle agents would all stand up and
+   * think hard. The time of the ACTION is passed in instead, so `settlePostures`
+   * reaches the same conclusion it would have reached without the restart.
+   *
+   * AGENTS ONLY, and the caller enforces it too. Where a person stood before a
+   * restart is not where they are: their headset is the only thing that knows,
+   * and it will say so within seconds of reconnecting. Redrawing them from
+   * memory is not staleness, it is invention — a person who has walked away,
+   * shown still standing there attentively.
+   *
+   * Anyone already in the room is left alone. A browser reconnects in seconds,
+   * so a person can easily beat the rebuild, and their own position always wins.
+   */
+  restore(
+    actorId: string,
+    heading: Vec3 | null,
+    because: string | null,
+    facing: number | null,
+    actedAt: number | null,
+  ): void {
+    if (this.occupants.has(actorKey(actorId))) return;
+    const occupant = this.join(actorId, "agent", false);
+    // No mapped history: `join` has already put it at its home or its desk,
+    // which is the honest answer to "where does this agent belong" when the
+    // audit trail has nothing to say. It is in the room, which is the point.
+    if (heading) {
+      const place = this.roomFor(occupant, clampToRoom(heading));
+      occupant.at = place;
+      occupant.heading = place;
+      if (facing !== null) occupant.facing = facing;
+      occupant.because = because;
+    }
+    occupant.lastActed = actedAt;
+  }
+
+  /**
    * Advance everyone toward where they are going.
    *
    * Only agents are stepped: a human's client owns their position, and moving

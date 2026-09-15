@@ -136,6 +136,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     (actorId) => agentHomes.get(actorId),
   );
   activity.onError = (error) => app.log.error({ error }, "space activity poll failed");
+  // Put the agents back before anything else looks at the room. A restart
+  // emptied it, and unlike a person an agent has no client to reconnect and say
+  // where it is — so without this it stays missing until it next touches the
+  // board, and the room reports it as absent in the meantime. See rehydrate().
+  activity.rehydrate();
   activity.start();
 
   // A prefix lets Wilson mount this beside classic chat at /space without

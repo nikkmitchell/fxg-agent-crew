@@ -107,6 +107,75 @@ export class Activity {
     this.lastSeenId = row.id ?? 0;
   }
 
+  /**
+   * Put the agents back in the room after a restart.
+   *
+   * WHY THIS IS NEEDED AT ALL. Presence lives in the server process, so a
+   * deploy empties the room. People and headsets reconnect by themselves and
+   * come straight back; an agent does not. It arrives by declaring itself once,
+   * works quietly, and is simply gone the next time anybody looks — with no way
+   * of noticing. Nikk asked twice in one afternoon why he could not see
+   * Plumbline, and the second time the answer was this. Sill deploys many times
+   * a day, so every agent was falling out of the room repeatedly and the room
+   * was showing them as absent. Absent is a claim, and it was not true.
+   *
+   * AGENTS ONLY — Sill's rule, and the whole design. A person's position was
+   * OBSERVED, by a headset, and after a restart we genuinely do not know it any
+   * more; an empty spot is the truth and the room is right to forget. An
+   * agent's position was never observed: it is derived from the audit trail, so
+   * rebuilding it invents nothing that was not already inferred. Forgetting
+   * something you can still derive is not honesty, only loss.
+   *
+   * NOT A REPLAY. `catchUp` deliberately starts from the END of the audit table
+   * so boot does not march every actor through months of work in a few seconds.
+   * This reads BACKWARD instead, taking only each agent's most recent row that
+   * maps anywhere, and places it there standing still. One position per agent,
+   * no motion, nothing re-enacted.
+   *
+   * An agent with no mapped history still comes back, at its home or its desk.
+   * It has signed in, it is an agent, and it is somewhere — which is the state
+   * a new agent is in for its whole first hour.
+   */
+  rehydrate(): void {
+    const agents = this.db
+      .prepare("SELECT id FROM actors WHERE kind = 'agent' ORDER BY id")
+      .all() as { id: string }[];
+
+    for (const { id } of agents) {
+      if (NOT_A_PERSON.has(actorKey(id))) continue;
+
+      // Far enough back to pass over recent rows this room has nothing to say
+      // about — a profile edit, say — without reading a whole history.
+      const rows = this.db
+        .prepare(
+          `SELECT id, actor_id AS actorId, action, entity, entity_id AS entityId, at
+             FROM audit WHERE actor_id = ? ORDER BY id DESC LIMIT 50`,
+        )
+        .all(id) as unknown as (AuditRow & { at: string })[];
+
+      const places = this.panelPlaces();
+      let restored = false;
+      for (const row of rows) {
+        const destination = destinationFor(row, places, this.homeOf);
+        if (!destination) continue;
+        // The time of the ACTION, not of this boot, so an agent that last did
+        // something yesterday settles into sleeping rather than standing up and
+        // thinking hard because the server happened to restart.
+        const actedAt = Date.parse(row.at);
+        this.presence.restore(
+          row.actorId,
+          destination.at,
+          destination.because,
+          destination.facing,
+          Number.isNaN(actedAt) ? null : actedAt,
+        );
+        restored = true;
+        break;
+      }
+      if (!restored) this.presence.restore(id, null, null, null, null);
+    }
+  }
+
   /** Read whatever is new and move people accordingly. Returns rows applied. */
   step(): number {
     const rows = this.db
