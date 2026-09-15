@@ -61,6 +61,50 @@ import { TOUCH_COOLDOWN_MS, agentTouchPoints, touchedPart } from "../../shared/t
  */
 
 /**
+ * WHERE YOU WERE STANDING, KEPT ACROSS A SESSION.
+ *
+ * Nikk, four times in an afternoon: "I did not walk over here... it's like some
+ * kind of reset of position and rotation." Position AND rotation, instantly,
+ * back to one particular spot — which is precisely what a NEW SESSION looks
+ * like, because XROrigin started every session at the spawn point facing the
+ * middle of the arc. A Quest ends and re-grants a session on its own: the
+ * headset taken off and put back on, a tracking loss it cannot recover in
+ * place, the browser reclaiming the session after a system dialog. None of
+ * those is a re-centre, so the reset listener never fired and the log stayed
+ * silent — which is exactly what we observed.
+ *
+ * So the place outlives the session. Kept in sessionStorage, so it also
+ * survives the page reload people now take to pick up a new build: you come
+ * back where you were rather than at the door.
+ *
+ * NOT localStorage, deliberately. Where you stood is true of this visit, not of
+ * next week.
+ */
+const PLACE_KEY = "saha.xr-place";
+
+function rememberPlace(place: { x: number; z: number; yaw: number }): void {
+  try {
+    window.sessionStorage.setItem(PLACE_KEY, JSON.stringify(place));
+  } catch {
+    // A private window simply starts at the spawn point each time.
+  }
+}
+
+function lastPlace(): { x: number; z: number; yaw: number } | null {
+  try {
+    const raw = window.sessionStorage.getItem(PLACE_KEY);
+    if (!raw) return null;
+    const place = JSON.parse(raw) as { x?: unknown; z?: unknown; yaw?: unknown };
+    for (const value of [place.x, place.z, place.yaw]) {
+      if (typeof value !== "number" || !isFinite(value)) return null;
+    }
+    return { x: place.x as number, z: place.z as number, yaw: place.yaw as number };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The player's feet, driven by whatever input the device actually has.
  *
  * `useXRControllerLocomotion` moves the group it is given. The wall clamp is
@@ -160,7 +204,14 @@ export function ImmersivePlayer({
    * put through the origin's world matrix to become a room coordinate.
    */
   const originSpace = useXR((state) => state.originReferenceSpace);
-  const [arrivalFacing] = useState(() => facingFor(openPanels));
+  /**
+   * Where this session begins: where the last one ended, or the door.
+   *
+   * Read once, so nothing moves the player mid-session.
+   */
+  const [began] = useState(
+    () => lastPlace() ?? { x: ROOM.spawn.x, z: ROOM.spawn.z, yaw: facingFor(openPanels) },
+  );
   /**
    * Where the player's body is, for the controls to hang in front of.
    *
@@ -194,6 +245,12 @@ export function ImmersivePlayer({
     standing.current.reset();
     tell("head position reset; measuring from where the head is now");
   }, [tell]);
+  // Said once per session, so the log shows whether a session that nobody
+  // asked for started somewhere new.
+  useEffect(() => {
+    tell(`session began at (${began.x.toFixed(2)}, ${began.z.toFixed(2)}) facing ${began.yaw.toFixed(2)}`);
+  }, [tell, began]);
+
   useEffect(() => {
     if (!originSpace) return;
     const onReset = () => {
@@ -427,6 +484,9 @@ export function ImmersivePlayer({
     const inside = clampToRoom({ x: group.position.x, z: group.position.z });
     group.position.x = inside.x;
     group.position.z = inside.z;
+    // The only thing that survives a session the device ends and re-grants on
+    // its own. See rememberPlace.
+    rememberPlace({ x: inside.x, z: inside.z, yaw: group.rotation.y });
     // The floor is the floor. XROrigin is the player's FEET, so this is 0 —
     // head height comes from the headset's own tracking, not from us.
     group.position.y = 0;
@@ -536,8 +596,8 @@ export function ImmersivePlayer({
         now, all of them behind one button — see WristVoice. */}
       <XROrigin
         ref={origin}
-        position={[ROOM.spawn.x, 0, ROOM.spawn.z]}
-        rotation={[0, arrivalFacing, 0]}
+        position={[began.x, 0, began.z]}
+        rotation={[0, began.yaw, 0]}
       >
         {/* The palm joystick's balls: the one you move, and its shadow where it
           first appeared. Children of the origin because they live in the
