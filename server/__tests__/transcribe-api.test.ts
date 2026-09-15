@@ -126,24 +126,39 @@ describe("asking the room to write down what was said", () => {
     await built.app.close();
   });
 
+  /**
+   * WAITED FOR, NOT SLEPT THROUGH. The first version of this test gave the
+   * route 20 ms to reach the transcriber and then sent the second request. It
+   * passed alone and failed inside the full suite, where 20 ms is not enough on
+   * a loaded machine — and failed by TIMING OUT, because the first request's
+   * promise was then never released. It also blocked a deploy, which is the
+   * release guard doing its job on a fault of mine rather than a real one.
+   *
+   * The transcriber now says when it has been entered, so the ordering this
+   * test is about is the thing being awaited.
+   */
   it("tells a second speaker to wait rather than taking the room down with them", async () => {
     // The server that transcribes is the server that draws the room.
-    let release: (() => void) | null = null;
+    let entered: () => void = () => {};
+    let release: () => void = () => {};
+    const reached = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
     const built = boot(
       () =>
         new Promise<string>((resolve) => {
           release = () => resolve("first");
+          entered();
         }),
     );
     const cookie = built.as("nikk2");
     const first = post(built.app, cookie, wav());
-    // Let the route reach the transcriber before the second arrives.
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await reached;
     const second = await post(built.app, cookie, wav());
 
     expect(second.statusCode).toBe(503);
     expect(second.json().error).toMatch(/Try again in a moment/);
-    release?.();
+    release();
     expect((await first).statusCode).toBe(200);
     await built.app.close();
   });
