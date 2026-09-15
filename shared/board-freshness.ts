@@ -29,8 +29,13 @@ export type TaskFreshness = {
 export const FRESH_FADE_MS = 60_000;
 /** Never keep a change hidden longer than this, whether or not its agent ever arrives. */
 export const REVEAL_CAP_MS = 20_000;
-/** A done card finished longer ago than this is "long finished", and can be hidden. */
-export const LONG_FINISHED_MS = 3 * 24 * 60 * 60 * 1000;
+/**
+ * The most done cards a column shows before the rest fold away.
+ *
+ * Nikk: "let's have done max out at 10 items". It replaces "finished more than
+ * three days ago", which still let a busy day's work pile the column up.
+ */
+export const DONE_LIMIT = 10;
 
 /** How bright a card should glow now, from 1 at its reveal to 0 a minute later. */
 export function glowAt(nowMs: number, fresh: TaskFreshness | undefined): number {
@@ -46,10 +51,24 @@ export function shownStatus(task: { status: string; fresh?: TaskFreshness }): st
   return task.fresh.previousStatus ?? null;
 }
 
-/** Whether a card is done and was finished long enough ago to tuck away. */
-export function longFinished(task: { status: string; updatedAt?: string }, nowMs: number): boolean {
-  if (task.status !== "done" || !task.updatedAt) return false;
-  return nowMs - Date.parse(task.updatedAt) > LONG_FINISHED_MS;
+/**
+ * Split a done column, newest first, into the cards shown and the ones folded
+ * away behind a "show older" line. A card still glowing from its move is always
+ * shown, even past the limit: a card that has just finished must be seen
+ * finishing.
+ */
+export function foldDone<T extends { fresh?: TaskFreshness }>(
+  newestFirst: T[],
+  nowMs: number,
+  limit: number = DONE_LIMIT,
+): { shown: T[]; folded: T[] } {
+  const shown: T[] = [];
+  const folded: T[] = [];
+  for (const task of newestFirst) {
+    if (shown.length < limit || glowAt(nowMs, task.fresh) > 0) shown.push(task);
+    else folded.push(task);
+  }
+  return { shown, folded };
 }
 
 /** Whether anything on the board is still changing: a pending reveal or a card still glowing. */

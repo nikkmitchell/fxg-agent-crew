@@ -16,7 +16,7 @@ import { MoodBoard, type Board } from "./MoodBoard";
 import { briefBudget, describeBudget } from "../shared/message-budget";
 import { ApiError } from "./api-request";
 import { bff } from "./bff-client";
-import { boardIsLively, glowAt, longFinished, shownStatus } from "../shared/board-freshness";
+import { boardIsLively, foldDone, glowAt, shownStatus } from "../shared/board-freshness";
 
 
 type ProjectState = {
@@ -307,7 +307,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   }, [state]);
   /** Done cards opened back up from their one-line summary, by id. */
   const [openedDone, setOpenedDone] = useState<Set<string>>(() => new Set());
-  /** Whether cards finished long ago are shown. Remembered in this browser. */
+  /** Whether done cards past the latest ten are shown. Remembered in this browser. */
   const [showOldDone, setShowOldDone] = useState(() => {
     try {
       return window.localStorage.getItem("saha.board.show-old-done") === "yes";
@@ -893,10 +893,11 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
               // whose agent is still walking over stays in its old column (or
               // out, if it is new).
               const inColumn = byArrival(tasks.filter((task) => shownStatus(task) === column.status));
-              const hiddenOld = column.status === "done" && (still || !showOldDone)
-                ? inColumn.filter((task) => longFinished(task, nowMs) && glowAt(nowMs, task.fresh) === 0)
-                : [];
-              const items = hiddenOld.length ? inColumn.filter((task) => !hiddenOld.includes(task)) : inColumn;
+              // DONE SHOWS AT MOST TEN, the most recently finished; the rest
+              // fold behind a line that opens them. See foldDone.
+              const done = column.status === "done" ? foldDone(inColumn, nowMs) : null;
+              const hiddenOld = done && (still || !showOldDone) ? done.folded : [];
+              const items = hiddenOld.length ? done!.shown : inColumn;
               return (
                 <section
                   className="board-column"
@@ -935,14 +936,14 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                       ),
                     )}
 
-                    {/* A way to put away cards finished long ago, in case even
-                        one line each builds up too much. */}
-                    {column.status === "done" && (hiddenOld.length > 0 || (showOldDone && inColumn.some((task) => longFinished(task, nowMs)))) ? (
+                    {/* Past the latest ten, one line that opens the rest. It
+                        sits above the stack, beside the oldest cards shown. */}
+                    {done && done.folded.length > 0 ? (
                       still ? (
-                        <p className="done-older-note">{hiddenOld.length} finished earlier, not shown</p>
+                        <p className="done-older-note">{done.folded.length} finished earlier, not shown</p>
                       ) : (
                         <button type="button" className="done-older-toggle" onClick={toggleOldDone}>
-                          {showOldDone ? "Hide cards finished days ago" : `Show ${hiddenOld.length} finished days ago`}
+                          {showOldDone ? "Show only the latest 10" : `Show ${done.folded.length} older`}
                         </button>
                       )
                     ) : null}

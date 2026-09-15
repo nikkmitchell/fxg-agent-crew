@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FRESH_FADE_MS, LONG_FINISHED_MS, boardIsLively, glowAt, longFinished, shownStatus } from "./board-freshness";
+import { DONE_LIMIT, FRESH_FADE_MS, boardIsLively, foldDone, glowAt, shownStatus } from "./board-freshness";
 
 const at = (ms: number) => new Date(ms).toISOString();
 
@@ -37,11 +37,25 @@ describe("a card that just changed", () => {
   });
 });
 
-describe("cards finished long ago", () => {
-  it("are done cards not touched for days, and nothing else", () => {
-    const now = LONG_FINISHED_MS * 2;
-    expect(longFinished({ status: "done", updatedAt: at(0) }, now)).toBe(true);
-    expect(longFinished({ status: "done", updatedAt: at(now - 1000) }, now)).toBe(false);
-    expect(longFinished({ status: "review", updatedAt: at(0) }, now)).toBe(false);
+describe("the done column", () => {
+  const card = (id: number, fresh?: { changedAt: string; revealAt: string | null }) => ({ id, ...(fresh ? { fresh } : {}) });
+
+  it("shows the ten most recently finished and folds the rest away", () => {
+    // Nikk: "let's have done max out at 10 items".
+    const newestFirst = Array.from({ length: 14 }, (_, i) => card(i));
+    const { shown, folded } = foldDone(newestFirst, 0);
+    expect(DONE_LIMIT).toBe(10);
+    expect(shown.map((c) => c.id)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(folded.map((c) => c.id)).toEqual([10, 11, 12, 13]);
+  });
+
+  it("folds nothing when there are ten or fewer", () => {
+    expect(foldDone([card(1), card(2)], 0).folded).toEqual([]);
+  });
+
+  it("never folds away a card that is still glowing from just finishing", () => {
+    const now = 1_000_000;
+    const newestFirst = [...Array.from({ length: 10 }, (_, i) => card(i)), card(99, { changedAt: at(now - 5_000), revealAt: at(now - 4_000) })];
+    expect(foldDone(newestFirst, now).shown.map((c) => c.id)).toContain(99);
   });
 });
