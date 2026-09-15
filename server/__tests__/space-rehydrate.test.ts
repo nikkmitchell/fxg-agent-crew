@@ -295,4 +295,83 @@ describe("the room after a restart", () => {
     server.activity.rehydrate();
     expect(server.presence.find("newcomer")).toBeDefined();
   });
+
+  /**
+   * "HAS IT DONE ANYTHING LATELY" AND "WHERE WAS IT WHEN IT LAST DID SOMETHING
+   * THE ROOM CAN DRAW" ARE TWO QUESTIONS, and the first version of the cutoff
+   * answered both with one timestamp.
+   *
+   * Sill found it reading 0811b35. The loop skips a row `destinationFor` does
+   * not recognise, so the time it ends up with is the newest MAPPABLE row — not
+   * the newest action. `destinationFor` returns null on purpose for anything it
+   * has no place for (utterance, screen, home, and `actor`, which is what
+   * retiring somebody writes), so that a new entity is never silently sent to
+   * the task board.
+   *
+   * The day somebody audits a new entity without teaching `destinationFor`
+   * about it, an agent that has been talking for an hour but last wrote to the
+   * board three hours ago is declared long gone and VANISHES WHILE IT IS
+   * ACTIVELY WORKING. Sill's rule would keep it; this would drop it — the same
+   * disagreement the cutoff exists to remove, pointing the other way.
+   *
+   * Not live today: Sill checked the real table rather than reasoning about it,
+   * and every entity currently on the box maps. This is a trap for a fortnight
+   * away, which is exactly when nobody remembers why the room lost somebody.
+   */
+  it("counts any recent action as life, even one the room cannot draw", () => {
+    const { db } = boot();
+    const clock = { now: Date.now() };
+    const now = () => clock.now;
+    const iso = (ms: number) => new Date(ms).toISOString();
+
+    db.prepare("INSERT INTO actors (id, kind, first_seen_at, updated_at) VALUES (?,?,?,?)")
+      .run("chatty", "agent", iso(clock.now), iso(clock.now));
+
+    const write = (entity: string, action: string, at: number) =>
+      db.prepare(
+        `INSERT INTO audit (at, actor_id, action, entity, entity_id, verification)
+         VALUES (?,?,?,?,?,'server-attested')`,
+      ).run(iso(at), "chatty", action, entity, "x");
+
+    // Last touched the board three hours ago...
+    write("task", "create", clock.now - 3 * 60 * 60_000);
+    // ...but said something a minute ago. `utterance` has no destination, by
+    // design, so the old loop never looked at its timestamp.
+    write("utterance", "create", clock.now - 60_000);
+
+    const server = start(db, now);
+    server.activity.rehydrate();
+
+    expect(
+      server.presence.find("chatty"),
+      "talking is being alive, even when the room cannot draw where you did it",
+    ).toBeDefined();
+  });
+
+  it("still places that agent by the last thing the room CAN draw", () => {
+    const { db } = boot();
+    const clock = { now: Date.now() };
+    const now = () => clock.now;
+    const iso = (ms: number) => new Date(ms).toISOString();
+
+    db.prepare("INSERT INTO actors (id, kind, first_seen_at, updated_at) VALUES (?,?,?,?)")
+      .run("chatty", "agent", iso(clock.now), iso(clock.now));
+    const write = (entity: string, action: string, at: number) =>
+      db.prepare(
+        `INSERT INTO audit (at, actor_id, action, entity, entity_id, verification)
+         VALUES (?,?,?,?,?,'server-attested')`,
+      ).run(iso(at), "chatty", action, entity, "x");
+
+    write("task", "create", clock.now - 3 * 60 * 60_000);
+    write("utterance", "create", clock.now - 60_000);
+
+    const server = start(db, now);
+    server.activity.rehydrate();
+
+    // Kept BY the utterance, placed BY the board row — and since that row is
+    // hours old it stands at home rather than at the panel, wearing no reason.
+    const back = server.presence.find("chatty");
+    expect(back?.at).toEqual(deskFor("chatty"));
+    expect(back?.because).toBeNull();
+  });
 });

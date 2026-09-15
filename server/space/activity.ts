@@ -157,12 +157,34 @@ export class Activity {
         )
         .all(id) as unknown as (AuditRow & { at: string })[];
 
+      /**
+       * TWO QUESTIONS, TWO TIMESTAMPS, and collapsing them was the bug Sill
+       * found reading the first version.
+       *
+       *   "has it done anything lately"  -> the newest row, whatever it was
+       *   "where was it when it last did
+       *    something the room can draw"  -> the newest row with a destination
+       *
+       * The loop below skips rows `destinationFor` does not recognise — it
+       * returns null on purpose, so a new entity is never silently sent to the
+       * task board — and taking the long-gone decision from a skipped-past row
+       * meant an agent that had been talking for an hour but last wrote to the
+       * board three hours ago was declared long gone and vanished WHILE IT WAS
+       * ACTIVELY WORKING. Sill's forgetLongAsleep would have kept it: the same
+       * disagreement this cutoff exists to remove, pointing the other way.
+       *
+       * Not live when it was found — every entity on the box maps today, which
+       * Sill checked in the real table rather than reasoning about. It is a trap
+       * for whenever somebody audits an utterance, a screen, a home, or an
+       * `actor` (which is what retiring somebody writes) without teaching
+       * `destinationFor` about it.
+       */
+      const newest = rows[0] ? Date.parse(rows[0].at) : NaN;
+      const lastSign = Number.isNaN(newest) ? null : newest;
+      if (lastSign !== null && this.now() - lastSign > Presence.FORGET_SLEEPING_MS) continue;
+
       const places = this.panelPlaces();
       let restored = false;
-      // Deliberately skipped, which is NOT the same as "found nothing to place
-      // it by" — the fallback below would otherwise stand it at its desk and
-      // undo the decision.
-      let longGone = false;
       for (const row of rows) {
         const destination = destinationFor(row, places, this.homeOf);
         if (!destination) continue;
@@ -195,6 +217,9 @@ export class Activity {
          * ordinary path walks it home exactly as it would have.
          */
         /**
+         * PLACEMENT ONLY — whether the agent is here at all was decided above,
+         * from its newest row of any kind.
+         *
          * AN AGENT THE ROOM HAS ALREADY STOPPED SHOWING IS NOT PUT BACK.
          *
          * Sill's `forgetLongAsleep` drops an agent asleep for over an hour with
@@ -214,11 +239,6 @@ export class Activity {
          * nothing, which is where every new agent spends its first hour, and
          * Sill's rule counts its hour from when it joined.
          */
-        if (actedAt !== null && this.now() - actedAt > Presence.FORGET_SLEEPING_MS) {
-          longGone = true;
-          break;
-        }
-
         const fresh = actedAt !== null && this.now() - actedAt < AGENT_AT_PANEL_MS;
         const place = fresh ? destination : restingPlace(id, this.homeOf(id));
         this.presence.restore(id, place.at, place.because, place.facing, actedAt);
@@ -229,7 +249,7 @@ export class Activity {
         restored = true;
         break;
       }
-      if (!restored && !longGone) this.presence.restore(id, null, null, null, null);
+      if (!restored) this.presence.restore(id, null, null, null, null);
     }
   }
 
