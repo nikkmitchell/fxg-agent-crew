@@ -430,6 +430,45 @@ describe("posture", () => {
     expect(presence.find("plumbline")?.avatar.posture).toBe("sleeping");
   });
 
+  it("keeps an agent awake while its screen is sharing, and for the usual while after", () => {
+    // Nikk: "you got up and stood but now you went back to lying on the ground",
+    // with Sill working at its machine the whole time.
+    let now = 10 * 60_000;
+    let sharing = true;
+    const presence = new Presence(() => now, null, null, (actorId) => sharing && actorId === "Sill");
+    presence.join("Sill", "agent", false);
+    for (let minute = 0; minute < 40; minute += 1) {
+      now += 60_000;
+      presence.tick(0.1);
+      expect(presence.find("Sill")?.avatar.posture, `minute ${minute + 1}`).toBe("thinking");
+    }
+    sharing = false;
+    now += 4 * 60_000;
+    presence.tick(0.1);
+    expect(presence.find("Sill")?.avatar.posture, "just stopped").toBe("thinking");
+    now += 2 * 60_000;
+    presence.tick(0.1);
+    expect(presence.find("Sill")?.avatar.posture, "stopped a while ago").toBe("sleeping");
+  });
+
+  it("does not lapse a declared thinking while the screen is sharing", () => {
+    let now = 10 * 60_000;
+    const presence = new Presence(() => now, null, null, () => true);
+    presence.join("Sill", "agent", false);
+    presence.animate("Sill", { posture: "thinking" }, "agent");
+    now += Presence.IDLE_SLEEP_MS * 3;
+    presence.tick(0.1);
+    expect(presence.find("Sill")?.avatar.posture).toBe("thinking");
+  });
+
+  it("leaves a declared rest alone even with a screen still sharing", () => {
+    const presence = new Presence(() => 10 * 60_000, null, null, () => true);
+    presence.join("Sill", "agent", false);
+    presence.animate("Sill", { posture: "resting" }, "agent");
+    presence.tick(0.1);
+    expect(presence.find("Sill")?.avatar.posture).toBe("resting");
+  });
+
   it("NEVER gives a human a posture — they have a body of their own", () => {
     const presence = room(() => 10 * 60_000);
     presence.join("nikk", "human", true);

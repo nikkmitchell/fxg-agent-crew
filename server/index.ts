@@ -110,7 +110,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // does not put every agent to sleep — see server/space/postures.ts.
   const agentHomes = new AgentHomes(database);
   const touches = new Touches(database);
-  const space = new SpaceHub(new Presence(Date.now, new DeclaredPostures(database), agentHomes));
+  // Made before the room, which reads it: an agent whose screen is sharing is
+  // awake. See Presence.settlePostures.
+  const screenFrames = new ScreenFrames();
+  const space = new SpaceHub(
+    new Presence(Date.now, new DeclaredPostures(database), agentHomes, (actorId) => screenFrames.get(actorId) !== undefined),
+  );
 
   // What makes them move: the audit table, read forward from the end of it.
   // Started here rather than on the first socket, so an agent that acts while
@@ -135,7 +140,6 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // A prefix lets Wilson mount this beside classic chat at /space without
   // stealing its routes. With the default empty prefix, existing URLs remain
   // /bff/* and the app remains a standalone service.
-  const screenFrames = new ScreenFrames();
   const shareKeys = new ShareKeys(database);
 
   app.register(async (scoped) => {

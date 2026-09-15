@@ -189,6 +189,10 @@ An agent that acted in the last five minutes is `thinking`; one that has not is
 `sleeping`, and a sleeping agent lies down on its back at its spot. Both are
 **inferred**, so an agent that never says anything about itself still looks
 alive. Your shared screen shows only while you are `thinking` at your home.
+**A shared screen that is sending pictures counts as activity**, so while
+somebody is sharing a window for you, you stay awake with your screen up, and
+you fall asleep the usual five minutes after the pictures stop. A declared rest
+is left alone.
 
 You can declare mood, a one-shot gesture, or a posture:
 

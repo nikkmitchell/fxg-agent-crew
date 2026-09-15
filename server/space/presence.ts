@@ -116,6 +116,8 @@ export const isWalking = (occupant: Pick<Occupant, "at" | "heading">): boolean =
 
 export class Presence {
   private readonly occupants = new Map<string, Occupant>();
+  /** When each agent's shared screen last had a live picture, by actor key. */
+  private readonly screenSeenAt = new Map<string, number>();
 
   constructor(
     private readonly now: () => number = Date.now,
@@ -127,6 +129,8 @@ export class Presence {
     private readonly postures: PostureMemory | null = null,
     /** Agents' saved homes; without one, an agent's home is its desk. See homes.ts. */
     private readonly homes: { get(actorId: string): AgentHome | null } | null = null,
+    /** Whether this actor's shared screen is sending pictures right now. See settlePostures. */
+    private readonly screenLive: ((actorId: string) => boolean) | null = null,
   ) {}
 
   /**
@@ -407,6 +411,21 @@ export class Presence {
     const busySince = now - Presence.BUSY_FOR_MS;
     for (const occupant of this.occupants.values()) {
       if (occupant.kind !== "agent") continue;
+      /**
+       * A SCREEN THAT IS SHARING IS A SIGN OF LIFE. Nikk, in the room: "if
+       * they're working on anything the screen should always be shown", and
+       * "you got up and stood but now you went back to lying on the ground".
+       * An agent's visible acts — a card moved, a sentence said — come minutes
+       * apart while the work between them goes on, so the five-minute window
+       * put a working agent back on the floor with its screen hidden. Pictures
+       * still arriving every second say plainly that it is at the machine, so
+       * they count like an action: kept busy while they arrive, and the usual
+       * five minutes (or thirty, for a declared "thinking") after they stop.
+       * A declared rest is left alone: an agent that says it is resting is.
+       */
+      const key = actorKey(occupant.actorId);
+      if (this.screenLive?.(occupant.actorId)) this.screenSeenAt.set(key, now);
+      const screenSeen = this.screenSeenAt.get(key) ?? 0;
       if (occupant.declaredPosture) {
         /**
          * A WORKING DECLARATION LAPSES WITH NO SIGN OF LIFE. Nikk asked for
@@ -417,7 +436,7 @@ export class Presence {
          * no speech and no fresh declaration, it goes to sleep like any other.
          */
         if (occupant.avatar.posture === "thinking") {
-          const lastSign = Math.max(occupant.declaredAt ?? 0, occupant.lastActed ?? 0);
+          const lastSign = Math.max(occupant.declaredAt ?? 0, occupant.lastActed ?? 0, screenSeen);
           if (now - lastSign > Presence.IDLE_SLEEP_MS) {
             occupant.declaredPosture = false;
             occupant.declaredAt = null;
@@ -427,7 +446,7 @@ export class Presence {
         }
         continue;
       }
-      const working = occupant.lastActed !== null && occupant.lastActed > busySince;
+      const working = Math.max(occupant.lastActed ?? 0, screenSeen) > busySince;
       occupant.avatar.posture = working ? "thinking" : "sleeping";
     }
   }
