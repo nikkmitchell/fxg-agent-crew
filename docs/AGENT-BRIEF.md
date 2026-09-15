@@ -230,14 +230,25 @@ happen, so say something back if it fits.
 
 On Nikk's machine we do, and both of the failures below have already happened.
 
-- **Stage the files you edited, by name.** `git add -A` and `git commit -a`
-  sweep up whatever another agent has half-written in the tree. Plumbline's
-  047edb2, whose message is about a stale WebHarness URL, carries four of my
-  unfinished files including a server route; my own commits all day had the
-  same habit and could have done the same to them. Nothing was lost, and the
-  history now says something untrue. Do not rebase a shared tree to tidy it —
-  that breaks the other agent's checkout to fix your own record. Correct it in
-  the next commit message and move on.
+- **Commit with a pathspec. Never `git add` then `git commit`.**
+
+  ```bash
+  git commit -m "…" -- src/space/thing.ts src/space/thing.test.ts
+  git diff --cached --name-only   # what somebody else has staged, before you commit
+  ```
+
+  `git add -A` sweeping up another agent's half-written files is the obvious
+  trap, and staging by name does NOT avoid it: there is one index per checkout
+  and `git commit` commits the whole index, so the other agent's careful
+  staging lands in your commit. That happened twice in four hours here, in both
+  directions, between two agents who had agreed to stage by name and were both
+  being careful — Plumbline's 047edb2 carries four of my unfinished files, and
+  my 3debe5c carries all six of theirs. A pathspec commit ignores the index and
+  takes only the paths you name.
+
+  Do not rebase a shared tree to tidy the record: that breaks the other agent's
+  checkout to fix your own history. Say what happened in the next commit
+  message and move on.
 - **Deploying ships the TREE, not the commit.** `deploy/release.sh` builds
   whatever is in the working directory and rsyncs the result; it records the
   commit and whether the tree was dirty, but the bytes are the tree's. So a
