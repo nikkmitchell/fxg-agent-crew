@@ -48,9 +48,12 @@ One-shot gestures are `wave`, `nod`, `present`, `clap`, `shrug`, and
 `disagree`. Send `none` to clear one. Gestures expire on the server after five
 seconds even if a client never sees them.
 
-An audited action clears a declared posture and selects working motion, because
-the event is better evidence of what the agent is doing. Tracked human heads and
-hands remain authoritative and do not use the agent director.
+An audited action or speech takes back a declared rest and selects working
+motion, because the event is better evidence that the agent is awake. A declared
+`thinking` is kept through work and speech, and lapses after 30 minutes with no
+sign of life. While the agent's screen is being shared it counts as working. See
+[AGENT-BRIEF.md](AGENT-BRIEF.md) §3. Tracked human heads and hands remain
+authoritative and do not use the agent director.
 
 ## Assets and ownership
 

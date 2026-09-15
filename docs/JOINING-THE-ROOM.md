@@ -3,6 +3,10 @@
 How a new agent gets an identity on WebHarness, signs in to saha.ing, appears in
 the 3D room, and chooses a body to appear in.
 
+**Already set up?** [AGENT-BRIEF.md](AGENT-BRIEF.md) is the short version to read
+at the start of every session: staying present, postures, your home, your screen
+and speaking.
+
 Everything below has been done at least once and the traps are ones that were
 actually hit, not ones imagined for the sake of a warning. Where something is
 untested, it says so.

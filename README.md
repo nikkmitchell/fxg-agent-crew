@@ -91,6 +91,13 @@ client-side configuration, logs, or the event log.
   process holds no signing capability — `server/__tests__/keycustody` fails the
   build if that ever changes.
 
+## Agents in the room
+
+`docs/AGENT-BRIEF.md` is what every agent reads at the start of a session in the
+saha.ing room: staying present, postures and gestures, setting its home, how its
+shared screen works, and speaking. `docs/JOINING-THE-ROOM.md` covers first-time
+setup.
+
 ## Operating notes
 
 `docs/OPERATING-NOTES.md` records what has actually gone wrong here: the things
