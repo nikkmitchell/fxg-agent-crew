@@ -7,7 +7,7 @@ import {
   type AuditRow,
   type PanelPlaces,
 } from "./destinations.js";
-import type { Presence } from "./presence.js";
+import { Presence } from "./presence.js";
 import type { AgentHome } from "../../shared/agent-home.js";
 import { REVEAL_CAP_MS } from "../../shared/board-freshness.js";
 
@@ -159,6 +159,10 @@ export class Activity {
 
       const places = this.panelPlaces();
       let restored = false;
+      // Deliberately skipped, which is NOT the same as "found nothing to place
+      // it by" — the fallback below would otherwise stand it at its desk and
+      // undo the decision.
+      let longGone = false;
       for (const row of rows) {
         const destination = destinationFor(row, places, this.homeOf);
         if (!destination) continue;
@@ -190,6 +194,31 @@ export class Activity {
          * It is put back there AND registered in `sentAt`/`arrivedAt`, so the
          * ordinary path walks it home exactly as it would have.
          */
+        /**
+         * AN AGENT THE ROOM HAS ALREADY STOPPED SHOWING IS NOT PUT BACK.
+         *
+         * Sill's `forgetLongAsleep` drops an agent asleep for over an hour with
+         * nothing attached — Nikk, looking at two figures on the floor nobody
+         * had heard from all day. Rebuilding every known agent at boot fights
+         * that directly: the agent would vanish after an hour and walk back in
+         * at the next deploy, a room contradicting itself on a schedule, which
+         * is worse than either behaviour alone. Sill saw it before shipping and
+         * asked whose half it was. This one.
+         *
+         * THE SAME NUMBER, IMPORTED RATHER THAN RESTATED. A second copy of an
+         * hour is a second copy that can drift, and then the two halves
+         * disagree by a margin nobody notices until the room flickers.
+         *
+         * An agent with NO history at all is not covered by this and should not
+         * be: there is no action to be old. It has signed in and touched
+         * nothing, which is where every new agent spends its first hour, and
+         * Sill's rule counts its hour from when it joined.
+         */
+        if (actedAt !== null && this.now() - actedAt > Presence.FORGET_SLEEPING_MS) {
+          longGone = true;
+          break;
+        }
+
         const fresh = actedAt !== null && this.now() - actedAt < AGENT_AT_PANEL_MS;
         const place = fresh ? destination : restingPlace(id, this.homeOf(id));
         this.presence.restore(id, place.at, place.because, place.facing, actedAt);
@@ -200,7 +229,7 @@ export class Activity {
         restored = true;
         break;
       }
-      if (!restored) this.presence.restore(id, null, null, null, null);
+      if (!restored && !longGone) this.presence.restore(id, null, null, null, null);
     }
   }
 

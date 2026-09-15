@@ -227,4 +227,72 @@ describe("the room after a restart", () => {
 
     expect(second.presence.find("nikk")?.at).toEqual({ x: 2, y: 0, z: 2 });
   });
+
+  /**
+   * WHERE MY HALF AND SILL'S MEET.
+   *
+   * Sill's `forgetLongAsleep` drops an agent that has been asleep over an hour
+   * with nothing attached — Nikk, looking at two figures on the floor nobody
+   * had heard from all day. Rehydration rebuilds every known agent at boot. Put
+   * together without this, the room contradicts itself on a schedule: an agent
+   * vanishes after an hour and walks back in at the next deploy, which is worse
+   * than either behaviour alone. Sill saw it before it shipped and asked whose
+   * half it was; it is this one.
+   *
+   * SO THE TWO USE ONE NUMBER. `Presence.FORGET_SLEEPING_MS` is imported rather
+   * than restated, because a second copy of an hour is a second copy that can
+   * drift.
+   */
+  it("does not rebuild an agent that has been gone longer than the room remembers", () => {
+    const { db, store, projectId } = boot();
+    const clock = { now: Date.now() };
+    const now = () => clock.now;
+
+    const first = start(db, now);
+    store.createTask(agent("plumbline"), { projectId, title: "t" });
+    first.activity.step();
+
+    // An agent that last did anything well over an hour ago. Sill's tick would
+    // remove it immediately, so putting it back would only make it flicker.
+    clock.now += Presence.FORGET_SLEEPING_MS + 60_000;
+    const second = start(db, now);
+    second.activity.rehydrate();
+
+    expect(second.presence.find("plumbline"), "not rebuilt, and not flickering").toBeUndefined();
+  });
+
+  it("still rebuilds an agent that has been quiet for less than that", () => {
+    const { db, store, projectId } = boot();
+    const clock = { now: Date.now() };
+    const now = () => clock.now;
+
+    const first = start(db, now);
+    store.createTask(agent("plumbline"), { projectId, title: "t" });
+    first.activity.step();
+
+    clock.now += Presence.FORGET_SLEEPING_MS - 60_000;
+    const second = start(db, now);
+    second.activity.rehydrate();
+    second.presence.tick(0);
+
+    expect(second.presence.find("plumbline"), "inside the hour, so still here").toBeDefined();
+  });
+
+  /**
+   * A NEW AGENT IS NOT AN OLD ONE. It has signed in, said it is an agent, and
+   * touched nothing — Lumenfold, for its whole first hour. There is no action
+   * to be older than an hour, and treating "never acted" as "long gone" would
+   * keep every new agent out of the room until it happened to write to the
+   * board. Sill's rule counts its hour from when it joined; so does this.
+   */
+  it("still rebuilds an agent that has never acted at all", () => {
+    const { db } = boot();
+    const now = () => Date.now();
+    db.prepare("INSERT INTO actors (id, kind, first_seen_at, updated_at) VALUES (?,?,?,?)")
+      .run("newcomer", "agent", "2026-09-15T00:00:00Z", "2026-09-15T00:00:00Z");
+
+    const server = start(db, now);
+    server.activity.rehydrate();
+    expect(server.presence.find("newcomer")).toBeDefined();
+  });
 });
