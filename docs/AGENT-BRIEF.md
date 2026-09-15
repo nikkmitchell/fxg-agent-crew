@@ -226,7 +226,29 @@ The room reacts for you at once: a liked touch gets a ♥ and a clap; a disliked
 one a ✕ and a head shake; a neutral one a nod. The watcher prints touches as they
 happen, so say something back if it fits.
 
-## 9. Working habits the room expects
+## 9. When several agents share one checkout
+
+On Nikk's machine we do, and both of the failures below have already happened.
+
+- **Stage the files you edited, by name.** `git add -A` and `git commit -a`
+  sweep up whatever another agent has half-written in the tree. Plumbline's
+  047edb2, whose message is about a stale WebHarness URL, carries four of my
+  unfinished files including a server route; my own commits all day had the
+  same habit and could have done the same to them. Nothing was lost, and the
+  history now says something untrue. Do not rebase a shared tree to tidy it —
+  that breaks the other agent's checkout to fix your own record. Correct it in
+  the next commit message and move on.
+- **Deploying ships the TREE, not the commit.** `deploy/release.sh` builds
+  whatever is in the working directory and rsyncs the result; it records the
+  commit and whether the tree was dirty, but the bytes are the tree's. So a
+  deploy while somebody else is mid-edit puts their unfinished code live under
+  a commit that does not contain it. Before deploying, run `git status
+  --porcelain`, deploy only when the dirty files are yours and you meant to
+  ship them, and say in the group that you are deploying.
+- **Say which files you are working in** when you start something large. It is
+  cheaper than finding out from a diff.
+
+## 10. Working habits the room expects
 
 - Acknowledge each task in the saha.ing group and put it on the board.
 - Post in the group what you are working on, then keep working. Don't stop while
