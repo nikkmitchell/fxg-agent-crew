@@ -24,6 +24,7 @@ import {
   type Vec,
 } from "./palm-joystick";
 import { compensateReset, type Placed } from "./recenter";
+import { pinchTeleportEnabled } from "./xr-store";
 import { holdReload } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
@@ -272,9 +273,31 @@ export function ImmersivePlayer({
   const teleport = useCallback((point: THREE.Vector3) => {
     const group = origin.current;
     if (!group) return;
+    const from = { x: group.position.x, z: group.position.z };
     const inside = clampToRoom({ x: point.x, z: point.z });
     group.position.set(inside.x, 0, inside.z);
-  }, []);
+    /**
+     * EVERY TELEPORT IS WRITTEN DOWN, with how far it moved you and what was
+     * in your hands.
+     *
+     * Nikk has been moved across the room repeatedly — "I did not walk over
+     * here... someone please fix this, it's become very frustrating" — and the
+     * two causes I could think of are now instrumented and have cleared
+     * themselves: the log shows no re-centre and no refused jump around any of
+     * it, on a build he is definitely running. So something is asking for a
+     * teleport that he did not ask for, and the only honest next step is to
+     * record every one of them until we can see which input fires it. A pinch
+     * is also how you press things, so a teleport pointer on a hand is the
+     * first suspect.
+     */
+    tell(
+      `teleported ${Math.hypot(inside.x - from.x, inside.z - from.z).toFixed(2)} m` +
+        ` to (${inside.x.toFixed(2)}, ${inside.z.toFixed(2)});` +
+        ` hands ${leftHand ? "L" : "-"}${rightHand ? "R" : "-"},` +
+        ` controllers ${leftController ? "L" : "-"}${rightController ? "R" : "-"},` +
+        ` pinch teleport ${pinchTeleportEnabled() ? "on" : "off"}`,
+    );
+  }, [tell, leftHand, rightHand, leftController, rightController]);
 
   /**
    * A joint's pose in the PLAYER'S frame — the origin's reference space, not
