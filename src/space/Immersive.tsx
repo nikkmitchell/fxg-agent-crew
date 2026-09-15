@@ -537,6 +537,7 @@ export function ImmersivePlayer({
         body level, not on a hand — see the note at the top of RoomControls. */}
       <RoomControls
         onResetStanding={resetStanding}
+        onNote={tell}
         anchor={bodyAnchor}
         you={you}
         groupRoom={groupRoom}

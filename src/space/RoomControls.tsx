@@ -168,6 +168,7 @@ export function RoomControls({
   agents,
   positionOf,
   onResetStanding,
+  onNote,
 }: {
   anchor: () => { at: { x: number; z: number }; yaw: number } | null;
   you: string | null;
@@ -201,6 +202,11 @@ export function RoomControls({
    * draws you sitting rather than as a standing person squatting.
    */
   onResetStanding: () => void;
+  /**
+   * Put one short line in the server log about something only the headset can
+   * see. See the `note` frame in shared/space-wire.ts.
+   */
+  onNote: (note: string) => void;
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
@@ -401,15 +407,47 @@ export function RoomControls({
    * Open the system keyboard, INSIDE the tap that asked for it. See
    * system-keyboard.ts for why that matters and what the old version did.
    */
-  const openTextEntry = useCallback(() => {
-    const supported = (session as (XRSession & { isSystemKeyboardSupported?: boolean }) | null)?.isSystemKeyboardSupported;
-    if (supported === false) {
-      setNotice("This headset's browser has no keyboard inside the room.");
-      return;
-    }
-    setNotice(null);
-    keyboard.current?.open(writtenNow.current);
-  }, [session]);
+  /**
+   * THE HEADSET HAS TO SAY YES, not merely fail to say no.
+   *
+   * Nikk: "every time we use a text box it causes to crash", and earlier, of
+   * Inkstone's version, that it "kicks baiwei out" of the headset. Focusing a
+   * text field is what opens the Quest's own keyboard — and on a browser that
+   * cannot composite that keyboard into an immersive frame, focusing it ends
+   * the session instead. The session states whether it can:
+   * `isSystemKeyboardSupported`.
+   *
+   * This used to refuse only on an explicit `false`, and try anyway when the
+   * answer was missing — which is exactly the browser that drops you out. Now
+   * an unknown answer stops and offers to try, so being put out of the headset
+   * is a thing somebody chose rather than a thing that happened to them.
+   *
+   * Both the attempt and an unknown answer are noted in the server log, since
+   * the one place this can be seen is a headset and the person wearing it has
+   * their hands full.
+   */
+  const [keyboardRisky, setKeyboardRisky] = useState(false);
+  const openTextEntry = useCallback(
+    (insist = false) => {
+      const supported = (session as (XRSession & { isSystemKeyboardSupported?: boolean }) | null)
+        ?.isSystemKeyboardSupported;
+      if (supported === false) {
+        setNotice("This headset's browser cannot show a keyboard inside the room.");
+        onNote("keyboard refused: the session says it cannot show one");
+        return;
+      }
+      if (supported !== true && !insist) {
+        setKeyboardRisky(true);
+        setNotice("This headset has not said whether it can show a keyboard in the room. Opening one may put you out of it — settings ⚙ to try anyway.");
+        onNote("keyboard held back: isSystemKeyboardSupported is undefined");
+        return;
+      }
+      setNotice(null);
+      onNote(`keyboard opening: isSystemKeyboardSupported=${String(supported)}${insist ? " (asked for anyway)" : ""}`);
+      keyboard.current?.open(writtenNow.current);
+    },
+    [session, onNote],
+  );
 
   const sendWritten = useCallback(async () => {
     const delivered = await post(written, "text");
@@ -798,7 +836,8 @@ export function RoomControls({
             }
           : {
               label: written.trim() ? "Add to what you wrote" : "Type or dictate with the system keyboard",
-              onTap: openTextEntry,
+              // Called with no argument on purpose: a tap is not insisting.
+              onTap: () => openTextEntry(),
             },
         ...(written.trim()
           ? [
@@ -887,6 +926,16 @@ export function RoomControls({
               label: "Load the new version — leaves the headset",
               tone: "live" as const,
               onTap: () => reloadNow(),
+            }]
+          : []),
+        ...(keyboardRisky
+          ? [{
+              label: "Open the keyboard anyway — may exit the headset",
+              tone: "muted" as const,
+              onTap: () => {
+                setKeyboardRisky(false);
+                openTextEntry(true);
+              },
             }]
           : []),
         {
