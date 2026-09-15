@@ -38,7 +38,33 @@ function readPinchTeleport(): boolean {
   }
 }
 
-const handOptions = { model: true, pinchTeleport: readPinchTeleport() };
+/**
+ * THE RENDERED HANDS ARE OFF UNLESS SOMEBODY TURNS THEM ON.
+ *
+ * Nikk records from inside the headset and the drawn hands sit in front of
+ * whatever is being recorded: "sometimes they get in the way of in headset
+ * recording", and then, once the switch existed, "I want the default setting
+ * for your 3d hand models to be off". Your own hands are right there in
+ * passthrough; the model adds nothing you cannot already see.
+ *
+ * ONLY THE MESH. Every pointer, pinch and trigger keeps working, and so does
+ * the palm joystick, which reads joints rather than the model.
+ */
+const HAND_MODEL_KEY = "saha.hand-models";
+
+function readHandModels(): boolean {
+  try {
+    return window.localStorage.getItem(HAND_MODEL_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+
+const handOptions = { model: readHandModels(), pinchTeleport: readPinchTeleport() };
+
+export function handModelsShown(): boolean {
+  return handOptions.model;
+}
 
 export function pinchTeleportEnabled(): boolean {
   return handOptions.pinchTeleport;
@@ -183,6 +209,11 @@ export type { XRStore };
  */
 export function showHandModels(shown: boolean): void {
   handOptions.model = shown;
+  try {
+    window.localStorage.setItem(HAND_MODEL_KEY, shown ? "on" : "off");
+  } catch {
+    // A private window keeps the choice for this visit only.
+  }
   applyHandOptions();
 }
 

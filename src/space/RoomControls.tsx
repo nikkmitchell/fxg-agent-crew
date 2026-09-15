@@ -8,7 +8,7 @@ import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
 import { closedControlPose } from "./control-pose";
-import { pinchTeleportEnabled, setPinchTeleport, showHandModels } from "./xr-store";
+import { handModelsShown, pinchTeleportEnabled, setPinchTeleport, showHandModels } from "./xr-store";
 import {
   DEFAULT_ROOM_PREFERENCES,
   pointerLabel,
@@ -215,7 +215,7 @@ export function RoomControls({
    * nothing else can move them out of shot, because they are drawn exactly
    * where his hands are.
    */
-  const [handsShown, setHandsShown] = useState(true);
+  const [handsShown, setHandsShown] = useState(() => handModelsShown());
   /** Off by default; the palm joystick is how hands move. See xr-store.ts. */
   const [pinchTeleport, setPinchTeleportShown] = useState(() => pinchTeleportEnabled());
   const preferences = useRoomPreferences();
@@ -859,7 +859,7 @@ export function RoomControls({
         { label: "Panels…", onTap: () => setView("panels") },
         { label: "Place agents…", onTap: () => setView("agents") },
         {
-          label: handsShown ? "Hands shown" : "Hands hidden — for recording",
+          label: handsShown ? "Hand models: shown" : "Hand models: hidden",
           tone: handsShown ? "normal" : "live",
           onTap: () => {
             const next = !handsShown;
