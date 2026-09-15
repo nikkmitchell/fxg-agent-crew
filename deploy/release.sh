@@ -9,7 +9,6 @@
 # project has been bitten by that shape four separate times.
 set -euo pipefail
 
-TARGET="${1:?usage: release.sh user@host}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/fxg_deploy_ed25519}"
 SSH=(ssh -i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new)
 REMOTE=/opt/fxg-crew
@@ -18,6 +17,58 @@ BASE=""
 
 log()  { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 fail() { printf '\033[31mFAILED: %s\033[0m\n' "$*" >&2; exit 1; }
+
+TARGET=""
+ALLOW_DIRTY_FLAG=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --allow-dirty) ALLOW_DIRTY_FLAG=1 ;;
+    -*) fail "unknown option: $1 (usage: release.sh user@host [--allow-dirty])" ;;
+    *)
+      if [ -n "$TARGET" ]; then fail "two targets given: $TARGET and $1"; fi
+      TARGET="$1"
+      ;;
+  esac
+  shift
+done
+if [ -z "$TARGET" ]; then fail "usage: release.sh user@host [--allow-dirty]"; fi
+
+# A DIRTY TREE REFUSES TO DEPLOY. It used to print a yellow warning on line 70
+# and ship anyway, which is out of character for this script: a failed build, a
+# failed suite, a stills renderer older than the build and an nginx body limit
+# below the app's all REFUSE. The one condition meaning "what you are shipping
+# is not what you committed" was the one that shrugged, and nobody reads a
+# warning in the middle of forty lines of output.
+#
+# It matters more than it looks, because the rsync below sends `./` — the whole
+# working tree, not just the built bundle. An uncommitted file is not merely
+# built into the artifact; its SOURCE is published. Two agents shared this
+# checkout on 2026-09-15 and neither could afterwards prove which deploys had
+# shipped the other's half-written code.
+#
+# Checked FIRST, before install, tests and build, so the refusal costs seconds
+# rather than arriving after a two-minute build.
+log "check the tree"
+DIRTY_FILES="$(git status --porcelain)"
+if [ -n "$DIRTY_FILES" ]; then
+  # BOTH SPELLINGS, deliberately. Sill and Plumbline wrote this check
+  # independently within the same minute — one reaching for a flag, one for an
+  # environment variable — and keeping both costs a line while saving whichever
+  # muscle memory you arrive with.
+  if [ "$ALLOW_DIRTY_FLAG" = "1" ] || [ "${ALLOW_DIRTY:-}" = "1" ]; then
+    printf '\033[33mshipping the working tree as it stands, because you asked:\033[0m\n'
+    git status --short
+  else
+    git status --short >&2
+    fail "the working tree has uncommitted changes (listed above), and this script ships the tree.
+  Commit what you meant to ship — staging your own files BY NAME, since somebody else
+  may be working in this same checkout — or stash them, or re-run with --allow-dirty
+  (or ALLOW_DIRTY=1) to ship it exactly as it stands.
+  If you did not write those files, they are somebody else's work in progress: ask first."
+  fi
+else
+  printf '  clean at %s\n' "$(git rev-parse --short HEAD)"
+fi
 
 log "verify locally before shipping"
 # This repo is pnpm (pnpm-lock.yaml). An earlier version ran `npm ci`, which
@@ -66,8 +117,11 @@ main_kb=$(( $(wc -c < "$main_chunk") / 1000 ))
 printf '  main chunk %s KB, no renderer in it\n' "$main_kb"
 
 SHA=$(git rev-parse HEAD)
-DIRTY=$(git status --porcelain | wc -l | tr -d ' ')
-[ "$DIRTY" = "0" ] || printf '\033[33mwarning: working tree has %s uncommitted change(s); deployed artifact will not match %s\033[0m\n' "$DIRTY" "${SHA:0:8}"
+# The dirty check that used to live here is now the FIRST thing this script
+# does, and it refuses rather than warns. By this line the tree is either clean
+# or somebody asked for it in as many words, so there is nothing left to warn
+# about — and the warning was three screens of output away from the decision it
+# was trying to influence.
 
 log "ship  (commit ${SHA:0:8})"
 # node_modules and generated output excluded: the host installs production deps
