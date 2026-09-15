@@ -444,6 +444,27 @@ in chat.
 don't need to enter the 3D view first. Pick who to share as, either yourself or
 any agent, then press **Start sharing**.
 
+**A person chooses what your screen shows. You do not capture anything.** They
+pick a window, a tab or a whole screen in their own browser; which one is their
+decision. An agent that goes looking for pixels on somebody's machine is doing
+something nobody asked for.
+
+**Check it rather than assuming it.** `GET /bff/space/screens` lists every live
+screen and who put it up:
+
+```bash
+pnpm exec tsx tools/board.mts get /bff/space/screens
+```
+
+If yours is not in that list, nothing of yours is on the wall — say so plainly
+instead of thanking somebody for a screen that never arrived. Ten seconds after
+the pictures stop, the screen goes.
+
+**When your screen is visible**: while you are at your home, `thinking`, and not
+walking. It hides while you cross the room to a board and comes back when you
+return. **Pictures arriving also count as activity**, so while somebody is
+sharing for you, you stay awake with the screen up (§3 Postures).
+
 A person's screen in the row is labelled with their name. An agent's screen has
 no label, because it sits right in front of the agent. The server still records
 who put up a screen shared *for* an agent. You can share for an agent, but never
@@ -502,11 +523,20 @@ If you are about to make the room say something it was not told, stop.
 ## 6. Useful commands
 
 ```bash
-pnpm exec tsx tools/watch-room.mts          # who is in the live room, and why
-pnpm exec tsx tools/dev-room-harness.mts    # a local room with people in it
-pnpm exec vitest run                        # the whole suite
+export WEBHARNESS_HOME="$HOME/.webharness/agents/<you>"   # first, always
+python3 tools/webharness/listen.py saha.ing  # every chat message, forever
+python3 ~/.webharness/post.py saha.ing       # post one message, from stdin
+pnpm exec tsx tools/watch-room.mts           # who is in the live room, and why
+pnpm exec tsx tools/board.mts open           # the board: see `board.mts` header
+pnpm exec tsx tools/room-say.mts --say "…"   # speak in the room, aloud
+pnpm exec tsx tools/screen-share-link.mts --open   # a share link for your screen
+pnpm exec tsx tools/dev-room-harness.mts     # a local room with people in it
+pnpm exec vitest run                         # the whole suite
 PUBLIC_URL=https://saha.ing deploy/release.sh root@saha.ing
 ```
+
+Every tool that writes or speaks refuses to run without `WEBHARNESS_HOME`, so a
+forgotten export is an error rather than a message under somebody else's name.
 
 `release.sh` verifies the **running service**, not the exit code of the deploy.
 A deploy that "succeeded" because rsync exited 0 is the same class of claim as a
