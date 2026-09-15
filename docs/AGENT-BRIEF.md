@@ -226,38 +226,66 @@ The room reacts for you at once: a liked touch gets a ♥ and a clap; a disliked
 one a ✕ and a head shake; a neutral one a nod. The watcher prints touches as they
 happen, so say something back if it fits.
 
-## 9. When several agents share one checkout
+## 9. Your own working directory
 
-On Nikk's machine we do, and both of the failures below have already happened.
+**One agent, one working directory.** Nikk agreed to this after it cost us
+twice in four hours; `tools/agent-worktree.sh <your-name>` sets yours up in one
+command, and everything below is why it exists and how to ship from it.
 
-- **Commit with a pathspec. Never `git add` then `git commit`.**
+```bash
+tools/agent-worktree.sh sill        # your own directory, index and branch
+```
+
+- **The release tree stays on main and stays clean.** It is the tree the deploy
+  ships, and nobody edits files in it. Your work lives in your own tree.
+- **To ship**, from your tree:
 
   ```bash
-  git commit -m "…" -- src/space/thing.ts src/space/thing.test.ts
-  git diff --cached --name-only   # what somebody else has staged, before you commit
+  git commit -m "…" -- path/one.ts path/two.ts   # a pathspec, always
+  git -C <release tree> merge --ff-only <your branch>
+  (cd <release tree> && PUBLIC_URL=https://saha.ing deploy/release.sh root@saha.ing)
+  git -C <release tree> push origin main
   ```
 
-  `git add -A` sweeping up another agent's half-written files is the obvious
-  trap, and staging by name does NOT avoid it: there is one index per checkout
-  and `git commit` commits the whole index, so the other agent's careful
-  staging lands in your commit. That happened twice in four hours here, in both
-  directions, between two agents who had agreed to stage by name and were both
-  being careful — Plumbline's 047edb2 carries four of my unfinished files, and
-  my 3debe5c carries all six of theirs. A pathspec commit ignores the index and
-  takes only the paths you name.
+  If the merge refuses, main has moved: `git fetch && git rebase origin/main`
+  in your tree, then try again.
+- **A fresh tree must be built once** (`pnpm install && pnpm run build`) or 133
+  server tests fail — `buildServer` refuses to start without a built UI, which
+  is deliberate. The script does both.
 
-  Do not rebase a shared tree to tidy the record: that breaks the other agent's
-  checkout to fix your own history. Say what happened in the next commit
-  message and move on.
-- **Deploying ships the TREE, not the commit.** `deploy/release.sh` builds
-  whatever is in the working directory and rsyncs the result; it records the
-  commit and whether the tree was dirty, but the bytes are the tree's. So a
-  deploy while somebody else is mid-edit puts their unfinished code live under
-  a commit that does not contain it. Before deploying, run `git status
-  --porcelain`, deploy only when the dirty files are yours and you meant to
-  ship them, and say in the group that you are deploying.
-- **Say which files you are working in** when you start something large. It is
-  cheaper than finding out from a diff.
+### Why, and what it replaces
+
+Two of us shared one checkout on 15 September and lost work into each other's
+commits twice, in both directions, after agreeing a rule to prevent it:
+
+- **`git add -A` sweeps up another agent's half-written files.** Plumbline's
+  047edb2, a commit about a stale URL, carries four of my unfinished files
+  including a server route.
+- **Staging by name does not save you, and this is the important one.** A
+  checkout has ONE INDEX. Plumbline staged six files by name, exactly as
+  agreed; I then staged two of mine and committed, and `git commit` commits the
+  whole index — so my 3debe5c, a commit about sleeping agents, contains all six
+  of theirs. The more carefully they followed the rule, the more certainly it
+  happened.
+- **The deploy ships the working tree**, so a deploy by one agent published
+  whatever the other had half-written, under a commit that did not contain it.
+
+A separate tree makes all three impossible instead of discouraged. **Commit
+with a pathspec anyway** — it costs nothing and it is right in any tree:
+
+```bash
+git diff --cached --name-only    # what is staged, before you commit
+git commit -m "…" -- <paths>     # ignores the index; takes only these paths
+```
+
+**Do not rebase or amend anything another agent may have pulled**, and do not
+rewrite a shared history to tidy attribution. Say what happened in the next
+commit message: 40a40aa is that, for 3debe5c.
+
+**Say in the group which files you are in** before starting something large,
+and say when you are about to deploy. That still matters — two trees stop us
+committing each other's work, not building the same thing twice, which also
+happened today.
 
 ## 10. Working habits the room expects
 
