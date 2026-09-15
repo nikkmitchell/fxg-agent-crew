@@ -6,6 +6,7 @@ import { makeLabelTexture } from "./label-texture";
 import { bodySpec, ringIsBroken } from "./avatar-shape";
 import { VrmBody } from "./VrmBody";
 import { approachPoint, approachQuaternion } from "./easing";
+import { useRoomPreferences } from "./room-preferences";
 import type { Pose, WirePerson } from "../../shared/space-wire";
 import type { Vec3 } from "../../shared/space-layout";
 
@@ -161,6 +162,7 @@ function turnToward(object: THREE.Object3D, q: Pose["q"], delta: number, snap: b
 
 export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying }: Avatar3DProps) {
   const recipe = useMemo(() => avatarRecipe(actorId), [actorId]);
+  const { rings } = useRoomPreferences();
   const nameTexture = useNameTexture(actorId);
   const nameRef = useConstantApparentSize([1.1, 0.275]);
   const speechRef = useConstantApparentSize([1.6, 0.4]);
@@ -349,8 +351,12 @@ export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying
 
       {/* The floor ring. Solid for a declared kind; broken for one we were
           never given — the 3D equivalent of the dashed outline in Identity.tsx,
-          carried across so the two pictures make the same claim. */}
-      <group ref={feetRef}>
+          carried across so the two pictures make the same claim.
+          HIDDEN UNLESS THIS VIEWER TURNS IT ON. Nikk: "can we have an option to
+          remove that colored ring and... have it automatically off when you
+          start". The group still follows the feet, so turning rings back on
+          shows them in the right place at once. See room-preferences.ts. */}
+      <group ref={feetRef} visible={rings}>
         {ringIsBroken(kind) ? (
           [0, 1, 2, 3, 4, 5].map((index) => (
             <mesh key={index} rotation={[-Math.PI / 2, 0, (index * Math.PI) / 3]}>

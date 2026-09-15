@@ -9,6 +9,13 @@ import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
 import { closedControlPose } from "./control-pose";
 import { pinchTeleportEnabled, setPinchTeleport, showHandModels } from "./xr-store";
+import {
+  DEFAULT_ROOM_PREFERENCES,
+  pointerLabel,
+  setRoomPreferences,
+  stepPointer,
+  useRoomPreferences,
+} from "./room-preferences";
 import { createSteadyRecorder, speakSay, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
 import { shouldSpeakUtterance } from "./VoiceControls";
 import { newestId, replyToSpeak } from "./reply-speech";
@@ -196,6 +203,7 @@ export function RoomControls({
   const [handsShown, setHandsShown] = useState(true);
   /** Off by default; the palm joystick is how hands move. See xr-store.ts. */
   const [pinchTeleport, setPinchTeleportShown] = useState(() => pinchTeleportEnabled());
+  const preferences = useRoomPreferences();
   /**
    * BOTH, BY DEFAULT, IN A HEADSET.
    *
@@ -825,6 +833,21 @@ export function RoomControls({
             showHandModels(next);
           },
         },
+        {
+          label: preferences.rings ? "Rings under people: shown" : "Rings under people: hidden",
+          tone: preferences.rings ? "live" : "normal",
+          onTap: () => setRoomPreferences({ rings: !preferences.rings }),
+        },
+        // THE POINTER, as a value and a − and a +. Tapping the value turns the
+        // pointer off, or back on at 10% — the "option to remove" — and −/+
+        // walk it between 0% and 100% of the brightness it used to have.
+        {
+          label: `Pointer brightness: ${pointerLabel(preferences.pointer)}`,
+          tone: preferences.pointer > 0 ? "normal" : "muted",
+          onTap: () => setRoomPreferences({ pointer: preferences.pointer > 0 ? 0 : DEFAULT_ROOM_PREFERENCES.pointer }),
+        },
+        { label: "−  Pointer dimmer", onTap: () => setRoomPreferences({ pointer: stepPointer(preferences.pointer, -1) }) },
+        { label: "+  Pointer brighter", onTap: () => setRoomPreferences({ pointer: stepPointer(preferences.pointer, 1) }) },
         {
           label: pinchTeleport ? "Pinch to teleport: on" : "Pinch to teleport: off",
           tone: pinchTeleport ? "live" : "normal",

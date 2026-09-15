@@ -14,6 +14,7 @@ import { useVoiceChat } from "./useVoiceChat";
 import { ProjectChooser } from "../ProjectChooser";
 import { PanelGrips } from "./PanelGrips";
 import { base } from "../router";
+import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
 
 /**
  * The way in to screen sharing, on the website rather than only in a terminal.
@@ -106,6 +107,7 @@ export function SpacePanel() {
    */
   const [reducedOverride, setReducedOverride] = useState<boolean | null>(null);
   const reducedMotion = reducedOverride ?? systemPrefersReduced;
+  const preferences = useRoomPreferences();
   const connection = useSpaceSocket(entered);
   const [comfort, setComfort] = useState<Comfort>(DEFAULT_COMFORT);
   const [inHeadset, setInHeadset] = useState(false);
@@ -436,6 +438,14 @@ export function SpacePanel() {
         <ProjectChooser />
 
         <h2>In the room</h2>
+        <label className="space-setting">
+          <input
+            type="checkbox"
+            checked={preferences.rings}
+            onChange={(event) => setRoomPreferences({ rings: event.currentTarget.checked })}
+          />
+          <span>Show the coloured ring under each person and agent (this browser only)</span>
+        </label>
         <label className="space-setting">
           <input
             type="checkbox"

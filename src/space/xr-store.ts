@@ -1,4 +1,5 @@
 import { createXRStore, type XRStore } from "@react-three/xr";
+import { roomPreferences } from "./room-preferences";
 
 /**
  * One XR store for the page.
@@ -43,6 +44,32 @@ export function pinchTeleportEnabled(): boolean {
   return handOptions.pinchTeleport;
 }
 
+/**
+ * THE POINTER'S BRIGHTNESS, read every frame.
+ *
+ * Nikk: "that weird pointer... attached to my finger... make the brightness to
+ * be let's say 10% of what it currently is and have a way to just do plus
+ * minus... from 0% to 100%". What was drawn was the library's own ray and
+ * cursor at their default opacity of 0.4. That default is 100% here, and the
+ * setting scales it — see room-preferences.ts.
+ *
+ * A FUNCTION, not a number, because the library calls it for every frame it
+ * draws a pointer. Pressing − or + therefore changes the pointer at once,
+ * without restating the hand and controller options and risking switching off
+ * something else on them.
+ *
+ * Every pointer that draws something is dimmed together: the ray and its
+ * cursor, and the cursors of the grab and fingertip-touch pointers. At 0% they
+ * are invisible and every pinch, trigger and touch still works.
+ */
+const LIBRARY_POINTER_OPACITY = 0.4;
+const pointerOpacity = () => LIBRARY_POINTER_OPACITY * roomPreferences().pointer;
+const pointerOptions = {
+  rayPointer: { rayModel: { opacity: pointerOpacity }, cursorModel: { opacity: pointerOpacity } },
+  grabPointer: { cursorModel: { opacity: pointerOpacity } },
+} as const;
+const handPointerOptions = { ...pointerOptions, touchPointer: { cursorModel: { opacity: pointerOpacity } } } as const;
+
 export function getXRStore(): XRStore {
   store ??= createXRStore({
     /**
@@ -56,8 +83,16 @@ export function getXRStore(): XRStore {
      * plain ray for pointing at things. `default: true` leaves every other
      * input source exactly as it was.
      */
-    hand: { left: { teleportPointer: handOptions.pinchTeleport }, default: true },
-    controller: { left: { teleportPointer: true }, default: true },
+    hand: {
+      left: { ...handPointerOptions, teleportPointer: handOptions.pinchTeleport },
+      right: handPointerOptions,
+      default: handPointerOptions,
+    },
+    controller: {
+      left: { ...pointerOptions, teleportPointer: true },
+      right: pointerOptions,
+      default: pointerOptions,
+    },
     /*
      * NO DOM OVERLAY. It was requested for a Quest text card, and tapping that
      * card put a Quest user out of the headset. Quest Browser does not
@@ -164,8 +199,8 @@ export function setPinchTeleport(on: boolean): void {
 
 function applyHandOptions(): void {
   const xr = getXRStore();
-  xr.setHand({ model: handOptions.model, teleportPointer: handOptions.pinchTeleport }, "left");
-  xr.setHand({ model: handOptions.model }, "right");
-  xr.setController({ model: handOptions.model, teleportPointer: true }, "left");
-  xr.setController({ model: handOptions.model }, "right");
+  xr.setHand({ ...handPointerOptions, model: handOptions.model, teleportPointer: handOptions.pinchTeleport }, "left");
+  xr.setHand({ ...handPointerOptions, model: handOptions.model }, "right");
+  xr.setController({ ...pointerOptions, model: handOptions.model, teleportPointer: true }, "left");
+  xr.setController({ ...pointerOptions, model: handOptions.model }, "right");
 }
