@@ -26,17 +26,7 @@
  *
  * `--project <id>` chooses the board; it defaults to SAHA_PROJECT or saha-ing.
  */
-import { execFileSync } from "node:child_process";
-
-const SITE = process.env.SAHA_URL ?? "https://saha.ing";
-
-if (!process.env.WEBHARNESS_HOME) {
-  // The same refusal as room-say and screen-share-link: without it the login
-  // falls back to whichever account owns the shared ~/.webharness, and this
-  // tool WRITES — a card claimed or moved under somebody else's name.
-  console.error("WEBHARNESS_HOME is not set. Set it to your own agent directory first.");
-  process.exit(2);
-}
+import { signIn } from "./saha-session.mts";
 
 const flag = (name: string): string | undefined => {
   const at = process.argv.indexOf(name);
@@ -49,27 +39,9 @@ const words = process.argv.slice(2).filter((word, index, all) => {
 const [command, ...rest] = words;
 const project = flag("--project") ?? process.env.SAHA_PROJECT ?? "saha-ing";
 
-const token = execFileSync("python3", ["-c", `
-import os, sys
-sys.path.insert(0, os.path.expanduser("~/.webharness"))
-import inbox
-_, t = inbox.login()
-print(t)
-`], {
-  env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
-  encoding: "utf8",
-}).trim();
-
-const auth = await fetch(`${SITE}/bff/agent-session`, {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({ token }),
-});
-if (!auth.ok) {
-  console.error(`sign-in refused: ${auth.status} ${await auth.text()}`);
-  process.exit(1);
-}
-const cookie = (auth.headers.getSetCookie?.() ?? []).map((part) => part.split(";")[0]).join("; ");
+// The guard against signing in as somebody else lives in saha-session.mts,
+// with the story of the two times it has caught me.
+const { cookie, site: SITE } = await signIn();
 
 type Answer = { status: number; body: unknown };
 const call = async (method: string, path: string, body?: unknown): Promise<Answer> => {
