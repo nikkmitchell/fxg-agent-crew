@@ -61,11 +61,14 @@ export function createSayRecorder(options: {
   transcribe?: (wav: Blob) => Promise<string>;
   /** Told what is happening, for the status line in the room. */
   onPhase?: (phase: "idle" | "recording" | "writing") => void;
+  /** Builds the recorder. Replaced in tests, where there is no MediaRecorder. */
+  makeRecorder?: (stream: MediaStream, mimeType: string) => MediaRecorder;
   onTrouble?: (message: string) => void;
   scope?: Media;
 }): SayRecorder {
   const scope = options.scope ?? (navigator as Media);
   const transcribe = options.transcribe ?? postForWords;
+  const makeRecorder = options.makeRecorder ?? ((stream, mimeType) => new MediaRecorder(stream, { mimeType }));
   const phase = (next: "idle" | "recording" | "writing") => options.onPhase?.(next);
 
   let recorder: MediaRecorder | null = null;
@@ -94,12 +97,30 @@ export function createSayRecorder(options: {
       const format = bestFormat();
       if (!format) throw new Error("This browser cannot record audio.");
       stream = await scope.mediaDevices.getUserMedia({ audio: true });
-      recorder = new MediaRecorder(stream, { mimeType: format });
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunks.push(event.data);
-      };
-      recorder.onstop = () => stopped?.();
-      recorder.start();
+      /**
+       * A MICROPHONE OPENED AND NEVER CLOSED is the bug this guards.
+       *
+       * The first version assigned the stream and then built the recorder. If
+       * building it threw — an unsupported mime type accepted by
+       * `isTypeSupported` and refused by the constructor, which happens — the
+       * stream stayed live: `release` is only reached through finish, cancel
+       * and dispose, and none of those is offered when the room believes
+       * nothing is recording. The wearer would have been left with a
+       * microphone light on and no control that turns it off, and the next
+       * press would have opened a second one and leaked the first.
+       */
+      try {
+        const built = makeRecorder(stream, format);
+        built.ondataavailable = (event) => {
+          if (event.data.size > 0) chunks.push(event.data);
+        };
+        built.onstop = () => stopped?.();
+        built.start();
+        recorder = built;
+      } catch (error) {
+        release();
+        throw error;
+      }
       phase("recording");
     },
 
