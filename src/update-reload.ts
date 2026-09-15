@@ -26,10 +26,28 @@ import { base } from "./router";
  * Written words are the exception: a draft outlives the tab being hidden, and
  * somebody who typed half a message, took the headset off and came back to an
  * empty box would rightly call that losing their words.
+ *
+ * AND A LIVE HEADSET SESSION IS THE OTHER EXCEPTION — the one this had wrong,
+ * and it threw somebody out of the room every time they tried to type.
+ *
+ * Baiwei, testing the headset keyboard: every tap on the text box dropped him
+ * out of the room. The keyboard was innocent and so was the input; the sequence
+ * was this. Quest Browser shows its system keyboard, THE DOCUMENT GOES HIDDEN,
+ * `visibilitychange` schedules a check 500 ms later, the check finds the newer
+ * build every one of today's deploys left waiting — and a hidden page reloads,
+ * holds and all. A reload ends an immersive session. The room disappears, and
+ * from inside the headset it looks exactly like being kicked out for typing.
+ *
+ * "Hidden" was standing in for "nobody is there", and in a headset that is
+ * simply not what it means: the document can go hidden while the wearer is
+ * standing in the room looking at it. So a session beats hiding. Nothing
+ * reloads a page that is presenting a session to somebody, for any reason, and
+ * `updateWaiting` offers them the new build instead.
  */
 
 const holds = new Set<string>();
 const drafts = new Set<string>();
+const sessions = new Set<string>();
 
 /**
  * WHETHER A NEW VERSION IS WAITING, for anybody who needs to offer it.
@@ -83,6 +101,18 @@ export function holdDraft(reason: string, on: boolean): void {
   else drafts.delete(reason);
 }
 
+/**
+ * A session being presented to somebody — a headset in the room.
+ *
+ * Stronger than `holdReload`, and the difference is the whole of the bug above:
+ * this one also beats a hidden page, because a reload ENDS a session and a
+ * hidden document does not mean an empty headset.
+ */
+export function holdSession(reason: string, on: boolean): void {
+  if (on) sessions.add(reason);
+  else sessions.delete(reason);
+}
+
 export type ReloadState = {
   /** The commit this page loaded against, or null if the server did not say. */
   loadedWith: string | null;
@@ -91,10 +121,15 @@ export type ReloadState = {
   held: boolean;
   unsentText: boolean;
   hidden: boolean;
+  /** A session is being presented to somebody: a headset is in the room. */
+  inSession?: boolean;
 };
 
 export function reloadDecision(state: ReloadState): "reload" | "wait" | "nothing" {
   if (!state.loadedWith || !state.serverHas || state.loadedWith === state.serverHas) return "nothing";
+  // Before the hidden check, deliberately: a reload ends the session, and the
+  // document goes hidden while the wearer is still standing in the room.
+  if (state.inSession) return "wait";
   if (state.unsentText) return "wait";
   if (state.hidden) return "reload";
   return state.held ? "wait" : "reload";
@@ -196,6 +231,7 @@ export function startUpdateReload(options: {
       held: holds.size > 0,
       unsentText: drafts.size > 0 || hasUnsentText(textFieldsOnPage()),
       hidden: document.visibilityState === "hidden",
+      inSession: sessions.size > 0,
     });
     // "wait" means there IS a newer build and something is holding it back.
     setWaiting(decision === "wait");

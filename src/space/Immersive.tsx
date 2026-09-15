@@ -25,7 +25,7 @@ import {
 } from "./palm-joystick";
 import { compensateReset, type Placed } from "./recenter";
 import { pinchTeleportEnabled, teleportNeeded, teleportOn, watchTeleport } from "./xr-store";
-import { holdReload } from "../update-reload";
+import { holdSession } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
 import type { RoomFeed } from "./useRoomFeed";
@@ -270,6 +270,35 @@ export function ImmersivePlayer({
     announced.current = true;
     tell(`session began at (${began.x.toFixed(2)}, ${began.z.toFixed(2)}) facing ${began.yaw.toFixed(2)}`);
   }, [tell, began]);
+
+  /**
+   * WHEN THE ROOM GOES AWAY AND WHY, written down.
+   *
+   * Nikk, watching Baiwei vanish every time he tapped a text box: "you can set
+   * up some logs so I can see that he currently gets kicked whenever he tests
+   * the text". There was nothing in the journal between "session began" and
+   * silence — the room disappearing left no trace at all, which is why it took
+   * somebody sitting in a headset to notice.
+   *
+   * Three lines now. The document hiding is the one that mattered: Quest
+   * Browser hides it to show the system keyboard, and the reload poller used to
+   * treat a hidden page as an empty one.
+   */
+  const tellRef = useRef(tell);
+  tellRef.current = tell;
+  useEffect(() => {
+    const onHidden = () => {
+      tellRef.current(
+        `the page went ${document.visibilityState} while the session was live` +
+          (document.visibilityState === "hidden" ? " — no reload will be taken until it ends" : ""),
+      );
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", onHidden);
+      tellRef.current("session ended");
+    };
+  }, []);
 
   /**
    * A CONTROLLER WITH NO THUMBSTICK NEEDS TELEPORT, whatever the setting says:
@@ -830,10 +859,16 @@ export function Immersive({
    * room and back into a browser window they then have to find and press twice.
    * It waits until the session ends. Several deploys land in an hour here, so
    * this was a real chance of interrupting somebody mid-sentence.
+   *
+   * `holdSession`, NOT `holdReload`, and that distinction cost Baiwei an
+   * afternoon: an ordinary hold is overridden by a hidden page, and Quest
+   * Browser hides the document when it opens the system keyboard. Every tap on
+   * a text box therefore reloaded the page and threw him out of the room. See
+   * the note at the top of update-reload.ts.
    */
   useEffect(() => {
-    holdReload("xr-session", Boolean(session));
-    return () => holdReload("xr-session", false);
+    holdSession("xr-session", Boolean(session));
+    return () => holdSession("xr-session", false);
   }, [session]);
   return session ? (
     <ImmersivePlayer
