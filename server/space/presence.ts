@@ -450,6 +450,25 @@ export class Presence {
   static readonly IDLE_SLEEP_MS = 30 * 60_000;
 
   /**
+   * How long an agent may lie asleep before the room stops showing it at all.
+   *
+   * Nikk, looking at two figures asleep on the floor that nobody had heard from
+   * all day: "if an avatar sleeps for longer than an hour it disappears... if
+   * it sleeps for over an hour then we no longer see it."
+   *
+   * It is the honest reading too. An agent asleep at its desk for a minute is
+   * an agent between tasks; one that has not acted, spoken, shared a screen or
+   * said anything about itself for an hour is not in the room in any sense a
+   * person watching can use, and drawing it says otherwise.
+   *
+   * ONLY WITH NOTHING ATTACHED. An agent holding a socket open is really there
+   * — it is watching the room this second — so it keeps its place however
+   * quiet it is. What goes is the figure with no socket, no screen and no
+   * recent act: which is exactly the two Nikk was looking at.
+   */
+  static readonly FORGET_SLEEPING_MS = 60 * 60_000;
+
+  /**
    * Settle every agent into the posture its own recent activity implies.
    *
    * INFERRED, NOT DECLARED, and that is the point. Nikk asked for agents that
@@ -540,6 +559,7 @@ export class Presence {
   }
 
   tick(deltaSeconds: number): void {
+    this.forgetLongAsleep();
     this.settlePostures();
     this.expireAttention();
     this.expireGestures();
@@ -727,6 +747,34 @@ export class Presence {
         const reason = `talking with ${occupant.speakingTo.actorId}`;
         if (occupant.because === reason) occupant.because = null;
         occupant.speakingTo = null;
+      }
+    }
+  }
+
+  /**
+   * Stop drawing an agent that has been asleep for an hour with nothing
+   * attached. See FORGET_SLEEPING_MS.
+   *
+   * It comes back the moment it does anything — an audit row, a word said, a
+   * screen, a declared posture — because all of those put it back in the room
+   * through the paths that always have.
+   */
+  private forgetLongAsleep(): void {
+    const now = this.now();
+    for (const [key, occupant] of [...this.occupants]) {
+      if (occupant.kind !== "agent" || occupant.connected) continue;
+      if (occupant.avatar.posture !== "sleeping") continue;
+      const sign = Math.max(
+        occupant.lastActed ?? 0,
+        occupant.declaredAt ?? 0,
+        this.screenSeenAt.get(key) ?? 0,
+      );
+      // Never seen doing anything at all counts from when it joined, so a
+      // freshly rebuilt agent is given the same hour as everybody else.
+      const since = sign === 0 ? occupant.lastSeen : sign;
+      if (now - since > Presence.FORGET_SLEEPING_MS) {
+        this.occupants.delete(key);
+        this.screenSeenAt.delete(key);
       }
     }
   }

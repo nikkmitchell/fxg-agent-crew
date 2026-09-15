@@ -137,8 +137,12 @@ export class Activity {
    * a new agent is in for its whole first hour.
    */
   rehydrate(): void {
+    // A RETIRED ACTOR IS NOT REBUILT. Renaming an agent leaves its old identity
+    // behind, and rebuilding every known agent stood the abandoned one in the
+    // room permanently. Its history stays exactly where it is; it just stops
+    // being drawn. See BoardStore.retireActor.
     const agents = this.db
-      .prepare("SELECT id FROM actors WHERE kind = 'agent' ORDER BY id")
+      .prepare("SELECT id FROM actors WHERE kind = 'agent' AND retired_at IS NULL ORDER BY id")
       .all() as { id: string }[];
 
     for (const { id } of agents) {

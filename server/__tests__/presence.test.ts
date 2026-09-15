@@ -699,3 +699,52 @@ describe("GET /bff/space/presence", () => {
     await built.app.close();
   });
 });
+
+/**
+ * Nikk, looking at two agents asleep on the floor that nobody had heard from
+ * all day: "if an avatar sleeps for longer than an hour it disappears".
+ */
+describe("an agent asleep for an hour", () => {
+  const room = (clock: () => number) => new Presence(clock);
+
+  it("is no longer shown, and comes back the moment it does anything", () => {
+    let now = 10 * 60_000;
+    const presence = room(() => now);
+    presence.join("vint", "agent", false);
+    presence.tick(0.1);
+    expect(presence.find("vint")?.avatar.posture).toBe("sleeping");
+
+    now += Presence.FORGET_SLEEPING_MS - 1_000;
+    presence.tick(0.1);
+    expect(presence.find("vint"), "still within the hour").toBeDefined();
+
+    now += 2_000;
+    presence.tick(0.1);
+    expect(presence.find("vint"), "asleep for over an hour, with nothing attached").toBeUndefined();
+
+    // Anything at all brings it back, through the paths that always placed it.
+    presence.sendTo("vint", "agent", { x: 1, y: 0, z: 1 }, "commented on a card");
+    presence.tick(0.1);
+    expect(presence.find("vint")?.because).toBe("commented on a card");
+  });
+
+  it("keeps an agent that is holding a socket open, however quiet it is", () => {
+    let now = 10 * 60_000;
+    const presence = room(() => now);
+    presence.join("sill", "agent", true);
+    now += Presence.FORGET_SLEEPING_MS * 3;
+    presence.tick(0.1);
+    // It is watching the room this second; silence is not absence for a
+    // connection that is really there.
+    expect(presence.find("sill")).toBeDefined();
+  });
+
+  it("keeps a person, whatever they are doing", () => {
+    let now = 10 * 60_000;
+    const presence = room(() => now);
+    presence.join("nikk2", "human", false);
+    now += Presence.FORGET_SLEEPING_MS * 3;
+    presence.tick(0.1);
+    expect(presence.find("nikk2"), "only agents are forgotten this way").toBeDefined();
+  });
+});

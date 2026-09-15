@@ -166,9 +166,19 @@ export class ShareKeys {
       .run(now + SCREEN_LIMITS.keyTtlMs, hashKey(key), now, now + SCREEN_LIMITS.keyTtlMs - 60_000);
   }
 
-  /** Agents a person may share a screen for, by the actors table's own kind. */
+  /**
+   * Agents a person may share a screen for, by the actors table's own kind.
+   *
+   * A RETIRED ACTOR IS NOT OFFERED. An identity left behind by a rename is not
+   * somebody you can usefully put a screen up for — there is nobody at the
+   * other end of it — and offering it invites sharing a window under a name
+   * that no longer refers to a working agent. Its history is untouched; it is
+   * simply not a choice any more. See BoardStore.retireActor.
+   */
   agents(): string[] {
-    return (this.database.prepare("SELECT id FROM actors WHERE kind = 'agent' ORDER BY id").all() as { id: string }[])
+    return (this.database
+      .prepare("SELECT id FROM actors WHERE kind = 'agent' AND retired_at IS NULL ORDER BY id")
+      .all() as { id: string }[])
       .map((row) => row.id);
   }
 

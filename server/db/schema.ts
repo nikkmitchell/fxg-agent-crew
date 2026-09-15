@@ -644,4 +644,30 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 21,
+    name: "an actor can be retired without being erased",
+    sql: `
+      -- WHEN AN IDENTITY IS LEFT BEHIND. saha.ing takes an actor id straight
+      -- from whatever WebHarness calls you, so renaming an agent creates a
+      -- second row describing one worker — 'claude-nikk2mbp' and 'Plumbline'
+      -- are the same agent either side of 2026-09-15. Since agents are rebuilt
+      -- into the room at every restart, the abandoned identity stood there for
+      -- ever: Nikk had two of Plumbline in his room, one of which had not done
+      -- anything for hours.
+      --
+      -- NULLABLE, AND THAT IS THE ENCODING. Null means nobody has retired this
+      -- actor, which is a different fact from a date — exactly as ADR-002 asks
+      -- of every column here. A boolean with a default would have invented an
+      -- answer for every existing row.
+      --
+      -- RETIRED, NOT DELETED. Dropping the row would take the audit trail, the
+      -- cards and the memberships with it, and assert that the work never
+      -- happened. What is true is that the actor DID those things and is no
+      -- longer present, so the room stops drawing it and the record keeps every
+      -- word. Reversible by setting this back to NULL, because being wrong
+      -- about it has to be expressible too.
+      ALTER TABLE actors ADD COLUMN retired_at TEXT;
+    `,
+  },
 ];

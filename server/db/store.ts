@@ -198,6 +198,61 @@ export class BoardStore {
     }
   }
 
+  /**
+   * An actor is no longer present — without pretending it never was.
+   *
+   * WHY THIS IS NOT A DELETE. Renaming an agent leaves its old identity behind:
+   * saha.ing takes an actor id straight from whatever WebHarness calls you, so
+   * `claude-nikk2mbp` and `Plumbline` are two rows for one worker either side
+   * of an afternoon. Agents are rebuilt into the room at every restart, so the
+   * abandoned one stood there permanently — Nikk had two of Plumbline in his
+   * room, one of which had done nothing for hours.
+   *
+   * Dropping the row would take the audit trail, the cards and the memberships
+   * with it, and assert something false: that the work never happened. What is
+   * actually true is that this actor DID those things and is not here any more.
+   * So the record keeps every word and the room stops drawing it.
+   *
+   *   kept    — audit rows, tasks, comments, memberships
+   *   stopped — drawn in the room, offered for screen sharing, counted present
+   *
+   * RECORDED LIKE ANY OTHER CHANGE. Retiring somebody is an act with an actor
+   * behind it, and a room that can quietly stop showing a worker without saying
+   * who decided so is exactly the thing this project is against.
+   *
+   * REFUSES AN UNKNOWN ID rather than succeeding silently. A typo that reports
+   * success leaves the duplicate standing in the room and everyone believing it
+   * was dealt with.
+   */
+  retireActor(actor: Actor, actorId: string): void {
+    const id = actorId.trim();
+    return this.tx(() => {
+      const existing = this.db.prepare("SELECT id, retired_at FROM actors WHERE id = ?").get(id) as
+        | { id: string; retired_at: string | null }
+        | undefined;
+      if (!existing) throw new Refused(`no actor ${id}`, "NOT_FOUND");
+      if (existing.retired_at) return;
+      this.ensureActor(actor.id, actor.kind ?? undefined);
+      this.db.prepare("UPDATE actors SET retired_at = ?, updated_at = ? WHERE id = ?").run(now(), now(), id);
+      this.audit(actor.id, "retire", "actor", id, { retired: false }, { retired: true });
+    });
+  }
+
+  /** Undo a retirement. "I was wrong about that" has to be expressible. */
+  unretireActor(actor: Actor, actorId: string): void {
+    const id = actorId.trim();
+    return this.tx(() => {
+      const existing = this.db.prepare("SELECT id, retired_at FROM actors WHERE id = ?").get(id) as
+        | { id: string; retired_at: string | null }
+        | undefined;
+      if (!existing) throw new Refused(`no actor ${id}`, "NOT_FOUND");
+      if (!existing.retired_at) return;
+      this.ensureActor(actor.id, actor.kind ?? undefined);
+      this.db.prepare("UPDATE actors SET retired_at = NULL, updated_at = ? WHERE id = ?").run(now(), id);
+      this.audit(actor.id, "unretire", "actor", id, { retired: true }, { retired: false });
+    });
+  }
+
   private memberships(): Array<{ projectId: string; actorId: string; active: boolean }> {
     return (this.db.prepare("SELECT project_id, actor_id, active FROM memberships").all() as Array<{
       project_id: string; actor_id: string; active: number;
