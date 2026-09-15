@@ -281,7 +281,8 @@ export function registerSpaceRoutes(
         .map((key) => hub.presence.find(key)?.actorId ?? key),
     });
 
-    let lastNote = 0;
+    /** When each distinct note was last logged. See the "note" frame below. */
+    const noteAt = new Map<string, number>();
     socket.on("message", (raw: Buffer | string) => {
       const message = parseClientMessage(raw.toString());
       // A frame we cannot read is dropped. It is not evidence the socket is
@@ -313,13 +314,28 @@ export function registerSpaceRoutes(
       }
       if (message.type === "note") {
         /**
-         * ONE LINE IN THE LOG, at most one every two seconds per socket. A
-         * headset cannot show anybody its console; this is how something only
+         * A headset cannot show anybody its console; this is how something only
          * the headset can see reaches whoever is reading the journal.
+         *
+         * THE THROTTLE IS PER SENTENCE, not per socket, and the difference cost
+         * an evening. It used to drop EVERY note within two seconds of the last
+         * one, whatever it said — so when Baiwei tapped the text box, "keyboard
+         * opening" was logged and the line that came milliseconds after it was
+         * silently thrown away. The journal showed the keyboard opening and then
+         * nothing, which I read as evidence that nothing happened. It was
+         * evidence that my own instrument had stopped.
+         *
+         * A repeated sentence is the thing worth suppressing: a per-frame note
+         * flooding the log. A DIFFERENT sentence is never noise — it is the next
+         * thing that happened, and at a moment like that it is the whole story.
          */
         const now = Date.now();
-        if (now - lastNote > 2_000) {
-          lastNote = now;
+        const last = noteAt.get(message.note) ?? 0;
+        if (now - last > 2_000) {
+          noteAt.set(message.note, now);
+          // Bounded: a client that invents a new sentence every frame must not
+          // grow this for ever. Oldest first, which is insertion order here.
+          if (noteAt.size > 64) noteAt.delete(noteAt.keys().next().value as string);
           request.log.info({ actorId, note: message.note }, "space client note");
         }
         return;

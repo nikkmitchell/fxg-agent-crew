@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Identity } from "../Identity";
 import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
@@ -15,6 +15,7 @@ import { ProjectChooser } from "../ProjectChooser";
 import { PanelGrips } from "./PanelGrips";
 import { base } from "../router";
 import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
+import { takeCrumb } from "./left-crumb";
 
 /**
  * The way in to screen sharing, on the website rather than only in a terminal.
@@ -132,6 +133,22 @@ export function SpacePanel() {
     // no ears in a browser.
     connection.roster.filter((person) => person.connected && person.kind !== "agent").map((person) => person.actorId),
   );
+
+  /**
+   * WHAT THE PAGE BEFORE THIS ONE DID NOT GET TO SAY.
+   *
+   * Reported from HERE and not from the scene, because somebody thrown out of a
+   * headset session lands exactly here — on the flat page — and a crumb only
+   * the scene could read would sit unreported until they put the headset back
+   * on. See left-crumb.ts for why a note alone cannot do this job.
+   */
+  const crumbSent = useRef(false);
+  useEffect(() => {
+    if (crumbSent.current || connection.status.state !== "open") return;
+    const note = takeCrumb();
+    crumbSent.current = true;
+    if (note) connection.send({ type: "note", note });
+  }, [connection]);
 
   /**
    * Is there a headset to enter?

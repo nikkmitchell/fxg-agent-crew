@@ -25,6 +25,7 @@ import {
 } from "./palm-joystick";
 import { compensateReset, type Placed } from "./recenter";
 import { stickStep } from "./stick-walk";
+import { leaveCrumb } from "./left-crumb";
 import { pinchTeleportEnabled, teleportNeeded, teleportOn, watchTeleport } from "./xr-store";
 import { holdSession } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
@@ -297,12 +298,32 @@ export function ImmersivePlayer({
           (document.visibilityState === "hidden" ? " — no reload will be taken until it ends" : ""),
       );
     };
+    /**
+     * AND THE ONE THAT SURVIVES THE PAGE ITSELF.
+     *
+     * A note travels down the room's socket, so a note about the page going
+     * away races the page going away and loses. Worse, React runs no cleanup
+     * for a reload at all — so a session that ended because the page reloaded
+     * looks identical, in the journal, to no session ending at all.
+     *
+     * So the fact is written to sessionStorage, which outlives a reload, and
+     * the next page that loads reports it. `pagehide` rather than
+     * `beforeunload`: it fires for a reload, a navigation and a tab being
+     * discarded, and it does not stop a headset going to sleep.
+     */
+    const onLeaving = () => {
+      leaveCrumb();
+      tellRef.current("the page is going away while the session is live");
+    };
     document.addEventListener("visibilitychange", onHidden);
+    window.addEventListener("pagehide", onLeaving);
     return () => {
       document.removeEventListener("visibilitychange", onHidden);
+      window.removeEventListener("pagehide", onLeaving);
       tellRef.current("session ended");
     };
   }, []);
+
 
   /**
    * A CONTROLLER WITH NO THUMBSTICK NEEDS TELEPORT, whatever the setting says:
