@@ -227,9 +227,12 @@ export function ImmersivePlayer({
    *
    * Read once, so nothing moves the player mid-session.
    */
-  const [began] = useState(
-    () => lastPlace() ?? { x: ROOM.spawn.x, z: ROOM.spawn.z, yaw: facingFor(openPanels) },
-  );
+  const [began] = useState(() => {
+    const remembered = lastPlace();
+    return remembered
+      ? { ...remembered, resumed: true }
+      : { x: ROOM.spawn.x, z: ROOM.spawn.z, yaw: facingFor(openPanels), resumed: false };
+  });
   /**
    * Where the player's body is, for the controls to hang in front of.
    *
@@ -269,11 +272,18 @@ export function ImmersivePlayer({
    * filled with a dozen "session began" lines a minute. A ref, so the sentence
    * means what it says.
    */
+  /** Whether a plausible head has been seen at all this session. See rememberPlace. */
+  const headSeen = useRef(false);
   const announced = useRef(false);
   useEffect(() => {
     if (announced.current) return;
     announced.current = true;
-    tell(`session began at (${began.x.toFixed(2)}, ${began.z.toFixed(2)}) facing ${began.yaw.toFixed(2)}`);
+    tell(
+      `session began at (${began.x.toFixed(2)}, ${began.z.toFixed(2)}) facing ${began.yaw.toFixed(2)}` +
+        // Which of the two it was answers a question the numbers alone cannot:
+        // an empty sessionStorage means a NEW TAB, because a reload keeps it.
+        `, ${began.resumed ? "resumed from where the last session ended" : "the spawn point — nothing was remembered"}`,
+    );
   }, [tell, began]);
 
   /**
@@ -649,14 +659,25 @@ export function ImmersivePlayer({
      * The only thing that survives a session the device ends and re-grants on
      * its own. See rememberPlace.
      *
-     * NOT WHILE THERE IS NO HEAD. Plumbline's point, and it is a good one:
+     * NOT UNTIL A HEAD HAS BEEN SEEN. Plumbline's point, and it is a good one:
      * reading this back is defended and writing it was not, so a frame during a
      * session transition — head at the floor, nothing tracked yet — could write
      * a place that is evidence of nothing and hand it to the next session as
      * where somebody was standing. A head below 0.6 m is not a head; it is a
      * device that has not found one, the same test StandingHeight uses.
+     *
+     * ONCE SEEN, ALWAYS WRITTEN, and the first version got this wrong in a way
+     * worth keeping a note about. It required a good head ON THAT FRAME, and
+     * since it shipped, every one of Baiwei's sessions began at the spawn point
+     * where they had previously resumed where he left off. I cannot yet prove
+     * the guard is why — but a condition of mine that silently stops a feature
+     * working on a device I cannot test is not something to leave standing while
+     * we hunt something else. A latch instead: any plausible head this session
+     * is enough, so a single bad frame cannot block it, and a device that never
+     * reports a head still writes nothing.
      */
-    if (scratch.position.y > 0.6) {
+    if (scratch.position.y > 0.6) headSeen.current = true;
+    if (headSeen.current) {
       rememberPlace({ x: inside.x, z: inside.z, yaw: group.rotation.y });
     }
     // The floor is the floor. XROrigin is the player's FEET, so this is 0 —
