@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { avatarRecipe } from "../avatar";
+import { moreNote, shortForm } from "./short-form";
 import type { RoomMessage } from "./useRoomFeed";
 
 /**
@@ -18,6 +19,11 @@ import type { RoomMessage } from "./useRoomFeed";
  *
  * NEWEST AT THE BOTTOM and older scrolled off the top, because a panel in a
  * headset cannot be scrolled and the useful end of a conversation is the end.
+ *
+ * SHORTENED, NOT SHOWN WHOLE. An agent's post runs well over a thousand
+ * characters, which used to fill the panel with one message. Each bubble now
+ * shows the first few sentences and a line saying how many words are left in
+ * chat — see `shortForm`, which cuts only where a sentence or a line ends.
  *
  * ONE BUBBLE PER SPEAKER, COLOURED BY WHO THEY ARE. The colour comes from
  * `avatarRecipe`, the same FNV-1a hash of the username that draws their mark on
@@ -121,14 +127,16 @@ export function paintChat(
 
   // BUILT FROM THE BOTTOM UP. Lay out newest first and stop once the space is
   // used, so the end of the conversation is always the part that survives.
-  type Block = { name: string; when: string; lines: string[] };
+  type Block = { name: string; when: string; lines: string[]; more: string | null };
   const blocks: Block[] = [];
   let used = 0;
   for (let i = paint.messages.length - 1; i >= 0; i -= 1) {
     const message = paint.messages[i];
     context.font = `400 ${BODY_SIZE}px ui-sans-serif, system-ui, sans-serif`;
-    const lines = wrap(context, message.content, innerWidth);
-    const height = NAME_SIZE + 6 + lines.length * LINE + GAP + 16;
+    const short = shortForm(message.content);
+    const more = moreNote(short.hiddenWords);
+    const lines = wrap(context, short.shown, innerWidth);
+    const height = NAME_SIZE + 6 + (lines.length + (more ? 1 : 0)) * LINE + GAP + 16;
     if (used + height > bottom - top) break;
     used += height;
     blocks.unshift({
@@ -137,15 +145,16 @@ export function paintChat(
       // timestamp at this size costs a third of the line.
       when: message.createdAt.slice(11, 16),
       lines,
+      more,
     });
   }
 
   let y = bottom - used;
   for (const block of blocks) {
     const recipe = avatarRecipe(block.name);
-    const height = NAME_SIZE + 6 + block.lines.length * LINE;
+    const height = NAME_SIZE + 6 + (block.lines.length + (block.more ? 1 : 0)) * LINE;
     const widest = Math.max(
-      ...block.lines.map((line) => {
+      ...[...block.lines, ...(block.more ? [block.more] : [])].map((line) => {
         context.font = `400 ${BODY_SIZE}px ui-sans-serif, system-ui, sans-serif`;
         return context.measureText(line).width;
       }),
@@ -179,6 +188,16 @@ export function paintChat(
     context.fillStyle = recipe.ink;
     for (const line of block.lines) {
       context.fillText(line, textLeft, y);
+      y += LINE;
+    }
+    // WHAT IS NOT SHOWN, in the speaker's own ink but faint: part of their
+    // message, plainly not their words.
+    if (block.more) {
+      context.font = `400 ${BODY_SIZE - 2}px ui-sans-serif, system-ui, sans-serif`;
+      context.globalAlpha = 0.6;
+      context.fillText(block.more, textLeft, y + 2);
+      context.globalAlpha = 1;
+      context.font = `400 ${BODY_SIZE}px ui-sans-serif, system-ui, sans-serif`;
       y += LINE;
     }
     y += GAP;

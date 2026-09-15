@@ -28,8 +28,15 @@ describe("reloading after a deploy", () => {
     expect(reloadDecision(state({ serverHas: "bbb", unsentText: true }))).toBe("wait");
   });
 
-  it("reloads a page nobody is looking at straight away", () => {
+  it("reloads a page nobody is looking at, even mid-recording", () => {
+    // A page that has gone away is not recording anything anybody is still saying.
     expect(reloadDecision(state({ serverHas: "bbb", held: true, hidden: true }))).toBe("reload");
+  });
+
+  it("keeps written words even on a page nobody is looking at", () => {
+    // Typed half a message, took the headset off, came back to an empty box:
+    // that is losing somebody's words, whether they were watching or not.
+    expect(reloadDecision(state({ serverHas: "bbb", unsentText: true, hidden: true }))).toBe("wait");
   });
 });
 

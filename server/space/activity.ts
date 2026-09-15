@@ -256,6 +256,12 @@ export class Activity {
     for (const [id, shownAt] of this.revealed) {
       if (now - shownAt > 5 * 60_000) this.revealed.delete(id);
     }
+    // A change whose agent never arrived, long past the cap: forget it rather
+    // than keep it for the lifetime of the process. Anything this old reveals
+    // at the moment it was made, which is what dropping it here says.
+    for (const [id, pending] of this.pendingReveal) {
+      if (now - pending.sentAt > 5 * 60_000) this.pendingReveal.delete(id);
+    }
     const shown = this.revealed.get(auditId);
     if (shown !== undefined) return new Date(shown).toISOString();
     // NOT YET READ. The poller picks rows up every half second, and a board

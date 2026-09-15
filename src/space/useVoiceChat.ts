@@ -211,7 +211,16 @@ export function useVoiceChat(
       const id = key(from);
       if (signal.kind === "offer") {
         // A fresh offer replaces whatever was there: the other side restarted.
-        if (peers.current.has(id)) drop(from);
+        // KEEP THE CANDIDATES THAT ARE STILL WAITING. They belong to the
+        // connection this offer opens — they arrived ahead of it — and `drop`
+        // would throw away exactly the paths the new call needs. A candidate
+        // left over from the old connection is harmless: adding it fails
+        // quietly.
+        if (peers.current.has(id)) {
+          const queued = waiting.current.get(id);
+          drop(from);
+          if (queued?.length) waiting.current.set(id, queued);
+        }
         const peer = connectionTo(from);
         await peer.setRemoteDescription({ type: "offer", sdp: signal.sdp });
         await flushWaiting(from, peer);

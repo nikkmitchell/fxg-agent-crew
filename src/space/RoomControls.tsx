@@ -20,7 +20,7 @@ import type { RoomShowingChoices } from "./useRoomShowing";
 import { DETAIL_LIMIT, type Utterance } from "../../shared/voice";
 import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
-import { holdReload } from "../update-reload";
+import { holdDraft, holdReload } from "../update-reload";
 import { createSystemKeyboard, type SystemKeyboard } from "./system-keyboard";
 import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
@@ -236,8 +236,8 @@ export function RoomControls({
   // A written draft lives only in this component, not in any text box on the
   // page, so a deploy's reload would otherwise throw it away unseen.
   useEffect(() => {
-    holdReload("written-draft", written.trim() !== "");
-    return () => holdReload("written-draft", false);
+    holdDraft("written-draft", written.trim() !== "");
+    return () => holdDraft("written-draft", false);
   }, [written]);
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);

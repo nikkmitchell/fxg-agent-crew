@@ -18,15 +18,32 @@ import { base } from "./router";
  * worse than running yesterday's page for another minute. So it waits while:
  *   - something has called `holdReload` — the microphone, while recording
  *   - any text field holds an edit: its value differs from what it loaded with
- * A page nobody is looking at reloads at once; it has nothing to lose.
+ *   - something has called `holdDraft` — the headset keyboard, holding words
+ *     that live in no text box on the page
+ *
+ * A PAGE NOBODY IS LOOKING AT reloads while the microphone is held, because a
+ * page that has gone away is not recording anything anybody is still saying.
+ * Written words are the exception: a draft outlives the tab being hidden, and
+ * somebody who typed half a message, took the headset off and came back to an
+ * empty box would rightly call that losing their words.
  */
 
 const holds = new Set<string>();
+const drafts = new Set<string>();
 
 /** Keep the page from reloading while `on` — e.g. while the mic is recording. */
 export function holdReload(reason: string, on: boolean): void {
   if (on) holds.add(reason);
   else holds.delete(reason);
+}
+
+/**
+ * Words somebody has written and not sent that are in no text box on the page —
+ * the headset keyboard's draft. Kept like typed text, not like a recording.
+ */
+export function holdDraft(reason: string, on: boolean): void {
+  if (on) drafts.add(reason);
+  else drafts.delete(reason);
 }
 
 export type ReloadState = {
@@ -41,8 +58,9 @@ export type ReloadState = {
 
 export function reloadDecision(state: ReloadState): "reload" | "wait" | "nothing" {
   if (!state.loadedWith || !state.serverHas || state.loadedWith === state.serverHas) return "nothing";
+  if (state.unsentText) return "wait";
   if (state.hidden) return "reload";
-  return state.held || state.unsentText ? "wait" : "reload";
+  return state.held ? "wait" : "reload";
 }
 
 export type TextField = {
@@ -139,7 +157,7 @@ export function startUpdateReload(options: {
       loadedWith,
       serverHas,
       held: holds.size > 0,
-      unsentText: hasUnsentText(textFieldsOnPage()),
+      unsentText: drafts.size > 0 || hasUnsentText(textFieldsOnPage()),
       hidden: document.visibilityState === "hidden",
     });
     if (decision === "reload") {
