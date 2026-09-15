@@ -260,6 +260,7 @@ export function registerSpaceRoutes(
         .map((key) => hub.presence.find(key)?.actorId ?? key),
     });
 
+    let lastNote = 0;
     socket.on("message", (raw: Buffer | string) => {
       const message = parseClientMessage(raw.toString());
       // A frame we cannot read is dropped. It is not evidence the socket is
@@ -287,6 +288,19 @@ export function registerSpaceRoutes(
         // The actor id comes from the authenticated session, never the frame:
         // occupants may animate themselves and nobody else.
         hub.presence.animate(actorId, message);
+        return;
+      }
+      if (message.type === "note") {
+        /**
+         * ONE LINE IN THE LOG, at most one every two seconds per socket. A
+         * headset cannot show anybody its console; this is how something only
+         * the headset can see reaches whoever is reading the journal.
+         */
+        const now = Date.now();
+        if (now - lastNote > 2_000) {
+          lastNote = now;
+          request.log.info({ actorId, note: message.note }, "space client note");
+        }
         return;
       }
       if (message.type === "touch") {

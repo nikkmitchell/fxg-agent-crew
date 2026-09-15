@@ -17,17 +17,19 @@ import {
   HOLD_TO_SHOW_MS,
   IDLE,
   LET_GO_GRACE_MS,
+  MAX_STEP_PER_FRAME,
   MAX_TURN_RATE,
   MAX_WALK_SPEED,
   ballAbove,
+  believableStep,
   palmUpness,
   rotate,
   stepJoystick,
   turnAbout,
   turnRate,
+  type Quat,
   walkSpeedFor,
   walkVelocity,
-  type Quat,
 } from "./palm-joystick";
 
 const q = (euler: THREE.Euler): Quat => {
@@ -186,5 +188,16 @@ describe("the palm joystick", () => {
     const ball = ballAbove(at(0, 1, 0));
     expect(ball.y - 1).toBeGreaterThan(0.03);
     expect(ball.y - 1).toBeLessThan(0.12);
+  });
+});
+
+describe("how far one frame may move you", () => {
+  it("allows a fast walking step and refuses a fling", () => {
+    // 3 m/s for a tenth of a second is 0.3 m, the fastest the joystick goes.
+    expect(believableStep({ x: 0, z: 0 }, { x: 0.3, z: 0 })).toBe(true);
+    expect(believableStep({ x: 1, z: 1 }, { x: 1.2, z: 1.2 })).toBe(true);
+    // A head mislocated by metres turns the player about the wrong pivot.
+    expect(believableStep({ x: 0, z: 0 }, { x: 1.4, z: -2.6 })).toBe(false);
+    expect(believableStep({ x: 0, z: 0 }, { x: 0, z: MAX_STEP_PER_FRAME + 0.001 })).toBe(false);
   });
 });

@@ -203,3 +203,30 @@ export function turnAbout(
     yaw: origin.yaw + angle,
   };
 }
+
+/**
+ * How far locomotion may move the player in ONE frame.
+ *
+ * Nikk, twice in one session: "I just automatically teleport on my own without
+ * me doing anything", and "I was right in front of you and now I've been
+ * teleported off to the side". Walking and turning are both worked out from
+ * measured poses, and a headset that briefly mislocates a hand or a head
+ * reports a pose metres from the real one. Turning in place is the dangerous
+ * one: it swings the player's frame about the head, so a head reported in the
+ * wrong place turns them about the wrong pivot and throws them across the room.
+ *
+ * A step at the fastest walk is 0.3 m per tenth of a second, and a real turn
+ * about a real head moves the origin by a fraction of that. So a frame that
+ * would move somebody further than this did not come from anything they did,
+ * and refusing it costs a person nothing they can feel.
+ */
+export const MAX_STEP_PER_FRAME = 0.5;
+
+/** Whether a frame's movement is small enough to have come from a person. */
+export function believableStep(
+  from: { x: number; z: number },
+  to: { x: number; z: number },
+  limit = MAX_STEP_PER_FRAME,
+): boolean {
+  return Math.hypot(to.x - from.x, to.z - from.z) <= limit;
+}

@@ -264,7 +264,22 @@ export type ClientMessage =
   /** My microphone is on, or is off. Told to the room, not asked of it. */
   | { type: "voicePresence"; on: boolean }
   /** My hand touched this agent, on this part. The server stamps who I am. */
-  | { type: "touch"; agentId: string; part: TouchPart };
+  | { type: "touch"; agentId: string; part: TouchPart }
+  /**
+   * Something happened in the headset that only the headset can see.
+   *
+   * WHY THIS EXISTS. Nikk: "I just automatically teleport on my own without me
+   * doing anything." A headset has no console anybody can read, so the two
+   * candidate causes — the device re-centring its tracking, and a tracking
+   * glitch throwing the locomotion maths — were indistinguishable from the
+   * outside. This puts one short line in the server log, with the session's own
+   * name on it, so the next occurrence says which it was.
+   *
+   * Deliberately tiny: a short string from a closed set, logged and nothing
+   * else. It reaches no other client, changes no state, and is rate-limited on
+   * the server.
+   */
+  | { type: "note"; note: string };
 
 /**
  * Parse a client frame without trusting any of it.
@@ -313,6 +328,12 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     if (typeof message.agentId !== "string" || message.agentId.length === 0 || message.agentId.length > 200) return null;
     if (!isTouchPart(message.part)) return null;
     return { type: "touch", agentId: message.agentId, part: message.part };
+  }
+  if (message.type === "note") {
+    if (typeof message.note !== "string" || message.note.length === 0) return null;
+    // Trimmed rather than refused: a note is diagnostics, and a long one is
+    // still worth its first two hundred characters.
+    return { type: "note", note: message.note.slice(0, 200) };
   }
   if (message.type === "voice") {
     if (typeof message.to !== "string" || message.to.length === 0) return null;

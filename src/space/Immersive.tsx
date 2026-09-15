@@ -14,6 +14,7 @@ import { heldHand, NO_HAND, type Held } from "./hand-hold";
 import { gripToWristConvention } from "./tracked-body";
 import {
   IDLE,
+  believableStep,
   stepJoystick,
   turnAbout,
   turnRate,
@@ -22,6 +23,8 @@ import {
   type Quat,
   type Vec,
 } from "./palm-joystick";
+import { compensateReset, type Placed } from "./recenter";
+import { holdReload } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
 import type { RoomFeed } from "./useRoomFeed";
@@ -166,6 +169,24 @@ export function ImmersivePlayer({
    */
   const bodyRef = useRef<{ at: Vec3; yaw: number } | null>(null);
   const bodyAnchor = useCallback(() => bodyRef.current, []);
+
+  /**
+   * Where the head was standing in the room last frame, and a reset waiting to
+   * be undone. See recenter.ts.
+   */
+  const headRoom = useRef<Placed | null>(null);
+  const recentre = useRef<Placed | null>(null);
+  /** Say something only the headset can see into the server's log. See the `note` frame. */
+  const tell = useCallback((note: string) => send({ type: "note", note }), [send]);
+  useEffect(() => {
+    if (!originSpace) return;
+    const onReset = () => {
+      // The head's last known place in the room, to put the person back on.
+      recentre.current = headRoom.current;
+    };
+    originSpace.addEventListener("reset", onReset);
+    return () => originSpace.removeEventListener("reset", onReset);
+  }, [originSpace]);
 
   useXRControllerLocomotion(
     origin,
@@ -317,7 +338,53 @@ export function ImmersivePlayer({
     const group = origin.current;
     if (!group) return;
 
+    /**
+     * WALKING AND TURNING, WITH A LIMIT ON HOW FAR ONE FRAME MAY MOVE YOU.
+     * See believableStep: a mislocated hand or head is the likeliest cause of
+     * Nikk being "teleported off to the side", and no person walks half a
+     * metre in a frame.
+     */
+    const stood = { x: group.position.x, z: group.position.z, yaw: group.rotation.y };
     palmJoystick(group, frame, Math.min(delta, 0.1));
+    if (!believableStep(stood, group.position)) {
+      group.position.x = stood.x;
+      group.position.z = stood.z;
+      group.rotation.y = stood.yaw;
+      tell("locomotion refused: a frame tried to move me far further than a step");
+    }
+
+    /**
+     * A HEADSET THAT RE-CENTRES MUST NOT MOVE YOU IN THE ROOM. See recenter.ts:
+     * the device moves the space every pose is measured in, and unless the
+     * player's frame moves with it the person is left standing somewhere else.
+     * Nikk: "I just automatically teleport on my own without me doing
+     * anything... over into this area where I am right now."
+     */
+    camera.getWorldPosition(scratch.position);
+    camera.getWorldQuaternion(scratch.quaternion);
+    const facing = new THREE.Vector3(0, 0, -1).applyQuaternion(scratch.quaternion);
+    const headNow = {
+      x: scratch.position.x,
+      z: scratch.position.z,
+      yaw: Math.atan2(-facing.x, -facing.z),
+    };
+    const wasAt = recentre.current;
+    if (wasAt) {
+      recentre.current = null;
+      tell("the headset re-centred; putting you back where you were standing");
+      const put = compensateReset(
+        { x: group.position.x, z: group.position.z, yaw: group.rotation.y },
+        wasAt,
+        headNow,
+      );
+      group.position.x = put.x;
+      group.position.z = put.z;
+      group.rotation.y = put.yaw;
+      group.updateWorldMatrix(true, false);
+      headRoom.current = wasAt;
+    } else {
+      headRoom.current = headNow;
+    }
 
     const inside = clampToRoom({ x: group.position.x, z: group.position.z });
     group.position.x = inside.x;
@@ -567,6 +634,19 @@ export function Immersive({
   useEffect(() => {
     onChange(Boolean(session));
   }, [session, onChange]);
+  /**
+   * NO RELOAD WHILE SOMEBODY IS IN A HEADSET.
+   *
+   * A deploy reloads every open page so nobody is left on yesterday's build —
+   * but a reload ends an immersive session, which drops the wearer out of the
+   * room and back into a browser window they then have to find and press twice.
+   * It waits until the session ends. Several deploys land in an hour here, so
+   * this was a real chance of interrupting somebody mid-sentence.
+   */
+  useEffect(() => {
+    holdReload("xr-session", Boolean(session));
+    return () => holdReload("xr-session", false);
+  }, [session]);
   return session ? (
     <ImmersivePlayer
       comfort={comfort}
