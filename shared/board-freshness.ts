@@ -25,8 +25,17 @@ export type TaskFreshness = {
   previousStatus?: string;
 };
 
-/** How long a changed card takes to fade back to normal. */
-export const FRESH_FADE_MS = 60_000;
+/**
+ * How long a changed card takes to fade back to normal.
+ *
+ * AN HOUR, not a minute. Nikk: "I like that feature but it's much too slow" —
+ * meaning the fade was too FAST to be useful: "let's make the new card glow
+ * from the initial color to fading out to the oldest color to go over an hour,
+ * that way it's very easy for users to see what is there and what has been
+ * sitting there." A minute only tells somebody standing at the board at that
+ * moment; an hour tells anybody walking in what has moved this morning.
+ */
+export const FRESH_FADE_MS = 60 * 60_000;
 /** Never keep a change hidden longer than this, whether or not its agent ever arrives. */
 export const REVEAL_CAP_MS = 20_000;
 /**
@@ -73,7 +82,30 @@ export function foldDone<T extends { fresh?: TaskFreshness }>(
   return { shown, folded };
 }
 
-/** Whether anything on the board is still changing: a pending reveal or a card still glowing. */
+/**
+ * How long after a change the board keeps asking the server for more.
+ *
+ * SHORTER THAN THE GLOW, deliberately. The glow now fades over an hour so
+ * anybody walking up can see what moved this morning — but a card fading over
+ * an hour does not need a request every two seconds for that hour. What needs
+ * a fast poll is the minute around a change: a reveal waiting for its agent to
+ * reach the board, and the card landing.
+ */
+export const LIVELY_MS = 45_000;
+
+/**
+ * Whether the board should keep asking the server: a change is waiting for its
+ * agent to arrive, or one landed moments ago.
+ */
 export function boardIsLively(tasks: Array<{ fresh?: TaskFreshness }>, nowMs: number): boolean {
-  return tasks.some((task) => task.fresh && (task.fresh.revealAt === null || glowAt(nowMs, task.fresh) > 0));
+  return tasks.some((task) => {
+    if (!task.fresh) return false;
+    if (task.fresh.revealAt === null) return true;
+    return nowMs - Date.parse(task.fresh.revealAt) < LIVELY_MS;
+  });
+}
+
+/** Whether anything is still glowing, so the colour needs redrawing. */
+export function boardIsGlowing(tasks: Array<{ fresh?: TaskFreshness }>, nowMs: number): boolean {
+  return tasks.some((task) => glowAt(nowMs, task.fresh) > 0);
 }

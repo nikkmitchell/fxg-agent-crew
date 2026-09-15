@@ -1,3 +1,5 @@
+import { FRESH_FADE_MS } from "../../shared/board-freshness.js";
+
 type Db = import("node:sqlite").DatabaseSync;
 
 /**

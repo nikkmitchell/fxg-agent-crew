@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DONE_LIMIT, FRESH_FADE_MS, boardIsLively, foldDone, glowAt, shownStatus } from "./board-freshness";
+import { DONE_LIMIT, FRESH_FADE_MS, LIVELY_MS, boardIsGlowing, boardIsLively, foldDone, glowAt, shownStatus } from "./board-freshness";
 
 const at = (ms: number) => new Date(ms).toISOString();
 
@@ -57,5 +57,31 @@ describe("the done column", () => {
     const now = 1_000_000;
     const newestFirst = [...Array.from({ length: 15 }, (_, i) => card(i)), card(99, { changedAt: at(now - 5_000), revealAt: at(now - 4_000) })];
     expect(foldDone(newestFirst, now).shown.map((c) => c.id)).toContain(99);
+  });
+});
+
+describe("how long the board keeps asking, versus how long it glows", () => {
+  const at = (ms: number) => new Date(ms).toISOString();
+
+  it("glows for an hour, so a morning's moves are visible to somebody walking in", () => {
+    // Nikk: "much too slow" meant too fast to be useful — "let's make the new
+    // card glow ... go over an hour".
+    expect(FRESH_FADE_MS).toBe(60 * 60_000);
+    const fresh = { changedAt: at(0), revealAt: at(0) };
+    expect(glowAt(30 * 60_000, fresh)).toBeCloseTo(0.5, 9);
+    expect(glowAt(59 * 60_000, fresh)).toBeGreaterThan(0);
+    expect(glowAt(61 * 60_000, fresh)).toBe(0);
+  });
+
+  it("stops asking the server long before it stops glowing", () => {
+    const landed = [{ fresh: { changedAt: at(0), revealAt: at(0) } }];
+    expect(boardIsLively(landed, LIVELY_MS - 1_000), "just landed").toBe(true);
+    expect(boardIsLively(landed, LIVELY_MS + 1_000), "a minute later").toBe(false);
+    expect(boardIsGlowing(landed, LIVELY_MS + 1_000), "still glowing, though").toBe(true);
+    expect(boardIsGlowing(landed, FRESH_FADE_MS + 1_000)).toBe(false);
+  });
+
+  it("keeps asking while a change waits for its agent to reach the board", () => {
+    expect(boardIsLively([{ fresh: { changedAt: at(0), revealAt: null } }], 10 * 60_000)).toBe(true);
   });
 });
