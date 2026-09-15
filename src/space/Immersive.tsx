@@ -11,7 +11,7 @@ import * as THREE from "three";
 import { ROOM, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
-import { gripToWristConvention } from "./tracked-body";
+import { StandingHeight, gripToWristConvention } from "./tracked-body";
 import {
   IDLE,
   believableStep,
@@ -178,6 +178,21 @@ export function ImmersivePlayer({
   const recentre = useRef<Placed | null>(null);
   /** Say something only the headset can see into the server's log. See the `note` frame. */
   const tell = useCallback((note: string) => send({ type: "note", note }), [send]);
+  /**
+   * HOW TALL I AM, measured here and told to the room.
+   *
+   * Nikk, sitting in a chair: "on joining the room it should take your current
+   * height position and set that as how tall you are... so if you're sitting or
+   * standing it will be set naturally", and "add in a setting where you can
+   * reset head position at any time". Every viewer used to guess this from the
+   * head heights it happened to see; this device was there when the person
+   * arrived, so it is the one that knows. See StandingHeight.
+   */
+  const standing = useRef(new StandingHeight());
+  const resetStanding = useCallback(() => {
+    standing.current.reset();
+    tell("head position reset; measuring from where the head is now");
+  }, [tell]);
   useEffect(() => {
     if (!originSpace) return;
     const onReset = () => {
@@ -476,11 +491,13 @@ export function ImmersivePlayer({
       };
     }
 
+    const myHeight = head ? standing.current.update(head.p.y, Math.min(delta, 0.25)) : standing.current.current;
     send({
       type: "move",
       at,
       facing: group.rotation.y,
       ...(head ? { head } : {}),
+      ...(myHeight !== null ? { standing: myHeight } : {}),
       hands: { left: held.current.left.pose, right: held.current.right.pose },
     });
   });
@@ -519,6 +536,7 @@ export function ImmersivePlayer({
       {/* The controls you need while standing in the room. In front of you at
         body level, not on a hand — see the note at the top of RoomControls. */}
       <RoomControls
+        onResetStanding={resetStanding}
         anchor={bodyAnchor}
         you={you}
         groupRoom={groupRoom}

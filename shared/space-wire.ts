@@ -100,6 +100,8 @@ export type WirePerson = {
    * position comes from the audit trail and who has no head to track.
    */
   head: Pose | null;
+  /** Their own measured standing height in metres, or null if they did not say. */
+  standing?: number | null;
   /**
    * The hands, when the device tracks them.
    *
@@ -248,6 +250,19 @@ export type ClientMessage =
       facing: number;
       head?: Pose;
       hands?: { left: Pose | null; right: Pose | null };
+      /**
+       * How tall the sender is, in metres, as their own device measured it.
+       *
+       * WHY THE SENDER DECIDES. Every viewer used to work this out for itself
+       * from the head heights it saw, so somebody who joined sitting down was
+       * drawn differently by each viewer and by none of them correctly. The
+       * wearer's device is the only thing that knows whether that head at
+       * 1.15 m is a short person standing or a tall one in a chair — it was
+       * there when they arrived, and it has a "measure again" button.
+       * Absent means "work it out", which is what a browser window with a
+       * mouse still needs.
+       */
+      standing?: number;
     }
   /** Still here. Cheaper than a move when standing still. */
   | { type: "ping" }
@@ -307,10 +322,18 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     if (!at || !isFinite(message.facing)) return null;
     const head = pose(message.head);
     const hands = message.hands as Record<string, unknown> | undefined;
+    // A height outside what a person can be is a tracking glitch, not a
+    // person; dropped like a malformed head rather than refusing the frame.
+    const standing =
+      typeof message.standing === "number" && isFinite(message.standing) &&
+      message.standing >= 0.6 && message.standing <= 2.5
+        ? message.standing
+        : undefined;
     return {
       type: "move",
       at,
       facing: message.facing as number,
+      ...(standing !== undefined ? { standing } : {}),
       // A malformed head is dropped rather than rejecting the whole frame: the
       // position in it is still good, and a client with a broken tracker should
       // still be able to walk around.

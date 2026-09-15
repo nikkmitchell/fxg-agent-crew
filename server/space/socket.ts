@@ -84,6 +84,7 @@ export class SpaceHub {
         because: occupant.because,
         connected: occupant.connected,
         head: occupant.head,
+        standing: occupant.standing,
         hands: occupant.hands,
         attending: occupant.attending ? { utteranceId: occupant.attending.utteranceId } : null,
         avatar: occupant.avatar,
@@ -353,7 +354,9 @@ export function registerSpaceRoutes(
         // it. Only a client that mentions hands changes them.
         ...("head" in message ? { head: message.head ?? null } : {}),
         ...(message.hands ? { hands: message.hands } : {}),
-      });
+      },
+      // The sender's own measured height, when their device measures one.
+      message.standing);
     });
 
     socket.on("close", () => hub.detach(actorId, socket));

@@ -167,6 +167,7 @@ export function RoomControls({
   showingChoices,
   agents,
   positionOf,
+  onResetStanding,
 }: {
   anchor: () => { at: { x: number; z: number }; yaw: number } | null;
   you: string | null;
@@ -193,6 +194,13 @@ export function RoomControls({
   agents: string[];
   /** Where somebody is standing, for reading them aloud as loud as they are near. */
   positionOf: (actorId: string) => { x: number; z: number } | null;
+  /**
+   * Measure the wearer's height again from where their head is now.
+   *
+   * Nikk asked for it as "reset head position": sit down, tap it, and the room
+   * draws you sitting rather than as a standing person squatting.
+   */
+  onResetStanding: () => void;
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
@@ -865,6 +873,13 @@ export function RoomControls({
             const next = !handsShown;
             setHandsShown(next);
             showHandModels(next);
+          },
+        },
+        {
+          label: "Reset head position",
+          onTap: () => {
+            onResetStanding();
+            flash("Measuring your height from where your head is now.");
           },
         },
         {

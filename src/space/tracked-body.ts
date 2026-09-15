@@ -157,22 +157,63 @@ export function measureRig(rig: Rig, scene: THREE.Object3D): RigSpec {
  * no lower than 1.5 m draws them crouched instead; a genuinely shorter person
  * settles to their own height within a minute.
  */
+/**
+ * How tall somebody is, decided when they arrive rather than assumed.
+ *
+ * WHY NOT THE HEAD EVERY FRAME. A head is where it is; a body is a height. Pose
+ * a body from the live head and a crouch shrinks the whole person instead of
+ * bending their knees.
+ *
+ * WHY NOT A FLOOR OF 1.5 m EITHER, which is what this did until 2026-09-15. It
+ * was there because the first reading after a session starts can be nonsense,
+ * and it made SITTING IMPOSSIBLE: Nikk, in a chair, was drawn as a 1.5 m person
+ * squatting. "On joining the room it should take your current height position
+ * and set that as how tall you are, and you should be standing at that
+ * position, so if you're sitting or standing it will be set naturally."
+ *
+ * SO: SETTLE, THEN HOLD. For the first second of plausible readings it takes
+ * the tallest it has seen, which rides out one bad frame without needing to
+ * assume anybody's height. After that the height holds: standing up raises it
+ * at once, and it sinks slowly so that a calibration taken too high corrects
+ * itself rather than sticking. A reading below `min` is not a head — it is a
+ * device that has not located one — and is ignored entirely.
+ *
+ * `reset()` starts the settling again, which is the "reset head position" row
+ * in the headset settings: stand or sit as you mean to be, and tap it.
+ */
 export class StandingHeight {
   private value: number | null = null;
+  /** Seconds of plausible readings so far, while settling. */
+  private settled = 0;
+
   constructor(
     private readonly sinkPerSecond = 0.003,
-    private readonly min = 1.0,
+    private readonly min = 0.6,
     private readonly max = 2.2,
-    private readonly startAtLeast = 1.5,
+    private readonly settleSeconds = 1,
   ) {}
 
   update(headY: number, dt: number): number {
-    const clamped = Math.max(this.min, Math.min(this.max, headY));
-    this.value =
-      this.value === null
-        ? Math.max(clamped, this.startAtLeast)
-        : Math.max(this.value - this.sinkPerSecond * dt, clamped);
+    if (!(headY > this.min)) return this.value ?? this.min;
+    const clamped = Math.min(this.max, headY);
+    if (this.value === null) {
+      this.value = clamped;
+      this.settled = 0;
+      return this.value;
+    }
+    if (this.settled < this.settleSeconds) {
+      this.settled += dt;
+      this.value = Math.max(this.value, clamped);
+      return this.value;
+    }
+    this.value = Math.max(this.value - this.sinkPerSecond * dt, clamped);
     return this.value;
+  }
+
+  /** Measure again from now, wherever the head is. */
+  reset(): void {
+    this.value = null;
+    this.settled = 0;
   }
 
   get current(): number | null {

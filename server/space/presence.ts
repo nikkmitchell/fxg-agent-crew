@@ -77,6 +77,8 @@ export type Occupant = {
    * room says so by settling them rather than by claiming they are asleep.
    */
   lastActed: number | null;
+  /** Their own measured standing height in metres, or null if never reported. */
+  standing: number | null;
   /** True once the actor has named its own posture, which then stops being inferred. */
   declaredPosture: boolean;
   /** When that posture was named, for letting an unattended "thinking" lapse. */
@@ -201,6 +203,7 @@ export class Presence {
       speakingTo: null,
       avatar: { ...DEFAULT_AVATAR_STATE },
       lastActed: null,
+      standing: null,
       declaredPosture: false,
       declaredAt: null,
       connected,
@@ -250,9 +253,16 @@ export class Presence {
      * rather than leaving the last pair hanging in the air.
      */
     tracked?: { head?: Pose | null; hands?: { left: Pose | null; right: Pose | null } },
+    /**
+     * How tall they say they are. UNDEFINED MEANS UNCHANGED, like the tracked
+     * poses above: a client that does not measure heights must not erase the
+     * one this person's headset reported.
+     */
+    standing?: number,
   ): void {
     const occupant = this.occupants.get(actorKey(actorId));
     if (!occupant) return;
+    if (standing !== undefined) occupant.standing = standing;
     const clamped = clampToRoom(at);
     occupant.at = clamped;
     occupant.heading = clamped;

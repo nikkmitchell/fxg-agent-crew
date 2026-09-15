@@ -155,17 +155,49 @@ describe("a body from a headset's three points", () => {
 });
 
 describe("the parts underneath", () => {
-  it("remembers standing height through a crouch, and corrects a low first reading", () => {
+  it("remembers standing height through a crouch", () => {
     const height = new StandingHeight();
     expect(height.update(1.7, 0)).toBeCloseTo(1.7, 9);
+    // A crouch bends the knees; it does not make a shorter person.
     expect(height.update(1.2, 1)).toBeGreaterThan(1.69);
+    expect(height.update(1.72, 0.1), "standing taller is believed at once").toBeCloseTo(1.72, 9);
+  });
+
+  it("takes the height somebody arrives at, sitting or standing", () => {
+    // Nikk, in a chair, was drawn as a 1.5 m person squatting: this used to
+    // refuse any first reading below 1.5 m. "On joining the room it should take
+    // your current height position and set that as how tall you are."
     const seated = new StandingHeight();
-    expect(seated.update(1.05, 0), "a crouched first reading is not a small person").toBe(1.5);
-    expect(seated.update(1.72, 0.1)).toBeCloseTo(1.72, 9);
+    expect(seated.update(1.15, 0)).toBeCloseTo(1.15, 9);
+    for (let frame = 0; frame < 120; frame += 1) seated.update(1.15, 1 / 60);
+    expect(seated.current!, "still seated, still their seated height").toBeCloseTo(1.15, 2);
+    expect(seated.update(1.68, 1 / 60), "standing up is believed at once").toBeCloseTo(1.68, 9);
+  });
+
+  it("rides out one bad frame while settling, and ignores a head it cannot locate", () => {
+    const height = new StandingHeight();
+    height.update(1.1, 1 / 60);
+    // A single stretched frame during the first second is taken as the height…
+    expect(height.update(1.62, 1 / 60)).toBeCloseTo(1.62, 9);
+    // …and a reading of nothing at all is not a head.
+    expect(height.update(0, 1 / 60)).toBeCloseTo(1.62, 9);
+    expect(height.update(-1, 1 / 60)).toBeCloseTo(1.62, 9);
+  });
+
+  it("measures again when asked, from wherever the head is now", () => {
+    const height = new StandingHeight();
+    height.update(1.75, 0);
+    for (let frame = 0; frame < 120; frame += 1) height.update(1.75, 1 / 60);
+    height.reset();
+    expect(height.current).toBeNull();
+    expect(height.update(1.2, 1 / 60), "sat down and tapped reset").toBeCloseTo(1.2, 9);
+  });
+
+  it("settles to a shorter person's own height rather than sticking high", () => {
     const shorter = new StandingHeight();
-    shorter.update(1.4, 0);
-    for (let second = 0; second < 60; second += 1) shorter.update(1.4, 1);
-    expect(shorter.current!, "a shorter person settles to their own height").toBeCloseTo(1.4, 2);
+    shorter.update(1.9, 0);
+    for (let second = 0; second < 300; second += 1) shorter.update(1.4, 1);
+    expect(shorter.current!).toBeCloseTo(1.4, 2);
   });
 
   it("maps a controller's grip to the hand convention: palm facing in toward the body", () => {

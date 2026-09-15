@@ -257,7 +257,18 @@ export function VrmBody({
      * this frame, so crouching bends the knees instead of shrinking them.
      */
     const inHeadset = person.kind !== "agent" && person.head !== null && tracked.current !== null;
-    const wantedHead = inHeadset ? standing.current.update(person.head!.p.y, delta) : headOf(person).y;
+    /**
+     * THEIR OWN MEASUREMENT FIRST. A headset tells the room how tall its wearer
+     * is (the `standing` field on the wire): it was there when they arrived and
+     * it has a "reset head position" button, so it knows whether a head at
+     * 1.15 m is a short person standing or a tall one in a chair. Working it
+     * out from the heights we happen to see is the fallback for a client that
+     * does not measure — and it used to be the only answer, which is why Nikk,
+     * sitting down, was drawn squatting.
+     */
+    const wantedHead = inHeadset
+      ? person.standing ?? standing.current.update(person.head!.p.y, delta)
+      : headOf(person).y;
     /**
      * HALF THE HEIGHT THE MEASUREMENT ASKS FOR.
      *
