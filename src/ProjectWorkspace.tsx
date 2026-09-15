@@ -6,7 +6,8 @@ import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
 import { BOARD_COLUMNS, calculateProjectProgress } from "./project-model";
-import { byPriority, nextUnclaimed, priorityLabel } from "./priority";
+import { nextUnclaimed, priorityLabel } from "./priority";
+import { byArrival } from "./board-order";
 import { ROLES, canManageMembership, membersOf, type Membership, type Role } from "./membership";
 import { Identity } from "./Identity";
 import type { ActorProfile } from "./profiles";
@@ -887,10 +888,11 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             */}
           <div className="board-columns">
             {BOARD_COLUMNS.map((column) => {
-              // Most urgent first, untriaged last but not treated as lowest.
-              // Drawn where the ROOM should see them: a card whose agent is still
-              // walking over stays in its old column (or out, if it is new).
-              const inColumn = byPriority(tasks.filter((task) => shownStatus(task) === column.status));
+              // A stack standing on its title, newest arrival at the bottom —
+              // see board-order.ts. Drawn where the ROOM should see them: a card
+              // whose agent is still walking over stays in its old column (or
+              // out, if it is new).
+              const inColumn = byArrival(tasks.filter((task) => shownStatus(task) === column.status));
               const hiddenOld = column.status === "done" && (still || !showOldDone)
                 ? inColumn.filter((task) => longFinished(task, nowMs) && glowAt(nowMs, task.fresh) === 0)
                 : [];
