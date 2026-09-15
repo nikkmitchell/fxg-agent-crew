@@ -967,11 +967,32 @@ export function RoomControls({
           label: destination === "room" ? "To: the room only" : "To: the room and the agents",
           onTap: () => setDestination((d) => (d === "room" ? "room-and-agents" : "room")),
         },
-        {
-          label: hearReplies ? "Replies read aloud" : "Replies stay silent",
-          tone: hearReplies ? "live" : "normal",
-          onTap: () => setHearReplies((on) => !on),
-        },
+        /**
+         * A SWITCH THAT CANNOT DO ANYTHING SAYS SO.
+         *
+         * Measured on baiwei's Quest: `speech here: recognition NO; synthesis
+         * no`. Quest Browser gives a page no speech synthesis at all — which
+         * contradicts the release notes Nikk found saying it arrived in version
+         * 40.1, and is exactly why the room reports what it finds on the device
+         * instead of what a page says about it.
+         *
+         * So on that headset this row read "Replies read aloud", in the live
+         * colour, above a room that physically cannot make a sound. It is the
+         * same fault as the hand models that were drawn while the setting said
+         * hidden: a setting that lies is worse than no setting, because it
+         * sends somebody looking for a volume control that does not exist.
+         */
+        capabilities.synthesis
+          ? {
+              label: hearReplies ? "Replies read aloud" : "Replies stay silent",
+              tone: hearReplies ? "live" as const : "normal" as const,
+              onTap: () => setHearReplies((on) => !on),
+            }
+          : {
+              label: "This headset's browser cannot speak",
+              tone: "muted" as const,
+              onTap: () => flash("Quest Browser gives a page no speech synthesis. The transcript is still written."),
+            },
         ...(alwaysOn
           ? []
           : [
