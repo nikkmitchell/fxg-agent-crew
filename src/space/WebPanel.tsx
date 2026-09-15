@@ -1,6 +1,6 @@
 import { Html } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GROWING_PANELS, grownPanel } from "../../shared/panel-growth";
+import { GROWING_PANELS, grownPanel, naturalHeight } from "../../shared/panel-growth";
 import type { Station } from "../../shared/space-layout";
 
 /**
@@ -75,9 +75,20 @@ export function WebPanel({
   useEffect(() => {
     if (!grows) return;
     const measure = () => {
-      const page = frame.current?.contentDocument?.querySelector(".app-embed") as HTMLElement | null;
-      if (!page) return;
-      const next = Math.ceil(page.scrollHeight);
+      const doc = frame.current?.contentDocument;
+      const page = doc?.querySelector(".app-embed") as HTMLElement | null;
+      if (!doc || !page) return;
+      // Less the stretch the board adds to fill its window: see naturalHeight.
+      const spare = Array.from(doc.querySelectorAll<HTMLElement>(".column-cards"), (cards) => {
+        const style = doc.defaultView?.getComputedStyle(cards);
+        const padding = style ? parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) : 0;
+        const kids = Array.from(cards.children, (kid) => kid.getBoundingClientRect());
+        const content = kids.length
+          ? Math.max(...kids.map((box) => box.bottom)) - Math.min(...kids.map((box) => box.top))
+          : 0;
+        return cards.clientHeight - Math.max(60, content + padding);
+      });
+      const next = Math.ceil(naturalHeight(page.scrollHeight, spare));
       setContentPx((previous) => (previous !== null && Math.abs(previous - next) < 8 ? previous : next));
     };
     const timer = window.setInterval(measure, 1500);

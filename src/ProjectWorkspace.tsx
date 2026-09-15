@@ -16,7 +16,7 @@ import { MoodBoard, type Board } from "./MoodBoard";
 import { briefBudget, describeBudget } from "../shared/message-budget";
 import { ApiError } from "./api-request";
 import { bff } from "./bff-client";
-import { boardIsLively, foldDone, glowAt, shownStatus } from "../shared/board-freshness";
+import { DONE_LIMIT, boardIsLively, foldDone, glowAt, shownStatus } from "../shared/board-freshness";
 
 
 type ProjectState = {
@@ -307,7 +307,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   }, [state]);
   /** Done cards opened back up from their one-line summary, by id. */
   const [openedDone, setOpenedDone] = useState<Set<string>>(() => new Set());
-  /** Whether done cards past the latest ten are shown. Remembered in this browser. */
+  /** Whether done cards past the latest few are shown. Remembered in this browser. */
   const [showOldDone, setShowOldDone] = useState(() => {
     try {
       return window.localStorage.getItem("saha.board.show-old-done") === "yes";
@@ -645,7 +645,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   );
 
   return (
-    <section className={`project-workspace${tab === "board" || tab === "mood" ? " project-workspace--wide" : ""}`} aria-busy={busy}>
+    <section className={`project-workspace${tab === "board" || tab === "mood" ? " project-workspace--wide" : ""}${tab === "board" ? " project-workspace--board" : ""}`} aria-busy={busy}>
       {error ? <p className="project-error" role="alert">{error}</p> : null}
 
       {/*
@@ -893,7 +893,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
               // whose agent is still walking over stays in its old column (or
               // out, if it is new).
               const inColumn = byArrival(tasks.filter((task) => shownStatus(task) === column.status));
-              // DONE SHOWS AT MOST TEN, the most recently finished; the rest
+              // DONE SHOWS AT MOST FIVE, the most recently finished; the rest
               // fold behind a line that opens them. See foldDone.
               const done = column.status === "done" ? foldDone(inColumn, nowMs) : null;
               const hiddenOld = done && (still || !showOldDone) ? done.folded : [];
@@ -936,14 +936,14 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                       ),
                     )}
 
-                    {/* Past the latest ten, one line that opens the rest. It
+                    {/* Past the latest few, one line that opens the rest. It
                         sits above the stack, beside the oldest cards shown. */}
                     {done && done.folded.length > 0 ? (
                       still ? (
                         <p className="done-older-note">{done.folded.length} finished earlier, not shown</p>
                       ) : (
                         <button type="button" className="done-older-toggle" onClick={toggleOldDone}>
-                          {showOldDone ? "Show only the latest 10" : `Show ${done.folded.length} older`}
+                          {showOldDone ? `Show only the latest ${DONE_LIMIT}` : `Show ${done.folded.length} older`}
                         </button>
                       )
                     ) : null}

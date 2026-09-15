@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_GROWTH, grownPanel } from "./panel-growth";
+import { MAX_GROWTH, grownPanel, naturalHeight } from "./panel-growth";
 
 describe("the task board grows with its cards", () => {
   it("stays its set size while everything fits", () => {
@@ -16,5 +16,19 @@ describe("the task board grows with its cards", () => {
 
   it("stops at four times its set height", () => {
     expect(grownPanel(2.6, 100).height).toBeCloseTo(2.6 * MAX_GROWTH, 9);
+  });
+});
+
+describe("how tall a stretched board really is", () => {
+  it("takes off the empty space every column shares, so a panel can shrink back", () => {
+    // The board fills its window. A 1200 px page whose fullest column still
+    // has 300 px spare needs 900 px, not the 1200 it is drawn at.
+    expect(naturalHeight(1200, [300, 850, 1000])).toBe(900);
+  });
+
+  it("is the page height when some column is full, or when there are no columns", () => {
+    expect(naturalHeight(1600, [0, 400])).toBe(1600);
+    expect(naturalHeight(800, [])).toBe(800);
+    expect(naturalHeight(800, [-5, 20])).toBe(800);
   });
 });

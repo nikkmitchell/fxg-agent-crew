@@ -436,6 +436,14 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
  * rather than the cap being removed for everyone. */
 .project-workspace--wide { max-width: none; }
 
+/* THE BOARD FILLS THE WINDOW, so its titles are on the bottom edge. Nikk: "it
+   currently starts at the middle but can we have it begin from the very
+   bottom". `.board` was already `flex: 1`, but the section around it was a plain
+   block, so the board stopped at the height of its tallest column and the
+   titles sat halfway down an empty page. The same holds in a room panel, whose
+   page is the embed. */
+.project-workspace--board { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.app-embed:has(> .project-workspace--board) { min-height: 100dvh; display: flex; flex-direction: column; box-sizing: border-box; }
 .board { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .board-bar { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-bottom: 12px; }
 /* The project's name on the board bar. It used to be a <select>; switching is a
