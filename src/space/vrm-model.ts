@@ -76,6 +76,23 @@ const CHOSEN: Readonly<Record<string, string>> = {
   "claude-nikk2mbp": "retroman",
   plumbline: "retroman",
   inkstone: "observer",
+  /**
+   * Lumenfold wears Cool Candle — 100Avatars R2 #165 by Polygonal Mind.
+   *
+   * Lumenfold found it, read the licence out of the file, and asked for it to
+   * be posed before anybody committed it, which is the rule. I read the same
+   * bytes again: VRM 0.x, licenseName CC0, allowedUser Everyone, commercial
+   * Allow, author Polygonal Mind, 50 humanoid bones with every one this room
+   * needs present (only the toes are missing, which nothing here drives).
+   *
+   * POSED AND LOOKED AT, in the harness beside Retroman with the same targets:
+   * it stands about Retroman's height, upright, on its own dish; nothing
+   * deforms, and it takes up less room than any figure we have. Its arms are
+   * inside the wax, so a hand IK target is invisible on it — which costs
+   * nothing for an agent, whose hands are never reported, and would matter for
+   * a person in a headset.
+   */
+  lumenfold: "cool-candle",
   // Shiro, mine. Chosen the long way round, because the short ways have all
   // failed here: I read 300 CC0 names, shortlisted 16, confirmed the licence
   // inside each file, measured every rig, and then stood the seven that
