@@ -29,6 +29,7 @@ import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 import { holdDraft, holdReload, reloadNow, updateWaiting, watchUpdate } from "../update-reload";
 import { createSystemKeyboard, type SystemKeyboard } from "./system-keyboard";
+import { voiceReport } from "./voice-report";
 import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
 
@@ -309,6 +310,42 @@ export function RoomControls({
   const session = useXR((state) => state.session);
   const confidence = useRef<number | undefined>(undefined);
   const capabilities = useMemo(() => speechCapabilities(), []);
+
+  /**
+   * WHAT THIS HEADSET CAN ACTUALLY DO WITH SPEECH, into the journal, once.
+   *
+   * Nikk: "we can do the same as we are doing on AURA, where you push a button
+   * to begin speech to text". On the Aura that button works because that
+   * browser has Web Speech recognition. Quest Browser is documented not to —
+   * and was equally documented not to speak, right up until it did in version
+   * 40.1. Meta's own advice is to feature-detect rather than infer from the
+   * user agent.
+   *
+   * I cannot put the headset on. Rather than build a transcription service on a
+   * guess about a browser I have never opened, the room reports what it found,
+   * from the exact build on the exact device. If recognition turns out to be
+   * there, the button Nikk is asking for already exists and there is nothing to
+   * build; if it is not, the same line says whether a microphone and a recorder
+   * are, which is what a fallback would need.
+   *
+   * Voices are asked for twice: Chromium hands back an empty list until
+   * `voiceschanged`, so the first answer is routinely "0 voices" on a browser
+   * that has plenty.
+   */
+  const reported = useRef(false);
+  useEffect(() => {
+    if (reported.current) return;
+    reported.current = true;
+    onNote(voiceReport());
+    const synth = (globalThis as { speechSynthesis?: EventTarget }).speechSynthesis;
+    if (!synth) return;
+    const again = () => {
+      onNote(`${voiceReport()} (after voiceschanged)`);
+      synth.removeEventListener("voiceschanged", again);
+    };
+    synth.addEventListener("voiceschanged", again);
+    return () => synth.removeEventListener("voiceschanged", again);
+  }, [onNote]);
 
   /** How far away somebody is standing from this person's head, or null if unknown. */
   const distanceTo = (actorId: string): number | null => {
