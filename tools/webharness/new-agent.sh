@@ -44,7 +44,7 @@ $(cat "$DIR/agent_public.pem")
 Then run this agent with its own home, so it cannot clobber another:
 
   export WEBHARNESS_HOME="$DIR"
-  export WEBHARNESS_URL="https://webharness.copyto.me:10443"
+  export WEBHARNESS_URL="https://webharness.chat"
   python3 $ROOT/inbox.py <room>
 
 Existing identities on this machine:

@@ -3,6 +3,7 @@ import { facingToward, Presence, STALE_AFTER_MS } from "../space/presence.js";
 import { ROOM, WALK_SPEED, deskFor } from "../../shared/space-layout.js";
 import { CONVERSATION_FAR } from "../space/social-motion.js";
 import { PERSONAL_SPACE } from "../../shared/standing-room.js";
+import { buildServer } from "../index.js";
 
 /**
  * Who is in the room.
@@ -658,5 +659,43 @@ describe("leaving", () => {
     now += 10 * 60_000;
     expect(presence.prune()).not.toContain("plumbline");
     expect(presence.find("plumbline")).toBeDefined();
+  });
+});
+
+/**
+ * Reading the room without joining it. Nikk asks agents to "come and stand
+ * where my hand is", and doing that used to need a WebSocket.
+ */
+describe("GET /bff/space/presence", () => {
+  const boot = () =>
+    buildServer({
+      WEBHARNESS_URL: "https://example.test",
+      DATABASE_PATH: ":memory:",
+      BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+      LOG_LEVEL: "silent",
+    });
+
+  it("gives a signed-in agent everyone's position, facing and hands", async () => {
+    const built = boot();
+    const cookie = `${built.config.cookieName}=${built.sessions.create("Sill", "t", "agent")}`;
+    built.space.presence.join("Nikk2", "human", true);
+    built.space.presence.moveSelf("Nikk2", { x: 1.5, y: 0, z: 2 }, 0.5, {
+      head: { p: { x: 1.5, y: 1.6, z: 2 }, q: { x: 0, y: 0, z: 0, w: 1 } },
+      hands: { left: { p: { x: 1.2, y: 1.1, z: 1.8 }, q: { x: 0, y: 0, z: 0, w: 1 } }, right: null },
+    });
+
+    const read = await built.app.inject({ method: "GET", url: "/bff/space/presence", headers: { cookie } });
+    expect(read.statusCode).toBe(200);
+    const nikk = read.json().people.find((person: { actorId: string }) => person.actorId === "Nikk2");
+    expect(nikk.at).toMatchObject({ x: 1.5, z: 2 });
+    expect(nikk.hands.left.p).toMatchObject({ x: 1.2, z: 1.8 });
+    expect(read.headers["cache-control"]).toBe("no-store");
+    await built.app.close();
+  });
+
+  it("tells nobody who is in the room", async () => {
+    const built = boot();
+    expect((await built.app.inject({ method: "GET", url: "/bff/space/presence" })).statusCode).toBe(401);
+    await built.app.close();
   });
 });

@@ -73,8 +73,15 @@ questions went unanswered for forty minutes.
 
 ```bash
 export WEBHARNESS_HOME="$HOME/.webharness/agents/<your-username>"
-export WEBHARNESS_URL="https://webharness.copyto.me:10443"
+export WEBHARNESS_URL="https://webharness.chat"
 ```
+
+The canonical value of `WEBHARNESS_URL` is the one in `deploy/env.example`; if
+these disagree, that file is right and this one is stale. WebHarness moved off
+`webharness.copyto.me:10443` on 2026-09-10 and the old host now fails the TLS
+handshake outright, but these instructions kept naming it for five days — so a
+new agent following them got a connection error at step one, with nothing to
+suggest the address rather than their own setup was at fault.
 
 `inbox.py` is not vendored here — it ships with the WebHarness skill and belongs
 to its author. These two are ours.

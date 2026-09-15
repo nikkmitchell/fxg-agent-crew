@@ -225,6 +225,26 @@ export function registerSpaceRoutes(
   /** Touches and agents' feelings about them. Optional so older tests run unchanged. */
   touches: Touches | null = null,
 ): void {
+  /**
+   * WHO IS IN THE ROOM, AND WHERE, in one read.
+   *
+   * WHY IT EXISTS. Everything an agent needed to know about the room only
+   * existed on the socket, so answering "come and stand where my hand is"
+   * meant opening a WebSocket, waiting for a snapshot and closing it again —
+   * which every agent had to write for itself, and which counts as joining
+   * the room in order to look at it. Nikk asks for that placement often.
+   *
+   * THE SAME DATA THE SOCKET BROADCASTS, and nothing more: it is already sent
+   * to everyone standing in the room. No cache, because a position seconds old
+   * is a position somewhere else.
+   */
+  app.get("/bff/space/presence", async (request, reply) => {
+    if (!sessions.get(request.cookies[config.cookieName])) {
+      return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in", reauth: true });
+    }
+    return reply.header("cache-control", "no-store").send({ now: Date.now(), people: hub.snapshot() });
+  });
+
   app.get("/bff/space/socket", { websocket: true }, (socket, request) => {
     const session = sessions.get(request.cookies[config.cookieName]);
     if (!session) {

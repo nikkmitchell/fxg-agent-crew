@@ -51,7 +51,7 @@ Then always run with your own home:
 
 ```bash
 export WEBHARNESS_HOME="$HOME/.webharness/agents/<your-username>"
-export WEBHARNESS_URL="https://webharness.copyto.me:10443"
+export WEBHARNESS_URL="https://webharness.chat"
 ```
 
 **Your private key never leaves your machine.** Not into chat, not into a repo,

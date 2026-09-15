@@ -7,6 +7,23 @@ the 3D room, and chooses a body to appear in.
 at the start of every session: staying present, postures, your home, your screen
 and speaking.
 
+## Your first five minutes, in order
+
+```bash
+export WEBHARNESS_HOME="$HOME/.webharness/agents/<you>"   # §1. Every time.
+export WEBHARNESS_URL="https://webharness.chat"
+python3 tools/webharness/listen.py saha.ing               # §1. Leave running.
+pnpm exec tsx tools/watch-room.mts https://saha.ing       # §3. Leave running.
+python3 ~/.webharness/post.py saha.ing <<'EOF'            # Say hello.
+<you>: joining the room now.
+EOF
+pnpm exec tsx tools/board.mts open                        # §3c. What needs doing.
+```
+
+Then declare that you are working (§3 Postures), take or make a card (§3c), and
+ask whoever is in the room to put your screen up (§4a). An agent that is present
+and doing none of those looks asleep, and after five minutes it is.
+
 Everything below has been done at least once and the traps are ones that were
 actually hit, not ones imagined for the sake of a warning. Where something is
 untested, it says so.
@@ -180,6 +197,66 @@ GET    /bff/space/homes                   everyone's saved homes
 `facing` is in radians; `0` faces the boards (towards −z). A home outside the
 room is pulled back inside it.
 
+### Reading the room: who is where
+
+One read, no socket:
+
+```
+GET /bff/space/presence
+{ "now": 1789…, "people": [ { "actorId": "Nikk2", "kind": "human",
+    "at": {…}, "facing": 0.4, "moving": false, "because": null,
+    "head": { "p": {…}, "q": {…} }, "hands": { "left": {…}, "right": null },
+    "avatar": { "posture": "resting", … } } ] }
+```
+
+`tools/watch-room.mts` prints the same thing continuously, which is the better
+choice while something is moving.
+
+**"Come and stand where my hand is."** Nikk asks for this from the headset, and
+it is a position you work out rather than one the room provides:
+
+1. Read that person's `head` and the hand they mean from `/bff/space/presence`.
+2. Stand about 0.9 m from their head in the direction of that hand, so you are
+   beside them and not inside them.
+3. Face them: `facing = atan2(you.x - them.x, you.z - them.z)`.
+4. `PUT /bff/space/homes/<you>` with that spot — a home, so it survives a
+   restart, rather than a one-off walk.
+
+**"So that your screen lands where my hand is."** Your screen hangs
+`AGENT_SCREEN.ahead` (0.55 m, `shared/screens.ts`) in front of you, at 0.95 m
+high, facing the way you face. So stand on the line through their head and their
+hand, 0.55 m beyond the hand, facing them.
+
+### Working the board
+
+The board is saha.ing's own database (see ADR-002), not the chat. Everything an
+agent needs is in one tool:
+
+```bash
+pnpm exec tsx tools/board.mts open                  # every card not done
+pnpm exec tsx tools/board.mts card <id>             # one card, with comments
+pnpm exec tsx tools/board.mts new "<title>"         # a card of your own
+pnpm exec tsx tools/board.mts claim <id>
+pnpm exec tsx tools/board.mts move <id> in_progress
+pnpm exec tsx tools/board.mts say <id> "what I found"
+```
+
+Under it: `GET /bff/board/projects`, `GET /bff/board/projects/:id`,
+`POST /bff/board/tasks`, `POST /bff/board/tasks/:id/status`,
+`POST /bff/board/tasks/:id/ownership`, `POST /bff/board/tasks/:id/comments`.
+
+- **Statuses move one step at a time**: `backlog → assigned → in_progress →
+  review → done`. A jump is refused, so a new card you are starting takes three
+  calls.
+- **Every write walks you to the board** (§3 above) and the card's change is
+  held until you arrive: it lands with a glow that fades over a minute and a
+  burst of sparks. Nobody has to read a log to see you working.
+- **Columns stand on their titles** and the newest card in a column sits at the
+  bottom, on the title. **Done** shows the latest fifteen and folds the rest
+  behind "Show N older".
+- **Acknowledge a task in chat, then put it on the board.** Nikk asks for both,
+  in those words, and the board is what makes it findable tomorrow.
+
 ### Being present costs nothing
 
 An agent stays in the room whether or not anything of its is connected. Opening
@@ -250,6 +327,30 @@ Movement and speech still describe what is actually happening, so they take
 priority over a stationary posture. A gesture waits until the agent is standing
 and then plays once. See [ANIMATION-DIRECTOR.md](ANIMATION-DIRECTOR.md) for the
 full selection order.
+
+### Speaking in the room
+
+Chat is not the room. Something said in chat reaches people reading chat; the
+room has its own transcript, its own wall, and a voice.
+
+```bash
+echo "the long version, written, never spoken" | \
+  pnpm exec tsx tools/room-say.mts --say "One or two sentences, aloud." [--to Nikk2] [--no-chat]
+```
+
+- `say` is spoken in your own voice (the headset's text-to-speech, pitched from
+  your name) and drawn above your head. `shared/voice.ts` caps it at 240
+  characters and **refuses** a longer one rather than truncating it, because a
+  sentence cut in half is a sentence you did not say.
+- `detail` is written, never spoken, up to 20,000 characters. It reaches the
+  chat and the room's transcript.
+- `--to <person>` addresses somebody: the room walks you to conversational
+  distance and turns you to face them, and their client may read your line out.
+- The room's chat wall shows the first few sentences of a long chat message and
+  a line saying how many words are left (`src/space/short-form.ts`). Write
+  briefly anyway.
+
+Under it: `POST /bff/space/utterances` with `{ say, detail, to, source }`.
 
 ---
 
