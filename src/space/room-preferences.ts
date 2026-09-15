@@ -28,12 +28,25 @@ export type RoomPreferences = {
   pointer: number;
 };
 
-export const DEFAULT_ROOM_PREFERENCES: RoomPreferences = { rings: false, pointer: 0.1 };
+/**
+ * THE POINTER STARTS AT 70%. It was 10% for a quarter of an hour; Nikk, from the
+ * headset: "can we make the... pointer brightness... if they don't set it, start
+ * automatically at 70%".
+ */
+export const DEFAULT_ROOM_PREFERENCES: RoomPreferences = { rings: false, pointer: 0.7 };
 
 /** One press of − or +. */
 export const POINTER_STEP = 0.1;
 
-const KEY = "saha.room-preferences";
+/**
+ * ONLY WHAT SOMEBODY CHOSE IS STORED, under a new name. The first version wrote
+ * every field on any change, so turning the rings on also wrote down the 10%
+ * pointer default as though it had been chosen — and moving the default to 70%
+ * would not have reached that person. A default now stays a default until it is
+ * actually changed. The rings choice from the first version is carried over.
+ */
+const KEY = "saha.room-preferences.v2";
+const FIRST_KEY = "saha.room-preferences";
 
 /** Read a stored value defensively: anything missing or odd falls back to the default. */
 export function parseRoomPreferences(raw: unknown): RoomPreferences {
@@ -62,27 +75,37 @@ export function pointerLabel(value: number): string {
   return value <= 0 ? "off" : `${Math.round(value * 100)}%`;
 }
 
-function read(): RoomPreferences {
+/** What somebody has actually chosen: the stored fields, and nothing filled in. */
+function readChosen(): Partial<RoomPreferences> {
   try {
     const raw = window.localStorage.getItem(KEY);
-    return parseRoomPreferences(raw ? JSON.parse(raw) : null);
+    if (raw) return JSON.parse(raw) as Partial<RoomPreferences>;
+    const first = window.localStorage.getItem(FIRST_KEY);
+    const rings = first ? (JSON.parse(first) as { rings?: unknown }).rings : undefined;
+    return typeof rings === "boolean" ? { rings } : {};
   } catch {
-    return DEFAULT_ROOM_PREFERENCES;
+    return {};
   }
 }
 
+let chosen: Partial<RoomPreferences> | null = null;
 let current: RoomPreferences | null = null;
 const listeners = new Set<() => void>();
 
 export function roomPreferences(): RoomPreferences {
-  current ??= typeof window === "undefined" ? DEFAULT_ROOM_PREFERENCES : read();
+  if (current) return current;
+  if (typeof window === "undefined") return DEFAULT_ROOM_PREFERENCES;
+  chosen = readChosen();
+  current = parseRoomPreferences(chosen);
   return current;
 }
 
 export function setRoomPreferences(change: Partial<RoomPreferences>): void {
-  current = parseRoomPreferences({ ...roomPreferences(), ...change });
+  roomPreferences();
+  chosen = { ...chosen, ...change };
+  current = parseRoomPreferences(chosen);
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(current));
+    window.localStorage.setItem(KEY, JSON.stringify(chosen));
   } catch {
     // A private window keeps the choice for this visit only.
   }

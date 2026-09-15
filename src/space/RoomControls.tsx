@@ -110,18 +110,33 @@ const BOX_GAP = 0.08;
 const BOXES_PER_ROW = 3;
 
 /**
- * The closed pair: a square gear and a wide talk button, with a gap.
+ * The closed controls: settings and talk, the same size, rounded like a phone's
+ * icons, and a cancel beside talk while there is something to cancel.
  *
- * The talk button is three times the width because it is the one pressed
- * constantly and the one that must be hittable without aiming. The gap is not
- * cosmetic: two targets that touch edge to edge are two targets a controller
- * ray confuses, and confusing them means opening a menu when you meant to
- * start talking.
+ * SAME SIZE. Nikk: "increase the size of the settings icon so it's the same size
+ * as the record [button]... make them have kind of the rounded edges like on
+ * the iPhone". The gear was a small square beside a wide bar, and it was the
+ * one people missed. Both are now squares larger than the old bar was tall.
+ *
+ * THE PAIR STAYS PUT when cancel appears. Cancel is added to the RIGHT of talk
+ * rather than re-centring the row, because a row that shifts the moment you
+ * start recording moves the talk button out from under the ray that is about
+ * to press it again to send.
+ *
+ * The gap is not cosmetic: two targets that touch edge to edge are two targets
+ * a controller ray confuses.
  */
-const GEAR = 0.14;
-const TALK = 0.42;
-const CLOSED_GAP = 0.035;
-const CLOSED_PAIR = GEAR + CLOSED_GAP + TALK;
+const ICON = 0.18;
+const ICON_GAP = 0.04;
+/** Centres of the gear, the talk button and cancel, left to right. */
+const GEAR_X = -(ICON + ICON_GAP) / 2;
+const TALK_X = (ICON + ICON_GAP) / 2;
+const CANCEL_X = TALK_X + ICON + ICON_GAP;
+/** The status line under them: wide enough for a short sentence on two lines. */
+const STATUS = { width: 0.62, height: 0.13 } as const;
+
+/** Good news goes by itself; a problem stays until it is tapped away. */
+const NOTICE_FADE_MS = 5_000;
 
 const EASE = 0.12;
 /** Past this much turn it starts following. Below it, stay put. */
@@ -248,6 +263,26 @@ export function RoomControls({
     return () => holdDraft("written-draft", false);
   }, [written]);
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * A NOTICE THAT GOES BY ITSELF. Nikk: "after you send it has a message that
+   * says sent into the group but that message never disappears... [it] should
+   * just stay there for 5 seconds and then... disappear". Used for news that
+   * needs no answer — sent, cancelled, an agent on its way. A failure still
+   * uses `setNotice` and stays, because words that did not arrive must not be
+   * reported and then quietly forgotten.
+   */
+  const noticeTimer = useRef<number | null>(null);
+  const flash = useCallback((message: string) => {
+    setNotice(message);
+    if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => {
+      noticeTimer.current = null;
+      setNotice((current) => (current === message ? null : current));
+    }, NOTICE_FADE_MS);
+  }, []);
+  useEffect(() => () => {
+    if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
+  }, []);
   const [sending, setSending] = useState(false);
   const input = useRef<SteadyRecorder | null>(null);
   const keyboard = useRef<SystemKeyboard | null>(null);
@@ -329,13 +364,13 @@ export function RoomControls({
         setHeard("");
         confidence.current = undefined;
       }
-      setNotice(to === "room" ? "Sent to the room." : "Sent to the room and the chat.");
+      flash(to === "room" ? "Sent to the room." : "Sent to the room and the chat.");
       return true;
     } else {
       setNotice(`Did not reach ${failures.join(" or ")}. Your words are still here.`);
       return false;
     }
-  }, []);
+  }, [flash]);
 
   useEffect(() => {
     keyboard.current = createSystemKeyboard({
@@ -385,10 +420,10 @@ export function RoomControls({
      */
     input.current = createSteadyRecorder({
       onRecording: setListening,
-      onText: (text) => {
-        setHeard(text);
-        if (text && !live.current.alwaysOn) setNotice("Recording — press the mic again to send.");
-      },
+      // What recording looks like is drawn from `listening` and `heard` — see
+      // the status line — rather than written into the notice, where it stayed
+      // behind after the recording it described had ended.
+      onText: setHeard,
       onPhrase: (phrase) => {
         if (!live.current.alwaysOn) return;
         // ALWAYS-ON posts each finished phrase as it lands and keeps recording,
@@ -679,7 +714,7 @@ export function RoomControls({
       }
       space
         .placeAgent(agent, choose({ at: me.at, facing: me.yaw }))
-        .then(() => setNotice(`${agent} ${done}`))
+        .then(() => flash(`${agent} ${done}`))
         .catch((error: unknown) => setNotice(error instanceof Error ? error.message : `Could not move ${agent}.`));
     };
     for (const agent of agents) {
@@ -692,7 +727,7 @@ export function RoomControls({
           onTap: () => {
             space
               .clearAgentHome(agent)
-              .then(() => setNotice(`${agent} is going back to its desk.`))
+              .then(() => flash(`${agent} is going back to its desk.`))
               .catch((error: unknown) => setNotice(error instanceof Error ? error.message : `Could not move ${agent}.`));
           },
         },
@@ -746,7 +781,6 @@ export function RoomControls({
                   if (live.current.alwaysOn) void post(text);
                   else {
                     setHeard(text);
-                    setNotice("Stopped. Press the mic to send what was heard.");
                   }
                 })();
               },
@@ -839,7 +873,7 @@ export function RoomControls({
           onTap: () => setRoomPreferences({ rings: !preferences.rings }),
         },
         // THE POINTER, as a value and a − and a +. Tapping the value turns the
-        // pointer off, or back on at 10% — the "option to remove" — and −/+
+        // pointer off, or back on at its default — the "option to remove" — and −/+
         // walk it between 0% and 100% of the brightness it used to have.
         {
           label: `Pointer brightness: ${pointerLabel(preferences.pointer)}`,
@@ -921,8 +955,39 @@ export function RoomControls({
   const draftPreview = written.trim()
     ? `✎ ${written.length > 90 ? `…${written.slice(-89)}` : written}`
     : null;
-  const said = notice ?? voice.trouble ?? (keyboardFocused ? null : draftPreview);
-  const closedStep = WRIST_BUTTON.height + WRIST_BUTTON.gap;
+  /**
+   * WHAT IS HAPPENING WITH YOUR WORDS, in one short, plain status line.
+   *
+   * Nikk: the text under the record button "is garbled... it's just really ugly
+   * text and it also overlaps itself". It was a whole instruction, "Recording —
+   * press the mic again to send.", squeezed onto two lines of outlined text
+   * that ran into each other, and it stayed after the recording ended because
+   * it was a notice rather than a description of now. It is now worked out from
+   * the recorder's own state every render: short, and gone when it stops being
+   * true. A notice about something that happened still takes precedence.
+   */
+  const heardWaiting = capabilities.recognition && !alwaysOn && !listening && heard.trim() !== "";
+  const recordingStatus = listening
+    ? alwaysOn
+      ? "● Listening — sending as you speak"
+      : "● Recording\n◼ sends   ✕ cancels"
+    : heardWaiting
+      ? "Ready to send\n▲ sends   ✕ throws away"
+      : null;
+  const said = notice ?? recordingStatus ?? voice.trouble ?? (keyboardFocused ? null : draftPreview);
+  /** Something a cancel button can throw away: a recording, words waiting, or a written draft. */
+  const cancellable =
+    !sending && (listening || heardWaiting || (!capabilities.recognition && written.trim() !== "" && !keyboardFocused));
+  const cancel = () => {
+    if (capabilities.recognition) {
+      input.current?.cancel();
+      setHeard("");
+      confidence.current = undefined;
+    } else {
+      setWritten("");
+    }
+    flash("Cancelled — nothing was sent.");
+  };
 
   return (
     <>
@@ -972,10 +1037,10 @@ export function RoomControls({
             // at from across a room with a ray is a mis-tap waiting to happen —
             // and the mis-tap would be "opened the settings" when you meant
             // "start talking", or worse, the reverse while you were mid-sentence.
-            x={-CLOSED_PAIR / 2 + GEAR / 2}
+            x={GEAR_X}
             y={0}
-            width={GEAR}
-            height={0.14}
+            width={ICON}
+            height={ICON}
             tone={listening ? "muted" : "normal"}
             onTap={openMenu}
           />
@@ -1015,10 +1080,10 @@ export function RoomControls({
                     : "⌨"
             }
             glyph
-            x={-CLOSED_PAIR / 2 + GEAR + CLOSED_GAP + TALK / 2}
+            x={TALK_X}
             y={0}
-            width={TALK}
-            height={0.14}
+            width={ICON}
+            height={ICON}
             tone={listening ? "live" : "normal"}
             onTap={() => {
               // Quest has no Web Speech recognition, but its system keyboard
@@ -1043,7 +1108,7 @@ export function RoomControls({
                   setNotice("There is no microphone available to this browser.");
                   return;
                 case "start":
-                  setNotice("Recording — press the mic again to send.");
+                  setNotice(null);
                   input.current?.start();
                   return;
                 case "stop":
@@ -1059,7 +1124,7 @@ export function RoomControls({
                     const result = await input.current?.finish();
                     const text = result?.text.trim() ?? "";
                     if (!text) {
-                      setNotice("Nothing was heard, so nothing was sent.");
+                      flash("Nothing was heard, so nothing was sent.");
                       return;
                     }
                     if (result?.confidence !== undefined) confidence.current = result.confidence;
@@ -1074,6 +1139,13 @@ export function RoomControls({
               }
             }}
           />
+          {/* CANCEL, to the right of talk, only while there is something to
+              throw away. Nikk: "add a button to cancel recording so if you've
+              begun recording but you want to cancel what you've just recorded,
+              have a button that appears to the right of the record button". */}
+          {cancellable ? (
+            <WristButton label="✕" glyph x={CANCEL_X} y={0} width={ICON} height={ICON} tone="danger" onTap={cancel} />
+          ) : null}
         </>
       )}
 
@@ -1084,13 +1156,15 @@ export function RoomControls({
       {said ? (
         <WristButton
           label={said}
-          tone="muted"
-          y={open ? -gridTop - (rowCount - 1) * rowStep - boxHeight - 0.18 : -closedStep - 0.06}
-          width={open ? 0.9 : 0.55}
+          tone={!notice && listening ? "live" : "muted"}
+          y={open ? -gridTop - (rowCount - 1) * rowStep - boxHeight - 0.18 : -ICON / 2 - 0.035 - STATUS.height / 2}
+          width={open ? 0.9 : STATUS.width}
+          height={open ? WRIST_BUTTON.height : STATUS.height}
           onTap={() => {
-            // Tapping the draft adds to it; tapping a notice dismisses it.
-            if (!notice && !voice.trouble && draftPreview) openTextEntry();
-            else setNotice(null);
+            // Tapping the draft adds to it; tapping a notice dismisses it. The
+            // recording status is not a notice and a tap does nothing to it.
+            if (notice || voice.trouble) setNotice(null);
+            else if (draftPreview && !recordingStatus) openTextEntry();
           }}
         />
       ) : null}

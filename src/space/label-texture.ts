@@ -1,6 +1,37 @@
 import * as THREE from "three";
 
 /**
+ * Break a label into at most `maxLines` lines that each `fit`.
+ *
+ * A LINE BREAK THE CALLER WROTE IS KEPT: a status like "● Recording" over
+ * "◼ sends ✕ cancels" is two lines on purpose, not one sentence to reflow.
+ *
+ * WHAT DID NOT FIT IS MARKED rather than dropped silently: a sentence that stops
+ * mid-thought with no sign is worse than one that says it was cut. A single word
+ * too wide for a line is kept whole on its own line; the canvas squeezes it.
+ */
+export function wrapLabel(text: string, maxLines: number, fits: (line: string) => boolean): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    let row = "";
+    for (const word of paragraph.trim().split(/\s+/).filter(Boolean)) {
+      const candidate = row ? `${row} ${word}` : word;
+      if (fits(candidate) || !row) row = candidate;
+      else {
+        lines.push(row);
+        row = word;
+      }
+    }
+    if (row) lines.push(row);
+  }
+  const limit = Math.max(1, maxLines);
+  if (lines.length <= limit) return lines;
+  const kept = lines.slice(0, limit);
+  kept[limit - 1] += "…";
+  return kept;
+}
+
+/**
  * Text, drawn once into a texture.
  *
  * Labels have to be readable from across the room, and the cheapest honest way
@@ -13,7 +44,21 @@ import * as THREE from "three";
  */
 export function makeLabelTexture(
   text: string,
-  options: { pixelsPerLine?: number; lines?: number; aspect?: number; color?: string } = {},
+  options: {
+    pixelsPerLine?: number;
+    lines?: number;
+    aspect?: number;
+    color?: string;
+    /**
+     * The light outline that makes dark text readable floating in the room.
+     * Off for text on a solid button: there it drew a pale smear around every
+     * letter, and two wrapped lines of it ran into each other — the "garbled"
+     * and "overlaps itself" Nikk read under the record button.
+     */
+    halo?: boolean;
+    /** Distance between wrapped lines, as a multiple of the text size. */
+    lineSpacing?: number;
+  } = {},
 ): THREE.CanvasTexture | null {
   // The scene is only ever mounted in a browser, but a test that imports this
   // file should not explode on a missing document.
@@ -47,7 +92,8 @@ export function makeLabelTexture(
    * Every plane that already fitted — the default 4:1, the square gear, the
    * talk button — gets exactly the canvas it had before.
    */
-  const needed = Math.ceil((options.pixelsPerLine ?? 64) * Math.max(1, options.lines ?? 1) * 1.3);
+  const spacing = options.lineSpacing ?? 0.62;
+  const needed = Math.ceil((options.pixelsPerLine ?? 64) * Math.max(1, options.lines ?? 1) * Math.max(1.3, spacing + 0.4));
   if (canvas.height < needed) {
     canvas.height = needed;
     canvas.width = Math.min(2048, Math.round(needed * aspect));
@@ -84,29 +130,13 @@ export function makeLabelTexture(
   const maxLines = Math.max(1, options.lines ?? 1);
   const inner = canvas.width - 32;
   const rows: string[] = [];
-  if (maxLines === 1) rows.push(text);
-  else {
-    let row = "";
-    for (const word of text.split(/\s+/)) {
-      const candidate = row ? `${row} ${word}` : word;
-      if (context.measureText(candidate).width <= inner || !row) row = candidate;
-      else {
-        rows.push(row);
-        row = word;
-        if (rows.length === maxLines) break;
-      }
-    }
-    if (rows.length < maxLines && row) rows.push(row);
-    // What did not fit is marked rather than dropped silently: a sentence that
-    // stops mid-thought with no sign is worse than one that says it was cut.
-    const used = rows.join(" ");
-    if (used.length < text.trim().length) rows[rows.length - 1] += "…";
-  }
+  if (maxLines === 1) rows.push(text.replace(/\s*\n\s*/g, " "));
+  else rows.push(...wrapLabel(text, maxLines, (line) => context.measureText(line).width <= inner));
 
-  const top = canvas.height / 2 - ((rows.length - 1) * size * 0.62) / 2 + 4;
+  const top = canvas.height / 2 - ((rows.length - 1) * size * spacing) / 2 + 4;
   rows.forEach((line, index) => {
-    const y = top + index * size * 0.62;
-    context.strokeText(line, canvas.width / 2, y, inner);
+    const y = top + index * size * spacing;
+    if (options.halo !== false) context.strokeText(line, canvas.width / 2, y, inner);
     context.fillText(line, canvas.width / 2, y, inner);
   });
 

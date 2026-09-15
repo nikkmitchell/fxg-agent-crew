@@ -37,6 +37,30 @@ export function VoidSphere() {
  */
 export const WRIST_BUTTON = { width: 0.3, height: 0.075, gap: 0.012 } as const;
 
+/**
+ * A rectangle with rounded corners, centred on the origin.
+ *
+ * ROUNDED LIKE A PHONE'S ICONS. Nikk: "make them have kind of the rounded edges
+ * like on the iPhone... rounded corners". About a fifth of the shorter side,
+ * which reads as a soft square on the hip controls and as a gently rounded pill
+ * on a long menu row, from the same rule.
+ */
+export function roundedRect(width: number, height: number, radius = Math.min(width, height) * 0.22): THREE.Shape {
+  const r = Math.min(radius, width / 2, height / 2);
+  const x = -width / 2;
+  const y = -height / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(x + r, y);
+  shape.lineTo(x + width - r, y);
+  shape.quadraticCurveTo(x + width, y, x + width, y + r);
+  shape.lineTo(x + width, y + height - r);
+  shape.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  shape.lineTo(x + r, y + height);
+  shape.quadraticCurveTo(x, y + height, x, y + height - r);
+  shape.lineTo(x, y + r);
+  shape.quadraticCurveTo(x, y, x + r, y);
+  return shape;
+}
 
 export function WristButton({
   label,
@@ -47,6 +71,8 @@ export function WristButton({
   /** Bigger text for a label that is a symbol rather than a sentence. */
   glyph = false,
   tone = "normal",
+  /** How many lines a sentence may wrap to. */
+  lines = 2,
   onTap,
 }: {
   label: string;
@@ -55,7 +81,8 @@ export function WristButton({
   width?: number;
   height?: number;
   glyph?: boolean;
-  tone?: "normal" | "muted" | "live";
+  tone?: "normal" | "muted" | "live" | "danger";
+  lines?: number;
   onTap: () => void;
 }) {
   /**
@@ -68,13 +95,22 @@ export function WristButton({
   const texture = useMemo(
     () =>
       makeLabelTexture(label, {
-        pixelsPerLine: glyph ? 84 : 38,
-        lines: glyph ? 1 : 2,
+        // A symbol fills about half the button's height, whatever its shape:
+        // 84 pixels was sized for the old wide talk bar, and on a square icon
+        // it left a small glyph lost in the middle of the button.
+        pixelsPerLine: glyph ? Math.round(Math.min(512, 512 / (width / height)) * 0.48) : 38,
+        lines: glyph ? 1 : lines,
         aspect: width / height,
+        // Light text straight onto the dark button, with room between lines.
+        color: tone === "muted" ? "#c9cedb" : "#f4f6fb",
+        halo: false,
+        lineSpacing: 1.22,
       }),
-    [label, glyph, width, height],
+    [label, glyph, width, height, tone, lines],
   );
-  const colour = tone === "live" ? "#6f86c9" : tone === "muted" ? "#2a2f3a" : "#1b2231";
+  const shape = useMemo(() => roundedRect(width, height), [width, height]);
+  const colour =
+    tone === "live" ? "#5b74c4" : tone === "danger" ? "#b4433e" : tone === "muted" ? "#252a35" : "#1b2231";
   return (
     <group position={[x, y, 0]}>
       <mesh
@@ -83,8 +119,8 @@ export function WristButton({
           onTap();
         }}
       >
-        <planeGeometry args={[width, height]} />
-        <meshBasicMaterial color={colour} transparent opacity={0.9} side={THREE.DoubleSide} />
+        <shapeGeometry args={[shape, 6]} />
+        <meshBasicMaterial color={colour} transparent opacity={0.92} side={THREE.DoubleSide} />
       </mesh>
       {texture ? (
         <mesh position={[0, 0, 0.001]} raycast={() => null}>

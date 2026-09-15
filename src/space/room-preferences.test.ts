@@ -8,9 +8,9 @@ import {
 } from "./room-preferences";
 
 describe("how one person likes the room drawn", () => {
-  it("starts with no rings and a pointer at a tenth of its old brightness", () => {
-    // Nikk: rings "automatically off when you start"; the pointer "10% of what it currently is".
-    expect(DEFAULT_ROOM_PREFERENCES).toEqual({ rings: false, pointer: 0.1 });
+  it("starts with no rings and the pointer at 70%", () => {
+    // Nikk: rings "automatically off when you start"; the pointer "start automatically at 70%".
+    expect(DEFAULT_ROOM_PREFERENCES).toEqual({ rings: false, pointer: 0.7 });
     expect(parseRoomPreferences(null)).toEqual(DEFAULT_ROOM_PREFERENCES);
   });
 
