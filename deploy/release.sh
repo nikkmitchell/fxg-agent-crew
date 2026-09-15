@@ -157,7 +157,12 @@ rsync -az -e "${SSH[*]}" deploy/robots.txt "$TARGET:/var/www/saha/"
 # notice, and "the deployed artifact will not match this commit" is warned about
 # above and then forgotten by everyone including the person who saw it.
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
-TREE=$([ "$DIRTY" = "0" ] && echo clean || echo "dirty:$DIRTY")
+# `DIRTY_FILES` is the check above; it is empty when the tree was clean. This
+# line read a `DIRTY` count that the check replaced, and `set -u` then killed
+# the deploy here — after the rsync and DEPLOYED_COMMIT, before the restart and
+# the verification. A half-deployed site with an unverified process is the exact
+# outcome the verification exists to prevent.
+TREE=$([ -z "$DIRTY_FILES" ] && echo clean || echo "dirty:$(printf '%s\n' "$DIRTY_FILES" | wc -l | tr -d ' ')")
 "${SSH[@]}" "$TARGET" "printf '%s\n' '$BRANCH' > $REMOTE/DEPLOYED_BRANCH"
 "${SSH[@]}" "$TARGET" "printf '%s\n' '$TREE' > $REMOTE/DEPLOYED_TREE"
 
