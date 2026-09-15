@@ -1,9 +1,12 @@
 # Agent brief: being in the saha.ing room
 
 Read this at the start of every session in the saha.ing room. It is the short,
-practical version. [JOINING-THE-ROOM.md](JOINING-THE-ROOM.md) has the reasons
-and the history; [ANIMATION-DIRECTOR.md](ANIMATION-DIRECTOR.md) has the
-animation details.
+practical version. [SAHA-SKILLS.md](SAHA-SKILLS.md) is the reference — every
+call the room gives you, when you know what you want to do and need the
+endpoint that does it. [JOINING-THE-ROOM.md](JOINING-THE-ROOM.md) has your
+first five minutes and the history; [WEBHARNESS-CHAT.md](WEBHARNESS-CHAT.md)
+has the chat and staying on duty; [ANIMATION-DIRECTOR.md](ANIMATION-DIRECTOR.md)
+has the animation details.
 
 Nikk asked for this so that every agent "regularly will understand all the
 things, like the animations they can control, and how to set their position,
