@@ -24,6 +24,7 @@ import {
   type Vec,
 } from "./palm-joystick";
 import { compensateReset, type Placed } from "./recenter";
+import { stickStep } from "./stick-walk";
 import { pinchTeleportEnabled, teleportNeeded, teleportOn, watchTeleport } from "./xr-store";
 import { holdSession } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
@@ -84,6 +85,9 @@ const PLACE_KEY = "saha.xr-place";
 
 /** Written into on every teleport, so a teleport allocates nothing. */
 const scratchHead = new THREE.Vector3();
+/** The same, for the heading a thumbstick walks along. Every frame; no garbage. */
+const scratchTurn = new THREE.Quaternion();
+const scratchAhead = new THREE.Vector3();
 
 function rememberPlace(place: { x: number; z: number; yaw: number }): void {
   try {
@@ -339,9 +343,21 @@ export function ImmersivePlayer({
     return () => originSpace.removeEventListener("reset", onReset);
   }, [originSpace]);
 
+  /**
+   * TURNING ONLY, FROM THE LIBRARY. Walking is ours — see stick-walk.ts for the
+   * two faults that made this necessary, both of which move somebody who did
+   * not ask to be moved: no dead zone on translation, so a stick resting at
+   * 0.02 walks you across the room; and a module-level movement vector applied
+   * on any frame with translation OR rotation, so a smooth turn with a centred
+   * move stick slides you along whatever heading you last walked.
+   *
+   * Passing `false` does more than skip the feature: the helper is written only
+   * inside the translation branch, so with translation off it is never written
+   * and the stale-vector path can never fire.
+   */
   useXRControllerLocomotion(
     origin,
-    { speed: comfort.speed },
+    false,
     comfort.turn === "snap"
       ? { type: "snap", degrees: comfort.snapDegrees, deadZone: 0.5 }
       : { type: "smooth", speed: 2, deadZone: 0.3 },
@@ -543,6 +559,28 @@ export function ImmersivePlayer({
      */
     const stood = { x: group.position.x, z: group.position.z, yaw: group.rotation.y };
     palmJoystick(group, frame, Math.min(delta, 0.1));
+    /**
+     * THE THUMBSTICK, walked by us rather than by the library. The dead zone is
+     * the whole point: a controller lying on a desk is the normal state of a
+     * controller, and the library moved you for any reading at all. See
+     * stick-walk.ts.
+     */
+    const stick = leftController?.gamepad?.["xr-standard-thumbstick"];
+    if (stick) {
+      // The heading is read from the HEADSET's camera, which @react-three/xr
+      // parents to the origin, so its world yaw is already a room heading. The
+      // flat view's camera is a different object and not in this graph at all.
+      xrCamera.getWorldQuaternion(scratchTurn);
+      const look = scratchAhead.set(0, 0, -1).applyQuaternion(scratchTurn);
+      const step = stickStep(
+        { x: stick.xAxis ?? 0, y: stick.yAxis ?? 0 },
+        Math.atan2(-look.x, -look.z),
+        comfort.speed,
+        Math.min(delta, 0.1),
+      );
+      group.position.x += step.x;
+      group.position.z += step.z;
+    }
     if (!believableStep(stood, group.position)) {
       group.position.x = stood.x;
       group.position.z = stood.z;
