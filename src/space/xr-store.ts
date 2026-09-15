@@ -109,15 +109,25 @@ export function getXRStore(): XRStore {
      * plain ray for pointing at things. `default: true` leaves every other
      * input source exactly as it was.
      */
+    /**
+     * `model` IS STATED HERE, not only in `applyHandOptions`.
+     *
+     * It was left out, so the library's own default (draw the hands) won on
+     * load while the settings row read "hidden" — the row was right and the
+     * scene was wrong, and pressing it twice was the only way to make them
+     * agree. Nikk: "it says in the UI that hands are hidden on load but
+     * they're actually being shown". Every option this store starts with must
+     * be the same set `applyHandOptions` restates.
+     */
     hand: {
-      left: { ...handPointerOptions, teleportPointer: handOptions.pinchTeleport },
-      right: handPointerOptions,
-      default: handPointerOptions,
+      left: { ...handPointerOptions, model: handOptions.model, teleportPointer: handOptions.pinchTeleport },
+      right: { ...handPointerOptions, model: handOptions.model },
+      default: { ...handPointerOptions, model: handOptions.model },
     },
     controller: {
-      left: { ...pointerOptions, teleportPointer: true },
-      right: pointerOptions,
-      default: pointerOptions,
+      left: { ...pointerOptions, model: handOptions.model, teleportPointer: true },
+      right: { ...pointerOptions, model: handOptions.model },
+      default: { ...pointerOptions, model: handOptions.model },
     },
     /*
      * NO DOM OVERLAY. It was requested for a Quest text card, and tapping that
