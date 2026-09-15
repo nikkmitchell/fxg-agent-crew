@@ -40,22 +40,22 @@ describe("a card that just changed", () => {
 describe("the done column", () => {
   const card = (id: number, fresh?: { changedAt: string; revealAt: string | null }) => ({ id, ...(fresh ? { fresh } : {}) });
 
-  it("shows the five most recently finished and folds the rest away", () => {
-    // Nikk: "a max of five".
-    const newestFirst = Array.from({ length: 14 }, (_, i) => card(i));
+  it("shows the fifteen most recently finished and folds the rest away", () => {
+    // Nikk: "let's make 15".
+    const newestFirst = Array.from({ length: 19 }, (_, i) => card(i));
     const { shown, folded } = foldDone(newestFirst, 0);
-    expect(DONE_LIMIT).toBe(5);
-    expect(shown.map((c) => c.id)).toEqual([0, 1, 2, 3, 4]);
-    expect(folded.map((c) => c.id)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(DONE_LIMIT).toBe(15);
+    expect(shown).toHaveLength(15);
+    expect(folded.map((c) => c.id)).toEqual([15, 16, 17, 18]);
   });
 
-  it("folds nothing when there are five or fewer", () => {
+  it("folds nothing when there are fifteen or fewer", () => {
     expect(foldDone([card(1), card(2)], 0).folded).toEqual([]);
   });
 
   it("never folds away a card that is still glowing from just finishing", () => {
     const now = 1_000_000;
-    const newestFirst = [...Array.from({ length: 5 }, (_, i) => card(i)), card(99, { changedAt: at(now - 5_000), revealAt: at(now - 4_000) })];
+    const newestFirst = [...Array.from({ length: 15 }, (_, i) => card(i)), card(99, { changedAt: at(now - 5_000), revealAt: at(now - 4_000) })];
     expect(foldDone(newestFirst, now).shown.map((c) => c.id)).toContain(99);
   });
 });

@@ -32,12 +32,12 @@ export const REVEAL_CAP_MS = 20_000;
 /**
  * The most done cards a column shows before the rest fold away.
  *
- * Nikk: "let's have done max out at 10 items", and then, having seen ten:
- * "can we adjust the done line in the work board to have a max of five". It
- * replaced "finished more than three days ago", which still let a busy day's
- * work pile the column up.
+ * Nikk: "let's have done max out at 10 items", then "a max of five", which was
+ * misheard: "I didn't mean to have just five, I meant to add five more... let's
+ * make 15". It replaced "finished more than three days ago", which still let a
+ * busy day's work pile the column up.
  */
-export const DONE_LIMIT = 5;
+export const DONE_LIMIT = 15;
 
 /** How bright a card should glow now, from 1 at its reveal to 0 a minute later. */
 export function glowAt(nowMs: number, fresh: TaskFreshness | undefined): number {

@@ -893,7 +893,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
               // whose agent is still walking over stays in its old column (or
               // out, if it is new).
               const inColumn = byArrival(tasks.filter((task) => shownStatus(task) === column.status));
-              // DONE SHOWS AT MOST FIVE, the most recently finished; the rest
+              // DONE SHOWS AT MOST DONE_LIMIT, the most recently finished; the rest
               // fold behind a line that opens them. See foldDone.
               const done = column.status === "done" ? foldDone(inColumn, nowMs) : null;
               const hiddenOld = done && (still || !showOldDone) ? done.folded : [];
