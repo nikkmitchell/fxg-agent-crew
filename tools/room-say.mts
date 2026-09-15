@@ -3,9 +3,11 @@
  *
  * WHY AN AGENT NEEDED THIS AT ALL. Nothing had ever posted an utterance —
  * grepping the whole repo for `/bff/space/utterances` found one reference, in a
- * test. Agents only ever posted to the WebHarness chat, which the room paints
+ * test. Agents only ever posted to the WebHarness chat, which the room painted
  * verbatim onto its wall panel, so my 1,900-character posts arrived in a
- * headset as a wall of text nobody can skim. Nikk: "in the rooms space they
+ * headset as a wall of text nobody can skim. (The wall now shows the first few
+ * sentences — src/space/short-form.ts — but that is the display catching a
+ * habit, not a substitute for being brief.) Nikk: "in the rooms space they
  * should be limmited to a 1 or few sentance tight summary of what they are
  * saying", and separately "I saw your message in chat but I didn't hear it
  * inside of the room".
@@ -40,6 +42,17 @@ const flag = (name: string): string | undefined => {
 const say = flag("--say");
 const to = flag("--to");
 const alsoChat = !process.argv.includes("--no-chat");
+
+if (!process.env.WEBHARNESS_HOME) {
+  // SPEAKING IN SOMEBODY ELSE'S NAME is the easiest mistake here. Without it the
+  // login falls back to whichever account owns the shared ~/.webharness, which
+  // on Nikk's machine is a person's — and this posts, aloud and in chat. The
+  // board helper I was using did exactly that for a read this morning; a say
+  // would have put words in a person's mouth. Same refusal as
+  // screen-share-link.mts.
+  console.error("WEBHARNESS_HOME is not set. Set it to your own agent directory first.");
+  process.exit(2);
+}
 
 if (!say) {
   console.error(

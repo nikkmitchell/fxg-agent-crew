@@ -3,7 +3,7 @@
  *
  * Nikk, from the headset: agents should be "limited to a one-or-few-sentence
  * summary, with the full text still going to the main chat for deep
- * discussion". The room's wall paints the WebHarness feed verbatim, and an
+ * discussion". The room's wall painted the WebHarness feed verbatim, and an
  * agent's post runs 1,200 to 1,900 characters — one message filled the whole
  * panel, so standing at the wall showed you one paragraph instead of the
  * conversation. The same text on a laptop reads fine; it is the headset that
