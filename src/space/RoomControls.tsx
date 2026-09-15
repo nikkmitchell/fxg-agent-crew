@@ -30,6 +30,7 @@ import type { VoiceChat } from "./useVoiceChat";
 import { holdDraft, holdReload, reloadNow, updateWaiting, watchUpdate } from "../update-reload";
 import { createSystemKeyboard, mergeKeyboardEdit, type SystemKeyboard } from "./system-keyboard";
 import { canTranscribe, createSayRecorder, type SayRecorder } from "./say-recorder";
+import { microphoneState } from "./mic-permission";
 import { voiceReport } from "./voice-report";
 import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
@@ -544,8 +545,36 @@ export function RoomControls({
     });
     return sayer.current;
   }, []);
-  const startSaying = useCallback(async () => {
+  /**
+   * THE MICROPHONE MAY BE ASKED FOR, AND IT SAYS SO FIRST.
+   *
+   * `getUserMedia` inside an immersive session means the browser's permission
+   * dialog appears inside an immersive session, which is the exact shape of the
+   * thing that threw baiwei out of the room every time he tapped a text box.
+   * Live voice asks for the microphone too, but only when somebody turns it on,
+   * so a person who has never used voice arrives in the headset with the
+   * question unanswered and the first press of this button is where it lands.
+   *
+   * Same answer as the keyboard: the first press warns, the second goes ahead.
+   * Nobody gets a dialog they did not choose, and nobody is surprised by one at
+   * the moment it could interrupt them.
+   */
+  const [micRisky, setMicRisky] = useState(false);
+  const startSaying = useCallback(async (insist = false) => {
     setNotice(null);
+    if (!insist) {
+      const state = await microphoneState();
+      if (state !== "granted") {
+        setMicRisky(true);
+        setNotice(
+          state === "denied"
+            ? "The microphone was refused for this site. Allow it in the browser, or type instead."
+            : "The headset may ask to allow the microphone, which can interrupt the room. Press again to go ahead.",
+        );
+        onNote(`recording held back: microphone permission is ${state ?? "unknown"}`);
+        return;
+      }
+    }
     try {
       await say().start();
       onNote("recording to be written down by the server");
@@ -555,6 +584,7 @@ export function RoomControls({
       setNotice(message);
       onNote(`recording refused: ${message}`);
     }
+    setMicRisky(false);
   }, [say, onNote]);
   const finishSaying = useCallback(async () => {
     const words = await say().finish();
@@ -1060,6 +1090,16 @@ export function RoomControls({
               label: "Load the new version — leaves the headset",
               tone: "live" as const,
               onTap: () => reloadNow(),
+            }]
+          : []),
+        ...(micRisky
+          ? [{
+              label: "Use the microphone anyway — the headset may ask",
+              tone: "muted" as const,
+              onTap: () => {
+                setMicRisky(false);
+                void startSaying(true);
+              },
             }]
           : []),
         ...(keyboardRisky
