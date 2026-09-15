@@ -43,3 +43,39 @@ describe("the XR store's hand and controller options", () => {
     expect(source).not.toMatch(/const handOptions = \{ model: true/);
   });
 });
+
+/**
+ * TELEPORT OFF HAS TO MEAN THE TARGET IS NOT THERE.
+ *
+ * `teleportPointer: false` on both left inputs was supposed to be enough, and I
+ * shipped it as the fix for Nikk being thrown across the room. He was thrown
+ * three more times on that build, and the log recorded the setting as off while
+ * it happened. `TeleportTarget` adds a `pointerup` listener to its group the
+ * moment it mounts and moves the player for whatever delivers one; while it is
+ * in the tree, "off" is a request rather than a fact.
+ *
+ * So the scene mounts it only while teleport is really on, and this test is
+ * here because the conditional looks like a tidy-up somebody would remove.
+ */
+const scene = readFileSync(new URL("./Immersive.tsx", import.meta.url), "utf8");
+
+describe("the floor you can teleport onto", () => {
+  it("is mounted only while teleport is on", () => {
+    expect(scene).toContain("{teleportAllowed ? (");
+    expect(scene).toMatch(/teleportAllowed[\s\S]{0,200}<TeleportTarget/);
+  });
+
+  it("follows the switch while a session is running, rather than reading it once", () => {
+    // Somebody turning teleport on in the headset menu must get a floor without
+    // leaving the room to fetch one.
+    expect(scene).toContain("watchTeleport(setTeleportAllowed)");
+  });
+
+  it("works out where the arc landed from the headset's camera, not the flat view's", () => {
+    // The library subtracts R3F's default camera, which inside a session is not
+    // the head and is not parented to the origin. Every teleport it computed
+    // landed within 12 cm of the room's origin.
+    expect(scene).toContain("state.gl.xr.getCamera()");
+    expect(scene).toContain("xrCamera.getWorldPosition(scratchHead)");
+  });
+});

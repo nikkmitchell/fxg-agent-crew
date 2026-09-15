@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import {
   TeleportTarget,
   XROrigin,
@@ -24,7 +24,7 @@ import {
   type Vec,
 } from "./palm-joystick";
 import { compensateReset, type Placed } from "./recenter";
-import { pinchTeleportEnabled, teleportNeeded } from "./xr-store";
+import { pinchTeleportEnabled, teleportNeeded, teleportOn, watchTeleport } from "./xr-store";
 import { holdReload } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
@@ -81,6 +81,9 @@ import { TOUCH_COOLDOWN_MS, agentTouchPoints, touchedPart } from "../../shared/t
  * next week.
  */
 const PLACE_KEY = "saha.xr-place";
+
+/** Written into on every teleport, so a teleport allocates nothing. */
+const scratchHead = new THREE.Vector3();
 
 function rememberPlace(place: { x: number; z: number; yaw: number }): void {
   try {
@@ -205,6 +208,16 @@ export function ImmersivePlayer({
    */
   const originSpace = useXR((state) => state.originReferenceSpace);
   /**
+   * THE HEADSET'S OWN CAMERA, not the flat view's.
+   *
+   * `gl.xr.getCamera()` is the camera three.js drives from the viewer pose, and
+   * @react-three/xr parents it to the XROrigin. R3F's `state.camera` is a
+   * different object that the flat controls own, and reading it inside a
+   * session is how the teleport arithmetic came to subtract a number that had
+   * nothing to do with anybody's head. See `teleport`.
+   */
+  const xrCamera = useThree((state) => state.gl.xr.getCamera());
+  /**
    * Where this session begins: where the last one ended, or the door.
    *
    * Read once, so nothing moves the player mid-session.
@@ -272,6 +285,20 @@ export function ImmersivePlayer({
     teleportNeeded(stickless);
     return () => teleportNeeded(false);
   }, [stickless]);
+
+  /**
+   * AND THE FLOOR ITSELF GOES AWAY when teleport is off.
+   *
+   * `teleportPointer: false` was supposed to be enough. It was not: Nikk was
+   * teleported three more times on the build that turned it off, and the log
+   * said the setting was off while it happened. `TeleportTarget` adds a
+   * `pointerup` listener to its group the moment it mounts and moves the player
+   * for whatever delivers one, so as long as it is in the tree something can
+   * still fire it. Not mounting it is the only version of "off" that cannot be
+   * argued with.
+   */
+  const [teleportAllowed, setTeleportAllowed] = useState(teleportOn);
+  useEffect(() => watchTeleport(setTeleportAllowed), []);
 
   useEffect(() => {
     if (!originSpace) return;
@@ -349,34 +376,58 @@ export function ImmersivePlayer({
    * for the head to land where the arc pointed. It still goes through the same
    * wall clamp as the sticks: one rule about where a person may stand, not two.
    */
-  const teleport = useCallback((point: THREE.Vector3) => {
+  const teleport = useCallback((point: THREE.Vector3, event?: { point?: THREE.Vector3 }) => {
     const group = origin.current;
     if (!group) return;
     const from = { x: group.position.x, z: group.position.z };
-    const inside = clampToRoom({ x: point.x, z: point.z });
+    /**
+     * WHERE THE ARC ACTUALLY POINTED, worked out here rather than taken on
+     * trust. This is the whole of the "teleport sends me to the same wrong
+     * place every time" bug, and it was never about which button fired.
+     *
+     * The library hands us `hit − camera.matrix position`, meaning to give the
+     * origin a place to stand such that the HEAD lands on the point. The camera
+     * it reads is R3F's default camera — the one the flat view owns. Inside a
+     * session that camera is not the headset and is not parented to the origin,
+     * so the number subtracted is not a head offset at all. When the arc lands
+     * near the player's own feet, which is what a controller pointing at the
+     * floor does, `hit` and that camera's position very nearly cancel and the
+     * answer is ≈ (0, 0) — THE ROOM'S ORIGIN. Nikk was thrown to the same spot
+     * six times, and (0.09, −0.11), (0.07, −0.12), (0.01, 0.01), (0.05, −0.04)
+     * in the log are not four teleports to a place he pointed at. They are four
+     * subtractions landing on zero.
+     *
+     * So: take the raw hit from the event, and subtract the head's offset from
+     * the origin measured in the SAME frame — the headset camera's world
+     * position, which @react-three/xr parents to the origin, less the origin's
+     * own. No rotation to get wrong, and nothing borrowed from the flat view.
+     */
+    const hit = event?.point;
+    const head = xrCamera.getWorldPosition(scratchHead);
+    const target = hit
+      ? { x: hit.x - (head.x - group.position.x), z: hit.z - (head.z - group.position.z) }
+      : { x: point.x, z: point.z };
+    const inside = clampToRoom(target);
     group.position.set(inside.x, 0, inside.z);
     /**
-     * EVERY TELEPORT IS WRITTEN DOWN, with how far it moved you and what was
-     * in your hands.
+     * EVERY TELEPORT IS WRITTEN DOWN, with how far it moved you, what was in
+     * your hands, and WHETHER TELEPORT WAS ON AT ALL.
      *
-     * Nikk has been moved across the room repeatedly — "I did not walk over
-     * here... someone please fix this, it's become very frustrating" — and the
-     * two causes I could think of are now instrumented and have cleared
-     * themselves: the log shows no re-centre and no refused jump around any of
-     * it, on a build he is definitely running. So something is asking for a
-     * teleport that he did not ask for, and the only honest next step is to
-     * record every one of them until we can see which input fires it. A pinch
-     * is also how you press things, so a teleport pointer on a hand is the
-     * first suspect.
+     * The last of those is the line I wish the first version had printed. It
+     * logged `pinchTeleportEnabled()`, the SETTING, and the log therefore said
+     * "pinch teleport off" through three teleports that the setting had nothing
+     * to do with — an instrument that reported the switch instead of the state.
      */
     tell(
       `teleported ${Math.hypot(inside.x - from.x, inside.z - from.z).toFixed(2)} m` +
-        ` to (${inside.x.toFixed(2)}, ${inside.z.toFixed(2)});` +
-        ` hands ${leftHand ? "L" : "-"}${rightHand ? "R" : "-"},` +
+        ` to (${inside.x.toFixed(2)}, ${inside.z.toFixed(2)})` +
+        (hit ? ` from arc (${hit.x.toFixed(2)}, ${hit.z.toFixed(2)})` : " with no arc point") +
+        `; hands ${leftHand ? "L" : "-"}${rightHand ? "R" : "-"},` +
         ` controllers ${leftController ? "L" : "-"}${rightController ? "R" : "-"},` +
-        ` pinch teleport ${pinchTeleportEnabled() ? "on" : "off"}`,
+        ` setting ${pinchTeleportEnabled() ? "on" : "off"},` +
+        ` teleport ${teleportOn() ? "on" : "off"}`,
     );
-  }, [tell, leftHand, rightHand, leftController, rightController]);
+  }, [tell, xrCamera, leftHand, rightHand, leftController, rightController]);
 
   /**
    * A joint's pose in the PLAYER'S frame — the origin's reference space, not
@@ -506,9 +557,20 @@ export function ImmersivePlayer({
     const inside = clampToRoom({ x: group.position.x, z: group.position.z });
     group.position.x = inside.x;
     group.position.z = inside.z;
-    // The only thing that survives a session the device ends and re-grants on
-    // its own. See rememberPlace.
-    rememberPlace({ x: inside.x, z: inside.z, yaw: group.rotation.y });
+    /**
+     * The only thing that survives a session the device ends and re-grants on
+     * its own. See rememberPlace.
+     *
+     * NOT WHILE THERE IS NO HEAD. Plumbline's point, and it is a good one:
+     * reading this back is defended and writing it was not, so a frame during a
+     * session transition — head at the floor, nothing tracked yet — could write
+     * a place that is evidence of nothing and hand it to the next session as
+     * where somebody was standing. A head below 0.6 m is not a head; it is a
+     * device that has not found one, the same test StandingHeight uses.
+     */
+    if (scratch.position.y > 0.6) {
+      rememberPlace({ x: inside.x, z: inside.z, yaw: group.rotation.y });
+    }
     // The floor is the floor. XROrigin is the player's FEET, so this is 0 —
     // head height comes from the headset's own tracking, not from us.
     group.position.y = 0;
@@ -671,12 +733,14 @@ export function ImmersivePlayer({
         It sits OUTSIDE the XROrigin, in room coordinates, because a teleport
         target that moved with the player would always be underfoot.
       */}
-      <TeleportTarget onTeleport={teleport}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-          <planeGeometry args={[ROOM.width, ROOM.depth]} />
-          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-        </mesh>
-      </TeleportTarget>
+      {teleportAllowed ? (
+        <TeleportTarget onTeleport={teleport}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+            <planeGeometry args={[ROOM.width, ROOM.depth]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
+        </TeleportTarget>
+      ) : null}
     </>
   );
 }

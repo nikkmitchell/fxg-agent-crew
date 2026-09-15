@@ -56,11 +56,40 @@ export function teleportNeeded(needed: boolean): void {
   if (noOtherWayToMove === needed) return;
   noOtherWayToMove = needed;
   applyHandOptions();
+  announceTeleport();
 }
 
 /** Whether a teleport pointer should be offered at all, to hands or controllers. */
-function teleportOn(): boolean {
+export function teleportOn(): boolean {
   return handOptions.pinchTeleport || noOtherWayToMove;
+}
+
+/**
+ * WHO IS WATCHING THE SWITCH, and why anybody needs to.
+ *
+ * Turning the teleport POINTER off is not the same as making teleport
+ * impossible, and I shipped that mistake: `teleportPointer: false` on both left
+ * inputs, teleport still firing, Nikk moved to the middle of the room three
+ * more times on the build that was supposed to have fixed it. The room's own
+ * `TeleportTarget` adds a `pointerup` listener the moment it mounts, and
+ * whatever puts an event on it moves the player. A switch the scene cannot see
+ * is a switch that cannot unmount it.
+ *
+ * So the scene subscribes, and mounts the target only while teleport is really
+ * on. Off means the listener does not exist — which is a guarantee, where a
+ * pointer option is a hope.
+ */
+const teleportWatchers = new Set<(on: boolean) => void>();
+
+export function watchTeleport(listener: (on: boolean) => void): () => void {
+  teleportWatchers.add(listener);
+  listener(teleportOn());
+  return () => teleportWatchers.delete(listener);
+}
+
+function announceTeleport(): void {
+  const on = teleportOn();
+  for (const listener of teleportWatchers) listener(on);
 }
 
 /**
@@ -261,6 +290,7 @@ export function setPinchTeleport(on: boolean): void {
     // A private window keeps the choice for this session only.
   }
   applyHandOptions();
+  announceTeleport();
 }
 
 function applyHandOptions(): void {

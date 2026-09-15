@@ -146,18 +146,6 @@ export function measureRig(rig: Rig, scene: THREE.Object3D): RigSpec {
 }
 
 /**
- * The standing height of the person, from the heads they have reported.
- *
- * The tallest recent head, sinking only slowly — about eighteen centimetres a
- * minute — so a crouch is a crouch for as long as anyone holds one.
- *
- * NEVER STARTS BELOW AN ADULT'S HEAD. Somebody whose first reading is a crouch,
- * or who put the headset on sitting down, would otherwise be taken to BE that
- * tall and drawn small, which is exactly the shrinking this replaces. Starting
- * no lower than 1.5 m draws them crouched instead; a genuinely shorter person
- * settles to their own height within a minute.
- */
-/**
  * How tall somebody is, decided when they arrive rather than assumed.
  *
  * WHY NOT THE HEAD EVERY FRAME. A head is where it is; a body is a height. Pose
@@ -174,9 +162,11 @@ export function measureRig(rig: Rig, scene: THREE.Object3D): RigSpec {
  * SO: SETTLE, THEN HOLD. For the first second of plausible readings it takes
  * the tallest it has seen, which rides out one bad frame without needing to
  * assume anybody's height. After that the height holds: standing up raises it
- * at once, and it sinks slowly so that a calibration taken too high corrects
- * itself rather than sticking. A reading below `min` is not a head — it is a
- * device that has not located one — and is ignored entirely.
+ * at once, and it sinks slowly — about eighteen centimetres a minute — so that
+ * a calibration taken too high corrects itself rather than sticking, while a
+ * crouch stays a crouch for as long as anybody holds one. A reading below `min`
+ * is not a head — it is a device that has not located one — and is ignored
+ * entirely.
  *
  * `reset()` starts the settling again, which is the "reset head position" row
  * in the headset settings: stand or sit as you mean to be, and tap it.
