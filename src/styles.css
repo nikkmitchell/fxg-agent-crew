@@ -822,7 +822,10 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-setting select { font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); max-width: 100%; }
 .space-setting { flex-wrap: wrap; }
 .space-headset { display: grid; gap: 10px; margin: 0 0 18px; padding: 0 0 16px; border-bottom: 1px solid var(--line); }
-.space-headset .primary-action { justify-self: start; }
+/* Above the view and across both columns, so the button sits in the middle of
+   the page rather than the middle of the view beside a side column. */
+.space-enter-bar { grid-column: 1 / -1; display: flex; justify-content: center; }
+.space-enter-headset { font-size: 17px; padding: 12px 28px; }
 
 /* Arriving in the room.
 

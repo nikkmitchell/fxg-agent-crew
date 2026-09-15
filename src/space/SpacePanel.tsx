@@ -55,6 +55,9 @@ function ShareScreenLink() {
 const Scene = lazy(() => import("./Scene"));
 /** Also behind the boundary: it imports the XR store, and that pulls in WebXR. */
 const HeadsetControls = lazy(() => import("./HeadsetControls"));
+const EnterHeadsetButton = lazy(() =>
+  import("./HeadsetControls").then((module) => ({ default: module.EnterHeadsetButton })),
+);
 
 /**
  * The scene ignores CSS, so reduced motion has to be asked for directly.
@@ -228,7 +231,7 @@ export function SpacePanel() {
         {headsetAvailable === true ? (
           <p className="muted-note">
             This browser supports immersive VR. Enter the room and the
-            <strong> Enter in your headset</strong> button is at the top of the panel beside it.
+            <strong> Enter in your headset</strong> button is right above the room, in the middle.
           </p>
         ) : headsetAvailable === false ? (
           <p className="muted-note">
@@ -245,6 +248,17 @@ export function SpacePanel() {
 
   return (
     <section className="space-panel">
+      {/* HEADSET, ABOVE THE VIEW AND CENTRED — see EnterHeadsetButton.
+          Offered only when the browser says immersive-vr is actually
+          supported. A button that can only fail is worse than no button, and
+          "nothing happened" is the least debuggable outcome there is. */}
+      {headsetAvailable ? (
+        <div className="space-enter-bar">
+          <Suspense fallback={null}>
+            <EnterHeadsetButton inHeadset={inHeadset} />
+          </Suspense>
+        </div>
+      ) : null}
       <div className="space-canvas">
         <Suspense
           fallback={
@@ -299,13 +313,10 @@ export function SpacePanel() {
       </div>
 
       <aside className="space-roster">
-        {/* HEADSET.
-            Offered only when the browser says immersive-vr is actually
-            supported. A button that can only fail is worse than no button, and
-            "nothing happened" is the least debuggable outcome there is. */}
+        {/* The headset's settings stay beside the view; the button is above it. */}
         {headsetAvailable === null ? null : headsetAvailable ? (
           <Suspense fallback={null}>
-            <HeadsetControls comfort={comfort} setComfort={setComfort} inHeadset={inHeadset} />
+            <HeadsetControls comfort={comfort} setComfort={setComfort} />
           </Suspense>
         ) : (
           <p className="muted-note">
