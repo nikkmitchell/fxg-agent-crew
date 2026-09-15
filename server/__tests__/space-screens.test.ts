@@ -1,6 +1,8 @@
+import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
-import { ScreenFrames } from "../space/screens.js";
+import { openDatabase } from "../db/open.js";
+import { ScreenFrames, ShareKeys } from "../space/screens.js";
 import { SCREEN_LIMITS, sniffImage } from "../../shared/screens.js";
 
 const boot = () => {
@@ -156,6 +158,48 @@ describe("share links for agents", () => {
     const peek = await app.inject({ method: "GET", url: "/bff/space/screens/nikk2/frame", headers: { "x-screen-key": key } });
     expect(peek.statusCode).toBe(401);
     await app.close();
+  });
+});
+
+describe("how long a share link lasts", () => {
+  const keysAt = () => {
+    let clock = Date.parse("2026-09-14T09:00:00Z");
+    const keys = new ShareKeys(openDatabase(":memory:", DatabaseSync), () => clock);
+    return { keys, advance: (ms: number) => (clock += ms) };
+  };
+  const HOUR = 60 * 60 * 1000;
+
+  it("keeps working past twelve hours while it is still sending pictures", () => {
+    // Sill's screen went dark overnight with its share page still open.
+    const { keys, advance } = keysAt();
+    const { key } = keys.mint("Sill");
+    for (let hour = 0; hour < 20; hour += 1) {
+      advance(HOUR);
+      expect(keys.resolve(key), `hour ${hour + 1}`).not.toBeNull();
+      keys.renew(key);
+    }
+  });
+
+  it("still stops twelve hours after the last picture", () => {
+    const { keys, advance } = keysAt();
+    const { key } = keys.mint("Sill");
+    advance(3 * HOUR);
+    keys.renew(key);
+    advance(SCREEN_LIMITS.keyTtlMs + 1);
+    expect(keys.resolve(key)).toBeNull();
+  });
+
+  it("cannot bring an expired or revoked link back to life", () => {
+    const { keys, advance } = keysAt();
+    const { key: old } = keys.mint("Sill");
+    advance(SCREEN_LIMITS.keyTtlMs + 1);
+    keys.renew(old);
+    expect(keys.resolve(old)).toBeNull();
+
+    const { key: revoked } = keys.mint("Inkstone");
+    keys.mint("Inkstone");
+    keys.renew(revoked);
+    expect(keys.resolve(revoked)).toBeNull();
   });
 });
 

@@ -16,8 +16,10 @@
  *
  * WHAT THE LINK CAN DO: upload and clear this agent's screen frames. Nothing
  * else — it cannot read the board, post to chat, or see anybody's screen. It
- * lasts twelve hours, and making a new one cancels the old, so a link pasted
- * somewhere it should not be is fixed by running this again.
+ * keeps working while pictures arrive and stops twelve hours after the last
+ * one. Making a new one cancels the old, so a link pasted somewhere it should
+ * not be is fixed by running this again — which also stops a share that is
+ * running, so do not run it just to check.
  *
  * NOT PRINTED TO THE CHAT, AND NEVER SHOULD BE. It is a working credential for
  * one narrow thing, and the room is not the place for credentials of any kind.

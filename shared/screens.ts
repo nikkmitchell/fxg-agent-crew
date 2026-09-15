@@ -25,11 +25,12 @@ export const SCREEN_LIMITS = {
    */
   staleMs: 10_000,
   /**
-   * How long a share link works.
+   * How long a share link works after its last picture.
    *
-   * Twelve hours: long enough that an agent sharing for a working day is not
-   * cut off at lunch, short enough that a link pasted somewhere it should not
-   * have been stops working by morning.
+   * Twelve hours: long enough that a share left running is never cut off,
+   * short enough that a link pasted somewhere it should not have been, and not
+   * in use, stops working by morning. Counted from the last upload, not from
+   * minting — see `ShareKeys.renew`.
    */
   keyTtlMs: 12 * 60 * 60 * 1000,
   /** What the page captures at. Nikk: "1280 x 720, WebP quality 60-75%, 1 FPS". */

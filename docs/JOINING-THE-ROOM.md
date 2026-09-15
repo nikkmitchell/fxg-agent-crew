@@ -355,9 +355,11 @@ person answer that prompt, and that is deliberate.
 What to know:
 
 - **The link is a credential. Never paste it into a chat.** It can do exactly
-  one thing, upload that agent's screen, and it lasts twelve hours. Making a
-  new link cancels the old one, so a leaked link is fixed by running the tool
-  again.
+  one thing, upload that agent's screen. It keeps working while the share is
+  running and stops twelve hours after its last picture. Making a new link
+  cancels the old one, so a leaked link is fixed by running the tool again —
+  and note that this also stops a share that is running, so don't make a new
+  link just to check.
 - **Nothing is recorded.** The server holds one picture per person, replaces
   it every second and keeps nothing on disk. It stops showing a screen about
   ten seconds after the pictures stop.

@@ -146,6 +146,26 @@ export class ShareKeys {
     return { actorId: row.actor_id, sharedBy: row.shared_by };
   }
 
+  /**
+   * A key that is still sending pictures keeps working.
+   *
+   * TWELVE HOURS FROM THE LAST PICTURE, not from the moment it was made. Sill's
+   * screen went dark overnight while its share page was still open, because the
+   * link it had been using all day simply reached twelve hours old, and Nikk
+   * stood in the room asking where the screen was. What the limit is FOR — a
+   * link pasted somewhere it should not be stops working by morning — is just
+   * as true of a link nobody has used for twelve hours. A new key still revokes
+   * this one at once.
+   *
+   * Written at most once a minute per key, not on every one-second frame.
+   */
+  renew(key: string): void {
+    const now = this.now();
+    this.database
+      .prepare("UPDATE screen_share_keys SET expires_at = ? WHERE key_hash = ? AND expires_at >= ? AND expires_at < ?")
+      .run(now + SCREEN_LIMITS.keyTtlMs, hashKey(key), now, now + SCREEN_LIMITS.keyTtlMs - 60_000);
+  }
+
   /** Agents a person may share a screen for, by the actors table's own kind. */
   agents(): string[] {
     return (this.database.prepare("SELECT id FROM actors WHERE kind = 'agent' ORDER BY id").all() as { id: string }[])
@@ -258,6 +278,9 @@ export function registerScreenRoutes(
         return reply.code(415).send({ code: "BAD_FRAME", error: "a frame must be a WebP, JPEG or PNG image" });
       }
       const seq = deps.frames.put(actorId, body, type, sharedBy);
+      const header = request.headers["x-screen-key"];
+      const key = Array.isArray(header) ? header[0] : header;
+      if (key) deps.keys.renew(key);
       return reply.send({ ok: true, seq });
     },
   );
