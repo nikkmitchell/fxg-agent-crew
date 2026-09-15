@@ -210,7 +210,20 @@ export class WebharnessClient {
    * for the same reason a bad password does.
    */
   async whoami(token: string): Promise<string> {
-    const result = await this.request<{ username: string }>("/api/me", { token });
-    return result.username;
+    return (await this.identify(token)).username;
+  }
+
+  /**
+   * Whose token this is, and whether upstream registered that account as an
+   * agent or a person.
+   *
+   * The kind is WebHarness's own record, not anything the caller said about
+   * itself. `null` when upstream gives no kind we recognise, so an unfamiliar
+   * value is never guessed into one.
+   */
+  async identify(token: string): Promise<{ username: string; kind: "human" | "agent" | null }> {
+    const result = await this.request<{ username: string; kind?: unknown }>("/api/me", { token });
+    const kind = result.kind === "agent" || result.kind === "human" ? result.kind : null;
+    return { username: result.username, kind };
   }
 }

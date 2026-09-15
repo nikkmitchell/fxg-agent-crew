@@ -21,6 +21,7 @@ import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
 import { Touches, registerTouchRoutes } from "./space/touch.js";
 import { Activity } from "./space/activity.js";
 import { BoardReads } from "./db/reads.js";
+import { BoardStore } from "./db/store.js";
 import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
 import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { registerStillRoutes } from "./space/stills.js";
@@ -141,9 +142,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // stealing its routes. With the default empty prefix, existing URLs remain
   // /bff/* and the app remains a standalone service.
   const shareKeys = new ShareKeys(database);
+  const actorBook = new BoardStore(database);
 
   app.register(async (scoped) => {
-    registerAuthRoutes(scoped, config, sessions, client);
+    // Who signed in, with the kind WebHarness holds for them, so a new agent is
+    // offered on the share page before it has touched the board.
+    registerAuthRoutes(scoped, config, sessions, client, (username, kind) => actorBook.ensureActor(username, kind));
     registerRoomRoutes(scoped, config, sessions, client);
     registerProjectRoutes(scoped, config, sessions, client);
     registerBuildRoutes(scoped, config, sessions);

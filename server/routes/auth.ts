@@ -20,7 +20,28 @@ export function registerAuthRoutes(
   config: Config,
   sessions: SessionStore,
   client: WebharnessClient,
+  /**
+   * Record who just signed in, with the kind upstream holds for them.
+   *
+   * WHY. Nikk: KANxD was "trying to share the view for Vint, but there is no
+   * option". The share page offers only actors saha.ing knows to be agents,
+   * and an actor's kind was learned only from a board write. Vint had signed
+   * in and joined the room, done nothing on the board yet, and so was on file
+   * with no kind — present, and not offered. Upstream already knows which
+   * accounts are agents; asking it at sign-in means a new agent can have its
+   * screen shared from its first minute. A kind already on file is never
+   * overwritten.
+   */
+  onIdentified: (username: string, kind: "human" | "agent") => void = () => {},
 ): void {
+  const record = (username: string, kind: "human" | "agent" | null) => {
+    if (!kind) return;
+    try {
+      onIdentified(username, kind);
+    } catch {
+      // Signing in must not fail because a bookkeeping write did.
+    }
+  };
   app.post<{ Body: { username?: string; password?: string } }>("/bff/login", async (request, reply) => {
     const { username, password } = request.body ?? {};
     if (!username || !password) {
@@ -30,6 +51,12 @@ export function registerAuthRoutes(
     try {
       const token = await client.login(username, password);
       const sid = sessions.create(username, token);
+      // Best effort: the sign-in has already succeeded, and not knowing the
+      // kind only means it is learned later, as before.
+      void client
+        .identify(token)
+        .then((identity) => record(identity.username, identity.kind))
+        .catch(() => undefined);
 
       reply.setCookie(config.cookieName, sid, {
         httpOnly: true,
@@ -77,8 +104,9 @@ export function registerAuthRoutes(
     }
 
     try {
-      const username = await client.whoami(token);
+      const { username, kind } = await client.identify(token);
       const sid = sessions.create(username, token, "agent");
+      record(username, kind);
 
       reply.setCookie(config.cookieName, sid, {
         httpOnly: true,

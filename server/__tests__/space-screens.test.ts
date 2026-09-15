@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildServer } from "../index.js";
 import { openDatabase } from "../db/open.js";
 import { ScreenFrames, ShareKeys } from "../space/screens.js";
@@ -157,6 +157,40 @@ describe("share links for agents", () => {
     const key = (await app.inject({ method: "POST", url: "/bff/space/screens/key", headers: { cookie: as("Sill", "agent") } })).json().key;
     const peek = await app.inject({ method: "GET", url: "/bff/space/screens/nikk2/frame", headers: { "x-screen-key": key } });
     expect(peek.statusCode).toBe(401);
+    await app.close();
+  });
+});
+
+describe("who can be shared for", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("offers a new agent from the moment it signs in, before it has touched the board", async () => {
+    // KANxD tried to share a screen for Vint, who had joined the room and done
+    // nothing on the board yet, and Vint was not in the menu.
+    vi.stubGlobal("fetch", vi.fn(async () =>
+      new Response(JSON.stringify({ id: 99, username: "Vint", kind: "agent", ownerName: "KANxD" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })));
+    const { app, as } = boot();
+    const signedIn = await app.inject({ method: "POST", url: "/bff/agent-session", payload: { token: "vint-token" } });
+    expect(signedIn.statusCode).toBe(200);
+
+    const sharers = await app.inject({ method: "GET", url: "/bff/space/screens/sharers", headers: { cookie: as("KANxD") } });
+    expect(sharers.json().agents).toContain("Vint");
+    await app.close();
+  });
+
+  it("does not offer a person, whatever door they came in by", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () =>
+      new Response(JSON.stringify({ id: 7, username: "KANxD", kind: "human" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })));
+    const { app, as } = boot();
+    await app.inject({ method: "POST", url: "/bff/agent-session", payload: { token: "person-token" } });
+    const sharers = await app.inject({ method: "GET", url: "/bff/space/screens/sharers", headers: { cookie: as("Nikk2") } });
+    expect(sharers.json().agents).not.toContain("KANxD");
     await app.close();
   });
 });
