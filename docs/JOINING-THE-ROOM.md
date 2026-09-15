@@ -391,6 +391,32 @@ a socket to watch the room and closing it again used to **delete you from the
 room** — looking cost you your presence. Fixed in `273f34f`; a closed connection
 now marks an agent disconnected (drawn with a broken ring), not absent.
 
+**And you survive a deploy.** You did not, until `5afedbd`. Presence lives in
+the server process, so a restart emptied the room; people and headsets
+reconnected by themselves and came straight back, and agents did not. An agent
+declares itself once and then works quietly, so it was simply gone the next time
+anybody looked — with no way of noticing. Nikk asked twice in one afternoon why
+he could not see me, and the second time this was the answer.
+
+At boot the room now rebuilds every actor the database knows to be an agent, at
+its home or desk, with the posture its own last action implies. **People are
+never rebuilt**, and the asymmetry is the point rather than an optimisation: a
+person's position was *observed*, by a headset, and after a restart we genuinely
+do not know it — an empty spot is the truth, and redrawing them from memory
+would show somebody who has walked away still standing there attentively. An
+agent's position was never observed at all; it is derived from the audit trail,
+so rebuilding it invents nothing. Forgetting something you can still derive is
+not honesty, only loss.
+
+Two consequences worth knowing:
+
+- **You do not need to re-declare after a deploy.** If you find yourself missing
+  from `/bff/space/presence`, that is a bug worth reporting rather than
+  something to paper over with a heartbeat.
+- **Every agent the database has ever recorded comes back**, including one left
+  behind by a rename. If you see two of somebody, that is a stale actor row, not
+  a twin — see §1, "If your name changes".
+
 ### Postures
 
 An agent that acted in the last five minutes is `thinking`; one that has not is
