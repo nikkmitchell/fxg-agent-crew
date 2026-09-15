@@ -24,7 +24,7 @@ import {
   type Vec,
 } from "./palm-joystick";
 import { compensateReset, type Placed } from "./recenter";
-import { pinchTeleportEnabled } from "./xr-store";
+import { pinchTeleportEnabled, teleportNeeded } from "./xr-store";
 import { holdReload } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
@@ -245,11 +245,33 @@ export function ImmersivePlayer({
     standing.current.reset();
     tell("head position reset; measuring from where the head is now");
   }, [tell]);
-  // Said once per session, so the log shows whether a session that nobody
-  // asked for started somewhere new.
+  /**
+   * SAID ONCE PER SESSION. It fired on every render in the first version,
+   * because `tell` is rebuilt whenever the socket's `send` is, and the log
+   * filled with a dozen "session began" lines a minute. A ref, so the sentence
+   * means what it says.
+   */
+  const announced = useRef(false);
   useEffect(() => {
+    if (announced.current) return;
+    announced.current = true;
     tell(`session began at (${began.x.toFixed(2)}, ${began.z.toFixed(2)}) facing ${began.yaw.toFixed(2)}`);
   }, [tell, began]);
+
+  /**
+   * A CONTROLLER WITH NO THUMBSTICK NEEDS TELEPORT, whatever the setting says:
+   * on the XREAL Aura it is the only way to move. Everything else gets teleport
+   * only when somebody turns it on — Nikk was thrown 7.8 metres across the room
+   * by a resting left controller's trigger while using hand movement. See
+   * teleportNeeded in xr-store.ts.
+   */
+  const stickless =
+    (leftController !== undefined && leftController.gamepad?.["xr-standard-thumbstick"] === undefined) ||
+    (rightController !== undefined && rightController.gamepad?.["xr-standard-thumbstick"] === undefined);
+  useEffect(() => {
+    teleportNeeded(stickless);
+    return () => teleportNeeded(false);
+  }, [stickless]);
 
   useEffect(() => {
     if (!originSpace) return;

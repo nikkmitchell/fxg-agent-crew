@@ -961,7 +961,7 @@ export function RoomControls({
         { label: "−  Pointer dimmer", onTap: () => setRoomPreferences({ pointer: stepPointer(preferences.pointer, -1) }) },
         { label: "+  Pointer brighter", onTap: () => setRoomPreferences({ pointer: stepPointer(preferences.pointer, 1) }) },
         {
-          label: pinchTeleport ? "Pinch to teleport: on" : "Pinch to teleport: off",
+          label: pinchTeleport ? "Teleport (hand pinch, controller trigger): on" : "Teleport: off — hands and sticks move you",
           tone: pinchTeleport ? "live" : "normal",
           onTap: () => {
             const next = !pinchTeleport;

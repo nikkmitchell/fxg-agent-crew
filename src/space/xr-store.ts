@@ -14,19 +14,27 @@ import { roomPreferences } from "./room-preferences";
 let store: XRStore | null = null;
 
 /**
- * PINCH TO TELEPORT, OFF UNLESS SOMEBODY TURNS IT ON.
+ * TELEPORT, OFF UNLESS SOMEBODY TURNS IT ON — HANDS AND CONTROLLERS ALIKE.
  *
  * Nikk, once the palm joystick worked: "remove the pinch to teleport but...
  * keep it in... add it into the settings and have it be off by default... if
  * you're on hand controls it's the palm up movement". A pinch is also how you
  * press things, so a teleport arc on the left hand fired when it was not
- * wanted — the "very finicky" that started the joystick.
+ * wanted.
  *
- * HANDS ONLY. A controller's teleport is a deliberate trigger pull, and a
- * controller has a thumbstick besides; neither was the complaint.
+ * IT USED TO BE HANDS ONLY, on the reasoning that a controller's trigger is a
+ * deliberate pull. That reasoning was wrong, and the log said so: Nikk was
+ * moved 7.8 metres to the middle of the room while using hand movement, and
+ * the line recorded his LEFT CONTROLLER live with pinch-teleport already off.
+ * A controller resting beside somebody has a trigger that a sleeve or a finger
+ * finds, and the room had no switch for it. One setting now covers both.
  *
- * Remembered in this browser, because it is a preference about one person's
- * hands, not about the room.
+ * THE EXCEPTION THE ROOM DECIDES FOR ITSELF: a controller with no thumbstick
+ * gets teleport whether or not the setting is on, because on the XREAL Aura
+ * that is the only way to move at all. Held for that session and never
+ * written down — it is a fact about the hardware, not a choice anybody made.
+ *
+ * Remembered in this browser: it is a preference about one person's hands.
  */
 const PINCH_TELEPORT_KEY = "saha.pinch-teleport";
 
@@ -36,6 +44,23 @@ function readPinchTeleport(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * A device with nothing else to move with. Set by the scene when it sees a
+ * connected controller reporting no thumbstick; never persisted.
+ */
+let noOtherWayToMove = false;
+
+export function teleportNeeded(needed: boolean): void {
+  if (noOtherWayToMove === needed) return;
+  noOtherWayToMove = needed;
+  applyHandOptions();
+}
+
+/** Whether a teleport pointer should be offered at all, to hands or controllers. */
+function teleportOn(): boolean {
+  return handOptions.pinchTeleport || noOtherWayToMove;
 }
 
 /**
@@ -120,12 +145,12 @@ export function getXRStore(): XRStore {
      * be the same set `applyHandOptions` restates.
      */
     hand: {
-      left: { ...handPointerOptions, model: handOptions.model, teleportPointer: handOptions.pinchTeleport },
+      left: { ...handPointerOptions, model: handOptions.model, teleportPointer: teleportOn() },
       right: { ...handPointerOptions, model: handOptions.model },
       default: { ...handPointerOptions, model: handOptions.model },
     },
     controller: {
-      left: { ...pointerOptions, model: handOptions.model, teleportPointer: true },
+      left: { ...pointerOptions, model: handOptions.model, teleportPointer: teleportOn() },
       right: { ...pointerOptions, model: handOptions.model },
       default: { ...pointerOptions, model: handOptions.model },
     },
@@ -240,8 +265,8 @@ export function setPinchTeleport(on: boolean): void {
 
 function applyHandOptions(): void {
   const xr = getXRStore();
-  xr.setHand({ ...handPointerOptions, model: handOptions.model, teleportPointer: handOptions.pinchTeleport }, "left");
+  xr.setHand({ ...handPointerOptions, model: handOptions.model, teleportPointer: teleportOn() }, "left");
   xr.setHand({ ...handPointerOptions, model: handOptions.model }, "right");
-  xr.setController({ ...pointerOptions, model: handOptions.model, teleportPointer: true }, "left");
+  xr.setController({ ...pointerOptions, model: handOptions.model, teleportPointer: teleportOn() }, "left");
   xr.setController({ ...pointerOptions, model: handOptions.model }, "right");
 }
