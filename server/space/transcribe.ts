@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { statSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -45,14 +46,32 @@ import { makeRequireSession } from "../require-session.js";
 export const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 
 /**
- * How long a transcription may take before we give up.
+ * How long a transcription may take before we give up, FROM HOW LONG THE
+ * RECORDING IS.
  *
- * A small model on a CPU is roughly real time, so thirty seconds covers a
- * fifteen-second clip with room to spare. The timeout matters more than the
- * number does: this shares a machine with the room, and a wedged child process
- * holding a core is a room that stops moving for everybody in it.
+ * A fixed thirty seconds was the first version, and measuring the real thing
+ * showed it wrong at both ends. On saha.ing's two cores, tiny.en transcribed
+ * eleven seconds of speech in four — about 0.36× real time. So thirty seconds
+ * of patience covers roughly eighty seconds of speech, while the route accepts
+ * FOUR MINUTES of it: anything over about a minute and a half would have been
+ * recorded, uploaded, worked on, and then thrown away with "the words could not
+ * be written down", which is the worst possible way to lose somebody's
+ * sentence.
+ *
+ * Three times real time, then, with a floor for the overhead of loading the
+ * model and a ceiling so a wedged child cannot hold a core for ever — this
+ * shares a machine with the room, and a room that stops moving for everybody is
+ * a worse failure than one transcription giving up.
  */
-export const TRANSCRIBE_TIMEOUT_MS = 30_000;
+export const TRANSCRIBE_FLOOR_MS = 20_000;
+export const TRANSCRIBE_CEILING_MS = 180_000;
+/** 16 kHz, mono, 16-bit: the format the page sends. See src/space/wav.ts. */
+const BYTES_A_SECOND = 32_000;
+
+export function timeoutFor(bytes: number): number {
+  const seconds = Math.max(0, bytes - 44) / BYTES_A_SECOND;
+  return Math.min(TRANSCRIBE_CEILING_MS, Math.max(TRANSCRIBE_FLOOR_MS, Math.round(seconds * 3_000)));
+}
 
 /**
  * One at a time.
@@ -64,7 +83,7 @@ export const TRANSCRIBE_TIMEOUT_MS = 30_000;
  */
 let busy = false;
 
-export type Transcriber = (wavPath: string) => Promise<string>;
+export type Transcriber = (wavPath: string, prompt: string) => Promise<string>;
 
 /** The words, cleaned of the timestamps and blank lines whisper prints. */
 export function readTranscript(output: string): string {
@@ -83,19 +102,66 @@ export function readTranscript(output: string): string {
     .trim();
 }
 
-function runCommand(command: string, wavPath: string): Promise<string> {
-  // Split on whitespace: the command comes from our own environment file, not
-  // from a request, and a shell would add a way for a filename to matter.
-  const parts = command.replace("{file}", wavPath).split(/\s+/).filter(Boolean);
+/**
+ * WHO IS IN THIS ROOM, told to the transcriber before it listens.
+ *
+ * Measured on saha.ing with a clip naming three of us. Without it:
+ *
+ *   "Hey, so, great work. Can you ask Plum Line and Lumenfold to check the
+ *    board on Sahaha dotting?"
+ *
+ * With the names as a prompt:
+ *
+ *   "Hey, Sil, great work. Can you ask Plumbline and Lumenfold to check the
+ *    board on saha.ing?"
+ *
+ * Baiwei's first real sentence came back with "Hey, still" for "Hey, Sill", and
+ * a room where you cannot say your colleague's name is a room you cannot talk
+ * in. A small model has never seen "Plumbline" or "saha.ing"; a prompt is how
+ * you tell it they exist, and it costs nothing.
+ *
+ * FROM THE DATABASE, not a list in a file, so an agent that joins tomorrow is
+ * heard by name without anybody remembering to add it.
+ */
+export function namesPrompt(names: string[]): string {
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const name of [...names, "saha.ing"]) {
+    const clean = name.trim();
+    // A name with a space or a comma in it would read as two names.
+    if (!clean || /[\s,]/.test(clean) || seen.has(clean.toLowerCase())) continue;
+    seen.add(clean.toLowerCase());
+    kept.push(clean);
+    // whisper's prompt is capped at 224 tokens and the tail is what gets cut,
+    // so stop well short rather than let the last names fall off silently.
+    if (kept.length >= 40) break;
+  }
+  return kept.join(", ");
+}
+
+function runCommand(command: string, wavPath: string, prompt: string): Promise<string> {
+  /**
+   * Split FIRST, then substitute whole tokens — not the other way round.
+   *
+   * There is no shell here on purpose, so `{prompt}` must survive being a
+   * multi-word value. Substituting into the string and then splitting on
+   * whitespace would turn "Sill, Plumbline" into two arguments and quietly
+   * hand whisper a filename it cannot open.
+   */
+  const parts = command
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => (part === "{file}" ? wavPath : part === "{prompt}" ? prompt : part));
   const [program, ...args] = parts;
   return new Promise((resolve, reject) => {
     const child = spawn(program, args, { stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
     let err = "";
+    const allowed = timeoutFor(statSync(wavPath).size);
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      reject(new Error(`transcription took longer than ${TRANSCRIBE_TIMEOUT_MS} ms`));
-    }, TRANSCRIBE_TIMEOUT_MS);
+      reject(new Error(`transcription took longer than ${allowed} ms`));
+    }, allowed);
     child.stdout.on("data", (chunk: Buffer) => {
       out += chunk.toString("utf8");
     });
@@ -118,12 +184,13 @@ export function registerTranscribeRoutes(
   app: FastifyInstance,
   config: Config,
   sessions: SessionStore,
-  options: { command?: string; transcriber?: Transcriber } = {},
+  options: { command?: string; transcriber?: Transcriber; names?: () => string[] } = {},
 ): void {
   const requireSession = makeRequireSession(config, sessions);
   const command = options.command ?? process.env.TRANSCRIBE_CMD;
   const transcribe: Transcriber | null =
-    options.transcriber ?? (command ? (wavPath) => runCommand(command, wavPath) : null);
+    options.transcriber ?? (command ? (wavPath, prompt) => runCommand(command, wavPath, prompt) : null);
+  const names = options.names ?? (() => []);
 
   /**
    * WHETHER THIS ROOM CAN WRITE SPEECH DOWN AT ALL.
@@ -184,7 +251,7 @@ export function registerTranscribeRoutes(
         directory = await mkdtemp(join(tmpdir(), "saha-say-"));
         const wavPath = join(directory, "said.wav");
         await writeFile(wavPath, bytes);
-        const text = readTranscript(await transcribe(wavPath));
+        const text = readTranscript(await transcribe(wavPath, namesPrompt(names())));
         answer = { text, heard: text !== "" };
       } catch (error) {
         trouble = error;

@@ -203,7 +203,17 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (actorId, kind, targetActorId, durationMs) =>
         space.presence.speakTo(actorId, kind, targetActorId, durationMs),
     );
-    registerTranscribeRoutes(scoped, config, sessions);
+    registerTranscribeRoutes(scoped, config, sessions, {
+      /**
+       * The names the transcriber should expect to hear. Measured: without them
+       * "Plumbline" comes back as "Plum Line" and "saha.ing" as "Sahaha
+       * dotting". From the database, so an agent that joins tomorrow is heard
+       * by name with nobody remembering to add it.
+       */
+      names: () =>
+        (database.prepare("SELECT id FROM actors WHERE retired_at IS NULL ORDER BY id").all() as { id: string }[])
+          .map((row) => row.id),
+    });
     registerAvatarRoutes(
       scoped,
       config,
