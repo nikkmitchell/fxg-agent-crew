@@ -514,8 +514,17 @@ export function RoomControls({
    * apologise is worse than a keyboard that works. Asked, not assumed.
    */
   const [canSpeak, setCanSpeak] = useState(false);
+  /**
+   * ASKED ONCE. It was asked on every change of `onNote` — which is rebuilt
+   * whenever the room's socket reconnects — and baiwei's journal filled with
+   * "press to speak: the server can write speech down" a dozen times over.
+   * `tell` is stable now, which fixes the cause; this ref means a future
+   * unstable callback cannot bring the flood back.
+   */
+  const asked = useRef(false);
   useEffect(() => {
-    if (capabilities.recognition) return;
+    if (capabilities.recognition || asked.current) return;
+    asked.current = true;
     let cancelled = false;
     void canTranscribe().then((available) => {
       if (cancelled) return;

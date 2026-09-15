@@ -249,8 +249,25 @@ export function ImmersivePlayer({
    */
   const headRoom = useRef<Placed | null>(null);
   const recentre = useRef<Placed | null>(null);
-  /** Say something only the headset can see into the server's log. See the `note` frame. */
-  const tell = useCallback((note: string) => send({ type: "note", note }), [send]);
+  /**
+   * Say something only the headset can see into the server's log. See the
+   * `note` frame.
+   *
+   * STABLE FOR THE LIFE OF THE SESSION, and that is the whole point of the ref.
+   * `send` is rebuilt whenever the socket reconnects, so a `tell` that depended
+   * on it changed identity too — and every effect that reports something ONCE
+   * and lists `tell` in its dependencies ran again each time. It filled the
+   * journal with "session began" a dozen times a minute in one place, and
+   * "press to speak: the server can write speech down" a dozen times in
+   * another, which is two separate afternoon's worth of the same mistake.
+   *
+   * A ref for the changing part and a callback with no dependencies: the
+   * sentence "report this once" now means what it says, and nobody else has to
+   * remember to guard it.
+   */
+  const sender = useRef(send);
+  sender.current = send;
+  const tell = useCallback((note: string) => sender.current({ type: "note", note }), []);
   /**
    * HOW TALL I AM, measured here and told to the room.
    *
@@ -299,11 +316,9 @@ export function ImmersivePlayer({
    * Browser hides it to show the system keyboard, and the reload poller used to
    * treat a hidden page as an empty one.
    */
-  const tellRef = useRef(tell);
-  tellRef.current = tell;
   useEffect(() => {
     const onHidden = () => {
-      tellRef.current(
+      tell(
         `the page went ${document.visibilityState} while the session was live` +
           (document.visibilityState === "hidden" ? " — no reload will be taken until it ends" : ""),
       );
@@ -323,14 +338,14 @@ export function ImmersivePlayer({
      */
     const onLeaving = () => {
       leaveCrumb();
-      tellRef.current("the page is going away while the session is live");
+      tell("the page is going away while the session is live");
     };
     document.addEventListener("visibilitychange", onHidden);
     window.addEventListener("pagehide", onLeaving);
     return () => {
       document.removeEventListener("visibilitychange", onHidden);
       window.removeEventListener("pagehide", onLeaving);
-      tellRef.current("session ended");
+      tell("session ended");
     };
   }, []);
 
