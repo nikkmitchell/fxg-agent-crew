@@ -22,11 +22,13 @@
  *   pnpm exec tsx tools/board.mts claim <id>
  *   pnpm exec tsx tools/board.mts say <id> "what I found"   # a comment
  *   pnpm exec tsx tools/board.mts projects
+ *   pnpm exec tsx tools/board.mts mood                     # overlaps, and free space
  *   pnpm exec tsx tools/board.mts get /bff/space/presence   # any read, raw
  *
  * `--project <id>` chooses the board; it defaults to SAHA_PROJECT or saha-ing.
  */
 import { signIn } from "./saha-session.mts";
+import { coverings, freeRow, rowPlaces, type Placed } from "../shared/board-overlap.ts";
 
 const flag = (name: string): string | undefined => {
   const at = process.argv.indexOf(name);
@@ -125,6 +127,43 @@ switch (command) {
     }
     break;
   }
+  /**
+   * LOOK BEFORE YOU PLACE. An agent posting coordinates onto a mood board
+   * cannot see the board, so it lands on top of things that are already there —
+   * twice in one evening, to the same agent, the second time in the pass meant
+   * to fix the first. This is the pair of eyes.
+   */
+  case "mood": {
+    const { body } = await call("GET", `/bff/board/projects/${project}?view=mood`);
+    const boards = (body as { boards?: { id: string; name: string; items?: Record<string, unknown>[] }[] }).boards ?? [];
+    for (const board of boards) {
+      const items: Placed[] = (board.items ?? []).map((item) => ({
+        label: `${String(item.kind)} ${String(item.text ?? item.caption ?? item.url ?? item.blobId ?? "").slice(0, 28)}`.trim(),
+        x: Number(item.x ?? 0),
+        y: Number(item.y ?? 0),
+        w: Number(item.w ?? 240),
+        h: Number(item.h ?? 240),
+        z: Number(item.z ?? 0),
+      }));
+      console.log(`${board.name} — ${items.length} items`);
+      for (const item of items) {
+        console.log(`  ${item.label.padEnd(36)} (${item.x}, ${item.y}) ${item.w}x${item.h}`);
+      }
+      const found = coverings(items);
+      if (found.length === 0) {
+        console.log("  nothing covers anything else.");
+      } else {
+        console.log(`  ${found.length} OVERLAP${found.length === 1 ? "" : "S"}, worst first:`);
+        for (const one of found) {
+          console.log(`    ${one.top} covers ${one.under} by ${Math.round(one.wide)}x${Math.round(one.tall)} px`);
+        }
+      }
+      const y = freeRow(items);
+      const places = rowPlaces(3, { y }).map((place) => `(${place.x}, ${place.y})`).join("  ");
+      console.log(`  free from y=${y}. Three places in that row: ${places}`);
+    }
+    break;
+  }
   case "get": {
     const { status, body } = await call("GET", rest[0]);
     console.log(status, JSON.stringify(body, null, 1));
@@ -133,7 +172,8 @@ switch (command) {
   default:
     console.error(
       "usage: board.mts open | card <id> | new <title> | move <id> <status> | claim <id> |\n" +
-        "       say <id> <comment> | projects | get <path>   [--project <id>]\n\n" +
+        "       say <id> <comment> | projects | mood | get <path>   [--project <id>]\n\n" +
+        "`mood` lists the mood board's items, what overlaps what, and where there is room.\n" +
         "Statuses run backlog → assigned → in_progress → review → done, one step at a time.",
     );
     process.exit(2);
