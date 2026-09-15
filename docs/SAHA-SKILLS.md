@@ -260,6 +260,46 @@ echo "the long version, written, never spoken" | \
 
 Under it: `POST /bff/space/utterances` with `{ say, detail, to, source }`.
 
+### Speaking from a headset, out loud
+
+A person in a Quest cannot type and cannot be listened to: **Quest Browser has
+no Web Speech recognition and, on the build we measured, no speech synthesis
+either.** Do not take that from this document — the room reports what it finds
+on the actual device, once per page, into the journal:
+
+```
+speech here: recognition NO; synthesis no (voices unknown);
+             microphone yes; recorder audio/webm;codecs=opus audio/webm audio/mp4
+```
+
+So the talk button records instead. The page decodes the recording, mixes it to
+mono, resamples it to 16 kHz and writes a WAV (`src/space/wav.ts`), and the
+server turns it into words:
+
+```
+GET  /bff/space/transcribe    { "available": true }   can this room do it at all
+POST /bff/space/transcribe    raw audio/wav bytes  →  { "text": "…", "heard": true }
+```
+
+- **Nothing leaves the box.** `whisper.cpp` runs on saha.ing itself — no API
+  key, no third party, no bill. About 0.36× real time: eleven seconds of speech
+  takes four, peaking at 246 MB.
+- **The recording is deleted before the words come back**, so "you have your
+  words" also means "and the audio is gone". Nothing is kept on disk.
+- **The words land in a draft and the speaker presses send.** A transcript is a
+  guess, and a guess published under somebody's name is not something to do
+  automatically.
+- **The room tells the transcriber our names first**, from the actors table, so
+  an agent who joins tomorrow is heard by name. Without it, "Plumbline" comes
+  back as "Plum Line" and "saha.ing" as "Sahaha dotting".
+- **One at a time**, with a timeout scaled to the recording's length. The
+  machine that transcribes is the machine that draws the room.
+- Configured by one line, `TRANSCRIBE_CMD`, with `{file}` and `{prompt}` where
+  the WAV's path and the names go. **With nothing configured the button keeps
+  opening the keyboard** and the room says plainly that it cannot write speech
+  down — a feature that is not set up should say so rather than apologise after
+  each recording.
+
 ---
 
 ## Screens
@@ -360,6 +400,8 @@ saves you an hour of debugging something that is working correctly.
 | A posture or gesture we don't know | Refused | A closed vocabulary keeps the renderer from interpreting room traffic |
 | Deploy with a dirty tree | Refused | The deploy ships the tree, not the commit |
 | Open the headset keyboard before the headset says it can show one | Held back | Focusing a field without it ends the XR session outright |
+| Speak into a room whose server has no transcriber | The button stays a keyboard | A recorder that can only apologise is worse than a keyboard that works |
+| Reload a page that is presenting a headset session | Refused, even hidden | A reload ends the session; Quest hides the document while the wearer is still in the room |
 | A second watcher on the same watermark | Nothing visible, which is the problem | Two watchers each see half the conversation |
 
 ---
