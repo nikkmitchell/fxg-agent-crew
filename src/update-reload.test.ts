@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { hasUnsentText, reloadDecision } from "./update-reload";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { hasUnsentText, holdReload, reloadDecision, startUpdateReload, updateWaiting } from "./update-reload";
 
 const state = (over: Partial<Parameters<typeof reloadDecision>[0]> = {}) => ({
   loadedWith: "aaa", serverHas: "aaa", held: false, unsentText: false, hidden: false, ...over,
@@ -65,5 +65,52 @@ describe("noticing unsent text", () => {
   it("ignores checkboxes, and fields nobody can type in", () => {
     expect(hasUnsentText([field({ tagName: "INPUT", type: "checkbox", value: "on" })])).toBe(false);
     expect(hasUnsentText([field({ value: "shown, not editable", readOnly: true })])).toBe(false);
+  });
+});
+
+describe("offering a new version instead of forcing it", () => {
+  /**
+   * Nikk spent ninety minutes in a headset without receiving the fix for the
+   * bug he was reporting, because a live session is never reloaded from under
+   * its wearer. The poller has to SAY a version is waiting so the menu can
+   * offer it.
+   *
+   * The page's globals are stubbed rather than jsdom'd: this file is otherwise
+   * pure, and the poller only needs a page that has no text fields and is
+   * visible.
+   */
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("document", {
+      querySelectorAll: () => [],
+      visibilityState: "visible",
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    vi.stubGlobal("window", { addEventListener: () => {}, removeEventListener: () => {} });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("says a version is waiting only while something holds the reload back", async () => {
+    let commit = "aaa";
+    let reloaded = false;
+    holdReload("xr-session", true);
+    const stop = startUpdateReload({ fetchCommit: async () => commit, reload: () => { reloaded = true; } });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(updateWaiting(), "same build, nothing waiting").toBe(false);
+
+    commit = "bbb";
+    await vi.advanceTimersByTimeAsync(16_000);
+    expect(updateWaiting(), "a newer build, held by the session").toBe(true);
+    expect(reloaded, "and not taken from under the wearer").toBe(false);
+
+    holdReload("xr-session", false);
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(reloaded, "the session ended, so it reloads").toBe(true);
+    expect(updateWaiting(), "nothing is waiting once it has been taken").toBe(false);
+    stop();
   });
 });

@@ -31,6 +31,43 @@ import { base } from "./router";
 const holds = new Set<string>();
 const drafts = new Set<string>();
 
+/**
+ * WHETHER A NEW VERSION IS WAITING, for anybody who needs to offer it.
+ *
+ * A headset session is never reloaded from under its wearer (see the
+ * "xr-session" hold), and the consequence took an afternoon to show itself:
+ * Nikk stayed in the headset for an hour and a half and therefore never
+ * received three fixes that were live the whole time, including the one for
+ * the bug he kept reporting. Holding the reload was right; leaving him with no
+ * way to take it was not.
+ *
+ * So the poller publishes what it knows and the headset menu offers a row.
+ * Taking it is the wearer's choice, at a moment of their choosing.
+ */
+const watchers = new Set<(waiting: boolean) => void>();
+let waiting = false;
+
+export function updateWaiting(): boolean {
+  return waiting;
+}
+
+export function watchUpdate(listener: (waiting: boolean) => void): () => void {
+  watchers.add(listener);
+  listener(waiting);
+  return () => watchers.delete(listener);
+}
+
+function setWaiting(next: boolean): void {
+  if (waiting === next) return;
+  waiting = next;
+  for (const listener of watchers) listener(next);
+}
+
+/** Reload now, whoever is asking. The one place that decides how. */
+export function reloadNow(): void {
+  window.location.reload();
+}
+
 /** Keep the page from reloading while `on` — e.g. while the mic is recording. */
 export function holdReload(reason: string, on: boolean): void {
   if (on) holds.add(reason);
@@ -160,6 +197,8 @@ export function startUpdateReload(options: {
       unsentText: drafts.size > 0 || hasUnsentText(textFieldsOnPage()),
       hidden: document.visibilityState === "hidden",
     });
+    // "wait" means there IS a newer build and something is holding it back.
+    setWaiting(decision === "wait");
     if (decision === "reload") {
       stopped = true;
       reload();

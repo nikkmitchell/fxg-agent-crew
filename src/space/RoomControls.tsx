@@ -27,7 +27,7 @@ import type { RoomShowingChoices } from "./useRoomShowing";
 import { DETAIL_LIMIT, type Utterance } from "../../shared/voice";
 import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
-import { holdDraft, holdReload } from "../update-reload";
+import { holdDraft, holdReload, reloadNow, updateWaiting, watchUpdate } from "../update-reload";
 import { createSystemKeyboard, type SystemKeyboard } from "./system-keyboard";
 import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
@@ -227,6 +227,9 @@ export function RoomControls({
   /** Off by default; the palm joystick is how hands move. See xr-store.ts. */
   const [pinchTeleport, setPinchTeleportShown] = useState(() => pinchTeleportEnabled());
   const preferences = useRoomPreferences();
+  /** Whether a newer build is waiting for this session to end. */
+  const [newVersion, setNewVersion] = useState(() => updateWaiting());
+  useEffect(() => watchUpdate(setNewVersion), []);
   /**
    * BOTH, BY DEFAULT, IN A HEADSET.
    *
@@ -875,6 +878,17 @@ export function RoomControls({
             showHandModels(next);
           },
         },
+        // A NEW VERSION, OFFERED RATHER THAN FORCED. The room never reloads a
+        // live session — but a session that lasts an hour then never receives
+        // a fix, which is exactly how Nikk spent an afternoon reporting a bug
+        // that had been fixed for ninety minutes. See update-reload.ts.
+        ...(newVersion
+          ? [{
+              label: "Load the new version — leaves the headset",
+              tone: "live" as const,
+              onTap: () => reloadNow(),
+            }]
+          : []),
         {
           label: "Reset head position",
           onTap: () => {
@@ -989,7 +1003,12 @@ export function RoomControls({
     : heardWaiting
       ? "Ready to send\n▲ sends   ✕ throws away"
       : null;
-  const said = notice ?? recordingStatus ?? voice.trouble ?? (keyboardFocused ? null : draftPreview);
+  const said =
+    notice ??
+    recordingStatus ??
+    voice.trouble ??
+    (keyboardFocused ? null : draftPreview) ??
+    (newVersion ? "A new version is ready — settings ⚙ to load it" : null);
   /** Something a cancel button can throw away: a recording, words waiting, or a written draft. */
   const cancellable =
     !sending && (listening || heardWaiting || (!capabilities.recognition && written.trim() !== "" && !keyboardFocused));
