@@ -28,7 +28,8 @@ import { DETAIL_LIMIT, type Utterance } from "../../shared/voice";
 import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 import { holdDraft, holdReload, reloadNow, updateWaiting, watchUpdate } from "../update-reload";
-import { createSystemKeyboard, type SystemKeyboard } from "./system-keyboard";
+import { createSystemKeyboard, mergeKeyboardEdit, type SystemKeyboard } from "./system-keyboard";
+import { canTranscribe, createSayRecorder, type SayRecorder } from "./say-recorder";
 import { voiceReport } from "./voice-report";
 import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
@@ -491,6 +492,72 @@ export function RoomControls({
     if (!delivered) return;
     setWritten("");
   }, [post, written]);
+
+  /**
+   * PRESS TO SPEAK, on a browser that cannot listen.
+   *
+   * Nikk, in a Quest: "we can do the same as we are doing on AURA, where you
+   * push a button to begin speech to text... lets try to get a way to SPEAK to
+   * agents, that is pretty key". The Aura's browser has Web Speech recognition;
+   * this one does not. So the same button records, and the server writes it
+   * down — see say-recorder.ts and server/space/transcribe.ts.
+   *
+   * THE WORDS LAND IN THE SAME REVIEW DRAFT the keyboard fills, and somebody
+   * still presses send. A transcript is a guess, and a guess published under
+   * your name in the group chat is not something to do automatically. That rule
+   * predates this path and survives it.
+   */
+  const [saying, setSaying] = useState<"idle" | "recording" | "writing">("idle");
+  /**
+   * Only once the server says it has something to transcribe with. Until then
+   * the button keeps opening the keyboard, because a recorder that can only
+   * apologise is worse than a keyboard that works. Asked, not assumed.
+   */
+  const [canSpeak, setCanSpeak] = useState(false);
+  useEffect(() => {
+    if (capabilities.recognition) return;
+    let cancelled = false;
+    void canTranscribe().then((available) => {
+      if (cancelled) return;
+      setCanSpeak(available);
+      onNote(`press to speak: the server ${available ? "can" : "cannot"} write speech down`);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [capabilities.recognition, onNote]);
+  const sayer = useRef<SayRecorder | null>(null);
+  useEffect(() => () => sayer.current?.dispose(), []);
+  const say = useCallback(() => {
+    sayer.current ??= createSayRecorder({
+      onPhase: setSaying,
+      onTrouble: (message) => setNotice(message),
+    });
+    return sayer.current;
+  }, []);
+  const startSaying = useCallback(async () => {
+    setNotice(null);
+    try {
+      await say().start();
+      onNote("recording to be written down by the server");
+    } catch (error) {
+      setSaying("idle");
+      const message = error instanceof Error ? error.message : "The microphone could not be opened.";
+      setNotice(message);
+      onNote(`recording refused: ${message}`);
+    }
+  }, [say, onNote]);
+  const finishSaying = useCallback(async () => {
+    const words = await say().finish();
+    if (!words) {
+      onNote("nothing was heard, so nothing was written down");
+      return;
+    }
+    onNote(`written down: ${words.split(/\s+/).length} words`);
+    // Added to whatever is already drafted, exactly as the keyboard does, so
+    // speaking twice before sending does not throw the first half away.
+    setWritten((kept) => mergeKeyboardEdit(kept, words));
+  }, [say, onNote]);
 
   useEffect(() => {
     if (!capabilities.recognition) return;
@@ -1086,9 +1153,13 @@ export function RoomControls({
     ? alwaysOn
       ? "● Listening — sending as you speak"
       : "● Recording\n◼ sends   ✕ cancels"
-    : heardWaiting
-      ? "Ready to send\n▲ sends   ✕ throws away"
-      : null;
+    : saying === "recording"
+      ? "● Recording\n◼ writes it down   ✕ cancels"
+      : saying === "writing"
+        ? "Writing down what you said…"
+        : heardWaiting
+          ? "Ready to send\n▲ sends   ✕ throws away"
+          : null;
   const said =
     notice ??
     recordingStatus ??
@@ -1097,12 +1168,21 @@ export function RoomControls({
     (newVersion ? "A new version is ready — settings ⚙ to load it" : null);
   /** Something a cancel button can throw away: a recording, words waiting, or a written draft. */
   const cancellable =
-    !sending && (listening || heardWaiting || (!capabilities.recognition && written.trim() !== "" && !keyboardFocused));
+    !sending &&
+    saying !== "writing" &&
+    (listening ||
+      heardWaiting ||
+      saying === "recording" ||
+      (!capabilities.recognition && written.trim() !== "" && !keyboardFocused));
   const cancel = () => {
     if (capabilities.recognition) {
       input.current?.cancel();
       setHeard("");
       confidence.current = undefined;
+    } else if (saying === "recording") {
+      // The recording goes no further: not to the server, not to the draft.
+      // Nothing of it is kept, which is the promise a cancel button makes.
+      sayer.current?.cancel();
     } else {
       setWritten("");
     }
@@ -1193,24 +1273,39 @@ export function RoomControls({
             label={
               capabilities.recognition
                 ? micGlyph({ sending, listening, heard, alwaysOn })
-                : sending
+                : sending || saying === "writing"
                   ? "…"
-                  : written.trim() && !keyboardFocused
-                    ? "▲"
-                    : "⌨"
+                  : saying === "recording"
+                    ? "◼"
+                    : written.trim() && !keyboardFocused
+                      ? "▲"
+                      : canSpeak
+                        ? "🎤"
+                        : "⌨"
             }
             glyph
             x={TALK_X}
             y={0}
             width={ICON}
             height={ICON}
-            tone={listening ? "live" : "normal"}
+            tone={listening || saying === "recording" ? "live" : "normal"}
             onTap={() => {
-              // Quest has no Web Speech recognition, but its system keyboard
-              // has its own microphone. The same prominent control opens a
-              // real textarea there instead of leading to a dead-end refusal.
+              /**
+               * WITHOUT WEB SPEECH, THE BUTTON STILL SPEAKS. It records, and
+               * the server writes it down — which is what Nikk asked for: the
+               * Aura's press-to-talk, on a Quest. Press, speak, press again.
+               *
+               * It used to open the keyboard here. The keyboard is still on the
+               * settings menu, and its own microphone is still the best voice
+               * on the device — but it is not reachable while focusing a text
+               * field throws people out of the room, and speaking should not
+               * wait on that being solved.
+               */
               if (!capabilities.recognition) {
-                if (written.trim() && !keyboardFocused) void sendWritten();
+                if (saying === "writing") return;
+                if (saying === "recording") void finishSaying();
+                else if (written.trim() && !keyboardFocused) void sendWritten();
+                else if (canSpeak) void startSaying();
                 else openTextEntry();
                 return;
               }

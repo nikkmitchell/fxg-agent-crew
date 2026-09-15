@@ -27,6 +27,7 @@ import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { registerStillRoutes } from "./space/stills.js";
 import { registerUtteranceRoutes } from "./space/utterances.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
+import { registerTranscribeRoutes } from "./space/transcribe.js";
 import { ScreenFrames, ShareKeys, registerScreenRoutes } from "./space/screens.js";
 import { openDatabase } from "./db/open.js";
 
@@ -95,6 +96,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   for (const mime of [
     "image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf",
     "application/octet-stream", "image/svg+xml", "text/html",
+    // A recording on its way to be written down. See space/transcribe.ts.
+    "audio/wav",
   ]) {
     app.addContentTypeParser(mime, { parseAs: "buffer" }, (_request, body, done) => done(null, body));
   }
@@ -200,6 +203,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (actorId, kind, targetActorId, durationMs) =>
         space.presence.speakTo(actorId, kind, targetActorId, durationMs),
     );
+    registerTranscribeRoutes(scoped, config, sessions);
     registerAvatarRoutes(
       scoped,
       config,
