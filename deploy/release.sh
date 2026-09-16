@@ -199,6 +199,26 @@ sleep 12
 after=$("${SSH[@]}" "$TARGET" "systemctl show fxg-crew -p NRestarts --value")
 [ "$before" = "$after" ] || fail "service is crash-looping (NRestarts $before -> $after)"
 
+# THE RUNNING PROCESS IS THE BUILD WE JUST SHIPPED, not the one before it.
+#
+# DEPLOYED_COMMIT is written BEFORE the restart, and it has to be: the service
+# reads it at boot to tell clients which build they are on. So the marker says
+# "these files are here", never "this code is running" — and the gap between
+# those two has now bitten twice, by two different causes. First `set -u` killed
+# the script between them (see the note by TREE above). Tonight a transient ssh
+# failure did, leaving a box that ADVERTISED the new commit while serving the
+# old process, with every other check passing: service active, site 200, socket
+# upgrading, NRestarts=0. Nothing in the output was false and the conclusion was.
+#
+# The box knows both facts, so assert them instead of trusting the marker: the
+# process must have started AFTER the files arrived.
+started=$("${SSH[@]}" "$TARGET" 'date -d "$(systemctl show fxg-crew -p ActiveEnterTimestamp --value)" +%s')
+shipped=$("${SSH[@]}" "$TARGET" "stat -c %Y $REMOTE/DEPLOYED_COMMIT")
+if [ -n "$started" ] && [ -n "$shipped" ] && [ "$started" -lt "$shipped" ]; then
+  fail "the running process started $((shipped - started))s BEFORE these files arrived — it is serving the previous build while DEPLOYED_COMMIT claims this one. The files are in place; fix it with: ssh $TARGET systemctl restart fxg-crew"
+fi
+printf '  process      started %ss after the files, so it is running them\n' "$((started - shipped))"
+
 # THE RENDERER PHOTOGRAPHS EVERY PANEL, not the number it had at startup.
 #
 # The renderer reads its panel list once, at boot. Adding the chat panel shipped
