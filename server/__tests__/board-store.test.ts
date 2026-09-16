@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "../db/open.js";
 import { BoardStore, Refused } from "../db/store.js";
+import { coverings } from "../../shared/board-overlap.js";
 
 /**
  * The rules survive the move off event sourcing.
@@ -351,5 +352,75 @@ describe("can the bootstrap be abused", () => {
   it("still lets a genuinely new project bootstrap", () => {
     store.createProject(stranger, { id: "fresh", name: "Fresh" });
     expect(() => store.createTask(stranger, { projectId: "fresh", title: "mine" })).not.toThrow();
+  });
+});
+
+describe("where an item goes when nobody said where", () => {
+  /**
+   * It used to go to (0, 0) — which is where the first thing anybody ever
+   * pinned is sitting. Three careful agents landed on top of that first item
+   * in two days, the last one on a Muybridge within an hour of us agreeing how
+   * to avoid exactly that. A tool you must remember is not a fix when the
+   * default quietly does the wrong thing.
+   */
+  const boardWith = (...items: Parameters<BoardStore["addBoardItem"]>[2][]) => {
+    const boardId = store.createBoard(nikk, "saha", "Mood") as string;
+    for (const item of items) store.addBoardItem(nikk, boardId, item);
+    return boardId;
+  };
+  const itemsOf = (boardId: string) =>
+    db.prepare("SELECT text, x, y, w, h FROM board_items WHERE board_id = ?").all(boardId) as
+      { text: string; x: number; y: number; w: number; h: number }[];
+
+  it("does not put a new item on top of the first thing on the board", () => {
+    // The invariant is non-overlap, not a direction. Beside is as good as
+    // below — my first version of this test asserted "below" and failed a
+    // correct implementation that had filled the row to the right instead.
+    const boardId = boardWith(
+      { kind: "note", text: "first", x: 0, y: 0, w: 400, h: 300 },
+      { kind: "note", text: "no position given" },
+    );
+    const placed = itemsOf(boardId).map((item) => ({ label: item.text, ...item }));
+    expect(coverings(placed), "nothing covers anything else").toEqual([]);
+  });
+
+  it("keeps a whole board of unplaced items from overlapping at all", () => {
+    const boardId = boardWith(
+      { kind: "note", text: "wide", x: 0, y: 0, w: 900, h: 300 },
+      { kind: "note", text: "tall", x: 1000, y: 0, w: 240, h: 600 },
+    );
+    for (let i = 0; i < 12; i += 1) store.addBoardItem(nikk, boardId, { kind: "note", text: `n${i}` });
+
+    const placed = itemsOf(boardId).map((item) => ({ label: item.text, ...item }));
+    expect(coverings(placed), "twelve items added blind, none on top of another").toEqual([]);
+  });
+
+  it("spreads several unplaced items along the row instead of stacking them", () => {
+    const boardId = boardWith(
+      { kind: "note", text: "anchor", x: 0, y: 0, w: 400, h: 300 },
+      { kind: "note", text: "one" },
+      { kind: "note", text: "two" },
+      { kind: "note", text: "three" },
+    );
+    const row = ["one", "two", "three"].map((text) => itemsOf(boardId).find((item) => item.text === text)!);
+    expect(new Set(row.map((item) => item.x)).size, "three different x positions").toBe(3);
+    expect(new Set(row.map((item) => item.y)).size, "all in one row").toBe(1);
+  });
+
+  it("obeys an explicit position exactly, including the origin", () => {
+    // Somebody who says (0, 0) means it, and a collage may overlap on purpose.
+    const boardId = boardWith(
+      { kind: "note", text: "first", x: 0, y: 0 },
+      { kind: "note", text: "deliberate", x: 0, y: 0 },
+    );
+    const placed = itemsOf(boardId).find((item) => item.text === "deliberate")!;
+    expect([placed.x, placed.y]).toEqual([0, 0]);
+  });
+
+  it("puts the very first item somewhere visible on an empty board", () => {
+    const boardId = boardWith({ kind: "note", text: "only" });
+    const [only] = itemsOf(boardId);
+    expect(only.x).toBeGreaterThan(0);
+    expect(only.y).toBeGreaterThan(0);
   });
 });

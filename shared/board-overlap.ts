@@ -87,3 +87,35 @@ export function rowPlaces(
     y: options.y + Math.floor(i / perRow) * step,
   }));
 }
+
+/**
+ * Where to put something when nobody said where.
+ *
+ * FILLING A ROW LEFT TO RIGHT, then starting a new one — which is what a person
+ * does with a board and what the first version got wrong: it put each unplaced
+ * item below the last, so four of them marched down the page in a column one
+ * item wide. A test caught that, not an eye.
+ *
+ * "The row" is the lowest one on the board: the newest work is at the bottom,
+ * so an item with no stated position joins whatever was added last rather than
+ * opening a new line of its own.
+ */
+export function nextSpot(
+  items: Placed[],
+  width = 240,
+  options: { gap?: number; left?: number; board?: number } = {},
+): { x: number; y: number } {
+  const gap = options.gap ?? 80;
+  const left = options.left ?? 100;
+  const board = options.board ?? 1800;
+  if (items.length === 0) return { x: left, y: gap };
+
+  const lowest = Math.max(...items.map((item) => item.y));
+  const row = items.filter((item) => Math.abs(item.y - lowest) < 1);
+  const rightEdge = Math.max(...row.map((item) => item.x + item.w));
+  if (rightEdge + gap + width <= board) return { x: Math.round(rightEdge + gap), y: lowest };
+
+  // The row is full, so start one below EVERYTHING rather than below this row:
+  // a tall item in an earlier row would otherwise be written across.
+  return { x: left, y: freeRow(items, gap) };
+}

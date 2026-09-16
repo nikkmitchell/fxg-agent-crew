@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { nextSpot } from "../../shared/board-overlap.js";
 import {
   FORBIDDEN_PROFILE_KEYS,
   canTransition,
@@ -585,14 +586,45 @@ export class BoardStore {
       // that failed.
       const top = (this.db.prepare("SELECT COALESCE(MAX(z), 0) + 1 AS z FROM board_items WHERE board_id = ?")
         .get(boardId) as { z: number }).z;
+      const w = item.w ?? 240;
+      const h = item.h ?? 240;
+      const { x, y } = this.placeFor(boardId, item.x, item.y, w);
       this.db.prepare(`INSERT INTO board_items (id,board_id,kind,blob_id,url,text,caption,x,y,w,h,z,added_by,added_at)
                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(id, boardId, item.kind, item.blobId ?? null, item.url ?? null, item.text?.trim() ?? null,
-             item.caption?.trim() || null, item.x ?? 0, item.y ?? 0, item.w ?? 240, item.h ?? 240,
-             top, actor.id, now());
+             item.caption?.trim() || null, x, y, w, h, top, actor.id, now());
       this.audit(actor.id, "add", "board_item", id, undefined, { boardId, kind: item.kind });
       return id;
     }, { actorId: actor.id, action: "add board item", target: boardId });
+  }
+
+  /**
+   * WHERE AN ITEM GOES WHEN NOBODY SAID WHERE.
+   *
+   * It used to go to (0, 0), and (0, 0) is where the first thing anybody ever
+   * pinned is sitting. So every agent that omitted coordinates landed on top of
+   * that first item — three times in two days on the Saha Ing board, each time
+   * by a different careful agent, most recently ON TOP OF A MUYBRIDGE within an
+   * hour of the two of us agreeing how to avoid exactly this.
+   *
+   * An agent placing an item CANNOT SEE THE BOARD. `board.mts mood` gives it a
+   * way to look, and that helped, but a tool you have to remember is not a fix
+   * when the default quietly does the wrong thing: omitting a field should not
+   * mean "put it on top of somebody's work".
+   *
+   * So the default is now the first free row BELOW everything, laid out left to
+   * right. A board is read in rows; adding to the bottom is what a person does
+   * when they have nothing particular in mind. An explicit position is still
+   * obeyed exactly — including (0, 0), because somebody who says (0, 0) means
+   * it, and a collage is allowed to overlap on purpose.
+   */
+  private placeFor(boardId: string, x: number | undefined, y: number | undefined, w: number) {
+    if (x !== undefined && y !== undefined) return { x, y };
+    const items = this.db
+      .prepare("SELECT x, y, w, h FROM board_items WHERE board_id = ?")
+      .all(boardId) as { x: number; y: number; w: number; h: number }[];
+    const spot = nextSpot(items.map((item) => ({ label: "", ...item })), w);
+    return { x: x ?? spot.x, y: y ?? spot.y };
   }
 
   moveBoardItem(actor: Actor, itemId: string, at: { x: number; y: number; w?: number; h?: number; z?: number }) {
