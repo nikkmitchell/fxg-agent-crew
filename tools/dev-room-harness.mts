@@ -18,6 +18,7 @@
 import { buildServer } from "../server/index.js";
 import { BoardStore } from "../server/db/store.js";
 import { deskFor } from "../shared/space-layout.js";
+import { facingToward } from "../shared/agent-home.js";
 
 if (process.env.NODE_ENV === "production") {
   console.error("dev-room-harness mints sessions without a password. Not in production.");
@@ -43,12 +44,39 @@ const { app, config, sessions, space, database } = buildServer({
 // declared agent, and — placed further down, because a session always has a
 // kind — one actor we were told nothing about, which is the state three of the
 // five real actors are actually in.
-const people: [string, "human" | "agent"][] = [
+const DEFAULT_PEOPLE: [string, "human" | "agent"][] = [
   ["nikk", "human"],
   ["Wren", "human"],
   ["Plumbline", "agent"],
   ["Inkstone", "agent"],
 ];
+
+/**
+ * HARNESS_PEOPLE stands up whoever you name, so a body can be LOOKED AT.
+ *
+ *   HARNESS_PEOPLE=olivia,captainlantern pnpm exec tsx tools/dev-room-harness.mts
+ *
+ * WHY THIS EXISTS. Every avatar in this room was chosen from a name, a
+ * catalogue description and a bone measurement, and each time I wrote the same
+ * caveat: nobody has posed it and looked. That caveat survived six avatars
+ * because looking took more setup than choosing did — the harness stood up a
+ * fixed cast, so seeing a candidate meant editing this file.
+ *
+ * The measurements genuinely do not settle it. Chill measured 0.352, squarely
+ * inside the human-ish band, and draws as a wedge-armed octagon. Anchor passed
+ * every number and drives enormous stylised arms. A rig that measures well can
+ * look like anything at all, and the only instrument for that is an eye.
+ *
+ * Names are matched against the avatar map in src/space/vrm-model.ts the same
+ * way a real actor's name is, so whatever an actor of that name would wear is
+ * what you see.
+ */
+const people: [string, "human" | "agent"][] = process.env.HARNESS_PEOPLE
+  ? process.env.HARNESS_PEOPLE.split(",")
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .map((name) => [name, "agent"] as [string, "human" | "agent"])
+  : DEFAULT_PEOPLE;
 
 const harnessSessions = new Map(
   people.map(([username, kind]) => [
@@ -95,6 +123,34 @@ for (const [username, kind] of people) {
 }
 console.log(`\n  http://127.0.0.1:${PORT}/dev/demo/conversation/Inkstone/nikk   // watch Inkstone approach nikk`);
 
+/**
+ * HARNESS_PEOPLE: stand the named bodies IN A ROW, FACING THE SPAWN POINT.
+ *
+ * A row is the whole point. A body on its own looks plausible; the same body
+ * beside four others is where you notice that its forearms are wedges, that it
+ * is a head taller than everyone, or that it is an orange arch. Shiro was
+ * chosen this way and Chill was rejected this way, after measuring had cleared
+ * them both.
+ *
+ * Identical postures, because a difference in pose is a difference you then
+ * have to discount by eye.
+ */
+if (process.env.HARNESS_PEOPLE) {
+  const spawn = { x: 0, z: 6.5 };
+  const gap = 1.2;
+  const left = -((people.length - 1) * gap) / 2;
+  people.forEach(([username], index) => {
+    const at = { x: left + index * gap, y: 0, z: 3.6 };
+    space.presence.sendTo(username, "agent", at, "standing for a look");
+    // Turned toward the spawn point by NAME, through the same resolver the
+    // room gives agents, so the row faces you when you arrive.
+    space.presence.sendTo(username, "agent", at, "standing for a look", facingToward(at, spawn));
+    space.presence.animate(username, { posture: "standing" }, "agent");
+  });
+  console.log(`\n  standing for a look: ${people.map(([n]) => n).join(", ")}`);
+  console.log("  they are in a row at z=3.6 facing the spawn point; walk forward to see them.\n");
+} else {
+
 // Two figures at desks with no browser attached, to check the dimmed ring and
 // the unknown-kind silhouette. Placed by hand through the same `sendTo` the
 // audit poller uses, with a reason that says plainly where it came from.
@@ -139,6 +195,7 @@ space.presence.sendTo("Plumbline", "agent", deskFor("Plumbline"), "placed by the
     },
   });
 }
+} // end of the default demo cast
 
 // A board to act on, so activity-driven movement can be exercised for real
 // rather than simulated. The ids are printed because the point of this harness

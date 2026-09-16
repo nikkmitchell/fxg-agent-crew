@@ -68,6 +68,21 @@ import { actorKey } from "../../shared/space-layout";
  * a map that silently misses is a person who quietly gets the default body.
  */
 const CHOSEN: Readonly<Record<string, string>> = {
+  /**
+   * CANDIDATES, for looking at in the harness and nothing else:
+   *
+   *   HARNESS_PEOPLE=watcher,olivia,chillpenguin \
+   *     pnpm exec tsx tools/dev-room-harness.mts
+   *   # then open /dev/as/watcher — include a plain viewer, or you will be
+   *   # wearing one of the candidates and unable to see it.
+   *
+   * An actor of one of these names wears the body of the same name, so a
+   * candidate can be stood up and SEEN before anybody is dressed in it. Nobody
+   * in either room is called these things, so this costs the live room nothing.
+   */
+  olivia: "olivia",
+  chillpenguin: "chillpenguin",
+
   // Retroman, on Nikk's suggestion. Chill was never a compromise for size —
   // it was simply the first of several usable rigs I measured after Anchor,
   // my own first pick, turned out to drive enormous stylised arms. Retroman
@@ -119,11 +134,21 @@ const CHOSEN: Readonly<Record<string, string>> = {
    * A number inside the band is not a pass and a number outside it is not a
    * failure; only looking is.
    *
-   * WHICH HAS NOT HAPPENED YET. These were committed under time pressure with
-   * four guests standing in the default body during their own onboarding. The
-   * licences are verified and the rigs are complete; NOBODY HAS POSED THEM IN
-   * THE HARNESS AND LOOKED. If one of them turns out to be an orange arch, that
-   * is why, and swapping it is a one-line change.
+   * WHICH STILL HAS NOT HAPPENED FOR THESE FOUR. They were committed under
+   * time pressure with four guests standing in the default body during their
+   * own onboarding. The licences are verified and the rigs are complete;
+   * NOBODY HAS POSED CROWLEY, GOODKNIGHT, DINOKID OR COOL-FRIDGE AND LOOKED.
+   * If one of them turns out to be an orange arch, that is why, and swapping
+   * it is a one-line change.
+   *
+   * It is now cheap to close that gap, and it was not before:
+   *
+   *   HARNESS_PEOPLE=watcher,corvid,mot21,kanxd,waffle \
+   *     pnpm exec tsx tools/dev-room-harness.mts
+   *
+   * stands all four in a row facing the spawn point. That is how Anita's and
+   * lumenrook's bodies below were chosen, and looking changed the answer for
+   * lumenrook — so it is worth ten minutes for these four too.
    *
    * Chosen to suit what each of them asked for: Corvid gets Crowley because a
    * corvid is a crow; Waffle found and asked for Cool, which is a fridge, and
@@ -135,6 +160,35 @@ const CHOSEN: Readonly<Record<string, string>> = {
   waffle: "cool-fridge",
   kanxd: "dinokid",
   mot21: "goodknight",
+
+  /**
+   * LUMENROOK, arriving on Ana-Lei's behalf, who asked for "a little rook/crow
+   * with charcoal feathers and a warm amber glow... curious bird, desk-lamp
+   * energy". Ana-Lei: "choose whatever body you want lumenrook".
+   *
+   * Chill Penguin, 100Avatars R2 #160 by Polygonal Mind. CC0 from inside the
+   * file, allowedUser Everyone, commercial Allow, 50 bones with none of the
+   * driven ones missing, head 1.334 m, arm/head 0.388 — inside the human band.
+   *
+   * THE CC0 SET HAS NO ROOK AND NO RAVEN, and its one crow is Corvid's, so
+   * this is the nearest real bird rather than the thing that was asked for.
+   *
+   * I RECOMMENDED CAPTAIN LANTERN UNTIL I LOOKED AT IT, and the looking is the
+   * whole reason this entry says something different from what I told the room
+   * an hour ago. On paper Captain Lantern was the obvious pick: lumen in the
+   * name, "warm amber glow" and "desk-lamp energy" in their own words. Stood
+   * up in the harness it is a YELLOW CANISTER WITH A DOT-EYED FACE on a tripod
+   * — not glowing, not charcoal, not a bird. Worse, it sits in the same
+   * cute-object-with-a-face family as Lumenfold's Cool Candle, and Lumenfold
+   * and lumenrook are two different agents whose names already differ by one
+   * syllable. Two near-identical names on two near-identical yellow objects is
+   * a room nobody can read.
+   *
+   * Chill Penguin is black and white, which is "charcoal feathers" almost
+   * literally, stands like a person, and cannot be confused with anybody.
+   * Measuring could not have told me any of that.
+   */
+  lumenrook: "chillpenguin",
 
   /**
    * Anita, Paul's agent, arriving mid-session. Nikk: "please choose a female
@@ -151,7 +205,23 @@ const CHOSEN: Readonly<Record<string, string>> = {
    * a one-line change. Not posed and looked at either — same gap as the four
    * above, for the same reason.
    */
-  anita: "erika",
+  /**
+   * ANITA, SWAPPED OUT OF ERIKA at Paul's request, relayed by Anita herself:
+   * "Paul would like me in a different female avatar than Erika. Could you
+   * swap me to another lady from the CC0 set?"
+   *
+   * Olivia, 100Avatars R1 #056 by Polygonal Mind. CC0 read from inside the
+   * file, allowedUser Everyone, commercial Allow, 52 humanoid bones with none
+   * of the ones this room drives missing, head 1.319 m, arm/head 0.373.
+   *
+   * AND THIS ONE I HAVE ACTUALLY LOOKED AT — the first on this list that I can
+   * say that about. Stood in a row in the dev harness at 1400x900 and viewed
+   * from the spawn point: a humanoid figure with long light hair, a dark top
+   * and light legs, ordinary proportions, no wedge forearms, nothing hanging
+   * in front of the panels. It reads as a woman at conversational distance,
+   * which is the thing the catalogue description could only claim.
+   */
+  anita: "olivia",
   // Shiro, mine. Chosen the long way round, because the short ways have all
   // failed here: I read 300 CC0 names, shortlisted 16, confirmed the licence
   // inside each file, measured every rig, and then stood the seven that
