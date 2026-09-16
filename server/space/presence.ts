@@ -1,6 +1,6 @@
 import { ROOM, WALK_SPEED, actorKey, type Vec3, deskFor } from "../../shared/space-layout.js";
 import type { PostureMemory } from "./postures.js";
-import type { AgentHome } from "../../shared/agent-home.js";
+import { facingToward, type AgentHome } from "../../shared/agent-home.js";
 import type { Pose } from "../../shared/space-wire.js";
 import {
   DEFAULT_AVATAR_STATE,
@@ -109,9 +109,14 @@ const clampToRoom = (at: Vec3): Vec3 => ({
 const distance = (a: Vec3, b: Vec3) => Math.hypot(b.x - a.x, b.z - a.z);
 const ARRIVED = 0.02;
 
-/** Three.js avatars look down local -Z at yaw zero. */
-export const facingToward = (from: Vec3, to: Vec3): number =>
-  Math.atan2(from.x - to.x, from.z - to.z);
+/**
+ * Three.js avatars look down local -Z at yaw zero.
+ *
+ * Re-exported, not defined here: it moved to shared/agent-home.ts so the room's
+ * renderer, the home route and this settle loop cannot drift apart on the sign.
+ * Every existing caller keeps importing it from presence, where they found it.
+ */
+export { facingToward };
 
 export const isWalking = (occupant: Pick<Occupant, "at" | "heading">): boolean =>
   distance(occupant.at, occupant.heading) >= ARRIVED;

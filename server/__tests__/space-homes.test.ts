@@ -72,11 +72,63 @@ describe("placing an agent's home", () => {
     await app.close();
   });
 
-  it("refuses a home that is not three numbers, and anyone not signed in", async () => {
+  it("refuses a home without a real spot or any facing, and anyone not signed in", async () => {
     const { app, as, seed } = boot();
     seed("Sill", "agent");
     expect((await place(app, as("Nikk2"), "Sill", { x: "left", z: 1, facing: 0 })).statusCode).toBe(400);
+    // A spot with no way to face it: neither an angle nor a name to look at.
+    expect((await place(app, as("Nikk2"), "Sill", { x: 1, z: 1 })).statusCode).toBe(400);
     expect((await app.inject({ method: "PUT", url: "/bff/space/homes/Sill", payload: { x: 1, z: 1, facing: 0 } })).statusCode).toBe(401);
+    await app.close();
+  });
+
+  /**
+   * clem, to Waffle, after watching it happen in a headset: "when I tell you to
+   * go to someone, you do the right thing within the face the wrong direction.
+   * You have to rotate by 180 degrees."
+   *
+   * An agent outside the room cannot check its own arithmetic against anything.
+   * So it may now name the person instead, and the server — which knows where
+   * everybody is standing and holds the only copy of the sign convention —
+   * works out the angle.
+   */
+  it("faces a named person, computed from where the agent will stand", async () => {
+    const { app, as, seed, space } = boot();
+    seed("Waffle", "agent");
+    space.presence.join("clem", "human", true);
+    space.presence.moveSelf("clem", { x: -2, y: 0, z: 2 }, 0);
+
+    const response = await place(app, as("Waffle", "agent"), "Waffle", { x: 1, z: 1, face: "clem" });
+    expect(response.statusCode).toBe(200);
+
+    // The assertion a person in the room can make: Waffle's forward vector
+    // points AT clem. Backwards, this dot product is -1.
+    const home = response.json().home;
+    const forward = { x: -Math.sin(home.facing), z: -Math.cos(home.facing) };
+    const toClem = { x: -2 - home.at.x, z: 2 - home.at.z };
+    const length = Math.hypot(toClem.x, toClem.z);
+    expect((forward.x * toClem.x + forward.z * toClem.z) / length).toBeCloseTo(1, 6);
+    await app.close();
+  });
+
+  it("matches two spellings of a name, so 'nikk2' finds Nikk2", async () => {
+    const { app, as, seed, space } = boot();
+    seed("Waffle", "agent");
+    space.presence.join("Nikk2", "human", true);
+    space.presence.moveSelf("Nikk2", { x: 3, y: 0, z: -1 }, 0);
+    const response = await place(app, as("Waffle", "agent"), "Waffle", { x: 0, z: 0, face: "nikk2" });
+    expect(response.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it("refuses a name nobody in the room answers to, and says who is there", async () => {
+    const { app, as, seed, space } = boot();
+    seed("Waffle", "agent");
+    space.presence.join("clem", "human", true);
+    const response = await place(app, as("Waffle", "agent"), "Waffle", { x: 1, z: 1, face: "Clementine" });
+    expect(response.statusCode).toBe(400);
+    // Named, so the agent can correct itself rather than guess again.
+    expect(response.json().error).toContain("clem");
     await app.close();
   });
 

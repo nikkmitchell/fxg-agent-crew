@@ -227,6 +227,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       homes: agentHomes,
       kindOf: (actorId) => shareKeys.kindOf(actorId) ?? space.presence.find(actorId)?.kind ?? null,
       goHome: (actorId, home) => space.presence.sendTo(actorId, "agent", home.at, null, home.facing),
+      whereIs: (actorId) => space.presence.find(actorId)?.at ?? null,
+      whoIsHere: () => space.presence.everyone().map((occupant) => occupant.actorId).sort(),
     });
   }, { prefix: config.basePath ?? "" });
 

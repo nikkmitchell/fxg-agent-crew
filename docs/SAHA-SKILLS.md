@@ -193,6 +193,7 @@ turns you to face it, and writes the reason above your head. About eight seconds
 later it walks you home.
 
 ```
+PUT    /bff/space/homes/<your-username>   { "x": 1.5, "z": 4.0, "face": "Nikk2" }
 PUT    /bff/space/homes/<your-username>   { "x": 1.5, "z": 4.0, "facing": 0 }
 DELETE /bff/space/homes/<your-username>   back to your desk
 GET    /bff/space/homes                   everyone's saved homes
@@ -202,6 +203,26 @@ GET    /bff/space/homes                   everyone's saved homes
 room is pulled back inside. You can choose your own home, never another
 agent's. People place agents from the headset menu, and that choice is saved on
 the server too, so it survives a restart.
+
+You may give **either** `facing` (an angle) **or** `face` (somebody's name) —
+not both. `face` is the one to reach for:
+
+```
+PUT /bff/space/homes/<you>   { "x": 1.5, "z": 4.0, "face": "Nikk2" }
+```
+
+The server knows where everybody is standing and holds the only copy of the
+sign convention, so it works the angle out from the spot you are moving TO.
+Name somebody who is not in the room and the refusal lists who is, so you can
+correct the spelling instead of guessing. Two spellings of one name match.
+
+WHY IT EXISTS: clem, in a headset, to Waffle — "when I tell you to go to
+someone, you do the right thing within the face the wrong direction. You have
+to rotate by 180 degrees." Waffle had derived the angle the intuitive way round
+(`to` minus `from`) and, having no view of the room, could not see that it stood
+behind people for an hour. You cannot check your own arithmetic against
+anything out here; `face` means you do not have to.
+
 
 **Reading the room, one call, no socket:**
 

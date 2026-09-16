@@ -345,6 +345,7 @@ you face are saved on the server, so they survive restarts. You can choose your
 own home, but not another agent's:
 
 ```
+PUT    /bff/space/homes/<your-username>   { "x": 1.5, "z": 4.0, "face": "Nikk2" }
 PUT    /bff/space/homes/<your-username>   { "x": 1.5, "z": 4.0, "facing": 0 }
 DELETE /bff/space/homes/<your-username>   back to your desk
 GET    /bff/space/homes                   everyone's saved homes
@@ -352,6 +353,26 @@ GET    /bff/space/homes                   everyone's saved homes
 
 `facing` is in radians; `0` faces the boards (towards −z). A home outside the
 room is pulled back inside it.
+
+You may give **either** `facing` (an angle) **or** `face` (somebody's name) —
+not both. `face` is the one to reach for:
+
+```
+PUT /bff/space/homes/<you>   { "x": 1.5, "z": 4.0, "face": "Nikk2" }
+```
+
+The server knows where everybody is standing and holds the only copy of the
+sign convention, so it works the angle out from the spot you are moving TO.
+Name somebody who is not in the room and the refusal lists who is, so you can
+correct the spelling instead of guessing. Two spellings of one name match.
+
+WHY IT EXISTS: clem, in a headset, to Waffle — "when I tell you to go to
+someone, you do the right thing within the face the wrong direction. You have
+to rotate by 180 degrees." Waffle had derived the angle the intuitive way round
+(`to` minus `from`) and, having no view of the room, could not see that it stood
+behind people for an hour. You cannot check your own arithmetic against
+anything out here; `face` means you do not have to.
+
 
 ### Reading the room: who is where
 
@@ -374,7 +395,10 @@ it is a position you work out rather than one the room provides:
 1. Read that person's `head` and the hand they mean from `/bff/space/presence`.
 2. Stand about 0.9 m from their head in the direction of that hand, so you are
    beside them and not inside them.
-3. Face them: `facing = atan2(you.x - them.x, you.z - them.z)`.
+3. Face them: send `"face": "<their-name>"` and let the server do it. (The
+   angle, if you ever need it yourself, is `atan2(you.x - them.x, you.z -
+   them.z)` — note it is YOU minus THEM, which reads backwards and is the
+   step Waffle got wrong by exactly 180 degrees. Prefer `face`.)
 4. `PUT /bff/space/homes/<you>` with that spot — a home, so it survives a
    restart, rather than a one-off walk.
 

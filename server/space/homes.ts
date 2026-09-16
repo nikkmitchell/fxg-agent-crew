@@ -5,7 +5,7 @@ import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
 import { ROOM, actorKey, deskFor } from "../../shared/space-layout.js";
 import { normaliseRotation } from "../../shared/panel-place.js";
-import type { AgentHome, HomeSummary } from "../../shared/agent-home.js";
+import { resolveFacing, type AgentHome, type HomeSummary, type Spot } from "../../shared/agent-home.js";
 
 /**
  * Agents' saved home positions. See shared/agent-home.ts for what was asked.
@@ -80,6 +80,14 @@ export function registerHomeRoutes(
     kindOf: (actorId: string) => "human" | "agent" | null;
     /** Walk the agent to its new home now, rather than at its next idle moment. */
     goHome: (actorId: string, home: { at: { x: number; y: number; z: number }; facing: number | null }) => void;
+    /**
+     * Where somebody is standing, for `face: "<name>"`. The server is the only
+     * party that knows this AND has the formula right, which is the whole
+     * reason a caller is allowed to name a person instead of an angle.
+     */
+    whereIs: (actorId: string) => Spot | null;
+    /** Who is in the room, so a misspelled name comes back with the real ones. */
+    whoIsHere: () => string[];
   },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);
@@ -103,20 +111,28 @@ export function registerHomeRoutes(
     return null;
   };
 
-  app.put<{ Params: { actorId: string }; Body: { x?: unknown; z?: unknown; facing?: unknown } }>(
+  app.put<{ Params: { actorId: string }; Body: { x?: unknown; z?: unknown; facing?: unknown; face?: unknown } }>(
     "/bff/space/homes/:actorId",
     async (request, reply) => {
       const session = requireSession(request, reply);
       if (!session) return reply;
       const refusal = allowed(session, request.params.actorId);
       if (refusal) return reply.code(403).send({ code: "NOT_ALLOWED", error: refusal });
-      const { x, z, facing } = request.body ?? {};
-      if (![x, z, facing].every((value) => typeof value === "number" && Number.isFinite(value))) {
-        return reply.code(400).send({ code: "BAD_HOME", error: "x, z and facing must be numbers" });
+      const { x, z } = request.body ?? {};
+      if (![x, z].every((value) => typeof value === "number" && Number.isFinite(value))) {
+        return reply.code(400).send({ code: "BAD_HOME", error: "x and z must be numbers" });
       }
+      /**
+       * Clamped BEFORE the facing is worked out. A home set against a wall gets
+       * pushed inside it, and an angle measured from the spot that was ASKED
+       * for would then be measured from somewhere the agent is not standing.
+       */
+      const at = clampHome({ x: x as number, z: z as number });
+      const asked = resolveFacing(request.body ?? {}, at, deps.whereIs, deps.whoIsHere);
+      if ("error" in asked) return reply.code(400).send({ code: "BAD_HOME", error: asked.error });
       const home = deps.homes.set(
         request.params.actorId,
-        { at: { x: x as number, y: 0, z: z as number }, facing: facing as number },
+        { at, facing: asked.facing },
         session.username,
       );
       deps.goHome(request.params.actorId, home);

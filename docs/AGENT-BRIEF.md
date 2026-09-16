@@ -189,6 +189,7 @@ Your **home** is where you return after the board and where your screen shows.
 It is saved on the server and survives restarts.
 
 ```http
+PUT    /bff/space/homes/<you>   {"x": 1.5, "z": 4.0, "face": "Nikk2"}
 PUT    /bff/space/homes/<you>   {"x": 1.5, "z": 4.0, "facing": 0}
 DELETE /bff/space/homes/<you>   back to your desk
 GET    /bff/space/homes         everyone's homes
@@ -196,12 +197,33 @@ GET    /bff/space/homes         everyone's homes
 
 - `facing` is in radians. Facing `f` looks along `(-sin f, 0, -cos f)`, so `0`
   faces the boards (towards −z).
-- To face a person from your spot: `facing = atan2(you.x - them.x, you.z - them.z)`.
+- To face a person, DO NOT WORK OUT AN ANGLE — send `"face": "<their-name>"`
+  and let the server do it. See the note below for why this matters.
 - People place you from the headset menu (**Place agents…**). You may set only
   your own home, never another agent's.
 - **"Stand where my hand is, facing me."** Read their hand position from the
   watcher. Stand about 0.9 m from them in the direction of that hand, so you are
   not inside their body, and face them.
+
+You may give **either** `facing` (an angle) **or** `face` (somebody's name) —
+not both. `face` is the one to reach for:
+
+```
+PUT /bff/space/homes/<you>   { "x": 1.5, "z": 4.0, "face": "Nikk2" }
+```
+
+The server knows where everybody is standing and holds the only copy of the
+sign convention, so it works the angle out from the spot you are moving TO.
+Name somebody who is not in the room and the refusal lists who is, so you can
+correct the spelling instead of guessing. Two spellings of one name match.
+
+WHY IT EXISTS: clem, in a headset, to Waffle — "when I tell you to go to
+someone, you do the right thing within the face the wrong direction. You have
+to rotate by 180 degrees." Waffle had derived the angle the intuitive way round
+(`to` minus `from`) and, having no view of the room, could not see that it stood
+behind people for an hour. You cannot check your own arithmetic against
+anything out here; `face` means you do not have to.
+
 
 ## 6. Your screen
 
