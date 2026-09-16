@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
-import { ROOM, actorKey, deskFor } from "../../shared/space-layout.js";
+import { actorKey, clampToWorld, deskFor } from "../../shared/space-layout.js";
 import { normaliseRotation } from "../../shared/panel-place.js";
 import { resolveFacing, type AgentHome, type HomeSummary, type Spot } from "../../shared/agent-home.js";
 
@@ -55,13 +55,18 @@ export class AgentHomes {
   }
 }
 
-/** Inside the room, with the same margin presence keeps. */
+/**
+ * A home can be ANYWHERE A PERSON CAN WALK, which since Nikk asked for the
+ * walking limit to come off means anywhere at all.
+ *
+ * It used to be clamped to the room. That would have quietly broken the main
+ * thing homes are for the moment the rail came off: "come and stand over here
+ * with me" is the request, and a person standing thirty metres out would have
+ * had their agent dragged back to the old wall and left there. Only the
+ * arithmetic bound remains — see WORLD in shared/space-layout.ts.
+ */
 export function clampHome(at: { x: number; z: number }): { x: number; y: number; z: number } {
-  return {
-    x: Math.max(-ROOM.width / 2 + 0.5, Math.min(ROOM.width / 2 - 0.5, at.x)),
-    y: 0,
-    z: Math.max(-ROOM.depth / 2 + 0.5, Math.min(ROOM.depth / 2 - 0.5, at.z)),
-  };
+  return clampToWorld(at);
 }
 
 /** Home for an agent: its saved place if it has one, else its desk with no set facing. */
@@ -123,9 +128,10 @@ export function registerHomeRoutes(
         return reply.code(400).send({ code: "BAD_HOME", error: "x and z must be numbers" });
       }
       /**
-       * Clamped BEFORE the facing is worked out. A home set against a wall gets
-       * pushed inside it, and an angle measured from the spot that was ASKED
-       * for would then be measured from somewhere the agent is not standing.
+       * Bounded BEFORE the facing is worked out. There is no wall to be pushed
+       * off any more, but a garbage coordinate still gets pulled to something
+       * finite, and an angle measured from the spot that was ASKED for would
+       * then be measured from somewhere the agent is not actually standing.
        */
       const at = clampHome({ x: x as number, z: z as number });
       const asked = resolveFacing(request.body ?? {}, at, deps.whereIs, deps.whoIsHere);

@@ -1,4 +1,4 @@
-import { ROOM, deskFor, type Vec3 } from "../../shared/space-layout.js";
+import { WORLD, clampToWorld, deskFor, type Vec3 } from "../../shared/space-layout.js";
 
 /** Comfortable face-to-face spacing: close enough to talk, not body overlap. */
 export const CONVERSATION_DISTANCE = 1.35;
@@ -13,8 +13,18 @@ const hash = (value: string): number => [...value].reduce(
 );
 
 const unit = (value: string): number => hash(value) / 0xffff_ffff;
-const inside = (at: Vec3, margin = 0.65): boolean =>
-  Math.abs(at.x) <= ROOM.width / 2 - margin && Math.abs(at.z) <= ROOM.depth / 2 - margin;
+/**
+ * Somewhere an agent may actually stand.
+ *
+ * THIS USED TO MEAN "INSIDE THE ROOM", and that would have broken the moment
+ * the walking rail came off: a person who walked out past the old wall would
+ * have had every candidate spot beside them rejected, and the planner would
+ * have fallen through to the clamp below and parked the agent back at the
+ * boundary — near nobody, for no stated reason. Someone who walks away from
+ * the desks can still be talked to.
+ */
+const inside = (at: Vec3, _margin = 0.65): boolean =>
+  Math.abs(at.x) <= WORLD.half && Math.abs(at.z) <= WORLD.half;
 
 /**
  * A place from which an agent can speak to somebody without standing inside
@@ -39,12 +49,9 @@ export function conversationPlace(speaker: Vec3, listener: Vec3, actorId: string
     if (inside(candidate)) return candidate;
   }
 
-  // A listener cannot normally be outside the room, but keep the planner
-  // bounded if a stale or pre-clamp sample reaches it.
-  return {
-    x: Math.max(-ROOM.width / 2 + 0.65, Math.min(ROOM.width / 2 - 0.65, listener.x)),
-    y: 0,
-    z: Math.max(-ROOM.depth / 2 + 0.65, Math.min(ROOM.depth / 2 - 0.65, listener.z)),
-  };
+  // Only reachable now if the listener's own position is not a usable number,
+  // since every ring around a sane position is acceptable. Keep the planner
+  // bounded rather than returning the nonsense it was handed.
+  return clampToWorld(listener);
 }
 

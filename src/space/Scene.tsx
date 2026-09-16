@@ -5,6 +5,7 @@ import {
   ROOM,
   STATIONS,
   WALK_SPEED,
+  clampToWorld,
   facingFor,
   type Vec3,
 } from "../../shared/space-layout";
@@ -345,16 +346,13 @@ function Me({
         (ahead * -Math.cos(yaw.current) + strafe * -Math.sin(yaw.current)) *
         distance;
 
-      // The walls are walls.
-      const margin = 0.45;
-      camera.position.x = Math.max(
-        -ROOM.width / 2 + margin,
-        Math.min(ROOM.width / 2 - margin, camera.position.x),
-      );
-      camera.position.z = Math.max(
-        -ROOM.depth / 2 + margin,
-        Math.min(ROOM.depth / 2 - margin, camera.position.z),
-      );
+      // THERE ARE NO WALLS ANY MORE. Nikk: "remove the limited walking
+      // boundary we don't want to have any limit to walking". What is left is
+      // the arithmetic bound ten kilometres out, so a position stays a usable
+      // number rather than to stop anybody — see WORLD in shared/space-layout.
+      const walked = clampToWorld({ x: camera.position.x, z: camera.position.z });
+      camera.position.x = walked.x;
+      camera.position.z = walked.z;
       camera.position.y = EYE_HEIGHT;
     }
 

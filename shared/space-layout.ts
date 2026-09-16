@@ -37,15 +37,44 @@ export type Station = {
   drawnInSession?: boolean;
 };
 
+/**
+ * HOW FAR YOU MAY WALK: as far as you like.
+ *
+ * Nikk: "can you remove the limited walking boundary we don't want to have any
+ * limit to walking".
+ *
+ * There used to be a rail at the edge of ROOM. It is gone. What is left is not
+ * a boundary but an ARITHMETIC BOUND, and the difference matters: nothing here
+ * is meant to stop anybody, it exists so a position stays a usable number.
+ *
+ * WHY A BOUND AT ALL, when the instruction was "no limit". A position is not
+ * only yours — other people's maths is done against it. `standingRoomNear`
+ * searches outward from where you are, `conversationPlace` puts an agent at
+ * arm's length from you, and a screen hangs at a fixed offset in front of you.
+ * At 1e9 those calculations lose all their precision, and an agent sent to
+ * stand beside you can no longer be told apart from one standing on you. At
+ * Infinity or NaN they stop producing numbers at all, and a single bad sample
+ * from one client would put every figure in the room at a broken coordinate.
+ *
+ * So: 10 km, which is 500 room-widths and about two hours' walk. Nobody will
+ * ever reach it on foot, and doubles stay exact well past it. It is a guard
+ * against a typo or a garbage packet, not against a person going for a walk.
+ */
+export const WORLD = { half: 10_000 } as const;
+
+/** Keep a position finite and sane. NOT a wall — see WORLD. */
+export function clampToWorld(at: { x: number; z: number }): { x: number; y: number; z: number } {
+  const sane = (value: number) =>
+    Number.isFinite(value) ? Math.max(-WORLD.half, Math.min(WORLD.half, value)) : 0;
+  return { x: sane(at.x), y: 0, z: sane(at.z) };
+}
+
 export const ROOM = {
   /**
-   * How far anyone may wander before the rail stops them. NOT walls.
-   *
-   * Generous, because it costs nothing in a void and being cramped costs
-   * something. It was 16 x 14, which put the resting places OUTSIDE it — so
-   * the clamp pulled every idle figure onto the same point on the boundary and
-   * they stood inside one another. `space-layout.test.ts` now fails if any
-   * fixed position in this file falls outside these numbers.
+   * The furnished part of the void: where the panels are, where people arrive,
+   * and where an unplaced figure rests. NOT a limit on walking any more — see
+   * WORLD above. `space-layout.test.ts` fails if any fixed position in this
+   * file falls outside these numbers.
    */
   width: 20,
   depth: 22,

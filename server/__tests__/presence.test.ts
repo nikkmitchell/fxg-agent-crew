@@ -83,16 +83,31 @@ describe("joining", () => {
 });
 
 describe("moving", () => {
-  it("keeps people inside the walls", () => {
+  it("lets somebody walk far outside the old walls, and agrees where they are", () => {
+    // Nikk: "remove the limited walking boundary we don't want to have any
+    // limit to walking". The server clamp mattered most of all: it ran on
+    // SELF-REPORTED positions, so leaving it would have let the walker see
+    // themselves leave while everyone else saw them stuck at the wall.
     const presence = at({ now: 1 });
     presence.join("nikk", "human");
     presence.moveSelf("nikk", { x: 500, y: 9, z: -500 }, 0);
 
     const spot = presence.find("nikk")!.at;
-    expect(Math.abs(spot.x)).toBeLessThan(ROOM.width / 2);
-    expect(Math.abs(spot.z)).toBeLessThan(ROOM.depth / 2);
-    // The floor is the floor. Nobody flies.
+    expect(spot.x, "where they said they were").toBe(500);
+    expect(spot.z).toBe(-500);
+    expect(Math.abs(spot.x)).toBeGreaterThan(ROOM.width / 2);
+    // And the room agrees they have arrived, rather than walking them back.
+    expect(presence.find("nikk")!.heading).toEqual({ x: 500, y: 0, z: -500 });
+    // The floor is still the floor. Nobody flies.
     expect(spot.y).toBe(0);
+  });
+
+  it("still refuses to record a position that is not a number", () => {
+    const presence = at({ now: 1 });
+    presence.join("nikk", "human");
+    presence.moveSelf("nikk", { x: Number.NaN, y: 0, z: Number.POSITIVE_INFINITY }, 0);
+    const spot = presence.find("nikk")!.at;
+    expect(Number.isFinite(spot.x) && Number.isFinite(spot.z)).toBe(true);
   });
 
   it("clears the reason when someone walks themselves somewhere", () => {

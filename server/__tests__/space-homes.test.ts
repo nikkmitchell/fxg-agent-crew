@@ -6,7 +6,7 @@ import { Presence } from "../space/presence.js";
 import { Activity, ATTENTION_MS } from "../space/activity.js";
 import { AgentHomes } from "../space/homes.js";
 import { BoardStore } from "../db/store.js";
-import { ROOM, deskFor } from "../../shared/space-layout.js";
+import { ROOM, WORLD, deskFor } from "../../shared/space-layout.js";
 
 /**
  * Nikk: "agents should choose a position where they stay and they should
@@ -47,12 +47,26 @@ describe("placing an agent's home", () => {
     await app.close();
   });
 
-  it("keeps a home inside the room", async () => {
+  it("lets a home sit far outside the old walls, so an agent can follow you out", async () => {
+    // The walking rail is gone at Nikk's request, and a home clamped to the
+    // room would have quietly broken the main thing homes are for: somebody
+    // standing well outside asking an agent to come and stand with them.
     const { app, as, seed } = boot();
     seed("Sill", "agent");
     const response = await place(app, as("Nikk2"), "Sill", { x: 500, z: -500, facing: 0 });
-    expect(Math.abs(response.json().home.at.x)).toBeLessThan(ROOM.width / 2);
-    expect(Math.abs(response.json().home.at.z)).toBeLessThan(ROOM.depth / 2);
+    expect(response.json().home.at.x).toBe(500);
+    expect(response.json().home.at.z).toBe(-500);
+    expect(Math.abs(response.json().home.at.x)).toBeGreaterThan(ROOM.width / 2);
+    await app.close();
+  });
+
+  it("keeps a home finite when the numbers are absurd", async () => {
+    const { app, as, seed } = boot();
+    seed("Sill", "agent");
+    const response = await place(app, as("Nikk2"), "Sill", { x: 1e12, z: -1e12, facing: 0 });
+    const at = response.json().home.at;
+    expect(Math.abs(at.x)).toBeLessThanOrEqual(WORLD.half);
+    expect(Math.abs(at.z)).toBeLessThanOrEqual(WORLD.half);
     await app.close();
   });
 

@@ -1,4 +1,4 @@
-import { ROOM, WALK_SPEED, actorKey, type Vec3, deskFor } from "../../shared/space-layout.js";
+import { ROOM, WALK_SPEED, actorKey, clampToWorld, type Vec3, deskFor } from "../../shared/space-layout.js";
 import type { PostureMemory } from "./postures.js";
 import { facingToward, type AgentHome } from "../../shared/agent-home.js";
 import type { Pose } from "../../shared/space-wire.js";
@@ -100,11 +100,20 @@ export const AVATAR_GESTURE_TTL_MS = 5_000;
 /** Drop an occupant we have not heard from in this long. */
 export const STALE_AFTER_MS = 45_000;
 
-const clampToRoom = (at: Vec3): Vec3 => ({
-  x: Math.max(-ROOM.width / 2 + 0.5, Math.min(ROOM.width / 2 - 0.5, at.x)),
-  y: 0,
-  z: Math.max(-ROOM.depth / 2 + 0.5, Math.min(ROOM.depth / 2 - 0.5, at.z)),
-});
+/**
+ * Make a position safe to hold and hand out. NOT A BOUNDARY ANY MORE.
+ *
+ * Nikk: "remove the limited walking boundary we don't want to have any limit
+ * to walking". This used to pull anybody who reached the edge of ROOM back
+ * inside — and it ran on SELF-REPORTED positions too, so removing the rail in
+ * the browser alone would have been a half-fix of the worst kind: the walker
+ * would see themselves stroll out into the dark while everybody else watched
+ * them stand still at the wall, because the server kept overwriting where they
+ * said they were. The wall would have looked removed to precisely one person.
+ *
+ * What is left only keeps the number finite and sane — see WORLD.
+ */
+const clampToRoom = (at: Vec3): Vec3 => clampToWorld(at);
 
 const distance = (a: Vec3, b: Vec3) => Math.hypot(b.x - a.x, b.z - a.z);
 const ARRIVED = 0.02;

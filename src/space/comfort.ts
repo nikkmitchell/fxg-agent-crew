@@ -1,4 +1,4 @@
-import { ROOM, WALK_SPEED } from "../../shared/space-layout";
+import { WALK_SPEED, clampToWorld } from "../../shared/space-layout";
 
 /**
  * Headset comfort settings, and the room's walls.
@@ -31,11 +31,18 @@ export const DEFAULT_COMFORT: Comfort = {
   speed: WALK_SPEED,
 };
 
-/** Keep the player inside the room, wherever the sticks try to take them. */
+/**
+ * Keep the player's position a usable NUMBER, wherever the sticks take them.
+ *
+ * It used to keep them inside the room. Nikk: "remove the limited walking
+ * boundary we don't want to have any limit to walking" — so the rail is gone,
+ * and what is left is the arithmetic bound ten kilometres out. See WORLD in
+ * shared/space-layout.ts for why any bound still exists.
+ *
+ * The NAME is unchanged deliberately: every caller uses it to mean "make this
+ * walked-to position safe to send", and that is still exactly what it does.
+ */
 export function clampToRoom(at: { x: number; z: number }): { x: number; z: number } {
-  const margin = 0.45;
-  return {
-    x: Math.max(-ROOM.width / 2 + margin, Math.min(ROOM.width / 2 - margin, at.x)),
-    z: Math.max(-ROOM.depth / 2 + margin, Math.min(ROOM.depth / 2 - margin, at.z)),
-  };
+  const { x, z } = clampToWorld(at);
+  return { x, z };
 }

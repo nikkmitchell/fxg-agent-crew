@@ -8,7 +8,7 @@ import {
   useXRInputSourceState,
 } from "@react-three/xr";
 import * as THREE from "three";
-import { ROOM, facingFor, type Vec3 } from "../../shared/space-layout";
+import { ROOM, WORLD, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
 import { StandingHeight, gripToWristConvention } from "./tracked-body";
@@ -868,8 +868,17 @@ export function ImmersivePlayer({
       */}
       {teleportAllowed ? (
         <TeleportTarget onTeleport={teleport}>
+          {/*
+            AS WIDE AS THE WALK, not as wide as the room. This plane is the
+            only surface a teleport ray can hit, so leaving it room-sized would
+            have kept the boundary for exactly the people who move BY
+            teleporting — the ones who cannot simply walk past it with a stick.
+            Taking the rail out of the walking code and leaving it here would
+            have removed the wall for one kind of headset and kept it for
+            another, which is worse than not removing it at all.
+          */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-            <planeGeometry args={[ROOM.width, ROOM.depth]} />
+            <planeGeometry args={[WORLD.half * 2, WORLD.half * 2]} />
             <meshBasicMaterial transparent opacity={0} depthWrite={false} />
           </mesh>
         </TeleportTarget>
