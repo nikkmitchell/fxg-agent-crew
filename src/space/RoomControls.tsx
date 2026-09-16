@@ -1375,7 +1375,12 @@ export function RoomControls({
                 if (saying === "writing") return;
                 if (saying === "recording") void finishSaying();
                 else if (written.trim() && !keyboardFocused) void sendWritten();
-                else if (canSpeak) void startSaying();
+                // THE SECOND PRESS MEANS IT. `micRisky` is set by the first
+                // press, which only warns; passing it back is what makes
+                // "press again to go ahead" true. Without this the notice
+                // promised something the button could not do, and clem pressed
+                // it five times in a row on their first day in the room.
+                else if (canSpeak) void startSaying(micRisky);
                 else openTextEntry();
                 return;
               }
