@@ -25,6 +25,7 @@ import {
 } from "./palm-joystick";
 import { compensateReset, type Placed } from "./recenter";
 import { stickStep } from "./stick-walk";
+import { teleportIsTheOnlyWayToMove } from "./teleport-needed";
 import { leaveCrumb } from "./left-crumb";
 import { pinchTeleportEnabled, teleportNeeded, teleportOn, watchTeleport } from "./xr-store";
 import { holdSession } from "../update-reload";
@@ -357,9 +358,17 @@ export function ImmersivePlayer({
    * by a resting left controller's trigger while using hand movement. See
    * teleportNeeded in xr-store.ts.
    */
-  const stickless =
-    (leftController !== undefined && leftController.gamepad?.["xr-standard-thumbstick"] === undefined) ||
-    (rightController !== undefined && rightController.gamepad?.["xr-standard-thumbstick"] === undefined);
+  /**
+   * HANDS ARE LATCHED, because tracking blinks. A hand that leaves the cameras'
+   * view for a frame must not hand teleport back to somebody who turned it off
+   * — that is this same bug in miniature.
+   */
+  const handsSeen = useRef(false);
+  if (leftHand || rightHand) handsSeen.current = true;
+  const stickless = teleportIsTheOnlyWayToMove({
+    controllers: [leftController, rightController],
+    handsSeen: handsSeen.current,
+  });
   useEffect(() => {
     teleportNeeded(stickless);
     return () => teleportNeeded(false);
