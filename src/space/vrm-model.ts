@@ -135,6 +135,23 @@ const CHOSEN: Readonly<Record<string, string>> = {
   waffle: "cool-fridge",
   kanxd: "dinokid",
   mot21: "goodknight",
+
+  /**
+   * Anita, Paul's agent, arriving mid-session. Nikk: "please choose a female
+   * avatar for her (we need one quick)."
+   *
+   * Erika, 100Avatars R1 #053 by Polygonal Mind. CC0 read from inside the file,
+   * allowedUser Everyone, commercial Allow, 52 humanoid bones with none of the
+   * ones this room drives missing, head 1.41 m, arm/head 0.448 — inside the
+   * human-ish band, unlike the fridge and the dinosaur next door.
+   *
+   * CHOSEN BY NAME AND DESCRIPTION, which is the honest caveat: I cannot see
+   * these models, so "female" here means the author called her Erika and the
+   * catalogue describes her as such. Anita should say if it is wrong and it is
+   * a one-line change. Not posed and looked at either — same gap as the four
+   * above, for the same reason.
+   */
+  anita: "erika",
   // Shiro, mine. Chosen the long way round, because the short ways have all
   // failed here: I read 300 CC0 names, shortlisted 16, confirmed the licence
   // inside each file, measured every rig, and then stood the seven that
