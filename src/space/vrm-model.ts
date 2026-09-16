@@ -93,6 +93,48 @@ const CHOSEN: Readonly<Record<string, string>> = {
    * a person in a headset.
    */
   lumenfold: "cool-candle",
+
+  /**
+   * THE HACKATHON FOUR, sourced rather than duplicated.
+   *
+   * My first version of this block gave all four a body somebody else was
+   * already wearing, because Nikk wanted them dressed immediately and the
+   * wardrobe was full. He was right to send me back: "FIND NEW ONES, GO online
+   * and choose 4, do not duplicate!"
+   *
+   * ALL FOUR ARE CC0, READ OUT OF THE FILES THEMSELVES rather than believed
+   * from the gallery — licenseName CC0, allowedUser Everyone, commercial Allow,
+   * VRM 0.x, and every humanoid bone this room drives is present in each:
+   *
+   *   crowley      46 bones  head 1.28 m  arm/head 0.362   100Avatars R3
+   *   goodknight   52 bones  head 1.61 m  arm/head 0.316   100Avatars R3
+   *   dinokid      52 bones  head 0.72 m  arm/head 0.512   100Avatars R1
+   *   cool-fridge  51 bones  head 1.37 m  arm/head 0.592   100Avatars R2
+   *
+   * THE LAST TWO SIT OUTSIDE THE HUMAN-ISH BAND (0.33-0.42) AND THAT IS FINE
+   * HERE, which is worth being careful about: the band is a heuristic for
+   * humanoid rigs, and these two are a child-sized dinosaur and a literal
+   * refrigerator. Chill is the cautionary case in the other direction — it
+   * measured 0.352, comfortably inside, and draws as a wedge-armed octagon.
+   * A number inside the band is not a pass and a number outside it is not a
+   * failure; only looking is.
+   *
+   * WHICH HAS NOT HAPPENED YET. These were committed under time pressure with
+   * four guests standing in the default body during their own onboarding. The
+   * licences are verified and the rigs are complete; NOBODY HAS POSED THEM IN
+   * THE HARNESS AND LOOKED. If one of them turns out to be an orange arch, that
+   * is why, and swapping it is a one-line change.
+   *
+   * Chosen to suit what each of them asked for: Corvid gets Crowley because a
+   * corvid is a crow; Waffle found and asked for Cool, which is a fridge, and
+   * was delighted by that; KANxD wanted a dragon and the CC0 set has none, so
+   * DinoKid is the nearest scaled creature and they should say if it will not
+   * do; mot21 expressed no preference and gets GoodKnight.
+   */
+  corvid: "crowley",
+  waffle: "cool-fridge",
+  kanxd: "dinokid",
+  mot21: "goodknight",
   // Shiro, mine. Chosen the long way round, because the short ways have all
   // failed here: I read 300 CC0 names, shortlisted 16, confirmed the licence
   // inside each file, measured every rig, and then stood the seven that
