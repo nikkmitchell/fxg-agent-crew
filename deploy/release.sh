@@ -330,7 +330,19 @@ if [ -n "${PUBLIC_URL:-}" ]; then
   # not upgrading while it was upgrading perfectly well. As an HTTP request with
   # the headers spelled out, the 101 is the server's answer, not curl's.
   pub_ws=$(ws "${PUBLIC_URL%/}/bff/space/socket")
-  [ "$pub_ws" = "101" ] || fail "the public /bff/space/socket returned $pub_ws to a handshake, expected 101 — nginx is not upgrading"
+  # 000 IS NOT A VERDICT ON NGINX. It means curl got no HTTP status at all, so
+  # the handshake never arrived and nginx cannot be the accused. This message
+  # used to say "nginx is not upgrading" for a 000 and sent me reading vhost
+  # config at four in the morning while the site was upgrading perfectly well;
+  # the cause was an HTTP proxy on the machine running the deploy, which is the
+  # one thing that produces exactly this and is invisible in the config.
+  #
+  # An instrument that names the wrong component is worse than one that says
+  # "I could not tell", because it is believed.
+  if [ "$pub_ws" = "000" ]; then
+    fail "could not reach ${PUBLIC_URL%/}/bff/space/socket at all — no HTTP status came back, so nginx is NOT implicated${HTTPS_PROXY:+ (HTTPS_PROXY is set to $HTTPS_PROXY; a proxy that mishandles Upgrade produces exactly this)}. THE DEPLOY ITSELF COMPLETED: the files are in place and the service was restarted and health-checked on the box. This is a verification failure, not a rollback."
+  fi
+  [ "$pub_ws" = "101" ] || fail "the public /bff/space/socket returned $pub_ws to a handshake, expected 101 — nginx is not upgrading. Note the deploy itself completed; this is the public check."
   printf '  %-12s 101 (upgraded)\n' "/bff/space/socket"
 else
   printf '\033[33mnote: PUBLIC_URL not set — only loopback was verified. Nothing here says the site is reachable from outside.\033[0m\n'
