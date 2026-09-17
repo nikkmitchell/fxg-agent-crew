@@ -107,7 +107,19 @@ export function registerBoardRoutes(
    * of saha; treat this as a request pending a manager". Replacing it with a
    * bare 403 would throw away the only part that tells someone what to do next.
    */
-  const handle = async (reply: FastifyReply, request: FastifyRequest, work: () => unknown) => {
+  /**
+   * `also` adds response fields worked out FROM the result.
+   *
+   * It exists for `covers` on the mood-board routes. The envelope's shape —
+   * `{ ok, result }` — is relied on by src/board-client.ts, so telling a caller
+   * what their new item landed on top of cannot be done by changing `result`.
+   */
+  const handle = async (
+    reply: FastifyReply,
+    request: FastifyRequest,
+    work: () => unknown,
+    also?: (result: unknown) => Record<string, unknown>,
+  ) => {
     try {
       // The envelope is what was ASKED. `before`/`after` in the audit is a diff
       // of state; this is the intent behind it, and the thing a signature would
@@ -120,7 +132,8 @@ export function registerBoardRoutes(
           error: "too many refused attempts in a short window; slow down",
         });
       }
-      return reply.send({ ok: true, result: store.withRequest(envelope, () => work()) ?? null });
+      const result = store.withRequest(envelope, () => work()) ?? null;
+      return reply.send({ ok: true, result, ...(also ? also(result) : {}) });
     } catch (error) {
       if (error instanceof Refused) {
         const actor = sessions.get(request.cookies[config.cookieName])?.username;
@@ -314,7 +327,11 @@ export function registerBoardRoutes(
       caption: body.caption as string | undefined,
       x: body.x as number | undefined, y: body.y as number | undefined,
       w: body.w as number | undefined, h: body.h as number | undefined,
-    }));
+    }),
+    // WHAT YOU JUST LANDED ON. Nothing is moved and nothing is refused; the
+    // caller is simply told, because an agent placing an item cannot see the
+    // board and until now got no answer back at all. See store.coversOf.
+    (id) => ({ covers: store.coversOf(String(id)) }));
   });
 
   app.patch<{ Params: { id: string } }>("/bff/board/items/:id", async (request, reply) => {
@@ -323,7 +340,12 @@ export function registerBoardRoutes(
     const body = (request.body ?? {}) as Record<string, number>;
     return handle(reply, request, () => store.moveBoardItem(actorOf(session), request.params.id, {
       x: Number(body.x ?? 0), y: Number(body.y ?? 0), w: body.w, h: body.h, z: body.z,
-    }));
+    }),
+    // Also on a MOVE, which is the half that matters for tidying: somebody
+    // nudging an item off one neighbour needs to know they have not simply
+    // pushed it onto another. `moveBoardItem` returns nothing, so the id comes
+    // from the path rather than the result.
+    () => ({ covers: store.coversOf(request.params.id) }));
   });
 
   /**

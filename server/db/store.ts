@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { nextSpot } from "../../shared/board-overlap.js";
+import { coverings, nextSpot } from "../../shared/board-overlap.js";
 import {
   FORBIDDEN_PROFILE_KEYS,
   canTransition,
@@ -625,6 +625,47 @@ export class BoardStore {
       .all(boardId) as { x: number; y: number; w: number; h: number }[];
     const spot = nextSpot(items.map((item) => ({ label: "", ...item })), w);
     return { x: x ?? spot.x, y: y ?? spot.y };
+  }
+
+  /**
+   * WHAT THIS ITEM IS SITTING ON TOP OF, so whoever placed it can be told.
+   *
+   * An agent placing an item cannot see the board. `placeFor` above fixed the
+   * case where nobody said WHERE — those now go to a free row — but an agent
+   * that names coordinates is still posting into the dark, and the Saha Ing
+   * board reached 65 items with FOURTEEN overlaps that way. Every one was a
+   * careful agent choosing a number that sounded considered.
+   *
+   * This does not move anything and does not refuse anything. It reports, so
+   * that an agent gets the one thing it has never had: the result of what it
+   * just did. `board.mts mood` already shows this, but a tool you have to
+   * remember to run is not a substitute for being told.
+   *
+   * Only what THIS item covers, not what covers it: being underneath
+   * something somebody else placed is not your problem to fix.
+   */
+  coversOf(itemId: string): { item: string; wide: number; tall: number }[] {
+    const row = this.db.prepare("SELECT board_id FROM board_items WHERE id = ?").get(itemId) as
+      | { board_id: string } | undefined;
+    if (!row) return [];
+    const rows = this.db
+      .prepare("SELECT id, kind, text, caption, url, x, y, w, h, z FROM board_items WHERE board_id = ?")
+      .all(row.board_id) as {
+        id: string; kind: string; text: string | null; caption: string | null;
+        url: string | null; x: number; y: number; w: number; h: number; z: number;
+      }[];
+    // The id is used as the label so a pair can be mapped back to a row; the
+    // human-readable description is attached afterwards.
+    const describe = (one: (typeof rows)[number]) =>
+      `${one.kind} ${String(one.text ?? one.caption ?? one.url ?? "").slice(0, 40)}`.trim();
+    const byId = new Map(rows.map((one) => [one.id, one]));
+    return coverings(rows.map((one) => ({ label: one.id, x: one.x, y: one.y, w: one.w, h: one.h, z: one.z })))
+      .filter((pair) => pair.top === itemId)
+      .map((pair) => ({
+        item: describe(byId.get(pair.under)!),
+        wide: Math.round(pair.wide),
+        tall: Math.round(pair.tall),
+      }));
   }
 
   moveBoardItem(actor: Actor, itemId: string, at: { x: number; y: number; w?: number; h?: number; z?: number }) {

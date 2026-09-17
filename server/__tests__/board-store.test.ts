@@ -424,3 +424,84 @@ describe("where an item goes when nobody said where", () => {
     expect(only.y).toBeGreaterThan(0);
   });
 });
+
+/**
+ * BEING TOLD WHAT YOU LANDED ON.
+ *
+ * Nikk, twice, about the same board: "the text is on right in the position of
+ * your last SVG image". Both times the agent had chosen coordinates that
+ * sounded considered and could not see the result. By the second evening of the
+ * hackathon the Saha Ing board held 65 items with FOURTEEN overlaps, every one
+ * placed by somebody careful.
+ *
+ * `placeFor` fixed the case where nobody said WHERE. This is the other half:
+ * when you DO say where, you are told what is now underneath you. It moves
+ * nothing and refuses nothing — a collage is still allowed to overlap on
+ * purpose — it just closes the loop that was open.
+ */
+describe("what an item landed on", () => {
+  const board = () => store.createBoard(nikk, "saha", "Mood") as string;
+
+  it("names what a new item covers, with how much is hidden", () => {
+    const boardId = board();
+    const under = store.addBoardItem(nikk, boardId, {
+      kind: "note", text: "CARRY THE LIGHT CAREFULLY", x: 100, y: 100, w: 240, h: 240,
+    }) as string;
+    // Exactly the real mistake: identical coordinates, chosen in the dark.
+    // A note rather than an image only because an image needs a real uploaded
+    // blob; the geometry is what is under test.
+    const onTop = store.addBoardItem(nikk, boardId, {
+      kind: "note", text: "Lantern Chorus", x: 100, y: 100, w: 240, h: 240,
+    }) as string;
+
+    const covers = store.coversOf(onTop);
+    expect(covers).toHaveLength(1);
+    expect(covers[0].item, "says which item, not just that something happened")
+      .toContain("CARRY THE LIGHT CAREFULLY");
+    expect(covers[0].wide).toBe(240);
+    expect(covers[0].tall).toBe(240);
+    expect(under).not.toBe(onTop);
+  });
+
+  it("says nothing when an item is clear of everything", () => {
+    const boardId = board();
+    store.addBoardItem(nikk, boardId, { kind: "note", text: "alone", x: 0, y: 0, w: 100, h: 100 });
+    const clear = store.addBoardItem(nikk, boardId, {
+      kind: "note", text: "also alone", x: 900, y: 900, w: 100, h: 100,
+    }) as string;
+    expect(store.coversOf(clear)).toEqual([]);
+  });
+
+  it("reports only what YOU cover, not what is on top of you", () => {
+    // Being underneath somebody else's item is not the placer's problem to fix,
+    // and reporting it would tell every early item about every later one.
+    const boardId = board();
+    const first = store.addBoardItem(nikk, boardId, {
+      kind: "note", text: "underneath", x: 0, y: 0, w: 200, h: 200,
+    }) as string;
+    store.addBoardItem(nikk, boardId, { kind: "note", text: "on top", x: 50, y: 50, w: 200, h: 200 });
+    expect(store.coversOf(first), "the older item is not told it is buried").toEqual([]);
+  });
+
+  it("agrees with the overlap report the mood tool prints", () => {
+    // One implementation of "what covers what", so a fix to the tool and a fix
+    // to the API cannot disagree about the same board.
+    const boardId = board();
+    store.addBoardItem(nikk, boardId, { kind: "note", text: "a", x: 0, y: 0, w: 200, h: 200 });
+    const top = store.addBoardItem(nikk, boardId, {
+      kind: "note", text: "b", x: 100, y: 100, w: 200, h: 200,
+    }) as string;
+    const items = db.prepare("SELECT id, x, y, w, h, z FROM board_items WHERE board_id = ?").all(boardId) as
+      { id: string; x: number; y: number; w: number; h: number; z: number }[];
+    const fromTool = coverings(items.map((one) => ({ label: one.id, ...one })))
+      .filter((pair) => pair.top === top);
+    expect(store.coversOf(top)).toHaveLength(fromTool.length);
+    expect(store.coversOf(top)[0].wide).toBe(Math.round(fromTool[0].wide));
+  });
+
+  it("is empty for an item that does not exist, rather than throwing", () => {
+    // It is called from the response path of a route that has already
+    // succeeded; a throw here would turn a completed write into a 500.
+    expect(store.coversOf("no-such-item")).toEqual([]);
+  });
+});

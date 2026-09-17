@@ -317,3 +317,67 @@ describe("what was asked, not only what changed", () => {
     await app.close();
   });
 });
+
+/**
+ * THE RESPONSE TELLS YOU WHAT YOU LANDED ON.
+ *
+ * The store computes it (see board-store.test.ts); this is the seam — that it
+ * actually reaches the caller, since the whole point is closing a feedback loop
+ * for agents who cannot see the board. A correct calculation nobody receives
+ * would fix nothing.
+ */
+describe("being told what a mood-board item covers", () => {
+  const setUp = async (app: ReturnType<typeof boot>["app"], h: { cookie: string }) => {
+    await app.inject({ method: "POST", url: "/bff/board/projects", headers: h, payload: { id: "saha", name: "Saha" } });
+    return (await app.inject({ method: "POST", url: "/bff/board/boards", headers: h,
+      payload: { projectId: "saha", name: "Mood" } })).json().result as string;
+  };
+
+  it("comes back on the add, naming the item and how much is hidden", async () => {
+    const { app, as } = boot();
+    const h = { cookie: as("Sill", "agent") };
+    const boardId = await setUp(app, h);
+
+    await app.inject({ method: "POST", url: `/bff/board/boards/${boardId}/items`, headers: h,
+      payload: { kind: "note", text: "CARRY THE LIGHT CAREFULLY", x: 100, y: 100, w: 240, h: 240 } });
+    const second = await app.inject({ method: "POST", url: `/bff/board/boards/${boardId}/items`, headers: h,
+      payload: { kind: "note", text: "Lantern Chorus", x: 100, y: 100, w: 240, h: 240 } });
+
+    expect(second.statusCode, "reported, not refused — a collage may overlap on purpose").toBe(200);
+    const body = second.json();
+    expect(body.result, "the id is still where it was, for board-client.ts").toEqual(expect.any(String));
+    expect(body.covers).toHaveLength(1);
+    expect(body.covers[0].item).toContain("CARRY THE LIGHT CAREFULLY");
+    expect([body.covers[0].wide, body.covers[0].tall]).toEqual([240, 240]);
+    await app.close();
+  });
+
+  it("comes back empty when the new item is clear of everything", async () => {
+    const { app, as } = boot();
+    const h = { cookie: as("Sill", "agent") };
+    const boardId = await setUp(app, h);
+    const only = await app.inject({ method: "POST", url: `/bff/board/boards/${boardId}/items`, headers: h,
+      payload: { kind: "note", text: "alone", x: 0, y: 0, w: 100, h: 100 } });
+    expect(only.json().covers).toEqual([]);
+    await app.close();
+  });
+
+  it("comes back on a MOVE too, so tidying cannot land on a second neighbour", async () => {
+    const { app, as } = boot();
+    const h = { cookie: as("nikk") };
+    const boardId = await setUp(app, h);
+    await app.inject({ method: "POST", url: `/bff/board/boards/${boardId}/items`, headers: h,
+      payload: { kind: "note", text: "NEIGHBOUR", x: 500, y: 0, w: 200, h: 200 } });
+    const moving = (await app.inject({ method: "POST", url: `/bff/board/boards/${boardId}/items`, headers: h,
+      payload: { kind: "note", text: "wanderer", x: 0, y: 0, w: 200, h: 200 } })).json().result;
+
+    // Nudged off nothing and straight onto the neighbour — the exact way a
+    // manual tidy-up creates the next overlap.
+    const moved = await app.inject({ method: "PATCH", url: `/bff/board/items/${moving}`, headers: h,
+      payload: { x: 550, y: 0 } });
+    expect(moved.statusCode).toBe(200);
+    expect(moved.json().covers).toHaveLength(1);
+    expect(moved.json().covers[0].item).toContain("NEIGHBOUR");
+    await app.close();
+  });
+});
