@@ -110,9 +110,9 @@ export function registerBoardRoutes(
   /**
    * `also` adds response fields worked out FROM the result.
    *
-   * It exists for `covers` on the mood-board routes. The envelope's shape —
-   * `{ ok, result }` — is relied on by src/board-client.ts, so telling a caller
-   * what their new item landed on top of cannot be done by changing `result`.
+   * It exists for `covers`/`coveredBy` on the mood-board routes. The envelope's
+   * shape — `{ ok, result }` — is relied on by src/board-client.ts, so telling
+   * a caller what their item overlaps cannot be done by changing `result`.
    */
   const handle = async (
     reply: FastifyReply,
@@ -328,10 +328,11 @@ export function registerBoardRoutes(
       x: body.x as number | undefined, y: body.y as number | undefined,
       w: body.w as number | undefined, h: body.h as number | undefined,
     }),
-    // WHAT YOU JUST LANDED ON. Nothing is moved and nothing is refused; the
-    // caller is simply told, because an agent placing an item cannot see the
-    // board and until now got no answer back at all. See store.coversOf.
-    (id) => ({ covers: store.coversOf(String(id)) }));
+    // WHAT YOU JUST LANDED ON, and what landed on you. Nothing is moved and
+    // nothing is refused; the caller is simply told, because an agent placing
+    // an item cannot see the board and until now got no answer at all.
+    // See store.overlapsOf for why BOTH directions are reported.
+    (id) => store.overlapsOf(String(id)));
   });
 
   app.patch<{ Params: { id: string } }>("/bff/board/items/:id", async (request, reply) => {
@@ -341,11 +342,12 @@ export function registerBoardRoutes(
     return handle(reply, request, () => store.moveBoardItem(actorOf(session), request.params.id, {
       x: Number(body.x ?? 0), y: Number(body.y ?? 0), w: body.w, h: body.h, z: body.z,
     }),
-    // Also on a MOVE, which is the half that matters for tidying: somebody
-    // nudging an item off one neighbour needs to know they have not simply
-    // pushed it onto another. `moveBoardItem` returns nothing, so the id comes
-    // from the path rather than the result.
-    () => ({ covers: store.coversOf(request.params.id) }));
+    // Also on a MOVE, which is the case this exists for: somebody nudging an
+    // item off one neighbour needs to know they have not pushed it onto
+    // another, or slid it UNDER one — the second of which the first version of
+    // this could not see, and which is how I buried two items twice over.
+    // `moveBoardItem` returns nothing, so the id comes from the path.
+    () => store.overlapsOf(request.params.id));
   });
 
   /**

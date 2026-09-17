@@ -454,7 +454,7 @@ describe("what an item landed on", () => {
       kind: "note", text: "Lantern Chorus", x: 100, y: 100, w: 240, h: 240,
     }) as string;
 
-    const covers = store.coversOf(onTop);
+    const covers = store.overlapsOf(onTop).covers;
     expect(covers).toHaveLength(1);
     expect(covers[0].item, "says which item, not just that something happened")
       .toContain("CARRY THE LIGHT CAREFULLY");
@@ -469,7 +469,7 @@ describe("what an item landed on", () => {
     const clear = store.addBoardItem(nikk, boardId, {
       kind: "note", text: "also alone", x: 900, y: 900, w: 100, h: 100,
     }) as string;
-    expect(store.coversOf(clear)).toEqual([]);
+    expect(store.overlapsOf(clear).covers).toEqual([]);
   });
 
   it("reports only what YOU cover, not what is on top of you", () => {
@@ -480,7 +480,8 @@ describe("what an item landed on", () => {
       kind: "note", text: "underneath", x: 0, y: 0, w: 200, h: 200,
     }) as string;
     store.addBoardItem(nikk, boardId, { kind: "note", text: "on top", x: 50, y: 50, w: 200, h: 200 });
-    expect(store.coversOf(first), "the older item is not told it is buried").toEqual([]);
+    expect(store.overlapsOf(first).covers, "covers is only what YOU hide").toEqual([]);
+    expect(store.overlapsOf(first).coveredBy, "but coveredBy says what hides you").toHaveLength(1);
   });
 
   it("agrees with the overlap report the mood tool prints", () => {
@@ -495,13 +496,63 @@ describe("what an item landed on", () => {
       { id: string; x: number; y: number; w: number; h: number; z: number }[];
     const fromTool = coverings(items.map((one) => ({ label: one.id, ...one })))
       .filter((pair) => pair.top === top);
-    expect(store.coversOf(top)).toHaveLength(fromTool.length);
-    expect(store.coversOf(top)[0].wide).toBe(Math.round(fromTool[0].wide));
+    expect(store.overlapsOf(top).covers).toHaveLength(fromTool.length);
+    expect(store.overlapsOf(top).covers[0].wide).toBe(Math.round(fromTool[0].wide));
   });
 
   it("is empty for an item that does not exist, rather than throwing", () => {
     // It is called from the response path of a route that has already
     // succeeded; a throw here would turn a completed write into a 500.
-    expect(store.coversOf("no-such-item")).toEqual([]);
+    expect(store.overlapsOf("no-such-item")).toEqual({ covers: [], coveredBy: [] });
+  });
+});
+
+/**
+ * THE BLIND SPOT, WHICH I FOUND BY USING THE THING I HAD JUST BUILT.
+ *
+ * The first version of this reported only what an item COVERS, on the
+ * reasoning that being underneath somebody else's later item is not the
+ * placer's problem. That holds when you ADD something — new items go on top —
+ * and is exactly wrong when you MOVE something, which is what it was built for.
+ *
+ * On the live board two items were 100% buried. I moved each out from under its
+ * coverer and the reply said CLEAR both times. Each had landed on the identical
+ * coordinates of a DIFFERENT item and was buried again; a downward-only check
+ * cannot see that. I reported the tidy-up as verified, and it had moved two
+ * items from under one thing to under another.
+ */
+describe("moving out from underneath something", () => {
+  it("says so when a move slides an item UNDER a different one", () => {
+    const boardId = store.createBoard(nikk, "saha", "Mood") as string;
+    // Two coverers, side by side, exactly where a nudge would land.
+    store.addBoardItem(nikk, boardId, { kind: "note", text: "FIRST COVERER", x: 100, y: 0, w: 240, h: 240 });
+    store.addBoardItem(nikk, boardId, { kind: "note", text: "SECOND COVERER", x: 420, y: 0, w: 240, h: 240 });
+    // The buried one goes in LAST so it is on top by z, then is dropped to the
+    // bottom — which is the state the real board was in.
+    const buried = store.addBoardItem(nikk, boardId, {
+      kind: "note", text: "buried", x: 100, y: 0, w: 240, h: 240,
+    }) as string;
+    db.prepare("UPDATE board_items SET z = -1 WHERE id = ?").run(buried);
+
+    expect(store.overlapsOf(buried).coveredBy, "buried to begin with").toHaveLength(1);
+
+    // The move that looked like a fix: off the first coverer, onto the second.
+    store.moveBoardItem(nikk, buried, { x: 420, y: 0 });
+    const after = store.overlapsOf(buried);
+
+    expect(after.covers, "it is hiding nothing — which is why the old check passed").toEqual([]);
+    expect(after.coveredBy, "and it is STILL buried, which is the part that was invisible")
+      .toHaveLength(1);
+    expect(after.coveredBy[0].item).toContain("SECOND COVERER");
+  });
+
+  it("reports clear in both directions only when the item is genuinely clear", () => {
+    const boardId = store.createBoard(nikk, "saha", "Mood") as string;
+    store.addBoardItem(nikk, boardId, { kind: "note", text: "somebody", x: 100, y: 0, w: 240, h: 240 });
+    const mover = store.addBoardItem(nikk, boardId, {
+      kind: "note", text: "mover", x: 100, y: 0, w: 240, h: 240,
+    }) as string;
+    store.moveBoardItem(nikk, mover, { x: 2000, y: 2000 });
+    expect(store.overlapsOf(mover)).toEqual({ covers: [], coveredBy: [] });
   });
 });

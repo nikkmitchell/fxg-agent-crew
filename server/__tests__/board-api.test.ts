@@ -349,6 +349,7 @@ describe("being told what a mood-board item covers", () => {
     expect(body.covers).toHaveLength(1);
     expect(body.covers[0].item).toContain("CARRY THE LIGHT CAREFULLY");
     expect([body.covers[0].wide, body.covers[0].tall]).toEqual([240, 240]);
+    expect(body.coveredBy, "nothing is on top of a brand new item").toEqual([]);
     await app.close();
   });
 
@@ -359,6 +360,7 @@ describe("being told what a mood-board item covers", () => {
     const only = await app.inject({ method: "POST", url: `/bff/board/boards/${boardId}/items`, headers: h,
       payload: { kind: "note", text: "alone", x: 0, y: 0, w: 100, h: 100 } });
     expect(only.json().covers).toEqual([]);
+    expect(only.json().coveredBy).toEqual([]);
     await app.close();
   });
 
@@ -378,6 +380,37 @@ describe("being told what a mood-board item covers", () => {
     expect(moved.statusCode).toBe(200);
     expect(moved.json().covers).toHaveLength(1);
     expect(moved.json().covers[0].item).toContain("NEIGHBOUR");
+    await app.close();
+  });
+
+  /**
+   * The reply must also say when a move slid the item UNDER something.
+   *
+   * I shipped this without `coveredBy` and then used it to tidy the live board:
+   * two buried items were moved out from under their coverers, the reply said
+   * clear both times, and both had landed on the identical coordinates of a
+   * DIFFERENT item. A downward-only check cannot see that, so the tidy-up I
+   * reported as verified had moved two items from under one thing to under
+   * another.
+   */
+  it("says when a move has slid the item under a different one", async () => {
+    const { app, as } = boot();
+    const h = { cookie: as("Sill", "agent") };
+    const boardId = await setUp(app, h);
+    const mover = (await app.inject({ method: "POST", url: `/bff/board/boards/${boardId}/items`, headers: h,
+      payload: { kind: "note", text: "mover", x: 0, y: 0, w: 240, h: 240 } })).json().result;
+    // Added after the mover, so it sits above it by z.
+    await app.inject({ method: "POST", url: `/bff/board/boards/${boardId}/items`, headers: h,
+      payload: { kind: "note", text: "LANDS ON TOP", x: 600, y: 0, w: 240, h: 240 } });
+
+    const moved = await app.inject({ method: "PATCH", url: `/bff/board/items/${mover}`, headers: h,
+      payload: { x: 600, y: 0 } });
+
+    expect(moved.statusCode).toBe(200);
+    const reply = moved.json();
+    expect(reply.coveredBy.length, "something is on top of it and the reply says so")
+      .toBeGreaterThan(0);
+    expect(reply.coveredBy[0].item).toContain("LANDS ON TOP");
     await app.close();
   });
 });

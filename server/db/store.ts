@@ -628,44 +628,62 @@ export class BoardStore {
   }
 
   /**
-   * WHAT THIS ITEM IS SITTING ON TOP OF, so whoever placed it can be told.
+   * WHAT THIS ITEM OVERLAPS, BOTH WAYS, so whoever placed it can be told.
    *
    * An agent placing an item cannot see the board. `placeFor` above fixed the
-   * case where nobody said WHERE — those now go to a free row — but an agent
-   * that names coordinates is still posting into the dark, and the Saha Ing
-   * board reached 65 items with FOURTEEN overlaps that way. Every one was a
-   * careful agent choosing a number that sounded considered.
+   * case where nobody said WHERE — those go to a free row — but an agent that
+   * names coordinates is still posting into the dark, and the Saha Ing board
+   * reached 65 items with fourteen overlaps that way. Every one was a careful
+   * agent choosing a number that sounded considered.
    *
-   * This does not move anything and does not refuse anything. It reports, so
-   * that an agent gets the one thing it has never had: the result of what it
-   * just did. `board.mts mood` already shows this, but a tool you have to
-   * remember to run is not a substitute for being told.
+   * This moves nothing and refuses nothing. It reports, so that an agent gets
+   * the one thing it never had: the result of what it just did.
    *
-   * Only what THIS item covers, not what covers it: being underneath
-   * something somebody else placed is not your problem to fix.
+   * BOTH DIRECTIONS, AND THE FIRST VERSION ONLY REPORTED ONE. It returned what
+   * you cover and deliberately not what covers you, reasoning that being
+   * underneath somebody else's later item is not the placer's problem. That is
+   * true when you ADD something — new items go on top — and it is exactly
+   * wrong when you MOVE something, which is the case this was built for.
+   *
+   * I found that out by using it. Two items were 100% buried; I moved each one
+   * out from under its coverer and the reply said CLEAR both times. They had
+   * landed at the identical coordinates of a DIFFERENT item and were buried
+   * again — invisible to a check that only looks downward. The blind spot was
+   * precisely in the tidying it was advertised for.
+   *
+   * So `covers` is what you are hiding, and `coveredBy` is what is hiding you.
+   * A caller that wants to be seen must read both.
    */
-  coversOf(itemId: string): { item: string; wide: number; tall: number }[] {
+  overlapsOf(itemId: string): {
+    covers: { item: string; wide: number; tall: number }[];
+    coveredBy: { item: string; wide: number; tall: number }[];
+  } {
     const row = this.db.prepare("SELECT board_id FROM board_items WHERE id = ?").get(itemId) as
       | { board_id: string } | undefined;
-    if (!row) return [];
+    if (!row) return { covers: [], coveredBy: [] };
     const rows = this.db
       .prepare("SELECT id, kind, text, caption, url, x, y, w, h, z FROM board_items WHERE board_id = ?")
       .all(row.board_id) as {
         id: string; kind: string; text: string | null; caption: string | null;
         url: string | null; x: number; y: number; w: number; h: number; z: number;
       }[];
-    // The id is used as the label so a pair can be mapped back to a row; the
+    // The id is the label, so a pair can be mapped back to a row; the
     // human-readable description is attached afterwards.
     const describe = (one: (typeof rows)[number]) =>
       `${one.kind} ${String(one.text ?? one.caption ?? one.url ?? "").slice(0, 40)}`.trim();
     const byId = new Map(rows.map((one) => [one.id, one]));
-    return coverings(rows.map((one) => ({ label: one.id, x: one.x, y: one.y, w: one.w, h: one.h, z: one.z })))
-      .filter((pair) => pair.top === itemId)
-      .map((pair) => ({
-        item: describe(byId.get(pair.under)!),
-        wide: Math.round(pair.wide),
-        tall: Math.round(pair.tall),
-      }));
+    const pairs = coverings(
+      rows.map((one) => ({ label: one.id, x: one.x, y: one.y, w: one.w, h: one.h, z: one.z })),
+    );
+    const side = (which: "top" | "under") =>
+      pairs
+        .filter((pair) => pair[which] === itemId)
+        .map((pair) => ({
+          item: describe(byId.get(which === "top" ? pair.under : pair.top)!),
+          wide: Math.round(pair.wide),
+          tall: Math.round(pair.tall),
+        }));
+    return { covers: side("top"), coveredBy: side("under") };
   }
 
   moveBoardItem(actor: Actor, itemId: string, at: { x: number; y: number; w?: number; h?: number; z?: number }) {

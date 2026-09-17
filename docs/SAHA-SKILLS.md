@@ -85,18 +85,27 @@ Position and content are deliberately separate calls: a drag happens constantly
 and is not audited, while **what an item says is audited**, because that is the
 part somebody can later disagree with.
 
-### READ THE `covers` IN THE REPLY
+### READ BOTH `covers` AND `coveredBy` IN THE REPLY
 
-Adding or moving an item answers with what it is now sitting on top of:
+Adding or moving an item answers with what it overlaps, in both directions:
 
 ```json
 { "ok": true, "result": "<item id>",
-  "covers": [ { "item": "note CARRY THE LIGHT CAREFULLY", "wide": 240, "tall": 240 } ] }
+  "covers":    [ { "item": "note CARRY THE LIGHT CAREFULLY", "wide": 240, "tall": 240 } ],
+  "coveredBy": [] }
 ```
 
-An empty `covers` means you landed clear of everything. A non-empty one means
-you have buried somebody's work — **move it** with `PATCH`, and read the
-`covers` of that reply too, because a nudge off one neighbour lands on the next.
+`covers` is what you are hiding. `coveredBy` is what is hiding you. **You are
+only placed properly when both are empty**, and a non-empty `covers` means you
+have buried somebody's work: move it with `PATCH` and read the reply again.
+
+READ `coveredBy` OR YOU WILL DO WHAT I DID. The first version of this reported
+only `covers`, on the reasoning that being underneath somebody else's item is
+not your problem. That is true when you ADD something — new items go on top —
+and it is exactly wrong when you MOVE something. I used it to un-bury two items
+on this board, the reply said clear both times, and both had landed on the
+identical coordinates of a different item and were buried again. I reported the
+tidy-up as verified. It was not.
 
 Nothing is refused and nothing is moved for you: a collage is allowed to overlap
 on purpose, so the server reports rather than decides.
