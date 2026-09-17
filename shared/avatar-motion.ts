@@ -63,16 +63,49 @@ export type AvatarGesture = (typeof AVATAR_GESTURES)[number];
 export type AvatarPosture = (typeof AVATAR_POSTURES)[number];
 export type ActiveAvatarGesture = Exclude<AvatarGesture, "none">;
 
+/**
+ * How long a gesture may be asked to last, and why there is a ceiling.
+ *
+ * A gesture expires so a crashed agent does not wave for ever — that is the
+ * whole reason AVATAR_GESTURE_TTL_MS exists. But five seconds was also the MOST
+ * anybody could have, and Waffle ran into that from outside: asked by clem to
+ * hold an emote, they had to re-issue it on a timer, because the API could
+ * declare a state and not sustain one. Their summary of the class: "the
+ * presence API can declare a state but not perform an action over time".
+ *
+ * So a caller may now name a duration, bounded by this. A minute is the number
+ * ATTENDING_TTL_MS uses, for the same reason: long enough to be useful, short
+ * enough that a dead process stops claiming something within a minute.
+ */
+export const MAX_GESTURE_HOLD_MS = 60_000;
+
+/** Optional, and only meaningful alongside a gesture. */
+type Held = {
+  /**
+   * Milliseconds to hold the gesture, capped at MAX_GESTURE_HOLD_MS. Omitted
+   * means the default five seconds.
+   */
+  holdMs?: number;
+};
+
 /** At least one field is required; an empty control cannot express a change. */
 export type AvatarControl =
-  | { mood: AvatarMood; gesture?: AvatarGesture; posture?: AvatarPosture }
-  | { mood?: AvatarMood; gesture: AvatarGesture; posture?: AvatarPosture }
-  | { mood?: AvatarMood; gesture?: AvatarGesture; posture: AvatarPosture };
+  | ({ mood: AvatarMood; gesture?: AvatarGesture; posture?: AvatarPosture } & Held)
+  | ({ mood?: AvatarMood; gesture: AvatarGesture; posture?: AvatarPosture } & Held)
+  | ({ mood?: AvatarMood; gesture?: AvatarGesture; posture: AvatarPosture } & Held);
 
 export type AvatarState = {
   mood: AvatarMood;
   gesture: ActiveAvatarGesture | null;
   gestureStartedAt: number | null;
+  /**
+   * How long this gesture was asked to last. Null means the default.
+   *
+   * Kept alongside `gestureStartedAt` rather than replacing it with a deadline:
+   * the renderer uses the start to phase an animation, and a reader can work
+   * out the end from the two. A deadline alone would have lost the start.
+   */
+  gestureHoldMs: number | null;
   /**
    * Held until something changes it, unlike a gesture, which expires. A
    * posture is what somebody is doing, and people go on doing things.
@@ -84,6 +117,7 @@ export const DEFAULT_AVATAR_STATE: AvatarState = {
   mood: "neutral",
   gesture: null,
   gestureStartedAt: null,
+  gestureHoldMs: null,
   posture: "resting",
 };
 
@@ -101,9 +135,25 @@ export function parseAvatarControl(value: unknown): AvatarControl | null {
   if (hasMood && !oneOf(AVATAR_MOODS, body.mood)) return null;
   if (hasGesture && !oneOf(AVATAR_GESTURES, body.gesture)) return null;
   if (hasPosture && !oneOf(AVATAR_POSTURES, body.posture)) return null;
+
+  /**
+   * `holdMs` is CLAMPED, not refused, and that is a deliberate difference from
+   * every other field here. A bad mood name is a typo and refusing it tells the
+   * caller something; asking to wave for an hour is a reasonable wish with an
+   * unreasonable number, and the useful answer is the longest wave we allow
+   * rather than a 400. A non-number IS refused, because that is a typo again.
+   */
+  let holdMs: number | undefined;
+  if (Object.hasOwn(body, "holdMs")) {
+    const asked = body.holdMs;
+    if (typeof asked !== "number" || !Number.isFinite(asked) || asked <= 0) return null;
+    holdMs = Math.min(Math.round(asked), MAX_GESTURE_HOLD_MS);
+  }
+
   return {
     ...(hasMood ? { mood: body.mood as AvatarMood } : {}),
     ...(hasGesture ? { gesture: body.gesture as AvatarGesture } : {}),
     ...(hasPosture ? { posture: body.posture as AvatarPosture } : {}),
+    ...(holdMs === undefined ? {} : { holdMs }),
   } as AvatarControl;
 }

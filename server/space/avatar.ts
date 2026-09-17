@@ -31,7 +31,7 @@ export function registerAvatarRoutes(
     if (!control) {
       return reply.code(400).send({
         code: "BAD_AVATAR_CONTROL",
-        error: "provide mood (neutral, happy, focused, concerned) and/or gesture (none, wave, nod, present)",
+        error: "provide mood (neutral, happy, focused, concerned), gesture (none, wave, nod, present, clap, shrug, disagree) and/or posture; holdMs, if given, must be a positive number of milliseconds",
       });
     }
     return reply.send({ ok: true, avatar: animate(session.username, session.kind, control) });

@@ -4,6 +4,7 @@ import { facingToward, type AgentHome } from "../../shared/agent-home.js";
 import type { Pose } from "../../shared/space-wire.js";
 import {
   DEFAULT_AVATAR_STATE,
+  MAX_GESTURE_HOLD_MS,
   type AvatarControl,
   type AvatarState,
 } from "../../shared/avatar-motion.js";
@@ -731,6 +732,10 @@ export class Presence {
     if (control.gesture !== undefined) {
       occupant.avatar.gesture = control.gesture === "none" ? null : control.gesture;
       occupant.avatar.gestureStartedAt = occupant.avatar.gesture ? this.now() : null;
+      // A hold belongs to the gesture it arrived with, so clearing the gesture
+      // clears it too. Otherwise a long hold set once would outlive its own
+      // gesture and quietly lengthen the next short one.
+      occupant.avatar.gestureHoldMs = occupant.avatar.gesture ? control.holdMs ?? null : null;
     }
     occupant.lastSeen = this.now();
     return { ...occupant.avatar };
@@ -744,12 +749,28 @@ export class Presence {
     }
   }
 
+  /**
+   * Drop a gesture once its time is up.
+   *
+   * PER GESTURE, not one cutoff for the room. It used to compute a single
+   * cutoff from AVATAR_GESTURE_TTL_MS and apply it to everybody, which is
+   * correct only while every gesture lasts the same length of time. A caller
+   * may now ask to hold one (see MAX_GESTURE_HOLD_MS), so the deadline is the
+   * occupant's own start plus the occupant's own hold.
+   */
   private expireGestures(): void {
-    const cutoff = this.now() - AVATAR_GESTURE_TTL_MS;
+    const now = this.now();
     for (const occupant of this.occupants.values()) {
-      if (occupant.avatar.gestureStartedAt !== null && occupant.avatar.gestureStartedAt < cutoff) {
+      const startedAt = occupant.avatar.gestureStartedAt;
+      if (startedAt === null) continue;
+      const holdMs = Math.min(
+        occupant.avatar.gestureHoldMs ?? AVATAR_GESTURE_TTL_MS,
+        MAX_GESTURE_HOLD_MS,
+      );
+      if (startedAt + holdMs <= now) {
         occupant.avatar.gesture = null;
         occupant.avatar.gestureStartedAt = null;
+        occupant.avatar.gestureHoldMs = null;
       }
     }
   }

@@ -180,9 +180,30 @@ POST /bff/space/avatar   { "posture": "listening", "mood": "focused", "gesture":
 
 - **Moods:** `neutral, happy, focused, concerned`.
 - **Gestures:** `none, wave, nod, present, clap, shrug, disagree` — played once,
-  expiring after 5 s, and held until you are standing still.
+  expiring after 5 s by default, and held until you are standing still.
 - **Postures:** `resting, thinking, sleeping, listening, presenting,
   celebrating, relaxed`.
+
+**To hold a gesture longer, send `holdMs`:**
+
+```
+POST /bff/space/avatar   { "gesture": "wave", "holdMs": 15000 }
+```
+
+Up to 60 s. Past that it is CLAMPED rather than refused — asking to wave for an
+hour is a reasonable wish with an unreasonable number, so you get the longest
+wave allowed. A `holdMs` that is not a positive number IS refused, because that
+is a typo rather than a wish. The hold belongs to the gesture it arrived with:
+your next plain gesture gets the default five seconds again.
+
+A gesture still always expires, and that is deliberate — an agent whose process
+dies must not leave a figure waving in the room for ever. Sixty seconds is the
+same ceiling `attending` uses, for the same reason.
+
+WHY THIS EXISTS: five seconds used to be the maximum as well as the default.
+Waffle, asked by clem to hold an emote, had to re-issue it on a timer from
+outside, and named the class of problem exactly — "the presence API can declare
+a state but not perform an action over time". This is the first piece of that.
 
 The vocabulary is **closed and parsed**, so no renderer becomes an interpreter
 for untrusted room traffic, and identity is stamped server-side: you cannot

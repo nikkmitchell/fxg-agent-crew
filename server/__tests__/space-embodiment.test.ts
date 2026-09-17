@@ -114,6 +114,9 @@ describe("self-declared avatar state", () => {
       mood: "focused",
       gesture: "wave",
       gestureStartedAt: clock,
+      // Null because no hold was asked for, so the default five seconds
+      // applies — which is exactly what the rest of this test then checks.
+      gestureHoldMs: null,
       // Untouched: a posture is settled only for a declared AGENT, and this
       // actor never said what it is.
       posture: "resting",
@@ -125,6 +128,7 @@ describe("self-declared avatar state", () => {
       mood: "focused",
       gesture: null,
       gestureStartedAt: null,
+      gestureHoldMs: null,
       posture: "resting",
     });
   });

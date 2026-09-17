@@ -763,3 +763,89 @@ describe("an agent asleep for an hour", () => {
     expect(presence.find("nikk2"), "only agents are forgotten this way").toBeDefined();
   });
 });
+
+/**
+ * A GESTURE LASTS AS LONG AS IT WAS ASKED TO.
+ *
+ * It always expired — a crashed agent must not wave for ever — but five seconds
+ * was the maximum as well as the default, so a held emote had to be re-issued
+ * on a timer from outside. Waffle hit that answering clem and named the class:
+ * "the presence API can declare a state but not perform an action over time".
+ *
+ * The expiry used to compute ONE cutoff for the whole room, which is only
+ * correct while every gesture is the same length. These are on a fake clock, so
+ * the deadline is tested exactly rather than approximately.
+ */
+describe("holding a gesture", () => {
+  it("keeps a held gesture well past the old five-second limit", () => {
+    const clock = { now: 1_000_000 };
+    const presence = at(clock);
+    presence.join("Waffle", "agent", false);
+    presence.animate("Waffle", { gesture: "wave", holdMs: 20_000 }, "agent");
+
+    clock.now += 6_000; // past the default, which would have dropped it
+    presence.tick(0.1);
+    expect(presence.find("Waffle")!.avatar.gesture, "still waving at six seconds").toBe("wave");
+
+    clock.now += 13_000; // 19s total, still inside the hold
+    presence.tick(0.1);
+    expect(presence.find("Waffle")!.avatar.gesture).toBe("wave");
+
+    clock.now += 2_000; // 21s total, past it
+    presence.tick(0.1);
+    expect(presence.find("Waffle")!.avatar.gesture, "and gone once the hold ends").toBeNull();
+    expect(presence.find("Waffle")!.avatar.gestureHoldMs).toBeNull();
+  });
+
+  it("still expires an unheld gesture after the default, so nobody waves for ever", () => {
+    const clock = { now: 500 };
+    const presence = at(clock);
+    presence.join("Inkstone", "agent", false);
+    presence.animate("Inkstone", { gesture: "nod" }, "agent");
+    clock.now += 4_000;
+    presence.tick(0.1);
+    expect(presence.find("Inkstone")!.avatar.gesture).toBe("nod");
+    clock.now += 1_500;
+    presence.tick(0.1);
+    expect(presence.find("Inkstone")!.avatar.gesture).toBeNull();
+  });
+
+  it("expires two occupants on their own deadlines, not a shared one", () => {
+    // The bug the old single-cutoff version would have had: whoever asked for
+    // longer was dropped with everybody else.
+    const clock = { now: 0 };
+    const presence = at(clock);
+    presence.join("brief", "agent", false);
+    presence.join("patient", "agent", false);
+    presence.animate("brief", { gesture: "nod" }, "agent");
+    presence.animate("patient", { gesture: "present", holdMs: 30_000 }, "agent");
+
+    clock.now += 6_000;
+    presence.tick(0.1);
+    expect(presence.find("brief")!.avatar.gesture, "the short one is done").toBeNull();
+    expect(presence.find("patient")!.avatar.gesture, "the long one is not").toBe("present");
+  });
+
+  it("does not let a hold leak onto the next gesture", () => {
+    const clock = { now: 0 };
+    const presence = at(clock);
+    presence.join("Waffle", "agent", false);
+    presence.animate("Waffle", { gesture: "wave", holdMs: 40_000 }, "agent");
+    // A plain gesture afterwards must get the default, not the 40 seconds.
+    presence.animate("Waffle", { gesture: "nod" }, "agent");
+    expect(presence.find("Waffle")!.avatar.gestureHoldMs).toBeNull();
+    clock.now += 6_000;
+    presence.tick(0.1);
+    expect(presence.find("Waffle")!.avatar.gesture, "expired on the default").toBeNull();
+  });
+
+  it("clears the hold when the gesture is cleared", () => {
+    const clock = { now: 0 };
+    const presence = at(clock);
+    presence.join("Waffle", "agent", false);
+    presence.animate("Waffle", { gesture: "wave", holdMs: 40_000 }, "agent");
+    presence.animate("Waffle", { gesture: "none" }, "agent");
+    const avatar = presence.find("Waffle")!.avatar;
+    expect([avatar.gesture, avatar.gestureStartedAt, avatar.gestureHoldMs]).toEqual([null, null, null]);
+  });
+});

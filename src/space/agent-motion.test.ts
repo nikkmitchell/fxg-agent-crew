@@ -40,7 +40,7 @@ describe("automatic agent motion", () => {
   it("honours explicit mood and gesture controls", () => {
     const waving = frame({
       nowMs: 2_000,
-      avatar: { mood: "happy", gesture: "wave", gestureStartedAt: 1_000, posture: "resting" },
+      avatar: { mood: "happy", gesture: "wave", gestureStartedAt: 1_000, gestureHoldMs: null, posture: "resting" },
     });
     expect(waving.expressions.happy).toBeGreaterThan(0);
     expect(Math.abs(waving.rightUpperArm.z)).toBeLessThan(0.3);
@@ -73,7 +73,7 @@ describe("postures", () => {
   const posed = (posture: "resting" | "thinking" | "sleeping", extra = {}) =>
     frame({
       nowMs: 5_000,
-      avatar: { mood: "neutral", gesture: null, gestureStartedAt: null, posture },
+      avatar: { mood: "neutral", gesture: null, gestureStartedAt: null, gestureHoldMs: null, posture },
       ...extra,
     });
 
@@ -89,7 +89,7 @@ describe("postures", () => {
     for (const nowMs of [1_000, 4_000, 9_000]) {
       const dozing = frame({
         nowMs,
-        avatar: { mood: "neutral", gesture: null, gestureStartedAt: null, posture: "sleeping" },
+        avatar: { mood: "neutral", gesture: null, gestureStartedAt: null, gestureHoldMs: null, posture: "sleeping" },
       });
       expect(dozing.expressions.blink).toBe(1);
     }
