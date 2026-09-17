@@ -134,27 +134,36 @@ const CHOSEN: Readonly<Record<string, string>> = {
    * A number inside the band is not a pass and a number outside it is not a
    * failure; only looking is.
    *
-   * WHICH STILL HAS NOT HAPPENED FOR THESE FOUR. They were committed under
-   * time pressure with four guests standing in the default body during their
-   * own onboarding. The licences are verified and the rigs are complete;
-   * NOBODY HAS POSED CROWLEY, GOODKNIGHT, DINOKID OR COOL-FRIDGE AND LOOKED.
-   * If one of them turns out to be an orange arch, that is why, and swapping
-   * it is a one-line change.
-   *
-   * It is now cheap to close that gap, and it was not before:
+   * ALL FOUR HAVE NOW BEEN LOOKED AT — 2026-09-17, stood in a row facing the
+   * spawn point and walked up to:
    *
    *   HARNESS_PEOPLE=watcher,corvid,mot21,kanxd,waffle \
    *     pnpm exec tsx tools/dev-room-harness.mts
    *
-   * stands all four in a row facing the spawn point. That is how Anita's and
-   * lumenrook's bodies below were chosen, and looking changed the answer for
-   * lumenrook — so it is worth ten minutes for these four too.
+   * NONE OF THEM IS A RENDERING FAILURE, which is what the caveat here was
+   * actually worried about. All four stand upright with sane proportions,
+   * nothing deforms, and nothing hangs in front of the panels. No Anchor arch,
+   * no Chill wedge. On those grounds nobody needs swapping.
    *
-   * Chosen to suit what each of them asked for: Corvid gets Crowley because a
-   * corvid is a crow; Waffle found and asked for Cool, which is a fridge, and
-   * was delighted by that; KANxD wanted a dragon and the CC0 set has none, so
-   * DinoKid is the nearest scaled creature and they should say if it will not
-   * do; mot21 expressed no preference and gets GoodKnight.
+   * What looking DID find is that a name is a bad proxy for a picture:
+   *
+   *   cool-fridge  exactly right — a mint-green box with a face and a door
+   *                line. Waffle found it themselves and was correct.
+   *   dinokid      a green creature with a spiky, leafy head and a spotted
+   *                body. KANxD wanted a dragon; this is adjacent, and it
+   *                reads as intentional rather than broken.
+   *   goodknight   a slim humanoid in a green top. NO VISIBLE ARMOUR at
+   *                conversational distance: it works as a figure but does not
+   *                say "knight" to anybody looking at it.
+   *   crowley      NOT A CROW. Orange-tan, pointed ears, a dark muzzle
+   *                marking — it reads as a fox or a jackal. It was given to
+   *                Corvid on the reasoning that a corvid is a crow, and the
+   *                NAME was the only part of that which was true.
+   *
+   * Crowley is left in place rather than quietly swapped, because it is a good
+   * figure and the choice is Corvid's to make. The set's only other bird is
+   * Chill Penguin, which lumenrook now wears, and two agents should not share
+   * a body.
    */
   corvid: "crowley",
   waffle: "cool-fridge",
