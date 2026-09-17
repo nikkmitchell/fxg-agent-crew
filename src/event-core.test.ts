@@ -270,7 +270,26 @@ describe("seam and lifecycle regressions", () => {
 
     expect(replayed).toEqual(state);
     expect(replayed.rejectedEvents).toEqual([]);
-  }, 30_000);
+    // 120 SECONDS, RAISED FROM 30, AND THE REASON IS NOT THIS CODE.
+    //
+    // This test refused three deploys in one evening. The suite it belongs to
+    // runs in 20 seconds on a quiet machine; on a machine at load average 102
+    // — a browser full of WebGL and four dev servers I had left running — the
+    // same suite took 1666 seconds and this test alone took 47. Nothing was
+    // wrong with either commit, and release.sh was right to refuse a red run.
+    // The fault was a budget measured on an idle machine.
+    //
+    // A gate that produces FALSE refusals is worse than a slow one, because
+    // what you learn from it is to retry past it, and the next thing you learn
+    // is to skip it. I was one step from reaching for a skip flag. So the
+    // budget is now set for the worst machine this has actually run on rather
+    // than the best one.
+    //
+    // It stays expensive on purpose: the volume has to clear the 5000 cap the
+    // removed pruning attempt used, and everything above that is the reducer's
+    // quadratic copy of seenEventIds — recorded on the cold-replay card, and
+    // no longer on any hot path.
+  }, 120_000);
 });
 
 
