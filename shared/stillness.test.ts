@@ -83,6 +83,16 @@ describe("how long somebody has been still", () => {
     expect(still.observe([person("clem"), person("Corvid")], 6 * MINUTE).get("clem")).toBe(0);
   });
 
+  it("keeps counting when the room re-spells somebody's name", () => {
+    // Presence renames an occupant when a live session spells them differently
+    // from the audit row that placed them. That is the same person standing in
+    // the same place, not somebody leaving and somebody else arriving.
+    const still = new Stillness();
+    still.observe([person("nikk2")], 0);
+    const later = still.observe([person("Nikk2")], 6 * MINUTE);
+    expect(later.get("Nikk2")).toBe(6 * MINUTE);
+  });
+
   it("keeps each person's count separate", () => {
     const still = new Stillness();
     still.observe([person("Corvid"), person("clem")], 0);
