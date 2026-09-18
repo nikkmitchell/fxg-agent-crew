@@ -24,11 +24,16 @@ import type { Vec3 } from "./space-layout.js";
  * for panels. Everything below derives from that one fact, so if it is ever
  * wrong, it is wrong here and the tests say what was meant.
  *
- * WHAT I COULD NOT CHECK: whether "left" looks like the person's left to
- * somebody standing in the room. The vectors follow the documented forward and
- * three.js's right-handed Y-up frame, which makes left = (Fz, 0, -Fx). Nobody
- * has looked at it in a headset yet, and a mirrored renderer would swap the two
- * without any test failing.
+ * "LEFT" WAS CHECKED BY LOOKING, not only by arithmetic. A mirrored renderer
+ * would swap the sides without failing a single test here, so the maths was run
+ * against the room: with nikk at (0, 6.2) facing 0, one agent placed at world
+ * x = -3 (this file's left) and another at x = +3 drew on the viewer's left and
+ * right respectively, in that order. So left = (Fz, 0, -Fx) is the left a person
+ * in the room sees.
+ *
+ * STILL UNCHECKED: a headset. The desktop camera shares this basis, so there is
+ * no reason to expect a difference — but "no reason to expect" is not "somebody
+ * looked", and only a person in one can close that.
  */
 
 export const WALK_BESIDE = {
