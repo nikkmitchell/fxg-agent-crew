@@ -146,6 +146,32 @@ describe("placing an agent's home", () => {
     await app.close();
   });
 
+  /**
+   * Found by tools/onboarding-audit.mts on the live site: placing yourself
+   * facing your OWN name answered 200 with an angle pointing back at the spot
+   * you were leaving. shared/agent-home.test.ts proves resolveFacing refuses
+   * it; this proves the ROUTE passes it who is being placed, which is the half
+   * anybody actually calls.
+   */
+  it("refuses to face the agent being placed, however the name is spelled", async () => {
+    const { app, as, seed, space } = boot();
+    seed("Waffle", "agent");
+    space.presence.join("Waffle", "agent", true);
+    space.presence.join("clem", "human", true);
+    expect(space.presence.find("Waffle")?.at, "Waffle must be standing somewhere for this to mean anything").toBeTruthy();
+
+    for (const face of ["Waffle", "waffle", " WAFFLE "]) {
+      const response = await place(app, as("Waffle", "agent"), "Waffle", { x: 1.4, z: 5.2, face });
+      expect(response.statusCode, face).toBe(400);
+      expect(response.json().code).toBe("BAD_HOME");
+    }
+    // A person placing the agent asks the same meaningless question.
+    expect((await place(app, as("Nikk2"), "Waffle", { x: 1.4, z: 5.2, face: "Waffle" })).statusCode).toBe(400);
+    // And naming somebody else still works from the same spot.
+    expect((await place(app, as("Waffle", "agent"), "Waffle", { x: 1.4, z: 5.2, face: "clem" })).statusCode).toBe(200);
+    await app.close();
+  });
+
   it("puts an agent back at its desk when its home is cleared", async () => {
     const { app, as, seed, space } = boot();
     seed("Sill", "agent");

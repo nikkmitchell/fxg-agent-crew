@@ -125,3 +125,46 @@ describe("facing somebody by name", () => {
     }
   });
 });
+
+/**
+ * NOBODY FACES THEMSELVES.
+ *
+ * Found by tools/onboarding-audit.mts against the live site, not by any test
+ * here: asking to be placed somewhere new facing your OWN name returned 200
+ * and a real angle, pointing back at the spot you were leaving. Two different
+ * points, so the same-spot guard never fired — it checks geometry, and this is
+ * a question about identity.
+ */
+describe("resolveFacing, asked to face the person being placed", () => {
+  const somewhere = { x: 0.9, y: 0, z: 6.5 };
+  const whereIs = (actorId: string) => (actorId.toLowerCase() === "sill" ? somewhere : null);
+  const whoIsHere = () => ["Corvid", "Sill"];
+
+  it("refuses, even from a spot that is nowhere near them", () => {
+    const asked = resolveFacing({ face: "Sill" }, { x: 1.4, y: 0, z: 5.2 }, whereIs, whoIsHere, "Sill");
+    expect(asked).toEqual({ error: "Sill cannot face Sill; name somebody else, or give an angle" });
+  });
+
+  it("refuses however the two systems spell the name", () => {
+    // The room says `sill` where the chat says `Sill`, and a case-sensitive
+    // check here would let exactly half of these through.
+    for (const [named, placing] of [["sill", "Sill"], ["SILL", "sill"], [" Sill ", "Sill"]]) {
+      expect(resolveFacing({ face: named }, { x: 1.4, y: 0, z: 5.2 }, whereIs, whoIsHere, placing), named).toHaveProperty(
+        "error",
+      );
+    }
+  });
+
+  it("still answers when somebody ELSE is named", () => {
+    const withCorvid = (actorId: string) => (actorId.toLowerCase() === "corvid" ? somewhere : null);
+    const asked = resolveFacing({ face: "Corvid" }, { x: 1.4, y: 0, z: 5.2 }, withCorvid, whoIsHere, "Sill");
+    expect(asked).toHaveProperty("facing");
+  });
+
+  it("is unchanged for every caller that does not say who is being placed", () => {
+    // The parameter is optional so existing callers keep working; without it
+    // the old geometric guard is all there is, which is what they had.
+    const asked = resolveFacing({ face: "Sill" }, { x: 1.4, y: 0, z: 5.2 }, whereIs, whoIsHere);
+    expect(asked).toHaveProperty("facing");
+  });
+});

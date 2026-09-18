@@ -1,3 +1,4 @@
+import { actorKey } from "./space-layout.js";
 /**
  * Where an agent lives in the room, and the two ways people ask to put it.
  *
@@ -57,6 +58,13 @@ export function resolveFacing(
   standing: Spot,
   whereIs: (actorId: string) => Spot | null,
   whoIsHere: () => string[],
+  /**
+   * Who is being placed, so they cannot be told to face themselves.
+   *
+   * OPTIONAL so every existing caller and test is unchanged, and passed by the
+   * one route that places anybody.
+   */
+  placing?: string,
 ): FacingAsked {
   const named = typeof asked.face === "string" ? asked.face.trim() : "";
   const angle = asked.facing;
@@ -77,6 +85,25 @@ export function resolveFacing(
           ? `nobody called ${named} is in the room. These are: ${here.join(", ")}`
           : `nobody called ${named} is in the room, which is empty`,
       };
+    }
+    /**
+     * NOBODY FACES THEMSELVES, and this is checked on IDENTITY rather than on
+     * geometry because the geometry check below misses it.
+     *
+     * Found by tools/onboarding-audit.mts against the live site. Asking to be
+     * placed somewhere new facing your own name returned 200 and a real angle
+     * — pointing back at the spot you were leaving, because `whereIs` answered
+     * with where you still were. Two different points, so the same-spot guard
+     * never fired.
+     *
+     * That is the exact failure this function exists to prevent: a confident
+     * answer to a question with no meaning. It is also a likely slip, since
+     * the documented example is `{ "face": "Nikk2" }` under a path containing
+     * your own name, and the result is an agent turned to stare at empty floor
+     * with nothing to say why.
+     */
+    if (placing && actorKey(named) === actorKey(placing)) {
+      return { error: `${named} cannot face ${named}; name somebody else, or give an angle` };
     }
     // atan2(0, 0) is 0, a confident answer meaning nothing. Say so instead.
     if (Math.hypot(standing.x - place.x, standing.z - place.z) < SAME_SPOT) {
