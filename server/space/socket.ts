@@ -8,6 +8,7 @@ import type { SessionStore } from "../session.js";
 import { NOT_A_PERSON, actorKey } from "../../shared/space-layout.js";
 import type { Placement, Showing } from "../../shared/space-wire.js";
 import { parseClientMessage, type ServerMessage, type WirePerson } from "../../shared/space-wire.js";
+import { Stillness } from "../../shared/stillness.js";
 import { isWalking, Presence, STALE_AFTER_MS } from "./presence.js";
 import { touchAgent, type Touches } from "./touch.js";
 
@@ -49,9 +50,13 @@ export class SpaceHub {
   constructor(
     presence = new Presence(),
     private readonly bodyOf: (actorId: string) => string | null = () => null,
+    private readonly now: () => number = Date.now,
   ) {
     this.presence = presence;
   }
+
+  /** How long each person has looked the same. See shared/stillness.ts. */
+  private readonly stillness = new Stillness();
 
   attach(actorId: string, kind: "human" | "agent" | null, socket: WebSocket): void {
     const key = actorKey(actorId);
@@ -85,9 +90,16 @@ export class SpaceHub {
     if (this.sockets.size === 0) this.stop();
   }
 
-  /** Everyone the browser should draw, in wire shape. */
+  /**
+   * Everyone the browser should draw, in wire shape.
+   *
+   * Every call observes stillness, and that is safe to do from the tick, the
+   * presence route and an arrival alike: looking at somebody who has not
+   * changed changes nothing, so no caller can make anybody look more or less
+   * still than they are.
+   */
   snapshot(): WirePerson[] {
-    return this.presence
+    const people = this.presence
       .everyone()
       .filter((occupant) => !NOT_A_PERSON.has(occupant.actorId))
       .map((occupant) => ({
@@ -106,6 +118,8 @@ export class SpaceHub {
         avatar: occupant.avatar,
         body: this.bodyOf(occupant.actorId),
       }));
+    const stillFor = this.stillness.observe(people, this.now());
+    return people.map((person) => ({ ...person, stillForMs: stillFor.get(person.actorId) ?? 0 }));
   }
 
   send(socket: WebSocket, message: ServerMessage): void {

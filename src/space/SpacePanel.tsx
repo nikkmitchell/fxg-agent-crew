@@ -15,6 +15,7 @@ import { ProjectChooser } from "../ProjectChooser";
 import { PanelGrips } from "./PanelGrips";
 import { base } from "../router";
 import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
+import { useHiddenAsStill } from "./useHiddenAsStill";
 import { takeCrumb } from "./left-crumb";
 import { useHeadsetAvailable } from "./useHeadsetAvailable";
 
@@ -119,6 +120,10 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
   const reducedMotion = reducedOverride ?? systemPrefersReduced;
   const preferences = useRoomPreferences();
   const connection = useSpaceSocket(entered);
+  const stillNow = useHiddenAsStill(
+    connection.peopleRef,
+    connection.status.state === "open" ? connection.status.you : null,
+  );
   const [comfort, setComfort] = useState<Comfort>(DEFAULT_COMFORT);
   const [inHeadset, setInHeadset] = useState(false);
   // The room's open set is fed in from the socket, so a panel somebody else
@@ -422,6 +427,21 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
             onChange={(event) => setRoomPreferences({ rings: event.currentTarget.checked })}
           />
           <span>Show the coloured ring under each person and agent (this browser only)</span>
+        </label>
+        <label className="space-setting">
+          <input
+            type="checkbox"
+            checked={preferences.hideStill}
+            onChange={(event) => setRoomPreferences({ hideStill: event.currentTarget.checked })}
+          />
+          <span>
+            Hide anyone who has not moved for 5 minutes (this browser only, never you)
+            {preferences.hideStill
+              ? stillNow.length > 0
+                ? ` — hiding ${stillNow.join(", ")}`
+                : " — nobody is that still right now"
+              : ""}
+          </span>
         </label>
         <label className="space-setting">
           <input

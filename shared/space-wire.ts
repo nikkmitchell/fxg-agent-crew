@@ -148,6 +148,15 @@ export type WirePerson = {
    * a deliberate null.
    */
   body?: string | null;
+  /**
+   * How long, in milliseconds, since this person visibly moved: stood
+   * somewhere else, turned, moved a tracked head or hand, or gestured.
+   *
+   * 0 for anybody the server has only just started watching, because it
+   * cannot yet say otherwise. OPTIONAL, and absent means NOT MEASURED, never
+   * still. See shared/stillness.ts.
+   */
+  stillForMs?: number;
 };
 
 /** Server → client. */

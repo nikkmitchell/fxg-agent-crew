@@ -31,6 +31,7 @@ import { pinchTeleportEnabled, teleportNeeded, teleportOn, watchTeleport } from 
 import { holdSession } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
+import { useHiddenAsStill } from "./useHiddenAsStill";
 import type { RoomFeed } from "./useRoomFeed";
 import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
@@ -178,6 +179,8 @@ export function ImmersivePlayer({
   const lastTouch = useRef(new Map<string, number>());
   /** The palm joystick, one per hand — see palm-joystick.ts. */
   const joystick = useRef<{ left: JoystickState; right: JoystickState }>({ left: IDLE, right: IDLE });
+  /** Who the hide-still setting is hiding, so the menu can name them. See useHiddenAsStill. */
+  const stillNow = useHiddenAsStill(peopleRef, you);
   const balls = {
     left: useRef<THREE.Mesh>(null),
     leftShadow: useRef<THREE.Mesh>(null),
@@ -853,6 +856,7 @@ export function ImmersivePlayer({
         showing={showing}
         showingChoices={showingChoices}
         agents={agents}
+        hiddenAsStill={stillNow}
         positionOf={(actorId) =>
           (peopleRef.current ?? []).find((person) => person.actorId.toLowerCase() === actorId.toLowerCase())?.at ?? null
         }

@@ -26,6 +26,15 @@ export type RoomPreferences = {
   rings: boolean;
   /** The pointer's brightness, 0 (gone) to 1 (as bright as it used to be). */
   pointer: number;
+  /**
+   * Hide anybody who has not visibly moved for five minutes.
+   *
+   * Nikk: "an option to hide avatars that have not moved in more than 5
+   * minutes (though don't hide them automatically)". So it is OFF until chosen,
+   * it hides nobody for anybody else, and it never hides you. What counts as
+   * moving is in shared/stillness.ts.
+   */
+  hideStill: boolean;
 };
 
 /**
@@ -33,7 +42,7 @@ export type RoomPreferences = {
  * headset: "can we make the... pointer brightness... if they don't set it, start
  * automatically at 70%".
  */
-export const DEFAULT_ROOM_PREFERENCES: RoomPreferences = { rings: false, pointer: 0.7 };
+export const DEFAULT_ROOM_PREFERENCES: RoomPreferences = { rings: false, pointer: 0.7, hideStill: false };
 
 /** One press of − or +. */
 export const POINTER_STEP = 0.1;
@@ -57,6 +66,8 @@ export function parseRoomPreferences(raw: unknown): RoomPreferences {
       typeof stored.pointer === "number" && Number.isFinite(stored.pointer)
         ? clampPointer(stored.pointer)
         : DEFAULT_ROOM_PREFERENCES.pointer,
+    // Only a real `true` turns it on. Anything odd in storage leaves everybody visible.
+    hideStill: stored.hideStill === true,
   };
 }
 

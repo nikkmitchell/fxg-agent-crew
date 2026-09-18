@@ -169,6 +169,7 @@ export function RoomControls({
   showing,
   showingChoices,
   agents,
+  hiddenAsStill,
   positionOf,
   onResetStanding,
   onNote,
@@ -196,6 +197,8 @@ export function RoomControls({
   showingChoices: RoomShowingChoices;
   /** The agents in the room right now, for placing them. */
   agents: string[];
+  /** Who the hide-still setting is hiding from you now, named on its row. See useHiddenAsStill. */
+  hiddenAsStill: string[];
   /** Where somebody is standing, for reading them aloud as loud as they are near. */
   positionOf: (actorId: string) => { x: number; z: number } | null;
   /**
@@ -1123,6 +1126,15 @@ export function RoomControls({
           label: preferences.rings ? "Rings under people: shown" : "Rings under people: hidden",
           tone: preferences.rings ? "live" : "normal",
           onTap: () => setRoomPreferences({ rings: !preferences.rings }),
+        },
+        // Off until chosen, and it says how many it is hiding: a hidden person
+        // is still in the room, and a silent filter looks like them leaving.
+        {
+          label: preferences.hideStill
+            ? `Still for 5 min: hidden${hiddenAsStill.length > 0 ? ` (${hiddenAsStill.length})` : ""}`
+            : "Still for 5 min: shown",
+          tone: preferences.hideStill ? "live" : "normal",
+          onTap: () => setRoomPreferences({ hideStill: !preferences.hideStill }),
         },
         // THE POINTER, as a value and a − and a +. Tapping the value turns the
         // pointer off, or back on at its default — the "option to remove" — and −/+
