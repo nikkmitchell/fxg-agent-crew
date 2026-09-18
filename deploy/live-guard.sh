@@ -19,9 +19,21 @@ contains_live() {
   local live="$1" rollback="${2:-0}" head
   head="$(git rev-parse HEAD)"
 
+  # NO RECORD IS "CANNOT TELL", NOT "NOTHING LIVE". A box restored from a
+  # backup, a marker removed by hand, or a deploy that died before writing it
+  # all look like this, and each is running something. This read "nothing to
+  # roll back" and shipped until Nightjar pointed out that the unknown-commit
+  # branch below says the opposite. A brand-new box is the one honest case, and
+  # it takes --rollback like every other deliberate override.
   if [ -z "$live" ]; then
-    printf '  live         the box records no deployed commit, so there is nothing to roll back\n'
-    return 0
+    if [ "$rollback" = "1" ]; then
+      printf '\033[33m  live         the box records no deployed commit; shipping anyway because you asked (--rollback)\033[0m\n'
+      return 0
+    fi
+    printf 'the box records no deployed commit, so this cannot tell what shipping HEAD %s would replace.\n' "$head" >&2
+    printf '  On a brand-new box that is expected: re-run with --rollback.\n' >&2
+    printf '  Otherwise find out why DEPLOYED_COMMIT is missing before shipping over whatever is running.\n' >&2
+    return 1
   fi
 
   # A commit this checkout has never seen cannot be checked either way, and

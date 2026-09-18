@@ -81,6 +81,8 @@ cat <<'NEXT'
    exist yet, so `nginx -t` fails, so nginx will not start, so it cannot serve
    the ACME challenge that would create them.
 
-3. Ship and verify from a checkout:
-     deploy/release.sh root@your.hostname
+3. Ship and verify from a checkout. --rollback on this FIRST deploy only: a new
+   box records no deployed commit, and release.sh refuses to ship over
+   something it cannot identify unless told to.
+     deploy/release.sh root@your.hostname --rollback
 NEXT

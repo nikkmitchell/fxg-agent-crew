@@ -54,8 +54,12 @@ check "--rollback ships a tree that lacks the live commit" "$?" "0"
 contains_live "0123456789abcdef0123456789abcdef01234567" 1 >/dev/null 2>&1
 check "--rollback ships over an unknown live commit" "$?" "0"
 
-# 7. A box with nothing recorded: first deploy, nothing to roll back.
-contains_live "" 0 >/dev/null 2>&1
-check "ships when the box records no deployed commit" "$?" "0"
+# 7. A box with nothing recorded cannot say what is running, so it is refused
+#    like an unknown commit. A brand-new box goes through with --rollback.
+out=$(contains_live "" 0 2>&1)
+check "refuses when the box records no deployed commit" "$?" "1"
+check "the refusal says what to do on a new box" "$(grep -c -- "--rollback" <<<"$out")" "1"
+contains_live "" 1 >/dev/null 2>&1
+check "--rollback ships to a box with no deployed commit" "$?" "0"
 
 exit "$fail"

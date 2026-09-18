@@ -81,14 +81,16 @@ fi
 # never "nothing is live": the two look the same from here and mean opposite things.
 #
 # Checked early, like the dirty tree, so the refusal costs seconds rather than
-# arriving after the build. --rollback is the deliberate way through.
+# arriving after the build. --rollback is the deliberate way through, and the
+# FIRST deploy to a new box needs it too: with no DEPLOYED_COMMIT there, this
+# cannot tell what it would replace, and "cannot tell" is not "fine".
 log "check the tree contains what is live"
 LIVE="$("${SSH[@]}" "$TARGET" "if [ -f $REMOTE/DEPLOYED_COMMIT ]; then cat $REMOTE/DEPLOYED_COMMIT; else echo NONE; fi")" \
   || fail "could not read what is live on $TARGET, so cannot tell whether this tree would roll it back"
 LIVE="$(printf '%s' "$LIVE" | tr -d '[:space:]')"
 [ "$LIVE" = "NONE" ] && LIVE=""
 . "$(dirname "$0")/live-guard.sh"
-contains_live "$LIVE" "$ROLLBACK_FLAG" || fail "this tree would roll back what is live (see above)"
+contains_live "$LIVE" "$ROLLBACK_FLAG" || fail "refusing to ship over what is live without knowing it is contained (see above)"
 
 log "verify locally before shipping"
 # This repo is pnpm (pnpm-lock.yaml). An earlier version ran `npm ci`, which
