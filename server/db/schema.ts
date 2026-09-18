@@ -702,4 +702,51 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 23,
+    name: "a project may be linked to a room, and enrol the people in it",
+    sql: `
+      -- BEING IN THE ROOM IS THE CLAIM TO THE BOARD FOR THAT ROOM.
+      --
+      -- Nikk: "lets have the agent auto add themselves to whatever project they
+      -- happen to be in the webharness.chat group chat for". Every new agent
+      -- hits PROJECT_PERMISSION_REQUIRED on its first card — Waffle had to hand
+      -- theirs to Sill to file, and Nightjar could not board a night's work —
+      -- so membership was a second list a manager had to remember to mirror.
+      --
+      -- WHY A LINK TABLE AND NOT THE SPELLING. Room 'saha.ing' and project
+      -- 'saha-ing' match by coincidence, and a coincidence is a bad thing to
+      -- authorise with: the day somebody makes a room called 'saha-ing' that
+      -- coincidence becomes a grant. The link is written down, by a manager,
+      -- once.
+      --
+      -- WHY auto_enrol IS A COLUMN AND NOT ALWAYS-ON. A public room can be
+      -- joined by anybody who registers at webharness.chat, so for a public
+      -- room this puts board writes within reach of a stranger who joins. That
+      -- is acceptable in this sandbox and it is NOT a property to inherit
+      -- silently, so each project says so for itself and the default is off.
+      -- To turn it off here:
+      --   UPDATE project_rooms SET auto_enrol = 0 WHERE project_id = 'saha-ing';
+      --
+      -- WHAT IT CANNOT DO. Plain membership is what carries board authority
+      -- here and a role is an extra hat, so the default grant is NO roles at
+      -- all — the narrowest thing that lets somebody card their own work.
+      -- store.ts strips 'manager' on this path whatever the row says, so
+      -- somebody enrolled by the room can never change who belongs. And it only
+      -- ever INSERTS: a membership a manager revoked stays revoked, or removing
+      -- somebody would last until their next sign-in.
+      CREATE TABLE project_rooms (
+        project_id TEXT PRIMARY KEY,
+        room       TEXT NOT NULL,
+        auto_enrol INTEGER NOT NULL DEFAULT 0,
+        roles      TEXT NOT NULL DEFAULT '[]',
+        linked_by  TEXT NOT NULL,
+        linked_at  TEXT NOT NULL
+      );
+
+      -- The one link that exists today, on, because it is what was asked for.
+      INSERT INTO project_rooms (project_id, room, auto_enrol, roles, linked_by, linked_at)
+      VALUES ('saha-ing', 'saha.ing', 1, '[]', 'Nikk2', datetime('now'));
+    `,
+  },
 ];

@@ -506,6 +506,71 @@ export class BoardStore {
     }, { actorId: actor.id, action: `${action} ownership`, target: `${agentId}:${ownerId}` });
   }
 
+  /**
+   * Which projects say that being in a given room is enough to belong.
+   *
+   * Empty for a room nobody linked, which is the normal case: a link is
+   * something a manager writes down once, not something a room name implies.
+   */
+  roomEnrolments(room: string): Array<{ projectId: string; roles: Role[] }> {
+    const rows = this.db.prepare(
+      "SELECT project_id, roles FROM project_rooms WHERE room = ? AND auto_enrol = 1",
+    ).all(room) as Array<{ project_id: string; roles: string }>;
+    return rows.map((row) => ({
+      projectId: row.project_id,
+      roles: (JSON.parse(row.roles) as unknown[]).filter(isRole),
+    }));
+  }
+
+  /**
+   * Enrol somebody because they are in the room this project is linked to.
+   *
+   * THE CALLER MUST HAVE CHECKED THE ROOM UPSTREAM, with that actor's own
+   * token. Nothing here can verify it, so this method is only ever reached from
+   * sign-in, where WebHarness has just answered the question. It is deliberately
+   * a separate method rather than a relaxation of `actOnMembership`: the rule
+   * that only a manager changes who belongs stays exactly as it was, and this
+   * one narrow path is auditable by name.
+   *
+   * Three things it refuses to do, each of which would be a way in by a side
+   * door:
+   *
+   *   - grant 'manager', ever, even if the link row asks for it; the rest of
+   *     the row's roles survive, and no roles at all is the normal case
+   *   - touch a membership that already exists, so a revoked one stays revoked
+   *     and a manager's removal is not undone by the next sign-in
+   *   - enrol into a project with no link, or a link with auto_enrol off
+   *
+   * Returns the projects actually joined, which is empty on every sign-in after
+   * the first.
+   */
+  enrolFromRoom(actorId: string, room: string, kind?: Actor["kind"]): string[] {
+    const joined: string[] = [];
+    for (const { projectId, roles } of this.roomEnrolments(room)) {
+      // Empty is the ordinary outcome, not a reason to skip: plain membership
+      // is what lets somebody card their own work, and a role is an extra hat.
+      const grantable = roles.filter((role) => role !== "manager");
+
+      const exists = this.db.prepare("SELECT 1 FROM memberships WHERE project_id=? AND actor_id=?")
+        .get(projectId, actorId);
+      if (exists) continue;
+
+      this.tx(() => {
+        this.ensureActor(actorId, kind ?? undefined);
+        this.db.prepare(`INSERT INTO memberships (project_id,actor_id,roles,active,granted_by,granted_at)
+                         VALUES (?,?,?,1,?,?)`)
+          .run(projectId, actorId, JSON.stringify(grantable), `room:${room}`, now());
+        // granted_by names the room rather than a person on purpose: a manager
+        // reviewing the list can see which memberships nobody chose one by one.
+        this.audit(actorId, "grant", "membership", `${projectId}:${actorId}`, undefined, {
+          roles: grantable, because: `in room ${room}`,
+        });
+      }, { actorId, action: "enrol from room", target: `${projectId}:${actorId}` });
+      joined.push(projectId);
+    }
+    return joined;
+  }
+
   actOnMembership(actor: Actor, projectId: string, actorId: string, action: "grant" | "revoke", roles: Role[] = []) {
     const clean = roles.filter(isRole);
     return this.tx(() => {
