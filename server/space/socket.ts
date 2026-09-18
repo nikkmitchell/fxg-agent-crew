@@ -34,7 +34,22 @@ export class SpaceHub {
   private readonly sockets = new Map<string, Set<WebSocket>>();
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(presence = new Presence()) {
+  /**
+   * Which body each actor has chosen, read fresh on every snapshot.
+   *
+   * READ, NOT CAPTURED, for the same reason the panel stands are: somebody who
+   * changes their body ten seconds from now must appear in the next tick, not
+   * at the next restart. It is one indexed lookup per person per tick against
+   * a table with a handful of rows.
+   *
+   * DEFAULTS TO KNOWING NOTHING so every test that builds a bare hub keeps
+   * working, and so a hub with no database says "nobody has chosen" rather
+   * than inventing a body.
+   */
+  constructor(
+    presence = new Presence(),
+    private readonly bodyOf: (actorId: string) => string | null = () => null,
+  ) {
     this.presence = presence;
   }
 
@@ -88,6 +103,7 @@ export class SpaceHub {
         hands: occupant.hands,
         attending: occupant.attending ? { utteranceId: occupant.attending.utteranceId } : null,
         avatar: occupant.avatar,
+        body: this.bodyOf(occupant.actorId),
       }));
   }
 

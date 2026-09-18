@@ -41,7 +41,21 @@ export type SpaceConnection = {
    * `connected` because a figure placed by activity and a person watching the
    * room are different things, and the roster is where that gets said in words.
    */
-  roster: { actorId: string; kind: "human" | "agent" | null; connected: boolean; because: string | null }[];
+  roster: {
+    actorId: string;
+    kind: "human" | "agent" | null;
+    connected: boolean;
+    because: string | null;
+    /**
+     * The body they chose, or null if they have not chosen one.
+     *
+     * NOT OPTIONAL HERE, though it is on the wire. `WirePerson.body` may be
+     * absent because a server that predates the feature never sent it; this
+     * roster is built in this file and always sets it, so an optional field
+     * would invite a caller to handle a case that cannot happen.
+     */
+    body: string | null;
+  }[];
   send: (message: ClientMessage) => void;
   /** Bumped whenever a snapshot arrives, for a scene that renders on demand. */
   onSnapshot: RefObject<(() => void) | null>;
@@ -122,9 +136,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
    * a set that changed identity on every render would do exactly that.
    */
   const listeners = useRef(new Set<(message: ServerMessage) => void>());
-  const [roster, setRoster] = useState<
-    { actorId: string; kind: "human" | "agent" | null; connected: boolean; because: string | null }[]
-  >([]);
+  const [roster, setRoster] = useState<SpaceConnection["roster"]>([]);
   const peopleRef = useRef<WirePerson[]>([]);
   const onSnapshot = useRef<(() => void) | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -147,6 +159,12 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
       connected: boolean;
       /** Changes when somebody acts — rare enough to belong in React state. */
       because: string | null;
+      /**
+       * The body they chose. React state rather than a per-frame read, because
+       * swapping a model is remounting several megabytes: it must happen when
+       * the choice changes and never once a tick. Rare, like `because`.
+       */
+      body: string | null;
     }[];
     const rosterOf = (people: WirePerson[]): Roster =>
       people
@@ -155,6 +173,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           kind: person.kind,
           connected: person.connected,
           because: person.because,
+          body: person.body ?? null,
         }))
         .sort((a, b) => a.actorId.localeCompare(b.actorId));
     const sameRoster = (a: Roster, b: Roster) =>
@@ -164,7 +183,8 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           entry.actorId === b[index].actorId &&
           entry.kind === b[index].kind &&
           entry.connected === b[index].connected &&
-          entry.because === b[index].because,
+          entry.because === b[index].because &&
+          entry.body === b[index].body,
       );
 
     const connect = () => {

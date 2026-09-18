@@ -63,6 +63,7 @@ const HEIGHT_FRACTION = 0.5;
 
 export function VrmBody({
   actorId,
+  body,
   live,
   recipe,
   reducedMotion,
@@ -72,6 +73,15 @@ export function VrmBody({
 }: {
   /** Whose body this is, which decides which model they wear. */
   actorId: string;
+  /**
+   * The body they CHOSE, or null if they have not chosen one.
+   *
+   * A PROP, not a per-frame read, and the reason is the reload below: swapping
+   * a model is parsing megabytes and rebinding a skeleton. It must happen when
+   * somebody's choice changes and never on a tick — which is why this comes
+   * from the roster, where a body change re-renders, rather than from `live()`.
+   */
+  body?: string | null;
   live: () => WirePerson | null | undefined;
   recipe: AvatarRecipe;
   /**
@@ -100,7 +110,7 @@ export function VrmBody({
 
   useEffect(() => {
     let dropped = false;
-    void loadVrm(actorId)
+    void loadVrm(actorId, body)
       .then((loaded) => {
         if (dropped) {
           VRMUtils.deepDispose(loaded.scene);
@@ -123,7 +133,10 @@ export function VrmBody({
     return () => {
       dropped = true;
     };
-  }, [actorId, onFailed, recipe]);
+    // `body` is in here on purpose: an agent that picks a new body is wearing
+    // it a second later, in every browser already in the room, with no reload.
+    // That is the difference between a stored choice and a visible one.
+  }, [actorId, body, onFailed, recipe]);
 
   // Freed on unmount: a body left behind when somebody leaves the room is
   // several megabytes of texture that nothing will ever draw again.

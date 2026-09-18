@@ -18,6 +18,7 @@ import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
 import { Presence } from "./space/presence.js";
 import { DeclaredPostures } from "./space/postures.js";
 import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
+import { AgentBodies, registerBodyRoutes } from "./space/bodies.js";
 import { Touches, registerTouchRoutes } from "./space/touch.js";
 import { Activity } from "./space/activity.js";
 import { BoardReads } from "./db/reads.js";
@@ -113,12 +114,16 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Declared postures are the one exception, kept in the database so a deploy
   // does not put every agent to sleep — see server/space/postures.ts.
   const agentHomes = new AgentHomes(database);
+  // Which body each actor chose for itself. Stored, like homes: a decision
+  // somebody made, not a fact about where they are standing right now.
+  const agentBodies = new AgentBodies(database);
   const touches = new Touches(database);
   // Made before the room, which reads it: an agent whose screen is sharing is
   // awake. See Presence.settlePostures.
   const screenFrames = new ScreenFrames();
   const space = new SpaceHub(
     new Presence(Date.now, new DeclaredPostures(database), agentHomes, (actorId) => screenFrames.get(actorId) !== undefined),
+    (actorId) => agentBodies.get(actorId),
   );
 
   // What makes them move: the audit table, read forward from the end of it.
@@ -230,6 +235,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       whereIs: (actorId) => space.presence.find(actorId)?.at ?? null,
       whoIsHere: () => space.presence.everyone().map((occupant) => occupant.actorId).sort(),
     });
+    registerBodyRoutes(scoped, { config, sessions, bodies: agentBodies });
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.

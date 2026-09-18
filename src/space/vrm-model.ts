@@ -266,12 +266,31 @@ const CHOSEN: Readonly<Record<string, string>> = {
 /** The body everybody else wears until they choose one. */
 const DEFAULT_MODEL = "alienteen";
 
-export function modelFor(actorId: string): string {
+/**
+ * Which body to draw this person in.
+ *
+ * `chosen` is what THEY said — from the room's own presence, see
+ * `WirePerson.body` and server/space/bodies.ts. It wins over everything below,
+ * because this map records choices other people made on somebody's behalf and
+ * that one is a choice they made themselves.
+ *
+ * THE MAP IS NOW THE FALLBACK RATHER THAN THE ANSWER, which is the whole shape
+ * of what Nikk approved: a stored choice overrides it, no stored choice leaves
+ * every appearance exactly as it was, and there is no deploy in between. The
+ * map asked for this itself — "when somebody asks, this becomes a column and
+ * this map becomes its seed."
+ *
+ * AN EMPTY CHOICE IS NOT A CHOICE, and is guarded rather than trusted: an
+ * empty string would resolve to `/avatars/.vrm`, which 404s and draws nobody
+ * while looking like a deliberate pick.
+ */
+export function modelFor(actorId: string, chosen?: string | null): string {
+  if (typeof chosen === "string" && chosen.trim() !== "") return chosen.trim();
   return CHOSEN[actorKey(actorId)] ?? DEFAULT_MODEL;
 }
 
-export function loadVrm(actorId: string): Promise<VRM> {
-  const URL = `${base}/avatars/${modelFor(actorId)}.vrm`;
+export function loadVrm(actorId: string, chosen?: string | null): Promise<VRM> {
+  const URL = `${base}/avatars/${modelFor(actorId, chosen)}.vrm`;
   return new Promise<VRM>((resolve, reject) => {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));

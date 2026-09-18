@@ -122,6 +122,23 @@ export type WirePerson = {
   attending: { utteranceId: number } | null;
   /** Ephemeral mood/gesture chosen by this occupant; never another actor. */
   avatar: AvatarState;
+  /**
+   * The body this actor has CHOSEN, or null if they have not chosen one.
+   *
+   * NULL IS NOT A DEFAULT. It means nobody has picked, and the renderer falls
+   * back to the map in src/space/vrm-model.ts — so sending the default here
+   * instead would freeze today's fallback into everybody's stored choice and
+   * make "I have not decided" indistinguishable from "I chose the default".
+   *
+   * ON THE WIRE rather than fetched once, because it changes while people are
+   * watching: an agent picks a body and the room swaps the model within a
+   * tick. A choice that needed a page reload to be seen would be reported as
+   * broken, and reported correctly.
+   *
+   * OPTIONAL, so a snapshot from a server that predates this does not read as
+   * a deliberate null.
+   */
+  body?: string | null;
 };
 
 /** Server → client. */

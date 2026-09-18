@@ -36,6 +36,8 @@ import type { Vec3 } from "../../shared/space-layout";
 
 export type Avatar3DProps = {
   actorId: string;
+  /** The body they chose, or null if they have not. See modelFor. */
+  body?: string | null;
   kind: "human" | "agent" | null;
   /** True while a live socket is attached. Agents placed by activity have none. */
   connected: boolean;
@@ -160,7 +162,7 @@ function turnToward(object: THREE.Object3D, q: Pose["q"], delta: number, snap: b
   approachQuaternion(object.quaternion, scratch.quaternion, 14, delta, snap);
 }
 
-export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying }: Avatar3DProps) {
+export function Avatar3D({ actorId, body, kind, connected, live, reducedMotion, saying }: Avatar3DProps) {
   const recipe = useMemo(() => avatarRecipe(actorId), [actorId]);
   const { rings } = useRoomPreferences();
   const nameTexture = useNameTexture(actorId);
@@ -340,6 +342,7 @@ export function Avatar3D({ actorId, kind, connected, live, reducedMotion, saying
       ) : (
         <VrmBody
           actorId={actorId}
+          body={body}
           live={live}
           recipe={recipe}
           reducedMotion={reducedMotion}

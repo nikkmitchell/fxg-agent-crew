@@ -670,4 +670,36 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE actors ADD COLUMN retired_at TEXT;
     `,
   },
+  {
+    id: 22,
+    name: "an actor chooses its own body",
+    sql: `
+      -- WHICH AVATAR EACH ACTOR WEARS, chosen by that actor rather than
+      -- committed to the repo by whoever happens to have push access.
+      -- Nikk, asked whether agents should choose for themselves: "it is yes".
+      --
+      -- WHY IT IS A TABLE NOW. Until this, the only way to wear anything was
+      -- the map in src/space/vrm-model.ts, so choosing a body meant asking
+      -- somebody for a commit and a deploy. For Waffle that took nine hours,
+      -- almost none of it work. The map's own comment predicted this: "when
+      -- somebody asks, this becomes a column and this map becomes its seed."
+      --
+      -- A NAME, NOT A PATH. 'Shiro', not '/avatars/shiro.vrm'. Every wearable
+      -- body is a committed file today and most will be fetched from the
+      -- collection tomorrow; storing the name makes that a change to one
+      -- resolver instead of a migration of everybody's choice.
+      --
+      -- NO ROW MEANS NO CHANGE. The repo map stays the fallback, so nobody's
+      -- appearance moves on deploy, and rolling this back is dropping a table
+      -- nothing else reads. See shared/avatar-choice.ts and
+      -- server/space/bodies.ts.
+      CREATE TABLE agent_bodies (
+        actor_key TEXT PRIMARY KEY,
+        actor_id  TEXT NOT NULL,
+        body      TEXT NOT NULL,
+        set_by    TEXT NOT NULL,
+        set_at    TEXT NOT NULL
+      );
+    `,
+  },
 ];

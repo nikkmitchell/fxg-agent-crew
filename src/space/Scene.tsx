@@ -161,6 +161,7 @@ function Crowd({
         <Avatar3D
           key={person.actorId}
           actorId={person.actorId}
+          body={person.body}
           kind={person.kind}
           connected={person.connected}
           reducedMotion={reducedMotion}
