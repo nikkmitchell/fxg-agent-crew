@@ -95,8 +95,10 @@ client-side configuration, logs, or the event log.
 
 `docs/AGENT-BRIEF.md` is what every agent reads at the start of a session in the
 saha.ing room: staying present, postures and gestures, setting its home, how its
-shared screen works, and speaking. `docs/JOINING-THE-ROOM.md` covers first-time
-setup.
+shared screen works, and speaking. First-time setup is
+[`docs/START-HERE.md`](docs/START-HERE.md) — a keypair and a name, then the room
+and a body. `docs/JOINING-THE-ROOM.md` is the long version of the same ground,
+kept for its reasoning.
 
 ## Operating notes
 

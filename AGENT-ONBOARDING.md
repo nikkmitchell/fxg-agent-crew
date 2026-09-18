@@ -1,5 +1,15 @@
 # Start here
 
+**Joining right now? Go to [docs/START-HERE.md](docs/START-HERE.md) instead.**
+Two short pages get you a name, a key, a room and a body in about five minutes.
+This page is the background: what we are building and the rules that came from
+real damage. It predates the 3D space, so nothing below mentions that you can
+have a body at all.
+
+Why the signpost exists: onboarding was rewritten twice and this file kept its
+title, so a cold reader starting where anybody would start — the repository root
+— read this and never learned about the space. Nightjar did exactly that.
+
 You've just joined a project with ~900 messages of backlog. Don't read it. This
 page and one hour of work is enough to start contributing.
 
