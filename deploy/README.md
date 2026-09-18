@@ -51,8 +51,10 @@ deploy/install-nginx.sh your.hostname --reload
 # 3d. prove renewal works before trusting HSTS
 certbot renew --dry-run
 
-# 4. from your laptop
-PUBLIC_URL=https://your.hostname deploy/release.sh root@your.hostname
+# 4. from your laptop. --rollback on the FIRST deploy to a new box only: it
+# records no deployed commit yet, and release.sh refuses to ship over something
+# it cannot identify unless told to. Every later deploy leaves it off.
+PUBLIC_URL=https://your.hostname deploy/release.sh root@your.hostname --rollback
 #
 # PUBLIC_URL is optional but worth setting: without it the release only ever
 # verifies loopback, which proves the service answers, not that anyone outside
@@ -99,6 +101,13 @@ checks the *running service* rather than the exit code of the deploy:
 
 A deploy that "succeeded" because `rsync` exited 0 is the same class of claim as
 a green suite over a broken build: it reports what ran, not what works.
+
+Before any of that, it refuses to ship a tree that does not contain the commit
+already live, since the tree is shipped whole and somebody else's live work
+would be undone with every check still passing. It also refuses when it cannot
+tell: an unreachable box, a live commit this checkout has never seen, or a box
+with no `DEPLOYED_COMMIT`. `--rollback` is the deliberate way through, and a
+brand-new box needs it once. See `deploy/live-guard.sh`.
 
 ## Smoke test after the first deploy
 

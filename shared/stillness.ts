@@ -1,3 +1,4 @@
+import { actorKey } from "./space-layout.js";
 import type { Pose, WirePerson } from "./space-wire.js";
 
 /**
@@ -65,23 +66,30 @@ export class Stillness {
    *
    * Anybody no longer present is forgotten, so somebody who leaves and comes
    * back arrives moving, which is what arriving is.
+   *
+   * KEPT BY actorKey, answered by actorId. Presence renames an occupant when a
+   * live session spells them differently from the audit row that placed them
+   * (`nikk2` becoming `Nikk2`). Keyed by the raw spelling, that looked like one
+   * person leaving and another arriving, and restarted their count. Nightjar
+   * found it in review.
    */
   observe(people: readonly Seen[], now: number): Map<string, number> {
     const stillFor = new Map<string, number>();
     const present = new Set<string>();
     for (const person of people) {
-      present.add(person.actorId);
+      const key = actorKey(person.actorId);
+      present.add(key);
       const signature = motionSignature(person);
-      const seen = this.last.get(person.actorId);
+      const seen = this.last.get(key);
       if (!seen || seen.signature !== signature || person.moving) {
-        this.last.set(person.actorId, { signature, since: now });
+        this.last.set(key, { signature, since: now });
         stillFor.set(person.actorId, 0);
       } else {
         stillFor.set(person.actorId, Math.max(0, now - seen.since));
       }
     }
-    for (const actorId of [...this.last.keys()]) {
-      if (!present.has(actorId)) this.last.delete(actorId);
+    for (const key of [...this.last.keys()]) {
+      if (!present.has(key)) this.last.delete(key);
     }
     return stillFor;
   }
