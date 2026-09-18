@@ -271,8 +271,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
        * out of walking with a person. Those sends are declined instead, which
        * leaves the standing instruction visible rather than pretending.
        */
-      goHome: (actorId, home) =>
-        void space.presence.sendTo(actorId, "agent", home.at, null, home.facing, true),
+      // What the placement ended goes back to the route, which tells whoever placed the agent.
+      goHome: (actorId, home) => {
+        const { stoppedFollowing, abandonedRoute } =
+          space.presence.sendTo(actorId, "agent", home.at, null, home.facing, true);
+        return { stoppedFollowing, abandonedRoute };
+      },
       whereIs: (actorId) => space.presence.find(actorId)?.at ?? null,
       whoIsHere: () => space.presence.everyone().map((occupant) => occupant.actorId).sort(),
     });

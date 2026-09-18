@@ -83,8 +83,18 @@ export function registerHomeRoutes(
     homes: AgentHomes;
     /** What the actors table, or failing that the live room, says this actor is. */
     kindOf: (actorId: string) => "human" | "agent" | null;
-    /** Walk the agent to its new home now, rather than at its next idle moment. */
-    goHome: (actorId: string, home: { at: { x: number; y: number; z: number }; facing: number | null }) => void;
+    /**
+     * Walk the agent to its new home now, rather than at its next idle moment.
+     *
+     * A PLACEMENT IS AN EXPLICIT INSTRUCTION, so it ends a follow or a route the
+     * agent was on, and returns which. Both routes below put that in the reply:
+     * an agent that stops walking with somebody because you placed it is a side
+     * effect you should be told about, not one you should have to notice.
+     */
+    goHome: (
+      actorId: string,
+      home: { at: { x: number; y: number; z: number }; facing: number | null },
+    ) => { stoppedFollowing: string | null; abandonedRoute: number };
     /**
      * Where somebody is standing, for `face: "<name>"`. The server is the only
      * party that knows this AND has the formula right, which is the whole
@@ -141,8 +151,8 @@ export function registerHomeRoutes(
         { at, facing: asked.facing },
         session.username,
       );
-      deps.goHome(request.params.actorId, home);
-      return reply.send({ ok: true, home });
+      const ended = deps.goHome(request.params.actorId, home);
+      return reply.send({ ok: true, home, ...ended });
     },
   );
 
@@ -152,7 +162,7 @@ export function registerHomeRoutes(
     const refusal = allowed(session, request.params.actorId);
     if (refusal) return reply.code(403).send({ code: "NOT_ALLOWED", error: refusal });
     deps.homes.clear(request.params.actorId);
-    deps.goHome(request.params.actorId, homeOf(null, request.params.actorId));
-    return reply.send({ ok: true });
+    const ended = deps.goHome(request.params.actorId, homeOf(null, request.params.actorId));
+    return reply.send({ ok: true, ...ended });
   });
 }

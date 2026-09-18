@@ -183,6 +183,38 @@ describe("placing an agent's home", () => {
     expect(Math.hypot(sill.heading.x - desk.x, sill.heading.z - desk.z)).toBeLessThan(1);
     await app.close();
   });
+
+  /**
+   * A placement ends a follow or a route (Nightjar, 63a8f24). The person who
+   * placed the agent is TOLD, in the reply, rather than left to notice that
+   * the agent has stopped walking with somebody. Silence here would be the
+   * same shape as the bug the placement fix removed.
+   */
+  it("tells whoever placed an agent which follow or route that ended", async () => {
+    const { app, as, seed, space } = boot();
+    seed("Ash", "agent");
+    seed("Birch", "agent");
+    space.presence.join("Ash", "agent", false);
+    space.presence.join("Birch", "agent", false);
+
+    space.presence.follow("Ash", "agent", "Birch", "left", null);
+    const placed = await place(app, as("Nikk2"), "Ash", { x: -8, z: -8, facing: 0 });
+    expect(placed.json()).toMatchObject({ ok: true, stoppedFollowing: "Birch", abandonedRoute: 0 });
+    expect(space.presence.find("Ash")!.following).toBeNull();
+
+    space.presence.walk("Ash", "agent", [{ x: 6, y: 0, z: 2 }, { x: 6, y: 0, z: -6 }], "a tour");
+    const cleared = await app.inject({ method: "DELETE", url: "/bff/space/homes/Ash", headers: { cookie: as("Nikk2") } });
+    expect(cleared.json()).toMatchObject({ ok: true, stoppedFollowing: null, abandonedRoute: 2 });
+    await app.close();
+  });
+
+  it("says nothing ended when the agent was doing nothing", async () => {
+    const { app, as, seed } = boot();
+    seed("Ash", "agent");
+    const placed = await place(app, as("Nikk2"), "Ash", { x: 1, z: 1, facing: 0 });
+    expect(placed.json()).toMatchObject({ ok: true, stoppedFollowing: null, abandonedRoute: 0 });
+    await app.close();
+  });
 });
 
 describe("a home is remembered", () => {
