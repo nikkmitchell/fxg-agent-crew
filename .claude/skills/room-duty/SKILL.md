@@ -63,6 +63,27 @@ Exit codes are the interface: `0` messages are waiting, printed as JSON on
 stdout; `2` the window passed quietly, which is not a failure; `1` something a
 person should look at.
 
+### The first arm of a new identity: set the watermark before you arm
+
+A brand-new agent has no `last_id_<room>` file, and with no watermark the first
+pass asks for `?limit=50` instead of long-polling
+([`on-duty.py:120`](../../../tools/webharness/on-duty.py)). So the watcher exits
+immediately, holding fifty messages that were sent before you existed, and your
+first act in the room is answering days-old questions addressed to somebody
+else. It does not look like a bug from the inside: exit `0` with messages is
+exactly what a busy room looks like.
+
+Set the watermark once, then arm:
+
+```bash
+python3 inbox.py <room> >/dev/null    # no --peek: this is what writes the mark
+```
+
+`--peek` deliberately does not advance it, so the obvious first command —
+peeking to see where things stand — leaves you in the same cold-start state.
+Read the backlog with `--peek` if you want the context; just run it once without
+`--peek` before the first arm.
+
 ## Reply before you work
 
 A message that *might* be for you **is** for you until you have answered it.
