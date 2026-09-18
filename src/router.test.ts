@@ -58,3 +58,40 @@ describe("tab routing", () => {
     expect(resolve("/space/", "/space")).toBe(DEFAULT_TAB);
   });
 });
+
+/**
+ * WHAT THE APP OPENS ON, which is a product decision rather than a mechanism.
+ *
+ * Nikk: "i want to make it xr immersion focused, so when you get to home page
+ * you can just select directly what room you want... on the homepage have a
+ * room enter button". It used to open on `projects` — a list of boards, with
+ * the room seventh in a rail of ten.
+ *
+ * The tests above use DEFAULT_TAB symbolically and so pass whatever it is.
+ * That is right for resolution and useless for this: a later tidy-up could
+ * move the default back to a board and nothing would go red.
+ */
+describe("the app opens on the room's front door", () => {
+  it("defaults to home", () => {
+    expect(DEFAULT_TAB).toBe("home");
+  });
+
+  it("puts home and the room at the front of the rail", () => {
+    // Order here is the order of the navigation, so this is the rail.
+    expect(TABS[0]).toBe("home");
+    expect(TABS[1]).toBe("room");
+  });
+
+  it("keeps every other tab, because the cleanup was about focus not deletion", () => {
+    // Nikk, asked how far to go: "keep all that there, i just mean that our
+    // focus for developing is the XR room". Deleting them would also strip the
+    // room's panels of the pages they are iframes of.
+    for (const tab of ["projects", "overview", "board", "mood", "mine", "people", "build", "said", "chat"]) {
+      expect(TABS, `${tab} must stay reachable`).toContain(tab);
+    }
+  });
+
+  it("gives home a real URL, so it can be linked and refreshed like the rest", () => {
+    expect(tabFromPath(pathForTab("home"))).toBe("home");
+  });
+});

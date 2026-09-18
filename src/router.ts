@@ -14,10 +14,23 @@
 
 // "said" is the room's conversation and "chat" is the gateway to the live
 // WebHarness rooms. Two different things that were briefly both called Chat.
-export const TABS = ["projects", "overview", "board", "mood", "mine", "people", "room", "build", "said", "chat"] as const;
+/**
+ * `home` leads, and it is the room's front door rather than a dashboard.
+ *
+ * Nikk: "i want to make it xr immersion focused, so when you get to home page
+ * you can just select directly what room you want". The app used to open on
+ * `projects` — a list of boards, with the room seventh in a rail of ten. Every
+ * other tab is untouched and still reachable; what changed is what the product
+ * says it is when you arrive.
+ */
+export const TABS = ["home", "room", "projects", "overview", "board", "mood", "mine", "people", "build", "said", "chat"] as const;
 export type Tab = (typeof TABS)[number];
 
-export const DEFAULT_TAB: Tab = "projects";
+/**
+ * Also what an unknown URL lands on, which is why it must be somewhere that
+ * explains itself rather than a board that assumes you know what it is.
+ */
+export const DEFAULT_TAB: Tab = "home";
 
 /** Base path with no trailing slash: "/space" in production, "" in dev. */
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");

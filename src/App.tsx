@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LiveRoomPanel } from "./LiveRoomPanel";
+import { Home } from "./Home";
 import { DEFAULT_TAB, TABS, type Tab, pathForTab, tabFromPath } from "./router";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import { BuildPanel } from "./BuildPanel";
@@ -57,6 +58,7 @@ function Glyph({ name }: { name: "grid" | "stack" | "clock" | "chat" | "image" |
 }
 
 const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" | "chat" | "image" | "room" | "cog" }> = {
+  home: { label: "Home", glyph: "room" },
   projects: { label: "Projects", glyph: "grid" },
   overview: { label: "Overview", glyph: "grid" },
   board: { label: "Board", glyph: "stack" },
@@ -82,15 +84,32 @@ function TabContent({
   session,
   embedded,
   onOpenChat,
+  onEnterRoom,
+  roomStartsEntered,
 }: {
   tab: Tab;
   session: { username: string; kind?: "human" | "agent" } | null;
   /** True inside an iframe panel. The room refuses to contain itself. */
   embedded: boolean;
   onOpenChat: () => void;
+  /** Home's button: go to the room AND start loading it, rather than landing
+      on a second "Enter the room" button. One click from the door to the 3D. */
+  onEnterRoom: () => void;
+  /** True when we arrived here by pressing Enter on the front door. */
+  roomStartsEntered: boolean;
 }) {
   return (
     <>
+      {/* THE FRONT DOOR. Not shown inside a room panel: a panel whose content
+          is a button that leaves the room is worse than no panel. */}
+      {tab === "home" ? (
+        embedded ? (
+          <p className="muted-note">The room&rsquo;s front door is not shown inside the room.</p>
+        ) : (
+          <Home onEnter={onEnterRoom} />
+        )
+      ) : null}
+
       {tab === "projects" || tab === "overview" || tab === "board" || tab === "mood" || tab === "mine" ? (
         <ProjectWorkspace tab={tab} />
       ) : null}
@@ -104,7 +123,7 @@ function TabContent({
         embedded ? (
           <p className="muted-note">The room cannot be shown inside itself.</p>
         ) : (
-          <SpacePanel />
+          <SpacePanel startEntered={roomStartsEntered} />
         )
       ) : null}
 
@@ -160,6 +179,26 @@ export default function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+
+  /**
+   * Pressing Enter on the front door.
+   *
+   * Goes to the room AND tells it to start loading, so the door is one click
+   * from the 3D view rather than one click from a second Enter button.
+   *
+   * IT STAYS SET FOR THE REST OF THE VISIT, and that is deliberate rather than
+   * a leak. Having once said you want to be in the room, stepping out to the
+   * board and back should put you back in it — and by then the megabyte is in
+   * the browser cache, so the reason the room asks before loading has already
+   * been paid. A FRESH PAGE LOAD of /room still gets the room's own intro,
+   * because this is component state and starts false; I checked that rather
+   * than assuming it.
+   */
+  const [roomStartsEntered, setRoomStartsEntered] = useState(false);
+  const enterRoom = () => {
+    setRoomStartsEntered(true);
+    go("room");
+  };
 
   const go = (next: Tab) => {
     setTab(next);
@@ -253,7 +292,14 @@ export default function App() {
   if (embedded) {
     return (
       <main className="app-embed" id="workroom">
-        <TabContent tab={tab} session={session} embedded onOpenChat={() => setLiveRoomOpen(true)} />
+        <TabContent
+          tab={tab}
+          session={session}
+          embedded
+          onOpenChat={() => setLiveRoomOpen(true)}
+          onEnterRoom={enterRoom}
+          roomStartsEntered={roomStartsEntered}
+        />
         {liveRoomOpen ? <LiveRoomPanel onClose={() => setLiveRoomOpen(false)} /> : null}
       </main>
     );
@@ -337,7 +383,14 @@ export default function App() {
           <p className="eyebrow">saha / mission control</p>
         </header>
 
-        <TabContent tab={tab} session={session} embedded={false} onOpenChat={() => setLiveRoomOpen(true)} />
+        <TabContent
+          tab={tab}
+          session={session}
+          embedded={false}
+          onOpenChat={() => setLiveRoomOpen(true)}
+          onEnterRoom={enterRoom}
+          roomStartsEntered={roomStartsEntered}
+        />
 
       </main>
 

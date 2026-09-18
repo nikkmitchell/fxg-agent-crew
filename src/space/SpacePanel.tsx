@@ -16,6 +16,7 @@ import { PanelGrips } from "./PanelGrips";
 import { base } from "../router";
 import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
 import { takeCrumb } from "./left-crumb";
+import { useHeadsetAvailable } from "./useHeadsetAvailable";
 
 /**
  * The way in to screen sharing, on the website rather than only in a terminal.
@@ -94,8 +95,16 @@ function useReducedMotion(): boolean {
  * point of capping what gets said aloud.
  */
 
-export function SpacePanel() {
-  const [entered, setEntered] = useState(false);
+export function SpacePanel({ startEntered = false }: { startEntered?: boolean } = {}) {
+  /**
+   * `startEntered` comes from the front door: pressing Enter there should land
+   * you in the 3D view, not on a second Enter button.
+   *
+   * INITIAL STATE ONLY. The prop is not watched, so nothing can shove somebody
+   * into the room after they have left it — `setEntered(false)` from inside
+   * stays false even while the door's flag is still true.
+   */
+  const [entered, setEntered] = useState(startEntered);
   const systemPrefersReduced = useReducedMotion();
   /**
    * The system preference is the DEFAULT, not the verdict.
@@ -112,7 +121,6 @@ export function SpacePanel() {
   const connection = useSpaceSocket(entered);
   const [comfort, setComfort] = useState<Comfort>(DEFAULT_COMFORT);
   const [inHeadset, setInHeadset] = useState(false);
-  const [headsetAvailable, setHeadsetAvailable] = useState<boolean | null>(null);
   // The room's open set is fed in from the socket, so a panel somebody else
   // closes closes here too rather than on the next reload.
   const panels = usePanelChoices(entered, connection.openPanels);
@@ -153,64 +161,16 @@ export function SpacePanel() {
   /**
    * Is there a headset to enter?
    *
-   * ASKED, not assumed: a browser with no WebXR has no `navigator.xr` at all,
-   * and an Enter button that can only fail is worse than no button — "nothing
-   * happened" is the least debuggable outcome there is.
+   * The probe moved to useHeadsetAvailable so the HOME PAGE can ask the same
+   * question and get the same answer. It is not a one-liner — it keeps asking
+   * for a minute because a Quest took twenty seconds to say yes, and it never
+   * un-says it — and two copies of that would be two answers that can
+   * disagree.
    *
-   * Probed from MOUNT, and again after entering. A real headset browser has
-   * `navigator.xr` from page load, so the answer is available immediately and
-   * the button can be offered before anyone has pressed anything — which is
-   * the whole point, since a headset user should not have to find their way
-   * into a flat 3D view first to discover that an immersive one exists.
-   *
-   * The repeats are for the other case: on localhost without real WebXR, the
-   * XR store injects an emulated device when the lazy scene chunk creates it,
-   * which is after mount. Only ever promotes to true — a later "no" would take
-   * the button away from somebody already holding a controller.
+   * `entered` restarts it: entering loads the chunk that can conjure an
+   * emulated device on localhost.
    */
-  useEffect(() => {
-    let cancelled = false;
-    const probe = async () => {
-      const xrSystem = (navigator as { xr?: { isSessionSupported(mode: string): Promise<boolean> } }).xr;
-      if (!xrSystem) return false;
-      try {
-        return await xrSystem.isSessionSupported("immersive-vr");
-      } catch {
-        return false;
-      }
-    };
-    const timers: number[] = [];
-    const check = async () => {
-      const supported = await probe();
-      if (!cancelled && supported) setHeadsetAvailable(true);
-    };
-    void check();
-    // After the scene chunk has loaded, and again once the store has had time
-    // to create itself. Only ever promotes to true — a later "no" would take
-    // the button away from somebody holding a controller.
-    // KEEPS ASKING. On a Quest, `isSessionSupported` took about twenty seconds
-    // to answer yes — the button turned up long after the page looked settled,
-    // and before this it could have been missed entirely. So the answer is
-    // re-checked for a full minute rather than three times in four seconds.
-    for (const delay of [1_000, 3_000, 6_000, 10_000, 15_000, 22_000, 30_000, 45_000, 60_000]) {
-      timers.push(window.setTimeout(() => void check(), delay));
-    }
-    // Say "no headset" once the early answers are in, rather than leaving it
-    // unknown and rendering neither the button nor the explanation. The later
-    // probes can still promote it to yes — this only decides what to show while
-    // we wait.
-    timers.push(
-      window.setTimeout(() => {
-        if (!cancelled) setHeadsetAvailable((current) => current ?? false);
-      }, 5_000),
-    );
-    return () => {
-      cancelled = true;
-      for (const timer of timers) window.clearTimeout(timer);
-    };
-    // `entered` is a dependency because entering is what loads the chunk that
-    // can conjure an emulated device on localhost.
-  }, [entered]);
+  const headsetAvailable = useHeadsetAvailable(entered);
 
   if (!entered) {
     return (
