@@ -551,7 +551,22 @@ export class BoardStore {
       // is what lets somebody card their own work, and a role is an extra hat.
       const grantable = roles.filter((role) => role !== "manager");
 
-      const exists = this.db.prepare("SELECT 1 FROM memberships WHERE project_id=? AND actor_id=?")
+      /**
+       * COLLATE NOCASE, AND THIS IS A REVOCATION BYPASS WITHOUT IT. Found by
+       * Sill reviewing the storage.
+       *
+       * Memberships are keyed on the actor id as written. Checking for an
+       * existing row exactly meant a manager could revoke `Nightjar` and the
+       * next sign-in as `nightjar` would find no row, insert a second one, and
+       * be active again — defeating the one rule this path promises, that a
+       * revoked membership stays revoked. The room folds case everywhere else
+       * (`actorKey`), and WebHarness has already re-spelled an actor once.
+       *
+       * Any spelling found means somebody has already decided about this person,
+       * active or revoked, so nothing is written.
+       */
+      const exists = this.db
+        .prepare("SELECT 1 FROM memberships WHERE project_id = ? AND actor_id = ? COLLATE NOCASE")
         .get(projectId, actorId);
       if (exists) continue;
 

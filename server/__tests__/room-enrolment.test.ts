@@ -104,6 +104,34 @@ describe("enrolling from a room", () => {
     expect(JSON.parse(membership("lantern", "Plumbline")!.roles)).toEqual(["manager"]);
   });
 
+  /**
+   * THE REVOCATION BYPASS. A manager revokes `Nightjar`; WebHarness re-spells
+   * the actor, or the agent signs in as `nightjar`; an exact-match check finds
+   * no row, inserts a second one, and the removal is undone by a difference in
+   * capitals. Sill found this reviewing the storage.
+   */
+  it("will not re-enrol a revoked member under a different spelling", () => {
+    link("lantern", "lantern.room");
+    store.enrolFromRoom("Nightjar", "lantern.room", "agent");
+    store.actOnMembership(nikk, "lantern", "Nightjar", "revoke");
+
+    expect(store.enrolFromRoom("nightjar", "lantern.room", "agent")).toEqual([]);
+    expect(store.enrolFromRoom("NIGHTJAR", "lantern.room", "agent")).toEqual([]);
+    expect(membership("lantern", "Nightjar")?.active).toBe(0);
+    expect(membership("lantern", "nightjar")).toBeUndefined();
+  });
+
+  it("does not hand somebody a second membership by changing their capitals", () => {
+    link("lantern", "lantern.room");
+    expect(store.enrolFromRoom("Nightjar", "lantern.room", "agent")).toEqual(["lantern"]);
+    expect(store.enrolFromRoom("nightjar", "lantern.room", "agent")).toEqual([]);
+    // Only this actor's rows: creating a project gives its creator one too.
+    const rows = db.prepare(
+      "SELECT COUNT(*) c FROM memberships WHERE project_id='lantern' AND actor_id = 'Nightjar' COLLATE NOCASE",
+    ).get() as { c: number };
+    expect(rows.c).toBe(1);
+  });
+
   it("is quiet on every sign-in after the first", () => {
     link("lantern", "lantern.room");
     expect(store.enrolFromRoom("Nightjar", "lantern.room", "agent")).toEqual(["lantern"]);
