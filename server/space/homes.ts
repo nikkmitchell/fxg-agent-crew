@@ -134,7 +134,7 @@ export function registerHomeRoutes(
        * then be measured from somewhere the agent is not actually standing.
        */
       const at = clampHome({ x: x as number, z: z as number });
-      const asked = resolveFacing(request.body ?? {}, at, deps.whereIs, deps.whoIsHere);
+      const asked = resolveFacing(request.body ?? {}, at, deps.whereIs, deps.whoIsHere, request.params.actorId);
       if ("error" in asked) return reply.code(400).send({ code: "BAD_HOME", error: asked.error });
       const home = deps.homes.set(
         request.params.actorId,

@@ -88,6 +88,16 @@ describe("knownToTheCatalogue", () => {
     const known = knownToTheCatalogue(start);
     expect(known("abissaldude")).toEqual({ name: "AbissalDude", model: "https://arweave.net/abc" });
     expect(known("notabody")).toBeNull();
+    // Counts what survived the filters, not the rows in the file: the four
+    // dropped entries above are not bodies anybody can wear.
+    expect(known.size()).toBe(2);
+  });
+
+  it("knows nothing, and says so, where there is no catalogue", () => {
+    // size() is how the wardrobe tells "cannot read the catalogue" from "no
+    // such body". A lookup that is present and empty looked like the second.
+    const start = mkdtempSync(resolve(tmpdir(), "no-catalogue-"));
+    expect(knownToTheCatalogue(start).size()).toBe(0);
   });
 
   it("finds the real catalogue shipped in this repo", () => {
@@ -98,5 +108,6 @@ describe("knownToTheCatalogue", () => {
     // this file and never from a caller.
     expect(known("abissaldude")?.model).toMatch(/^https:\/\//);
     expect(known("shiro")?.name).toBe("Shiro");
+    expect(known.size()).toBe(300);
   });
 });

@@ -17,14 +17,14 @@ import { bodyKey } from "../../shared/avatar-choice.js";
  * dist/avatars/ once built. A hardcoded path is right in one of those and
  * silently wrong in the other — exactly the bug findUiRoot exists to avoid.
  *
- * READ ONCE, LAZILY, ON THE FIRST REFUSAL. It is 188KB and only a rejected
- * choice needs it, so nothing is read on a healthy path.
+ * READ ONCE, LAZILY, the first time anything asks: a choice outside the
+ * fifteen on hand, a fetch, or a look at the wardrobe. It is 188KB.
  *
  * A MISSING OR BROKEN FILE IS NOT AN ERROR HERE. It degrades to "the
- * catalogue knows nothing", which means every bad name is answered
- * NO_SUCH_BODY — today's behaviour, and honest, because with no catalogue the
- * server genuinely does not know whether that body exists. Throwing would
- * turn a cosmetic shortfall into a failed request.
+ * catalogue knows nothing", `size()` is 0, and the body routes then say they
+ * cannot check a name rather than that it does not exist, because with no
+ * catalogue the server genuinely does not know. Throwing would turn a
+ * cosmetic shortfall into a failed request.
  */
 const WHERE = ["dist/avatars/catalogue.json", "public/avatars/catalogue.json"];
 
@@ -90,13 +90,20 @@ export function catalogueKeys(path: string | null): Set<string> {
  *
  * Memoised on the SET rather than on the path, so a machine with no catalogue
  * does not stat the filesystem on every rejected name.
+ *
+ * `size()` says how many bodies it knows, from the same read. 0 means this
+ * server cannot read the catalogue, which is a different answer from 300, and
+ * the wardrobe's note is worded from it rather than typed as prose.
  */
 export function knownToTheCatalogue(
   start = dirname(fileURLToPath(import.meta.url)),
-): (key: string) => CatalogueBody | null {
+): ((key: string) => CatalogueBody | null) & { size: () => number } {
   let bodies: Map<string, CatalogueBody> | null = null;
-  return (key: string) => {
-    bodies ??= catalogueBodies(findCatalogue(start));
-    return bodies.get(key) ?? null;
-  };
+  const read = () => (bodies ??= catalogueBodies(findCatalogue(start)));
+  // A property on the function rather than Object's assign helper, whose call
+  // contains one of the needles server/__tests__/keycustody.test.ts forbids.
+  // That test is a tripwire worth keeping blunt, so the fix belongs here.
+  const lookup = (key: string) => read().get(key) ?? null;
+  lookup.size = () => read().size;
+  return lookup;
 }
