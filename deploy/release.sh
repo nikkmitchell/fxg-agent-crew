@@ -20,10 +20,12 @@ fail() { printf '\033[31mFAILED: %s\033[0m\n' "$*" >&2; exit 1; }
 
 TARGET=""
 ALLOW_DIRTY_FLAG=0
+ROLLBACK_FLAG=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --allow-dirty) ALLOW_DIRTY_FLAG=1 ;;
-    -*) fail "unknown option: $1 (usage: release.sh user@host [--allow-dirty])" ;;
+    --rollback) ROLLBACK_FLAG=1 ;;
+    -*) fail "unknown option: $1 (usage: release.sh user@host [--allow-dirty] [--rollback])" ;;
     *)
       if [ -n "$TARGET" ]; then fail "two targets given: $TARGET and $1"; fi
       TARGET="$1"
@@ -31,7 +33,7 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-if [ -z "$TARGET" ]; then fail "usage: release.sh user@host [--allow-dirty]"; fi
+if [ -z "$TARGET" ]; then fail "usage: release.sh user@host [--allow-dirty] [--rollback]"; fi
 
 # A DIRTY TREE REFUSES TO DEPLOY. It used to print a yellow warning on line 70
 # and ship anyway, which is out of character for this script: a failed build, a
@@ -69,6 +71,24 @@ if [ -n "$DIRTY_FILES" ]; then
 else
   printf '  clean at %s\n' "$(git rev-parse --short HEAD)"
 fi
+
+# WHAT IS LIVE MUST BE IN WHAT SHIPS. Agents deploy from their own worktrees,
+# and this ships the whole tree, so a branch without the other's live commits
+# would undo them with every check below still passing. See deploy/live-guard.sh.
+#
+# Read over the same ssh as the rest of this script rather than from /bff/build,
+# which needs a signed-in session. A box that cannot be reached is a refusal,
+# never "nothing is live": the two look the same from here and mean opposite things.
+#
+# Checked early, like the dirty tree, so the refusal costs seconds rather than
+# arriving after the build. --rollback is the deliberate way through.
+log "check the tree contains what is live"
+LIVE="$("${SSH[@]}" "$TARGET" "if [ -f $REMOTE/DEPLOYED_COMMIT ]; then cat $REMOTE/DEPLOYED_COMMIT; else echo NONE; fi")" \
+  || fail "could not read what is live on $TARGET, so cannot tell whether this tree would roll it back"
+LIVE="$(printf '%s' "$LIVE" | tr -d '[:space:]')"
+[ "$LIVE" = "NONE" ] && LIVE=""
+. "$(dirname "$0")/live-guard.sh"
+contains_live "$LIVE" "$ROLLBACK_FLAG" || fail "this tree would roll back what is live (see above)"
 
 log "verify locally before shipping"
 # This repo is pnpm (pnpm-lock.yaml). An earlier version ran `npm ci`, which

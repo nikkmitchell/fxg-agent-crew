@@ -7,6 +7,7 @@ import { bodySpec, ringIsBroken } from "./avatar-shape";
 import { VrmBody } from "./VrmBody";
 import { approachPoint, approachQuaternion } from "./easing";
 import { useRoomPreferences } from "./room-preferences";
+import { isStill } from "../../shared/stillness";
 import type { Pose, WirePerson } from "../../shared/space-wire";
 import type { Vec3 } from "../../shared/space-layout";
 
@@ -164,7 +165,8 @@ function turnToward(object: THREE.Object3D, q: Pose["q"], delta: number, snap: b
 
 export function Avatar3D({ actorId, body, kind, connected, live, reducedMotion, saying }: Avatar3DProps) {
   const recipe = useMemo(() => avatarRecipe(actorId), [actorId]);
-  const { rings } = useRoomPreferences();
+  const { rings, hideStill } = useRoomPreferences();
+  const rootRef = useRef<THREE.Group>(null);
   const nameTexture = useNameTexture(actorId);
   const nameRef = useConstantApparentSize([1.1, 0.275]);
   const speechRef = useConstantApparentSize([1.6, 0.4]);
@@ -214,6 +216,12 @@ export function Avatar3D({ actorId, body, kind, connected, live, reducedMotion, 
   useFrame((_, delta) => {
     const person = live();
     if (!person) return;
+
+    // HIDDEN, NOT GONE, for a viewer who asked not to see anybody still for
+    // five minutes. The figure stays mounted and keeps being placed below, so
+    // its body is not fetched again and it is standing in the right spot the
+    // moment it moves. See shared/stillness.ts.
+    if (rootRef.current) rootRef.current.visible = !(hideStill && isStill(person));
 
     // WHERE THE HEAD IS. A reported pose wins. Without one — every agent, and
     // any client that only sends a position — it is placed at a standing
@@ -307,7 +315,7 @@ export function Avatar3D({ actorId, body, kind, connected, live, reducedMotion, 
   const onBodyFailed = useCallback(() => setBodyFailed(true), []);
 
   return (
-    <group>
+    <group ref={rootRef}>
       {bodyFailed ? (
       <>
       <group ref={torsoRef}>
