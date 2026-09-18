@@ -1,0 +1,6019 @@
+{
+  "what": "Bodies an agent may choose from on saha.ing. Licences read from inside each file, not from the gallery.",
+  "checkedAt": "2026-09-18T15:17:00.607Z",
+  "source": "https://opensourceavatars.com/api/avatars",
+  "collections": [
+    "100Avatars R3",
+    "100Avatars R2",
+    "100Avatars R1"
+  ],
+  "counts": {
+    "listed": 300,
+    "cc0Verified": 300,
+    "unreadable": 0
+  },
+  "howToUse": "Pick one and tell the room its `name`. See docs/JOIN-THE-ROOM.md.",
+  "caution": "`usable` means the file itself says CC0 / Everyone and the rig has every bone the room drives. It does NOT mean anybody has looked at it — a name is a poor guide to a picture, and we have been wrong about that four times out of four.",
+  "avatars": [
+    {
+      "name": "AbissalDude",
+      "collection": "100Avatars R3",
+      "number": "254",
+      "description": "Avatar 254: AbissalDude",
+      "thumbnail": "https://arweave.net/EX1hsM9KnmrfeFVfyerWdMtyIczAI8dbcO8O1bosHQ0",
+      "model": "https://arweave.net/RZnWq2e0OQAYbhPEddWQY9sBd8IytCFeJBHVPYIlBMg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Abissal Dude",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 8531927
+      },
+      "usable": true
+    },
+    {
+      "name": "AjoMajo",
+      "collection": "100Avatars R3",
+      "number": "282",
+      "description": "Avatar 282: AjoMajo",
+      "thumbnail": "https://arweave.net/gpeoMuIKcPFq-rItYcrdneMqIe5Vo8wA2ybmCrnK45Q",
+      "model": "https://arweave.net/N0uIP-7n2AjxH-tNFJV8foY7mQQ_DPKgGeCIqXUqfNQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Ajo Majo",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 36,
+        "bytes": 2195788
+      },
+      "usable": true
+    },
+    {
+      "name": "MeganTheFox",
+      "collection": "100Avatars R3",
+      "number": "278",
+      "description": "Avatar 278: MeganTheFox",
+      "thumbnail": "https://arweave.net/9J9ThGRe5O_tffp4lIaDZcjtq9jt7NFCuUciCzJMguY",
+      "model": "https://arweave.net/up4WzT0YJfXv9woGseCIQnBSq3eH8KWASJJbNtuvEWY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Megan The Fox",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 40,
+        "bytes": 5777896
+      },
+      "usable": true
+    },
+    {
+      "name": "Vladi",
+      "collection": "100Avatars R3",
+      "number": "232",
+      "description": "Avatar 232: Vladi",
+      "thumbnail": "https://arweave.net/qAtPvRdOC6DpSwv1RR7wjFFD6VeD8lJJK1P9bIXBfLI",
+      "model": "https://arweave.net/RFKE0Snx7V32gjvV82GcXT9-R7rDySQaKWlf1a2oYUc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Vladi",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 3625815
+      },
+      "usable": true
+    },
+    {
+      "name": "GhostPumpking",
+      "collection": "100Avatars R3",
+      "number": "296",
+      "description": "Avatar 296: GhostPumpking",
+      "thumbnail": "https://arweave.net/_DVEnkKnOu-1ZI79rASY5aIHTr5qQGI5rRXj6EBzy_k",
+      "model": "https://arweave.net/w7BA_cYyPX8wtbr2YcUNQtGjQkTPAGuA-l4WOA2Pr0k",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Ghost Pumpking",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 8139583
+      },
+      "usable": true
+    },
+    {
+      "name": "KardialTheConsumer",
+      "collection": "100Avatars R3",
+      "number": "250",
+      "description": "Avatar 250: KardialTheConsumer",
+      "thumbnail": "https://arweave.net/RQIMkXu-KVbWyKsvodzGdkrooOX5z3glCH5muIzFE08",
+      "model": "https://arweave.net/H7LgdhGUbLMjFCYkTVy55N2VANWI7rHs574mWSw1uIE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Kardial The Consumer",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 6261823
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPawn",
+      "collection": "100Avatars R3",
+      "number": "222",
+      "description": "Avatar 222: CoolPawn",
+      "thumbnail": "https://arweave.net/UImKnPNOo9utpxgNmLMRfn_RMArz7_sbsDsvUiYJFco",
+      "model": "https://arweave.net/YHOo7iOMpmA44TYyPQNswS-lKaU0yrY_BG0WCVdqkbw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Pawn",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1259918
+      },
+      "usable": true
+    },
+    {
+      "name": "Anna",
+      "collection": "100Avatars R3",
+      "number": "270",
+      "description": "Avatar 270: Anna",
+      "thumbnail": "https://arweave.net/w1coZXsJed2XwPaVJ-vBz2yb2NYu-g8AIzwwmZbY-Gk",
+      "model": "https://arweave.net/RqDioyluCcxDNHFPoXLUlbEQjhP1Fy9HtaGzLFVh0mE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Anna",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 7744412
+      },
+      "usable": true
+    },
+    {
+      "name": "Paco",
+      "collection": "100Avatars R3",
+      "number": "211",
+      "description": "Avatar 211: Paco",
+      "thumbnail": "https://arweave.net/ghXbUC4mSh9ZCLPtswfxtNIg7x8Y_251XDyvNPCWOFc",
+      "model": "https://arweave.net/0i-EEnHlcq1EZ1-sMi8DTZhesqGLqtf30WuCknfTHjA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Paco",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 3618510
+      },
+      "usable": true
+    },
+    {
+      "name": "CuteMoth",
+      "collection": "100Avatars R3",
+      "number": "267",
+      "description": "Avatar 267: CuteMoth",
+      "thumbnail": "https://arweave.net/hr_F-VFTR_QLyWB9PzD6XJ7sp653w0r2wLQChWYbzlw",
+      "model": "https://arweave.net/LWj4C9ClGs0ChP7oHDEEWPbGTo0HAWNMjhIRlyMkRHg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cute Moth",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 34,
+        "bytes": 1801299
+      },
+      "usable": true
+    },
+    {
+      "name": "CuteSaurus",
+      "collection": "100Avatars R3",
+      "number": "229",
+      "description": "Avatar 229: CuteSaurus",
+      "thumbnail": "https://arweave.net/X7G9iThMeSRuJ9zj9cDyzUwFadxBe5RXU6Cs-bSUSDU",
+      "model": "https://arweave.net/1-EJ5GXIlQ1ohw6GMsMnEzyK7IHhI8YDPYsjMvo_xhQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cute Saurus",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 40,
+        "bytes": 3937453
+      },
+      "usable": true
+    },
+    {
+      "name": "BeanKing",
+      "collection": "100Avatars R3",
+      "number": "242",
+      "description": "Avatar 242: BeanKing",
+      "thumbnail": "https://arweave.net/UVGHA0BQZFb0B4rfia9ygJzdFAbUXFyj98twnL9eKMg",
+      "model": "https://arweave.net/4DY39QWIGPtuovTNVcQhgl5bSiNvr3J_ZJiHjU3P-u8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Bean King",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 3278796
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolHeart",
+      "collection": "100Avatars R3",
+      "number": "276",
+      "description": "Avatar 276: CoolHeart",
+      "thumbnail": "https://arweave.net/p316TTwsOdSbFwnnK3npIo6dQDe-BwlnD6LW2_0No2w",
+      "model": "https://arweave.net/Eqer9d8Xz3iQskaBBuw_WPvD0dx8wfoOInYb2T9shQA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Heart",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 8692481
+      },
+      "usable": true
+    },
+    {
+      "name": "CatMoth",
+      "collection": "100Avatars R3",
+      "number": "253",
+      "description": "Avatar 253: CatMoth",
+      "thumbnail": "https://arweave.net/JcTqBNw5P_Avqj-PRqkIET3OKIisDasmi6NEDBbXjdg",
+      "model": "https://arweave.net/CZWecYxSdxUQKu8qI_gs0n3YL13wJxEWXzgHCij29m0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "CatMoth",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 28,
+        "bytes": 3572974
+      },
+      "usable": true
+    },
+    {
+      "name": "UrbanTV",
+      "collection": "100Avatars R3",
+      "number": "264",
+      "description": "Avatar 264: UrbanTV",
+      "thumbnail": "https://arweave.net/x_Omu1MN0Xnoi4kFuRYVy8sbwKSD7G-nxgu9gJQQTR4",
+      "model": "https://arweave.net/h7MGIGl6Mpzof0lIV9s_2KYiOBxwDOUUqos5bKjBwhQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Urban TV",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 7753111
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolTiki",
+      "collection": "100Avatars R3",
+      "number": "280",
+      "description": "Avatar 280: CoolTiki",
+      "thumbnail": "https://arweave.net/e4DNKQGGjoGGGxuweMCDtKR79Dsm0lyZumRQAjUlC_U",
+      "model": "https://arweave.net/jfy-JpgRVHM5XrtS0ubeXUPp266LazQ86Y5SlwzD1s8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Tiki",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 40,
+        "bytes": 9092455
+      },
+      "usable": true
+    },
+    {
+      "name": "LadyFawn",
+      "collection": "100Avatars R3",
+      "number": "289",
+      "description": "Avatar 289: LadyFawn",
+      "thumbnail": "https://arweave.net/rMBF-i348l98jzJLfFK4P0-Q4DbaRu8JaewLHDKfg9g",
+      "model": "https://arweave.net/irXzuViKMyT1wGa5tqWQZCCqZPb_uVzU23Wgl1pHC_0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Lady Fawn",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 4296043
+      },
+      "usable": true
+    },
+    {
+      "name": "CatEye",
+      "collection": "100Avatars R3",
+      "number": "272",
+      "description": "Avatar 272: CatEye",
+      "thumbnail": "https://arweave.net/v2JREpMoqm9LiiEUGKFimr8KLeK6i8awG6LvZ-JJZ2M",
+      "model": "https://arweave.net/bpAiAA8wgroS9YgRAk49LShqINtLwsx50IBcHek18J0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cat Eye",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 22,
+        "bytes": 2290364
+      },
+      "usable": true
+    },
+    {
+      "name": "PossumEnjoyer",
+      "collection": "100Avatars R3",
+      "number": "292",
+      "description": "Avatar 292: PossumEnjoyer",
+      "thumbnail": "https://arweave.net/F9wt-W8lv1_77sUrOtl8Vyq7JVXDibu1QOSiUx95pmQ",
+      "model": "https://arweave.net/7rLe-zw-hBivGOFAm8QkjaRMAGusT7QtaCjh4twIDP4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Possum Enjoyer",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 6364589
+      },
+      "usable": true
+    },
+    {
+      "name": "MrSquirrel",
+      "collection": "100Avatars R3",
+      "number": "286",
+      "description": "Avatar 286: MrSquirrel",
+      "thumbnail": "https://arweave.net/eeBS1wEd7q0HZfh_15PSRnIgG_Y2Mv2mcKU-zZLQLao",
+      "model": "https://arweave.net/cuWoLBLWF0OdWUZ2jsjWNkHPRlPMdmqP9_lUbrHBO-o",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mr Squirrel",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 40,
+        "bytes": 6901243
+      },
+      "usable": true
+    },
+    {
+      "name": "BadBot",
+      "collection": "100Avatars R3",
+      "number": "203",
+      "description": "Avatar 203: BadBot",
+      "thumbnail": "https://arweave.net/TDqOq4O1213W7W8CmLE8BFsQx29jf5_9halmv_iAQz4",
+      "model": "https://arweave.net/ssQPFGxKhSLVlXndDSfdwYo-lcgMT8rLXd-2hJgK5RI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Bad Bot",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 2847584
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBee",
+      "collection": "100Avatars R3",
+      "number": "261",
+      "description": "Avatar 261: CoolBee",
+      "thumbnail": "https://arweave.net/o-g4fF7OoHOBDh8F5eDZowUnQ60l1Q1vYrpne_EEtIw",
+      "model": "https://arweave.net/-M047TNjC36mcEWMprML2g7rawORlVGIgD7CKvjqcfw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Bee",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 22,
+        "bytes": 4435603
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolThief",
+      "collection": "100Avatars R3",
+      "number": "265",
+      "description": "Avatar 265: CoolThief",
+      "thumbnail": "https://arweave.net/PEXGvcT61gzN7k_I8tJ-pUJAk9_X3c69qqJbtiqmCGA",
+      "model": "https://arweave.net/aZqq_UIFZSAXVxhcAoul9rmcKDvAJcy-A1K6gnTzHLo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Thief",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 47,
+        "bytes": 1693839
+      },
+      "usable": true
+    },
+    {
+      "name": "MrBush",
+      "collection": "100Avatars R3",
+      "number": "271",
+      "description": "Avatar 271: MrBush",
+      "thumbnail": "https://arweave.net/3AkxYKRSHvvr9CCoLamQ7TG2RlS6MDvpmmOoBjqiTck",
+      "model": "https://arweave.net/4i8X5XaXMIRYVajBnXKQdM_Sa_OQ7PkWi1yG7XdWG44",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mr Bush",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 5906116
+      },
+      "usable": true
+    },
+    {
+      "name": "LilShark",
+      "collection": "100Avatars R3",
+      "number": "290",
+      "description": "Avatar 290: LilShark",
+      "thumbnail": "https://arweave.net/REZZfCZdM7FjzfoZuibGAVLICVYPFCrtIPB90gtTPcc",
+      "model": "https://arweave.net/nVqBB0cwDybmATcohrZKkgx6hVDqPKTIF2-MwNVVMdw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Lil Shark",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 47,
+        "bytes": 7136437
+      },
+      "usable": true
+    },
+    {
+      "name": "DreamFighter",
+      "collection": "100Avatars R3",
+      "number": "287",
+      "description": "Avatar 287: DreamFighter",
+      "thumbnail": "https://arweave.net/cH4iU2Yu0_7fMTcFv58LZPQQ14pVfnvcu55xCNtM8S4",
+      "model": "https://arweave.net/DF1j9AaUmMferCUrB4BLPtA3AoXE7O3qpE9yP-SSYcQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Dream Fighter",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 7514114
+      },
+      "usable": true
+    },
+    {
+      "name": "DreamEater",
+      "collection": "100Avatars R3",
+      "number": "275",
+      "description": "Avatar 275: DreamEater",
+      "thumbnail": "https://arweave.net/uCvB9xXPieMlcMfME6aEk_z6F45JCfSiVNrZUm8wiwg",
+      "model": "https://arweave.net/O90eXYu-5ymPHgr0f1vP6lP_DiD0qTwH4hD5Kz8vPzM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Dream Eater",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 5678213
+      },
+      "usable": true
+    },
+    {
+      "name": "MrSick",
+      "collection": "100Avatars R3",
+      "number": "223",
+      "description": "Avatar 223: MrSick",
+      "thumbnail": "https://arweave.net/Jp4qS_mH4QKKPT9HkFX-sZL2F8onSEl83IYwfNZz9fY",
+      "model": "https://arweave.net/QmwAaMBJO8eLTzlBiH68UEGSvxIR_YgznFNTtYCbzLY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mr Sick",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 6378223
+      },
+      "usable": true
+    },
+    {
+      "name": "Mr",
+      "collection": "100Avatars R3",
+      "number": "205",
+      "description": "Avatar 205: Mr",
+      "thumbnail": "https://arweave.net/b-XkeLyvIJLHzyBkOsCbCWPK2JjJXEY54x_8S5ULWQg",
+      "model": "https://arweave.net/jJaRNO38jEjBzn0SPpl3d7Yo91NTXxNtPVMb0JdsNyA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mr. Receipt",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 5068907
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPineapple",
+      "collection": "100Avatars R3",
+      "number": "201",
+      "description": "Avatar 201: CoolPineapple",
+      "thumbnail": "https://arweave.net/R-snTDQcKLdS2mfn8Y0BLiy2gY3g26NoCNx3BglchjY",
+      "model": "https://arweave.net/H_vUdDIVXOdnq_YOFxX7zgDnVOYUkHfzJSzSVULsupM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Pineapple",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 4328935
+      },
+      "usable": true
+    },
+    {
+      "name": "Chester",
+      "collection": "100Avatars R3",
+      "number": "216",
+      "description": "Avatar 216: Chester",
+      "thumbnail": "https://arweave.net/FRsXnKVBReCdJXaWVZzpixG-_RcYMufBWXaKw0ExVm8",
+      "model": "https://arweave.net/2Lsw0H5j06VFi-AKtzMgX1HFsgdkFy3tlMQbZADvqyk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Chester",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 36,
+        "bytes": 3040176
+      },
+      "usable": true
+    },
+    {
+      "name": "SportMecha",
+      "collection": "100Avatars R3",
+      "number": "239",
+      "description": "Avatar 239: SportMecha",
+      "thumbnail": "https://arweave.net/EUzreKuxGPLraPi9H8YSP0GkCqY5y-Im-yG3KzgPVxM",
+      "model": "https://arweave.net/xpx3cF_x4G4FUW-oIx7c2LiSUPigXK74fLHXgJ2w6lA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Sport Mecha",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 8525072
+      },
+      "usable": true
+    },
+    {
+      "name": "BatPot",
+      "collection": "100Avatars R3",
+      "number": "263",
+      "description": "Avatar 263: BatPot",
+      "thumbnail": "https://arweave.net/-S9a87Ak_apj6XjOmXG43L4-gAynFqCL3ewzmkHL05U",
+      "model": "https://arweave.net/rA5UE8xQw-5qcYUGz1GhtwK2Duh-2TRVKAReNPOBWjU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Bat Pot",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 28,
+        "bytes": 10470080
+      },
+      "usable": true
+    },
+    {
+      "name": "StrawberryPrincess",
+      "collection": "100Avatars R3",
+      "number": "291",
+      "description": "Avatar 291: StrawberryPrincess",
+      "thumbnail": "https://arweave.net/1wCG9r5kstwVsUHbgANWgumsUtFQmQVRtbvaVutkfjE",
+      "model": "https://arweave.net/0Wwhn0-G8wESHYX2lD9FRPWw6smAHN_wsH6hNPrz9eE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Strawberry Princess",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2543551
+      },
+      "usable": true
+    },
+    {
+      "name": "CosmicDweller",
+      "collection": "100Avatars R2",
+      "number": "124",
+      "description": "Avatar 124: CosmicDweller",
+      "thumbnail": "https://arweave.net/Pdu_a-6V4OyRZaCPxPPRT3ZtPF3iPvpKk_mfIVrq0pM",
+      "model": "https://arweave.net/r3nOVHOyNuIM66TZRGhSE7_uUKYQKoRYcfLqoOOjY_k",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "124_Cosmic Dweller",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1968360
+      },
+      "usable": true
+    },
+    {
+      "name": "BanHammerDude",
+      "collection": "100Avatars R2",
+      "number": "112",
+      "description": "Avatar 112: BanHammerDude",
+      "thumbnail": "https://arweave.net/ZzQeKhjvra7ut1r0-gpCK_1VqRMTZOPHFAN41THkY_4",
+      "model": "https://arweave.net/12VA0sJCI9SH-yvdQpl735V-9o-dPM5XbJEyTJPhMg4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Ban Hammer dude",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1641804
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolEgg",
+      "collection": "100Avatars R2",
+      "number": "189",
+      "description": "Avatar 189: CoolEgg",
+      "thumbnail": "https://arweave.net/JkfaQjhUU50ibtuYnEwV-Xunrz7wnb_59XNkxt8MU7M",
+      "model": "https://arweave.net/pDhnbF6jpbzAmZejsktm1jipJbMBB_yBMq6JPGPrVIQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "189_COOL Egg",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1372036
+      },
+      "usable": true
+    },
+    {
+      "name": "ConeheadBeing",
+      "collection": "100Avatars R2",
+      "number": "172",
+      "description": "Avatar 172: ConeheadBeing",
+      "thumbnail": "https://arweave.net/Kl6Dlm6DNma0mGgPo27GUHitmzDcZCexGomJgxuoWO8",
+      "model": "https://arweave.net/l9cfRDnrB-Km54iPY6-uC_jxRwPO7mDu7wBn_dkIgjg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "172_Conehead Being",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1286508
+      },
+      "usable": true
+    },
+    {
+      "name": "FalconDude",
+      "collection": "100Avatars R2",
+      "number": "130",
+      "description": "Avatar 130: FalconDude",
+      "thumbnail": "https://arweave.net/_FhrZ-az851ZrK6V1CjwEzpACjwzjD0bkVDNcVl_jbE",
+      "model": "https://arweave.net/WjKeQtMs4ZkmIvPADCyMDLW7C2lS_9uYCqge7uFgJ9A",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Falcon dude",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1926248
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolTiger",
+      "collection": "100Avatars R3",
+      "number": "283",
+      "description": "Avatar 283: CoolTiger",
+      "thumbnail": "https://arweave.net/ykIvWqlTvC66lekANOqTgr7bqujwgOqrlmSzzLHhkJw",
+      "model": "https://arweave.net/2EQ5wsstsJaFOG9LXq_gVFKKgM8bnfPa3axYJ-VS1ug",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Tiger",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 42,
+        "bytes": 8239828
+      },
+      "usable": true
+    },
+    {
+      "name": "Jenny",
+      "collection": "100Avatars R3",
+      "number": "281",
+      "description": "Avatar 281: Jenny",
+      "thumbnail": "https://arweave.net/4a6_AfH-PHvFMXqja7V42pF9hCn9ceIj5z5NAsK2SSs",
+      "model": "https://arweave.net/kgTirc4OvUWbJhIKC2CB3_pYsYuB62KTj90IdE8s3sk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Jenny",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 6746345
+      },
+      "usable": true
+    },
+    {
+      "name": "WeirdCat",
+      "collection": "100Avatars R3",
+      "number": "227",
+      "description": "Avatar 227: WeirdCat",
+      "thumbnail": "https://arweave.net/pcyGmQz5zpR89iNtIdeyVd0_hOFbenA8u8Eedt6YAoY",
+      "model": "https://arweave.net/pPaWwgWt8Gu7hJyHo_wG45lxPVV8ka8zBJJKSQD8Ngs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Weird Cat",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 40,
+        "bytes": 6380931
+      },
+      "usable": true
+    },
+    {
+      "name": "PetalDude",
+      "collection": "100Avatars R3",
+      "number": "244",
+      "description": "Avatar 244: PetalDude",
+      "thumbnail": "https://arweave.net/rCNiCp4lKqER0apNMjGNNWgbexhlWip2mmpuXXfDZUg",
+      "model": "https://arweave.net/IUrUx8QMcaZDWLSOPWz8UiM5bq-sR3dXAQwwmIeiOBE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Petal Dude",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 7817340
+      },
+      "usable": true
+    },
+    {
+      "name": "StonksReporter",
+      "collection": "100Avatars R3",
+      "number": "247",
+      "description": "Avatar 247: StonksReporter",
+      "thumbnail": "https://arweave.net/0VsRdsr7PfqXsAYDalexeU6f87DB5fHD3FOjKv2fCSM",
+      "model": "https://arweave.net/EgFSDc6Kbh0lrNWARVqwg7PxqrxfK1wluuxzLWFsNLM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Stonks Reporter",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 6213651
+      },
+      "usable": true
+    },
+    {
+      "name": "PitcherDude",
+      "collection": "100Avatars R3",
+      "number": "273",
+      "description": "Avatar 273: PitcherDude",
+      "thumbnail": "https://arweave.net/yGKzU0LxaEZ-3PUtpitD_fu1G6LiYRKuzzd10v1P3S8",
+      "model": "https://arweave.net/x5nj6rhSvNnEIFGo7UDuL_HyNpPDD3xPhRJtzrRG6Po",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Pitcher Dude",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 6655461
+      },
+      "usable": true
+    },
+    {
+      "name": "BaoSamurai",
+      "collection": "100Avatars R3",
+      "number": "209",
+      "description": "Avatar 209: BaoSamurai",
+      "thumbnail": "https://arweave.net/L0jvuJwteYJ6QI66tTi_yRJKUS_v6xKV-LZxwEd0iYU",
+      "model": "https://arweave.net/wmTy-SEXxmlp847i1U1m2GziSGp-4T8qrZ77A32LlY8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "BaoSamurai",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 40,
+        "bytes": 6331323
+      },
+      "usable": true
+    },
+    {
+      "name": "SnailKid",
+      "collection": "100Avatars R3",
+      "number": "293",
+      "description": "Avatar 293: SnailKid",
+      "thumbnail": "https://arweave.net/ZrKhsLHpajITfbat5kCfbSj0qesD5io41ni8i91HGj8",
+      "model": "https://arweave.net/K6205Pm4AlC-S_QCOD4V4AaCqf6zqZfG5YQdt1ejNRs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Snail Kid",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 48,
+        "bytes": 4304648
+      },
+      "usable": true
+    },
+    {
+      "name": "DogoBurger",
+      "collection": "100Avatars R3",
+      "number": "266",
+      "description": "Avatar 266: DogoBurger",
+      "thumbnail": "https://arweave.net/ACJ5aRaOVmhhcXsqpgdm7lkSeHXqK6vXZCX67mwNoec",
+      "model": "https://arweave.net/qKrAwFf60cT1348kvQc7S5Nzn3fO0aNvJ8ybMx5Lu04",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Dogo Burger",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 34,
+        "bytes": 3690994
+      },
+      "usable": true
+    },
+    {
+      "name": "SnakeBot",
+      "collection": "100Avatars R3",
+      "number": "212",
+      "description": "Avatar 212: SnakeBot",
+      "thumbnail": "https://arweave.net/0LA8uy35ccFiqME5oavKQ1X1T3jVfJ1dWUxAOOPQmMg",
+      "model": "https://arweave.net/fzLqHKoPkSWHAg5cPUjqDGrg50jzh7b3UVzs83hd6DU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Snake Bot",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 5492685
+      },
+      "usable": true
+    },
+    {
+      "name": "LeafBoy",
+      "collection": "100Avatars R3",
+      "number": "248",
+      "description": "Avatar 248: LeafBoy",
+      "thumbnail": "https://arweave.net/ETEjeooyYc4NSqAxMskRz8rmwmto1AzGtPHSRWXSyHc",
+      "model": "https://arweave.net/U-506llBsdnnXn3uslKggDw5Qt-sdDlQAY4KLKvZsuU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Leaf Boy",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 30,
+        "bytes": 2841847
+      },
+      "usable": true
+    },
+    {
+      "name": "EvilPendra",
+      "collection": "100Avatars R3",
+      "number": "259",
+      "description": "Avatar 259: EvilPendra",
+      "thumbnail": "https://arweave.net/Yj4JUUXTXyqBJvPUOjzmdxHwXLJ5WUGc1LXRXBuIjxs",
+      "model": "https://arweave.net/bpgbtgi23JECF3VkU-F-DpzNbYhX_VNDVgRGYCb2lY8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Evil Pendra",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 11136263
+      },
+      "usable": true
+    },
+    {
+      "name": "BeachKing",
+      "collection": "100Avatars R3",
+      "number": "234",
+      "description": "Avatar 234: BeachKing",
+      "thumbnail": "https://arweave.net/EGCdxkfTjjmNS4RGiAT_or17mG3717qnZ7R1EnZxLg8",
+      "model": "https://arweave.net/uKhDMselhdUyeJKjelpuVsL8s-a9v_Wqq75TQfCfnos",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Beach King",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 6187422
+      },
+      "usable": true
+    },
+    {
+      "name": "BotBunny",
+      "collection": "100Avatars R3",
+      "number": "297",
+      "description": "Avatar 297: BotBunny",
+      "thumbnail": "https://arweave.net/C_FHoVEdlCdGZHEGDXzV_i5D-BPfE7djIid2989z4wk",
+      "model": "https://arweave.net/4aox7v4AJVWR5oVxIMcqHbreKDDDHFnePhhPpVwkqnc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Bot Bunny",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 4452486
+      },
+      "usable": true
+    },
+    {
+      "name": "ToxicGuy",
+      "collection": "100Avatars R3",
+      "number": "235",
+      "description": "Avatar 235: ToxicGuy",
+      "thumbnail": "https://arweave.net/L0LZ_Ggq1et1qffTChcEf0YaBW6SD_lnYtovmAKquDU",
+      "model": "https://arweave.net/8a-3jL8BU_Nxy3qQyNQoc0xKqpXcf2V0KtxQsgyFcLg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Toxic Guy",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 9416587
+      },
+      "usable": true
+    },
+    {
+      "name": "Juanita",
+      "collection": "100Avatars R3",
+      "number": "252",
+      "description": "Avatar 252: Juanita",
+      "thumbnail": "https://arweave.net/5RHeIXD9fezkpuFJS1TRtGkNIVfTKZP7Rkmh9pDmaTs",
+      "model": "https://arweave.net/nyMyZZx5lN2DXsmBgbGQSnt3PuXYN7AAjz9QJrjitLo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Juanita",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 30,
+        "bytes": 6097529
+      },
+      "usable": true
+    },
+    {
+      "name": "Psichonaut",
+      "collection": "100Avatars R3",
+      "number": "210",
+      "description": "Avatar 210: Psichonaut",
+      "thumbnail": "https://arweave.net/iebf1Z4z6mOHXeRZC1r7X4hSdmIZoncYqE_Xnbbe8YE",
+      "model": "https://arweave.net/k5VyFaeU0FicUnP0NE0FFeVClZfICdEiz1C9-CCNYkk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Psichonaut",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 7610328
+      },
+      "usable": true
+    },
+    {
+      "name": "SportTV",
+      "collection": "100Avatars R3",
+      "number": "298",
+      "description": "Avatar 298: SportTV",
+      "thumbnail": "https://arweave.net/_Qic8KV5P5mo5wJ2N3lbqX0iGVxtVDn4CxCUiM5-Qcg",
+      "model": "https://arweave.net/ISYr7xBXT_s4tLddbhFB3PpUhWg-H_BYs2UZhVLF1hA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Sport TV",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 5267136
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolCroissant",
+      "collection": "100Avatars R3",
+      "number": "256",
+      "description": "Avatar 256: CoolCroissant",
+      "thumbnail": "https://arweave.net/gDb-H8HgG-fX5v57e_ss8HLBgRppD9BzaXfhzqfCu-o",
+      "model": "https://arweave.net/_LU7wiRSosMIxex6HPj5HP2pc0zYgg1MxgPpOOiHrLg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Croissant",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 42,
+        "bytes": 6901822
+      },
+      "usable": true
+    },
+    {
+      "name": "PirateBot",
+      "collection": "100Avatars R3",
+      "number": "207",
+      "description": "Avatar 207: PirateBot",
+      "thumbnail": "https://arweave.net/Ux83EJOk2ZN8QkhsdKm9kjkd_foX8Wmek5wBfJJWTr0",
+      "model": "https://arweave.net/f6VUW6sCyJcjErrBWSu_MVlYMkmAx5CRpyNGedUNxHM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Pirate Bot",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 40,
+        "bytes": 11636104
+      },
+      "usable": true
+    },
+    {
+      "name": "GoatGhost",
+      "collection": "100Avatars R3",
+      "number": "221",
+      "description": "Avatar 221: GoatGhost",
+      "thumbnail": "https://arweave.net/2ftMOX6ZVqqqfbnTAJnFpRvR2_NAC9vhZkbIHq6gTk8",
+      "model": "https://arweave.net/cedA3Is8tZhL86D0Bq5JGVMXtFQXdmqY-xLcd_CuhNY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Goat Ghost",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 34,
+        "bytes": 1660057
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolUdon",
+      "collection": "100Avatars R3",
+      "number": "245",
+      "description": "Avatar 245: CoolUdon",
+      "thumbnail": "https://arweave.net/m1blVRvQ5MBwSuVZQCMVOyGKwUuiOMJrhGZmTXB9OPA",
+      "model": "https://arweave.net/-ZmZDpcrrc8o5mc1sTclqfznHxpdUolfnwe6_TTRHT0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Udon",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 4923536
+      },
+      "usable": true
+    },
+    {
+      "name": "LadyKoi",
+      "collection": "100Avatars R3",
+      "number": "255",
+      "description": "Avatar 255: LadyKoi",
+      "thumbnail": "https://arweave.net/9Whp1HAubA9UjT0Bvq1d-M2QD-XOT_U2tvr3xNqHcME",
+      "model": "https://arweave.net/t3aTp6AhxfdLcq5I3HZx29wK8MFQGmDC9wPwXrHQoW0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Lady Koi",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 5093563
+      },
+      "usable": true
+    },
+    {
+      "name": "CherryBros",
+      "collection": "100Avatars R3",
+      "number": "240",
+      "description": "Avatar 240: CherryBros",
+      "thumbnail": "https://arweave.net/EJmcKb0OBj6y7VlNnUAJ9IFSAeGrDJ43Fn7Kz37ryG0",
+      "model": "https://arweave.net/0o1sL5UKrtgVpAGeRhbNRR55n3WlTgd0t9sGRXwJnw8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cherry Bros",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2102321
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBomb",
+      "collection": "100Avatars R3",
+      "number": "236",
+      "description": "Avatar 236: CoolBomb",
+      "thumbnail": "https://arweave.net/BB1fSsUF2MJUaz5h7V7-SzjNDBKGJhLhB46o107pDSI",
+      "model": "https://arweave.net/UCr970KVI0DoEqG8BvCkWPthB-jTk8wXaObPUI-H-EI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Bomb",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 34,
+        "bytes": 7347254
+      },
+      "usable": true
+    },
+    {
+      "name": "GoodKnight",
+      "collection": "100Avatars R3",
+      "number": "202",
+      "description": "Avatar 202: GoodKnight",
+      "thumbnail": "https://arweave.net/0WM_fXQMgOIjmeHgFOSDxbrI454sfJE4-kMrJIf-aBk",
+      "model": "https://arweave.net/GssJhnk0HJsS6u3ZNN6fTk4TEL7g4AbVGoCztUgjAu0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Good Knight",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 6089718
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolWaffle",
+      "collection": "100Avatars R3",
+      "number": "224",
+      "description": "Avatar 224: CoolWaffle",
+      "thumbnail": "https://arweave.net/gU37oosBGgUclqnOEMT0eA88G4EThu4BXNH4182-Bew",
+      "model": "https://arweave.net/ZnGFTLeAlRG1RuSMpt9s7sSQ6I3lzd40PDqUxYYvwCE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Waffle",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2368281
+      },
+      "usable": true
+    },
+    {
+      "name": "LilTeddy",
+      "collection": "100Avatars R3",
+      "number": "277",
+      "description": "Avatar 277: LilTeddy",
+      "thumbnail": "https://arweave.net/a_g9g73fqYBw50dcO5H7zDLtcBnxzFWDkXRbLg681r8",
+      "model": "https://arweave.net/-3bfp6YgXDn6Qb5u463PFouqbsBzcceFKY57WU6Z-xM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Lil Teddy",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 22,
+        "bytes": 7795819
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolCyclops",
+      "collection": "100Avatars R3",
+      "number": "258",
+      "description": "Avatar 258: CoolCyclops",
+      "thumbnail": "https://arweave.net/lAs7zac83RhzK1z47XQaUrQCsrR3_DWJ6mlYU06rnmg",
+      "model": "https://arweave.net/dVZVjP1on9_PCNJW5BT5c2-zorD9G2vlZ3HeEdDutmU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Cyclops",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 5839008
+      },
+      "usable": true
+    },
+    {
+      "name": "LilRam",
+      "collection": "100Avatars R3",
+      "number": "285",
+      "description": "Avatar 285: LilRam",
+      "thumbnail": "https://arweave.net/rfTb2rXwIjDC_fDMq9oEuRUSkvWP3vpH5i-5P-5bfeQ",
+      "model": "https://arweave.net/_eI-DUur3aGVxAulG0nYICJ1TflufnEiwN9keLmEIXE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Lil Ram",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 40,
+        "bytes": 6031826
+      },
+      "usable": true
+    },
+    {
+      "name": "BrainDude",
+      "collection": "100Avatars R3",
+      "number": "299",
+      "description": "Avatar 299: BrainDude",
+      "thumbnail": "https://arweave.net/OMnrpcIef41fndk_lTMAsrmio9Vb7-wryd8b6INsQTU",
+      "model": "https://arweave.net/DorgAeeb3W73JVFCEfrllDoRbxzOCuvsOvarZSc-iV8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Brain Dude",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 4177225
+      },
+      "usable": true
+    },
+    {
+      "name": "Ranchu",
+      "collection": "100Avatars R3",
+      "number": "288",
+      "description": "Avatar 288: Ranchu",
+      "thumbnail": "https://arweave.net/gcpUfgSP0VSon2sIJeieqDhD39BSD6cPCfPMB2Nili4",
+      "model": "https://arweave.net/8X5rbty2z91hlPByVkLIRTS9pxMyZc6KXOsHdQARUiU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Ranchu",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 6885397
+      },
+      "usable": true
+    },
+    {
+      "name": "MushroomFairy",
+      "collection": "100Avatars R3",
+      "number": "220",
+      "description": "Avatar 220: MushroomFairy",
+      "thumbnail": "https://arweave.net/TW9dlMBYAo8nVMSaqQXf5Zzh1ntZ572fW_OgOQowckM",
+      "model": "https://arweave.net/ULlu6wg-zCwLokTXxbXzFlJzugVW_yp2pssEKJbvwx8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mushroom Fairy",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 4564369
+      },
+      "usable": true
+    },
+    {
+      "name": "Two-Tails",
+      "collection": "100Avatars R3",
+      "number": "284",
+      "description": "Avatar 284: Two-Tails",
+      "thumbnail": "https://arweave.net/jqMh-TpnpIDlC3UtLQnaSJAUhOj77qWVsXEq3h5MFYU",
+      "model": "https://arweave.net/JE2Ix9bF-9x6r4ovLKsgMoNf6QJQf_NbmTLSq9Hp_OM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Two-Tails",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 22,
+        "bytes": 5047293
+      },
+      "usable": true
+    },
+    {
+      "name": "Blob",
+      "collection": "100Avatars R3",
+      "number": "238",
+      "description": "Avatar 238: Blob",
+      "thumbnail": "https://arweave.net/1YgZYjRutHRzInidi53vPrswmosk3QOKSq1Q2_tJ0SA",
+      "model": "https://arweave.net/rEZ1Guj30FACK2jqZ3hPsd6tDBrka2Ws2qmT8xZ1skk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Blob",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 1688906
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolSnake",
+      "collection": "100Avatars R3",
+      "number": "268",
+      "description": "Avatar 268: CoolSnake",
+      "thumbnail": "https://arweave.net/qtsS25rJZP1mQqZDwG0RgSBPcTj3d4dGwtO8jw4t5T0",
+      "model": "https://arweave.net/GAAQYRWWqjn1dYYC8EU47yhT1CKGIjydeJgzVjq4oJo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Snake",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 7838052
+      },
+      "usable": true
+    },
+    {
+      "name": "Agnes",
+      "collection": "100Avatars R3",
+      "number": "243",
+      "description": "Avatar 243: Agnes",
+      "thumbnail": "https://arweave.net/3tfu9NtwHFFrjZdw539J862UwKGc6yBsaL1b7z9sSOg",
+      "model": "https://arweave.net/c8mrbRq29sfQdovW1l_D2JYGOaCNF3JxTaUsmHTSNAg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Agnes",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 7170301
+      },
+      "usable": true
+    },
+    {
+      "name": "Crowley",
+      "collection": "100Avatars R3",
+      "number": "230",
+      "description": "Avatar 230: Crowley",
+      "thumbnail": "https://arweave.net/mroYoaBTAJVTVHpL4KMIwT-jFQqbusCmhMumP42Zawc",
+      "model": "https://arweave.net/U5J00CQ4NHUkXH7rrM4DTt4Oi3JqkTXKzC2z4oX67qs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Crowley",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 5856486
+      },
+      "usable": true
+    },
+    {
+      "name": "Buffedwolf",
+      "collection": "100Avatars R3",
+      "number": "217",
+      "description": "Avatar 217: Buffedwolf",
+      "thumbnail": "https://arweave.net/x1rPLwMioYN8Wb2NZgepcljcdFlt8t_uEfyh0GPTeog",
+      "model": "https://arweave.net/dtI-JA5uSmbJVa7w7294T_9AJ_jvfZVQx4QWFzYdvdQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Buffedwolf",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 7681086
+      },
+      "usable": true
+    },
+    {
+      "name": "Cyberpal",
+      "collection": "100Avatars R3",
+      "number": "208",
+      "description": "Avatar 208: Cyberpal",
+      "thumbnail": "https://arweave.net/5GGzz-zAZinBrKE3qC9-pYoL0ldDo6eYxvlqxJCAGMg",
+      "model": "https://arweave.net/zNTLqtifNdl38MpdNXACcvSMFVu6-s7d6pJQDm7E7Us",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cyberpal",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 5194392
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPyramid",
+      "collection": "100Avatars R3",
+      "number": "300",
+      "description": "Avatar 300: CoolPyramid",
+      "thumbnail": "https://arweave.net/tgfTfolPEkaZe32KzTPg6OxjfWI3tmvrlu9_M1AKL68",
+      "model": "https://arweave.net/SdnGu0ajq-TNVxLbenkQBgG4gPdIraWJoPHN0HY41p8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Pyramid",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1503640
+      },
+      "usable": true
+    },
+    {
+      "name": "FrogEnjoyer",
+      "collection": "100Avatars R3",
+      "number": "231",
+      "description": "Avatar 231: FrogEnjoyer",
+      "thumbnail": "https://arweave.net/2b2HvK5BiNTuLPp_pANrbTzwslpALVgTo3OW6s2kEWM",
+      "model": "https://arweave.net/ggExXCBweG0Gh7YKRUQJ8XP9iSp7vAnHiXGgZGJ6oyk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Frog Enjoyer",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 53,
+        "bytes": 4249666
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolSushi",
+      "collection": "100Avatars R3",
+      "number": "251",
+      "description": "Avatar 251: CoolSushi",
+      "thumbnail": "https://arweave.net/UFVbHWpwbvLyOrPBsynxZm_eDSxgU4bt2o21K8r6hI8",
+      "model": "https://arweave.net/_i5T4s4PMphVjCLyc3GQjfi_Hmd6HXHoXkwnwjfXr4E",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Sushi",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 9533584
+      },
+      "usable": true
+    },
+    {
+      "name": "CosmicBot",
+      "collection": "100Avatars R3",
+      "number": "237",
+      "description": "Avatar 237: CosmicBot",
+      "thumbnail": "https://arweave.net/_0AOeMAdMHVRGDc9NLvS7MReJiL8iZmCPa44ekrAPug",
+      "model": "https://arweave.net/F5RSSZzaf0eOfZYNSbnBT91MT9n6ojTMq5uWSIMkcTU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cosmic Bot",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 3482579
+      },
+      "usable": true
+    },
+    {
+      "name": "Eugenia",
+      "collection": "100Avatars R3",
+      "number": "226",
+      "description": "Avatar 226: Eugenia",
+      "thumbnail": "https://arweave.net/TCEKFFOcTJDb3SRPJo6k7jOQFZRYK3tbWNFUm_RFbvw",
+      "model": "https://arweave.net/saOexMViu7mqSeaXfQzNIPrKWQ0nqkSf-FpOQjZfBcU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Eugenia",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 8117705
+      },
+      "usable": true
+    },
+    {
+      "name": "MathBook",
+      "collection": "100Avatars R3",
+      "number": "274",
+      "description": "Avatar 274: MathBook",
+      "thumbnail": "https://arweave.net/Vs8dC30ypg-dtQxvG30F8xvwS07a_wSQCFjsMUzFgRo",
+      "model": "https://arweave.net/_mnuVHD1HqIIBPST7PlJGn4RN5ic-0jSTTzjq0LbINo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Math Book",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 6473887
+      },
+      "usable": true
+    },
+    {
+      "name": "Stingcake",
+      "collection": "100Avatars R3",
+      "number": "241",
+      "description": "Avatar 241: Stingcake",
+      "thumbnail": "https://arweave.net/ReeDtvb-VkPbeicvg8Obh3sWabuGpuvPQQM73SQW5-8",
+      "model": "https://arweave.net/mak2Zck_ii-x3dJYkl5cl33hm5_R_NDo4MnnVBlsZos",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Stingcake",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 22,
+        "bytes": 6922890
+      },
+      "usable": true
+    },
+    {
+      "name": "JokerDude",
+      "collection": "100Avatars R3",
+      "number": "249",
+      "description": "Avatar 249: JokerDude",
+      "thumbnail": "https://arweave.net/3fJ3qtDat4bG3vRoV-E_BOqo0NHjHb7R4nIgnOLRrFE",
+      "model": "https://arweave.net/EpWWN8a-kpLPWdBvLsPj5CNFpMVvSp9Q83y-BSdaK4E",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Joker Dude",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 6256298
+      },
+      "usable": true
+    },
+    {
+      "name": "EvilBook",
+      "collection": "100Avatars R3",
+      "number": "262",
+      "description": "Avatar 262: EvilBook",
+      "thumbnail": "https://arweave.net/De2RfkfNY6MEx3uL5_gyopDiITlsefayTd9VH7xYKbw",
+      "model": "https://arweave.net/AeQDTTPAAd35wAtZ1Mgjets8Cc1GHJkHjKiR53NcVAM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Evil Book",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 5467357
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolRadish",
+      "collection": "100Avatars R3",
+      "number": "228",
+      "description": "Avatar 228: CoolRadish",
+      "thumbnail": "https://arweave.net/Asvrttq1Tx3txvkWLh_dVEwX1ptdqwGVfUmrZxsSmLE",
+      "model": "https://arweave.net/gIzIG2YW2cBAR8QgLZ4qAMLzfUib0chQQbHhqFLZck8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Radish",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 3932159
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolSpaguetti",
+      "collection": "100Avatars R3",
+      "number": "214",
+      "description": "Avatar 214: CoolSpaguetti",
+      "thumbnail": "https://arweave.net/ahG42CteM9bzA8LpelzC9DIOQHAC0i5kJhiYzhgVYnU",
+      "model": "https://arweave.net/NPQRwcWNbD74ZhKX1FEJG8jwpbbGKyQFjYQO7617V-8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Spaguetti",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 40,
+        "bytes": 3764109
+      },
+      "usable": true
+    },
+    {
+      "name": "RippedJimbo",
+      "collection": "100Avatars R3",
+      "number": "246",
+      "description": "Avatar 246: RippedJimbo",
+      "thumbnail": "https://arweave.net/RxrkwCVKSZB-RkNsxLbbnCJjJ4s3TKlux2K3EVKjuWo",
+      "model": "https://arweave.net/vdRezR_hCUxtqmSAGhpHtWWs_YXGhvgK3aQVmwIYaj8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Ripped Jimbo",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 45,
+        "bytes": 2430454
+      },
+      "usable": true
+    },
+    {
+      "name": "Bruno",
+      "collection": "100Avatars R3",
+      "number": "233",
+      "description": "Avatar 233: Bruno",
+      "thumbnail": "https://arweave.net/wLgXmXpeb4hPNRrN5LB7rxpB_p10UOYf6KRJfHaN5Vk",
+      "model": "https://arweave.net/WR_xW_yGKwubTj-kdlyw5jNVx5m2ldMxwg_enz_Znbw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Bruno",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 14393425
+      },
+      "usable": true
+    },
+    {
+      "name": "CursedAmy",
+      "collection": "100Avatars R3",
+      "number": "218",
+      "description": "Avatar 218: CursedAmy",
+      "thumbnail": "https://arweave.net/4ErNiME4NjyUmOGYLwYeiWbzwzdQFTd1a67w6uYPYM4",
+      "model": "https://arweave.net/iHBGnnxHtgRsMLk674wxqbYiZZFG8NVhd3aDcj9bI3k",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cursed Amy",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 4134312
+      },
+      "usable": true
+    },
+    {
+      "name": "Kiba",
+      "collection": "100Avatars R3",
+      "number": "213",
+      "description": "Avatar 213: Kiba",
+      "thumbnail": "https://arweave.net/MgcPQ__fWTZ2z2Aj-8HUP3DNHyR1CKmmeSiuRW15rQE",
+      "model": "https://arweave.net/Nf6SIdJuYGYzUMJKNgKq44Zr-lCZS4No_FYtR6BFBYM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Kiba",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 28,
+        "bytes": 3786144
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolToaster",
+      "collection": "100Avatars R3",
+      "number": "206",
+      "description": "Avatar 206: CoolToaster",
+      "thumbnail": "https://arweave.net/rsMonDySeRr-tjF9-4JWJ_9YzoyhbqOR4mt2f6mk-c4",
+      "model": "https://arweave.net/y0T6yKovy5Udzs4LlzRioFv8_yZlTc7orRDbxCHjOfk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Toaster",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 34,
+        "bytes": 7065817
+      },
+      "usable": true
+    },
+    {
+      "name": "StitchWitch",
+      "collection": "100Avatars R3",
+      "number": "215",
+      "description": "Avatar 215: StitchWitch",
+      "thumbnail": "https://arweave.net/Q3tQDNqtcWiKcuwfGkTRJs69jb3LY3F3j5fcfi6YA6I",
+      "model": "https://arweave.net/O-cHPoD2LyfqSbkltB15-nwGK1aUT0M1JMLf1-gq46g",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Stitch Witch",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 7692809
+      },
+      "usable": true
+    },
+    {
+      "name": "DrakeTheTrader",
+      "collection": "100Avatars R3",
+      "number": "279",
+      "description": "Avatar 279: DrakeTheTrader",
+      "thumbnail": "https://arweave.net/VjScU5auFku1U9Ct2FbGBxbxavkV8KxD-6-GzeIZYfU",
+      "model": "https://arweave.net/Dj82dhuF39iskhmKpCWrMvLL2yqjL82XzWnsM2hYSBY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Drake The Trader",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 10526239
+      },
+      "usable": true
+    },
+    {
+      "name": "NutBot",
+      "collection": "100Avatars R3",
+      "number": "294",
+      "description": "Avatar 294: NutBot",
+      "thumbnail": "https://arweave.net/RhaGNX159VQQWoDEZqeopaMz_vGcbAsLY-VxJNwlZb0",
+      "model": "https://arweave.net/GJq_zlNx26A0LRAh6YvP1z9QBYm2uEol0tTXgBmApzQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Nut Bot",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 7399658
+      },
+      "usable": true
+    },
+    {
+      "name": "AstroNacho",
+      "collection": "100Avatars R3",
+      "number": "269",
+      "description": "Avatar 269: AstroNacho",
+      "thumbnail": "https://arweave.net/-qHY9JLun7fv7iCP0pgwVBlmNcfHySNoi7AkeQqMnww",
+      "model": "https://arweave.net/yN-bc2espBKNBlbd1J5CfKJkv4ukOcwwyHdJiXoidHg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Astro Nacho",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1301206
+      },
+      "usable": true
+    },
+    {
+      "name": "LordPiggington",
+      "collection": "100Avatars R3",
+      "number": "204",
+      "description": "Avatar 204: LordPiggington",
+      "thumbnail": "https://arweave.net/TNav-GgWC1hr26EVZ8Ok85x-bJ7bnNc8WnJscTWxads",
+      "model": "https://arweave.net/1TdUiEB97Rsvvx47BiesyOAc1YvzZpeRqIZUZpxqkPU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Lord Piggington",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 40,
+        "bytes": 4434120
+      },
+      "usable": true
+    },
+    {
+      "name": "FireEye",
+      "collection": "100Avatars R3",
+      "number": "225",
+      "description": "Avatar 225: FireEye",
+      "thumbnail": "https://arweave.net/qFuCy5p-ilLtYrNa-pt8EP1ZhxooV3oMDAU6QPLo_AQ",
+      "model": "https://arweave.net/RZJRCIir0engUa_94Naiy95fpg-RRZYiU1v-xKzXAco",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Fire Eye",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 10054644
+      },
+      "usable": true
+    },
+    {
+      "name": "YetiDude",
+      "collection": "100Avatars R3",
+      "number": "260",
+      "description": "Avatar 260: YetiDude",
+      "thumbnail": "https://arweave.net/ftsyxZrS0it_tELijk0lexk8dHf8ULSPL-wiwEb_OIs",
+      "model": "https://arweave.net/l53NM8fpF0gpcRaeBnouPw0I8mQnHU3Dr8ArX4SmKck",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Yeti Dude",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 3205037
+      },
+      "usable": true
+    },
+    {
+      "name": "BluePixie",
+      "collection": "100Avatars R3",
+      "number": "295",
+      "description": "Avatar 295: BluePixie",
+      "thumbnail": "https://arweave.net/ktUu-ZgLgLo3D6eUtcuYt6oBGm5A4-Udi5UKUwM5Buw",
+      "model": "https://arweave.net/9_oVPJdbbWifb1GfWa_TpGuGJ0dXQ2ryY6fqM_qt2vk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Blue Pixie",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 4736502
+      },
+      "usable": true
+    },
+    {
+      "name": "MegaAngel",
+      "collection": "100Avatars R3",
+      "number": "219",
+      "description": "Avatar 219: MegaAngel",
+      "thumbnail": "https://arweave.net/GC8yAHWPhQekRzXmSd5p6gGgPsDNraqVmmpgzRdPMl8",
+      "model": "https://arweave.net/hFjw4u33v1cjEFl80leP2M8dfRjaJ5UNNmIZp8sIA8Y",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mega Angel",
+        "author": "[VIPEDeployer / 0xded150f6c599b08950919cfb0b97516b6235a36b]",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 46,
+        "bytes": 5060181
+      },
+      "usable": true
+    },
+    {
+      "name": "AlienTeen",
+      "collection": "100Avatars R3",
+      "number": "257",
+      "description": "Avatar 257: AlienTeen",
+      "thumbnail": "https://arweave.net/4tiy2bMEZVgHxKLQBoVBlxdVVMlBwWKgYekXm-7f1ng",
+      "model": "https://arweave.net/j4VaJTdrBw6gXFWJEeq52mrKwnjsfPY1MZNdTiCXgRs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Alien Teen",
+        "author": "0xded150f6c599b08950919cfb0b97516b6235a36b",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 5910687
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolGuitar",
+      "collection": "100Avatars R2",
+      "number": "143",
+      "description": "Avatar 143: CoolGuitar",
+      "thumbnail": "https://arweave.net/3MzlPHSjkICIOECSs4m1LvFuhYEEahWkDQ-AksK3_Ks",
+      "model": "https://arweave.net/-nUIuNXB_FDjc95GvZjby_ijUJcppCquFfB5mGxCruw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "143_Cool_Guitar",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1822768
+      },
+      "usable": true
+    },
+    {
+      "name": "HodlerKing",
+      "collection": "100Avatars R2",
+      "number": "125",
+      "description": "Avatar 125: HodlerKing",
+      "thumbnail": "https://arweave.net/LIh_ZIrZbcmgO3DTLbyQBLqxvOk9OKIixIgIyUHjt7I",
+      "model": "https://arweave.net/a_Xn2jFh4WN35c5mZi9q7fye_jYadDo7_ubfUbDaUAA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "125_Holdler King",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1855928
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolSword",
+      "collection": "100Avatars R2",
+      "number": "186",
+      "description": "Avatar 186: CoolSword",
+      "thumbnail": "https://arweave.net/ptk_yygJ4fDyHEp_VJnZX2L5Jq-J8jUSzprvZNnZfII",
+      "model": "https://arweave.net/zS4r8hrqoCPD0NQo88XSLkMHkWFWSC4AMXroiysn7A0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "186_Cool Sword",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 992552
+      },
+      "usable": true
+    },
+    {
+      "name": "Mowchok",
+      "collection": "100Avatars R2",
+      "number": "122",
+      "description": "Avatar 122: Mowchok",
+      "thumbnail": "https://arweave.net/pRFiHLQyP_6hlwN5z0tONSd1hjl9Peh_aQFjt9aHsbM",
+      "model": "https://arweave.net/MKKThEKflv8UXZ14A7qrLDZP6Obl4vOWouWdHt_STPw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mowchok",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1364732
+      },
+      "usable": true
+    },
+    {
+      "name": "MoonGirl",
+      "collection": "100Avatars R2",
+      "number": "177",
+      "description": "Avatar 177: MoonGirl",
+      "thumbnail": "https://arweave.net/lE0qNr1nyImkyMF9JZBcDw28BLQNAn9ipbO8avSPywc",
+      "model": "https://arweave.net/m39XL2LTq_7B1kSjjfsiA_DDqFlfs0TOWjFZy-x8Grc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "177_MOON girl",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1882036
+      },
+      "usable": true
+    },
+    {
+      "name": "BubbleBoi",
+      "collection": "100Avatars R2",
+      "number": "140",
+      "description": "Avatar 140: BubbleBoi",
+      "thumbnail": "https://arweave.net/edqpeWh_27uAgyyL5riDjyCoXe9HRjKhdDYltZK43_4",
+      "model": "https://arweave.net/wkimQ2V_vkSBD-EweZl_9CFtqxHS2hwZx4HDvMxTLNM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "140_Bubble Boy",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1531140
+      },
+      "usable": true
+    },
+    {
+      "name": "EYESummoner",
+      "collection": "100Avatars R2",
+      "number": "149",
+      "description": "Avatar 149: EYESummoner",
+      "thumbnail": "https://arweave.net/sLLZ_EjlL6ACHRfxJLsBUrP6V7o71IlPM9v77ReGC_A",
+      "model": "https://arweave.net/pHLSWb6kYL5kArbNCyABbbf23w51s5PfYDF2h46nDgY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "149_EYE Summomer",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2142908
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPizza",
+      "collection": "100Avatars R2",
+      "number": "103",
+      "description": "Avatar 103: CoolPizza",
+      "thumbnail": "https://arweave.net/SqX68Pyto0TrWaOHdSs76n2gIuvpikW8MrrFZQhjMVE",
+      "model": "https://arweave.net/Hjj39JIZpJDMiTWocdjHVnOHMurl3_PkPja7lXpFhII",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "103_COOL PIZZA",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2302040
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolDoor",
+      "collection": "100Avatars R2",
+      "number": "171",
+      "description": "Avatar 171: CoolDoor",
+      "thumbnail": "https://arweave.net/EZJNmcOQ6Ja3tPYH6REcTvZiG4hkEQXB3mrobgKu74w",
+      "model": "https://arweave.net/DAv08G1k9pBGj-YkGbhDnUj093OL37hPJ8XDQRps_j4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "171_COOL DOOR",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2245904
+      },
+      "usable": true
+    },
+    {
+      "name": "DOPEScrewdriver",
+      "collection": "100Avatars R2",
+      "number": "178",
+      "description": "Avatar 178: DOPEScrewdriver",
+      "thumbnail": "https://arweave.net/ybsSvtOpr1edNX_YXo2iZVabtf2DP2BeLtL_AC43i_Y",
+      "model": "https://arweave.net/-n0YisQakCOYPtiwI_TGaqua4Kv4hpotx93cSXEEGDk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "178_DOPE Screwdriver",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1370400
+      },
+      "usable": true
+    },
+    {
+      "name": "SaltySalt",
+      "collection": "100Avatars R2",
+      "number": "132",
+      "description": "Avatar 132: SaltySalt",
+      "thumbnail": "https://arweave.net/KPT7JHDoMYkqHD4HwdD4Qe1V9bzU9bIAGY-7GLgtUN8",
+      "model": "https://arweave.net/CMEK3Kj91dkdT_dqMB1Kz6tbV_AwiNts2Xzfu48zwuM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Salty_Salt",
+        "author": "CryptoAvatars",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1888552
+      },
+      "usable": true
+    },
+    {
+      "name": "SharkPerson",
+      "collection": "100Avatars R2",
+      "number": "120",
+      "description": "Avatar 120: SharkPerson",
+      "thumbnail": "https://arweave.net/hrCpCVV3N6G0IlEBZC5blFW2kf3y1UFrSZBK9GpgAME",
+      "model": "https://arweave.net/mW-D--cWzk7G8efvS8CXMIu_-501NHTHwY8Hi3bjRJ8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "120_Shark Person",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1741456
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBoard",
+      "collection": "100Avatars R2",
+      "number": "170",
+      "description": "Avatar 170: CoolBoard",
+      "thumbnail": "https://arweave.net/S1EqKrcLUEENV9PfAxsIUYVmlLlPeIt6TEhG8Ekd6kQ",
+      "model": "https://arweave.net/jQOxgekkkCDRWgLl4CS0uL8jD9JRRE3Wf-mNLD0kExU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "170_COOL BOARD",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1880112
+      },
+      "usable": true
+    },
+    {
+      "name": "HourglassPerson",
+      "collection": "100Avatars R2",
+      "number": "181",
+      "description": "Avatar 181: HourglassPerson",
+      "thumbnail": "https://arweave.net/6lIx6_-Jonhoqjs6WAArp0CwUMXe1E9xttLwOdXZXjY",
+      "model": "https://arweave.net/Vo0F7lugbb2-iO9GVIG0vZKb8VucsC6fAh9UHD0tu98",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "181_Hourglass person",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2760452
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolCandle",
+      "collection": "100Avatars R2",
+      "number": "165",
+      "description": "Avatar 165: CoolCandle",
+      "thumbnail": "https://arweave.net/RyVTd8VZcWR0PzSL4GtYBQYDDjnBbLm8Ciw6AWv8NHI",
+      "model": "https://arweave.net/N8LAxYx4D2T71uFYeVvdKDK_jarBNHRk1ZO5-jV3BFQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Candle",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1360240
+      },
+      "usable": true
+    },
+    {
+      "name": "AwesomeLemon",
+      "collection": "100Avatars R2",
+      "number": "157",
+      "description": "Avatar 157: AwesomeLemon",
+      "thumbnail": "https://arweave.net/DiWqbGFFmgM8F7JeO-ndtg5rePpEzSioyXzjDAcPVVg",
+      "model": "https://arweave.net/U-c4eE3ETJ5HOqiC_ad4CLcbWfWuNBiY85azu922uD0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Awesome Lemon",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1342508
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolWashingMachine",
+      "collection": "100Avatars R2",
+      "number": "192",
+      "description": "Avatar 192: CoolWashingMachine",
+      "thumbnail": "https://arweave.net/yBdyx0nuL9EdCVzLtX6H4HkcLVxLCUyLB_jhOYGLowM",
+      "model": "https://arweave.net/-VwZMuuUcWwSq9jZHLt4qqW4shspgmh9UHhFi1r9PIM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "192_Cool_Washing_Machine",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1072020
+      },
+      "usable": true
+    },
+    {
+      "name": "SlimRingo",
+      "collection": "100Avatars R2",
+      "number": "117",
+      "description": "Avatar 117: SlimRingo",
+      "thumbnail": "https://arweave.net/GLvpqzOOhg4QWgvVX_W6MtzaDOXPb1Ej1KWzeGtaoFk",
+      "model": "https://arweave.net/muOaPhGd_MWafSi5_P9cjpRp1_l4zBr-_hsdkTyPpYU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Slim Ringo",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2460884
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBaguette",
+      "collection": "100Avatars R2",
+      "number": "133",
+      "description": "Avatar 133: CoolBaguette",
+      "thumbnail": "https://arweave.net/s0kQ9XWFgYlFoMPnFqR2z0rcn9NoDaMYRp1c1YVUP-4",
+      "model": "https://arweave.net/Ksu6u_z0fvaxu0SqXXSAprIvti6rtzPcRSfBLdMgzbI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "133_COOL Baguette",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1660124
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolOrange",
+      "collection": "100Avatars R2",
+      "number": "175",
+      "description": "Avatar 175: CoolOrange",
+      "thumbnail": "https://arweave.net/BZo0hb9dlt1HR17N10RZmweiknP-a_vv1Jv2XvCpY5o",
+      "model": "https://arweave.net/VVPTiGLBCtJRbEPRefqgi8cditCJZxKIpjVeMqriCNY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "175_COOL ORANGE",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1364276
+      },
+      "usable": true
+    },
+    {
+      "name": "COOLTNT",
+      "collection": "100Avatars R2",
+      "number": "152",
+      "description": "Avatar 152: COOLTNT",
+      "thumbnail": "https://arweave.net/Dqx-0FqkNfIBfgD7zP-U-sY_hiL6H3QnbhifeH2lEtA",
+      "model": "https://arweave.net/yXcTXoKAUgJsKaZJ-Ca-ZKi09a4eMQOOq8Jxhfz4SkY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool TNT",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1626204
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBroom",
+      "collection": "100Avatars R2",
+      "number": "166",
+      "description": "Avatar 166: CoolBroom",
+      "thumbnail": "https://arweave.net/aRndDfxjPpIWDrpbyLKa9KR_Rq4E7qk0g0b3gQ1yDU4",
+      "model": "https://arweave.net/TXpvO5cFOJvXiW5ropN49AhfTuvJ_f4Mp-XzF3PPRSE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "166_COOL BROOM",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1347160
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBattery",
+      "collection": "100Avatars R2",
+      "number": "126",
+      "description": "Avatar 126: CoolBattery",
+      "thumbnail": "https://arweave.net/tEUNkquNjog83EuLAAKm-j8ognZBjc5n73cEkE1-xNk",
+      "model": "https://arweave.net/vMHxfpDspDB_Llc8cTTXVdX5d2lvwkcrj5azNNgouoo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "126_Cool Battery",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1324512
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBed",
+      "collection": "100Avatars R2",
+      "number": "183",
+      "description": "Avatar 183: CoolBed",
+      "thumbnail": "https://arweave.net/b5O_UFKZIybKxHh4rg3Qq4-d2lsbVzhMkt8tP3KOqjo",
+      "model": "https://arweave.net/YG_a1hFQXlvjhidnvOux29VrV_4ixUu4rjeQUJU4HKc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "183_Cool Bed",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 49,
+        "bytes": 1363980
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolShield",
+      "collection": "100Avatars R2",
+      "number": "195",
+      "description": "Avatar 195: CoolShield",
+      "thumbnail": "https://arweave.net/2hd5MQsCCfkkLcQF8Gc2YmkxJ2l0-jsxPnokSH5yuwE",
+      "model": "https://arweave.net/8UCbK8DrNP9y0d8GhYpPVgqMBQHbwxAFiBB6ZMS_1qc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "195_Cool Shield",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 955888
+      },
+      "usable": true
+    },
+    {
+      "name": "LupLup",
+      "collection": "100Avatars R2",
+      "number": "151",
+      "description": "Avatar 151: LupLup",
+      "thumbnail": "https://arweave.net/fyIm5O5iFuIAGLK4YfM2Vs_ZXrGgg3HIb5nfs1jOzLE",
+      "model": "https://arweave.net/LR-_7ewMUBc3fmXH9ein93BmyAiX5xwcXHyKcGDRiS4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Lup Lup",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1440576
+      },
+      "usable": true
+    },
+    {
+      "name": "Bizdude",
+      "collection": "100Avatars R2",
+      "number": "102",
+      "description": "Avatar 102: Bizdude",
+      "thumbnail": "https://arweave.net/Ji3o5O51UMjtEaqRF15436i5wNhNokosHHcpNjOpj1g",
+      "model": "https://arweave.net/k-_vw28ADGy2jPwnq02Tc98wC0Ey10Ia3JVYQ8qiaxM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "102_Bizdude",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2220768
+      },
+      "usable": true
+    },
+    {
+      "name": "LaloBOT",
+      "collection": "100Avatars R2",
+      "number": "115",
+      "description": "Avatar 115: LaloBOT",
+      "thumbnail": "https://arweave.net/KDPNQS3cuwbQDTJsu1dS1-c6dkupZ-cwZ4WK9B1xaoo",
+      "model": "https://arweave.net/hA6J7zkS1ex6RzOymlhhJcrxQF9CTxA5eanZ0LmZE98",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "LaloBOT",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2108476
+      },
+      "usable": true
+    },
+    {
+      "name": "SuperICEPOP",
+      "collection": "100Avatars R2",
+      "number": "158",
+      "description": "Avatar 158: SuperICEPOP",
+      "thumbnail": "https://arweave.net/38CEu1BdLEJbkUHMXbCjprs7b8guUyy3-CbNhGUZY5Y",
+      "model": "https://arweave.net/Ja5ZLFJ0sV4D7TLEfMcngRR_mwlnYTlGTl0NqGkMD8s",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "158_Super ICE POP",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1346480
+      },
+      "usable": true
+    },
+    {
+      "name": "Wonkerls",
+      "collection": "100Avatars R2",
+      "number": "147",
+      "description": "Avatar 147: Wonkerls",
+      "thumbnail": "https://arweave.net/mDC1glyoHASX7PS_GjVTXsI52iQ25T6Z7wqRS0W_KCk",
+      "model": "https://arweave.net/71XTkS9fLPd9vEkBA_Wn8_Q3WjIZpx9_nNgCHwAkl2A",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "147_Wonkerls",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1657032
+      },
+      "usable": true
+    },
+    {
+      "name": "Balloony",
+      "collection": "100Avatars R2",
+      "number": "121",
+      "description": "Avatar 121: Balloony",
+      "thumbnail": "https://arweave.net/SVa5uvWItHXJDuIH5qUDj3y0eUsK7IaCLocouoTkOi4",
+      "model": "https://arweave.net/GkxAt_m5HTW9yZVSnHimzz5b5MnJzY1s3ZqnQ7VnOlk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Balloony",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2161548
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolCone",
+      "collection": "100Avatars R2",
+      "number": "169",
+      "description": "Avatar 169: CoolCone",
+      "thumbnail": "https://arweave.net/9jK-taPDRmJa2HYSBNnoVYlzcx0592l6Bks7KdN0Wjo",
+      "model": "https://arweave.net/_gXn0ivxTLYvJLWl9KZi5zWtiEfB-0UIoRrppSXF3hw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "169_COOL CONE",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1085476
+      },
+      "usable": true
+    },
+    {
+      "name": "EYEFighter",
+      "collection": "100Avatars R2",
+      "number": "168",
+      "description": "Avatar 168: EYEFighter",
+      "thumbnail": "https://arweave.net/w5PLeaFVxEetfkrL_ru72CoMU-majicqUJC4IulXdDs",
+      "model": "https://arweave.net/UKa1V7OQhgMve5Gy7KLw-GiwUPylG0gI0rdTRF4mzT0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "168_EYE Fighter",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1579536
+      },
+      "usable": true
+    },
+    {
+      "name": "AlienSkeleton",
+      "collection": "100Avatars R2",
+      "number": "109",
+      "description": "Avatar 109: AlienSkeleton",
+      "thumbnail": "https://arweave.net/rOksMHorvQ_K67vZ_6_jZ-rZX9PZpuzk1gt6LWs7m1A",
+      "model": "https://arweave.net/qNQg3kmgnCNS5WHFxC3Kot2D5TPPWO8G7DQaLmUF1_0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "009_Alien Skeleton",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2831204
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolDrink",
+      "collection": "100Avatars R2",
+      "number": "159",
+      "description": "Avatar 159: CoolDrink",
+      "thumbnail": "https://arweave.net/39EA5smWfddklmqWY3gxN4UZhV_kuB8kWtVmcgWyFeI",
+      "model": "https://arweave.net/a1o08LUEuc9tIoP0N_VtVTGuDmMH1s2yQBdO8kqOJGo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "159_COOL DRINK",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1736428
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolJam",
+      "collection": "100Avatars R2",
+      "number": "127",
+      "description": "Avatar 127: CoolJam",
+      "thumbnail": "https://arweave.net/IPRDxjuPbjqxMU6SvpKq_rsKEWzhpYsu6LYKnHe-HDw",
+      "model": "https://arweave.net/ILQZhczBUAY82xBvCDtdrBWzE2k9FzyAZF3U3OC-49I",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "127_COOL JAM",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1620604
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolMoneyBag",
+      "collection": "100Avatars R2",
+      "number": "199",
+      "description": "Avatar 199: CoolMoneyBag",
+      "thumbnail": "https://arweave.net/138xfIfDtaHZFfK9B3MJFcNKvTzQSTLL8GzYb8nZNq0",
+      "model": "https://arweave.net/L7PJM-FVEw1YhsrdT92UUAXVTitWMTWRXV_gKc6-sJo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "199_Cool Money Bag",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1011004
+      },
+      "usable": true
+    },
+    {
+      "name": "CosmicPerson",
+      "collection": "100Avatars R2",
+      "number": "129",
+      "description": "Avatar 129: CosmicPerson",
+      "thumbnail": "https://arweave.net/kIGhXfV25A9hxyMGiYlCOgsGivFqrVFwRMHJZi_tVoM",
+      "model": "https://arweave.net/RJQUk7bmX8XaoTp-z0mWr8xDh58G6d6mvTbQJjy9jl4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "129_Cosmic person",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2325800
+      },
+      "usable": true
+    },
+    {
+      "name": "SrStickbug",
+      "collection": "100Avatars R2",
+      "number": "180",
+      "description": "Avatar 180: SrStickbug",
+      "thumbnail": "https://arweave.net/pUq7qLfMFe2G8phUOMja6ESfwB9Xyt19gSKaByC2tvY",
+      "model": "https://arweave.net/NYq1mnD9WyX-oS9Wfiv_WwAStbdxIo1vi0eVdti87lQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "180_Sr_Stickbug",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1783120
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolCow",
+      "collection": "100Avatars R2",
+      "number": "190",
+      "description": "Avatar 190: CoolCow",
+      "thumbnail": "https://arweave.net/RnDpQG8vDvCDUv3OEApEpfyLL9aHlwVJCngyshL29CM",
+      "model": "https://arweave.net/G25VfS40ke2bONlm49LTnbob6Wwk74i7HCHSzr31avw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "190_Cool Cow",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1622292
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolStickman",
+      "collection": "100Avatars R2",
+      "number": "198",
+      "description": "Avatar 198: CoolStickman",
+      "thumbnail": "https://arweave.net/VGtXVFkHmU5Nutiz1kJQ9KQlBnd4V9kjzTbuFDqVKBk",
+      "model": "https://arweave.net/Wb_cLNLFRZ3K00-o5VBrLK3p_db1dk2AJa3I_-9TjmA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "198_Cool Stickman",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1490260
+      },
+      "usable": true
+    },
+    {
+      "name": "COOLFRIES",
+      "collection": "100Avatars R2",
+      "number": "118",
+      "description": "Avatar 118: COOLFRIES",
+      "thumbnail": "https://arweave.net/cfUgNQGNsffZWv05bJekwL8hWk4dpHmkP3RKlyHODbA",
+      "model": "https://arweave.net/4ilcWkXlE4p2zcipILPQD9uQV601FUaOOuDYD5GvCGI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "118_COOL FRIES",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1595264
+      },
+      "usable": true
+    },
+    {
+      "name": "UnicornPerson",
+      "collection": "100Avatars R2",
+      "number": "110",
+      "description": "Avatar 110: UnicornPerson",
+      "thumbnail": "https://arweave.net/oX_RgqEZx-DbYgUiiYhxpaNH1CFcNAUPjRCuSRCJJaY",
+      "model": "https://arweave.net/BNDfq6FLwgxUdaJJ55pFbJxjv7J4eYV10gHYWYDpcvg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "110_Unicorn Persona",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1784788
+      },
+      "usable": true
+    },
+    {
+      "name": "CylinderHead",
+      "collection": "100Avatars R2",
+      "number": "174",
+      "description": "Avatar 174: CylinderHead",
+      "thumbnail": "https://arweave.net/09cxP1QT3Fog8JFR4r1qE1EboS_SVaxZB6RiVVWXTKk",
+      "model": "https://arweave.net/RPWPsLZdl6qmZHkTGqeA_mn53kzG089rN0V8O5a1pjk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "174_Cylinder Head",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1641948
+      },
+      "usable": true
+    },
+    {
+      "name": "SUPERSUP",
+      "collection": "100Avatars R2",
+      "number": "123",
+      "description": "Avatar 123: SUPERSUP",
+      "thumbnail": "https://arweave.net/rhfOH2r806zMiN0g7UQYh2c0emykhCMyIZm8omYb9rA",
+      "model": "https://arweave.net/-ePdB8AwbjxOs7WvSGQIfK1BXWciUg3Waz2PWmZtTLw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Super Sup",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1540688
+      },
+      "usable": true
+    },
+    {
+      "name": "COOLPIN",
+      "collection": "100Avatars R2",
+      "number": "156",
+      "description": "Avatar 156: COOLPIN",
+      "thumbnail": "https://arweave.net/GWKTTbKO-Qidd5YcvfwjDUFirSzt_YmDCpVR-eSxvoE",
+      "model": "https://arweave.net/Wh5CXgwD7ij--Yp6JpvYmQxoSWiz33mBikpydeIkaeM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "156_COOL PIN",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1007920
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolTaco",
+      "collection": "100Avatars R2",
+      "number": "162",
+      "description": "Avatar 162: CoolTaco",
+      "thumbnail": "https://arweave.net/DlOIQTwCk_-hvHeRmLRR1BAjRU3WC-aqusQO7KIue-w",
+      "model": "https://arweave.net/H8BKurJDlndvvYQuwn3DwHuCEazIjvjxu09brF32IdM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Taco",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1669772
+      },
+      "usable": true
+    },
+    {
+      "name": "GoldfishBagPerson",
+      "collection": "100Avatars R2",
+      "number": "105",
+      "description": "Avatar 105: GoldfishBagPerson",
+      "thumbnail": "https://arweave.net/RCWOE4Y3LNHyi7qykAT0SUISHCi6x4-zL43Oxyr_tmI",
+      "model": "https://arweave.net/4o_jgR3I2ysJrtCwbZuCUz-Ls1-1hSfm3rYl5a_ASF8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Goldfish bag person",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2355012
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolHydrant",
+      "collection": "100Avatars R2",
+      "number": "139",
+      "description": "Avatar 139: CoolHydrant",
+      "thumbnail": "https://arweave.net/U75zOyT8g2XWqUYEHOawOpfu-nM1biw2H2A42Bubj3o",
+      "model": "https://arweave.net/fCqM1yi1TLdk-FX-Y4zZZx1KaEheEmu98KO3wbIeam4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "139_COOL HYDRANT",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2361752
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPirate",
+      "collection": "100Avatars R2",
+      "number": "145",
+      "description": "Avatar 145: CoolPirate",
+      "thumbnail": "https://arweave.net/xohKEjCNVvTxscKi8PraA-yVanniHik9pMdETdjXNDI",
+      "model": "https://arweave.net/lQwSPMpcSKzL9lMYyAaQ63vHK1ATP1Xmir43jZg2Ob0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Pirate",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1649636
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBarrel",
+      "collection": "100Avatars R2",
+      "number": "153",
+      "description": "Avatar 153: CoolBarrel",
+      "thumbnail": "https://arweave.net/AfF4x2jrQJxHcx_GymQTT7o8kN0XFdonbTA4dc_HWiQ",
+      "model": "https://arweave.net/GjKROOf3jqX1gVbAOADs6S3q3wRj_S1FGAFWzn-AxAQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "153_Cool_Barrel",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1652252
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolKetchup",
+      "collection": "100Avatars R2",
+      "number": "134",
+      "description": "Avatar 134: CoolKetchup",
+      "thumbnail": "https://arweave.net/sixYC_oV9EMFV4L6paw1JG_ebYGh8tCKBkjdjigtSs4",
+      "model": "https://arweave.net/jRWqcriLGlolG_HMKYzyKGxNY0IBlW9zdPc4K8-6OdU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "134_COOL Ketchup",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1160528
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBell",
+      "collection": "100Avatars R2",
+      "number": "197",
+      "description": "Avatar 197: CoolBell",
+      "thumbnail": "https://arweave.net/mFUR4q2cHTpEk6y2ygesaXDbes2AW5bsZO-DFp8P2KI",
+      "model": "https://arweave.net/QrirowGVfxi6I3uGAKEv86gxZkDCOB3PPiu_1_rxqOU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "197_Cool Bell",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 990176
+      },
+      "usable": true
+    },
+    {
+      "name": "TastySandwich",
+      "collection": "100Avatars R2",
+      "number": "185",
+      "description": "Avatar 185: TastySandwich",
+      "thumbnail": "https://arweave.net/baewhTA5OadMUi8gsUufJLMx1q8GT1Az9VzYqwRZu7E",
+      "model": "https://arweave.net/7_0ym_o95s53_FWI4dOaLvIA6M4J2iQ43XZ0rp4WV1E",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "185_Tasty Sandwich",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1545672
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPlunger",
+      "collection": "100Avatars R2",
+      "number": "155",
+      "description": "Avatar 155: CoolPlunger",
+      "thumbnail": "https://arweave.net/cBqyH0LISlNl9xEiSfAUmchNHtXoMPoLWKW1W9RE2H0",
+      "model": "https://arweave.net/FLKn_BgL-YZo-FEzM9qE9dP7PRH6-ZV20JPXqyn8yVQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Plunger",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2023444
+      },
+      "usable": true
+    },
+    {
+      "name": "Mister",
+      "collection": "100Avatars R2",
+      "number": "167",
+      "description": "Avatar 167: Mister",
+      "thumbnail": "https://arweave.net/zFnvDH9ddSiXv4PblERFGatw8Oe7Wq9HRQ7pcIXvMSc",
+      "model": "https://arweave.net/elvlpN6jefoDXqqCWMxCBVZnl6Z2lLD7-wC8N5z1bVk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "167_Mister_Contract",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1532240
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolMail",
+      "collection": "100Avatars R2",
+      "number": "154",
+      "description": "Avatar 154: CoolMail",
+      "thumbnail": "https://arweave.net/wcDxlutv1SuyayMZrSxye9m207ij1BNhrAfVCUvf6AI",
+      "model": "https://arweave.net/EvPoPfQOuZq0ptey0F3PzATuqB7W98VFrGewNDL-eRU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "154_COOL MAIL",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1263016
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolSteak",
+      "collection": "100Avatars R2",
+      "number": "191",
+      "description": "Avatar 191: CoolSteak",
+      "thumbnail": "https://arweave.net/3-hq5qNpbk2LuNlf3ccQ9iLshaog9_3qvtqd9Ms96Yw",
+      "model": "https://arweave.net/-o652juqhPs_YtY0_FuleJxozeheiIWAJPHFnVoBW8U",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "191_Cool Steak",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 910744
+      },
+      "usable": true
+    },
+    {
+      "name": "WopWop",
+      "collection": "100Avatars R2",
+      "number": "114",
+      "description": "Avatar 114: WopWop",
+      "thumbnail": "https://arweave.net/dGOrYW-QIvK7YAqqV1R2k6GEWOjRjk2ldD9JKaBQ47s",
+      "model": "https://arweave.net/Njb3R09YhrY-jV-ki1fRkwIqv_pNkLYCOwy1hqmGmls",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "114_Wop Wop",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2140684
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolRamen",
+      "collection": "100Avatars R2",
+      "number": "138",
+      "description": "Avatar 138: CoolRamen",
+      "thumbnail": "https://arweave.net/BBvHoN5mo8YRZeXAY816rAwwQHw_4AA65-2WsjimmXU",
+      "model": "https://arweave.net/pvNvKOTpIG5NpnsPGN4C53patYo0OTGbHQ9jc1WXGRk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "138_Cool Ramen",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1531384
+      },
+      "usable": true
+    },
+    {
+      "name": "RealCake",
+      "collection": "100Avatars R2",
+      "number": "144",
+      "description": "Avatar 144: RealCake",
+      "thumbnail": "https://arweave.net/QJ4m9S2oAgZX6El_uh8WB9fiVWbQAXyG9Q75Z87AL7M",
+      "model": "https://arweave.net/9g9WT8-6HiIlPU8xIQZVYv5kA-07zztUWIBFZTmTF8o",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "144_Real_Cake",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1159828
+      },
+      "usable": true
+    },
+    {
+      "name": "RandomBoi",
+      "collection": "100Avatars R2",
+      "number": "128",
+      "description": "Avatar 128: RandomBoi",
+      "thumbnail": "https://arweave.net/QGdpzzXmMZ5ZxI3FFix1PvK9AOhV8oef77fK6F9Fh7s",
+      "model": "https://arweave.net/FcSTeBRkTuiSDuZoB5xTOj9vSPQYXpTFTC3Aqt-qnfI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "128_Random boi",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1621820
+      },
+      "usable": true
+    },
+    {
+      "name": "MrZurbZurb",
+      "collection": "100Avatars R2",
+      "number": "116",
+      "description": "Avatar 116: MrZurbZurb",
+      "thumbnail": "https://arweave.net/L_u0WvK65fj5yDwp7FQpU_KAeTghk-MCfEqHvC8wfss",
+      "model": "https://arweave.net/jZuJfGtpjOk3CMHBuJAz0IXGpp4r4GTJVbVxAJ6_3gs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mr Zurbzurb",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1584672
+      },
+      "usable": true
+    },
+    {
+      "name": "EggBOY",
+      "collection": "100Avatars R2",
+      "number": "101",
+      "description": "Avatar 101: EggBOY",
+      "thumbnail": "https://arweave.net/KBytq-ntliV5pM9Zy_2oSH0OQ54opPnKSUJfQZqLoXU",
+      "model": "https://arweave.net/drcsftWUj9aC8cvKhDktYvjr7s8I2_4ir74_uyALJXc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "101_EGG BOY",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2073972
+      },
+      "usable": true
+    },
+    {
+      "name": "SlugPerson",
+      "collection": "100Avatars R2",
+      "number": "136",
+      "description": "Avatar 136: SlugPerson",
+      "thumbnail": "https://arweave.net/SMgE_jSQEpK2PTW8GuImIJ9Z7ItABJkR9kX3ERHIx_E",
+      "model": "https://arweave.net/ys7hRfG4nAlsio4AQjJaYSO56h8rUxZ7VP3b1rOXlyw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "136_Slug Person",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 3085708
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolCola",
+      "collection": "100Avatars R2",
+      "number": "193",
+      "description": "Avatar 193: CoolCola",
+      "thumbnail": "https://arweave.net/RMWL4e0oroxDN0fi0phUW74cc1Hpq2-srLdwyPTt1ic",
+      "model": "https://arweave.net/vMGCM3wkHcO9khI4ih7ZsQKDcVGukDQKNbSDmk5pTa4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "193_COOL COLA",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1189300
+      },
+      "usable": true
+    },
+    {
+      "name": "SquareCosmonaut",
+      "collection": "100Avatars R2",
+      "number": "111",
+      "description": "Avatar 111: SquareCosmonaut",
+      "thumbnail": "https://arweave.net/sgDeGrkZAhtxmL_Dj8Z_b-z1jS5e-MFJpjhHE66pfAE",
+      "model": "https://arweave.net/a8uReP8W5Moct2ANwQBNKMDWMTy3-e82JldzaY6urLM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Square Cosmonaut",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2732744
+      },
+      "usable": true
+    },
+    {
+      "name": "ChillPenguin",
+      "collection": "100Avatars R2",
+      "number": "160",
+      "description": "Avatar 160: ChillPenguin",
+      "thumbnail": "https://arweave.net/IIaNU4y7r4oOHrj3Zx_E-KZX7Ye9RHht9Q2K0i61BtQ",
+      "model": "https://arweave.net/4c5EhflLKYfBtzpcLlvZY0afAwXLVdxXmpgwGaarAIQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "160_Chill Penguin",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1670412
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolShovel",
+      "collection": "100Avatars R2",
+      "number": "131",
+      "description": "Avatar 131: CoolShovel",
+      "thumbnail": "https://arweave.net/58laJvoh7XgXxohL-9ZWaBz1mGeV1UfnutWFdDPQQ2w",
+      "model": "https://arweave.net/P6LMuVnVx7HbwrN9Ya5oHRf5uvqP-hyZrpjcXH_RLiA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Shovel",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2048164
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolCloud",
+      "collection": "100Avatars R2",
+      "number": "194",
+      "description": "Avatar 194: CoolCloud",
+      "thumbnail": "https://arweave.net/fw0sg5RpBHClQhlXSqfaQtZDrjfASlCSpPwcXCFb2wo",
+      "model": "https://arweave.net/dKWkA0JncPoEbBMFSzOfuSXXEoR_F-e9tRskzHEQFYE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "194_COOL CLOUD",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1080440
+      },
+      "usable": true
+    },
+    {
+      "name": "EYECleric",
+      "collection": "100Avatars R2",
+      "number": "148",
+      "description": "Avatar 148: EYECleric",
+      "thumbnail": "https://arweave.net/3nPj6Ut307sqFPZJTJZvT69ffqz7kdajXMV0hgIYDQ4",
+      "model": "https://arweave.net/oBuuaAcTglk_WwiNg7-1I1fEwSNhty1bjWInFkwbHRY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "148_EYE Cleric",
+        "author": "PolygonalMind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2451996
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolLoops",
+      "collection": "100Avatars R2",
+      "number": "106",
+      "description": "Avatar 106: CoolLoops",
+      "thumbnail": "https://arweave.net/FW6pBDPyPoOoudQxmvfRdu4y5ZljptmZlf-jYE56__4",
+      "model": "https://arweave.net/rwFZGJ8qSnPtcElY6gwpEc1FLq1sR0uxjn4r_AOSa7o",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool_loops",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1044140
+      },
+      "usable": true
+    },
+    {
+      "name": "ChillPalm",
+      "collection": "100Avatars R2",
+      "number": "108",
+      "description": "Avatar 108: ChillPalm",
+      "thumbnail": "https://arweave.net/HoPy8ZSSy9sKKipqZH3RhnpwZLjHuny16q0eQ5OmVa4",
+      "model": "https://arweave.net/vtIhVzLD8-pVgRxfB3GvBNvTdA4vWEi1g1k2JPZAcAg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "108_Chill Palm",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2183132
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolDrumstick",
+      "collection": "100Avatars R2",
+      "number": "141",
+      "description": "Avatar 141: CoolDrumstick",
+      "thumbnail": "https://arweave.net/Kwm_wIs6W0ePcESP33Qs87gWthfcB8OcLeqg33ae1II",
+      "model": "https://arweave.net/rKv-WV5aHo6eLwKRVEWfDfCkttyJBfrj-6urdcFTOHk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "141_Cool Drumstick",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1337088
+      },
+      "usable": true
+    },
+    {
+      "name": "COOLAsparagoose",
+      "collection": "100Avatars R2",
+      "number": "150",
+      "description": "Avatar 150: COOLAsparagoose",
+      "thumbnail": "https://arweave.net/HrwLJGx4KK4o1TjpcQpFKFIstfEa2wZ0sRrh9cIzhCI",
+      "model": "https://arweave.net/b9wT_qDEQHlEcYnsbc340PAIVzGZlBAv_YYuc4xPceY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "150_COOL_Asparagoose",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1354472
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolCoconut",
+      "collection": "100Avatars R2",
+      "number": "184",
+      "description": "Avatar 184: CoolCoconut",
+      "thumbnail": "https://arweave.net/N4aX3BChmlPX-ITq6HVNB5zuoTpk6Fwo6ynjXGYHfH8",
+      "model": "https://arweave.net/MWsMaM_-wQlTxZhi_oLtvZ-MqcTeNY1yuwD3SvASHR8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "184_Cool Coconut",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1115096
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPeanut",
+      "collection": "100Avatars R2",
+      "number": "187",
+      "description": "Avatar 187: CoolPeanut",
+      "thumbnail": "https://arweave.net/Kd8jVWywg5r-d8p1-HpXl6nG31X3LDZIkIP2xjLYKpE",
+      "model": "https://arweave.net/8mK6xIDHVtVbM2bXN07ZV4h5BGxTdaV_PbbRiH7mJRo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "187_Cool Peanut",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1611548
+      },
+      "usable": true
+    },
+    {
+      "name": "EYEWizard",
+      "collection": "100Avatars R2",
+      "number": "113",
+      "description": "Avatar 113: EYEWizard",
+      "thumbnail": "https://arweave.net/d_qd1FEH6Y7WKufbjV_XCeisgCdL4Wc-vtir9o3hhqs",
+      "model": "https://arweave.net/tl58PHpAKJhRdCUWcnfUxIzjGJCCJ4cl1tlfrFEs48I",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "113_EYE Wizard",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 49,
+        "bytes": 1888392
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBunny",
+      "collection": "100Avatars R2",
+      "number": "179",
+      "description": "Avatar 179: CoolBunny",
+      "thumbnail": "https://arweave.net/DfWQx24mE31M0p6cYiTkmdgxtE70q89HebQxz8961tU",
+      "model": "https://arweave.net/lA9N84hBGYUdwsPRBte3IBgw3U6L0LiXoUTAXoV0tVA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "179_COOL BUNNY",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1462760
+      },
+      "usable": true
+    },
+    {
+      "name": "PencilBeing",
+      "collection": "100Avatars R2",
+      "number": "164",
+      "description": "Avatar 164: PencilBeing",
+      "thumbnail": "https://arweave.net/a1Ktrp3boN9JZQ3QKBzEP1aI852ICr1jD4Z8_2Wm30s",
+      "model": "https://arweave.net/eHBlEaku9pmb77VWcVh6DpPgZI16y4KCYNG5WK9T77M",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "164_Pencil Being",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1142832
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolCan",
+      "collection": "100Avatars R2",
+      "number": "137",
+      "description": "Avatar 137: CoolCan",
+      "thumbnail": "https://arweave.net/XWmgGHkba9rTNC2yQi9u66CIoapGa6HqtpFoiteVlOI",
+      "model": "https://arweave.net/AeDb0w9ZbrEGW1xKdQVnPiM3dOgv6RX3CDJGfYab2o0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "137_COOL Can",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1530160
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolTurtle",
+      "collection": "100Avatars R2",
+      "number": "182",
+      "description": "Avatar 182: CoolTurtle",
+      "thumbnail": "https://arweave.net/ygh2zAZD66TPmBYBr_77kalUAkx9ve6wYwXQH0qB-Gg",
+      "model": "https://arweave.net/wci88e79J3iklIScn34ksczgnYE-lie65Y4xEuO0xcI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "182_Cool Turtle",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1555616
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPolygonalMind",
+      "collection": "100Avatars R2",
+      "number": "200",
+      "description": "Avatar 200: CoolPolygonalMind",
+      "thumbnail": "https://arweave.net/YSH3OtLlujXs580zCel-pQBFa_lKW3j9refZ18BNF1s",
+      "model": "https://arweave.net/utdwRoeynRKcPGOOU0z2QZmh0z0fk6EHxBIU0CV-k_E",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "200_Cool_Polygonal_Mind",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1502240
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPancake",
+      "collection": "100Avatars R2",
+      "number": "161",
+      "description": "Avatar 161: CoolPancake",
+      "thumbnail": "https://arweave.net/kMYWiqvzDQYpycCnJZmpZySdyWMf2OFHi-PfoMR4_nM",
+      "model": "https://arweave.net/-74o4GilpY6XfUgYgCtT_1BZOvfdxOufhD0eMdT2kVE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "161_COOL Pancake",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1687900
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPotato",
+      "collection": "100Avatars R2",
+      "number": "188",
+      "description": "Avatar 188: CoolPotato",
+      "thumbnail": "https://arweave.net/71Ww-SP7VhN-KqXUuiLeNhtTpEBeMJcjQ562PbsRHHA",
+      "model": "https://arweave.net/lfKiF5o4t2gozMVyxlK73BLdDfCAdLLV9zS1TYAcxcg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "188_COOL POTATO",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 922776
+      },
+      "usable": true
+    },
+    {
+      "name": "SunflowerPerson",
+      "collection": "100Avatars R2",
+      "number": "104",
+      "description": "Avatar 104: SunflowerPerson",
+      "thumbnail": "https://arweave.net/n7wjq-1MOyFQxy4sds5v1-k1cy1KSII6BjYvVr98L6k",
+      "model": "https://arweave.net/86bvPTllXhyOfFPP-DmofadVmPM8HkJB9yqPq4U-pvs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Sunflower person",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2918512
+      },
+      "usable": true
+    },
+    {
+      "name": "Froggy",
+      "collection": "100Avatars R1",
+      "number": "010",
+      "description": "Avatar 010: Froggy",
+      "thumbnail": "https://arweave.net/mn3R1Dl5pYmNlA7r1VqLqlMifdbbF6lf2D2C5o6bVc8",
+      "model": "https://arweave.net/0iS8IZahQQDqY27djsEsshpDmWJHEoOSfxwYVJ1Opys",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Froggy",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1828632
+      },
+      "usable": true
+    },
+    {
+      "name": "Baldman",
+      "collection": "100Avatars R1",
+      "number": "074",
+      "description": "Avatar 074: Baldman",
+      "thumbnail": "https://arweave.net/U-0FO35XONsDwzKW4bLWB5-JLcZSFJ_S2q1jVs0ZsWc",
+      "model": "https://arweave.net/ZInk8IWljp96ivF7KI3GR49WyLPdI1zretRcEZ8NYyM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Baldman",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1746960
+      },
+      "usable": true
+    },
+    {
+      "name": "Dracula",
+      "collection": "100Avatars R1",
+      "number": "043",
+      "description": "Avatar 043: Dracula",
+      "thumbnail": "https://arweave.net/QPP0pkLKHnWbhtncKa0_raexwlqVblg85S5QbdiuGj0",
+      "model": "https://arweave.net/KJjpv51m0PwGZIt8ibASjhEGM12FkSLu5tjSS6NyYRg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Dracula",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1584796
+      },
+      "usable": true
+    },
+    {
+      "name": "Shiro",
+      "collection": "100Avatars R1",
+      "number": "058",
+      "description": "Avatar 058: Shiro",
+      "thumbnail": "https://arweave.net/HmtLjh8ccSN7S33LvCuuqoKel5LrXGqT5GzgJmlsVVs",
+      "model": "https://arweave.net/7skrWhSd_4mrqe-tiqMfCL746xu8UWghRh1dZm7irzM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Shiro",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1267416
+      },
+      "usable": true
+    },
+    {
+      "name": "Pipe",
+      "collection": "100Avatars R1",
+      "number": "078",
+      "description": "Avatar 078: Pipe",
+      "thumbnail": "https://arweave.net/UE8EGbFPoD4tpcOay1lHdGIHFWiaCf8xF0YEniIVprc",
+      "model": "https://arweave.net/V3m91yQbbd5HVVeRs2LajZKLN3yLY37NXbr_7CnrwQ8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Pipe",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1446840
+      },
+      "usable": true
+    },
+    {
+      "name": "AlwaysWatching",
+      "collection": "100Avatars R1",
+      "number": "068",
+      "description": "Avatar 068: AlwaysWatching",
+      "thumbnail": "https://arweave.net/kuvMqwse5cMuizmbKcGN3sGZ-VcuTAtr1cAVbUqObaY",
+      "model": "https://arweave.net/K_E7RQHvk3xyNQldXTzPb1x_4Ws9WVXKIbuXpCXczYQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Always Watching",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1996364
+      },
+      "usable": true
+    },
+    {
+      "name": "Wolfman",
+      "collection": "100Avatars R1",
+      "number": "035",
+      "description": "Avatar 035: Wolfman",
+      "thumbnail": "https://arweave.net/RTrjeoVf81PJR_T4Et5jNTQz_Dwrfpf3R-UH3PgqCHI",
+      "model": "https://arweave.net/wGhrzz7gMTxVeu8SeinAox3FO57BjQ09xjjcO4bOR9I",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Wolfman",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2322788
+      },
+      "usable": true
+    },
+    {
+      "name": "Angry",
+      "collection": "100Avatars R1",
+      "number": "060",
+      "description": "Avatar 060: Angry",
+      "thumbnail": "https://arweave.net/3qXUEyQfX2q1aguMhcSKOWWdgF4mtQhsgnRyTDyX9e4",
+      "model": "https://arweave.net/g3xaZFRmx1O4gT-4equ6pmUMmR2HWRdbc_iFB3-m7ug",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Angry",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1889732
+      },
+      "usable": true
+    },
+    {
+      "name": "Jennifer",
+      "collection": "100Avatars R1",
+      "number": "052",
+      "description": "Avatar 052: Jennifer",
+      "thumbnail": "https://arweave.net/5DKYpuaEX8Fal3eONiT3AZdzz4sKF2-Uv0HOnk5ks-8",
+      "model": "https://arweave.net/LKp1uJLAZFmncdCNSZ8oopU7ZElXTvn4BmM4CUcFclc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Jennifer",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2124360
+      },
+      "usable": true
+    },
+    {
+      "name": "Muscary",
+      "collection": "100Avatars R1",
+      "number": "076",
+      "description": "Avatar 076: Muscary",
+      "thumbnail": "https://arweave.net/J6WsDafkRPu3tJAfjj-IEeWMqhkJ0w10YYe-Nz4aijc",
+      "model": "https://arweave.net/JCPq_-G5ipvtYBQKC0GRKQ-_lOrZ_LYw_jZji8_-sL4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Muscary",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1116144
+      },
+      "usable": true
+    },
+    {
+      "name": "CaptainLobster",
+      "collection": "100Avatars R1",
+      "number": "049",
+      "description": "Avatar 049: CaptainLobster",
+      "thumbnail": "https://arweave.net/zIT-x8eTpoXCbpWdkOwNdtAJw32bSuiClcpb9BIchLY",
+      "model": "https://arweave.net/N-wQWvd1GJQt4L4XA53kVI9r5bqNJWyoSvOH7FVp0Uk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Captain Lobster",
+        "author": "PolygonalMind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 28,
+        "bytes": 4808524
+      },
+      "usable": true
+    },
+    {
+      "name": "IceCream",
+      "collection": "100Avatars R1",
+      "number": "093",
+      "description": "Avatar 093: IceCream",
+      "thumbnail": "https://arweave.net/B-FLMYZMYoTcDUo8dwOcW-GIoMaR7QR5r09lxmONRGw",
+      "model": "https://arweave.net/lIgaKYrtBKdPXsUzdOgTpaUGjaGTxUR10hdZmMOEDZE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "93_IceCream",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1244096
+      },
+      "usable": true
+    },
+    {
+      "name": "Cappy",
+      "collection": "100Avatars R1",
+      "number": "006",
+      "description": "Avatar 006: Cappy",
+      "thumbnail": "https://arweave.net/P8A6sgpEOhH8RpjxNYeHzWE9R52x0wVpY9vDT_7y5J8",
+      "model": "https://arweave.net/nj5MQRsykjZVzRifNkrrbYz5i8rdmYLPDy70NjFuaco",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cappy",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1593568
+      },
+      "usable": true
+    },
+    {
+      "name": "DisturbingEyes",
+      "collection": "100Avatars R1",
+      "number": "065",
+      "description": "Avatar 065: DisturbingEyes",
+      "thumbnail": "https://arweave.net/5ncgN3VipkoGV_NZXjO8OIrYc1Hg4ZaCkF51eEr0wbc",
+      "model": "https://arweave.net/rjTcCws60Zmwn9Sx2B4Xg0Bjp8z2lag8QELnGUDgSUM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Disturbing Eyes",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 3350696
+      },
+      "usable": true
+    },
+    {
+      "name": "Aesthetica",
+      "collection": "100Avatars R1",
+      "number": "062",
+      "description": "Avatar 062: Aesthetica",
+      "thumbnail": "https://arweave.net/6JEJBy6DCUIod5rkM19DaC3Fo1HVF28g7kvfIgkCEkE",
+      "model": "https://arweave.net/orNIoMYKafN-EyZRft2No1ZQsPNl3XUcMXhfT2rKQVc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Aesthetica",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1620240
+      },
+      "usable": true
+    },
+    {
+      "name": "LilBro",
+      "collection": "100Avatars R1",
+      "number": "071",
+      "description": "Avatar 071: LilBro",
+      "thumbnail": "https://arweave.net/_TG0lqPlE6Dzdp5oA-rdRsSm_nFlmvLv_Ax2pz0DpYo",
+      "model": "https://arweave.net/ekXWzK3wj4Yhw6ztUKGLyJ3Lr4amZELjA4w__K-svMg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Lil Bro",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1366204
+      },
+      "usable": true
+    },
+    {
+      "name": "Present",
+      "collection": "100Avatars R1",
+      "number": "099",
+      "description": "Avatar 099: Present",
+      "thumbnail": "https://arweave.net/rZI63JPTb_UUhobg9v-ChKEo-_rhmCTh_XZChyl2fL4",
+      "model": "https://arweave.net/6FIVV-fpxolzreu6VMNNasBzomahHR7-dFDaV172YCs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "99_Present",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1859880
+      },
+      "usable": true
+    },
+    {
+      "name": "Jimmy",
+      "collection": "100Avatars R1",
+      "number": "003",
+      "description": "Avatar 003: Jimmy",
+      "thumbnail": "https://arweave.net/BzBAmOXelXBP3i2Xb7mbnsOkW-zq-Hjr6jzcGYGeI24",
+      "model": "https://arweave.net/mmPA7zxvHTEEmKEAnMPX7jnaT1MD4dqUj8mTPenSAiw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Jimmy",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1576200
+      },
+      "usable": true
+    },
+    {
+      "name": "Kyle",
+      "collection": "100Avatars R1",
+      "number": "069",
+      "description": "Avatar 069: Kyle",
+      "thumbnail": "https://arweave.net/108xQGJhxn0IT8ySox3ZJovhSLKf_txhI4UTe6Kq0N0",
+      "model": "https://arweave.net/0E5wEEVl5VGCcuGVQylq3dpC3TClLR3JhuhEyhYh7NQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Kyle",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1797644
+      },
+      "usable": true
+    },
+    {
+      "name": "Pepo",
+      "collection": "100Avatars R1",
+      "number": "073",
+      "description": "Avatar 073: Pepo",
+      "thumbnail": "https://arweave.net/abB9dhBFJK73YVq2V3hw9sm9EjNfmJJrWl9LvbGQgjg",
+      "model": "https://arweave.net/QaH2oH3i77UCBQZKJuYjn12xqe3huxVVYe3cVt5pEH8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Pepo",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2676436
+      },
+      "usable": true
+    },
+    {
+      "name": "Hugo",
+      "collection": "100Avatars R1",
+      "number": "008",
+      "description": "Avatar 008: Hugo",
+      "thumbnail": "https://arweave.net/B8nvqenkiQMEtPgzAT3tXAGd9So2PzXkrVG3qm45-MM",
+      "model": "https://arweave.net/iYaEdMdq8faogyRdgF4plnZIq40oOERENie94XmEdvQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Hugo",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 3125936
+      },
+      "usable": true
+    },
+    {
+      "name": "Butter",
+      "collection": "100Avatars R1",
+      "number": "083",
+      "description": "Avatar 083: Butter",
+      "thumbnail": "https://arweave.net/D1YCiKLyoPhhvOHd5dl-QbbI7kA7_aBzE7Xhz6s6xl0",
+      "model": "https://arweave.net/A6-htjkKLc1zwkKgwBzJDdWwF88r4leGz9KnN66WeX8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Butter",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1315808
+      },
+      "usable": true
+    },
+    {
+      "name": "HorrorNurse",
+      "collection": "100Avatars R1",
+      "number": "041",
+      "description": "Avatar 041: HorrorNurse",
+      "thumbnail": "https://arweave.net/dmwAlGu8_wE8KwfLjATC5EPXa5zPz0ub13o_GwTGAUw",
+      "model": "https://arweave.net/-0bKfdGsrtYAOdxaLhOkI9suGi9fibAh7d_wwiWd0-M",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Horror Nurse",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1927572
+      },
+      "usable": true
+    },
+    {
+      "name": "Scarecrow",
+      "collection": "100Avatars R1",
+      "number": "042",
+      "description": "Avatar 042: Scarecrow",
+      "thumbnail": "https://arweave.net/BkM7YdZ9J8DNv3InschJHETzbnVNkUiOMqmqcEWSJYw",
+      "model": "https://arweave.net/cx3fHafcbD9fukDYD7nJjCRlb1DBKZb40uR17GSVgrI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Scarecrow",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1783452
+      },
+      "usable": true
+    },
+    {
+      "name": "Mushy",
+      "collection": "100Avatars R1",
+      "number": "025",
+      "description": "Avatar 025: Mushy",
+      "thumbnail": "https://arweave.net/i24V4c12ztEOWFgEYdP-mLY_PGHAEKgpC3LYYpZVSAg",
+      "model": "https://arweave.net/KNYMbc1rBDNyTabacORmdjtl3erO6HJTVXkQOl1GDrc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mushy",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1319420
+      },
+      "usable": true
+    },
+    {
+      "name": "Bacondude",
+      "collection": "100Avatars R1",
+      "number": "066",
+      "description": "Avatar 066: Bacondude",
+      "thumbnail": "https://arweave.net/-uF4ubYRoiCShztyDm2P2Z4pWPQZuzOFEaZNiXUFiy4",
+      "model": "https://arweave.net/EpG7Vg9qiwzIEyhiuVHNm-7ZJS24YDKt7EZJs6qbXdg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Bacondude",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2124152
+      },
+      "usable": true
+    },
+    {
+      "name": "BigBro",
+      "collection": "100Avatars R1",
+      "number": "091",
+      "description": "Avatar 091: BigBro",
+      "thumbnail": "https://arweave.net/qpaQ3vMJUZZ6GgdlLpySPvPm6D4ZlFTAgEk4AnQIQR4",
+      "model": "https://arweave.net/7crmR-srbxx-GwAN-P9_8737cxKoBjV7Ie5tEqS4aXc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "91_BigBro",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1293092
+      },
+      "usable": true
+    },
+    {
+      "name": "Avocado",
+      "collection": "100Avatars R1",
+      "number": "088",
+      "description": "Avatar 088: Avocado",
+      "thumbnail": "https://arweave.net/tSGRuObxgqX79oefTRp4YcCa5z6QXQ1sIu0uQPOTUaA",
+      "model": "https://arweave.net/rKxIFDbQcCr2C4qzCG4zktUW1IjBlk8PbYG49ZqbFOE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "88_Avocado",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1253352
+      },
+      "usable": true
+    },
+    {
+      "name": "CactusBoy",
+      "collection": "100Avatars R1",
+      "number": "009",
+      "description": "Avatar 009: CactusBoy",
+      "thumbnail": "https://arweave.net/NaYJ4SqWsRWPCEC8JJFQSXE8GSHUVtSrGvNrlIENjf4",
+      "model": "https://arweave.net/a8viI5kiNYc1BZLNMhuRVD61My8mC3MJe5hCeQdgMfs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cactus Boy",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1752372
+      },
+      "usable": true
+    },
+    {
+      "name": "David",
+      "collection": "100Avatars R1",
+      "number": "047",
+      "description": "Avatar 047: David",
+      "thumbnail": "https://arweave.net/QNxPdQp-_ZN0KTNCCpVjD-XZi2-528NGvTH31qIkxU0",
+      "model": "https://arweave.net/H3cBhsOEoiQ8XZiwG31SyCUtiDewBZRccxIDztyHfSY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "David",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1563328
+      },
+      "usable": true
+    },
+    {
+      "name": "CandyCane",
+      "collection": "100Avatars R1",
+      "number": "095",
+      "description": "Avatar 095: CandyCane",
+      "thumbnail": "https://arweave.net/zbXj5aw9mAqWkS_NcaV1UZxnMTV7qJX5D5Pla3p814o",
+      "model": "https://arweave.net/0clQqWP5Ivl8UcxT3_42GLv9-NXNMpTrBaBVQBRAmv4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "95_CandyCane",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1198872
+      },
+      "usable": true
+    },
+    {
+      "name": "Franky",
+      "collection": "100Avatars R1",
+      "number": "033",
+      "description": "Avatar 033: Franky",
+      "thumbnail": "https://arweave.net/evnv_aq40qPlbm-xNIKAuLuDYBpbarF2ZyAcXifNVPw",
+      "model": "https://arweave.net/fjqAvKlSAakAmFbblSdvBnA09GpwFl9xrGdeCdEfP_g",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Franky",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2136456
+      },
+      "usable": true
+    },
+    {
+      "name": "WireFriend",
+      "collection": "100Avatars R1",
+      "number": "022",
+      "description": "Avatar 022: WireFriend",
+      "thumbnail": "https://arweave.net/mZBduz1muoINfHXY9_9pLL64AhwVUokReasecq4B5eA",
+      "model": "https://arweave.net/W897b2tkHB_NulVq2Rwn4ER_MSz8CD62oT9Zvr1VHDA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Wire_Friend",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1260092
+      },
+      "usable": true
+    },
+    {
+      "name": "Crimsom",
+      "collection": "100Avatars R1",
+      "number": "001",
+      "description": "Avatar 001: Crimsom",
+      "thumbnail": "https://arweave.net/sTBkCTk1gyMaLZoqnm-98pUiDCq72D26aCEClOx_PEs",
+      "model": "https://arweave.net/DUHQfXxfFPjlMzBoCyYD0Kuz7vwD7eZkT-9eOIJByzY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Crimsom",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1652200
+      },
+      "usable": true
+    },
+    {
+      "name": "Confirmed",
+      "collection": "100Avatars R1",
+      "number": "064",
+      "description": "Avatar 064: Confirmed",
+      "thumbnail": "https://arweave.net/tnZ6exmqDJ6-Ssg071L7WkSOnkw-MpYklpAqhTx3pPQ",
+      "model": "https://arweave.net/j_EKBbW5kREwZiktSMKExaijt8mtjIJLbI_dKqVX7_8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Confirmed",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 4544888
+      },
+      "usable": true
+    },
+    {
+      "name": "Wambo",
+      "collection": "100Avatars R1",
+      "number": "020",
+      "description": "Avatar 020: Wambo",
+      "thumbnail": "https://arweave.net/R9i_5jGQ02s003KB9bHDiYyiyGqOuO2U9ob7ES31u_U",
+      "model": "https://arweave.net/Z3ixNUKHWV4ur7FBk5wAOYmQgAbsx0vnU0XlNEJgK90",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Wambo",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1616940
+      },
+      "usable": true
+    },
+    {
+      "name": "Toothpaste",
+      "collection": "100Avatars R1",
+      "number": "081",
+      "description": "Avatar 081: Toothpaste",
+      "thumbnail": "https://arweave.net/fV5ZWfBSozq_frCKP2W6Ei7993JaTghLYSGzelYyxBk",
+      "model": "https://arweave.net/A5L5mRZbyQoLveZt8sFFiepEdd3A1VbB-yTlltq2lP8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Toothpaste",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1223740
+      },
+      "usable": true
+    },
+    {
+      "name": "WeirdFlexButOk",
+      "collection": "100Avatars R1",
+      "number": "077",
+      "description": "Avatar 077: WeirdFlexButOk",
+      "thumbnail": "https://arweave.net/PpNTLLU8o_aXuWtmSakIB0lgDsXf-Dmq99am8FY0huo",
+      "model": "https://arweave.net/SLR0PvjqsNa3K_Mj9hXYFdA6v0tn92tZuhDShd2ggaI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "77_WeirdFlexButOk",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1027928
+      },
+      "usable": true
+    },
+    {
+      "name": "Cubiq",
+      "collection": "100Avatars R1",
+      "number": "063",
+      "description": "Avatar 063: Cubiq",
+      "thumbnail": "https://arweave.net/Q0Caq5yVgyAw1WdzgAjcNfYvkqUGZe9SKj-Svb_CzFU",
+      "model": "https://arweave.net/uSxcgRAzAfy_-5UecafH4_Ep-WkFTord23z3sQ84dTo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cubiq",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 4964084
+      },
+      "usable": true
+    },
+    {
+      "name": "Mint",
+      "collection": "100Avatars R1",
+      "number": "013",
+      "description": "Avatar 013: Mint",
+      "thumbnail": "https://arweave.net/XJINAoLE7fGHPcl72qSYTuH0q6Iz1f74R9rtfMk_t4I",
+      "model": "https://arweave.net/gI9WgoQpjVwk-FmZg3oh2Uo_kreYrfOvjIrE_9JjL4o",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mint",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 794276
+      },
+      "usable": true
+    },
+    {
+      "name": "Pumpkin",
+      "collection": "100Avatars R1",
+      "number": "016",
+      "description": "Avatar 016: Pumpkin",
+      "thumbnail": "https://arweave.net/Owz0eyYBZclcS4F2DEpjaYVYCn3aLaJQJivKxcljyQk",
+      "model": "https://arweave.net/f9dR81jI8dmPEm2jFcKEL3y5dtdq7fUwUmPUNrEFLu4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Pumpkin",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1361364
+      },
+      "usable": true
+    },
+    {
+      "name": "PyreSorcerer",
+      "collection": "100Avatars R2",
+      "number": "107",
+      "description": "Avatar 107: PyreSorcerer",
+      "thumbnail": "https://arweave.net/PEr2Dv1Ds_Y_c4iXhLJwdA9GZHXC8CkK-QWipd17gOo",
+      "model": "https://arweave.net/Hc8Rd0EGKNHEevpm1D16BwP-LAPDS319Hvn0fualX_w",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "107_PYRE Sorcerer",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 2406280
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPan",
+      "collection": "100Avatars R2",
+      "number": "142",
+      "description": "Avatar 142: CoolPan",
+      "thumbnail": "https://arweave.net/BlyKjSLHUvR5I3bL9GDViTFEe7_Mv4E_48wjOj4U4Wg",
+      "model": "https://arweave.net/aVB6TrTpPLAoPgZIG5lWwBh4ZdMfkeXmTcU1ybgwHuE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "142_COOL PAN",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1747476
+      },
+      "usable": true
+    },
+    {
+      "name": "face",
+      "collection": "100Avatars R2",
+      "number": "163",
+      "description": "Avatar 163: face",
+      "thumbnail": "https://arweave.net/IFEgyMvBULimH_2oigkYmijDHGXr-Jmz6zlfaOjXl6M",
+      "model": "https://arweave.net/4eYMl57GgEBFpFF6VJvrsTXLHNSKdyT4jumee0LiPwk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "163_EYE MOUTH EYE",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1076720
+      },
+      "usable": true
+    },
+    {
+      "name": "CoffeeMaker",
+      "collection": "100Avatars R2",
+      "number": "135",
+      "description": "Avatar 135: CoffeeMaker",
+      "thumbnail": "https://arweave.net/cWHrmDFydPynhWYUuPfsrQbHx5Szqr7RVKxSUsDmKXo",
+      "model": "https://arweave.net/WJOa34mvhIq-Igh3B1XRUSVVtVcBd_r-5VkdzwTK0BU",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "135_Coffee Maker",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1374656
+      },
+      "usable": true
+    },
+    {
+      "name": "CaptainLantern",
+      "collection": "100Avatars R2",
+      "number": "119",
+      "description": "Avatar 119: CaptainLantern",
+      "thumbnail": "https://arweave.net/fHT1XNa90x-2lIEghJEhzE2B-YrBrwDCA00zZ-XC2q0",
+      "model": "https://arweave.net/SpMyvJDbre5L1MwW2zPF5g0b5SdnTUPcmE7bE-uVtNk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Captain Lantern",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1893292
+      },
+      "usable": true
+    },
+    {
+      "name": "Cool",
+      "collection": "100Avatars R2",
+      "number": "196",
+      "description": "Avatar 196: Cool",
+      "thumbnail": "https://arweave.net/GTyZsQSKR__k2_KKsq10FAdfU_wmPsSQdet0ajoTdJY",
+      "model": "https://arweave.net/igaT6irIERD3pOhNF2vwFJ8he3ZAa5py9iYT_066M7M",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Fridge",
+        "author": "CryptoAvatars",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 51,
+        "bytes": 1208456
+      },
+      "usable": true
+    },
+    {
+      "name": "CircleBoi",
+      "collection": "100Avatars R2",
+      "number": "173",
+      "description": "Avatar 173: CircleBoi",
+      "thumbnail": "https://arweave.net/1uaCMYsDUR-l2Ys-wwx5vNtFHMkDa-GlvgOesoQht1Y",
+      "model": "https://arweave.net/0LR8vStpEzmWokIxQ9fnky4yYtY37xhmwFBvxxmBOXE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "173_Circle boy",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 996908
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolTrash",
+      "collection": "100Avatars R2",
+      "number": "146",
+      "description": "Avatar 146: CoolTrash",
+      "thumbnail": "https://arweave.net/rV0EMToENW1Vgdkzl3KoEwH7R4haP7fDYB8YY8Fpnlo",
+      "model": "https://arweave.net/aq5rlTk1TwYO_awaEhmdGRWrqf47txHuyDGRwtXDp34",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "146_Cool_Trash",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2207552
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolPoo",
+      "collection": "100Avatars R2",
+      "number": "176",
+      "description": "Avatar 176: CoolPoo",
+      "thumbnail": "https://arweave.net/6fiUgOuW7IwZW85F4DRB50IquDriQqt_UKBigpL7iAQ",
+      "model": "https://arweave.net/4V0lF-3oQafJ7-65R5Rk7TWemHFvmof2GFwzlYq0H6s",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "176_COOL POO",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 886276
+      },
+      "usable": true
+    },
+    {
+      "name": "Chill",
+      "collection": "100Avatars R1",
+      "number": "012",
+      "description": "Avatar 012: Chill",
+      "thumbnail": "https://arweave.net/Gz2Lwo5DL3_6GttFePNwNwIZYzXnQXxKvcEM6bLIcKM",
+      "model": "https://arweave.net/JCzmV7mgqDGNDu8YkdSMeJApOA09CCL2i71BqvJKCVs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Chill",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1124256
+      },
+      "usable": true
+    },
+    {
+      "name": "Olivia",
+      "collection": "100Avatars R1",
+      "number": "056",
+      "description": "Avatar 056: Olivia",
+      "thumbnail": "https://arweave.net/5wQlWAKsJjepBJacFSYjF72M0b5lbCOqWwDgoPZ8Hhw",
+      "model": "https://arweave.net/MgsNlTetzAoVEC6E-lswj65vp7StkOZXXd5OjjqzYZI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Olivia",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1699736
+      },
+      "usable": true
+    },
+    {
+      "name": "Sticker",
+      "collection": "100Avatars R1",
+      "number": "040",
+      "description": "Avatar 040: Sticker",
+      "thumbnail": "https://arweave.net/vv670fu9B42r-bTN8mYYXCe9agY6oJ6wxSwH8BB65rs",
+      "model": "https://arweave.net/y9IXVbhB3QjHN8Iep329h0QEWDl7yMKfvH9p_QxkD0M",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Sticker",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1093140
+      },
+      "usable": true
+    },
+    {
+      "name": "Zombie",
+      "collection": "100Avatars R1",
+      "number": "044",
+      "description": "Avatar 044: Zombie",
+      "thumbnail": "https://arweave.net/6XkMKFXDh7B-C1GFe_oZOqK7p9fYX_SsQ6RVT6AgpJY",
+      "model": "https://arweave.net/hM8199iDasTM_hlX6RykOToEiNHWxAUc8EegeTsjAuE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Zombie",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2048872
+      },
+      "usable": true
+    },
+    {
+      "name": "Astrodisco",
+      "collection": "100Avatars R1",
+      "number": "027",
+      "description": "Avatar 027: Astrodisco",
+      "thumbnail": "https://arweave.net/MSz3KAwK4h4pY7g8EMOqDNW6YmKgk34LvbtkZeaWHXk",
+      "model": "https://arweave.net/uS4wvZn6sURMWJuwWzWnCqGaqDtZSiQQdTwci0f6hmM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Astrodisco",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1033356
+      },
+      "usable": true
+    },
+    {
+      "name": "Udom",
+      "collection": "100Avatars R1",
+      "number": "026",
+      "description": "Avatar 026: Udom",
+      "thumbnail": "https://arweave.net/pOm6lO7LfuIzVItozfPQn6JyZzIMfQOhL-2KSSE5DhQ",
+      "model": "https://arweave.net/VZmDI9KtGRQQziDEURsw0a7cdkbPilVaAnMn3Eck0fg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Udom",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1384764
+      },
+      "usable": true
+    },
+    {
+      "name": "Fungus",
+      "collection": "100Avatars R1",
+      "number": "055",
+      "description": "Avatar 055: Fungus",
+      "thumbnail": "https://arweave.net/s9K1QCTffDsj2beT54jzu8xpXjiDacyQN-eFfFFTjjs",
+      "model": "https://arweave.net/8I0PA7uqsEBChnWB9dEmOXwLf1bnk2G-Z_AZZrlqwYc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Fungus",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 9139524
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolChoco",
+      "collection": "100Avatars R1",
+      "number": "094",
+      "description": "Avatar 094: CoolChoco",
+      "thumbnail": "https://arweave.net/HTcuOnRhzrGxLTxk4Y2RxAu4SEEGIr97kK6vUQphQow",
+      "model": "https://arweave.net/hre4rgFOAWthLKTcgQgf5MRp5VcjFBYOofbsPhVqOew",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "94_CoolChoco",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1288216
+      },
+      "usable": true
+    },
+    {
+      "name": "Polybot",
+      "collection": "100Avatars R1",
+      "number": "051",
+      "description": "Avatar 051: Polybot",
+      "thumbnail": "https://arweave.net/PJ-ovenhR5xdQPv_Z1NkujIpPWjfD_7XENdf7yzHZ_0",
+      "model": "https://arweave.net/DUR8v-IugXppdMBxPdE1rDO2dZCJJ7ZgBTXSRgPJFNo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Polybot",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 31,
+        "bytes": 997048
+      },
+      "usable": true
+    },
+    {
+      "name": "Ferk",
+      "collection": "100Avatars R1",
+      "number": "067",
+      "description": "Avatar 067: Ferk",
+      "thumbnail": "https://arweave.net/jLYEkvUeqg3Cj5yDg_ygBmIBDkLsiJanjZLIq-9v-qE",
+      "model": "https://arweave.net/-RwzCgnqAniy41JEYP-dGbgGnZJ7GFqEGwliEFHCHaI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Ferk",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1118772
+      },
+      "usable": true
+    },
+    {
+      "name": "Erika",
+      "collection": "100Avatars R1",
+      "number": "053",
+      "description": "Avatar 053: Erika",
+      "thumbnail": "https://arweave.net/C3HkA5xa9jXxSySEJCZEhtrFkrCyccD4RR25QfXIpyE",
+      "model": "https://arweave.net/GZkfa0SNnrBWluRL_pXpakg7T3K3d4l87__wR4mD3UM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Erika",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1548672
+      },
+      "usable": true
+    },
+    {
+      "name": "Mummy",
+      "collection": "100Avatars R1",
+      "number": "036",
+      "description": "Avatar 036: Mummy",
+      "thumbnail": "https://arweave.net/bgwEm3PB6yqpVQipatGEki8betYQi8RvKpQmfKpw730",
+      "model": "https://arweave.net/JGv7n-LkirsjzCDI5iNnw8SLlpw5_Q7LPw0Ni8RZ8vk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mummy",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1714636
+      },
+      "usable": true
+    },
+    {
+      "name": "Carrot",
+      "collection": "100Avatars R1",
+      "number": "023",
+      "description": "Avatar 023: Carrot",
+      "thumbnail": "https://arweave.net/DpfmZS-KWzZcx79wYBDMkEr8zg5nhdofK8xNOrF5zJc",
+      "model": "https://arweave.net/S3t6KT5lUoO1LUZe0iP8VtO_SVW7IVOHM9QMHEHEl64",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Carrot_Kid",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1349176
+      },
+      "usable": true
+    },
+    {
+      "name": "Lydia",
+      "collection": "100Avatars R1",
+      "number": "054",
+      "description": "Avatar 054: Lydia",
+      "thumbnail": "https://arweave.net/DgPsMxXBXBxREc7Wq_w-L0Z2MFiM9E7T5s0yV0c4PJg",
+      "model": "https://arweave.net/x48D7v037irPQYG7e0vZLDV1E3x5-KookbP9-vaXvYE",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Lydia",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1507976
+      },
+      "usable": true
+    },
+    {
+      "name": "Retroman",
+      "collection": "100Avatars R1",
+      "number": "018",
+      "description": "Avatar 018: Retroman",
+      "thumbnail": "https://arweave.net/bSXmDVe_7HWfOXJTdhGmTCnvhPn_0MVpLRUwKDZrvms",
+      "model": "https://arweave.net/N7Ps0Ad5RNr8JVyTFr0YM5tzlUJvAxeJ362XNn1j86E",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Retroman",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1372556
+      },
+      "usable": true
+    },
+    {
+      "name": "Snowy",
+      "collection": "100Avatars R1",
+      "number": "097",
+      "description": "Avatar 097: Snowy",
+      "thumbnail": "https://arweave.net/pg0GBa3xRqupz_fZmfzEu5vka1IU5gnWW1NB_ZCXsls",
+      "model": "https://arweave.net/Mqs8hdg-1hpeGq8Jl_LCmhTGdydglPm2V2OGc8jJ5DY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "97_Snowy",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1637264
+      },
+      "usable": true
+    },
+    {
+      "name": "Coffee",
+      "collection": "100Avatars R1",
+      "number": "080",
+      "description": "Avatar 080: Coffee",
+      "thumbnail": "https://arweave.net/bzT14eOgmZy5k9YW5fa6jBZ1J5Pfrr9OfZ1SSv77T_E",
+      "model": "https://arweave.net/JxV2leixFtpOsscIyelJzK6OSA84hnyrWZs7LAMfU8c",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Coffee",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1172848
+      },
+      "usable": true
+    },
+    {
+      "name": "Ro",
+      "collection": "100Avatars R1",
+      "number": "017",
+      "description": "Avatar 017: Ro",
+      "thumbnail": "https://arweave.net/AanE-OXPp9NMntsz5RggKc4CQ4E_NSBmaZM60XZBbTw",
+      "model": "https://arweave.net/6S5a74z2s5aZrTE71nJR1a1j9x5v46mPy3MKJZMylwg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Robot Head",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1348432
+      },
+      "usable": true
+    },
+    {
+      "name": "Samuela",
+      "collection": "100Avatars R1",
+      "number": "050",
+      "description": "Avatar 050: Samuela",
+      "thumbnail": "https://arweave.net/IcM8jehLXCuW088P8GACx39noyVRY9OFU69BLQM3GI4",
+      "model": "https://arweave.net/4VjBzmk3iDQS0-013pUMFpFYbKGNTL4qcQ-PVwADxk4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Samuela",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2633452
+      },
+      "usable": true
+    },
+    {
+      "name": "Anchor",
+      "collection": "100Avatars R1",
+      "number": "014",
+      "description": "Avatar 014: Anchor",
+      "thumbnail": "https://arweave.net/K6A-nGVw0vGNnP11CPJguTkcHRGzuKVCr6dY2K_fW5I",
+      "model": "https://arweave.net/GhML2d0T_lBZvRA_S28LWVg9wFCWJWqc0cFsVulQQlo",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Anchor",
+        "author": "PolygonalMind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1901224
+      },
+      "usable": true
+    },
+    {
+      "name": "Teddy",
+      "collection": "100Avatars R1",
+      "number": "011",
+      "description": "Avatar 011: Teddy",
+      "thumbnail": "https://arweave.net/RshgOJaFyAdcmupiH7pUl9-WdC-flIEM0NrPqZEtyfU",
+      "model": "https://arweave.net/KbaYR3YmtjweLgEcJAWekeh3MNAlF9ZWOYJkbNfi8MM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Teddy",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1657132
+      },
+      "usable": true
+    },
+    {
+      "name": "SaintClaus",
+      "collection": "100Avatars R1",
+      "number": "100",
+      "description": "Avatar 100: SaintClaus",
+      "thumbnail": "https://arweave.net/XczwkIAbl2_s9Bs13dsWgPbASVWh5mJGAIclW_vqFrw",
+      "model": "https://arweave.net/u6ob7CuUnZ5SRgU1TB8W3RMgG5kajclNZbJoLhR-_8A",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "100_SaintClaus",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1728240
+      },
+      "usable": true
+    },
+    {
+      "name": "Milk",
+      "collection": "100Avatars R1",
+      "number": "084",
+      "description": "Avatar 084: Milk",
+      "thumbnail": "https://arweave.net/C5r_C82cPUwxHxPCL2_ZQC6Gr3owsvbQ2Um3Pkb5_sk",
+      "model": "https://arweave.net/X3NJlq8p9AsiUIqZhsmByDssKQGYeAZxnFNI0fSULMI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "84_Milk",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1338344
+      },
+      "usable": true
+    },
+    {
+      "name": "Cucumber",
+      "collection": "100Avatars R1",
+      "number": "085",
+      "description": "Avatar 085: Cucumber",
+      "thumbnail": "https://arweave.net/AG1EkJle34gqRjzLdTLorHsMNnW8m4Ek8Bikcx767zg",
+      "model": "https://arweave.net/CI15ScQv7owEU6VPq9zJTRizjwxggGk0nCdz7r1uy58",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "85_Cucumber",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1381528
+      },
+      "usable": true
+    },
+    {
+      "name": "Astronaut",
+      "collection": "100Avatars R1",
+      "number": "048",
+      "description": "Avatar 048: Astronaut",
+      "thumbnail": "https://arweave.net/Qo512sj7GqyM2wvlubg4aPyA-Hl_VTxRGYiDZ0A4Wx4",
+      "model": "https://arweave.net/T0c0z_XEPQHy3vyXz31XB22s_6JTqHdnau8exq_I8tI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Astronaut",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1679188
+      },
+      "usable": true
+    },
+    {
+      "name": "OldMoustache",
+      "collection": "100Avatars R1",
+      "number": "004",
+      "description": "Avatar 004: OldMoustache",
+      "thumbnail": "https://arweave.net/86Jv562helX2jUBUPGwRiiCNYQZeYIhNRUIrSYNSGaQ",
+      "model": "https://arweave.net/li-q3WXvBik3A1aYyp7azx7Mwce3taHx6OSOE1pHdKk",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Old Moustache",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1264888
+      },
+      "usable": true
+    },
+    {
+      "name": "Expol",
+      "collection": "100Avatars R1",
+      "number": "075",
+      "description": "Avatar 075: Expol",
+      "thumbnail": "https://arweave.net/y2mYUdKmfWIzGTGgD6Y-eKk6OHyOPqWY1RHlWIlSLVA",
+      "model": "https://arweave.net/rN6r9zV-eDV1Gf7x8Vt9v-HId117AG2arg8BO3uUvtQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Expol",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 20,
+        "bytes": 1470908
+      },
+      "usable": true
+    },
+    {
+      "name": "Ghost",
+      "collection": "100Avatars R1",
+      "number": "034",
+      "description": "Avatar 034: Ghost",
+      "thumbnail": "https://arweave.net/Q2FpwQkrMJTlpbM8ZoB-vgRni9VIXMW2CZfnSqtdJlw",
+      "model": "https://arweave.net/fSy4hx9L9SqiQIKzjhRLhXzDZpQEJA5izCcDej_WJi8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Ghost",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1310524
+      },
+      "usable": true
+    },
+    {
+      "name": "Witch",
+      "collection": "100Avatars R1",
+      "number": "039",
+      "description": "Avatar 039: Witch",
+      "thumbnail": "https://arweave.net/ZxofC0CRXIB40r26MqyHK7tVAjoYs1a6SYBaxeqruwM",
+      "model": "https://arweave.net/0YLwWzDkvVWn9ttv2RAdc8bvWcCBjvYPpu7fpjpHYU0",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Witch",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1488388
+      },
+      "usable": true
+    },
+    {
+      "name": "Mafiossini",
+      "collection": "100Avatars R1",
+      "number": "046",
+      "description": "Avatar 046: Mafiossini",
+      "thumbnail": "https://arweave.net/qq7kEj88GKEqLnzrHOXmoIIwU8q5xtm4w3TFPaIbWSg",
+      "model": "https://arweave.net/MRYB-qSnrV11_Sa6BwMOqTEpH7n_bczN_pNY_1q7DOs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mafiossini",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1388144
+      },
+      "usable": true
+    },
+    {
+      "name": "Watermelon",
+      "collection": "100Avatars R1",
+      "number": "089",
+      "description": "Avatar 089: Watermelon",
+      "thumbnail": "https://arweave.net/D7qY9j3Spfk8QUjk4Wj6-EjYIQHV2ZdjvDFtiNh4cUs",
+      "model": "https://arweave.net/PBumF47DE0ARjiZXj5p5h9YLfkrkd0MNk5K_FMBnEc8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "89_Watermelon",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 51,
+        "bytes": 2972172
+      },
+      "usable": true
+    },
+    {
+      "name": "Kate",
+      "collection": "100Avatars R1",
+      "number": "038",
+      "description": "Avatar 038: Kate",
+      "thumbnail": "https://arweave.net/ZRZbxFWEXmD7VkMDaGp8RTCrJgZE72kEAnnMqFrwS7I",
+      "model": "https://arweave.net/1q4IQwLQXJVS0JGSpeXlRdazmZYdwJbmLbTv7o0s5Y8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Kate",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1402180
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolAlien",
+      "collection": "100Avatars R1",
+      "number": "002",
+      "description": "Avatar 002: CoolAlien",
+      "thumbnail": "https://arweave.net/wOVOC-UMUDiRkoOI3gPq8CRMIFrC1-cxKRqi5wOEUTE",
+      "model": "https://arweave.net/FB3g343NrNmQrr4V0191V93pbzOVwTiQWF3PEcL4MNg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Alien",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1752508
+      },
+      "usable": true
+    },
+    {
+      "name": "Chilli",
+      "collection": "100Avatars R1",
+      "number": "092",
+      "description": "Avatar 092: Chilli",
+      "thumbnail": "https://arweave.net/4Q8dvmXB5U1I13y2kXVB5NKdr6ZgPiQPGbBvhLud11A",
+      "model": "https://arweave.net/vyjPW0lPmim3NkQbVvnhSTvjMBys3sp5bzbIhRnPHRQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "92_Chilli",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1142136
+      },
+      "usable": true
+    },
+    {
+      "name": "ToiletPaper",
+      "collection": "100Avatars R1",
+      "number": "086",
+      "description": "Avatar 086: ToiletPaper",
+      "thumbnail": "https://arweave.net/-LO1VTx66ioS9HmexYTn3e3vrwRF8mVedszpklVjTMo",
+      "model": "https://arweave.net/SQ9ZFJIjR6ek3dU76sZmeobQXOzRGYkweKa4CGrpkvg",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "86_ToiletPaper",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 50,
+        "bytes": 1691740
+      },
+      "usable": true
+    },
+    {
+      "name": "GoodTomato",
+      "collection": "100Avatars R1",
+      "number": "082",
+      "description": "Avatar 082: GoodTomato",
+      "thumbnail": "https://arweave.net/SbSLaOiBFVPWq82ByW56Py-2Xg17Ddws1EHx2SRa5GY",
+      "model": "https://arweave.net/-rMMln4TQxnrC7_Mh_5IFZpzspPjQQNGH3qdPHphDGI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "82_GoodTomato",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1317824
+      },
+      "usable": true
+    },
+    {
+      "name": "XmasTree",
+      "collection": "100Avatars R1",
+      "number": "096",
+      "description": "Avatar 096: XmasTree",
+      "thumbnail": "https://arweave.net/CsoITcSnqvJY2P4wGfH_Zsmnzk4qu_MCnh422wRHosk",
+      "model": "https://arweave.net/XDn7Py0hCML4VSgAeIVNBgtPdXzSN8bGX1Y2Mn4M8es",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "96_XmasTree",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1763224
+      },
+      "usable": true
+    },
+    {
+      "name": "Wizzir",
+      "collection": "100Avatars R1",
+      "number": "019",
+      "description": "Avatar 019: Wizzir",
+      "thumbnail": "https://arweave.net/7YDXQ5zWmL0R6WMVGa474oTO5oSxU6jnv8VGhyvVFsw",
+      "model": "https://arweave.net/iGoRAUsB8kVP6pBNajVEDaspCPcvEKFEtnIdruVHyBw",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Wizzir",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1700172
+      },
+      "usable": true
+    },
+    {
+      "name": "Skelly",
+      "collection": "100Avatars R1",
+      "number": "029",
+      "description": "Avatar 029: Skelly",
+      "thumbnail": "https://arweave.net/L4roz__VkpKXMFpFdMpfqL7ME79-PW7-mysfDp-Ovfo",
+      "model": "https://arweave.net/3qGxPjmrwuHxuiT5v4LaR_PVoJ9XYLXLM_N7fdxiF_M",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Skelly",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1169152
+      },
+      "usable": true
+    },
+    {
+      "name": "Hotdog",
+      "collection": "100Avatars R1",
+      "number": "087",
+      "description": "Avatar 087: Hotdog",
+      "thumbnail": "https://arweave.net/sGKiCyIbM6TpUHeS5AhiTIeo2lIgfdZGn6fYsvkIam0",
+      "model": "https://arweave.net/_MEKNKYt5jsr3ifVbQKAvjipGop7ZW0cpVyIork6Uy4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "87_Hotdog",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1587540
+      },
+      "usable": true
+    },
+    {
+      "name": "Eyelids",
+      "collection": "100Avatars R1",
+      "number": "037",
+      "description": "Avatar 037: Eyelids",
+      "thumbnail": "https://arweave.net/RyFdIvK3lGR-XC3xF2TbRvakrMHwhF8pfALECxpqpWU",
+      "model": "https://arweave.net/rAV7_CLsR6IGp472AvzVabjJ9A-GYLdpLhCjPnodFUc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Eyelids",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2114596
+      },
+      "usable": true
+    },
+    {
+      "name": "Robert",
+      "collection": "100Avatars R1",
+      "number": "070",
+      "description": "Avatar 070: Robert",
+      "thumbnail": "https://arweave.net/gaFPebQ9hSZDa_xNHkja8CH0Qde2y41L95VQTtroWNA",
+      "model": "https://arweave.net/gwG7w4bY-A5c3R6A6GOz3xBCgbPvkFQmqPIDtvnNsYI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Robert",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1656464
+      },
+      "usable": true
+    },
+    {
+      "name": "Bloody",
+      "collection": "100Avatars R1",
+      "number": "030",
+      "description": "Avatar 030: Bloody",
+      "thumbnail": "https://arweave.net/sbTlKSCyltB4AqOU7W27QDKftwKgHgpSm-79nYKpHyc",
+      "model": "https://arweave.net/VBFMTU6Y26re-WiEtl3FxV5wj0DzYUyjeYPyVrhYkic",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Bloody",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1571436
+      },
+      "usable": true
+    },
+    {
+      "name": "Rabbit",
+      "collection": "100Avatars R1",
+      "number": "059",
+      "description": "Avatar 059: Rabbit",
+      "thumbnail": "https://arweave.net/wBqJHzcXuHV0NpFcbtcBB4O2kHqdVN0Zv2QO0jHNkdI",
+      "model": "https://arweave.net/RymRtrmhHx_f9ZDvtvIQb1noTHvILdjoTg5G7L2DR-8",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Rabbit",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2633752
+      },
+      "usable": true
+    },
+    {
+      "name": "Eggplant",
+      "collection": "100Avatars R1",
+      "number": "090",
+      "description": "Avatar 090: Eggplant",
+      "thumbnail": "https://arweave.net/qNKlp6Up82OixiqIAJP5k2QZzWskhB735oMoABpunKI",
+      "model": "https://arweave.net/64v_-jGcqFc4q_1ao0sjcXnhqkrtnjSSBotZoN2DDmc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "90_Eggplant",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 51,
+        "bytes": 1724320
+      },
+      "usable": true
+    },
+    {
+      "name": "Bullidan",
+      "collection": "100Avatars R1",
+      "number": "028",
+      "description": "Avatar 028: Bullidan",
+      "thumbnail": "https://arweave.net/Y8nxgSYUFZyANI9I2dcVJCs6Ag8q5CyCBgkOJsZQ_wA",
+      "model": "https://arweave.net/uMDSdp_ENC77sR802M7hTFtigxLs0dRuzmkKlLEAa9U",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Bullidan",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1485492
+      },
+      "usable": true
+    },
+    {
+      "name": "Mikel",
+      "collection": "100Avatars R1",
+      "number": "072",
+      "description": "Avatar 072: Mikel",
+      "thumbnail": "https://arweave.net/t_QkyGz6d1_mY312l7lt_-8VGL9QlkwmyPbvdmkpN8U",
+      "model": "https://arweave.net/-eJyDjujQRvakRImdvulg-1dKQkPwMeQv-55IbKqLh4",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Mikel",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2026832
+      },
+      "usable": true
+    },
+    {
+      "name": "CoolBanana",
+      "collection": "100Avatars R1",
+      "number": "024",
+      "description": "Avatar 024: CoolBanana",
+      "thumbnail": "https://arweave.net/4X1LoMeFmjPx8gMrJn4NQv0U59CHKCiw1z7ZY4aYYHw",
+      "model": "https://arweave.net/o4gWzn4PPzYo2KPm-wFXnvBC7KrN6N_R0NNfg1yPPeM",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Cool Banana",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1491040
+      },
+      "usable": true
+    },
+    {
+      "name": "Skull",
+      "collection": "100Avatars R1",
+      "number": "005",
+      "description": "Avatar 005: Skull",
+      "thumbnail": "https://arweave.net/w2tx7t1-2zvmlx4Zk1004RE1WrP7TlB9YygDWIe9wYM",
+      "model": "https://arweave.net/oiwKG3vW0dVdUNWaidyQS8ZOxN3V_Qrz8__FW-SBwLc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Skull",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1319524
+      },
+      "usable": true
+    },
+    {
+      "name": "Observer",
+      "collection": "100Avatars R1",
+      "number": "007",
+      "description": "Avatar 007: Observer",
+      "thumbnail": "https://arweave.net/Wn_uMx09PDRvQ8JN69QHpQSCECTSOf-NASm72ZOm5fY",
+      "model": "https://arweave.net/bDb0wMAxPHGbhirVjHi-7GF1QL6HrwD8SuKFEF5Sx2M",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Observer",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1200564
+      },
+      "usable": true
+    },
+    {
+      "name": "Nightmare",
+      "collection": "100Avatars R1",
+      "number": "015",
+      "description": "Avatar 015: Nightmare",
+      "thumbnail": "https://arweave.net/QmuZvdR4uJZhzb5LhMo0iShurvupDd9jottgugHvckI",
+      "model": "https://arweave.net/aFMgc8_TJx3PxDiqE_5dS6lwqQusm1260WpmSwK3FCc",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Nightmare",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1645548
+      },
+      "usable": true
+    },
+    {
+      "name": "Amazonas",
+      "collection": "100Avatars R1",
+      "number": "061",
+      "description": "Avatar 061: Amazonas",
+      "thumbnail": "https://arweave.net/AYDFnRtBRJSxZ_dYs23O53RvJfbhgnult2NrPBO_2kY",
+      "model": "https://arweave.net/fqZDwToo41u1a7VnHhZX1BTK5lktXpK_H6H20MVbPqQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Amazonas",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2839088
+      },
+      "usable": true
+    },
+    {
+      "name": "Cookieman",
+      "collection": "100Avatars R1",
+      "number": "098",
+      "description": "Avatar 098: Cookieman",
+      "thumbnail": "https://arweave.net/9_94Q1v77EHdwoSmtF7HazeIlPOekB9a1lBWSuwa_CU",
+      "model": "https://arweave.net/x6i1T2qSesIvbRZnp6evtOW1awF8_m2oUH4VnYmW4gI",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "98_Cookieman",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 20,
+        "bytes": 2740140
+      },
+      "usable": true
+    },
+    {
+      "name": "DinoKid",
+      "collection": "100Avatars R1",
+      "number": "045",
+      "description": "Avatar 045: DinoKid",
+      "thumbnail": "https://arweave.net/qRNTQjqGS9WiZUr-_dpKOBPyM9a6ucbBpRq_5yiz9lY",
+      "model": "https://arweave.net/T1gkB95XKXAZl_VmU1ozg5Txm--o9nY0Nge3s8zNoBs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "DinoKid",
+        "author": "PolygonalMind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1730484
+      },
+      "usable": true
+    },
+    {
+      "name": "Chad",
+      "collection": "100Avatars R1",
+      "number": "079",
+      "description": "Avatar 079: Chad",
+      "thumbnail": "https://arweave.net/CunA7AqeUljg1OBXtIURtIFVJIJFXGxz69xMZk8rh8s",
+      "model": "https://arweave.net/s15TxeRcxamOZ0qDfjME1Bl2Ku7Vs4IQs8RthpxYjOQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Chad",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1522236
+      },
+      "usable": true
+    },
+    {
+      "name": "Clown",
+      "collection": "100Avatars R1",
+      "number": "032",
+      "description": "Avatar 032: Clown",
+      "thumbnail": "https://arweave.net/ImbhmtcReMW_MVqqsPXfwLoAu5DceVuNdAeYKUxIgv0",
+      "model": "https://arweave.net/pICFDWCb9lHSvhpBkoCXNdG3VngvYhvvi20lK51uwyA",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Clown",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1487104
+      },
+      "usable": true
+    },
+    {
+      "name": "Devil",
+      "collection": "100Avatars R1",
+      "number": "031",
+      "description": "Avatar 031: Devil",
+      "thumbnail": "https://arweave.net/llxwUMPCfar71x4hLTU4f1-pcsYeGDUD4Gxm1dhWaDg",
+      "model": "https://arweave.net/gfVzs1oH_aPaHVxpQK86HT_rqzyrFPOUKUrDJ30yprs",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Devil",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1393048
+      },
+      "usable": true
+    },
+    {
+      "name": "Polydancer",
+      "collection": "100Avatars R1",
+      "number": "021",
+      "description": "Avatar 021: Polydancer",
+      "thumbnail": "https://arweave.net/SUPfb9dzBeLUUpJaEjGPGDkEE_6PylCs3_wU_Em69LM",
+      "model": "https://arweave.net/jPOg-G0MPH55ZQmamFhT9f8cHn-hjeAQ0mRO5gWeKMQ",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Polydancer",
+        "author": "PolygonalMind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 1242088
+      },
+      "usable": true
+    },
+    {
+      "name": "Rose",
+      "collection": "100Avatars R1",
+      "number": "057",
+      "description": "Avatar 057: Rose",
+      "thumbnail": "https://arweave.net/MsKV9G8Dvzv1rOfU8aCLlxZ2PtzQ-J9ijkdkFU-ExPo",
+      "model": "https://arweave.net/Ea1KXujzJatQgCFSMzGOzp_UtHqB1pyia--U3AtkMAY",
+      "polygons": null,
+      "fromTheFile": {
+        "title": "Rose",
+        "author": "Polygonal Mind",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 52,
+        "bytes": 2400964
+      },
+      "usable": true
+    }
+  ]
+}
