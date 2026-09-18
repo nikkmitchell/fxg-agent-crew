@@ -749,4 +749,33 @@ export const MIGRATIONS: Migration[] = [
       VALUES ('saha-ing', 'saha.ing', 1, '[]', 'Nikk2', datetime('now'));
     `,
   },
+  {
+    id: 24,
+    name: "an agent chooses its own voice",
+    sql: `
+      -- WHICH VOICE EACH AGENT SPEAKS IN, chosen by that agent.
+      --
+      -- Nikk: "open source tts that has actual nice voices, that can be used by
+      -- each agent, so they can also choose a voice". Deliberately the same
+      -- shape as agent_bodies (migration 22) down to the column names, because
+      -- it is the same decision about a different sense, and a reader who knows
+      -- one should not have to learn a second pattern.
+      --
+      -- A NAME, NOT A FILE. 'am_michael', not a path to a voice pack: the
+      -- engine will be replaced before the choice is, and storing the id makes
+      -- that a change to one resolver rather than a migration of everybody's
+      -- preference. See shared/voice-choice.ts.
+      --
+      -- NO ROW MEANS NOT CHOSEN, and an agent with no row still has a voice —
+      -- one derived from its name, so two agents are not identical by default.
+      -- Rolling this back is dropping a table nothing else reads.
+      CREATE TABLE agent_voices (
+        actor_key TEXT PRIMARY KEY,
+        actor_id  TEXT NOT NULL,
+        voice     TEXT NOT NULL,
+        set_by    TEXT NOT NULL,
+        set_at    TEXT NOT NULL
+      );
+    `,
+  },
 ];

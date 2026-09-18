@@ -19,6 +19,7 @@ import { Presence } from "./space/presence.js";
 import { DeclaredPostures } from "./space/postures.js";
 import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
 import { AgentBodies, registerBodyRoutes } from "./space/bodies.js";
+import { AgentVoices, registerVoiceRoutes } from "./space/voices.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
 import { BodyFiles, registerBodyFileRoutes } from "./space/body-files.js";
 import { Touches, registerTouchRoutes } from "./space/touch.js";
@@ -120,6 +121,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Which body each actor chose for itself. Stored, like homes: a decision
   // somebody made, not a fact about where they are standing right now.
   const agentBodies = new AgentBodies(database);
+  const agentVoices = new AgentVoices(database);
   // Names the 300 catalogue bodies and, for each, the one address its file may
   // be fetched from. Read lazily; see server/space/catalogue.ts.
   const inTheCatalogue = knownToTheCatalogue();
@@ -251,6 +253,23 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       whereIs: (actorId) => space.presence.find(actorId)?.at ?? null,
       whoIsHere: () => space.presence.everyone().map((occupant) => occupant.actorId).sort(),
     });
+    registerVoiceRoutes(scoped, {
+      config,
+      sessions,
+      voices: agentVoices,
+      /**
+       * WHETHER ANYTHING CAN ACTUALLY BE SPOKEN, read at call time rather than
+       * captured at boot so a box that gains an engine does not need a restart
+       * to admit it.
+       *
+       * SPEAK_CMD mirrors TRANSCRIBE_CMD deliberately: the same shape as the
+       * Whisper seam, so the box needs no Python and no packages until somebody
+       * decides to install an engine. Absent means an agent still HAS a voice
+       * and nothing is said aloud — which the voices route reports rather than
+       * implies.
+       */
+      canSpeak: () => Boolean(process.env.SPEAK_CMD?.trim()),
+    });
     registerBodyRoutes(scoped, {
       config,
       sessions,
@@ -326,7 +345,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // `sessions` is returned so a test can sign somebody in without a real
   // upstream. Deliberately not a back door into a running server: this is the
   // value the process already holds, handed to whoever constructed it.
-  return { app, config, sessions, database, space, activity };
+  return { app, config, sessions, database, space, activity, voices: agentVoices };
 }
 
 // Only listen when run directly, so tests can build the server without binding.
