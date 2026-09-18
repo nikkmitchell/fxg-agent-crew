@@ -30,6 +30,7 @@ import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { registerStillRoutes } from "./space/stills.js";
 import { registerUtteranceRoutes } from "./space/utterances.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
+import { registerFollowingRoutes } from "./space/following.js";
 import { registerTranscribeRoutes } from "./space/transcribe.js";
 import { ScreenFrames, ShareKeys, registerScreenRoutes } from "./space/screens.js";
 import { openDatabase } from "./db/open.js";
@@ -231,6 +232,14 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       sessions,
       (actorId, kind, control) => space.presence.animate(actorId, control, kind),
+    );
+    registerFollowingRoutes(
+      scoped,
+      config,
+      sessions,
+      (actorId, kind, targetId, side, because) =>
+        space.presence.follow(actorId, kind, targetId, side, because),
+      (actorId) => space.presence.stopFollowing(actorId),
     );
     registerScreenRoutes(scoped, { config, sessions, frames: screenFrames, keys: shareKeys });
     registerHomeRoutes(scoped, {

@@ -11,6 +11,12 @@ import {
 import { normaliseRotation } from "../../shared/panel-place.js";
 import { standingRoomNear } from "../../shared/standing-room.js";
 import { CONVERSATION_FAR, conversationPlace } from "./social-motion.js";
+import {
+  apparentVelocity,
+  besideSpot,
+  defaultSide,
+  type Sample,
+} from "../../shared/walk-beside.js";
 
 /**
  * Who is in the room, and where.
@@ -70,6 +76,16 @@ export type Occupant = {
   attending: { utteranceId: number; since: number } | null;
   /** A recorded, addressed utterance keeps its speaker turned toward its addressee. */
   speakingTo: { actorId: string; until: number } | null;
+  /**
+   * Somebody this actor is walking with, until told otherwise.
+   *
+   * A STANDING INTENTION rather than a destination, which is the whole point:
+   * "walk beside Nikk2" survives Nikk2 moving, and a heading does not. It ends
+   * when the follower says so or the target leaves — never silently, because a
+   * follower that has quietly stopped following looks exactly like one whose
+   * target is standing still.
+   */
+  following: { actorId: string; side: "left" | "right"; because: string | null } | null;
   /** Self-declared, ephemeral presentation state. */
   avatar: AvatarState;
   /**
@@ -216,6 +232,7 @@ export class Presence {
       hands: { left: null, right: null },
       attending: null,
       speakingTo: null,
+      following: null,
       avatar: { ...DEFAULT_AVATAR_STATE },
       lastActed: null,
       standing: null,
@@ -588,6 +605,10 @@ export class Presence {
          * here means an agent told to talk to `Nikk2` finds nobody when the
          * room holds `nikk2`, and simply fails to turn — silently.
          */
+        // BEFORE the conversation walk, so a short declared exchange still
+        // wins: being spoken to is a moment, following is a standing state.
+        if (occupant.following) this.walkBeside(occupant);
+
         const conversationTarget = occupant.speakingTo
           ? this.occupants.get(actorKey(occupant.speakingTo.actorId))
           : undefined;
@@ -633,6 +654,114 @@ export class Presence {
         }
       }
     }
+
+    /**
+     * Remember where everybody was, so the next tick can tell walking from
+     * teleporting. AFTER the loop: a follower must compare its target's last
+     * two ticks, not one tick against a position the same tick just changed.
+     */
+    const at = this.now();
+    for (const occupant of this.occupants.values()) {
+      this.lastSample.set(actorKey(occupant.actorId), { at: { ...occupant.at }, atMs: at });
+    }
+  }
+
+  /** Positions as of the end of the previous tick, for measuring speed. */
+  private readonly lastSample = new Map<string, Sample>();
+
+  /**
+   * Put a follower where its target is going, not where the target has been.
+   *
+   * The target's own speed comes from two ticks of its position rather than
+   * anything it reports, because a person in a headset reports a position and
+   * not a velocity — and because a teleport reports a position too. See
+   * shared/walk-beside.ts for why a fast sample is discarded instead of led.
+   *
+   * A FOLLOW THAT CANNOT BE HONOURED ENDS ITSELF. If the target is not in the
+   * room, the follower stops rather than standing still with a stale intention:
+   * "following somebody who is not here" would render as idling, and the room's
+   * rule is that it may only show what it can account for.
+   */
+  private walkBeside(occupant: Occupant): void {
+    const intent = occupant.following;
+    if (!intent) return;
+
+    const target = this.occupants.get(actorKey(intent.actorId));
+    if (!target) {
+      occupant.following = null;
+      occupant.because = `stopped following ${intent.actorId}, who is not in the room`;
+      return;
+    }
+
+    const key = actorKey(target.actorId);
+    const velocity = apparentVelocity(
+      this.lastSample.get(key) ?? null,
+      { at: target.at, atMs: this.now() },
+    );
+    const want = besideSpot({ at: target.at, facing: target.facing }, intent.side, velocity);
+    occupant.heading = this.roomFor(occupant, want);
+    occupant.destinationFacing = null;
+    occupant.because = intent.because ?? `walking with ${target.actorId}`;
+  }
+
+  /**
+   * Walk beside somebody until told to stop.
+   *
+   * Only an actor the server moves may follow: a person's own device owns their
+   * position, and puppeting somebody who is holding a controller is the one
+   * thing presence.ts refuses everywhere else.
+   */
+  follow(
+    actorId: string,
+    kind: "human" | "agent" | null,
+    targetId: string,
+    side: "left" | "right" | null,
+    because: string | null,
+  ): { ok: true; side: "left" | "right" } | { ok: false; error: string; code: string } {
+    if (actorKey(actorId) === actorKey(targetId)) {
+      return { ok: false, code: "CANNOT_FOLLOW_YOURSELF", error: "you are already exactly beside yourself" };
+    }
+    const target = this.occupants.get(actorKey(targetId));
+    if (!target) {
+      return { ok: false, code: "NOT_IN_THE_ROOM", error: `${targetId} is not in the room` };
+    }
+    const occupant = this.occupants.get(actorKey(actorId)) ?? this.join(actorId, kind, false);
+    if (this.selfMoving(occupant)) {
+      return {
+        ok: false,
+        code: "YOU_MOVE_YOURSELF",
+        error: "your own device owns your position; the server will not walk you",
+      };
+    }
+    // Following somebody who is following you would leave both walking away
+    // from a spot neither chose, for as long as nobody noticed.
+    if (target.following && actorKey(target.following.actorId) === actorKey(actorId)) {
+      return { ok: false, code: "THEY_FOLLOW_YOU", error: `${target.actorId} is already following you` };
+    }
+
+    const chosen = side ?? defaultSide(actorId, target.actorId);
+    occupant.following = { actorId: target.actorId, side: chosen, because };
+    this.walkBeside(occupant);
+    return { ok: true, side: chosen };
+  }
+
+  /** Stop walking with anybody. Safe to call when not following. */
+  stopFollowing(actorId: string): { was: string | null } {
+    const occupant = this.occupants.get(actorKey(actorId));
+    const was = occupant?.following?.actorId ?? null;
+    if (occupant) {
+      occupant.following = null;
+      if (was) occupant.because = `stopped walking with ${was}`;
+    }
+    return { was };
+  }
+
+  /** Who is walking with whom, for presence to report. */
+  followers(targetId: string): string[] {
+    const key = actorKey(targetId);
+    return this.everyone()
+      .filter((occupant) => occupant.following && actorKey(occupant.following.actorId) === key)
+      .map((occupant) => occupant.actorId);
   }
 
   /** Turn a recorded speaker toward the person their utterance addresses. */

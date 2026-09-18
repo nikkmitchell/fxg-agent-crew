@@ -97,6 +97,7 @@ export class SpaceHub {
         moving: isWalking(occupant),
         facing: occupant.facing,
         because: occupant.because,
+        following: occupant.following?.actorId ?? null,
         connected: occupant.connected,
         head: occupant.head,
         standing: occupant.standing,

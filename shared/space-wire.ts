@@ -90,6 +90,15 @@ export type WirePerson = {
   facing: number;
   /** Why they are there, when we know. null is "no recent evidence". */
   because: string | null;
+  /**
+   * Who this actor is walking with, or null.
+   *
+   * Reported because a follow is otherwise invisible and indistinguishable from
+   * a coincidence: two figures side by side look identical whether one is
+   * accompanying the other or both happen to be standing there. A renderer can
+   * also stop guessing why an avatar keeps moving.
+   */
+  following?: string | null;
   /** Whether a live socket is attached — a person in the room right now. */
   connected: boolean;
   /**
