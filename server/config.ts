@@ -1,3 +1,5 @@
+import { dirname, resolve } from "node:path";
+
 export type Config = {
   webharnessUrl: string;
   port: number;
@@ -34,8 +36,22 @@ export type Config = {
    *
    * A CACHE, not data: every file here can be pulled again from the address in
    * public/avatars/catalogue.json, so losing it costs one slow first load per
-   * body and nothing else. That is why it sits beside the stills rather than
-   * with the blobs, which are the one thing here that cannot be rebuilt.
+   * body and nothing else — unlike the blobs, which cannot be rebuilt.
+   *
+   * DEFAULTS TO A DIRECTORY BESIDE THE DATABASE, rather than under `./data`
+   * like the settings above it, and that is the second time this lesson has
+   * been paid for. `ProtectSystem=strict` in the systemd unit makes the
+   * install directory READ-ONLY, so any relative production default is
+   * unwritable. The unit's own comment says exactly that about
+   * SESSION_STORE_PATH, which crashed the service on boot until somebody set
+   * it explicitly.
+   *
+   * I shipped `./data/bodies` anyway and it failed on the live site the first
+   * time a new body was picked: ENOENT, mkdir /opt/fxg-crew/data. Every other
+   * path here is corrected by hand in an environment file on the box, which
+   * works and must be remembered again on every new machine. The database path
+   * is already writable in anything that booted at all, so deriving from it is
+   * correct by construction rather than by memory.
    */
   bodyCacheRoot: string;
   /**
@@ -62,6 +78,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error("SESSION_SECRET is required in production");
   }
 
+  const databasePath = env.DATABASE_PATH ?? (production ? "./data/saha.db" : ":memory:");
+
   const requestedBasePath = env.APP_BASE_PATH?.trim();
   const basePath = !requestedBasePath || requestedBasePath === "/" ? "" : requestedBasePath.replace(/\/$/, "");
   const pathSegments = basePath.split("/").filter(Boolean);
@@ -73,6 +91,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   ) {
     throw new Error("APP_BASE_PATH must be an absolute URL path such as /space");
   }
+
+  /**
+   * Somewhere writable, worked out from a path we know already works.
+   *
+   * ":memory:" is not a location, so there is nothing to sit beside and the
+   * development default is used — which is right for tests, and right for
+   * anybody running the dev harness.
+   */
+  const beside = (known: string, leaf: string, whenNowhere: string): string =>
+    known === ":memory:" ? whenNowhere : resolve(dirname(known), leaf);
 
   return {
     webharnessUrl,
@@ -87,13 +115,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // stray database files while iterating.
     sessionStorePath: env.SESSION_STORE_PATH ?? (production ? "./data/sessions.db" : ":memory:"),
     projectMutators: (env.PROJECT_MUTATORS ?? "").split(",").map((value) => value.trim()).filter(Boolean),
-    databasePath: env.DATABASE_PATH ?? (production ? "./data/saha.db" : ":memory:"),
+    databasePath,
     blobRoot: env.BLOB_ROOT ?? (production ? "./data/blobs" : "./.dev-blobs"),
     // Kept as a knob rather than hardcoded so a test that binds a real port can
     // silence request logging. Defaults to the level everything ran at before.
     logLevel: env.LOG_LEVEL ?? "info",
     stillsRoot: env.STILLS_ROOT ?? (production ? "./data/stills" : "./.dev-stills"),
-    bodyCacheRoot: env.BODY_CACHE_ROOT ?? (production ? "./data/bodies" : "./.dev-bodies"),
+    bodyCacheRoot: env.BODY_CACHE_ROOT ?? beside(databasePath, "bodies", "./.dev-bodies"),
     stillsToken: env.STILLS_TOKEN ?? "",
   };
 }

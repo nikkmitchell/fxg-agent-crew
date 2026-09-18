@@ -189,3 +189,52 @@ describe("a body already on disk", () => {
     expect(calls).toHaveLength(1);
   });
 });
+
+/**
+ * WHERE THE CACHE GOES, which is the thing that actually broke in production.
+ *
+ * `ProtectSystem=strict` makes the install directory read-only, so the
+ * relative production default I first shipped — ./data/bodies — failed with
+ * ENOENT the first time anybody picked a new body. The database path is
+ * already writable in anything that booted at all, so the cache is derived
+ * from it rather than guessed, and nothing has to be remembered on a new box.
+ */
+describe("where fetched bodies are kept", () => {
+  it("sits beside the database, wherever that is", async () => {
+    const { loadConfig } = await import("../config.js");
+    const config = loadConfig({
+      WEBHARNESS_URL: "https://example.test",
+      DATABASE_PATH: "/var/lib/fxg-crew/saha.db",
+    });
+    expect(config.bodyCacheRoot).toBe("/var/lib/fxg-crew/bodies");
+  });
+
+  it("never lands under the read-only install directory", async () => {
+    const { loadConfig } = await import("../config.js");
+    const config = loadConfig({
+      WEBHARNESS_URL: "https://example.test",
+      NODE_ENV: "production",
+      SESSION_SECRET: "x",
+      DATABASE_PATH: "/var/lib/fxg-crew/saha.db",
+    });
+    expect(config.bodyCacheRoot.startsWith("/var/lib/")).toBe(true);
+    expect(config.bodyCacheRoot).not.toContain("./data");
+  });
+
+  it("uses the development directory when the database is in memory", async () => {
+    // ":memory:" is not a location, so there is nothing to sit beside.
+    const { loadConfig } = await import("../config.js");
+    const config = loadConfig({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:" });
+    expect(config.bodyCacheRoot).toBe("./.dev-bodies");
+  });
+
+  it("still takes an explicit setting when one is given", async () => {
+    const { loadConfig } = await import("../config.js");
+    const config = loadConfig({
+      WEBHARNESS_URL: "https://example.test",
+      DATABASE_PATH: "/var/lib/fxg-crew/saha.db",
+      BODY_CACHE_ROOT: "/srv/elsewhere",
+    });
+    expect(config.bodyCacheRoot).toBe("/srv/elsewhere");
+  });
+});
