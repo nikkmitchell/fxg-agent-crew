@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { LOOK_SENSITIVITY, tiltBy } from "./look-pitch";
 import {
   ROOM,
   STATIONS,
@@ -209,6 +210,13 @@ function Me({
   const { camera, gl, invalidate } = useThree();
   const held = useRef(new Set<string>());
   const yaw = useRef(0);
+  /**
+   * Looking up and down, which the window could not do until Nikk asked for it.
+   * Kept separate from `yaw` because only the HEADING may drive walking: tilt
+   * the camera and you must still walk along the floor rather than into the
+   * air. See the step below, which reads `yaw` alone.
+   */
+  const pitch = useRef(0);
   const dragging = useRef(false);
   const sendMove = useMemo(
     () => makeMoveSender(connection.send),
@@ -233,7 +241,8 @@ function Me({
     // the panel at one end would otherwise arrive looking at empty space with
     // their one panel off the edge of the screen.
     yaw.current = facingFor(panelsOnArrival.current);
-    camera.rotation.set(0, yaw.current, 0, "YXZ");
+    pitch.current = 0;
+    camera.rotation.set(pitch.current, yaw.current, 0, "YXZ");
   }, [camera]);
 
   // TELL THE SERVER WHERE WE PUT THE CAMERA, once, as soon as the socket is up.
@@ -288,8 +297,11 @@ function Me({
     };
     const look = (event: PointerEvent) => {
       if (!dragging.current) return;
-      yaw.current -= event.movementX * 0.004;
-      camera.rotation.set(0, yaw.current, 0, "YXZ");
+      yaw.current -= event.movementX * LOOK_SENSITIVITY;
+      // Clamped, and the clamp is the part that matters: "YXZ" gimbal-locks at
+      // exactly ±90° and inverts past it. See look-pitch.ts.
+      pitch.current = tiltBy(pitch.current, event.movementY);
+      camera.rotation.set(pitch.current, yaw.current, 0, "YXZ");
       invalidate();
     };
 
