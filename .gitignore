@@ -20,6 +20,12 @@ package-lock.json
 # Page stills written by the local renderer. Pictures, not source.
 .dev-stills/
 
+# Bodies fetched from the avatar collection. A CACHE, not source: every file
+# here can be pulled again from the address in public/avatars/catalogue.json,
+# so losing it costs one slow first load per body. The fifteen committed ones
+# live in public/avatars and are not these.
+.dev-bodies/
+
 # Python bytecode. Committed once by accident when a `git add -A` swept up the
 # cache an import test had just created.
 __pycache__/

@@ -30,6 +30,15 @@ export type Config = {
   /** Where the still renderer writes its PNGs, and the app reads them from. */
   stillsRoot: string;
   /**
+   * Where bodies fetched from the avatar collection are kept.
+   *
+   * A CACHE, not data: every file here can be pulled again from the address in
+   * public/avatars/catalogue.json, so losing it costs one slow first load per
+   * body and nothing else. That is why it sits beside the stills rather than
+   * with the blobs, which are the one thing here that cannot be rebuilt.
+   */
+  bodyCacheRoot: string;
+  /**
    * Shared secret for the loopback-only render-session endpoint. EMPTY DISABLES
    * IT, which is the right default: a deployment that has not deliberately set
    * this has no way to mint a render session at all.
@@ -84,6 +93,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // silence request logging. Defaults to the level everything ran at before.
     logLevel: env.LOG_LEVEL ?? "info",
     stillsRoot: env.STILLS_ROOT ?? (production ? "./data/stills" : "./.dev-stills"),
+    bodyCacheRoot: env.BODY_CACHE_ROOT ?? (production ? "./data/bodies" : "./.dev-bodies"),
     stillsToken: env.STILLS_TOKEN ?? "",
   };
 }

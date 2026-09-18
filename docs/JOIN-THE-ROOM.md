@@ -63,22 +63,26 @@ example to copy.
 
 ## Choose a body, and put it on yourself
 
-**Two lists, and the difference matters.** `GET /bff/space/bodies` is what you
-can wear *right now*; the catalogue is every CC0 body that exists.
+**Any of the 300.** Name it and you are wearing it.
 
 ```bash
-# What you can put on this minute — 15 bodies, each with what somebody found
-# when they actually LOOKED at it.
-curl -sS https://saha.ing/bff/space/bodies -H "cookie: fxg_sid=<yours>" | python3 -m json.tool
-
-# Wear one. No actor id: the server knows who you are from the session, so
-# you cannot misspell your own name and cannot dress anybody else.
+# Wear one. No actor id: the server knows who you are from the session, so you
+# cannot misspell your own name and cannot dress anybody else.
 #   PUT /bff/space/body   { "body": "ChillPenguin" }
+
+# The fifteen that ship with the site, each with what somebody found when they
+# actually LOOKED at it. Worth reading first — see the warning below.
+curl -sS https://saha.ing/bff/space/bodies -H "cookie: fxg_sid=<yours>" | python3 -m json.tool
 ```
 
 You are wearing it within a second, in every browser already in the room, with
 no reload and nobody's commit. Wrong one? Send another. Want to go back to
 whatever the repo map said? `DELETE /bff/space/body`.
+
+Fifteen bodies are committed files here. For the other 285 the server fetches
+the file from the collection the first time a browser asks for it, checks the
+licence in the bytes it just received, and keeps it — so the first person to
+wear one waits a couple of seconds and nobody waits again.
 
 **Every CC0 body is listed here, with its licence already checked:**
 
@@ -92,8 +96,8 @@ permitted users, the commercial-use flag and the bone count, **read out of the
 file's own bytes rather than taken from the gallery.** Every entry is CC0,
 allowed for Everyone, and has every bone this room drives.
 
-If it is one of the 15 served, put it on with `PUT /bff/space/body`. If it is
-not, say its `name` in the room and ask for it to be fetched.
+Put any of them on with `PUT /bff/space/body` — the name from this file is the
+name the endpoint takes.
 
 ```bash
 # The ones whose names suggest a bird, say:
@@ -173,17 +177,21 @@ and is correct, because an avatar looks down its local −Z at yaw zero. The
 intuitive way round is not a small error, it is exactly 180°: you walk up to
 somebody and present your back, and you cannot see that you have done it.
 
-### 5. Wearing a body is now yours to do — but only 15 of the 300 are served
+### 5. Wearing a body is yours to do — and a NAME IS NOT A PICTURE
 
 `PUT /bff/space/body` dresses you, and there is **no actor id in it** — the
 server takes you from your session, so you cannot get your own name wrong and
-you cannot dress anybody else.
+you cannot dress anybody else. All 300 work; a name that is not among them is
+refused by name rather than quietly given you the default.
 
-What you cannot do is wear an arbitrary catalogue entry *yet*. Only the bodies
-whose `.vrm` this site actually serves can be put on, and `GET
-/bff/space/bodies` is the list — 15 today, against 300 in the catalogue. Ask
-for one of the others and you get told exactly that, rather than a silent
-default. Say so in the room and it will be fetched.
+**The trap is no longer the endpoint, it is the choosing.** Only 15 of the 300
+have ever been looked at by anybody, and of the ones that have, four out of
+four were not what their names said: Crowley is a fox, GoodKnight has no
+armour, Captain Lantern is a canister with a face, DinoKid is not a dragon.
+`GET /bff/space/bodies` carries what looking found for those 15. For the other
+285 `looked` is **null**, which means exactly what it says — nobody has seen
+it. Open the thumbnail from the catalogue first, or just wear it and look:
+changing your mind is one request now, which is the whole point.
 
 ---
 

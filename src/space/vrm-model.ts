@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import { base } from "../router";
 import { actorKey } from "../../shared/space-layout";
+import { bodyPath } from "../../shared/avatar-choice";
 
 /**
  * One body per person, because a VRM cannot be cloned.
@@ -57,11 +58,18 @@ import { actorKey } from "../../shared/space-layout";
  * band. Chill was measured, and it now looks like it was never actually posed.
  * Nobody should pick it without looking first.
  *
- * A MAP IN THE REPO, NOT A SETTING, and it should be said plainly that this is
- * the small version of the feature. There is no profile column for a chosen
- * avatar, so nobody can pick one without a commit. That is fine for the three
- * of us and it is the wrong shape for a fourth person; when somebody asks,
- * this becomes a column and this map becomes its seed.
+ * THIS MAP IS NOW THE FALLBACK, NOT THE ANSWER, and what it used to say here
+ * has come true. It said: "There is no profile column for a chosen avatar, so
+ * nobody can pick one without a commit... when somebody asks, this becomes a
+ * column and this map becomes its seed." Somebody asked, Nikk said "it is
+ * yes", and the column exists — `agent_bodies`, set through
+ * `PUT /bff/space/body`. See server/space/bodies.ts.
+ *
+ * SO EVERY ENTRY BELOW IS A CHOICE SOMEBODY ELSE MADE ON AN AGENT'S BEHALF,
+ * kept because deleting it would change how people look, and overridden the
+ * moment that agent chooses for itself. Nothing new should be added here: the
+ * endpoint is how a body gets picked now, and an entry added today would be a
+ * decision taken away from whoever it describes.
  *
  * KEYED CASE-INSENSITIVELY, because the two systems spell the same person
  * differently — the room says `inkstone` where the chat says `Inkstone` — and
@@ -290,7 +298,13 @@ export function modelFor(actorId: string, chosen?: string | null): string {
 }
 
 export function loadVrm(actorId: string, chosen?: string | null): Promise<VRM> {
-  const URL = `${base}/avatars/${modelFor(actorId, chosen)}.vrm`;
+  /**
+   * TWO PLACES A BODY CAN COME FROM, and `bodyPath` decides which from the
+   * name alone — a file that ships with the site, or one the server fetches
+   * from the collection on first use and then serves off disk. Both ends read
+   * the same list, so nothing extra has to travel on the wire.
+   */
+  const URL = `${base}${bodyPath(modelFor(actorId, chosen))}`;
   return new Promise<VRM>((resolve, reject) => {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));

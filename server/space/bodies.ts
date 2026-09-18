@@ -72,14 +72,15 @@ export function registerBodyRoutes(
     sessions: SessionStore;
     bodies: AgentBodies;
     /**
-     * Whether a name the wardrobe does not hold is nonetheless a real body in
-     * the catalogue, so the refusal says which of the two it is.
+     * A name the wardrobe does not hold, looked up in the catalogue of 300.
      *
-     * OPTIONAL, and absent means "we cannot tell" — every bad name is then
-     * answered NO_SUCH_BODY, which is what happened before this existed.
+     * Found means it is a real body and can be worn — its file is fetched on
+     * first use. Not found means no such body. ABSENT ALTOGETHER means this
+     * server cannot read the catalogue and genuinely does not know, which is a
+     * third answer and must not be reported as either of the first two.
      * See server/space/catalogue.ts.
      */
-    inTheCatalogue?: (key: string) => boolean;
+    inTheCatalogue?: (key: string) => { name: string } | null;
   },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);

@@ -90,34 +90,66 @@ for (const body of BODIES_ON_HAND) {
 
 export type BodyRefusal = { error: string; code: "NO_SUCH_BODY" | "NOT_SERVED_YET" };
 
+/** Whether this slug's file ships with the site, rather than being fetched. */
+export const isOnHand = (slug: string): boolean => BY_KEY.has(bodyKey(slug));
+
+/**
+ * Where the room should load a body from.
+ *
+ * TWO PLACES, AND THE CLIENT WORKS OUT WHICH FROM THE SLUG ALONE. A body that
+ * ships with the site is a static file; one from the catalogue is fetched and
+ * cached by the server on first use. Deciding it here means nothing extra has
+ * to travel on the wire — the presence snapshot carries a name, and both ends
+ * agree what that name means because they read the same list.
+ */
+export const bodyPath = (slug: string): string =>
+  isOnHand(slug) ? `/avatars/${slug}.vrm` : `/bff/space/body-model/${slug}.vrm`;
+
 /**
  * Turn what somebody asked for into a body we can actually dress them in.
  *
  * THE TWO REFUSALS ARE DIFFERENT FACTS and are kept apart. "There is no body
  * by that name" is about their typing; "that body exists and we cannot serve
- * its file yet" is about our shortfall, and collapsing the second into the
- * first would send somebody hunting for a spelling mistake they did not make.
- * That is the same failure as a name that silently gets the default body.
+ * its file" is about our shortfall, and collapsing the second into the first
+ * would send somebody hunting for a spelling mistake they did not make. That
+ * is the same failure as a name that silently gets the default body.
+ *
+ * A CATALOGUE BODY IS NOW A REAL ANSWER, not a refusal. When the lookup finds
+ * one, its `bodyKey` becomes the slug and the server fetches the file the
+ * first time somebody's browser asks for it. NOT_SERVED_YET survives for the
+ * case where there is no lookup at all — a machine with no catalogue file
+ * genuinely cannot tell whether that name is a body or a typo, and must not
+ * guess.
  */
-export function chooseBody(asked: unknown, inTheCatalogue?: (key: string) => boolean): BodyOnHand | BodyRefusal {
+export function chooseBody(
+  asked: unknown,
+  inTheCatalogue?: (key: string) => { name: string } | null,
+): BodyOnHand | BodyRefusal {
   if (typeof asked !== "string" || asked.trim() === "") {
     return { code: "NO_SUCH_BODY", error: "say which body you want, as its name from /avatars/catalogue.json" };
   }
   const key = bodyKey(asked);
   const found = BY_KEY.get(key);
   if (found) return found;
+  const fromCatalogue = inTheCatalogue?.(key);
+  if (fromCatalogue) {
+    // Nobody has looked at it, and saying so is the honest value of the field:
+    // a name is a poor guide to a picture and this project has been wrong
+    // about that four times out of four.
+    return { slug: key, catalogue: fromCatalogue.name, looked: null };
+  }
   const served = BODIES_ON_HAND.map((body) => body.catalogue ?? body.slug).join(", ");
-  if (inTheCatalogue?.(key)) {
+  if (!inTheCatalogue) {
     return {
       code: "NOT_SERVED_YET",
       error:
-        `${asked} is in the catalogue and this site does not serve its file yet, so wearing it is not possible ` +
-        `today — say so in the room and it will be fetched. Served right now: ${served}`,
+        `this server cannot read the avatar catalogue, so it cannot tell whether ${asked} is a real body. ` +
+        `Served without it: ${served}`,
     };
   }
   return {
     code: "NO_SUCH_BODY",
-    error: `no body is called ${asked}. Served right now: ${served}. The full list of 300 is at /avatars/catalogue.json`,
+    error: `no body is called ${asked}. The full list of 300 is at /avatars/catalogue.json`,
   };
 }
 

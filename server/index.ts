@@ -20,6 +20,7 @@ import { DeclaredPostures } from "./space/postures.js";
 import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
 import { AgentBodies, registerBodyRoutes } from "./space/bodies.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
+import { BodyFiles, registerBodyFileRoutes } from "./space/body-files.js";
 import { Touches, registerTouchRoutes } from "./space/touch.js";
 import { Activity } from "./space/activity.js";
 import { BoardReads } from "./db/reads.js";
@@ -118,6 +119,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Which body each actor chose for itself. Stored, like homes: a decision
   // somebody made, not a fact about where they are standing right now.
   const agentBodies = new AgentBodies(database);
+  // Names the 300 catalogue bodies and, for each, the one address its file may
+  // be fetched from. Read lazily; see server/space/catalogue.ts.
+  const inTheCatalogue = knownToTheCatalogue();
+  // Bodies pulled from the collection on first use and then served off disk.
+  const bodyFiles = new BodyFiles(resolve(config.bodyCacheRoot), inTheCatalogue);
   const touches = new Touches(database);
   // Made before the room, which reads it: an agent whose screen is sharing is
   // awake. See Presence.settlePostures.
@@ -240,10 +246,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       sessions,
       bodies: agentBodies,
-      // So "that body exists and we cannot serve it yet" is not reported as
-      // "no such body". Read lazily, on the first refusal only.
-      inTheCatalogue: knownToTheCatalogue(),
+      // So a catalogue body resolves to a real choice, and an invented name is
+      // told apart from one this server simply cannot check.
+      inTheCatalogue,
     });
+    registerBodyFileRoutes(scoped, { config, sessions, files: bodyFiles });
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.

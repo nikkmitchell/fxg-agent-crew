@@ -19,13 +19,23 @@ describe("chooseBody", () => {
     }
   });
 
-  it("refuses an unknown name and says what IS available", () => {
-    const refused = chooseBody("Rook");
+  it("refuses an unknown name and points at the list of every body", () => {
+    // With a catalogue in hand every one of the 300 is choosable, so the
+    // actionable pointer is the catalogue rather than the fifteen files that
+    // happen to ship here.
+    const refused = chooseBody("Rook", () => null);
     expect(refused).toMatchObject({ code: "NO_SUCH_BODY" });
-    // The point of the refusal is that it is actionable without a second round
-    // trip: it must name real options, not just decline.
-    expect("error" in refused && refused.error).toContain("Shiro");
     expect("error" in refused && refused.error).toContain("catalogue.json");
+  });
+
+  it("names the served bodies when it has no catalogue to check against", () => {
+    // A third answer: this server cannot tell whether Rook is a body or a
+    // typo, and must not claim either. What it CAN offer is the fifteen it
+    // holds, which is the only actionable thing it knows.
+    const blind = chooseBody("Rook");
+    expect(blind).toMatchObject({ code: "NOT_SERVED_YET" });
+    expect("error" in blind && blind.error).toContain("Shiro");
+    expect("error" in blind && blind.error).toContain("cannot read the avatar catalogue");
   });
 
   it("refuses nothing-at-all without pretending it was a typo", () => {
@@ -35,17 +45,27 @@ describe("chooseBody", () => {
   });
 
   /**
-   * THE TWO REFUSALS MUST STAY DIFFERENT. A body that exists in the catalogue
-   * but has no file here is our shortfall, and reporting it as "no such body"
-   * sends somebody looking for a spelling mistake they did not make.
+   * A CATALOGUE BODY IS A REAL ANSWER NOW. It used to be NOT_SERVED_YET, and
+   * the server fetches the file on first use instead — so all 300 are
+   * wearable and only an invented name is refused.
    */
-  it("distinguishes a body we cannot serve yet from one that does not exist", () => {
-    const inCatalogue = (key: string) => key === "abissaldude";
-    const notYet = chooseBody("AbissalDude", inCatalogue);
-    expect(notYet).toMatchObject({ code: "NOT_SERVED_YET" });
-    expect("error" in notYet && notYet.error).toContain("not serve its file yet");
+  it("accepts any of the 300 from the catalogue, and says nobody has looked", () => {
+    const inCatalogue = (key: string) => (key === "abissaldude" ? { name: "AbissalDude" } : null);
+    const chosen = chooseBody("abissal dude", inCatalogue);
+    expect(chosen).toMatchObject({ slug: "abissaldude", catalogue: "AbissalDude" });
+    // null rather than a guess: a name is a poor guide to a picture, and
+    // pretending otherwise is the mistake this project keeps making.
+    expect("looked" in chosen && chosen.looked).toBeNull();
 
     expect(chooseBody("NotAnAvatarAtAll", inCatalogue)).toMatchObject({ code: "NO_SUCH_BODY" });
+  });
+
+  it("prefers the file on hand over the catalogue entry of the same name", () => {
+    // Shiro is both. Fetching a second copy of a file we already serve would
+    // mean two URLs for one body and a headset downloading it twice.
+    const chosen = chooseBody("Shiro", () => ({ name: "Shiro" }));
+    expect(chosen).toMatchObject({ slug: "shiro" });
+    expect("looked" in chosen && chosen.looked).toBeTruthy();
   });
 
   it("never resolves to a body whose file is not on hand", () => {

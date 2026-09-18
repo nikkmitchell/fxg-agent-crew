@@ -137,32 +137,46 @@ describe("who may dress whom", () => {
 });
 
 describe("refusing a body we cannot put on", () => {
-  it("names what IS available rather than just declining", async () => {
+  it("points at the catalogue rather than just declining", async () => {
     const { app, as } = boot();
     const response = await mine(app, as("lumenrook", "agent"), { body: "Rook" });
     expect(response.statusCode).toBe(400);
     expect(response.json().code).toBe("NO_SUCH_BODY");
-    expect(response.json().error).toContain("Shiro");
     expect(response.json().error).toContain("catalogue.json");
     await app.close();
   });
 
   /**
-   * CAUGHT ON THE LIVE SITE, NOT HERE, and that is why this test exists.
+   * THE ROUTE MUST SEE THE CATALOGUE, and this is the test that says so.
    *
-   * `chooseBody` takes a catalogue predicate and I tested it WITH one; the
-   * route was tested without, using a name that is genuinely absent. Both
-   * passed, and the deployed server answered NO_SUCH_BODY for AbissalDude —
-   * which is in the catalogue. The whole distinction was dead in production
-   * because nothing wired the predicate through. A unit test of a function and
-   * a test of the route that calls it are not the same test.
+   * It began as a bug caught on the live site rather than here. `chooseBody`
+   * takes a catalogue lookup and I tested it WITH one; the route was tested
+   * without, using a name that is genuinely absent. Both passed while the
+   * deployed server answered NO_SUCH_BODY for AbissalDude — one of the 300.
+   * A unit test of a function and a test of the route that calls it are not
+   * the same test, and only the route is what anybody uses.
+   *
+   * Now that all 300 are wearable, the same wiring shows up as a body being
+   * ACCEPTED. If the lookup is ever unhooked again, this fails.
    */
-  it("tells somebody a real catalogue body is not served yet, rather than denying it exists", async () => {
+  it("accepts any of the 300, resolving a catalogue name to its slug", async () => {
     const { app, as } = boot();
     const response = await mine(app, as("Sill", "agent"), { body: "AbissalDude" });
-    expect(response.statusCode).toBe(400);
-    expect(response.json().code).toBe("NOT_SERVED_YET");
-    expect(response.json().error).toContain("not serve its file yet");
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, body: "abissaldude" });
+    // Nobody has looked at it, and the reply says so rather than implying a
+    // recommendation.
+    expect(response.json().looked).toBeNull();
+    await app.close();
+  });
+
+  it("carries a fetched body through presence just like a committed one", async () => {
+    const { app, as, space } = boot();
+    space.presence.join("Corvid", "agent", false);
+    await mine(app, as("Corvid", "agent"), { body: "CoolWaffle" });
+    const read = await app.inject({ method: "GET", url: "/bff/space/presence", headers: { cookie: as("Nikk2") } });
+    const corvid = read.json().people.find((one: { actorId: string }) => one.actorId === "Corvid");
+    expect(corvid.body).toBe("coolwaffle");
     await app.close();
   });
 

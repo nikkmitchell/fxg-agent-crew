@@ -42,6 +42,7 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { readVrmMeta, type VrmMeta } from "../shared/vrm-meta.js";
 
 const GALLERY = "https://opensourceavatars.com/api/avatars";
 const OUT = resolve("public/avatars/catalogue.json");
@@ -64,31 +65,25 @@ type GalleryEntry = {
   metadata?: { number?: string | number; series?: string };
 };
 
-type Checked = {
-  title: string | null;
-  author: string | null;
-  licence: string | null;
-  allowedUsers: string | null;
-  commercialUse: string | null;
-  /** Bones this room drives that the rig is missing. Empty is what you want. */
-  missingBones: string[];
-  bones: number | null;
-  bytes: number | null;
-  why?: string;
-};
+/** What the file said, plus why it could not be read when it could not. */
+type Checked = VrmMeta & { why?: string };
 
-/** The bones the room actually poses. A rig missing one of these will break. */
-const DRIVEN = [
-  "hips", "spine", "chest", "neck", "head",
-  "leftUpperArm", "leftLowerArm", "leftHand",
-  "rightUpperArm", "rightLowerArm", "rightHand",
-  "leftUpperLeg", "leftLowerLeg", "leftFoot",
-  "rightUpperLeg", "rightLowerLeg", "rightFoot",
-];
+/** Nothing known, for an entry that could not be read. Recorded, never dropped. */
+const UNREAD: VrmMeta = {
+  title: null, author: null, licence: null, allowedUsers: null,
+  commercialUse: null, missingBones: [], bones: null, bytes: null,
+};
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
-/** Read the head of a .glb and pull out what the author asserted. */
+/**
+ * Read the head of a .glb and pull out what the author asserted.
+ *
+ * The PARSING lives in shared/vrm-meta.ts, because the server runs the same
+ * check before it will serve anybody a body, and a licence check written twice
+ * is one that drifts — the failure mode being that one copy quietly stops
+ * looking. What is left here is the streaming: read enough, then hang up.
+ */
 async function readMeta(url: string): Promise<Checked> {
   const response = await fetch(url, { redirect: "follow" });
   if (!response.ok || !response.body) throw new Error(`http ${response.status}`);
@@ -112,28 +107,9 @@ async function readMeta(url: string): Promise<Checked> {
     head.set(part, at);
     at += part.length;
   }
-  const view = new DataView(head.buffer, head.byteOffset, head.byteLength);
-  if (head.length < 20 || view.getUint32(0, true) !== 0x46546c67) throw new Error("not a glb");
-  const total = view.getUint32(8, true);
-  const jsonLength = view.getUint32(12, true);
-  if (20 + jsonLength > head.length) throw new Error(`json chunk ${jsonLength} > ${head.length} read`);
-  const gltf = JSON.parse(new TextDecoder().decode(head.subarray(20, 20 + jsonLength)));
-  const vrm = gltf?.extensions?.VRM;
-  if (!vrm) throw new Error("no VRM 0.x extension");
-  const meta = vrm.meta ?? {};
-  const bones: string[] = (vrm.humanoid?.humanBones ?? [])
-    .map((one: { bone?: string }) => one.bone)
-    .filter(Boolean);
-  return {
-    title: meta.title ?? null,
-    author: meta.author ?? null,
-    licence: meta.licenseName ?? null,
-    allowedUsers: meta.allowedUserName ?? null,
-    commercialUse: meta.commercialUssageName ?? meta.commercialUsageName ?? null,
-    missingBones: DRIVEN.filter((bone) => !bones.includes(bone)),
-    bones: bones.length,
-    bytes: total,
-  };
+  const meta = readVrmMeta(head);
+  if ("error" in meta) throw new Error(meta.error);
+  return meta;
 }
 
 /** Same, with retries, because this network drops connections routinely. */
@@ -147,11 +123,7 @@ async function readMetaPatiently(url: string, tries = 4): Promise<Checked> {
       if (attempt < tries) await sleep(attempt * 1500);
     }
   }
-  return {
-    title: null, author: null, licence: null, allowedUsers: null, commercialUse: null,
-    missingBones: [], bones: null, bytes: null,
-    why: `could not read: ${last instanceof Error ? last.message : String(last)}`,
-  };
+  return { ...UNREAD, why: `could not read: ${last instanceof Error ? last.message : String(last)}` };
 }
 
 const limitArg = process.argv.indexOf("--limit");

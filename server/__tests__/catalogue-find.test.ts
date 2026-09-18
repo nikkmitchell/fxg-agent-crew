@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { catalogueKeys, findCatalogue, knownToTheCatalogue } from "../space/catalogue.js";
+import { catalogueBodies, catalogueKeys, findCatalogue, knownToTheCatalogue } from "../space/catalogue.js";
 
 /**
  * FINDING THE CATALOGUE AT BOTH DEPTHS, which is the failure findUiRoot exists
@@ -18,7 +18,18 @@ const tree = (leaf: string, from: string) => {
   mkdirSync(resolve(root, leaf, ".."), { recursive: true });
   writeFileSync(
     resolve(root, leaf),
-    JSON.stringify({ avatars: [{ name: "AbissalDude" }, { name: "CoolCandle" }, { name: "" }, { nope: 1 }] }),
+    JSON.stringify({
+      avatars: [
+        { name: "AbissalDude", model: "https://arweave.net/abc" },
+        { name: "CoolCandle", model: "https://arweave.net/def" },
+        // Each of these must be dropped: no name, no model, or a model this
+        // server must never fetch from.
+        { name: "", model: "https://arweave.net/ghi" },
+        { name: "NoModel" },
+        { name: "Local", model: "file:///etc/passwd" },
+        { nope: 1 },
+      ],
+    }),
   );
   const start = resolve(root, from);
   mkdirSync(start, { recursive: true });
@@ -52,6 +63,16 @@ describe("catalogueKeys", () => {
     expect(keys.size).toBe(2);
   });
 
+  it("drops an entry with no model, and any address that is not https", () => {
+    // A body with no fetchable file is not a body anybody can choose, and a
+    // file:// address in the catalogue must not be reachable from a request.
+    const { root } = tree("dist/avatars/catalogue.json", "x");
+    const bodies = catalogueBodies(resolve(root, "dist/avatars/catalogue.json"));
+    expect(bodies.has("nomodel")).toBe(false);
+    expect(bodies.has("local")).toBe(false);
+    expect(bodies.get("abissaldude")).toEqual({ name: "AbissalDude", model: "https://arweave.net/abc" });
+  });
+
   it("is empty for a missing or unparseable file, not an exception", () => {
     expect(catalogueKeys(null).size).toBe(0);
     const root = mkdtempSync(resolve(tmpdir(), "broken-"));
@@ -65,15 +86,17 @@ describe("knownToTheCatalogue", () => {
   it("answers for real catalogue names and not for invented ones", () => {
     const { start } = tree("dist/avatars/catalogue.json", "dist-server/server/space");
     const known = knownToTheCatalogue(start);
-    expect(known("abissaldude")).toBe(true);
-    expect(known("notabody")).toBe(false);
+    expect(known("abissaldude")).toEqual({ name: "AbissalDude", model: "https://arweave.net/abc" });
+    expect(known("notabody")).toBeNull();
   });
 
   it("finds the real catalogue shipped in this repo", () => {
     // The one that matters: 300 bodies, at the path the server actually runs
     // from. This is what was dead in production until it was wired through.
     const known = knownToTheCatalogue();
-    expect(known("abissaldude")).toBe(true);
-    expect(known("shiro")).toBe(true);
+    // The model URL is what makes the fetch possible AND safe: it comes from
+    // this file and never from a caller.
+    expect(known("abissaldude")?.model).toMatch(/^https:\/\//);
+    expect(known("shiro")?.name).toBe("Shiro");
   });
 });

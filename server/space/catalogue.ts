@@ -38,19 +38,51 @@ export function findCatalogue(start: string): string | null {
   return null;
 }
 
-/** Every catalogue name as a `bodyKey`, or an empty set if it cannot be read. */
-export function catalogueKeys(path: string | null): Set<string> {
-  if (!path) return new Set();
+/** One catalogue body, as much of it as anything here needs. */
+export type CatalogueBody = {
+  /** What the collection calls it, e.g. "AbissalDude". */
+  name: string;
+  /** Where its .vrm lives. The ONLY place a fetch may take a URL from. */
+  model: string;
+};
+
+/**
+ * Every catalogue body by `bodyKey`, or empty if the file cannot be read.
+ *
+ * THE MODEL URL IS CARRIED, and that is what makes the fetch safe: a body can
+ * only ever be pulled from an address in this file, which we wrote. Nothing a
+ * caller sends becomes a URL, so there is no request they can aim anywhere.
+ *
+ * ENTRIES WITHOUT A MODEL ARE DROPPED, because an entry that cannot be fetched
+ * is not a body anybody can choose — offering it would produce a refusal at
+ * the last possible moment instead of the first.
+ */
+export function catalogueBodies(path: string | null): Map<string, CatalogueBody> {
+  const found = new Map<string, CatalogueBody>();
+  if (!path) return found;
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as { avatars?: { name?: unknown }[] };
-    const keys = new Set<string>();
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as {
+      avatars?: { name?: unknown; model?: unknown }[];
+    };
     for (const entry of parsed.avatars ?? []) {
-      if (typeof entry?.name === "string" && entry.name !== "") keys.add(bodyKey(entry.name));
+      const name = typeof entry?.name === "string" ? entry.name : "";
+      const model = typeof entry?.model === "string" ? entry.model : "";
+      if (name === "" || model === "") continue;
+      // Only https, checked here rather than at fetch time: a catalogue that
+      // somehow carried a file:// or http:// address must not be reachable
+      // from a request at all.
+      if (!model.startsWith("https://")) continue;
+      found.set(bodyKey(name), { name, model });
     }
-    return keys;
+    return found;
   } catch {
-    return new Set();
+    return new Map();
   }
+}
+
+/** Every catalogue name as a `bodyKey`. Kept for callers that only ask "is it real?". */
+export function catalogueKeys(path: string | null): Set<string> {
+  return new Set(catalogueBodies(path).keys());
 }
 
 /**
@@ -61,10 +93,10 @@ export function catalogueKeys(path: string | null): Set<string> {
  */
 export function knownToTheCatalogue(
   start = dirname(fileURLToPath(import.meta.url)),
-): (key: string) => boolean {
-  let keys: Set<string> | null = null;
+): (key: string) => CatalogueBody | null {
+  let bodies: Map<string, CatalogueBody> | null = null;
   return (key: string) => {
-    keys ??= catalogueKeys(findCatalogue(start));
-    return keys.has(key);
+    bodies ??= catalogueBodies(findCatalogue(start));
+    return bodies.get(key) ?? null;
   };
 }
