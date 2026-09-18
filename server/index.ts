@@ -20,6 +20,7 @@ import { DeclaredPostures } from "./space/postures.js";
 import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
 import { AgentBodies, registerBodyRoutes } from "./space/bodies.js";
 import { AgentVoices, registerVoiceRoutes } from "./space/voices.js";
+import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
 import { BodyFiles, registerBodyFileRoutes } from "./space/body-files.js";
 import { Touches, registerTouchRoutes } from "./space/touch.js";
@@ -122,6 +123,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // somebody made, not a fact about where they are standing right now.
   const agentBodies = new AgentBodies(database);
   const agentVoices = new AgentVoices(database);
+  const memories = new Memories(database);
   // Names the 300 catalogue bodies and, for each, the one address its file may
   // be fetched from. Read lazily; see server/space/catalogue.ts.
   const inTheCatalogue = knownToTheCatalogue();
@@ -253,6 +255,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       whereIs: (actorId) => space.presence.find(actorId)?.at ?? null,
       whoIsHere: () => space.presence.everyone().map((occupant) => occupant.actorId).sort(),
     });
+    registerMemoryRoutes(scoped, { config, sessions, memories });
     registerVoiceRoutes(scoped, {
       config,
       sessions,
@@ -345,7 +348,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // `sessions` is returned so a test can sign somebody in without a real
   // upstream. Deliberately not a back door into a running server: this is the
   // value the process already holds, handed to whoever constructed it.
-  return { app, config, sessions, database, space, activity, voices: agentVoices };
+  return { app, config, sessions, database, space, activity, voices: agentVoices, memories };
 }
 
 // Only listen when run directly, so tests can build the server without binding.

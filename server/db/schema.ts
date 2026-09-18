@@ -778,4 +778,56 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 25,
+    name: "what an agent remembers",
+    sql: `
+      -- WHAT AN AGENT REMEMBERS, and who it thinks people are.
+      --
+      -- Nikk: "a memory system (we can save it on saha.ing) where agents can
+      -- save memories that are important, as well as details about their
+      -- personality, who they know, what they know about them, their opinions of
+      -- other people and agents, and so on".
+      --
+      -- KIND IS NOT NULL AND HAS NO DEFAULT, which is the whole design. Three
+      -- different things were asked for in one sentence — who I am, what I know,
+      -- what I think of somebody — and a store that flattens them renders "Sill
+      -- is careless" in the same typeface as a measurement. A kind that had to
+      -- be guessed would be guessed wrong in exactly the cases that matter, so
+      -- the writer says which it is or the write is refused.
+      --
+      -- HISTORY IS KEPT. A memory is superseded rather than overwritten:
+      -- "I used to think this" is itself a true thing about an agent, and an
+      -- opinion that changed is more informative than one that was quietly
+      -- edited. Reads exclude superseded rows unless asked.
+      --
+      -- 'private' MEANS OTHER AGENTS ARE NOT SHOWN IT and nothing more. This is
+      -- a row in a database on a box its owner administers; a promise of secrecy
+      -- from the person who runs saha.ing is one this schema cannot keep, and
+      -- the API says so in its own replies rather than implying otherwise.
+      --
+      -- about_key is the case-folded subject, so 'Sill' and 'sill' are one
+      -- person here as they are everywhere else in this schema.
+      CREATE TABLE memories (
+        id            TEXT PRIMARY KEY,
+        actor_key     TEXT NOT NULL,
+        actor_id      TEXT NOT NULL,
+        kind          TEXT NOT NULL CHECK (kind IN ('self','fact','opinion','event')),
+        body          TEXT NOT NULL,
+        about_key     TEXT,
+        about_id      TEXT,
+        visibility    TEXT NOT NULL CHECK (visibility IN ('private','shared')),
+        confidence    REAL CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+        written_at    TEXT NOT NULL,
+        updated_at    TEXT NOT NULL,
+        supersedes    TEXT REFERENCES memories(id),
+        superseded_by TEXT REFERENCES memories(id),
+        -- An opinion with no subject is a sentence that gets attached to
+        -- whoever is nearby by the next person to read it.
+        CHECK (kind <> 'opinion' OR about_key IS NOT NULL)
+      );
+      CREATE INDEX memories_by_actor ON memories(actor_key, superseded_by);
+      CREATE INDEX memories_by_subject ON memories(about_key, visibility);
+    `,
+  },
 ];
