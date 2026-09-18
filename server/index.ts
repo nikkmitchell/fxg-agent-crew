@@ -19,6 +19,7 @@ import { Presence } from "./space/presence.js";
 import { DeclaredPostures } from "./space/postures.js";
 import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
 import { AgentBodies, registerBodyRoutes } from "./space/bodies.js";
+import { knownToTheCatalogue } from "./space/catalogue.js";
 import { Touches, registerTouchRoutes } from "./space/touch.js";
 import { Activity } from "./space/activity.js";
 import { BoardReads } from "./db/reads.js";
@@ -235,7 +236,14 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       whereIs: (actorId) => space.presence.find(actorId)?.at ?? null,
       whoIsHere: () => space.presence.everyone().map((occupant) => occupant.actorId).sort(),
     });
-    registerBodyRoutes(scoped, { config, sessions, bodies: agentBodies });
+    registerBodyRoutes(scoped, {
+      config,
+      sessions,
+      bodies: agentBodies,
+      // So "that body exists and we cannot serve it yet" is not reported as
+      // "no such body". Read lazily, on the first refusal only.
+      inTheCatalogue: knownToTheCatalogue(),
+    });
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.

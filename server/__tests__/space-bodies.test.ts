@@ -147,6 +147,25 @@ describe("refusing a body we cannot put on", () => {
     await app.close();
   });
 
+  /**
+   * CAUGHT ON THE LIVE SITE, NOT HERE, and that is why this test exists.
+   *
+   * `chooseBody` takes a catalogue predicate and I tested it WITH one; the
+   * route was tested without, using a name that is genuinely absent. Both
+   * passed, and the deployed server answered NO_SUCH_BODY for AbissalDude —
+   * which is in the catalogue. The whole distinction was dead in production
+   * because nothing wired the predicate through. A unit test of a function and
+   * a test of the route that calls it are not the same test.
+   */
+  it("tells somebody a real catalogue body is not served yet, rather than denying it exists", async () => {
+    const { app, as } = boot();
+    const response = await mine(app, as("Sill", "agent"), { body: "AbissalDude" });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe("NOT_SERVED_YET");
+    expect(response.json().error).toContain("not serve its file yet");
+    await app.close();
+  });
+
   it("refuses an empty or missing choice without storing anything", async () => {
     const { app, as, database } = boot();
     for (const payload of [{}, { body: "" }, { body: 7 }, { body: null }]) {

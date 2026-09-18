@@ -71,6 +71,15 @@ export function registerBodyRoutes(
     config: Config;
     sessions: SessionStore;
     bodies: AgentBodies;
+    /**
+     * Whether a name the wardrobe does not hold is nonetheless a real body in
+     * the catalogue, so the refusal says which of the two it is.
+     *
+     * OPTIONAL, and absent means "we cannot tell" — every bad name is then
+     * answered NO_SUCH_BODY, which is what happened before this existed.
+     * See server/space/catalogue.ts.
+     */
+    inTheCatalogue?: (key: string) => boolean;
   },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);
@@ -121,7 +130,7 @@ export function registerBodyRoutes(
   ): { code: number; body: Record<string, unknown> } => {
     const refusal = mayDress(session, actorId);
     if (refusal) return { code: 403, body: { code: "NOT_ALLOWED", error: refusal } };
-    const chosen = chooseBody(asked);
+    const chosen = chooseBody(asked, deps.inTheCatalogue);
     if ("error" in chosen) return { code: 400, body: { code: chosen.code, error: chosen.error } };
     deps.bodies.set(actorId, chosen.slug, session.username);
     return { code: 200, body: { ok: true, actorId, body: chosen.slug, looked: chosen.looked } };
