@@ -259,7 +259,20 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       homes: agentHomes,
       kindOf: (actorId) => shareKeys.kindOf(actorId) ?? space.presence.find(actorId)?.kind ?? null,
-      goHome: (actorId, home) => space.presence.sendTo(actorId, "agent", home.at, null, home.facing),
+      /**
+       * INTERRUPTING, because a person placing an agent is an explicit
+       * instruction and outranks whatever that agent had been told to do.
+       * Without the flag the placement was applied and then silently undone on
+       * the next tick by a follow or a route rewriting the heading — the route
+       * answered 200 and nothing moved.
+       *
+       * Note what does NOT pass it: activity.ts walks agents to the board
+       * through the same `sendTo`, and a board comment should not drag somebody
+       * out of walking with a person. Those sends are declined instead, which
+       * leaves the standing instruction visible rather than pretending.
+       */
+      goHome: (actorId, home) =>
+        void space.presence.sendTo(actorId, "agent", home.at, null, home.facing, true),
       whereIs: (actorId) => space.presence.find(actorId)?.at ?? null,
       whoIsHere: () => space.presence.everyone().map((occupant) => occupant.actorId).sort(),
     });

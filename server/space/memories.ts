@@ -7,6 +7,7 @@ import { makeRequireSession } from "../require-session.js";
 import { actorKey } from "../../shared/space-layout.js";
 import {
   attribution,
+  mayRead,
   refusalFor,
   type Memory,
   type MemoryInput,
@@ -69,11 +70,30 @@ export class Memories {
     let supersedes: string | null = null;
     if (input.supersedes) {
       const existing = this.database
-        .prepare("SELECT id, actor_key FROM memories WHERE id = ?")
-        .get(input.supersedes) as { id: string; actor_key: string } | undefined;
-      if (existing && existing.actor_key === actorKey(actorId)) supersedes = existing.id;
-      else if (existing) throw new Error("NOT_YOURS_TO_REPLACE");
-      else throw new Error("NO_SUCH_MEMORY");
+        .prepare("SELECT id, actor_key, superseded_by FROM memories WHERE id = ?")
+        .get(input.supersedes) as
+          { id: string; actor_key: string; superseded_by: string | null } | undefined;
+
+      /**
+       * SOMEBODY ELSE'S MEMORY AND A MISSING ONE ANSWER THE SAME. They used to
+       * differ — 403 against 404 — which told a caller that a row it cannot
+       * read exists. Ids are random UUIDs so it was hard to use, and it broke
+       * the rule `forget` already keeps two routes away.
+       */
+      if (!existing || existing.actor_key !== actorKey(actorId)) throw new Error("NO_SUCH_MEMORY");
+
+      /**
+       * REPLACING SOMETHING ALREADY REPLACED FORKS THE HISTORY, and the fork is
+       * invisible: recall then returns two current opinions of the same person,
+       * each looking authoritative. Pointing at the original rather than the
+       * latest is the natural slip, since the original is the id you remember.
+       *
+       * Refused rather than quietly retargeted at the head. Retargeting would
+       * write a memory the agent did not ask for, into the one store whose
+       * whole point is that it says what somebody actually thinks.
+       */
+      if (existing.superseded_by) throw new Error(`ALREADY_REPLACED:${existing.superseded_by}`);
+      supersedes = existing.id;
     }
 
     this.database
@@ -97,12 +117,22 @@ export class Memories {
     );
   }
 
-  /** One memory, whoever wrote it. Callers must still check `mayRead`. */
-  get(id: string): Memory | null {
+  /**
+   * One memory, as `reader` may see it — their own, or somebody's shared one.
+   *
+   * THE READER IS AN ARGUMENT, NOT A CONVENTION. This used to return any row and
+   * say in a comment that callers must check `mayRead`. Nothing called it, so
+   * nothing was wrong yet; the first route to use it would have had to remember,
+   * and one of them eventually would not. Not-readable and not-there answer the
+   * same, as everywhere else here.
+   */
+  get(id: string, reader: string): Memory | null {
     const found = this.database.prepare("SELECT * FROM memories WHERE id = ?").get(id) as
       | Record<string, unknown>
       | undefined;
-    return found ? row(found) : null;
+    if (!found) return null;
+    const memory = row(found);
+    return mayRead(memory, reader) ? memory : null;
   }
 
   /**
@@ -139,18 +169,51 @@ export class Memories {
     ).map(row);
   }
 
-  /** Forget one. Only your own, and it goes — this is not a supersede. */
-  forget(actorId: string, id: string): boolean {
+  /**
+   * Forget one, and the versions it replaced.
+   *
+   * WHY THE CHAIN GOES TOO. Forgetting M2, which had replaced M1, used to leave
+   * M1 current again — so deleting what you think now RESURRECTED what you used
+   * to think, and recall would hand back a view the agent had deliberately
+   * withdrawn. That puts words in somebody's mouth, which is the one thing this
+   * store must not do.
+   *
+   * A chain only ever holds one agent's own rows, so nothing of anybody else's
+   * is reachable from here. The count goes back in the reply rather than being
+   * a surprise.
+   */
+  forget(actorId: string, id: string): { forgotten: boolean; alsoForgotten: number } {
     const existing = this.database.prepare("SELECT actor_key FROM memories WHERE id = ?").get(id) as
       | { actor_key: string }
       | undefined;
-    if (!existing || existing.actor_key !== actorKey(actorId)) return false;
-    // Anything that pointed at it keeps its own text and loses the link, rather
-    // than the delete cascading into memories somebody else still holds.
+    if (!existing || existing.actor_key !== actorKey(actorId)) return { forgotten: false, alsoForgotten: 0 };
+
+    // Walk back along `supersedes`, bounded: a cycle cannot be written by
+    // `write`, and a loop here would hang the request rather than fail it.
+    const chain: string[] = [];
+    let cursor: string | null = id;
+    for (let step = 0; cursor && step < 1_000; step += 1) {
+      const row = this.database.prepare("SELECT supersedes FROM memories WHERE id = ?").get(cursor) as
+        | { supersedes: string | null }
+        | undefined;
+      cursor = row?.supersedes ?? null;
+      if (cursor && !chain.includes(cursor)) chain.push(cursor);
+      else if (cursor) break;
+    }
+
+    // Anything newer that pointed AT this one keeps its own text and loses the
+    // link: it is a later view and deleting it was not asked for.
     this.database.prepare("UPDATE memories SET supersedes = NULL WHERE supersedes = ?").run(id);
     this.database.prepare("UPDATE memories SET superseded_by = NULL WHERE superseded_by = ?").run(id);
+    for (const older of chain) {
+      this.database.prepare("UPDATE memories SET supersedes = NULL WHERE supersedes = ?").run(older);
+      this.database.prepare("UPDATE memories SET superseded_by = NULL WHERE superseded_by = ?").run(older);
+    }
     this.database.prepare("DELETE FROM memories WHERE id = ?").run(id);
-    return true;
+    for (const older of chain) {
+      this.database.prepare("DELETE FROM memories WHERE id = ?").run(older);
+    }
+    return { forgotten: true, alsoForgotten: chain.length };
   }
 }
 
@@ -186,13 +249,17 @@ export function registerMemoryRoutes(
       });
     } catch (error) {
       const code = error instanceof Error ? error.message : "REFUSED";
-      if (code === "NOT_YOURS_TO_REPLACE") {
-        return reply.code(403).send({
-          code, error: "that memory belongs to somebody else; you cannot mark theirs replaced",
+      if (code.startsWith("ALREADY_REPLACED:")) {
+        const head = code.slice("ALREADY_REPLACED:".length);
+        return reply.code(409).send({
+          code: "ALREADY_REPLACED",
+          error: "that memory has already been replaced; supersede the current one instead",
+          current: head,
         });
       }
       if (code === "NO_SUCH_MEMORY") {
-        return reply.code(404).send({ code, error: "there is no memory with that id" });
+        // Deliberately the same answer for "not there" and "not yours".
+        return reply.code(404).send({ code, error: "you have no memory with that id" });
       }
       throw error;
     }
@@ -232,12 +299,18 @@ export function registerMemoryRoutes(
   app.delete<{ Params: { id: string } }>("/bff/space/memories/:id", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const forgotten = deps.memories.forget(session.username, request.params.id);
+    const { forgotten, alsoForgotten } = deps.memories.forget(session.username, request.params.id);
     if (!forgotten) {
       // Deliberately one answer for "not yours" and "not there": telling a
       // caller that somebody else's memory exists is itself a disclosure.
       return reply.code(404).send({ code: "NO_SUCH_MEMORY", error: "you have no memory with that id" });
     }
-    return reply.send({ ok: true, forgotten: request.params.id });
+    return reply.send({
+      ok: true,
+      forgotten: request.params.id,
+      // The versions this one had replaced went with it, so that deleting what
+      // you think now cannot resurrect what you used to think.
+      alsoForgotten,
+    });
   });
 }

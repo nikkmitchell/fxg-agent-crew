@@ -340,11 +340,43 @@ export class Presence {
     heading: Vec3,
     because: string | null,
     destinationFacing: number | null = null,
-  ): void {
+    /**
+     * Whether this send may END a standing instruction — a follow or a route.
+     *
+     * TWO KINDS OF SEND, AND THEY ARE NOT THE SAME. A person placing an agent
+     * (PUT /bff/space/homes) is an explicit instruction and outranks whatever
+     * the agent was doing. An automatic send — activity.ts walking somebody to
+     * the board because they commented — should NOT drag an agent out of
+     * "walk with me down the street".
+     *
+     * Before this flag both were applied and then silently undone on the next
+     * tick, because walkBeside and walkRoute rewrite the heading. The route
+     * answered 200 and nothing moved, which is worse than either choice: Sill
+     * reproduced it with an agent placed at (-8,-8) that was still beside its
+     * target fifteen seconds later.
+     *
+     * So an automatic send to somebody with a standing instruction is now
+     * DECLINED rather than pretended.
+     */
+    interrupting = false,
+  ): { moved: boolean; stoppedFollowing: string | null; abandonedRoute: number } {
     const existing = this.occupants.get(actorKey(actorId));
     // Somebody who moves themselves is not sent anywhere. An agent is sent
     // whether or not it is watching the room through a socket.
-    if (existing && this.selfMoving(existing)) return;
+    if (existing && this.selfMoving(existing)) {
+      return { moved: false, stoppedFollowing: null, abandonedRoute: 0 };
+    }
+    let stoppedFollowing: string | null = null;
+    let abandonedRoute = 0;
+    if (existing && (existing.following || existing.walking)) {
+      if (!interrupting) {
+        return { moved: false, stoppedFollowing: null, abandonedRoute: 0 };
+      }
+      stoppedFollowing = existing.following?.actorId ?? null;
+      abandonedRoute = existing.walking?.waypoints.length ?? 0;
+      existing.following = null;
+      existing.walking = null;
+    }
     const occupant = existing ?? this.join(actorId, kind, false);
     if (kind && !occupant.kind) occupant.kind = kind;
     /**
@@ -380,6 +412,7 @@ export class Presence {
       occupant.avatar.posture = "thinking";
     }
     occupant.lastSeen = this.now();
+    return { moved: true, stoppedFollowing, abandonedRoute };
   }
 
   /**
@@ -817,10 +850,35 @@ export class Presence {
         error: "your own device owns your position; the server will not walk you",
       };
     }
-    // Following somebody who is following you would leave both walking away
-    // from a spot neither chose, for as long as nobody noticed.
-    if (target.following && actorKey(target.following.actorId) === actorKey(actorId)) {
-      return { ok: false, code: "THEY_FOLLOW_YOU", error: `${target.actorId} is already following you` };
+    /**
+     * A RING OF FOLLOWERS STANDS INSIDE ITSELF. This checked only whether the
+     * target followed ME, so Ash->Birch, Birch->Cedar, Cedar->Ash was accepted
+     * three times over — and Sill measured the three converging to 0.14m apart
+     * and staying there, inside one another, which roomFor exists to prevent.
+     *
+     * Nobody in the ring is aiming at a spot anybody chose: each is offset from
+     * the next, and with the chain closed there is no fixed point but the
+     * huddle. Walking the chain costs nothing and refuses a ring of any length
+     * as readily as a pair.
+     */
+    const ring: string[] = [];
+    let ahead: Occupant | undefined = target;
+    while (ahead) {
+      if (actorKey(ahead.actorId) === actorKey(actorId)) {
+        return {
+          ok: false,
+          code: "THAT_WOULD_BE_A_RING",
+          error: ring.length === 1
+            ? `${target.actorId} is already following you`
+            : `that would close a ring: ${[actorId, ...ring].join(" follows ")} follows you`,
+        };
+      }
+      ring.push(ahead.actorId);
+      // Bounded by the room: every step moves to a different actor, and a
+      // pre-existing ring among others would otherwise spin here for ever.
+      if (ring.length > this.occupants.size) break;
+      const next: string | undefined = ahead.following?.actorId;
+      ahead = next ? this.occupants.get(actorKey(next)) : undefined;
     }
 
     const chosen = side ?? defaultSide(actorId, target.actorId);

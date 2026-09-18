@@ -136,14 +136,22 @@ describe("whose memory it is", () => {
     await app.close();
   });
 
-  it("cannot mark somebody else's memory replaced", async () => {
+  /**
+   * SOMEBODY ELSE'S MEMORY AND A MISSING ONE ANSWER THE SAME. A 403 here told a
+   * caller that a row it cannot read exists — the leak `forget` already avoided
+   * two routes away.
+   */
+  it("cannot mark somebody else's memory replaced, and is not told it exists", async () => {
     const { app, remember } = boot();
-    const theirs = await remember("Sill", { kind: "fact", body: "mine", visibility: "shared" });
+    const theirs = await remember("Sill", { kind: "fact", body: "mine", visibility: "private" });
     const attempt = await remember("Nightjar", {
       kind: "fact", body: "actually this", visibility: "shared", supersedes: theirs.json().memory.id,
     });
-    expect(attempt.statusCode).toBe(403);
-    expect(attempt.json().code).toBe("NOT_YOURS_TO_REPLACE");
+    const missing = await remember("Nightjar", {
+      kind: "fact", body: "actually this", visibility: "shared", supersedes: "not-an-id",
+    });
+    expect(attempt.statusCode).toBe(404);
+    expect(attempt.json()).toEqual(missing.json());
     await app.close();
   });
 
@@ -173,7 +181,63 @@ describe("whose memory it is", () => {
       url: `/bff/space/memories/${mine.json().memory.id}`,
       headers: { cookie: as("Nightjar") },
     });
-    expect(gone.json()).toEqual({ ok: true, forgotten: mine.json().memory.id });
+    expect(gone.json()).toEqual({ ok: true, forgotten: mine.json().memory.id, alsoForgotten: 0 });
+    await app.close();
+  });
+
+  /**
+   * REPLACING SOMETHING ALREADY REPLACED FORKED THE HISTORY, invisibly: recall
+   * returned two current opinions of the same person, both looking
+   * authoritative. Pointing at the original is the natural slip, because the
+   * original is the id you remember.
+   */
+  it("refuses to replace a memory that has already been replaced, and names the current one", async () => {
+    const { app, remember, recall } = boot();
+    const first = await remember("Nightjar", {
+      kind: "opinion", about: "Sill", body: "first view", visibility: "private",
+    });
+    const second = await remember("Nightjar", {
+      kind: "opinion", about: "Sill", body: "second view", visibility: "private",
+      supersedes: first.json().memory.id,
+    });
+    const forked = await remember("Nightjar", {
+      kind: "opinion", about: "Sill", body: "third view", visibility: "private",
+      supersedes: first.json().memory.id,
+    });
+
+    expect(forked.statusCode).toBe(409);
+    expect(forked.json()).toMatchObject({ code: "ALREADY_REPLACED", current: second.json().memory.id });
+
+    const now = (await recall("Nightjar")).json().memories;
+    expect(now).toHaveLength(1);
+    expect(now[0].body).toBe("second view");
+    await app.close();
+  });
+
+  /**
+   * FORGETTING WHAT YOU THINK NOW MUST NOT RESURRECT WHAT YOU USED TO THINK.
+   * The agent withdrew that view deliberately; bringing it back because its
+   * replacement was deleted puts words in their mouth.
+   */
+  it("forgets the versions a memory replaced, rather than reviving them", async () => {
+    const { app, as, remember, recall } = boot();
+    const first = await remember("Nightjar", {
+      kind: "opinion", about: "Sill", body: "too cautious", visibility: "private",
+    });
+    const second = await remember("Nightjar", {
+      kind: "opinion", about: "Sill", body: "cautious, and right", visibility: "private",
+      supersedes: first.json().memory.id,
+    });
+
+    const gone = await app.inject({
+      method: "DELETE",
+      url: `/bff/space/memories/${second.json().memory.id}`,
+      headers: { cookie: as("Nightjar") },
+    });
+    expect(gone.json()).toMatchObject({ ok: true, alsoForgotten: 1 });
+
+    expect((await recall("Nightjar")).json().memories).toHaveLength(0);
+    expect((await recall("Nightjar", "?history=true")).json().memories).toHaveLength(0);
     await app.close();
   });
 });
@@ -276,5 +340,22 @@ describe("the rules on their own", () => {
     expect(mayRead({ actorId: "Nightjar", visibility: "private" }, "nightjar")).toBe(true);
     expect(mayRead({ actorId: "Sill", visibility: "private" }, "Nightjar")).toBe(false);
     expect(mayRead({ actorId: "Sill", visibility: "shared" }, "Nightjar")).toBe(true);
+  });
+
+  /**
+   * `get` TAKES THE READER rather than trusting a comment. It used to return any
+   * row and say callers must check; nothing called it, so the first route to use
+   * it would have had to remember, and one of them eventually would not.
+   */
+  it("get() will not hand somebody else's private memory to a reader", async () => {
+    const { app, memories, remember } = boot();
+    const theirs = await remember("Sill", { kind: "fact", body: "private", visibility: "private" });
+    const shared = await remember("Sill", { kind: "fact", body: "shared", visibility: "shared" });
+    const id = theirs.json().memory.id;
+
+    expect(memories.get(id, "Nightjar")).toBeNull();
+    expect(memories.get(id, "Sill")?.body).toBe("private");
+    expect(memories.get(shared.json().memory.id, "Nightjar")?.body).toBe("shared");
+    await app.close();
   });
 });

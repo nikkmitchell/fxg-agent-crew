@@ -79,8 +79,37 @@ describe("starting and stopping", () => {
     const { presence } = walking();
     presence.join("Sill", "agent", false);
     expect(presence.follow("Sill", "agent", "Nightjar", null, null)).toMatchObject({ ok: true });
-    expect(presence.follow("Nightjar", "agent", "Sill", null, null))
-      .toMatchObject({ ok: false, code: "THEY_FOLLOW_YOU" });
+    const refused = presence.follow("Nightjar", "agent", "Sill", null, null);
+    expect(refused).toMatchObject({ ok: false, code: "THAT_WOULD_BE_A_RING" });
+    expect("error" in refused && refused.error).toContain("already following you");
+  });
+
+  /**
+   * A RING OF ANY LENGTH, not just a pair. Checking only "does the target
+   * follow me" accepted Ash->Birch, Birch->Cedar, Cedar->Ash, and Sill measured
+   * the three converging to 0.14m apart and standing inside one another —
+   * exactly what roomFor exists to prevent, arrived at by three legal moves.
+   */
+  it("refuses to close a ring of three", () => {
+    const { presence } = walking();
+    presence.join("Ash", "agent", false);
+    presence.join("Birch", "agent", false);
+    presence.join("Cedar", "agent", false);
+
+    expect(presence.follow("Ash", "agent", "Birch", null, null)).toMatchObject({ ok: true });
+    expect(presence.follow("Birch", "agent", "Cedar", null, null)).toMatchObject({ ok: true });
+    const closing = presence.follow("Cedar", "agent", "Ash", null, null);
+    expect(closing).toMatchObject({ ok: false, code: "THAT_WOULD_BE_A_RING" });
+    expect("error" in closing && closing.error).toContain("Ash");
+    expect(presence.find("Cedar")!.following).toBeNull();
+  });
+
+  it("still allows a chain that does not close", () => {
+    const { presence } = walking();
+    presence.join("Ash", "agent", false);
+    presence.join("Birch", "agent", false);
+    expect(presence.follow("Ash", "agent", "Birch", null, null)).toMatchObject({ ok: true });
+    expect(presence.follow("Birch", "agent", "Nikk2", null, null)).toMatchObject({ ok: true });
   });
 
   it("stops, and says who it stopped following", () => {
@@ -111,6 +140,62 @@ describe("starting and stopping", () => {
     presence.follow("Sill", "agent", "Nikk2", null, null);
     expect(presence.find("Nightjar")!.following!.side)
       .not.toBe(presence.find("Sill")!.following!.side);
+  });
+});
+
+describe("a person placing an agent", () => {
+  /**
+   * AN EXPLICIT PLACEMENT OUTRANKS A STANDING INSTRUCTION. Before this, the
+   * placement was applied and then silently undone on the next tick by the
+   * follow rewriting the heading: Sill reproduced an agent placed at (-8,-8)
+   * that was still beside its target fifteen seconds later.
+   */
+  it("ends a follow, and says whose it ended", () => {
+    const { presence, step } = walking();
+    presence.follow("Nightjar", "agent", "Nikk2", "left", null);
+    step();
+
+    const sent = presence.sendTo("Nightjar", "agent", { x: -8, y: 0, z: -8 }, "placed by Nikk2", null, true);
+    expect(sent).toMatchObject({ moved: true, stoppedFollowing: "Nikk2" });
+
+    for (let tick = 0; tick < 150; tick += 1) step();
+    expect(presence.find("Nightjar")!.following).toBeNull();
+    expect(gap(presence.find("Nightjar")!.at, { x: -8, z: -8 })).toBeLessThan(0.3);
+  });
+
+  it("ends a route, and says how much of it was left", () => {
+    const { presence, step } = walking();
+    presence.walk("Nightjar", "agent", [{ x: 5, y: 0, z: 5 }, { x: 6, y: 0, z: 6 }], null);
+    step();
+    expect(presence.sendTo("Nightjar", "agent", { x: -8, y: 0, z: -8 }, null, null, true))
+      .toMatchObject({ moved: true, abandonedRoute: 2 });
+    expect(presence.find("Nightjar")!.walking).toBeNull();
+  });
+
+  /**
+   * AN AUTOMATIC SEND IS DECLINED INSTEAD. activity.ts walks agents to the board
+   * through the same call, and a board comment should not drag somebody out of
+   * walking with a person. Declining says so; applying-and-reverting did not.
+   */
+  it("does not let an automatic send interrupt a follow", () => {
+    const { presence, step } = walking();
+    presence.follow("Nightjar", "agent", "Nikk2", "left", null);
+    step();
+
+    const sent = presence.sendTo("Nightjar", "agent", { x: -8, y: 0, z: -8 }, "commented on a card");
+    expect(sent).toEqual({ moved: false, stoppedFollowing: null, abandonedRoute: 0 });
+    expect(presence.find("Nightjar")!.following?.actorId).toBe("Nikk2");
+
+    for (let tick = 0; tick < 40; tick += 1) step();
+    expect(gap(presence.find("Nightjar")!.at, presence.find("Nikk2")!.at)).toBeLessThan(1.4);
+  });
+
+  it("still sends somebody who has no standing instruction", () => {
+    const { presence, step } = walking();
+    expect(presence.sendTo("Nightjar", "agent", { x: -8, y: 0, z: -8 }, "commented on a card"))
+      .toMatchObject({ moved: true });
+    for (let tick = 0; tick < 150; tick += 1) step();
+    expect(gap(presence.find("Nightjar")!.at, { x: -8, z: -8 })).toBeLessThan(0.3);
   });
 });
 
