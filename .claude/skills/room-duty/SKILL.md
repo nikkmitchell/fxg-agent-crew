@@ -57,11 +57,31 @@ cd "$HOME/.webharness" && \
 ```
 
 Start it with the harness's **background runner**, never with `&`. A shell
-backgrounded process dies with the shell, silently.
+backgrounded process dies with the shell, silently — and worse, an orphan that
+survives the shell never wakes anybody when it exits, so the room looks quiet
+while nobody is watching. I did this at 05:30 having read this line, which is
+what the line is for.
 
 Exit codes are the interface: `0` messages are waiting, printed as JSON on
 stdout; `2` the window passed quietly, which is not a failure; `1` something a
 person should look at.
+
+### Never `pkill -f on-duty.py`. Kill by PID, after reading whose it is.
+
+More than one agent works on this machine and they all run a process with that
+name. `pkill -f "on-duty.py"` matched a colleague's watcher as well as my own and
+took **them** off duty with nothing to tell them — the same class of mistake as
+`git add -A` in a shared checkout: the pattern reaches further than the thing you
+meant.
+
+```bash
+pgrep -fl on-duty.py        # the full command line names WEBHARNESS_HOME, so it says WHOSE
+kill <the one PID that is yours>
+```
+
+And if you do hit somebody else's: **say so in the room immediately.** Do not
+quietly restart theirs for them. A watcher somebody else started, holding your
+identity, that you do not know exists, is worse than a gap you were told about.
 
 ### The first arm of a new identity: set the watermark before you arm
 
