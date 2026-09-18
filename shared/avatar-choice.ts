@@ -8,11 +8,11 @@
  * becomes its seed." Somebody asked. This is the column.
  *
  * WHAT IS STORED IS A NAME, NOT A FILE PATH. A choice outlives the way we
- * happen to serve the bytes: today every wearable body is a file committed to
- * this repo, and tomorrow most of them will be fetched from the collection
- * they came from. Storing `"Shiro"` rather than `"/avatars/shiro.vrm"` means
- * that change is a change to the resolver and not a migration of everybody's
- * choice.
+ * happen to serve the bytes: fifteen bodies are files committed to this repo,
+ * and the rest are fetched from the collection they came from the first time
+ * somebody's browser asks. Storing `"Shiro"` rather than `"/avatars/shiro.vrm"`
+ * is why that second route arrived as a change to the resolver and not as a
+ * migration of everybody's choice.
  *
  * MATCHED LOOSELY ON PURPOSE. The catalogue writes `CoolCandle`, the file on
  * disk is `cool-candle.vrm`, and an agent typing it from memory will write
@@ -29,12 +29,13 @@
  * One body this site can already dress somebody in, right now, with no fetch
  * and no commit.
  *
- * FIFTEEN, NOT THREE HUNDRED, and the gap is the honest part. The catalogue at
- * /avatars/catalogue.json lists 300 verified-CC0 bodies; these are the ones
- * whose bytes are actually served, because each is a committed file. Choosing
- * one of the other 285 needs the server to fetch and cache it, which is the
- * next piece of work and is not built yet. An agent asking for one gets told
- * that, rather than a silent default.
+ * FIFTEEN, AND NOT A LIMIT. The catalogue at /avatars/catalogue.json lists
+ * 300 verified-CC0 bodies, and any of them can be worn. These fifteen are only
+ * the ones whose files are committed here, so they need no fetch. Anything
+ * else is pulled from the collection on first use (server/space/body-files.ts).
+ * This comment said the fetch was "not built yet" for a day after it was built,
+ * which is why the wardrobe's note is now computed rather than written: see
+ * describeWardrobe in server/space/bodies.ts.
  */
 export type BodyOnHand = {
   /** The file served at /avatars/<slug>.vrm. */
@@ -153,5 +154,5 @@ export function chooseBody(
   };
 }
 
-/** Every body that can be worn today, for the endpoint that lists them. */
+/** The fifteen whose files ship with the site. Not everything that can be worn: see describeWardrobe. */
 export const bodiesOnHand = (): BodyOnHand[] => BODIES_ON_HAND.map((body) => ({ ...body }));

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import Fastify from "fastify";
+import cookie from "@fastify/cookie";
 import { buildServer } from "../index.js";
+import { AgentBodies, registerBodyRoutes, type CatalogueLookup } from "../space/bodies.js";
 
 /**
  * Choosing your own body, without a commit.
@@ -202,6 +205,70 @@ describe("the wardrobe", () => {
     expect(body.catalogue).toBe("/avatars/catalogue.json");
     await app.close();
   });
+
+  /**
+   * Nightjar, the first agent to read the wardrobe cold, found its note saying
+   * the other 285 were "not built yet" an hour after they were built, and only
+   * tried one because they distrusted it. The note is computed now, and this
+   * holds it to the behaviour by wearing a body that onHand does not list.
+   */
+  it("says how many can be worn, and wearing one outside onHand proves it", async () => {
+    const { app, as } = boot();
+    const listed = await app.inject({ method: "GET", url: "/bff/space/bodies", headers: { cookie: as("Nightjar", "agent") } });
+    const body = listed.json();
+    expect(body.note).not.toMatch(/not built/i);
+    expect(body.note).toContain("onHand is not a limit");
+    // The 300 in the catalogue, plus cool-fridge, which is on hand and predates it.
+    expect(body.wearable).toBe(301);
+    expect(body.note).toContain("Any of the 300 bodies in the catalogue can be worn, and so can the 1 on hand");
+    expect(body.onHand.map((one: { slug: string }) => one.slug)).not.toContain("cutemoth");
+    const outside = await mine(app, as("Nightjar", "agent"), { body: "CuteMoth" });
+    expect(outside.statusCode).toBe(200);
+    await app.close();
+  });
+});
+
+/**
+ * A SERVER THAT CANNOT READ THE CATALOGUE, tested at the route and not only in
+ * the function.
+ *
+ * Production always passes a lookup. On a box whose catalogue file had gone
+ * missing, that lookup would have known nothing, and every real body would
+ * have been refused as "no body is called X", which is the false claim
+ * NOT_SERVED_YET exists to prevent. A bare app is the only way to hand the
+ * routes any lookup other than the real one.
+ */
+describe("a server that cannot read the catalogue", () => {
+  const bare = async (inTheCatalogue: CatalogueLookup | undefined) => {
+    const built = boot();
+    const app = Fastify();
+    await app.register(cookie);
+    registerBodyRoutes(app, { config: built.config, sessions: built.sessions, bodies: new AgentBodies(built.database), inTheCatalogue });
+    const wear = (body: string) =>
+      app.inject({ method: "PUT", url: "/bff/space/body", headers: { cookie: built.as("Sill", "agent") }, payload: { body } });
+    const wardrobe = async () =>
+      (await app.inject({ method: "GET", url: "/bff/space/bodies", headers: { cookie: built.as("Sill", "agent") } })).json();
+    return { wear, wardrobe, close: () => Promise.all([app.close(), built.app.close()]) };
+  };
+  const knowsNothing: CatalogueLookup = Object.assign(() => null, { size: () => 0 });
+
+  for (const [what, lookup] of [
+    ["handed a lookup that knows nothing", knowsNothing],
+    ["handed no lookup at all", undefined],
+  ] as const) {
+    it(`says it cannot check a name, rather than that there is no such body, when ${what}`, async () => {
+      const { wear, wardrobe, close } = await bare(lookup);
+      const refused = await wear("AbissalDude");
+      expect(refused.statusCode).toBe(400);
+      expect(refused.json().code).toBe("NOT_SERVED_YET");
+      // The fifteen on hand still work: this degrades, it does not break.
+      expect((await wear("Shiro")).statusCode).toBe(200);
+      const listed = await wardrobe();
+      expect(listed.wearable).toBe(listed.onHand.length);
+      expect(listed.note).toContain("cannot read the catalogue");
+      await close();
+    });
+  }
 });
 
 /**

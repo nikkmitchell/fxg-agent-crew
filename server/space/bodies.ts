@@ -4,7 +4,47 @@ import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
 import { actorKey } from "../../shared/space-layout.js";
-import { bodiesOnHand, chooseBody, type BodyOnHand } from "../../shared/avatar-choice.js";
+import { bodiesOnHand, bodyKey, chooseBody, type BodyOnHand } from "../../shared/avatar-choice.js";
+
+/** The catalogue as the body routes see it: a lookup by `bodyKey`, and how many bodies it knows. */
+export type CatalogueLookup = ((key: string) => { name: string } | null) & { size: () => number };
+
+/**
+ * WHAT CAN ACTUALLY BE WORN, worked out from the same lookup chooseBody is
+ * given rather than written as prose.
+ *
+ * The prose this replaces said the other 285 "need their file fetching first,
+ * which is not built yet" for a day after they were built. Nightjar, the first
+ * agent to read it cold, very nearly believed fifteen and never tried the rest.
+ * Nothing errors when a note is stale, so nothing corrects the belief. A
+ * sentence computed from the facts behind the behaviour cannot outlive it.
+ *
+ * `wearable` is how many distinct names PUT /bff/space/body accepts: every
+ * catalogue body, plus any body on hand that the catalogue does not list.
+ */
+export function describeWardrobe(
+  onHand: readonly BodyOnHand[],
+  catalogue: CatalogueLookup | undefined,
+): { wearable: number; note: string } {
+  if (!catalogue) {
+    return {
+      wearable: onHand.length,
+      note:
+        "onHand is everything that can be worn here. This server cannot read the catalogue, so it cannot " +
+        "tell whether any other name is a real body.",
+    };
+  }
+  const listed = catalogue.size();
+  const unlisted = onHand.filter((one) => !catalogue(bodyKey(one.catalogue ?? one.slug))).length;
+  return {
+    wearable: listed + unlisted,
+    note:
+      `Any of the ${listed} bodies in the catalogue can be worn` +
+      (unlisted > 0 ? `, and so can the ${unlisted} on hand that it does not list` : "") +
+      `: PUT /bff/space/body { "body": "<name>" }. onHand is not a limit. It is the ${onHand.length} whose ` +
+      "files ship with the site; any other body's file is fetched the first time a browser asks for it.",
+  };
+}
 
 /**
  * Which body each actor wears, chosen by that actor.
@@ -75,15 +115,27 @@ export function registerBodyRoutes(
      * A name the wardrobe does not hold, looked up in the catalogue of 300.
      *
      * Found means it is a real body and can be worn — its file is fetched on
-     * first use. Not found means no such body. ABSENT ALTOGETHER means this
-     * server cannot read the catalogue and genuinely does not know, which is a
-     * third answer and must not be reported as either of the first two.
-     * See server/space/catalogue.ts.
+     * first use. Not found means no such body. ABSENT, OR KNOWING NOTHING,
+     * means this server cannot read the catalogue and genuinely does not know,
+     * which is a third answer and must not be reported as either of the first
+     * two. See server/space/catalogue.ts.
      */
-    inTheCatalogue?: (key: string) => { name: string } | null;
+    inTheCatalogue?: CatalogueLookup;
   },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);
+
+  /**
+   * The lookup chooseBody is given, or none when the catalogue cannot be read.
+   *
+   * A lookup that knows nothing is not the same as no lookup. Handed to
+   * chooseBody, it would answer every real body "no body is called X", the
+   * false claim NOT_SERVED_YET exists to prevent. That is what production
+   * would have said on a box whose catalogue file went missing, because the
+   * lookup is always passed and only its contents were ever empty.
+   */
+  const readable = (): CatalogueLookup | undefined =>
+    deps.inTheCatalogue && deps.inTheCatalogue.size() > 0 ? deps.inTheCatalogue : undefined;
 
   /**
    * WHAT CAN BE WORN TODAY, and what cannot.
@@ -93,13 +145,12 @@ export function registerBodyRoutes(
    */
   app.get("/bff/space/bodies", async (request, reply) => {
     if (!requireSession(request, reply)) return reply;
+    const onHand = bodiesOnHand();
     return reply.send({
-      onHand: bodiesOnHand(),
+      onHand,
       chosen: deps.bodies.all(),
       catalogue: "/avatars/catalogue.json",
-      note:
-        "onHand is what can be worn right now — the bodies whose files this site serves. The catalogue lists " +
-        "300 verified-CC0 bodies; the rest need their file fetching first, which is not built yet.",
+      ...describeWardrobe(onHand, readable()),
     });
   });
 
@@ -131,7 +182,7 @@ export function registerBodyRoutes(
   ): { code: number; body: Record<string, unknown> } => {
     const refusal = mayDress(session, actorId);
     if (refusal) return { code: 403, body: { code: "NOT_ALLOWED", error: refusal } };
-    const chosen = chooseBody(asked, deps.inTheCatalogue);
+    const chosen = chooseBody(asked, readable());
     if ("error" in chosen) return { code: 400, body: { code: chosen.code, error: chosen.error } };
     deps.bodies.set(actorId, chosen.slug, session.username);
     return { code: 200, body: { ok: true, actorId, body: chosen.slug, looked: chosen.looked } };
