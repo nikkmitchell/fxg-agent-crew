@@ -86,6 +86,15 @@ export type Occupant = {
    * target is standing still.
    */
   following: { actorId: string; side: "left" | "right"; because: string | null } | null;
+  /**
+   * A route still to walk: the waypoints not yet reached, in order.
+   *
+   * ONE INSTRUCTION INSTEAD OF A TIMER, the same argument as `following`.
+   * Waffle built a tour out of a home re-sent every two seconds, which is a
+   * clock in the agent that drifts, stops when the agent is busy, and cannot be
+   * seen by anybody. An empty array is arrival, and the field goes back to null.
+   */
+  walking: { waypoints: Vec3[]; because: string | null } | null;
   /** Self-declared, ephemeral presentation state. */
   avatar: AvatarState;
   /**
@@ -233,6 +242,7 @@ export class Presence {
       attending: null,
       speakingTo: null,
       following: null,
+      walking: null,
       avatar: { ...DEFAULT_AVATAR_STATE },
       lastActed: null,
       standing: null,
@@ -605,8 +615,13 @@ export class Presence {
          * here means an agent told to talk to `Nikk2` finds nobody when the
          * room holds `nikk2`, and simply fails to turn — silently.
          */
-        // BEFORE the conversation walk, so a short declared exchange still
-        // wins: being spoken to is a moment, following is a standing state.
+        // A ROUTE FIRST, THEN A FOLLOW, THEN A CONVERSATION. Each is more
+        // immediate than the last, and only one may own the heading: a
+        // conversation is a moment, a follow is a standing state, a route is a
+        // plan. Starting any of them clears the others, so this order decides
+        // nothing that was not already decided — it just never leaves two of
+        // them writing the same field in one tick.
+        if (occupant.walking) this.walkRoute(occupant);
         if (occupant.following) this.walkBeside(occupant);
 
         const conversationTarget = occupant.speakingTo
@@ -705,6 +720,75 @@ export class Presence {
   }
 
   /**
+   * Advance along a route, dropping each waypoint as it is reached.
+   *
+   * The distance test is the same ARRIVED the tick uses, so "reached" here and
+   * "arrived" there cannot disagree — an agent that counted a waypoint reached
+   * while the walker still had a metre to go would skip the rest in one tick.
+   */
+  private walkRoute(occupant: Occupant): void {
+    const route = occupant.walking;
+    if (!route) return;
+
+    while (route.waypoints.length > 0 && distance(occupant.at, route.waypoints[0]!) < ARRIVED) {
+      route.waypoints.shift();
+    }
+    if (route.waypoints.length === 0) {
+      occupant.walking = null;
+      occupant.because = route.because ? `${route.because} — arrived` : "arrived";
+      return;
+    }
+    occupant.heading = this.roomFor(occupant, route.waypoints[0]!);
+    occupant.destinationFacing = null;
+    occupant.because = route.because
+      ?? `walking a route, ${route.waypoints.length} stop(s) to go`;
+  }
+
+  /**
+   * Walk a list of places, in order.
+   *
+   * A ROUTE REPLACES A FOLLOW rather than queueing behind it, because "walk
+   * with Nikk2" and "walk to these four places" are contradictory instructions
+   * and the honest thing is to do the newer one and say the older one ended.
+   */
+  walk(
+    actorId: string,
+    kind: "human" | "agent" | null,
+    waypoints: Vec3[],
+    because: string | null,
+  ): { ok: true; waypoints: number; stoppedFollowing: string | null }
+    | { ok: false; error: string; code: string } {
+    if (waypoints.length === 0) {
+      return { ok: false, code: "NOWHERE_TO_GO", error: "a route needs at least one place in it" };
+    }
+    const occupant = this.occupants.get(actorKey(actorId)) ?? this.join(actorId, kind, false);
+    if (this.selfMoving(occupant)) {
+      return {
+        ok: false,
+        code: "YOU_MOVE_YOURSELF",
+        error: "your own device owns your position; the server will not walk you",
+      };
+    }
+    const stoppedFollowing = occupant.following?.actorId ?? null;
+    occupant.following = null;
+    occupant.walking = { waypoints: waypoints.map((at) => clampToRoom(at)), because };
+    this.walkRoute(occupant);
+    return { ok: true, waypoints: waypoints.length, stoppedFollowing };
+  }
+
+  /** Abandon a route where you stand. Safe to call when not walking one. */
+  stopWalking(actorId: string): { remaining: number } {
+    const occupant = this.occupants.get(actorKey(actorId));
+    const remaining = occupant?.walking?.waypoints.length ?? 0;
+    if (occupant?.walking) {
+      occupant.walking = null;
+      occupant.heading = { ...occupant.at };
+      occupant.because = "stopped part-way along a route";
+    }
+    return { remaining };
+  }
+
+  /**
    * Walk beside somebody until told to stop.
    *
    * Only an actor the server moves may follow: a person's own device owns their
@@ -740,6 +824,8 @@ export class Presence {
     }
 
     const chosen = side ?? defaultSide(actorId, target.actorId);
+    // The mirror of the rule in `walk`: the newer instruction wins outright.
+    occupant.walking = null;
     occupant.following = { actorId: target.actorId, side: chosen, because };
     this.walkBeside(occupant);
     return { ok: true, side: chosen };

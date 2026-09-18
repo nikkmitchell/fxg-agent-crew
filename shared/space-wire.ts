@@ -99,6 +99,14 @@ export type WirePerson = {
    * also stop guessing why an avatar keeps moving.
    */
   following?: string | null;
+  /**
+   * How many stops of a route are still to walk, 0 when there is no route.
+   *
+   * Reported for the same reason as `following`: without it, an avatar crossing
+   * the room looks the same whether it is carrying out a plan or wandering, and
+   * the room's rule is that movement means something.
+   */
+  waypointsLeft?: number;
   /** Whether a live socket is attached — a person in the room right now. */
   connected: boolean;
   /**

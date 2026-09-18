@@ -110,6 +110,7 @@ export class SpaceHub {
         facing: occupant.facing,
         because: occupant.because,
         following: occupant.following?.actorId ?? null,
+        waypointsLeft: occupant.walking?.waypoints.length ?? 0,
         connected: occupant.connected,
         head: occupant.head,
         standing: occupant.standing,
