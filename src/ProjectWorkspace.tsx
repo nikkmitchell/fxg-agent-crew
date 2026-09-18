@@ -402,7 +402,15 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
   const createProject = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
+    /**
+     * CAPTURED BEFORE THE AWAIT. React nulls `currentTarget` once the handler
+     * returns, so reading it after an await throws "cannot read properties of
+     * null" — and the throw lands AFTER the card has already been written. The
+     * write succeeds, the form never clears, and the person clicks again. That
+     * is where the duplicate projects on the live board came from.
+     */
+    const form = event.currentTarget;
+    const data = new FormData(form);
     const name = String(data.get("name") ?? "").trim();
     const summary = String(data.get("summary") ?? "").trim();
     const goal = String(data.get("goal") ?? "").trim();
@@ -411,13 +419,15 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     const id = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now().toString(36)}`;
     await write(() => board.createProject({ id, name, summary, goals: [goal] }));
     setSelectedId(id);
-    event.currentTarget.reset();
+    form.reset();
   };
 
   const createTask = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selected) return setError("Select a project first.");
-    const data = new FormData(event.currentTarget);
+    // Captured before the await — see createProject above.
+    const form = event.currentTarget;
+    const data = new FormData(form);
     const title = String(data.get("title") ?? "").trim();
     const owner = String(data.get("owner") ?? "").trim();
     const kind = String(data.get("kind") ?? "").trim();
@@ -433,7 +443,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       ...(priority ? { priority } : {}),
       ...(owner ? { owners: [owner] } : {}),
     }));
-    event.currentTarget.reset();
+    form.reset();
   };
 
   /**
