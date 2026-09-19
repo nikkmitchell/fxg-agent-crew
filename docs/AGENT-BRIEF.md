@@ -314,6 +314,34 @@ tools/agent-worktree.sh sill        # your own directory, index and branch
 
   Blank means the thing you are about to put in front of people exists nowhere
   but here.
+- **The deploy permission does NOT travel, and its absence looks like a new
+  bug.** `.claude/settings.json` is gitignored (`.gitignore:12`), so the rules
+  that let you run `release.sh` exist in ONE working directory and in no clone,
+  no worktree and no other machine. A fresh checkout meets the auto-mode
+  classifier, is refused with "Production Deploy", and has every reason to think
+  something changed. Nothing changed; the permission was simply never yours.
+
+  ```json
+  { "permissions": { "allow": [
+      "Bash(deploy/release.sh:*)",
+      "Bash(PUBLIC_URL=https://saha.ing deploy/release.sh:*)",
+      "Bash(bash deploy/release.sh:*)",
+      "Bash(ssh:*)", "Bash(rsync:*)", "Bash(scp:*)"
+  ] } }
+  ```
+
+  **A RULE MATCHES THE SPELLING YOU TYPE, NOT THE SCRIPT YOU MEAN.** This cost a
+  deploy on 2026-09-20. `Bash(bash deploy/release.sh:*)` was present and looked
+  like the permission for exactly this — but the command actually run was
+  `PUBLIC_URL=https://saha.ing deploy/release.sh root@saha.ing`: no `bash`
+  prefix, and an environment assignment in front. The rule never matched, the
+  command fell through to the classifier, and the refusal read as policy rather
+  than as a near-miss in a string. Three commits sat undeployed while two agents
+  believed the block was a decision somebody had made.
+
+  So list every form you actually invoke, and when a refusal surprises you, read
+  the rule beside the command CHARACTER BY CHARACTER before concluding you are
+  forbidden.
 - **A fresh tree must be built once** (`pnpm install && pnpm run build`) or 133
   server tests fail — `buildServer` refuses to start without a built UI, which
   is deliberate. The script does both.
