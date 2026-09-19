@@ -17,6 +17,7 @@ import {
   useRoomPreferences,
 } from "./room-preferences";
 import { createSteadyRecorder, speakSay, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
+import { readAloud } from "./said-aloud";
 import { shouldSpeakUtterance } from "./VoiceControls";
 import { newestId, replyToSpeak } from "./reply-speech";
 import type { RoomFeed } from "./useRoomFeed";
@@ -693,7 +694,11 @@ export function RoomControls({
     utteranceSpoken.current = liveUtterance.id;
     if (!hearReplies || listening || !shouldSpeakUtterance(liveUtterance, you)) return;
     speaking.current?.cancel();
-    speaking.current = speakSay({
+    // A room utterance has audio on the box, in the speaker's chosen voice. The
+    // chat reader above does not: those messages are WebHarness's and the box
+    // has never heard of them. See said-aloud.ts.
+    speaking.current = readAloud({
+      utteranceId: liveUtterance.id,
       say: liveUtterance.say ?? "",
       speaker: liveUtterance.actorId,
       volume: volumeAt(distanceTo(liveUtterance.actorId)),

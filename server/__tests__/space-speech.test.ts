@@ -5,7 +5,7 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
-import { cacheName, registerSpeechRoutes, speechCache, timeoutFor, type Speaker } from "../space/speak.js";
+import { cacheName, registerSpeechRoutes, speakWith, speechCache, timeoutFor, type Speaker } from "../space/speak.js";
 import type { Utterance } from "../../shared/voice.js";
 
 /**
@@ -146,6 +146,36 @@ describe("reading a line aloud", () => {
     expect(await readFile(join(cacheRoot, cacheName(said().say!, "af_heart")), "utf8")).toContain("WAVE");
   });
 
+  /**
+   * FOUND IN A BROWSER, NOT HERE. The room warms a line the moment it is said
+   * and the listener's page asks a beat later; a plain one-at-a-time lock
+   * refused that listener with 503 and dropped them to the browser's robot —
+   * losing the agent's own voice in exactly the case warming exists for.
+   */
+  it("asking for the line that is already being said waits for it", async () => {
+    const cacheRoot = await mkdtemp(join(tmpdir(), "speech-inflight-"));
+    let finish: (() => void) | null = null;
+    let calls = 0;
+    const slow: Speaker = async (text, voice, outPath) => {
+      calls += 1;
+      await new Promise<void>((done) => {
+        finish = () => done();
+      });
+      await writeFile(outPath, Buffer.from("RIFF....WAVE"));
+    };
+    const speech = speechCache({ cacheRoot, speaker: () => slow });
+
+    speech.warm("a line", "af_heart");
+    await new Promise((settle) => setTimeout(settle, 10));
+    const listener = speech.ensure("a line", "af_heart");
+    // A DIFFERENT line is still refused while the engine is busy.
+    expect(await speech.ensure("another line", "af_heart")).toBe(false);
+
+    finish?.();
+    expect(await listener, "the listener got the line, not a refusal").toBe(true);
+    expect(calls, "and it was only said once").toBe(1);
+  });
+
   it("warming never throws, whatever the engine does", async () => {
     const cacheRoot = await mkdtemp(join(tmpdir(), "speech-warm-"));
     const speech = speechCache({
@@ -171,6 +201,26 @@ describe("reading a line aloud", () => {
     const response = await app.inject({ method: "GET", url: "/bff/space/utterances/7/audio" });
     expect(response.statusCode).toBe(401);
     await close();
+  });
+});
+
+describe("running the engine", () => {
+  it("passes a path with spaces in it as ONE argument", async () => {
+    // This worktree lives under "Python Stuff/My Projects", and filling the
+    // command before splitting it handed the engine three arguments where one
+    // was meant. The box's own path has no spaces, so only a browser found it.
+    // The PROGRAM lives somewhere ordinary — a command line with spaces in its
+    // own path would need quoting, and nothing here has ever wanted that. What
+    // must survive is the VALUE: the cache root under "Python Stuff/My Projects".
+    const tools = await mkdtemp(join(tmpdir(), "speech-tools-"));
+    const reporter = join(tools, "argv-reporter.sh");
+    await writeFile(reporter, '#!/bin/sh\nprintf "%s" "$#" > "$2"\n', { mode: 0o755 });
+    const speak = speakWith(`${reporter} --out {file}`);
+    const room = await mkdtemp(join(tmpdir(), "speech with spaces-"));
+    const out = join(room, "a line.wav");
+    await speak("hello", "af_heart", out);
+    // Two arguments: --out and the path. Three would mean the path was split.
+    expect((await readFile(out, "utf8")).trim()).toBe("2");
   });
 });
 

@@ -139,6 +139,10 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const speech = speechCache({
     cacheRoot: resolve(config.speechCacheRoot),
     speaker: () => (process.env.SPEAK_CMD?.trim() ? speakWith(process.env.SPEAK_CMD.trim()) : undefined),
+    // Warming swallows its failure on purpose; the reason still has to go
+    // somewhere, or a broken engine is indistinguishable from a busy one.
+    onTrouble: (error, text, voice) =>
+      app.log.warn({ err: error, voice, line: text.slice(0, 60) }, "could not say a line aloud"),
   });
   // Names the 300 catalogue bodies and, for each, the one address its file may
   // be fetched from. Read lazily; see server/space/catalogue.ts.

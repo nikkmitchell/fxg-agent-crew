@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { DETAIL_LIMIT, SPOKEN_LIMIT, splitSpoken, type Utterance, type UtteranceInput } from "../../shared/voice";
 import type { SpaceConnection } from "./useSpaceSocket";
-import { createSteadyRecorder, speakSay, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
+import { createSteadyRecorder, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
+import { readAloud } from "./said-aloud";
 import { space } from "../space-client";
 import { holdReload } from "../update-reload";
 import { volumeAt } from "./agent-voice";
@@ -68,7 +69,10 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
     const find = (id: string | null) => (id ? people.find((person) => person.actorId.toLowerCase() === id.toLowerCase()) : undefined);
     const speaker = find(utterance.actorId);
     const me = find(you);
-    outputRef.current = speakSay({
+    // The box's own rendering of this line, in the speaker's chosen voice, with
+    // the browser's synthesiser behind it. See said-aloud.ts.
+    outputRef.current = readAloud({
+      utteranceId: utterance.id,
       say: utterance.say ?? "",
       speaker: utterance.actorId,
       volume: volumeAt(speaker && me ? Math.hypot(speaker.at.x - me.at.x, speaker.at.z - me.at.z) : null),
