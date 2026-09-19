@@ -1,5 +1,6 @@
 import { base } from "../router";
 import { speakSay, type SpeechFailure, type SpeechOutput, type SpeechPhase } from "./speech";
+import { primeAudioOnFirstGesture } from "./audio-unlock";
 
 /**
  * Hearing a line in the speaker's OWN voice, made on the box, with the
@@ -82,6 +83,14 @@ export function readAloud(options: ReadAloudOptions): SpeechOutput {
   const { utteranceId, say, speaker, volume, onPhase, onFailure } = options;
   const fetchSaid = options.fetchSaid ?? fetchSaidAloud;
   const makeAudio = options.makeAudio ?? defaultAudio;
+
+  /**
+   * ARMED HERE RATHER THAN AT BOOT, so nothing has to remember to set it up and
+   * no surface can forget. Every call after the first is a no-op. It buys the
+   * right to play sound on the NEXT tap, so it does not rescue this line — the
+   * refusal message still has to exist, and does.
+   */
+  primeAudioOnFirstGesture();
 
   let cancelled = false;
   let spoken: SpeechOutput | null = null;
