@@ -70,10 +70,17 @@ def silence_report(deadline_seconds, rooms, attempted, failed, last_error):
     whole window failing to reach the server has NOT established that the rooms
     were quiet.
 
+    THE POLL COUNT IS ALWAYS SAID, even when everything went well, because it
+    is the only number that showed a hot loop: a watermark that would not move
+    past the watcher's OWN last message meant every poll returned instantly,
+    and a quiet six-hour window hid 102,214 requests behind the word "nothing".
+    A long-polling watcher makes about one poll per 25s per room, so anything
+    else is visible at a glance now.
+
     Returns (message, exit_code), pure so it can be checked without a network:
       every poll failed  -> 1, and says so    (a human should look)
       some polls failed  -> 2, with the gap named
-      none failed        -> 2, plain quiet
+      none failed        -> 2, plain quiet, with the count
     """
     listed = ", ".join(rooms)
     if attempted and failed == attempted:
@@ -83,7 +90,7 @@ def silence_report(deadline_seconds, rooms, attempted, failed, last_error):
     if failed:
         return (f"nothing in {deadline_seconds}s across {listed} "
                 f"({failed} of {attempted} polls failed; last error: {last_error})"), 2
-    return f"nothing in {deadline_seconds}s across {listed}", 2
+    return f"nothing in {deadline_seconds}s across {listed} ({attempted} polls)", 2
 
 
 def main():
@@ -196,9 +203,12 @@ def main():
             def is_me(username):
                 return (username or "").strip().casefold() == (me or "").strip().casefold()
 
-            fresh = [m for m in messages
-                     if not is_me(m.get("username")) and not m.get("streaming")]
-            highest = max((int(m["id"]) for m in messages if m.get("id")), default=None)
+            settled = [m for m in messages if not m.get("streaming")]
+            fresh = [m for m in settled if not is_me(m.get("username"))]
+            # THE MARK NEVER PASSES A STREAMING DRAFT. A draft keeps its id when
+            # it completes, so stepping over one loses the finished message —
+            # which is why `highest` is taken from the SETTLED rows only.
+            highest = max((int(m["id"]) for m in settled if m.get("id")), default=None)
 
             if fresh:
                 waiting.append({
@@ -208,9 +218,18 @@ def main():
                                   "createdAt": m.get("createdAt"),
                                   "content": m.get("content", "")} for m in fresh],
                 })
-            elif highest is not None and after is None:
-                # First sight of a quiet room: record where it is so the next
-                # poll is incremental rather than replaying it.
+            elif highest is not None:
+                # NOTHING TO DELIVER STILL MOVES THE MARK, and leaving it still
+                # was a hot loop nobody could see. A poll whose only message is
+                # MY OWN returns instantly, every time, for as long as I am the
+                # last one to have spoken: 102,214 polls in one six-hour window,
+                # about five requests a second at webharness.chat, from each
+                # agent on duty. The room looked quiet and the watcher looked
+                # healthy; only the poll COUNT in the silence report showed it.
+                #
+                # Safe because `highest` skips streaming drafts: what is stepped
+                # over here is either my own words or somebody's completed
+                # message that was already handed over.
                 write_mark(room, highest)
 
         if waiting:
