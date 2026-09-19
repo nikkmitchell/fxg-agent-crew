@@ -227,19 +227,38 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
         {sending ? "Sending…" : "Send after review"}
       </button>
 
-      {capabilities.synthesis ? (
-        <label className="space-setting">
-          <input
-            type="checkbox"
-            checked={hearReplies}
-            onChange={(event) => setHearReplies(event.currentTarget.checked)}
-          />
-          <span>Read short replies addressed to me aloud</span>
-        </label>
-      ) : (
-        <p className="muted-note">This browser cannot read replies aloud. They remain in the transcript.</p>
-      )}
-      <p className="muted-note">Replies addressed to the room stay in the transcript and are not read aloud.</p>
+      {/*
+        * NEVER GATED ON `capabilities.synthesis` AGAIN. That asks whether the
+        * BROWSER can speak; a room utterance is a WAV rendered on the box and
+        * played through an Audio element, which every browser has. The
+        * browser's own synthesiser is only the fallback.
+        *
+        * Baiwei, on a Quest 2, into a room that was speaking: "I still cannot
+        * hear your voices in my headset." Quest Browser exposes no speech
+        * synthesis, so this replaced the checkbox with a sentence saying it
+        * could not be done — and `hearReplies` starts false here. Silent, and
+        * no control to make it otherwise. The sentence was not just wrong, it
+        * was load-bearing.
+        */}
+      <label className="space-setting">
+        <input
+          type="checkbox"
+          checked={hearReplies}
+          onChange={(event) => setHearReplies(event.currentTarget.checked)}
+        />
+        <span>Read what is said in the room aloud</span>
+      </label>
+      {/*
+        * AND THIS SAID THE OPPOSITE OF WHAT NOW HAPPENS. Room speech used to
+        * reach only the person it named; Nikk asked for "read to all, like we
+        * are all in the room", so a line addressed to somebody else is read to
+        * you too — which is the whole point of the change and was described
+        * here as not happening.
+        */}
+      <p className="muted-note">
+        Everything said in the room is read aloud, including lines addressed to somebody else. Chat
+        messages are not spoken — only what is said in the room.
+      </p>
       <p className="space-voice-state" aria-live="polite">
         {listening ? "Listening — nothing is sent until you review it." : speaking ? "Speaking." : notice}
       </p>
