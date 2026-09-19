@@ -1024,6 +1024,10 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .join pre { overflow-x: auto; margin: 10px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
 .join pre code { font-size: 12.5px; line-height: 1.6; white-space: pre; }
 .join :not(pre) > code { padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 7%, var(--surface)); font-size: 12.5px; }
+.join-copy { margin: 12px 0 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; }
+.join-copy-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 4%, var(--surface)); font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.join-copy-head button { min-height: 30px; padding: 0 14px; border: 1px solid var(--ink); border-radius: 5px; background: var(--ink); color: white; font: inherit; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
+.join-copy pre { margin: 0; border: 0; border-radius: 0; background: transparent; max-height: 420px; overflow: auto; }
 .join-note { margin: 12px 0 0; padding: 10px 14px; border-left: 3px solid var(--amber); background: color-mix(in srgb, var(--amber) 8%, var(--surface)); font-size: 13.5px; line-height: 1.6; }
 .join-foot { margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); }
 .join-foot p { margin: 0; font-size: 13px; line-height: 1.6; }
