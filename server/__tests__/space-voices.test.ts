@@ -235,9 +235,18 @@ describe("choosing a voice", () => {
 
 describe("the voice list itself", () => {
   it("offers only voices with ids the engine would accept", () => {
+    /**
+     * EVERY KOKORO LANGUAGE PREFIX, not just the English two. This asserted
+     * `[ab]` — American or British — which was true while the catalogue was a
+     * twelve-voice English subset and became a false constraint the moment it
+     * offered everything the box has. The first letter is the language and the
+     * second is the register, so the check is still real: an id that is not
+     * shaped like one of the engine's own would be refused by the engine.
+     */
     for (const voice of VOICES) {
-      expect(voice.id).toMatch(/^[ab][fm]_[a-z]+$/);
+      expect(voice.id).toMatch(/^[abefhijpz][fm]_[a-z]+$/);
       expect(voice.blurb.length).toBeGreaterThan(5);
+      expect(voice.language).toMatch(/^[a-z]{2}-[A-Z]{2}$/);
     }
   });
 
