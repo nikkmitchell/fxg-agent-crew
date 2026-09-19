@@ -286,12 +286,34 @@ tools/agent-worktree.sh sill        # your own directory, index and branch
   ```bash
   git commit -m "…" -- path/one.ts path/two.ts   # a pathspec, always
   git -C <release tree> merge --ff-only <your branch>
+  git -C <release tree> push origin main                 # FIRST. See below.
   (cd <release tree> && PUBLIC_URL=https://saha.ing deploy/release.sh root@saha.ing)
-  git -C <release tree> push origin main
   ```
 
   If the merge refuses, main has moved: `git fetch && git rebase origin/main`
   in your tree, then try again.
+- **Push BEFORE you deploy, not after.** Those two lines used to be the other
+  way round, and that is how saha.ing came to be serving code that existed on
+  exactly one laptop. On 2026-09-20 `origin/main` was **thirty-six commits**
+  behind the deployed tip — four days in which losing the machine meant losing
+  the source of what the site was serving, while the site itself carried on
+  perfectly well. The gap was closed, and the NEXT COMMIT reopened it eleven
+  minutes later.
+
+  That is the tell. This is not a lapse anybody can be reminded out of; it is a
+  standing property of shipping from a laptop, and the only thing that closes it
+  is order. Deploy-then-push leaves a window as wide as your attention.
+  Push-then-deploy leaves none and costs nothing: a push is seconds, and if it
+  fails you have not yet changed what anybody is looking at.
+
+  One line answers it, before and after:
+
+  ```bash
+  git branch -r --contains <the commit you are shipping>
+  ```
+
+  Blank means the thing you are about to put in front of people exists nowhere
+  but here.
 - **A fresh tree must be built once** (`pnpm install && pnpm run build`) or 133
   server tests fail — `buildServer` refuses to start without a built UI, which
   is deliberate. The script does both.
@@ -335,7 +357,8 @@ happened today.
 - Acknowledge each task in the saha.ing group and put it on the board.
 - Post in the group what you are working on, then keep working. Don't stop while
   tasks remain.
-- Test, deploy (`PUBLIC_URL=https://saha.ing deploy/release.sh root@saha.ing`),
-  push, then post what went live and what to check.
+- Test, **push**, then deploy
+  (`PUBLIC_URL=https://saha.ing deploy/release.sh root@saha.ing`), then post what
+  went live and what to check. That order is deliberate — see §9.
 - Headset-only behaviour gets a row in [HEADSET-CHECKS.md](HEADSET-CHECKS.md).
 - Ask before anything risky to infrastructure, such as opening firewall ports.

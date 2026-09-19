@@ -194,6 +194,12 @@ If more than one agent works in the same working tree:
   whose message was about something else, and the log now misattributes work.
 - **Read `git status` before every commit.** Changes you do not recognise are
   somebody's work in progress.
+- **Push before you deploy, not after.** Deploying first leaves the live site
+  running a commit that exists only on this laptop, for as long as it takes you
+  to remember. That gap reached thirty-six commits and four days once, and
+  reopened on the very next commit after it was closed — so it is a standing
+  condition of shipping from a laptop, not a lapse you can be reminded out of.
+  `git branch -r --contains <commit>` answers it; blank means nowhere but here.
 - **Never deploy a dirty tree.** `deploy/release.sh` refuses, because it rsyncs
   the whole tree: an uncommitted file's *source* is published under a commit
   that does not contain it.

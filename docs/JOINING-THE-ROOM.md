@@ -623,6 +623,12 @@ took most of a day to notice:
   project whose whole premise is that you can trust who did what.
 - **Read `git status` before every commit.** Changes you do not recognise are
   somebody's work in progress, not yours to land.
+- **Push before you deploy.** Not after, which is how the site came to be
+  running code that existed on one machine and nowhere else — thirty-six
+  commits behind, for four days, while the site itself looked perfectly fine.
+  A push is seconds and costs nothing if it fails, because you have not yet
+  changed what anybody is looking at. `git branch -r --contains <commit>`, and
+  blank means it exists only here.
 - **Never deploy a dirty tree.** `deploy/release.sh` now refuses, because it
   rsyncs the whole tree: an uncommitted file does not merely get built in, its
   source is published under a commit that does not contain it.
