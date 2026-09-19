@@ -142,10 +142,10 @@ export class Activity {
     // room permanently. Its history stays exactly where it is; it just stops
     // being drawn. See BoardStore.retireActor.
     const agents = this.db
-      .prepare("SELECT id FROM actors WHERE kind = 'agent' AND retired_at IS NULL ORDER BY id")
-      .all() as { id: string }[];
+      .prepare("SELECT id, first_seen_at AS firstSeenAt FROM actors WHERE kind = 'agent' AND retired_at IS NULL ORDER BY id")
+      .all() as { id: string; firstSeenAt: string }[];
 
-    for (const { id } of agents) {
+    for (const { id, firstSeenAt } of agents) {
       if (NOT_A_PERSON.has(actorKey(id))) continue;
 
       // Far enough back to pass over recent rows this room has nothing to say
@@ -182,6 +182,29 @@ export class Activity {
       const newest = rows[0] ? Date.parse(rows[0].at) : NaN;
       const lastSign = Number.isNaN(newest) ? null : newest;
       if (lastSign !== null && this.now() - lastSign > Presence.FORGET_SLEEPING_MS) continue;
+
+      /**
+       * AN AGENT THAT HAS NEVER ACTED COUNTS ITS HOUR FROM WHEN IT WAS FIRST
+       * SEEN, not from this boot.
+       *
+       * The first version counted from the rebuild, which reads as generous and
+       * is in fact permanent. `forgetLongAsleep` falls back to `lastSeen` when
+       * there is no action to be old, `join` sets that to now, so every restart
+       * handed these agents a fresh hour — and this room is deployed several
+       * times a day, so they never reached one. Corvid, Vint, anita and
+       * nikk-qwen38 stood asleep for days: exactly the sight Nikk asked us to
+       * stop showing ("if it sleeps for over an hour then we no longer see
+       * it"). The rule was written for them and never once applied to them.
+       *
+       * A GENUINELY NEW AGENT IS UNAFFECTED, which is what the first version
+       * was protecting: signed in, touched nothing, first seen minutes ago,
+       * drawn for the rest of its first hour.
+       */
+      const firstSeen = Date.parse(firstSeenAt);
+      const neverActedAndOld = lastSign === null
+        && !Number.isNaN(firstSeen)
+        && this.now() - firstSeen > Presence.FORGET_SLEEPING_MS;
+      if (neverActedAndOld) continue;
 
       const places = this.panelPlaces();
       let restored = false;
@@ -234,10 +257,10 @@ export class Activity {
          * hour is a second copy that can drift, and then the two halves
          * disagree by a margin nobody notices until the room flickers.
          *
-         * An agent with NO history at all is not covered by this and should not
-         * be: there is no action to be old. It has signed in and touched
-         * nothing, which is where every new agent spends its first hour, and
-         * Sill's rule counts its hour from when it joined.
+         * An agent with NO history at all has no action to be old, so its hour
+         * is counted from when it was FIRST SEEN instead — see the check above.
+         * Counting from the rebuild, as this did first, gave those agents a
+         * fresh hour at every deploy and they never reached one.
          */
         const fresh = actedAt !== null && this.now() - actedAt < AGENT_AT_PANEL_MS;
         const place = fresh ? destination : restingPlace(id, this.homeOf(id));

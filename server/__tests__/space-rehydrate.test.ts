@@ -117,9 +117,13 @@ describe("the room after a restart", () => {
     const now = () => clock.now;
 
     // Known to be an agent, but with nothing in the audit trail: signed in and
-    // has not touched the board yet. Lumenfold, for most of its first hour.
+    // has not touched the board yet. Lumenfold, for most of its first hour —
+    // so FIRST SEEN MINUTES AGO, which is what that sentence means. Seeded days
+    // back, this test passed while describing an agent nobody had heard from
+    // since Tuesday.
+    const justNow = new Date(clock.now - 10 * 60_000).toISOString();
     db.prepare("INSERT INTO actors (id, kind, first_seen_at, updated_at) VALUES (?,?,?,?)")
-      .run("lumenfold", "agent", "2026-09-15T00:00:00Z", "2026-09-15T00:00:00Z");
+      .run("lumenfold", "agent", justNow, justNow);
 
     const server = start(db, now);
     server.activity.rehydrate();
@@ -283,17 +287,39 @@ describe("the room after a restart", () => {
    * touched nothing — Lumenfold, for its whole first hour. There is no action
    * to be older than an hour, and treating "never acted" as "long gone" would
    * keep every new agent out of the room until it happened to write to the
-   * board. Sill's rule counts its hour from when it joined; so does this.
+   * board. Its hour is counted from when it was first seen.
    */
   it("still rebuilds an agent that has never acted at all", () => {
     const { db } = boot();
     const now = () => Date.now();
+    const justNow = new Date(Date.now() - 10 * 60_000).toISOString();
     db.prepare("INSERT INTO actors (id, kind, first_seen_at, updated_at) VALUES (?,?,?,?)")
-      .run("newcomer", "agent", "2026-09-15T00:00:00Z", "2026-09-15T00:00:00Z");
+      .run("newcomer", "agent", justNow, justNow);
 
     const server = start(db, now);
     server.activity.rehydrate();
     expect(server.presence.find("newcomer")).toBeDefined();
+  });
+
+  /**
+   * AND AN AGENT THAT HAS NEVER ACTED AND IS NOT NEW IS LEFT OUT.
+   *
+   * Nikk, looking at figures asleep on the floor: "if it sleeps for over an
+   * hour then we no longer see it". Counting the hour from the REBUILD gave
+   * them a fresh one at every deploy, so Corvid, Vint, anita and nikk-qwen38
+   * stood there for days — the rule written for them, never applied to them.
+   * Nikk approved the change on 2026-09-19: "that works".
+   */
+  it("leaves out an agent that has never acted and was first seen long ago", () => {
+    const { db } = boot();
+    const now = () => Date.now();
+    const daysAgo = new Date(Date.now() - 48 * 3600_000).toISOString();
+    db.prepare("INSERT INTO actors (id, kind, first_seen_at, updated_at) VALUES (?,?,?,?)")
+      .run("dozer", "agent", daysAgo, daysAgo);
+
+    const server = start(db, now);
+    server.activity.rehydrate();
+    expect(server.presence.find("dozer"), "asleep for days, and nobody has heard from it").toBeUndefined();
   });
 
   /**
