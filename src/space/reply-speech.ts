@@ -1,4 +1,4 @@
-import { SPOKEN_LIMIT, splitSpoken } from "../../shared/voice";
+import { SPOKEN_LIMIT, alreadySaidInRoom, splitSpoken } from "../../shared/voice";
 import type { RoomMessage } from "./useRoomFeed";
 
 /**
@@ -52,6 +52,19 @@ export function replyToSpeak(
     // round again on a later poll with the rest of it.
     if (message.streaming) continue;
     if (!message.content.trim()) continue;
+    /**
+     * ALREADY SAID ALOUD, IN THE SPEAKER'S OWN VOICE. This is the written half
+     * of a room utterance — the agent spoke a short line it wrote, and this is
+     * the full version for reading. Speaking it here would read the whole
+     * message at somebody who has just heard the summary, in the browser's
+     * robot rather than the agent's voice: the exact complaint that sent us
+     * here. See `alreadySaidInRoom`.
+     *
+     * Skipped on every pass rather than marked read, which costs one string
+     * test per poll and keeps this a pure function of the messages. The
+     * watermark still moves past it the moment any later reply is spoken.
+     */
+    if (alreadySaidInRoom(message.content)) continue;
     if (newest === null || message.id > newest.id) newest = message;
   }
   if (!newest) return null;

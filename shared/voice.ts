@@ -129,6 +129,35 @@ export function splitForChat(text: string, limit = CHAT_MESSAGE_LIMIT, reserve =
   return parts;
 }
 
+/**
+ * THE WRITTEN HALF OF SOMETHING ALREADY SAID ALOUD.
+ *
+ * An agent now answers in two places at once: a short line it WROTE is spoken
+ * in the room, and the full version goes to the WebHarness chat. Nikk, choosing
+ * that shape: "we do the full thing that just goes to chat and then we send
+ * like what you speak into the room and that doesn't even go to chat at all".
+ *
+ * Without a mark, the headset reads the chat copy out too — so the listener
+ * hears the summary in the agent's own voice and then the entire message again
+ * in the browser's robot. The mark is what `replyToSpeak` checks to stay quiet.
+ *
+ * WHY A MARK RATHER THAN MATCHING THE TEXT. Matching the chat copy against the
+ * utterance only works if the utterance is seen FIRST, and nothing guarantees
+ * that order — a poll can deliver either first. A mark that travels with the
+ * message cannot arrive in the wrong order. It costs a short prefix in the chat
+ * panel, which is a fair price for never being read at twice.
+ *
+ * It says `full text` because that is what follows it. The SPOKEN line is not
+ * here at all, by Nikk's instruction: the room said it, and the chat does not
+ * repeat it.
+ */
+export const saidInRoomHeading = (speaker: string): string => `${speaker} said in the room (full text): `;
+
+/** Whether this chat message is the written half of something already spoken. */
+export function alreadySaidInRoom(content: string): boolean {
+  return /^\S.*? said in the room \(full text\): /.test(content.trimStart());
+}
+
 /** The longest written part. Generous — nobody has to listen to it. */
 export const DETAIL_LIMIT = 20_000;
 

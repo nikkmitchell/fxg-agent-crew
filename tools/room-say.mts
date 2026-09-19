@@ -30,7 +30,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { SPOKEN_LIMIT, refusalFor } from "../shared/voice.js";
+import { SPOKEN_LIMIT, refusalFor, saidInRoomHeading } from "../shared/voice.js";
 
 const SITE = process.env.SAHA_URL ?? "https://saha.ing";
 
@@ -87,16 +87,24 @@ if (refused) {
   process.exit(1);
 }
 
-const token = execFileSync("python3", ["-c", `
+/**
+ * THE NAME COMES FROM THE LOGIN, not from the username file beside it. The two
+ * can disagree in case — WebHarness answers `Sill` where the file says `sill` —
+ * and this name is about to be printed in the chat panel as the speaker of a
+ * line somebody heard in the room. It should be spelled the way the room spells
+ * it.
+ */
+const [me, token] = execFileSync("python3", ["-c", `
 import os, sys
 sys.path.insert(0, os.path.expanduser("~/.webharness"))
 import inbox
-_, t = inbox.login()
+who, t = inbox.login()
+print(who)
 print(t)
 `], {
   env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
   encoding: "utf8",
-}).trim();
+}).trim().split("\n");
 
 const auth = await fetch(`${SITE}/bff/agent-session`, {
   method: "POST",
@@ -127,13 +135,23 @@ console.log(`room: said ${say.length} chars aloud${detail ? `, wrote ${detail.le
  * the chat keeps the whole argument for whoever wants to read it at their own
  * speed.
  *
+ * THE SPOKEN LINE IS NOT REPEATED HERE. This used to post `say` followed by
+ * `detail`, so the one sentence that had just been said out loud arrived in the
+ * chat as well. Nikk: "we do the full thing that just goes to chat and then we
+ * send like what you speak into the room and that doesn't even go to chat at
+ * all". The room says it; the chat holds the written version; neither carries a
+ * copy of the other.
+ *
+ * THE HEADING IS NOT DECORATION — it is what stops a headset reading this out
+ * on top of the utterance it is the written half of. See `alreadySaidInRoom`.
+ *
  * REPORTED SEPARATELY when it fails. Being told your words reached both when
  * they reached one is the quiet failure this project exists not to have.
  */
 if (alsoChat && detail) {
   try {
     execFileSync("python3", [`${process.env.HOME}/.webharness/post.py`, "saha.ing"], {
-      input: `${say}\n\n${detail}`,
+      input: `${saidInRoomHeading(me)}${detail}`,
       env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
       encoding: "utf8",
       stdio: ["pipe", "inherit", "inherit"],

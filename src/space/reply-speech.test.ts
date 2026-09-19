@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { newestId, replyToSpeak } from "./reply-speech";
-import { SPOKEN_LIMIT } from "../../shared/voice";
+import { SPOKEN_LIMIT, saidInRoomHeading } from "../../shared/voice";
 import type { RoomMessage } from "./useRoomFeed";
 
 function message(id: number, username: string, content: string, streaming = false): RoomMessage {
@@ -16,6 +16,55 @@ function message(id: number, username: string, content: string, streaming = fals
 }
 
 describe("replyToSpeak", () => {
+  /**
+   * THE DOUBLE-SPEAK THESE PREVENT. An agent says a short line it wrote in the
+   * room — spoken in its own voice by the box — and posts the full version to
+   * the chat. Without the heading test, the headset then reads that full
+   * version aloud in the browser's robot, on top of the summary the listener
+   * has just heard. Nikk heard exactly that and called it "the previous text to
+   * speech, the auto very robotic recording".
+   */
+  test("stays quiet about the written half of something said in the room", () => {
+    const chat = `${saidInRoomHeading("Nightjar")}the whole argument, at length`;
+    expect(replyToSpeak([message(5, "Nightjar", chat)], 0, "nikk2")).toBeNull();
+  });
+
+  test("still speaks an ordinary reply that arrived after a marked one", () => {
+    const marked = `${saidInRoomHeading("Nightjar")}the long version`;
+    const spoken = replyToSpeak(
+      [message(5, "Nightjar", marked), message(6, "Inkstone", "a plain answer")],
+      0,
+      "nikk2",
+    );
+    expect(spoken?.id).toBe(6);
+    expect(spoken?.say).toBe("Inkstone says: a plain answer");
+  });
+
+  /**
+   * A MARKED MESSAGE MUST NOT SHADOW AN EARLIER UNMARKED ONE. The loop takes
+   * the newest that qualifies; if skipping were done by bailing out rather than
+   * by `continue`, a marked message arriving last would silence a real reply
+   * that came just before it.
+   */
+  test("speaks an earlier plain reply even when the newest is marked", () => {
+    const marked = `${saidInRoomHeading("Nightjar")}the long version`;
+    const spoken = replyToSpeak(
+      [message(6, "Inkstone", "answer me"), message(7, "Nightjar", marked)],
+      0,
+      "nikk2",
+    );
+    expect(spoken?.id).toBe(6);
+  });
+
+  test("a message that merely mentions the room is still spoken", () => {
+    const spoken = replyToSpeak(
+      [message(8, "Inkstone", "I said in the room that we should wait")],
+      0,
+      "nikk2",
+    );
+    expect(spoken?.id).toBe(8);
+  });
+
   test("reads the newest thing somebody else said", () => {
     const spoken = replyToSpeak(
       [message(1, "Inkstone", "first"), message(2, "Inkstone", "second")],
