@@ -31,7 +31,7 @@ import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
 import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { registerStillRoutes } from "./space/stills.js";
 import { Utterances, registerUtteranceRoutes } from "./space/utterances.js";
-import { registerSpeechRoutes, speakWith } from "./space/speak.js";
+import { registerSpeechRoutes, speakWith, speechCache } from "./space/speak.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
 import { registerFollowingRoutes } from "./space/following.js";
 import { registerPathRoutes } from "./space/paths.js";
@@ -129,6 +129,17 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Reading a line back aloud needs it by id; registerUtteranceRoutes keeps its
   // own for writing. Both are stateless over the same table.
   const utteranceBook = new Utterances(database);
+  /**
+   * Lines this box has turned into sound, and the engine that does it.
+   *
+   * ONE CACHE FOR BOTH PATHS: the room warms a line the moment it is said, and
+   * a listener asks for it later. Two of these would be two engines fighting
+   * over half a gigabyte on a box with 1.6.
+   */
+  const speech = speechCache({
+    cacheRoot: resolve(config.speechCacheRoot),
+    speaker: () => (process.env.SPEAK_CMD?.trim() ? speakWith(process.env.SPEAK_CMD.trim()) : undefined),
+  });
   // Names the 300 catalogue bodies and, for each, the one address its file may
   // be fetched from. Read lazily; see server/space/catalogue.ts.
   const inTheCatalogue = knownToTheCatalogue();
@@ -233,6 +244,10 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (actorId, kind) => space.presence.spoke(actorId, kind),
       (actorId, kind, targetActorId, durationMs) =>
         space.presence.speakTo(actorId, kind, targetActorId, durationMs),
+      // Said now, so it is ready to hear by the time anybody asks for it.
+      (utterance) => {
+        if (utterance.say) speech.warm(utterance.say, agentVoices.voiceOf(utterance.actorId).id);
+      },
     );
     registerTranscribeRoutes(scoped, config, sessions, {
       /**
@@ -328,11 +343,10 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerSpeechRoutes(scoped, {
       config,
       sessions,
-      cacheRoot: resolve(config.speechCacheRoot),
+      speech,
       utterance: (id) => utteranceBook.one(id),
       // The SPEAKER's voice, never the listener's: it is their line being read.
       voiceOf: (actorId) => agentVoices.voiceOf(actorId).id,
-      speak: process.env.SPEAK_CMD?.trim() ? speakWith(process.env.SPEAK_CMD.trim()) : undefined,
     });
   }, { prefix: config.basePath ?? "" });
 

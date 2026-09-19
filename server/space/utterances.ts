@@ -109,6 +109,16 @@ export function registerUtteranceRoutes(
     targetActorId: string,
     durationMs: number,
   ) => void,
+  /**
+   * Start turning this line into sound now, rather than when somebody asks.
+   *
+   * Measured on the box: a fresh line took 6.4 seconds to come back and 1.1
+   * once it was on disk, and Nikk asked for agents that "respond quickly". The
+   * room already knows what was said at the moment it is said, so the wait
+   * belongs here, where nobody is listening yet, instead of in front of the
+   * person who pressed play. It never blocks this reply and never throws.
+   */
+  warmSpeech: (utterance: Utterance) => void = () => {},
 ): void {
   const requireSession = makeRequireSession(config, sessions);
   const utterances = new Utterances(database);
@@ -149,6 +159,9 @@ export function registerUtteranceRoutes(
     // creating an occupant for a silent note would be the same kind of
     // invention by a different route.
     if (result.utterance.say) spoke(session.username, session.kind ?? null);
+    // Only a line that was SAID is turned into sound, and the wait happens here
+    // rather than in front of whoever presses play. See warmSpeech above.
+    if (result.utterance.say) warmSpeech(result.utterance);
 
     // Match the visible speech window: short lines get a beat to be noticed,
     // while the spoken cap never leaves somebody turned for more than 14s.

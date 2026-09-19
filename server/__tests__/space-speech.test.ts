@@ -5,7 +5,7 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
-import { cacheName, registerSpeechRoutes, timeoutFor, type Speaker } from "../space/speak.js";
+import { cacheName, registerSpeechRoutes, speechCache, timeoutFor, type Speaker } from "../space/speak.js";
 import type { Utterance } from "../../shared/voice.js";
 
 /**
@@ -43,13 +43,13 @@ const boot = async (options: {
   const app = Fastify({ logger: false });
   await app.register(cookie);
   const cacheRoot = await mkdtemp(join(tmpdir(), "speech-"));
+  const speech = speechCache({ cacheRoot, speaker: () => options.speak });
   registerSpeechRoutes(app, {
     config: built.config,
     sessions: built.sessions,
-    cacheRoot,
+    speech,
     utterance: (id) => (options.utterance === undefined ? (id === 7 ? said() : null) : options.utterance),
     voiceOf: options.voiceOf ?? (() => "am_michael"),
-    speak: options.speak,
   });
   const cookieFor = (username: string) => `${built.config.cookieName}=${built.sessions.create(username, "t", "agent")}`;
   const ask = (id: number | string, username = "Nikk2") =>
@@ -124,9 +124,38 @@ describe("reading a line aloud", () => {
     };
     const { ask, close } = await boot({ speak: angry });
     const response = await ask(7);
-    expect(response.statusCode).toBe(502);
+    expect(response.statusCode).toBe(503);
     expect(response.json().error, "the line is still in the room in writing").toContain("in writing");
     await close();
+  });
+
+  /**
+   * SAID IS WHEN IT IS MADE, not asked. Measured on the box: 6.4s to come back
+   * fresh, 1.1s from disk. Nikk asked for agents that "respond quickly", so the
+   * waiting happens where nobody is listening yet.
+   */
+  it("warms a line when it is said, so the listener waits for a download", async () => {
+    const engine = stubSpeaker();
+    const cacheRoot = await mkdtemp(join(tmpdir(), "speech-warm-"));
+    const speech = speechCache({ cacheRoot, speaker: () => engine.speak });
+
+    speech.warm(said().say!, "af_heart");
+    await new Promise((settle) => setTimeout(settle, 20));
+    expect(engine.calls).toEqual([{ text: said().say, voice: "af_heart" }]);
+    // And it is on disk under the name the route will look for.
+    expect(await readFile(join(cacheRoot, cacheName(said().say!, "af_heart")), "utf8")).toContain("WAVE");
+  });
+
+  it("warming never throws, whatever the engine does", async () => {
+    const cacheRoot = await mkdtemp(join(tmpdir(), "speech-warm-"));
+    const speech = speechCache({
+      cacheRoot,
+      speaker: () => async () => {
+        throw new Error("engine exited 1");
+      },
+    });
+    expect(() => speech.warm("anything", "af_heart")).not.toThrow();
+    await new Promise((settle) => setTimeout(settle, 20));
   });
 
   it("refuses an id that is not one, and one nobody said", async () => {
