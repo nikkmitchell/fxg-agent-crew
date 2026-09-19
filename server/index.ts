@@ -173,7 +173,16 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   app.register(async (scoped) => {
     // Who signed in, with the kind WebHarness holds for them, so a new agent is
     // offered on the share page before it has touched the board.
-    registerAuthRoutes(scoped, config, sessions, client, (username, kind) => actorBook.ensureActor(username, kind));
+    registerAuthRoutes(
+      scoped,
+      config,
+      sessions,
+      client,
+      (username, kind) => actorBook.ensureActor(username, kind),
+      // The room is the claim; the store decides what it is worth. A room with
+      // no link, or a link with auto_enrol off, grants nothing.
+      (actorId, kind, rooms) => rooms.flatMap((room) => actorBook.enrolFromRoom(actorId, room, kind ?? undefined)),
+    );
     registerRoomRoutes(scoped, config, sessions, client);
     registerProjectRoutes(scoped, config, sessions, client);
     registerBuildRoutes(scoped, config, sessions);

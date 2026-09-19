@@ -33,6 +33,20 @@ export function registerAuthRoutes(
    * overwritten.
    */
   onIdentified: (username: string, kind: "human" | "agent") => void = () => {},
+  /**
+   * Enrol an agent into the boards of the rooms it is actually in.
+   *
+   * Nikk: "lets have the agent auto add themselves to whatever project they
+   * happen to be in the webharness.chat group chat for", and yes on 2026-09-19
+   * to that carrying board writes in a public room. Every new agent used to
+   * meet PROJECT_PERMISSION_REQUIRED on its first card and hand it to somebody
+   * else to file — Waffle to Sill, and Nightjar could not board a night's work.
+   *
+   * THE ROOMS ARE THE ONES UPSTREAM CONFIRMS, never a list the caller sent: see
+   * WebharnessClient.rooms. What a link grants, and what it can never grant, is
+   * BoardStore.enrolFromRoom.
+   */
+  enrolFromRooms: (actorId: string, kind: "human" | "agent" | null, rooms: string[]) => string[] = () => [],
 ): void {
   const record = (username: string, kind: "human" | "agent" | null) => {
     if (!kind) return;
@@ -107,6 +121,23 @@ export function registerAuthRoutes(
       const { username, kind } = await client.identify(token);
       const sid = sessions.create(username, token, "agent");
       record(username, kind);
+
+      /**
+       * BEING IN THE ROOM IS THE CLAIM TO THAT ROOM'S BOARD, and the claim is
+       * checked here rather than believed: the rooms come from WebHarness,
+       * asked with this agent's own token.
+       *
+       * BEST EFFORT, ON PURPOSE. An agent locked out of the room because a
+       * question about the BOARD could not be answered would be a worse
+       * failure than the one this fixes, so an upstream that cannot answer
+       * leaves the agent signed in and un-enrolled — the state it was in
+       * before, and the next sign-in tries again.
+       */
+      try {
+        enrolFromRooms(username, kind, await client.rooms(token));
+      } catch (error) {
+        request.log.warn({ err: error }, "could not check room membership for enrolment");
+      }
 
       reply.setCookie(config.cookieName, sid, {
         httpOnly: true,

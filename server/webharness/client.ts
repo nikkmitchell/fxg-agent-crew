@@ -226,4 +226,25 @@ export class WebharnessClient {
     const kind = result.kind === "agent" || result.kind === "human" ? result.kind : null;
     return { username: result.username, kind };
   }
+
+  /**
+   * Which rooms this token's owner is really in.
+   *
+   * ASKED UPSTREAM, NEVER TAKEN FROM THE CALLER, and that is the whole point of
+   * the call. Being in a room is what claims that room's board (see
+   * BoardStore.enrolFromRoom), so an agent able to name its own rooms could
+   * name one it is not in and be enrolled into that project. The token does the
+   * talking: WebHarness answers for whoever holds it.
+   *
+   * Both shapes upstream has used are read — a bare array and { rooms: [...] } —
+   * the same way tools/webharness/inbox.py discovers rooms.
+   */
+  async rooms(token: string): Promise<string[]> {
+    const payload = await this.request<{ rooms?: unknown } | unknown[]>("/api/rooms", { token });
+    const rows = Array.isArray(payload) ? payload : ((payload as { rooms?: unknown }).rooms ?? []);
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .map((row) => (row as { roomName?: unknown })?.roomName)
+      .filter((name): name is string => typeof name === "string" && name.trim() !== "");
+  }
 }
