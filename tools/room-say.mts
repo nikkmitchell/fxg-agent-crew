@@ -30,7 +30,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { SPOKEN_LIMIT, refusalFor, saidInRoomHeading } from "../shared/voice.js";
+import { CHAT_MESSAGE_LIMIT, SPOKEN_LIMIT, refusalFor, saidInRoomHeading, splitForChat } from "../shared/voice.js";
 
 const SITE = process.env.SAHA_URL ?? "https://saha.ing";
 
@@ -149,15 +149,34 @@ console.log(`room: said ${say.length} chars aloud${detail ? `, wrote ${detail.le
  * they reached one is the quiet failure this project exists not to have.
  */
 if (alsoChat && detail) {
-  try {
-    execFileSync("python3", [`${process.env.HOME}/.webharness/post.py`, "saha.ing"], {
-      input: `${saidInRoomHeading(me)}${detail}`,
-      env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
-      encoding: "utf8",
-      stdio: ["pipe", "inherit", "inherit"],
-    });
-  } catch {
-    console.error("the ROOM has it; the chat post failed. Nothing was lost in the room.");
-    process.exit(1);
+  /**
+   * IN PARTS WHEN IT IS LONG, NEVER REFUSED — the same rule a dictation
+   * already follows in voice-routing.ts, and it was missing here.
+   *
+   * post.py REFUSES anything over 2,000 characters rather than truncating,
+   * which is the right call and made this the wrong caller: a long written
+   * version reached the ROOM and then bounced off the chat, and the tool
+   * exited 1 saying so. The half that mattered most to a reader was the half
+   * that did not arrive. The reserve leaves room for the longest heading, so
+   * labelling a part can never push it back over the limit.
+   */
+  const reserve = saidInRoomHeading(me, 98, 99).length;
+  const parts = splitForChat(detail, CHAT_MESSAGE_LIMIT, reserve);
+  for (const [index, part] of parts.entries()) {
+    try {
+      execFileSync("python3", [`${process.env.HOME}/.webharness/post.py`, "saha.ing"], {
+        input: `${saidInRoomHeading(me, index + 1, parts.length)}${part}`,
+        env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
+        encoding: "utf8",
+        stdio: ["pipe", "inherit", "inherit"],
+      });
+    } catch {
+      // NAMED, because "the chat post failed" after two of three parts landed
+      // leaves somebody reading half an argument believing it is the whole one.
+      console.error(
+        `the ROOM has it; chat part ${index + 1} of ${parts.length} failed. Nothing was lost in the room.`,
+      );
+      process.exit(1);
+    }
   }
 }

@@ -78,6 +78,24 @@ describe("replyToSpeak", () => {
     expect(spoken?.id).toBe(6);
   });
 
+  /**
+   * A LATER PART MUST CARRY THE MARK TOO. A long written version is posted in
+   * parts; if only part one were marked, a headset would skip the opening and
+   * then read the REST of it aloud — the worst of both, and it would sound like
+   * the reply started halfway through.
+   */
+  test("stays quiet about part two as well as part one", () => {
+    const one = `${saidInRoomHeading("Nightjar", 1, 2)}the opening half`;
+    const two = `${saidInRoomHeading("Nightjar", 2, 2)}the closing half`;
+    const heard = ["the opening half", "the closing half"];
+    expect(replyToSpeak([message(5, "Nightjar", one), message(6, "Nightjar", two)], 0, "nikk2", heard)).toBeNull();
+  });
+
+  test("a part this listener did not hear is still read to them", () => {
+    const two = `${saidInRoomHeading("Nightjar", 2, 2)}the closing half`;
+    expect(replyToSpeak([message(6, "Nightjar", two)], 0, "nikk2", [])?.id).toBe(6);
+  });
+
   test("a message that merely mentions the room is still spoken", () => {
     const spoken = replyToSpeak(
       [message(8, "Inkstone", "I said in the room that we should wait")],

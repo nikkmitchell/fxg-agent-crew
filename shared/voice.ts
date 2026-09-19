@@ -151,11 +151,22 @@ export function splitForChat(text: string, limit = CHAT_MESSAGE_LIMIT, reserve =
  * here at all, by Nikk's instruction: the room said it, and the chat does not
  * repeat it.
  */
-export const saidInRoomHeading = (speaker: string): string => `${speaker} said in the room (full text): `;
+export const saidInRoomHeading = (speaker: string, part = 1, total = 1): string =>
+  total === 1
+    ? `${speaker} said in the room (full text): `
+    : `${speaker} said in the room (full text, part ${part} of ${total}): `;
+
+/**
+ * EVERY PART CARRIES THE WHOLE HEADING, the same rule voice-routing follows for
+ * a dictation: somebody reading only part two still knows it was said in the
+ * room, by whom, and that there is more of it. It also means the mark is on
+ * every part, so a headset does not read part two aloud having skipped part one.
+ */
+const SAID_IN_ROOM = /^\S.*? said in the room \(full text(?:, part \d+ of \d+)?\): /;
 
 /** Whether this chat message is the written half of something already spoken. */
 export function alreadySaidInRoom(content: string): boolean {
-  return /^\S.*? said in the room \(full text\): /.test(content.trimStart());
+  return SAID_IN_ROOM.test(content.trimStart());
 }
 
 /**
@@ -175,8 +186,8 @@ export function alreadySaidInRoom(content: string): boolean {
  */
 export function writtenHalf(content: string): string {
   const trimmed = content.trimStart();
-  const at = trimmed.indexOf(" said in the room (full text): ");
-  return at === -1 ? trimmed : trimmed.slice(at + " said in the room (full text): ".length);
+  const heading = SAID_IN_ROOM.exec(trimmed);
+  return heading ? trimmed.slice(heading[0].length) : trimmed;
 }
 
 /** The longest written part. Generous — nobody has to listen to it. */
