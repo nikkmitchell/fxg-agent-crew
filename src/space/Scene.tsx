@@ -20,6 +20,7 @@ import { WebPanel } from "./WebPanel";
 import { StillPanel } from "./StillPanel";
 import { ScreenWall } from "./ScreenWall";
 import { ArrivalSparkles } from "./ArrivalSparkles";
+import { SpeakingMotes } from "./SpeakingMotes";
 import { TouchReactions } from "./TouchReactions";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
@@ -533,6 +534,15 @@ export default function Scene({
         <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         {/* Sparks where an agent reaches a board, as its card change lands. */}
         <ArrivalSparkles peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
+        {/* Light rising off whoever is speaking, for as long as their line
+          lasts. Nikk: "particle effects... pulsing out of them that happens
+          while the voice thing is playing". See speaking-motes.ts. */}
+        <SpeakingMotes
+          peopleRef={connection.peopleRef}
+          liveUtterance={connection.liveUtterance}
+          you={you}
+          reducedMotion={reducedMotion}
+        />
         {/* How an agent took being touched, above its head for a moment. */}
         <TouchReactions subscribe={connection.subscribe} peopleRef={connection.peopleRef} />
         <Crowd
