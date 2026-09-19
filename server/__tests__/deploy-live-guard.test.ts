@@ -17,5 +17,18 @@ describe("a deploy that would roll back what is live", () => {
     const output = execFileSync("bash", [script], { encoding: "utf8" });
     expect(output).not.toContain("FAIL");
     expect(output).toContain("ok   - refuses when HEAD lacks the live commit");
-  });
+    /**
+     * A REAL DEADLINE FOR REAL WORK. This shells out to a script that makes
+     * throwaway git repositories and runs release.sh against them: 7 to 12
+     * seconds on a busy laptop, against vitest's default FIVE. So it passed
+     * alone and failed inside the full suite, which reads exactly like a
+     * regression somebody just caused and is not one.
+     *
+     * It cost a deploy. release.sh runs the suite before it ships, this timed
+     * out, and the release refused with "tests failed; nothing was deployed" —
+     * a correct refusal on a false premise, blocking a fix Nikk was waiting for
+     * in a headset. A deadline shorter than the work is a test that reports the
+     * load on the machine rather than the state of the code.
+     */
+  }, 120_000);
 });
