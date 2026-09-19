@@ -66,6 +66,69 @@ describe("choosing a voice", () => {
     await app.close();
   });
 
+  /**
+   * TWO AGENTS, ONE VOICE — which happened, and was caught by a person's ears
+   * rather than by anything here. Nikk: "the voice you chose sounds too close
+   * to the one that Nightjar chose". They were not close, they were the same
+   * id, and nothing in the room could show it or stop it.
+   */
+  it("shows who has chosen what, so a clash can be seen before it is heard", async () => {
+    const { app, as } = boot();
+    await app.inject({
+      method: "PUT", url: "/bff/space/voice", headers: { cookie: as("Nightjar") },
+      payload: { voice: "bm_george" },
+    });
+    const read = await app.inject({
+      method: "GET", url: "/bff/space/voices", headers: { cookie: as("Lumenfold") },
+    });
+    expect(read.json().taken).toEqual([{ actorId: "Nightjar", voice: "bm_george" }]);
+    await app.close();
+  });
+
+  it("refuses a voice another agent has already chosen, and names them", async () => {
+    const { app, as, voices } = boot();
+    await app.inject({
+      method: "PUT", url: "/bff/space/voice", headers: { cookie: as("Nightjar") },
+      payload: { voice: "bm_george" },
+    });
+    const clash = await app.inject({
+      method: "PUT", url: "/bff/space/voice", headers: { cookie: as("Lumenfold") },
+      payload: { voice: "bm_george" },
+    });
+    expect(clash.statusCode).toBe(409);
+    expect(clash.json()).toMatchObject({ code: "VOICE_TAKEN", takenBy: "Nightjar" });
+    // AND IT DID NOT HALF-APPLY: the refusal left no row behind.
+    expect(voices.chosen("Lumenfold")).toBeNull();
+    await app.close();
+  });
+
+  it("lets an agent re-choose the voice it already has", async () => {
+    const { app, as } = boot();
+    const headers = { cookie: as("Nightjar") };
+    await app.inject({ method: "PUT", url: "/bff/space/voice", headers, payload: { voice: "bm_george" } });
+    const again = await app.inject({
+      method: "PUT", url: "/bff/space/voice", headers, payload: { voice: "bm_george" },
+    });
+    expect(again.statusCode).toBe(200);
+    await app.close();
+  });
+
+  /**
+   * A DERIVED VOICE IS NOT A CLAIM ON IT. With twelve voices two names collide
+   * 62% of the time at five agents, so refusing on the hash would leave people
+   * unable to pick a voice nobody has actually asked for.
+   */
+  it("does not refuse a voice that is only somebody's name-derived default", async () => {
+    const { app, as } = boot();
+    const derived = voiceFor("Lumenfold").id;
+    const set = await app.inject({
+      method: "PUT", url: "/bff/space/voice", headers: { cookie: as("Nightjar") },
+      payload: { voice: derived },
+    });
+    expect(set.statusCode).toBe(200);
+    await app.close();
+  });
+
   it("ignores case, because the room folds names everywhere else", async () => {
     const { app, as } = boot();
     const set = await app.inject({
@@ -142,7 +205,15 @@ describe("choosing a voice", () => {
         method: "GET", url: "/bff/space/voices", headers: { cookie: as("Nightjar") },
       });
       expect(response.json().spokenAloud).toBe(false);
-      expect(response.json().heardByAnybody).toBe(false);
+      /**
+       * `heardByAnybody` IS ABOUT THE DESCRIPTIONS, NOT ABOUT THIS BOX. It
+       * asserted that the blurbs came from the model's own naming and not from
+       * an ear. That stopped being true on 2026-09-19: Nikk listened in a
+       * headset and described bm_george as "low and smooth", which is an ear
+       * and not a README. A box with no engine still cannot speak — that is
+       * `spokenAloud`, asserted above — but the catalogue has been heard.
+       */
+      expect(response.json().heardByAnybody).toBe(true);
       await app.close();
       if (previous !== undefined) process.env.SPEAK_CMD = previous;
     });

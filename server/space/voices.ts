@@ -99,10 +99,25 @@ export function registerVoiceRoutes(
        */
       spokenAloud: deps.canSpeak(),
       engine: "kokoro-82M, Apache 2.0",
-      heardByAnybody: false,
+      /**
+       * WHO HAS CHOSEN WHAT, WHICH NOTHING COULD SEE UNTIL NOW.
+       *
+       * `AgentVoices.all()` was written for this — its comment says "for a
+       * person looking at the room" — and was wired to no route, so nobody
+       * could look. Two agents then held the SAME voice for an hour and the
+       * thing that noticed was Nikk's ears: "the voice you chose sounds too
+       * close to the one that Nightjar chose". They were not close; they were
+       * identical, and the room had the fact and no way to show it.
+       *
+       * Only choices appear here. A voice nobody picked is derived from the
+       * name, so it is a property of the name rather than a claim on the voice.
+       */
+      taken: deps.voices.all(),
+      heardByAnybody: true,
       note:
-        "Nobody has listened to these voices yet. The descriptions come from the model's own naming, " +
-        "not from an ear, exactly as the wardrobe's did before somebody looked at Crowley and found a fox.",
+        "Heard in a headset on 2026-09-19 and described by ear rather than by the model's own naming: " +
+        "bm_george 'low and smooth' (Nikk). Two agents have already collided on one voice, so check " +
+        "`taken` before choosing.",
     });
   });
 
@@ -114,6 +129,33 @@ export function registerVoiceRoutes(
     const chosen = chooseVoice(body.voice);
     if ("error" in chosen) {
       return reply.code(400).send({ code: chosen.code, error: chosen.error });
+    }
+    /**
+     * A VOICE SOMEBODY ELSE HAS CHOSEN IS NOT AVAILABLE.
+     *
+     * Nikk, twice in one evening: "the voice you chose sounds too close to the
+     * one that Nightjar chose", then "your voice sounds a bit too much like
+     * Nightjar". Nothing stopped either. Choosing was a blind write, so the way
+     * to discover a clash was for a person to hear it — and per-agent voices
+     * exist precisely so that you can tell who is speaking without being told.
+     *
+     * ONLY AN EXPLICIT CHOICE BLOCKS. A voice merely derived from somebody's
+     * name is not a claim on it: with twelve voices two names collide 62% of
+     * the time at five agents, and refusing on a hash would leave people unable
+     * to pick a voice nobody has actually asked for.
+     */
+    const takenBy = deps.voices
+      .all()
+      .find(
+        (row) => row.voice === chosen.voice.id && actorKey(row.actorId) !== actorKey(session.username),
+      );
+    if (takenBy) {
+      return reply.code(409).send({
+        code: "VOICE_TAKEN",
+        error: `${takenBy.actorId} has already chosen ${chosen.voice.id}. Pick another, so the room can tell you apart.`,
+        voice: chosen.voice.id,
+        takenBy: takenBy.actorId,
+      });
     }
     deps.voices.set(session.username, chosen.voice.id, session.username);
     return reply.send({
