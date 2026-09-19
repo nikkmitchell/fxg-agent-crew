@@ -347,21 +347,48 @@ app_ws=$("${SSH[@]}" "$TARGET" "curl -sS -o /dev/null -w '%{http_code}' --http1.
 # because a check that silently does nothing is worse than no check.
 if [ -n "${PUBLIC_URL:-}" ]; then
   log "verify the public URL  ($PUBLIC_URL)"
+
+  # THESE RUN FROM WHEREVER YOU ARE DEPLOYING, AND THAT MACHINE'S NETWORK IS
+  # NOT THE SITE. This laptop's HTTPS proxy comes and goes (see the note by the
+  # WebSocket check below), and twice in one night a deploy that had already
+  # shipped, restarted and passed every check ON THE BOX was reported FAILED
+  # because a curl here timed out. Worse, one of them said "/robots.txt is
+  # served but contains no Disallow directive" — an assertion about the site
+  # made from an empty response, which is exactly the instrument naming the
+  # wrong component that the WebSocket note below argues against.
+  #
+  # So: three tries before believing it, and when nothing comes back at all,
+  # say that instead of saying something about the site. See deploy/public-check.sh.
+  . "$(dirname "$0")/public-check.sh"
+  unreachable() {
+    fail "could not reach $1 from this machine after three tries, so this says NOTHING about the site.
+  The deploy itself completed: the files are in place and the service was restarted and health-checked
+  on the box.${HTTPS_PROXY:+ (HTTPS_PROXY is set to $HTTPS_PROXY, and it is unreliable here.)}
+  Check from elsewhere, or re-run the verification with: PUBLIC_URL=$PUBLIC_URL deploy/release.sh $TARGET"
+  }
+
   for path in / /board /robots.txt; do
-    pub=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "${PUBLIC_URL%/}$path") \
-      || fail "could not reach ${PUBLIC_URL%/}$path"
+    pub=$(public_code "${PUBLIC_URL%/}$path")
+    [ "$pub" = "000" ] && unreachable "${PUBLIC_URL%/}$path"
     [ "$pub" = "200" ] || fail "${PUBLIC_URL%/}$path returned $pub, expected 200"
     printf '  %-12s 200\n' "$path"
   done
 
   # Old links must keep working. Mission Control lived under /space until
   # 2026-09-10, and a bookmark that 404s reads as "the site is gone".
-  moved=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "${PUBLIC_URL%/}/space/board")
-  case "$moved" in 301|302) printf '  %-12s %s -> redirected\n' "/space/board" "$moved" ;;
+  moved=$(public_code "${PUBLIC_URL%/}/space/board")
+  case "$moved" in
+    301|302) printf '  %-12s %s -> redirected\n' "/space/board" "$moved" ;;
+    000) unreachable "${PUBLIC_URL%/}/space/board" ;;
     *) fail "/space/board returned $moved, expected a redirect to the new location" ;;
   esac
-  grep -qi 'disallow' <<<"$(curl -sS --max-time 20 "${PUBLIC_URL%/}/robots.txt")" \
-    || fail "/robots.txt is served but contains no Disallow directive"
+
+  robots=$(mktemp)
+  robots_code=$(public_code "${PUBLIC_URL%/}/robots.txt" "$robots")
+  [ "$robots_code" = "000" ] && unreachable "${PUBLIC_URL%/}/robots.txt"
+  grep -qi 'disallow' "$robots" \
+    || fail "/robots.txt answered $robots_code and contains no Disallow directive"
+  rm -f "$robots"
 
   # The only check that proves nginx actually upgrades. Everything before it
   # proves the app does, which is the half that was never broken.
@@ -371,7 +398,13 @@ if [ -n "${PUBLIC_URL:-}" ]; then
   # headers, which produced a flat 000 and an error message accusing nginx of
   # not upgrading while it was upgrading perfectly well. As an HTTP request with
   # the headers spelled out, the 101 is the server's answer, not curl's.
-  pub_ws=$(ws "${PUBLIC_URL%/}/bff/space/socket")
+  # Three tries here too: a handshake that never left this machine says as
+  # little about nginx as a timed-out GET says about the site.
+  for attempt in 1 2 3; do
+    pub_ws=$(ws "${PUBLIC_URL%/}/bff/space/socket")
+    [ "$pub_ws" != "000" ] && break
+    [ "$attempt" != "3" ] && sleep 2
+  done
   # 000 IS NOT A VERDICT ON NGINX. It means curl got no HTTP status at all, so
   # the handshake never arrived and nginx cannot be the accused. This message
   # used to say "nginx is not upgrading" for a 000 and sent me reading vhost
