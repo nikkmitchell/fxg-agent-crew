@@ -16,10 +16,10 @@ import {
   stepPointer,
   useRoomPreferences,
 } from "./room-preferences";
-import { createSteadyRecorder, speakSay, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
+import { createSteadyRecorder, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
 import { readAloud } from "./said-aloud";
 import { shouldSpeakUtterance } from "./VoiceControls";
-import { newestId, replyToSpeak } from "./reply-speech";
+import { newestId } from "./reply-speech";
 import type { RoomFeed } from "./useRoomFeed";
 import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
@@ -269,18 +269,6 @@ export function RoomControls({
   const [hearReplies, setHearReplies] = useState(true);
   const speaking = useRef<SpeechOutput | null>(null);
   const spokenAlready = useRef<number | null>(null);
-  /**
-   * THE `detail` OF EVERY UTTERANCE THIS CLIENT ACTUALLY SPOKE, so the chat
-   * reader below can stay quiet about the written half of something this
-   * wearer has already heard — and ONLY this wearer. A room utterance is
-   * spoken to the person it is addressed to, so anyone else must still get the
-   * chat copy read to them or they get nothing at all. See `writtenHalf`.
-   *
-   * Bounded: the last few are all the chat copy can still be arriving for, and
-   * an unbounded list of every line ever said is a leak in a page that stays
-   * open for hours.
-   */
-  const saidHere = useRef<string[]>([]);
   const [listening, setListening] = useState(false);
   // No reload for a new deploy in the middle of a recording.
   useEffect(() => {
@@ -646,51 +634,30 @@ export function RoomControls({
   }, [capabilities.recognition, post]);
 
   /**
-   * READING THE ANSWER OUT LOUD — the half that was missing.
+   * THE CHAT IS NOT READ ALOUD. Nikk, hearing the written half arrive after the
+   * spoken one: "we don't need any TTS now of things that are in chat, the only
+   * audio that we should hear are the messages that are actually sent to the
+   * room".
    *
-   * Everything around this shipped without it: the state, the refs, the
-   * "Replies read aloud" row, and `speakSay` imported and never called. So the
-   * headset had a switch that said replies were being read and a room that
-   * never made a sound. Nikk: "now we don't have any voice over."
+   * THIS USED TO BE THE ONLY THING THAT MADE ANY SOUND, and the reason it
+   * existed is worth keeping even though the code is gone: agents did not post
+   * room utterances, so a question asked out loud was answered only on a panel
+   * behind you. Reading the chat was the workaround. Agents post utterances
+   * now, the box speaks them in the speaker's own voice, and the workaround had
+   * become the thing you could hear INSTEAD of the voice — the browser's robot
+   * reading the whole message over a summary already spoken.
    *
-   * IT LISTENS TO TWO PLACES, because the conversation happens in two.
-   * `liveUtterance` is somebody in the room speaking to you by name;
-   * `feed` is the WebHarness chat, which is where every agent replies and
-   * therefore where almost all of the answers are. Watching only the first —
-   * which is all the window does — is why this was silent even in the moments
-   * it was working.
+   * WHAT THIS GIVES UP, deliberately: an agent that posts ONLY to chat is now
+   * silent. That is the trade Nikk asked for, and it is the right way round —
+   * chat is the record and the room is the voice — but it means the way to be
+   * heard is to say something in the room, not to type into the panel.
    *
-   * NEVER WHILE THE MICROPHONE IS OPEN. A speaker playing into an open
-   * recogniser is a machine talking to itself.
+   * The watermark still moves so nothing here comes back if this is ever
+   * reinstated mid-conversation.
    */
   useEffect(() => {
-    if (!hearReplies) {
-      // Marked as read anyway. Turning sound on must not begin by reading out
-      // whatever was said while it was off.
-      spokenAlready.current = Math.max(spokenAlready.current ?? 0, newestId(feed.messages));
-      return;
-    }
-    if (spokenAlready.current === null) {
-      // Arriving mid-conversation. Everything already on the panel is history,
-      // and reading forty messages at somebody who just put a headset on is
-      // not a welcome.
-      spokenAlready.current = newestId(feed.messages);
-      return;
-    }
-    if (listening) return;
-    const reply = replyToSpeak(feed.messages, spokenAlready.current, you, saidHere.current);
-    if (!reply) return;
-    spokenAlready.current = reply.id;
-    speaking.current?.cancel();
-    speaking.current = speakSay({
-      say: reply.say,
-      // In the writer's own voice, as loud as they are near. See agent-voice.ts.
-      speaker: reply.speaker,
-      volume: volumeAt(distanceTo(reply.speaker)),
-      onPhase: () => {},
-      onFailure: (failure) => setNotice(failure.message),
-    });
-  }, [feed.messages, hearReplies, listening, you]);
+    spokenAlready.current = Math.max(spokenAlready.current ?? 0, newestId(feed.messages));
+  }, [feed.messages]);
 
   /**
    * The room's own transcript, when somebody in it speaks TO YOU by name.
@@ -706,11 +673,6 @@ export function RoomControls({
     utteranceSpoken.current = liveUtterance.id;
     if (!hearReplies || listening || !shouldSpeakUtterance(liveUtterance, you)) return;
     speaking.current?.cancel();
-    // HEARD HERE, so the chat reader above does not say it again. Recorded only
-    // past the guards: an utterance that was not spoken must not suppress the
-    // one thing that would have told this wearer it existed.
-    const written = liveUtterance.detail?.trim();
-    if (written) saidHere.current = [...saidHere.current.slice(-4), written];
     // A room utterance has audio on the box, in the speaker's chosen voice. The
     // chat reader above does not: those messages are WebHarness's and the box
     // has never heard of them. See said-aloud.ts.
@@ -1037,17 +999,29 @@ export function RoomControls({
          * hidden: a setting that lies is worse than no setting, because it
          * sends somebody looking for a volume control that does not exist.
          */
-        capabilities.synthesis
-          ? {
-              label: hearReplies ? "Replies read aloud" : "Replies stay silent",
-              tone: hearReplies ? "live" as const : "normal" as const,
-              onTap: () => setHearReplies((on) => !on),
-            }
-          : {
-              label: "This headset's browser cannot speak",
-              tone: "muted" as const,
-              onTap: () => flash("Quest Browser gives a page no speech synthesis. The transcript is still written."),
-            },
+        /**
+         * AND THEN THE BOX LEARNED TO SPEAK, WHICH INVERTED THIS ROW.
+         *
+         * The warning above is still right and this was still wrong: gating on
+         * `capabilities.synthesis` asks whether the BROWSER can speak, and a
+         * room utterance is no longer spoken by the browser. It is a WAV
+         * rendered on the box and played through an Audio element, which every
+         * browser has — the browser's own synthesiser is only the fallback.
+         *
+         * So on baiwei's Quest this row said "This headset's browser cannot
+         * speak" ABOVE A ROOM THAT WAS SPEAKING, and replaced the switch, so
+         * the wearer could hear the voice and had no way to turn it off. The
+         * same fault as before, pointing the other way: the first version lied
+         * that sound was coming, this one lied that it could not.
+         *
+         * The row is always a switch now. `hearReplies` is what decides whether
+         * sound arrives, and the wearer owns it on every device.
+         */
+        {
+          label: hearReplies ? "The room is read aloud" : "The room stays silent",
+          tone: hearReplies ? "live" as const : "normal" as const,
+          onTap: () => setHearReplies((on) => !on),
+        },
         ...(alwaysOn
           ? []
           : [
