@@ -4,14 +4,29 @@ import type { SpaceConnection } from "./useSpaceSocket";
 import { createSteadyRecorder, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
 import { readAloud } from "./said-aloud";
 import { space } from "../space-client";
-import { holdReload } from "../update-reload";
+import { holdReload, inSession } from "../update-reload";
 import { volumeAt } from "./agent-voice";
 
+/**
+ * WHETHER YOU HEAR SOMEBODY SPEAKING IN A ROOM YOU ARE STANDING IN.
+ *
+ * This used to require `utterance.to === you` — addressed to you BY NAME — so
+ * standing next to two people talking was silent, and an agent that said
+ * something to nobody in particular was never heard by anybody. Nikk, asked
+ * directly: "lets have it read to all, like we are all in the room, so even if
+ * an agent is saying something to one person, everyone else should still be
+ * able to hear it".
+ *
+ * `volumeAt(distance)` was already wired for exactly this and had nothing to
+ * attenuate: someone far across the room was not quieter, they were absent.
+ *
+ * Still never your own voice, and still nothing without a `say` — `detail` is
+ * written and is not read out by anybody.
+ */
 export function shouldSpeakUtterance(utterance: Utterance, you: string | null): boolean {
   return Boolean(
     you &&
     utterance.actorId !== you &&
-    utterance.to === you &&
     utterance.say?.trim(),
   );
 }
@@ -63,7 +78,10 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
     // sound later must not unexpectedly read an older line, and the speaker
     // must never feed a reply back into active recognition.
     consideredUtteranceRef.current = utterance.id;
-    if (!hearReplies || listening || !shouldSpeakUtterance(utterance, you)) return;
+    // NOT WHILE THE IMMERSIVE ROOM IS SPEAKING. Both are mounted during a
+    // headset session and both read utterances, which is one voice too many.
+    // See `inSession`.
+    if (!hearReplies || listening || inSession() || !shouldSpeakUtterance(utterance, you)) return;
     // In the speaker's own voice, as loud as they are near you. See agent-voice.ts.
     const people = connection.peopleRef.current ?? [];
     const find = (id: string | null) => (id ? people.find((person) => person.actorId.toLowerCase() === id.toLowerCase()) : undefined);

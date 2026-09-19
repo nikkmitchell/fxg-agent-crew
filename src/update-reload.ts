@@ -113,6 +113,20 @@ export function holdSession(reason: string, on: boolean): void {
   else sessions.delete(reason);
 }
 
+/**
+ * Whether a headset session is being presented on this page.
+ *
+ * Read by the panel's voice so it does not speak over the immersive room's:
+ * `SpacePanel` renders `VoiceControls` unconditionally and `RoomControls`
+ * mounts inside the session, so during a headset session BOTH are alive and
+ * both were reading utterances aloud. That was survivable while only lines
+ * addressed to you were spoken; now that the room is audible to everybody it
+ * would be a double on every line.
+ */
+export function inSession(): boolean {
+  return sessions.size > 0;
+}
+
 export type ReloadState = {
   /** The commit this page loaded against, or null if the server did not say. */
   loadedWith: string | null;
