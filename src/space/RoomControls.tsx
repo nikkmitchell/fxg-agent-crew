@@ -269,6 +269,18 @@ export function RoomControls({
   const [hearReplies, setHearReplies] = useState(true);
   const speaking = useRef<SpeechOutput | null>(null);
   const spokenAlready = useRef<number | null>(null);
+  /**
+   * THE `detail` OF EVERY UTTERANCE THIS CLIENT ACTUALLY SPOKE, so the chat
+   * reader below can stay quiet about the written half of something this
+   * wearer has already heard — and ONLY this wearer. A room utterance is
+   * spoken to the person it is addressed to, so anyone else must still get the
+   * chat copy read to them or they get nothing at all. See `writtenHalf`.
+   *
+   * Bounded: the last few are all the chat copy can still be arriving for, and
+   * an unbounded list of every line ever said is a leak in a page that stays
+   * open for hours.
+   */
+  const saidHere = useRef<string[]>([]);
   const [listening, setListening] = useState(false);
   // No reload for a new deploy in the middle of a recording.
   useEffect(() => {
@@ -666,7 +678,7 @@ export function RoomControls({
       return;
     }
     if (listening) return;
-    const reply = replyToSpeak(feed.messages, spokenAlready.current, you);
+    const reply = replyToSpeak(feed.messages, spokenAlready.current, you, saidHere.current);
     if (!reply) return;
     spokenAlready.current = reply.id;
     speaking.current?.cancel();
@@ -694,6 +706,11 @@ export function RoomControls({
     utteranceSpoken.current = liveUtterance.id;
     if (!hearReplies || listening || !shouldSpeakUtterance(liveUtterance, you)) return;
     speaking.current?.cancel();
+    // HEARD HERE, so the chat reader above does not say it again. Recorded only
+    // past the guards: an utterance that was not spoken must not suppress the
+    // one thing that would have told this wearer it existed.
+    const written = liveUtterance.detail?.trim();
+    if (written) saidHere.current = [...saidHere.current.slice(-4), written];
     // A room utterance has audio on the box, in the speaker's chosen voice. The
     // chat reader above does not: those messages are WebHarness's and the box
     // has never heard of them. See said-aloud.ts.

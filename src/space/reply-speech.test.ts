@@ -24,9 +24,29 @@ describe("replyToSpeak", () => {
    * has just heard. Nikk heard exactly that and called it "the previous text to
    * speech, the auto very robotic recording".
    */
-  test("stays quiet about the written half of something said in the room", () => {
+  test("stays quiet about the written half of something THIS listener heard", () => {
     const chat = `${saidInRoomHeading("Nightjar")}the whole argument, at length`;
-    expect(replyToSpeak([message(5, "Nightjar", chat)], 0, "nikk2")).toBeNull();
+    const heard = ["the whole argument, at length"];
+    expect(replyToSpeak([message(5, "Nightjar", chat)], 0, "nikk2", heard)).toBeNull();
+  });
+
+  /**
+   * THE SILENCE THIS EXISTS TO PREVENT, and it is the whole reason the skip is
+   * per listener. A room utterance is only spoken to the person it is addressed
+   * to. Everybody else hears no utterance — so if the mark alone silenced the
+   * chat copy, a bystander would get nothing at all, and a room where nobody
+   * can hear anything looks exactly like a room where nobody is talking.
+   */
+  test("still reads the written half aloud to somebody who did NOT hear it", () => {
+    const chat = `${saidInRoomHeading("Nightjar")}the whole argument, at length`;
+    const spoken = replyToSpeak([message(5, "Nightjar", chat)], 0, "nikk2", []);
+    expect(spoken?.id).toBe(5);
+  });
+
+  test("a marked message this listener did not hear is not confused with one it did", () => {
+    const chat = `${saidInRoomHeading("Nightjar")}the second thing`;
+    const heard = ["a completely different line"];
+    expect(replyToSpeak([message(6, "Nightjar", chat)], 0, "nikk2", heard)?.id).toBe(6);
   });
 
   test("still speaks an ordinary reply that arrived after a marked one", () => {
@@ -35,6 +55,7 @@ describe("replyToSpeak", () => {
       [message(5, "Nightjar", marked), message(6, "Inkstone", "a plain answer")],
       0,
       "nikk2",
+      ["the long version"],
     );
     expect(spoken?.id).toBe(6);
     expect(spoken?.say).toBe("Inkstone says: a plain answer");
@@ -52,6 +73,7 @@ describe("replyToSpeak", () => {
       [message(6, "Inkstone", "answer me"), message(7, "Nightjar", marked)],
       0,
       "nikk2",
+      ["the long version"],
     );
     expect(spoken?.id).toBe(6);
   });

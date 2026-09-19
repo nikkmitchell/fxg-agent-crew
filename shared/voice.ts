@@ -158,6 +158,27 @@ export function alreadySaidInRoom(content: string): boolean {
   return /^\S.*? said in the room \(full text\): /.test(content.trimStart());
 }
 
+/**
+ * The written half with its heading removed, for matching against the
+ * utterance it belongs to.
+ *
+ * THE MARK ALONE IS NOT ENOUGH TO STAY QUIET. It says a spoken counterpart
+ * EXISTS; it cannot say whether THIS listener heard it. A room utterance is
+ * only spoken to the person it is addressed to, so suppressing the chat copy
+ * for everybody would leave every bystander with no utterance AND no chat copy
+ * — silence, which is worse than the double it was meant to fix and looks
+ * exactly like a quiet room.
+ *
+ * So the decision is made per listener, in their own client: skip this only if
+ * I actually said it out loud. Everyone else still gets it read. See
+ * `replyToSpeak`.
+ */
+export function writtenHalf(content: string): string {
+  const trimmed = content.trimStart();
+  const at = trimmed.indexOf(" said in the room (full text): ");
+  return at === -1 ? trimmed : trimmed.slice(at + " said in the room (full text): ".length);
+}
+
 /** The longest written part. Generous — nobody has to listen to it. */
 export const DETAIL_LIMIT = 20_000;
 

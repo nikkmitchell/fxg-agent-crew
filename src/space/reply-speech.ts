@@ -1,4 +1,4 @@
-import { SPOKEN_LIMIT, alreadySaidInRoom, splitSpoken } from "../../shared/voice";
+import { SPOKEN_LIMIT, alreadySaidInRoom, splitSpoken, writtenHalf } from "../../shared/voice";
 import type { RoomMessage } from "./useRoomFeed";
 
 /**
@@ -42,6 +42,13 @@ export function replyToSpeak(
   messages: readonly RoomMessage[],
   since: number,
   you: string | null,
+  /**
+   * What this listener has already heard said aloud, as the `detail` of the
+   * utterances their own client spoke. Empty by default ON PURPOSE: a caller
+   * that does not track it reads everything, exactly as before, and the worst
+   * case is the old double rather than a new silence.
+   */
+  saidHere: readonly string[] = [],
 ): SpokenReply | null {
   let newest: RoomMessage | null = null;
   for (const message of messages) {
@@ -64,7 +71,7 @@ export function replyToSpeak(
      * test per poll and keeps this a pure function of the messages. The
      * watermark still moves past it the moment any later reply is spoken.
      */
-    if (alreadySaidInRoom(message.content)) continue;
+    if (alreadySaidInRoom(message.content) && saidHere.includes(writtenHalf(message.content).trim())) continue;
     if (newest === null || message.id > newest.id) newest = message;
   }
   if (!newest) return null;
