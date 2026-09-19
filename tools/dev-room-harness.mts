@@ -15,6 +15,9 @@
  *
  *   pnpm exec tsx tools/dev-room-harness.mts
  */
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildServer } from "../server/index.js";
 import { BoardStore } from "../server/db/store.js";
 import { deskFor } from "../shared/space-layout.js";
@@ -24,6 +27,56 @@ if (process.env.NODE_ENV === "production") {
   console.error("dev-room-harness mints sessions without a password. Not in production.");
   process.exit(1);
 }
+
+/**
+ * THIS SERVES THE BUILT BUNDLE, AND WILL SAY SO IF IT IS STALE.
+ *
+ * The whole point of this file is "I could not check it is not an acceptable
+ * answer for a rendering change" — and it quietly permitted a worse answer than
+ * that: checking something else and believing it.
+ *
+ * I added a particle effect, started the harness, and watched what I took to be
+ * my own motes buried inside a speaker's body. I tuned the geometry against
+ * that, and wrote the observation into the source as justification. None of it
+ * had happened. dist/ was eleven minutes older than the file I had just
+ * written, so the page could not contain it; the speckles were the avatar's own
+ * markings. It took an A/B of two frames that came out identical, and then a
+ * grep of dist/ for the material colour, to see it.
+ *
+ * A LOUD LINE, NOT A REFUSAL. Plenty of work here — server routes, presence,
+ * the board — needs no rebuild at all, and a harness that refused to start
+ * would be wrong for most of its uses. But nobody should have to REMEMBER this
+ * to be allowed to trust their own eyes.
+ */
+function warnIfBundleIsStale(): void {
+  const root = fileURLToPath(new URL("..", import.meta.url));
+  let built: number;
+  try {
+    built = statSync(join(root, "dist", "index.html")).mtimeMs;
+  } catch {
+    console.error("\n  !! dist/ IS MISSING. This serves the BUILT bundle, so the room will not load.");
+    console.error("     Run: pnpm exec vite build\n");
+    return;
+  }
+  const newest = (dir: string): number => {
+    let latest = 0;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+      const path = join(dir, entry.name);
+      latest = Math.max(latest, entry.isDirectory() ? newest(path) : statSync(path).mtimeMs);
+    }
+    return latest;
+  };
+  const sources = Math.max(newest(join(root, "src")), newest(join(root, "shared")));
+  if (sources > built) {
+    const minutes = Math.round((sources - built) / 60_000);
+    console.error(`\n  !! THE BUNDLE IS ${minutes} MINUTE(S) OLDER THAN src/. YOU WILL BE LOOKING AT OLD CODE.`);
+    console.error("     Anything you changed since the last build is NOT in the page, and a room that");
+    console.error("     renders proves nothing about it. Run: pnpm exec vite build\n");
+  }
+}
+
+warnIfBundleIsStale();
 
 const PORT = Number(process.env.PORT ?? 4174);
 
