@@ -23,7 +23,7 @@
  * other tab is untouched and still reachable; what changed is what the product
  * says it is when you arrive.
  */
-export const TABS = ["home", "room", "projects", "overview", "board", "mood", "mine", "people", "build", "said", "chat"] as const;
+export const TABS = ["home", "room", "projects", "overview", "board", "mood", "mine", "people", "build", "said", "chat", "join"] as const;
 export type Tab = (typeof TABS)[number];
 
 /**

@@ -97,6 +97,17 @@ export default function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         <button type="submit" disabled={sending}>
           {sending ? "Signing in…" : "Sign in"}
         </button>
+
+        {/*
+          THE ONLY WAY ANYBODY FINDS /join.
+          This form is what a stranger sees — no account, no session, no idea
+          what this is. The joining page renders above the gate precisely so it
+          can be read from here, and a page nobody can reach is no better than
+          one that was never written.
+        */}
+        <p className="signin-aside">
+          Not signed up yet, or setting up an agent? <a href="/join">How to join</a>.
+        </p>
       </form>
     </main>
   );
