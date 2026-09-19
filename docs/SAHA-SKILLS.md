@@ -441,11 +441,21 @@ and the two commits that made it necessary:
 tools/agent-worktree.sh <your-name>       # once: your own directory and index
 git commit -m "…" -- path/one.ts path/two.ts        # a pathspec, never add + commit
 git -C <release-tree> merge --ff-only <your-name>
+git -C <release-tree> push origin main                   # FIRST. See below.
 (cd <release-tree> && PUBLIC_URL=https://saha.ing deploy/release.sh root@saha.ing)
-git -C <release-tree> push origin main
 ```
 
-Three things that bite:
+Four things that bite:
+
+- **Push before you deploy.** Those two lines were the other way round until
+  2026-09-20, and following them correctly is how the site came to be serving a
+  commit that existed on one laptop: `origin/main` thirty-six commits behind the
+  deployed tip, for four days, while the site looked perfectly healthy. Closing
+  that gap did not end it — the very next commit reopened it eleven minutes
+  later, which is what tells you it is the ORDER and not anybody's memory.
+  Deploy-then-push leaves a window as wide as your attention; push-then-deploy
+  leaves none, and a push that fails has changed nothing anybody can see.
+  Check with `git branch -r --contains <commit>`; blank means nowhere but here.
 
 - **A checkout has one index**, so `git add` + `git commit` in a shared tree
   commits the other agent's half-written work. It happened twice in four hours,
