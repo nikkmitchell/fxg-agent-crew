@@ -20,7 +20,14 @@
 public_code() {
   local url="$1" body="${2:-/dev/null}" code=""
   for attempt in 1 2 3; do
-    code=$(curl -sS -o "$body" -w '%{http_code}' --max-time 20 "$url" 2>/dev/null || echo "000")
+    # CURL WRITES 000 ITSELF when it never got a status, and then exits
+    # non-zero. An `|| echo 000` on top of that produced "000000", which is not
+    # "000", so the retry never fired and the deploy failed with a six-digit
+    # status nobody could read. The stub in the test printed nothing on
+    # failure, so only a real deploy could find it — it does now.
+    code=$(curl -sS -o "$body" -w '%{http_code}' --max-time 20 "$url" 2>/dev/null) || true
+    case "$code" in ""|*[!0-9]*) code="000" ;; esac
+    [ "${#code}" -gt 3 ] && code="000"
     [ "$code" != "000" ] && break
     # A moment for a flapping proxy to come back. Zero in tests, which assert
     # the retry COUNT: a suite that waits six seconds to prove nothing is a

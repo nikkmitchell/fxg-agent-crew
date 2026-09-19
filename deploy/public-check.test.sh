@@ -13,7 +13,9 @@ cat > "$WORK/curl" <<'STUB'
 count=$(cat "$STUB_COUNT" 2>/dev/null || echo 0)
 count=$((count + 1))
 echo "$count" > "$STUB_COUNT"
-if [ "$count" -le "${STUB_FAIL_TIMES:-0}" ]; then exit 7; fi
+# LIKE THE REAL CURL: on failure it still writes %{http_code}, which is 000,
+# and then exits non-zero. A stub that printed nothing let "000000" through.
+if [ "$count" -le "${STUB_FAIL_TIMES:-0}" ]; then printf '000'; exit 7; fi
 for arg in "$@"; do
   case "$prev" in -o) out="$arg" ;; esac
   prev="$arg"
