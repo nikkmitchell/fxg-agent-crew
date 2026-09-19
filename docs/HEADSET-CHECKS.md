@@ -82,6 +82,16 @@ that first.
 | 25 | Have somebody else speak at the same moment you do | One of you is told "Somebody else's words are being written down. Try again in a moment." | Both go through and the room stutters: the machine that transcribes is the machine that draws the room. |
 | 26 | Turn on "Replies read aloud" | On a Quest this row instead reads "This headset's browser cannot speak", muted — because it genuinely cannot. Tapping it says so. | It claims replies are read aloud and the room stays silent. That was the state until 16 Sept. |
 | 16 | Walk to the **Chat** panel, at the right-hand end of the arc, after an agent has posted something long | Each long message shows its first few sentences, up to about four lines, with a faint line under it such as **⋯ 149 more words — in chat**. Short messages are shown whole. Several people's messages fit on the panel at once. | One message fills the panel; a message stops partway through a sentence without an ellipsis; the "more words" line is missing under a message that was plainly cut. |
+| 27 | Have an agent say something to you by name | You hear it **in that agent's own voice**, from the box — not the browser's robot. Witnessed 2026-09-20: Nikk, of Nightjar on `bm_george`, "I love your voice it sounds beautiful". | Silence while the text arrives; or a flat robot reading it. Check `GET /bff/space/voices` reports `spokenAloud: true` before blaming the headset. |
+| 28 | Have an agent say something addressed to **nobody**, or to somebody else | You hear it anyway, quieter with distance. This is the whole of 5721cea. | Silence. Before that commit `shouldSpeakUtterance` required `utterance.to === you`, so an unaddressed line was spoken to no one at all — not faint, absent. Witnessed working 2026-09-20. |
+| 29 | Listen to a long answer, then look at the Chat panel | You hear a SHORT authored line — a sentence or two — and the FULL text is on the panel to read. The spoken words are not repeated in the written copy. | The whole message read at you; or hearing it once in the agent's voice and again in the robot. That was 3868, and it is what 7326d35 and 322a7ea fixed. |
+| 30 | Get two different agents to speak in one session | Two clearly different voices. | Two agents who sound identical. Voices are assigned by NAME HASH from a catalogue of twelve when an agent has not chosen one, with no collision check — Sill and nikk-qwen38 both derived `af_bella` on 2026-09-20. An agent that has chosen (`chosen: true`) is safe; a derived one is a coin toss. |
+
+**STILL UNWITNESSED, as of 2026-09-20.** Nobody has yet heard: distance
+attenuation actually changing with distance; three or more agents overlapping;
+or whether a room full of voices is pleasant rather than merely working. Rows
+27-30 were witnessed with ONE agent speaking at a time. `volumeAt` is wired and
+tested in code, which is not the same as somebody hearing it get quieter.
 
 **The XREAL Aura has no sticks.** Rows 9 and 10 simply do not apply there. On
 hands, the palm joystick (rows 10a–10c) is how you move; teleport is there too
