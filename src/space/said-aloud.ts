@@ -87,19 +87,48 @@ export function readAloud(options: ReadAloudOptions): SpeechOutput {
   let spoken: SpeechOutput | null = null;
   let playing: Playable | null = null;
 
-  const browser = () => {
+  /**
+   * THE FALLBACK CAN ITSELF FAIL, AND IT USED TO DO SO IN SILENCE.
+   *
+   * `speakSay` returns null when the device has no speech synthesis — no
+   * onFailure, no phase change, nothing. Quest Browser is exactly that device.
+   * So a headset that refused to autoplay the box's WAV dropped into a
+   * fallback that could not speak either, and the room simply went quiet with
+   * no reason given anywhere.
+   *
+   * Baiwei, on a Quest 2, into a room that was speaking: "I still cannot hear
+   * your voices in my headset." Nothing on the page could have told them why,
+   * because nothing knew it had failed.
+   *
+   * A silence with a reason is a different thing from a silence.
+   */
+  const browser = (why: "refused" | "no-audio") => {
     if (cancelled) return;
     spoken = speakSay({ say, speaker, volume, onPhase, onFailure });
+    if (spoken) return;
+    onPhase("idle");
+    onFailure(
+      why === "refused"
+        ? {
+            code: "autoplay-refused",
+            message:
+              "This headset would not play sound on its own. Tap once in the room and the next line will be spoken.",
+          }
+        : {
+            code: "no-voice-here",
+            message: "Nothing on this device can speak that line. Its full text is in the transcript.",
+          },
+    );
   };
 
   const line = say.trim();
   if (!line || utteranceId === null) {
-    browser();
+    browser("no-audio");
   } else {
     void fetchSaid(utteranceId)
       .then((url) => {
         if (cancelled) return;
-        if (!url) return browser();
+        if (!url) return browser("no-audio");
         const audio = makeAudio(url);
         playing = audio;
         if (volume !== undefined) audio.volume = Math.max(0, Math.min(1, volume));
@@ -113,7 +142,7 @@ export function readAloud(options: ReadAloudOptions): SpeechOutput {
           // still say the words, and that is better than silence with no reason.
           URL.revokeObjectURL(url);
           playing = null;
-          browser();
+          browser("no-audio");
         };
         onPhase("speaking");
         const started = audio.play();
@@ -122,11 +151,11 @@ export function readAloud(options: ReadAloudOptions): SpeechOutput {
             // Autoplay refused, most often in a headset that wants a tap first.
             URL.revokeObjectURL(url);
             playing = null;
-            browser();
+            browser("refused");
           });
         }
       })
-      .catch(() => browser());
+      .catch(() => browser("no-audio"));
   }
 
   return {

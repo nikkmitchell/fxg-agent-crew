@@ -57,6 +57,57 @@ describe("reading a line aloud", () => {
     expect(phases).toContain("speaking");
   });
 
+  /**
+   * BAIWEI'S QUEST 2, AND THE ONLY FAILURE THIS FILE EXISTS TO PREVENT.
+   *
+   * The headset refuses to autoplay, so it drops to the browser — which on
+   * Quest has no speechSynthesis at all, so `speakSay` returns null. Both paths
+   * gone, and until now nothing said so: no phase, no failure, no notice. The
+   * room just went quiet, which from inside a headset is indistinguishable from
+   * nobody talking.
+   */
+  it("says why when autoplay is refused and this device cannot speak either", async () => {
+    delete (globalThis as { speechSynthesis?: unknown }).speechSynthesis;
+    delete (globalThis as { SpeechSynthesisUtterance?: unknown }).SpeechSynthesisUtterance;
+    const failures: { code: string; message: string }[] = [];
+    const refusing = (url: string): Playable => ({
+      url,
+      volume: 1,
+      onended: null,
+      onerror: null,
+      play: () => Promise.reject(new Error("NotAllowedError")),
+      pause: vi.fn(),
+    }) as Playable & { url: string };
+    readAloud({
+      utteranceId: 7,
+      say: "Deployed and verified.",
+      onPhase: () => {},
+      onFailure: (failure) => failures.push(failure as { code: string; message: string }),
+      fetchSaid: async () => "blob:said-7",
+      makeAudio: refusing,
+    });
+    await settle();
+    expect(failures).toHaveLength(1);
+    expect(failures[0].code).toBe("autoplay-refused");
+    expect(failures[0].message).toMatch(/tap/i);
+  });
+
+  it("says why when there is no audio and no voice on the device", async () => {
+    delete (globalThis as { speechSynthesis?: unknown }).speechSynthesis;
+    delete (globalThis as { SpeechSynthesisUtterance?: unknown }).SpeechSynthesisUtterance;
+    const failures: { code: string }[] = [];
+    readAloud({
+      utteranceId: 7,
+      say: "Deployed and verified.",
+      onPhase: () => {},
+      onFailure: (failure) => failures.push(failure as { code: string }),
+      fetchSaid: async () => null,
+      makeAudio: fakeAudio().makeAudio,
+    });
+    await settle();
+    expect(failures.map((f) => f.code)).toEqual(["no-voice-here"]);
+  });
+
   it("falls back to the browser when the box has no engine", async () => {
     // 501 or 503 both arrive here as null: not from here, not now.
     const audio = fakeAudio();
