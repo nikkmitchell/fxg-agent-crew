@@ -55,6 +55,12 @@ export type Config = {
    */
   bodyCacheRoot: string;
   /**
+   * Where synthesised speech is kept, derived from the database path for the
+   * same reason as the bodies: a line costs a core-second to say and the same
+   * line in the same voice is the same sound for ever.
+   */
+  speechCacheRoot: string;
+  /**
    * Shared secret for the loopback-only render-session endpoint. EMPTY DISABLES
    * IT, which is the right default: a deployment that has not deliberately set
    * this has no way to mint a render session at all.
@@ -122,6 +128,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     logLevel: env.LOG_LEVEL ?? "info",
     stillsRoot: env.STILLS_ROOT ?? (production ? "./data/stills" : "./.dev-stills"),
     bodyCacheRoot: env.BODY_CACHE_ROOT ?? beside(databasePath, "bodies", "./.dev-bodies"),
+    speechCacheRoot: env.SPEECH_CACHE_ROOT ?? beside(databasePath, "speech", "./.dev-speech"),
     stillsToken: env.STILLS_TOKEN ?? "",
   };
 }

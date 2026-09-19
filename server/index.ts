@@ -30,7 +30,8 @@ import { BoardStore } from "./db/store.js";
 import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
 import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { registerStillRoutes } from "./space/stills.js";
-import { registerUtteranceRoutes } from "./space/utterances.js";
+import { Utterances, registerUtteranceRoutes } from "./space/utterances.js";
+import { registerSpeechRoutes, speakWith } from "./space/speak.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
 import { registerFollowingRoutes } from "./space/following.js";
 import { registerPathRoutes } from "./space/paths.js";
@@ -125,6 +126,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const agentBodies = new AgentBodies(database);
   const agentVoices = new AgentVoices(database);
   const memories = new Memories(database);
+  // Reading a line back aloud needs it by id; registerUtteranceRoutes keeps its
+  // own for writing. Both are stateless over the same table.
+  const utteranceBook = new Utterances(database);
   // Names the 300 catalogue bodies and, for each, the one address its file may
   // be fetched from. Read lazily; see server/space/catalogue.ts.
   const inTheCatalogue = knownToTheCatalogue();
@@ -316,6 +320,20 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       inTheCatalogue,
     });
     registerBodyFileRoutes(scoped, { config, sessions, files: bodyFiles });
+    /**
+     * Saying a line aloud, in the speaker's own voice. Read at call time like
+     * `canSpeak` above, so a box that gains an engine starts speaking without a
+     * restart — and one that never has an engine refuses in a sentence.
+     */
+    registerSpeechRoutes(scoped, {
+      config,
+      sessions,
+      cacheRoot: resolve(config.speechCacheRoot),
+      utterance: (id) => utteranceBook.one(id),
+      // The SPEAKER's voice, never the listener's: it is their line being read.
+      voiceOf: (actorId) => agentVoices.voiceOf(actorId).id,
+      speak: process.env.SPEAK_CMD?.trim() ? speakWith(process.env.SPEAK_CMD.trim()) : undefined,
+    });
   }, { prefix: config.basePath ?? "" });
 
   // Serve the built UI from the same origin as the API.

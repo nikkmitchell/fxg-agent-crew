@@ -85,6 +85,14 @@ export class Utterances {
       .all(Math.max(1, Math.min(200, limit))) as Record<string, unknown>[];
     return rows.map(row).reverse();
   }
+
+  /** One, by id, for reading a line back aloud. Null when there is no such row. */
+  one(id: number): Utterance | null {
+    const found = this.db.prepare("SELECT * FROM utterances WHERE id = ?").get(id) as
+      | Record<string, unknown>
+      | undefined;
+    return found ? row(found) : null;
+  }
 }
 
 export function registerUtteranceRoutes(
