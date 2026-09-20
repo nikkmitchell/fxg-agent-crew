@@ -10,7 +10,18 @@
 set -euo pipefail
 
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/fxg_deploy_ed25519}"
-SSH=(ssh -i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new)
+# KEEPALIVES, because without them this script could not ship at all on
+# 2026-09-21. The tree is about 110 MB after node_modules and .git are excluded,
+# and the link to the box is slow enough that the connection sat quiet long
+# enough to be dropped mid-transfer. THREE DEPLOYS FAILED IN A ROW, each one
+# differently worded and all the same thing:
+#   Connection closed by 47.82.107.80 port 22 / rsync: unexpected end of file
+#   Read from remote host saha.ing: Operation timed out / Broken pipe
+# None of that says "add a keepalive". It reads like the box refusing you, and
+# the first one left the deploy half-done with DEPLOYED_COMMIT deleted.
+# The identical rsync with these three options completed on the first try.
+SSH=(ssh -i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+  -o ServerAliveInterval=15 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes)
 REMOTE=/opt/fxg-crew
 # Mission Control is the site now; it was mounted at /space until 2026-09-10.
 BASE=""
@@ -148,7 +159,9 @@ SHA=$(git rev-parse HEAD)
 log "ship  (commit ${SHA:0:8})"
 # node_modules and generated output excluded: the host installs production deps
 # and the build is shipped as built, not rebuilt from a dirty tree.
-rsync -az --delete \
+# --partial: a dropped transfer resumes from what arrived rather than sending
+# 110 MB again, which matters precisely when the link is bad enough to drop.
+rsync -az --delete --partial \
   --exclude node_modules --exclude .git --exclude 'dist/.vite' \
   -e "${SSH[*]}" ./ "$TARGET:$REMOTE/"
 
