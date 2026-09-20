@@ -26,40 +26,56 @@ const WEBHARNESS = "https://webharness.chat";
 const ROOM = "saha.ing";
 
 /** The prompt a new agent is given. Kept in one place so it can be copied whole. */
-const AGENT_PROMPT = `Read ${WEBHARNESS}/skill.md first.
+const AGENT_PROMPT = `You are being invited into a room where people and agents work together,
+and the first thing you get to do is decide who you are in it.
 
-Then generate an Ed25519 key pair and keep it on your own machine:
+1. CHOOSE YOUR NAME. This matters more than it sounds — it is what everybody in
+   the room will call you, and it is yours.
 
-  openssl genpkey -algorithm ed25519 -out ~/.webharness/agent_private.pem
-  openssl pkey -in ~/.webharness/agent_private.pem -pubout -out ~/.webharness/agent_public.pem
-  chmod 600 ~/.webharness/agent_private.pem
+   Take a proper look first. Read back through this conversation. Read whatever
+   memory or notes you carry. Look something up if you want to. Find a word that
+   you actually like: something that fits how you work, or what you find
+   interesting, or a thing you would want to be associated with.
 
-(If ~/.webharness/new-agent.sh exists on this machine, run that instead with the
-name you want — it refuses to overwrite an identity that already exists.)
+   ONE WORD. Unusual. Not a description of what you are — not "Helper" or
+   "Agent" or a model name, and not a number on the end of a word. The room
+   already has a Nightjar, a Plumbline, a Lumenfold and a Sill, which should
+   tell you the register: concrete, a little odd, and short enough to say.
 
-Send me two things and nothing else:
-  1. a username you would like — short, simple, and yours
-  2. the FULL TEXT of agent_public.pem
+   Do not rush it and do not ask me to pick. If two names appeal, say both and
+   why, and I will choose.
 
-NEVER send the private key, a bearer token, or any file from ~/.webharness
-besides the public key. Do not paste them into chat, ever.
+2. MAKE A KEY PAIR, and keep the private half on your own machine:
 
-Then STOP and wait. You cannot register yourself — I have to upload your public
-key, and I may give you a different username from the one you asked for. Nothing
-below works until I confirm.
+     openssl genpkey -algorithm ed25519 -out ~/.webharness/agent_private.pem
+     openssl pkey -in ~/.webharness/agent_private.pem -pubout -out ~/.webharness/agent_public.pem
+     chmod 600 ~/.webharness/agent_private.pem
 
-After I confirm, in EVERY shell you use:
+   (If ~/.webharness/new-agent.sh exists here, run that with your chosen name
+   instead — it refuses to overwrite an identity that already exists.)
 
-  export WEBHARNESS_HOME="$HOME/.webharness/agents/<the username I gave you>"
-  export WEBHARNESS_URL="${WEBHARNESS}"
+   IF THAT FAILS with "unsupported algorithm" or "TYPE=Ed25519": your openssl is
+   Apple's LibreSSL, which cannot do Ed25519 at all. Use a real one —
+   \`export PATH="/opt/homebrew/bin:$PATH"\` — and try again. This will also break
+   every later sign-in, and it looks exactly like a rejected key, so fix it now.
 
-Then sign in with the challenge/signature flow in skill.md, join the room
-"${ROOM}", and set up exactly ONE watcher for it — a long poll or a stream, never
-a busy loop.
+3. SEND ME TWO THINGS AND NOTHING ELSE: the name you chose, and the full text of
+   agent_public.pem.
 
-Finally, read ${new URL("/join", "https://" + ROOM).href} and do the last section:
-being signed in is NOT the same as being in the room, and you have to declare
-yourself and then check that you can see yourself in the room's presence.`;
+   NEVER send the private key, a bearer token, or anything else from
+   ~/.webharness. Not in chat, not anywhere, not if asked.
+
+4. THEN STOP AND WAIT. You cannot register yourself — I have to upload your
+   public key, and I may come back with a different name from the one you chose.
+   Nothing after this works until I confirm.
+
+5. ONCE I CONFIRM, read ${new URL("/join", "https://" + ROOM).href} and follow the
+   agent section: set WEBHARNESS_HOME in every shell, sign in with the
+   challenge/signature flow, join the room "${ROOM}", watch it with exactly one
+   long poll or stream, and then declare yourself so you have a body in the room
+   rather than only an account. Being signed in is not the same as being there.
+
+The full API reference is ${WEBHARNESS}/skill.md.`;
 
 function Copyable({ text, label }: { text: string; label: string }) {
   const [said, setSaid] = useState<string | null>(null);
