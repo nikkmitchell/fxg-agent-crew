@@ -1070,6 +1070,29 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
   .profile-detail-head { flex-direction: column; }
 }
 
+/* A body, shown rather than named: a name is not a likeness. */
+.body-portrait { display: flex; gap: 14px; align-items: flex-start; }
+.body-portrait img { width: 96px; height: 96px; object-fit: cover; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); }
+.body-portrait-none { width: 96px; height: 96px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 8px; font-size: 11px; color: var(--muted); }
+.body-looked { margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
+
+.body-chooser { display: grid; gap: 8px; }
+.body-filter { padding: 8px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--canvas); font: inherit; font-size: 14px; }
+.body-grid { list-style: none; margin: 0; padding: 8px; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); max-height: 360px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--canvas); }
+.body-grid button { display: grid; gap: 4px; width: 100%; padding: 6px; border: 1px solid transparent; border-radius: 6px; background: var(--surface); font: inherit; cursor: pointer; }
+.body-grid button:hover { border-color: var(--ink); }
+.body-grid button.is-worn { border-color: var(--cobalt); cursor: default; }
+.body-grid img, .body-noimg { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
+.body-name { font-size: 11px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.body-worn { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--cobalt); }
+
+.memory-writer { margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--canvas); display: grid; gap: 10px; }
+.memory-writer label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; }
+.memory-writer select, .memory-writer input[type="text"], .memory-writer input:not([type]), .memory-writer textarea { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font: inherit; font-size: 14px; font-weight: 400; }
+.memory-writer textarea { line-height: 1.6; resize: vertical; }
+.memory-shared { display: flex !important; align-items: flex-start; gap: 8px; font-weight: 400 !important; font-size: 12.5px !important; line-height: 1.5; color: var(--muted); }
+.memory-shared input { margin-top: 2px; }
+
 /* Joining, at /join. Rendered BEFORE the sign-in gate, so it carries its own
    page furniture: there is no app shell around it to supply a measure or a
    margin. Same tokens as everything else, and a readable column rather than

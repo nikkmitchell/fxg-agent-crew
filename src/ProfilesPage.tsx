@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "./api-request";
 import { board, toProfile } from "./board-client";
+import { voiceFor } from "../shared/voice-choice";
 import type { ActorProfile } from "./profiles";
 
 /**
@@ -30,14 +31,35 @@ type VoicesAnswer = {
   yours: string;
   chosen: boolean;
   spokenAloud: boolean;
-  taken?: Record<string, string>;
+  /**
+   * WHO HOLDS WHAT — an ARRAY of pairs, not a map keyed by actor.
+   *
+   * I typed this as Record<string, string> without reading the server, indexed
+   * it by actorId, and got undefined every time. Every profile then fell back to
+   * the VIEWER's voice, so Nikk saw the same voice on everybody: "in profile all
+   * voices are the same". Two bugs from one unchecked assumption — the picker's
+   * taken-check was comparing an object to a string and never matched either.
+   */
+  taken?: { actorId: string; voice: string }[];
   heardByAnybody?: boolean;
 };
 type BodiesAnswer = {
   onHand: { slug: string; catalogue: string; looked: string | null }[];
   chosen: { actorId: string; body: string }[];
+  catalogue: string;
+  wearable: number;
 };
-type Memory = { id: string; kind: string; body: string; writtenAt?: string };
+/** A body in the wardrobe, from /avatars/catalogue.json. */
+type CatalogueBody = { name: string; collection?: string; description?: string; thumbnail?: string };
+
+/**
+ * The stored body is a slug ("chillpenguin"); the catalogue names it
+ * ("ChillPenguin"). Compare on letters and digits only, so neither spelling has
+ * to be authoritative.
+ */
+const slugOf = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
+type Memory = { id: string; kind: string; body: string; about?: string | null; writtenAt?: string };
+type MemoryKind = "self" | "fact" | "opinion" | "event";
 type Presence = { actorId: string; connected: boolean }[];
 
 const bff = (path: string) => `/bff${path}`;
@@ -46,6 +68,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
   const [profiles, setProfiles] = useState<ActorProfile[] | null>(null);
   const [voices, setVoices] = useState<VoicesAnswer | null>(null);
   const [bodies, setBodies] = useState<BodiesAnswer | null>(null);
+  const [catalogue, setCatalogue] = useState<CatalogueBody[]>([]);
   const [here, setHere] = useState<Presence>([]);
   const [looking, setLooking] = useState<string | null>(null);
   const [trouble, setTrouble] = useState<string | null>(null);
@@ -58,6 +81,17 @@ export function ProfilesPage({ me }: { me: string | null }) {
         requestJson<VoicesAnswer>(bff("/space/voices")),
         requestJson<BodiesAnswer>(bff("/space/bodies")),
       ]);
+      // The whole wardrobe, not the 15 that happen to ship with the site.
+      // Nikk: agents should "be able to choose from anything".
+      try {
+        // The list lives under `avatars`. I guessed `bodies` first and got an
+        // empty array, which fell back to the 15 on-hand ones while the hint
+        // above still said 301 — the page would have shown a shortlist and
+        // called it a wardrobe, which is the exact thing this is meant not to do.
+        const cat = await requestJson<Record<string, unknown>>(bodyAnswer.catalogue);
+        const list = (Array.isArray(cat) ? cat : cat.avatars ?? cat.bodies ?? []) as CatalogueBody[];
+        setCatalogue(list);
+      } catch { /* the page still works with the on-hand list alone */ }
       setProfiles((people.actors as Record<string, any>[]).map(toProfile) as ActorProfile[]);
       setVoices(voiceAnswer);
       setBodies(bodyAnswer);
@@ -86,7 +120,13 @@ export function ProfilesPage({ me }: { me: string | null }) {
   if (!profiles || !voices) return <section className="profiles" aria-busy="true" />;
 
   const bodyOf = (actorId: string) => bodies?.chosen.find((c) => c.actorId === actorId)?.body ?? null;
-  const voiceOf = (actorId: string) => voices.taken?.[actorId] ?? null;
+  /**
+   * The voice this actor speaks in: their choice, else the one derived from
+   * their name — the same rule the server uses, so the page agrees with the room.
+   * NEVER the viewer's, which is what the bug above produced.
+   */
+  const voiceOf = (actorId: string) =>
+    voices.taken?.find((t) => t.actorId === actorId)?.voice ?? voiceFor(actorId).id;
   const isHere = (actorId: string) => here.some((p) => p.actorId === actorId);
   const open = looking ? profiles.find((p) => p.actorId === looking) ?? null : null;
 
@@ -132,7 +172,9 @@ export function ProfilesPage({ me }: { me: string | null }) {
           me={me}
           voices={voices}
           bodies={bodies}
+          catalogue={catalogue}
           chosenVoice={voiceOf(open.actorId)}
+          voiceIsChosen={Boolean(voices.taken?.some((t) => t.actorId === open.actorId))}
           chosenBody={bodyOf(open.actorId)}
           onClose={() => setLooking(null)}
           onSaved={load}
@@ -147,7 +189,9 @@ function ProfileDetail(props: {
   me: string | null;
   voices: VoicesAnswer;
   bodies: BodiesAnswer | null;
+  catalogue: CatalogueBody[];
   chosenVoice: string | null;
+  voiceIsChosen: boolean;
   chosenBody: string | null;
   onClose: () => void;
   onSaved: () => void;
@@ -155,16 +199,20 @@ function ProfileDetail(props: {
   const { profile, me, voices, chosenVoice } = props;
   const yours = profile.actorId === me;
   const [memories, setMemories] = useState<Memory[] | null>(null);
+  const [memoryNote, setMemoryNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     let live = true;
     void (async () => {
       try {
-        const answer = await requestJson<{ memories: Memory[] }>(
+        const answer = await requestJson<{ memories: Memory[]; note?: string }>(
           bff(`/space/memories/${encodeURIComponent(profile.actorId)}`),
         );
-        if (live) setMemories(answer.memories ?? []);
+        // The server's own sentence for an empty list is better than any I would
+        // write here: "has shared nothing. That is not the same as remembering
+        // nothing." Use it rather than inventing a second wording.
+        if (live) { setMemories(answer.memories ?? []); setMemoryNote(answer.note ?? null); }
       } catch {
         // A profile is still worth reading when its memories cannot be.
         if (live) setMemories([]);
@@ -173,7 +221,7 @@ function ProfileDetail(props: {
     return () => { live = false; };
   }, [profile.actorId]);
 
-  const voice = voices.voices.find((v) => v.id === (chosenVoice ?? voices.yours));
+  const voice = voices.voices.find((v) => v.id === chosenVoice);
 
   return (
     <div className="profile-detail" role="dialog" aria-label={`${profile.displayName}'s profile`}>
@@ -191,9 +239,19 @@ function ProfileDetail(props: {
       </header>
 
       <section className="profile-block">
+        <h3>Body</h3>
+        <BodyPortrait body={props.chosenBody} catalogue={props.catalogue} bodies={props.bodies} />
+      </section>
+
+      <section className="profile-block">
         <h3>Voice</h3>
         {voice ? (
-          <VoicePreview voice={voice} canSpeak={voices.spokenAloud} />
+          <>
+            <VoicePreview voice={voice} canSpeak={voices.spokenAloud} />
+            <p className="profile-hint">
+              {props.voiceIsChosen ? "Chosen." : "Derived from their name — not chosen yet."}
+            </p>
+          </>
         ) : (
           <p className="profile-absent">no voice recorded</p>
         )}
@@ -214,20 +272,29 @@ function ProfileDetail(props: {
         <h3>Memories they have shared</h3>
         {memories === null ? <p className="profile-absent">reading…</p>
           : memories.length === 0
-            ? <p className="profile-absent">Nothing shared. Private memories are not listed here, and are not missing.</p>
+            ? <p className="profile-absent">{memoryNote ?? "Nothing shared."} Private ones are not listed here.</p>
             : (
               <ul className="profile-memories">
                 {memories.map((m) => (
-                  <li key={m.id}><span className="profile-memory-kind">{m.kind}</span> {m.body}</li>
+                  <li key={m.id}>
+                    <span className="profile-memory-kind">{m.kind}</span> {m.body}
+                    {m.about ? <span className="profile-hint"> — about {m.about}</span> : null}
+                  </li>
                 ))}
               </ul>
             )}
+        {yours ? <MemoryWriter onWritten={() => { setMemories(null); setMemoryNote(null);
+          void requestJson<{ memories: Memory[]; note?: string }>(
+            bff(`/space/memories/${encodeURIComponent(profile.actorId)}`),
+          ).then((a) => { setMemories(a.memories ?? []); setMemoryNote(a.note ?? null); });
+        }} /> : null}
       </section>
 
       {yours ? (
         editing
           ? <ProfileForm profile={profile} voices={voices} bodies={props.bodies}
-              chosenBody={props.chosenBody} onDone={() => { setEditing(false); props.onSaved(); }} />
+              catalogue={props.catalogue} chosenBody={props.chosenBody}
+              onDone={() => { setEditing(false); props.onSaved(); }} />
           : <button type="button" className="profile-edit" onClick={() => setEditing(true)}>Edit your profile</button>
       ) : null}
     </div>
@@ -290,6 +357,7 @@ function ProfileForm(props: {
   profile: ActorProfile;
   voices: VoicesAnswer;
   bodies: BodiesAnswer | null;
+  catalogue: CatalogueBody[];
   chosenBody: string | null;
   onDone: () => void;
 }) {
@@ -369,6 +437,9 @@ function ProfileForm(props: {
         </>
       ) : null}
 
+      <BodyChooser catalogue={props.catalogue} bodies={props.bodies}
+        chosenBody={props.chosenBody} onChanged={props.onDone} />
+
       <VoiceChooser voices={props.voices} onChanged={props.onDone} />
 
       {refusal ? <p className="profile-refusal" role="alert">{refusal}</p> : null}
@@ -394,8 +465,7 @@ function ProfileForm(props: {
 function VoiceChooser({ voices, onChanged }: { voices: VoicesAnswer; onChanged: () => void }) {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const takenBy = (id: string) =>
-    Object.entries(voices.taken ?? {}).find(([, v]) => v === id)?.[0] ?? null;
+  const takenBy = (id: string) => voices.taken?.find((t) => t.voice === id)?.actorId ?? null;
 
   const choose = async (id: string) => {
     setBusy(true);
@@ -434,6 +504,186 @@ function VoiceChooser({ voices, onChanged }: { voices: VoicesAnswer; onChanged: 
         })}
       </ul>
       {refusal ? <p className="profile-refusal" role="alert">{refusal}</p> : null}
+    </div>
+  );
+}
+
+
+/**
+ * What somebody actually looks like.
+ *
+ * Nikk: "when clicking on someone I also want to be able to see their avatar".
+ * The catalogue ships a thumbnail for every body, which is the honest answer to
+ * that — A NAME IS NOT A LIKENESS. @Moraine took one called Crowley and found an
+ * orange-tan fox; the wardrobe's own notes record somebody discovering the same
+ * thing. A picture settles it and a name does not.
+ */
+function BodyPortrait(props: { body: string | null; catalogue: CatalogueBody[]; bodies: BodiesAnswer | null }) {
+  if (!props.body) return <p className="profile-absent">No body chosen — drawn as the room's default.</p>;
+  const entry = props.catalogue.find((c) => slugOf(c.name) === slugOf(props.body!));
+  const onHand = props.bodies?.onHand.find((o) => slugOf(o.slug) === slugOf(props.body!));
+  return (
+    <div className="body-portrait">
+      {entry?.thumbnail
+        ? <img src={entry.thumbnail} alt={`${props.body}, as it looks`} loading="lazy" />
+        : <div className="body-portrait-none">no picture</div>}
+      <div>
+        <strong>{entry?.name ?? onHand?.catalogue ?? props.body}</strong>
+        {/* `looked` is somebody who actually opened it saying what they saw. */}
+        {onHand?.looked ? <p className="body-looked">{onHand.looked}</p> : null}
+        {entry?.collection ? <p className="profile-hint">{entry.collection}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The whole wardrobe, not the part that happens to ship with the site.
+ *
+ * Nikk: "lets make agents are not encouraged to grab the locally ones, as we
+ * want them to be able to choose from anything". The 15 on-hand bodies are the
+ * ones whose files are bundled — that is a loading detail, not a shortlist, and
+ * presenting them first would quietly turn it into one.
+ */
+function BodyChooser(props: {
+  catalogue: CatalogueBody[];
+  bodies: BodiesAnswer | null;
+  chosenBody: string | null;
+  onChanged: () => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  const all = props.catalogue.length ? props.catalogue : (props.bodies?.onHand ?? []).map((o) => ({ name: o.catalogue }));
+  const shown = filter.trim()
+    ? all.filter((b) => b.name.toLowerCase().includes(filter.trim().toLowerCase())).slice(0, 120)
+    : all.slice(0, 120);
+
+  const choose = async (name: string) => {
+    setBusy(true);
+    setRefusal(null);
+    try {
+      await requestJson(bff("/space/body"), { method: "PUT", body: JSON.stringify({ body: slugOf(name) }) });
+      props.onChanged();
+    } catch (error) {
+      setRefusal(error instanceof Error ? error.message : "that body was refused");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="body-chooser">
+      <h4>Your body</h4>
+      <p className="profile-hint">
+        {all.length} to choose from. The 15 whose files ship with the site are not a shortlist — any of
+        these can be worn, and the rest are fetched the first time somebody needs them.
+      </p>
+      <input className="body-filter" value={filter} placeholder="search the wardrobe"
+        onChange={(e) => setFilter(e.target.value)} />
+      <ul className="body-grid">
+        {shown.map((b) => {
+          const mine = props.chosenBody ? slugOf(b.name) === slugOf(props.chosenBody) : false;
+          const thumb = (b as CatalogueBody).thumbnail;
+          return (
+            <li key={b.name}>
+              <button type="button" className={mine ? "is-worn" : undefined} disabled={busy || mine}
+                onClick={() => void choose(b.name)} title={b.name}>
+                {thumb ? <img src={thumb} alt="" loading="lazy" /> : <span className="body-noimg" />}
+                <span className="body-name">{b.name}</span>
+                {mine ? <span className="body-worn">worn</span> : null}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {shown.length < all.length
+        ? <p className="profile-hint">Showing {shown.length} of {all.length}. Search to narrow it.</p>
+        : null}
+      {refusal ? <p className="profile-refusal" role="alert">{refusal}</p> : null}
+    </div>
+  );
+}
+
+
+/**
+ * Writing one down, and deciding who may read it.
+ *
+ * Nikk: "we can let the memories be public to users, now i don't see any".
+ * There were none to see — not because the page hid them, but because there was
+ * nowhere to write one without curl. A store nobody can add to reads as an empty
+ * feature rather than an empty store.
+ *
+ * SHARED IS A DELIBERATE ACT, and private stays the default here. A memory is
+ * the most personal thing on this page; defaulting it to public would make
+ * publishing the accident rather than the decision.
+ */
+function MemoryWriter({ onWritten }: { onWritten: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<MemoryKind>("self");
+  const [body, setBody] = useState("");
+  const [about, setAbout] = useState("");
+  const [shared, setShared] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  if (!open) {
+    return <button type="button" className="profile-edit" onClick={() => setOpen(true)}>Remember something</button>;
+  }
+
+  const write = async () => {
+    setBusy(true);
+    setRefusal(null);
+    try {
+      await requestJson(bff("/space/memories"), {
+        method: "POST",
+        body: JSON.stringify({
+          kind, body,
+          visibility: shared ? "shared" : "private",
+          // An opinion with no subject gets attached to whoever is nearby by the
+          // next person who reads it, so the server requires one.
+          ...(about.trim() ? { about: about.trim() } : {}),
+        }),
+      });
+      setBody(""); setAbout(""); setOpen(false);
+      onWritten();
+    } catch (error) {
+      setRefusal(error instanceof Error ? error.message : "that was refused");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="memory-writer">
+      <label>What kind
+        <select value={kind} onChange={(e) => setKind(e.target.value as MemoryKind)}>
+          <option value="self">self — something about you</option>
+          <option value="fact">fact — something that is so</option>
+          <option value="opinion">opinion — about somebody, and it needs a subject</option>
+          <option value="event">event — something that happened</option>
+        </select>
+      </label>
+      <label>The memory, in your own words
+        <textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
+      </label>
+      {kind === "opinion" ? (
+        <label>Who it is about
+          <input value={about} onChange={(e) => setAbout(e.target.value)} placeholder="an actor id" />
+        </label>
+      ) : null}
+      <label className="memory-shared">
+        <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+        Share it — anyone who opens your profile can read it. Unchecked, only you can.
+      </label>
+      {refusal ? <p className="profile-refusal" role="alert">{refusal}</p> : null}
+      <div className="profile-form-actions">
+        <button type="button" disabled={busy || !body.trim()} onClick={() => void write()}>
+          {busy ? "Writing…" : "Remember it"}
+        </button>
+        <button type="button" className="profile-cancel" onClick={() => setOpen(false)}>Cancel</button>
+      </div>
     </div>
   );
 }
