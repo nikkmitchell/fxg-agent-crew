@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { LiveRoomPanel } from "./LiveRoomPanel";
 import { Home } from "./Home";
-import { DEFAULT_TAB, TABS, type Tab, pathForTab, tabFromPath } from "./router";
+import { DEFAULT_TAB, RAIL, TABS, type Tab, pathForTab, tabFromPath } from "./router";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import { BuildPanel } from "./BuildPanel";
 import { Identity } from "./Identity";
@@ -63,16 +63,16 @@ const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" |
   home: { label: "Home", glyph: "room" },
   projects: { label: "Projects", glyph: "grid" },
   overview: { label: "Overview", glyph: "grid" },
-  board: { label: "Board", glyph: "stack" },
+  board: { label: "Work", glyph: "stack" },
   mood: { label: "Mood boards", glyph: "image" },
   mine: { label: "My work", glyph: "grid" },
   people: { label: "People", glyph: "grid" },
   room: { label: "The room", glyph: "room" },
   build: { label: "Build", glyph: "clock" },
   said: { label: "Said in the room", glyph: "clock" },
-  chat: { label: "Chat", glyph: "chat" },
+  chat: { label: "Talk", glyph: "chat" },
   join: { label: "Joining", glyph: "room" },
-  profiles: { label: "Profiles", glyph: "grid" },
+  profiles: { label: "People", glyph: "grid" },
 };
 
 /**
@@ -342,7 +342,7 @@ export default function App() {
       <aside className="utility-rail" aria-label="Workspace navigation">
         <button className="brand-mark" aria-label="Saha home">F<span>/</span>X</button>
         <nav className="rail-nav" aria-label="Sections">
-          {TABS.map((name) => (
+          {RAIL.map((name) => (
             <button
               key={name}
               className={`rail-button${tab === name ? " is-active" : ""}`}

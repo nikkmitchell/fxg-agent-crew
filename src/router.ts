@@ -32,6 +32,29 @@ export type Tab = (typeof TABS)[number];
  */
 export const DEFAULT_TAB: Tab = "home";
 
+/**
+ * WHAT THE RAIL SHOWS, which is not the same as what the app can reach.
+ *
+ * Nikk, looking at thirteen buttons: "we have like 3 tabs that are all for
+ * chat, and a bunch of rough repeates, make it much tighter and cleaner".
+ *
+ * They were right, and the cause was that this file had one list doing two
+ * jobs. EVERY TAB IS A ROUTE — that is what makes a view linkable, refreshable
+ * and sendable, and none of that changes. But a route does not have to own a
+ * slot in a rail of thirteen, and five of those slots were the same component
+ * with a different argument:
+ *
+ *   projects, overview, board, mood, mine   -> one ProjectWorkspace
+ *   people, profiles                        -> two directories of the same actors
+ *   said, chat                              -> two readers of things people said
+ *
+ * So the rail lists the SEVEN PLACES, and the rest stay reachable by URL and
+ * from inside the page that owns them. /mood still works. /people still works.
+ * Nobody's bookmark breaks; the wall of buttons stops pretending they are
+ * thirteen different destinations.
+ */
+export const RAIL: readonly Tab[] = ["home", "room", "board", "profiles", "chat", "build", "join"];
+
 /** Base path with no trailing slash: "/space" in production, "" in dev. */
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 

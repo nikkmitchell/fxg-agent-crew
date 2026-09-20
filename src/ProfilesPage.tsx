@@ -67,6 +67,9 @@ const slugOf = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
 type Memory = { id: string; kind: string; body: string; about?: string | null; writtenAt?: string };
 type MemoryKind = "self" | "fact" | "opinion" | "event";
 type Presence = { actorId: string; connected: boolean }[];
+/** Who operates whom. Lineage, never permission — see shared/board-rules.ts. */
+type Ownership = { agentActorId: string; ownerActorId: string; state: string };
+type Membership = { projectId: string; actorId: string; active: boolean };
 
 const bff = (path: string) => `/bff${path}`;
 
@@ -75,6 +78,8 @@ export function ProfilesPage({ me }: { me: string | null }) {
   const [voices, setVoices] = useState<VoicesAnswer | null>(null);
   const [bodies, setBodies] = useState<BodiesAnswer | null>(null);
   const [catalogue, setCatalogue] = useState<CatalogueBody[]>([]);
+  const [ownerships, setOwnerships] = useState<Ownership[]>([]);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
   const [here, setHere] = useState<Presence>([]);
   const [looking, setLooking] = useState<string | null>(null);
   const [trouble, setTrouble] = useState<string | null>(null);
@@ -99,6 +104,10 @@ export function ProfilesPage({ me }: { me: string | null }) {
         setCatalogue(list);
       } catch { /* the page still works with the on-hand list alone */ }
       setProfiles((people.actors as Record<string, any>[]).map(toProfile) as ActorProfile[]);
+      // Came with the same call all along. The People page existed largely to
+      // show these two, and they belong beside the person they are about.
+      setOwnerships((people.ownerships ?? []) as Ownership[]);
+      setMemberships((people.memberships ?? []) as Membership[]);
       setVoices(voiceAnswer);
       setBodies(bodyAnswer);
       // Presence is a nice-to-have: the page is still true without it, so a
@@ -179,6 +188,8 @@ export function ProfilesPage({ me }: { me: string | null }) {
           voices={voices}
           bodies={bodies}
           catalogue={catalogue}
+          ownerships={ownerships}
+          memberships={memberships}
           chosenVoice={voiceOf(open.actorId)}
           voiceIsChosen={Boolean(voices.taken?.some((t) => t.actorId === open.actorId))}
           chosenBody={bodyOf(open.actorId)}
@@ -196,6 +207,8 @@ function ProfileDetail(props: {
   voices: VoicesAnswer;
   bodies: BodiesAnswer | null;
   catalogue: CatalogueBody[];
+  ownerships: Ownership[];
+  memberships: Membership[];
   chosenVoice: string | null;
   voiceIsChosen: boolean;
   chosenBody: string | null;
@@ -291,6 +304,11 @@ function ProfileDetail(props: {
               {yours ? "You have not written one yet." : "They have not written one."}
             </p>
           )}
+      </section>
+
+      <section className="profile-block">
+        <h3>Standing</h3>
+        <Standing actorId={profile.actorId} ownerships={props.ownerships} memberships={props.memberships} />
       </section>
 
       <section className="profile-block">
@@ -710,6 +728,44 @@ function MemoryWriter({ onWritten }: { onWritten: () => void }) {
         <button type="button" className="profile-cancel" onClick={() => setOpen(false)}>Cancel</button>
       </div>
     </div>
+  );
+}
+
+
+/**
+ * Who operates this agent, what it operates, and where it may act.
+ *
+ * THE RULE THIS RENDERS, and the reason the two are shown apart: OPERATING AN
+ * AGENT GRANTS NO PROJECT AUTHORITY. Ownership is lineage — who is answerable
+ * for this instrument — and membership is permission. Drawing them as one list
+ * would quietly assert the thing the schema goes out of its way to prevent.
+ */
+function Standing(props: { actorId: string; ownerships: Ownership[]; memberships: Membership[] }) {
+  const live = (o: Ownership) => o.state !== "revoked";
+  const operatedBy = props.ownerships.filter((o) => live(o) && o.agentActorId === props.actorId);
+  const operates = props.ownerships.filter((o) => live(o) && o.ownerActorId === props.actorId);
+  const projects = props.memberships.filter((m) => m.actorId === props.actorId && m.active);
+
+  if (!operatedBy.length && !operates.length && !projects.length) {
+    return <p className="profile-absent">No ownership or membership recorded.</p>;
+  }
+  return (
+    <ul className="profile-standing">
+      {operatedBy.map((o) => (
+        <li key={`by-${o.ownerActorId}`}>
+          Operated by <strong>{o.ownerActorId}</strong>
+          {o.state === "pending" ? <span className="profile-hint"> — claimed, not yet confirmed</span> : null}
+        </li>
+      ))}
+      {operates.map((o) => (
+        <li key={`of-${o.agentActorId}`}>Operates <strong>{o.agentActorId}</strong></li>
+      ))}
+      {projects.length ? (
+        <li>Member of {projects.map((m) => m.projectId).join(", ")}</li>
+      ) : (
+        <li className="profile-absent">No project membership — which is separate from who operates them.</li>
+      )}
+    </ul>
   );
 }
 

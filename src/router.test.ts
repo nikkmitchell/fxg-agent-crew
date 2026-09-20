@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TAB, TABS, isTab, pathForTab, tabFromPath } from "./router";
+import { DEFAULT_TAB, RAIL, TABS, isTab, pathForTab, tabFromPath } from "./router";
 
 /**
  * BASE_URL is "/" under vitest, so `base` is "". These assertions are written
@@ -95,3 +95,31 @@ describe("the app opens on the room's front door", () => {
     expect(tabFromPath(pathForTab("home"))).toBe("home");
   });
 });
+
+/**
+ * The rail is a SHORTLIST, and the point of these is that shortening it never
+ * costs anybody a destination. A tab dropped from the rail must still be a
+ * route; a rail entry that is not a route is a button that goes nowhere.
+ */
+describe("what the rail shows versus what the app can reach", () => {
+  it("every rail entry is a real tab", () => {
+    for (const name of RAIL) expect(isTab(name), name).toBe(true);
+  });
+
+  it("EVERY TAB IS STILL REACHABLE, rail or not", () => {
+    // The whole promise of shrinking the rail: /mood and /people were dropped
+    // from it and must still resolve, or somebody's bookmark just broke.
+    for (const tab of TABS) {
+      expect(tabFromPath(pathForTab(tab)), tab).toBe(tab);
+    }
+  });
+
+  it("keeps the rail shorter than the full set, or it is not doing anything", () => {
+    expect(RAIL.length).toBeLessThan(TABS.length);
+  });
+
+  it("leads with home, which is where an unknown URL lands", () => {
+    expect(RAIL[0]).toBe(DEFAULT_TAB);
+  });
+});
+
