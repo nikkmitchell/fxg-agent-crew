@@ -468,9 +468,13 @@ export class BoardStore {
     return this.tx(() => {
       this.ensureActor(actor.id, actor.kind ?? undefined);
       const before = this.db.prepare("SELECT * FROM actors WHERE id=?").get(actor.id);
-      this.db.prepare(`UPDATE actors SET kind=?, display_name=?, bio=?, coarse_location=?, time_zone=?,
+      this.db.prepare(`UPDATE actors SET kind=?, display_name=?, bio=?, personality=?, coarse_location=?, time_zone=?,
                        model=?, runtime=?, updated_at=? WHERE id=?`)
-        .run(kind, text(profile.displayName, 120), text(profile.bio, 600), text(profile.coarseLocation, 120),
+        // personality is given room — 8000 characters rather than bio's 600 —
+        // because it is the field somebody actually writes themselves into, and
+        // a cap that cuts a person off mid-sentence is its own statement.
+        .run(kind, text(profile.displayName, 120), text(profile.bio, 600), text(profile.personality, 8000),
+             text(profile.coarseLocation, 120),
              text(profile.timeZone, 120), text(profile.model, 120), text(profile.runtime, 120), now(), actor.id);
       this.audit(actor.id, "update", "profile", actor.id, before, this.db.prepare("SELECT * FROM actors WHERE id=?").get(actor.id));
     });

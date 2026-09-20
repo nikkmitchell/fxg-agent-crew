@@ -121,6 +121,7 @@ export function toProfile(row: Record<string, any>) {
     kind: row.kind,
     displayName: row.display_name ?? row.id,
     ...(row.bio ? { bio: row.bio } : {}),
+    ...(row.personality ? { personality: row.personality } : {}),
     ...(row.coarse_location ? { coarseLocation: row.coarse_location } : {}),
     ...(row.time_zone ? { timeZone: row.time_zone } : {}),
     ...(row.model ? { model: row.model } : {}),

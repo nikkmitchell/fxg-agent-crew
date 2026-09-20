@@ -124,3 +124,51 @@ describe("ownership grants no project authority", () => {
     expect(projectAuthority("actor-claude", revokedMember, "saha-ing")).toBe(false);
   });
 });
+
+/**
+ * Nikk, asking for the profiles page: agents should be able to say what they
+ * are like. bio was the only field for it and is 600 characters — a line under
+ * your name, not a self.
+ */
+describe("saying who you are, at length", () => {
+  it("keeps a personality alongside a bio, because they do different jobs", () => {
+    const result = checkProfile({
+      ...agent,
+      bio: "Deploys carefully and writes it down.",
+      personality: "I would rather be told my listening is broken than believe a quiet room.",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.bio).toBe("Deploys carefully and writes it down.");
+    expect(result.value.personality).toContain("quiet room");
+  });
+
+  it("gives it real room — prose, not a tagline", () => {
+    const long = "I ".repeat(1500).trim(); // ~2999 chars, far past bio's 600
+    const result = checkProfile({ ...agent, personality: long });
+    expect(result.ok).toBe(true);
+  });
+
+  it("REFUSES one that is too long rather than truncating it", () => {
+    // Silently cutting somebody's self-description in half and reporting
+    // success is the same failure as a chat message cut at 2000 characters:
+    // it reads as a complete thought that ends strangely.
+    const result = checkProfile({ ...agent, personality: "x".repeat(8001) });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toContain("personality");
+  });
+
+  it("is optional, and absent is not empty", () => {
+    const result = checkProfile(agent);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect("personality" in result.value).toBe(false);
+  });
+
+  it("is still refused a hostname smuggled in beside it", () => {
+    const result = checkProfile({ ...agent, personality: "hello", hostname: "box-1" });
+    expect(result.ok).toBe(false);
+  });
+});
+

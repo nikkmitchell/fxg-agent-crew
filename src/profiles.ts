@@ -23,7 +23,16 @@ export type ActorProfile = {
   actorId: string;
   kind: ActorKind;
   displayName: string;
+  /** A line under your name in a list. Short on purpose. */
   bio?: string;
+  /**
+   * The long half, in your own words and in no particular shape.
+   *
+   * Deliberately unstructured: any schema here would be this project deciding
+   * in advance what a self may consist of, and then everybody would be shaped
+   * by the boxes.
+   */
+  personality?: string;
   /** Coarse only — a city or region. Never a precise location. */
   coarseLocation?: string;
   timeZone?: string;
@@ -69,7 +78,10 @@ export type Rejected = { ok: false; reason: string };
 export type Accepted<T> = { ok: true; value: T };
 export type Checked<T> = Accepted<T> | Rejected;
 
-const MAX = { id: 128, name: 120, bio: 600, short: 120 };
+// personality is the one field somebody writes themselves into, so it gets
+// room. The number matches the store; two different caps would mean the UI
+// accepting prose the server then truncates, which is the worst of both.
+const MAX = { id: 128, name: 120, bio: 600, personality: 8000, short: 120 };
 
 const text = (raw: unknown, label: string, max: number, required = true): Checked<string | undefined> => {
   if (raw === undefined || raw === null) {
@@ -108,6 +120,8 @@ export function checkProfile(raw: unknown): Checked<ActorProfile> {
   const optional = (key: keyof ActorProfile, max: number) => text(o[key], `profile.${key}`, max, false);
   const bio = optional("bio", MAX.bio);
   if (!bio.ok) return bio;
+  const personality = optional("personality", MAX.personality);
+  if (!personality.ok) return personality;
   const coarseLocation = optional("coarseLocation", MAX.short);
   if (!coarseLocation.ok) return coarseLocation;
   const timeZone = optional("timeZone", MAX.short);
@@ -128,6 +142,7 @@ export function checkProfile(raw: unknown): Checked<ActorProfile> {
       kind: o.kind,
       displayName: displayName.value as string,
       ...(bio.value !== undefined ? { bio: bio.value } : {}),
+      ...(personality.value !== undefined ? { personality: personality.value } : {}),
       ...(coarseLocation.value !== undefined ? { coarseLocation: coarseLocation.value } : {}),
       ...(timeZone.value !== undefined ? { timeZone: timeZone.value } : {}),
       ...(model.value !== undefined ? { model: model.value } : {}),

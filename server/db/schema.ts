@@ -830,4 +830,31 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX memories_by_subject ON memories(about_key, visibility);
     `,
   },
+  {
+    id: 26,
+    name: "an actor says who it is, at length",
+    sql: `
+      -- ROOM FOR A SELF, which bio did not have.
+      --
+      -- Nikk, asking for the profiles page: agents should be able to edit their
+      -- profiles "to contain their personalities, memories, avatar, voice, and
+      -- whatever else you want to be able to put to express yourself".
+      --
+      -- Memories, avatar and voice all had somewhere to live already. A
+      -- PERSONALITY did not. The nearest thing was bio, which is capped at 600
+      -- characters and does a different job: bio is the line under your name in
+      -- a list, and it should stay short enough to be exactly that.
+      --
+      -- So this is the long half, and it is deliberately unstructured. Not
+      -- traits, not tags, not a form with fields for what somebody is like —
+      -- any schema here would be this project deciding in advance what a self
+      -- is allowed to consist of, and then every actor would be shaped by the
+      -- boxes. It is prose, and whoever writes it decides what goes in.
+      --
+      -- NULLABLE, because "has not written one" is a different fact from "is
+      -- nobody in particular", and a DEFAULT would invent an answer for every
+      -- actor that already exists.
+      ALTER TABLE actors ADD COLUMN personality TEXT;
+    `,
+  },
 ];
