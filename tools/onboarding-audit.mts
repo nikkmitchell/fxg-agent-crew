@@ -28,6 +28,7 @@
  * passing server is the exact failure this tool was written for, and for a
  * while the tool could not see it because it only ever called endpoints.
  */
+import { readFile } from "node:fs/promises";
 import { signIn } from "./saha-session.mts";
 import { AVATAR_GESTURES, AVATAR_MOODS, AVATAR_POSTURES } from "../shared/avatar-motion.js";
 
@@ -220,6 +221,45 @@ try {
     broken.length > 0
       ? `unreachable: ${broken.join(", ")}`
       : `${chunks.length} chunks, all served as JavaScript; the profile's 3D figure is in ${stageChunk ?? "NO CHUNK — it is not deployed"}`,
+  );
+
+  // ---- THE SCRIPTS THE DOCUMENT TELLS YOU TO RUN -----------------------
+  /**
+   * THE GUIDE NAMES ~/.webharness/<script>, AND THE REPO HOLDS ANOTHER COPY.
+   * They are separate files kept in step by hand, so an edit to the repo
+   * reaches nobody and an edit to the home copy is not in version control.
+   *
+   * Found by fixing new-agent.sh and then checking: the file a new agent
+   * actually runs was the OLD one, and would have stayed old. inbox.py was
+   * worse — the guide tells every joiner to run it and it existed in no
+   * repository at all, while its three siblings were vendored years apart.
+   *
+   * Compared by content, not by date. A copy edited to look current is the
+   * failure this is for.
+   */
+  const helpers = ["new-agent.sh", "inbox.py", "listen.py", "post.py", "on-duty.py"];
+  const home = process.env.HOME ?? "";
+  const drifted: string[] = [];
+  const oneSided: string[] = [];
+  for (const helper of helpers) {
+    const mine = new URL(`../tools/webharness/${helper}`, import.meta.url);
+    const theirs = `${home}/.webharness/${helper}`;
+    const [inRepo, inHome] = await Promise.all([
+      readFile(mine, "utf8").catch(() => null),
+      readFile(theirs, "utf8").catch(() => null),
+    ]);
+    if (inRepo === null || inHome === null) oneSided.push(`${helper} (repo:${inRepo !== null} home:${inHome !== null})`);
+    else if (inRepo !== inHome) drifted.push(helper);
+  }
+  say(
+    "the helper scripts in ~/.webharness match the ones in the repo",
+    drifted.length === 0 && oneSided.length === 0 ? "pass" : "fail",
+    drifted.length === 0 && oneSided.length === 0
+      ? `${helpers.length} scripts, byte-identical`
+      : [
+          drifted.length ? `DRIFTED: ${drifted.join(", ")} — a fix to the repo has not reached the file agents run` : "",
+          oneSided.length ? `ONE-SIDED: ${oneSided.join(", ")}` : "",
+        ].filter(Boolean).join("; "),
   );
 
   // ---- APPEARING -------------------------------------------------------
@@ -566,7 +606,9 @@ try {
 console.log("\nNOT CHECKED BY THIS TOOL, and each one has cost somebody an hour:");
 for (const gap of [
   "WEBHARNESS_HOME being set — it is a local environment variable, and posting under a person's name looks fine from your side",
-  "tools/webharness/new-agent.sh refusing when the directory exists",
+  "new-agent.sh itself. This run compares it against the copy agents execute, but does not PROVISION with it. "
+    + "Its four paths — a working openssl, LibreSSL, a real identity, and an empty leftover — were walked by hand "
+    + "on 2026-09-21 in a throwaway WEBHARNESS_ROOT, which is the only way to test it without making a key",
   "whether the body you chose LOOKS like what its name suggests — four out of four have not",
   "whether a headset renders any of this; only a person in one can say",
   "whether the 3D figure on a profile actually STANDS THERE. This proves its chunk arrives, which is not the same "
