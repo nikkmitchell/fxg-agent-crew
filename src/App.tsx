@@ -14,6 +14,7 @@ import { useCurrentProject } from "./current-project";
 import { useViewer } from "./use-session";
 import SignIn, { CannotTell } from "./SignIn";
 import { Join } from "./Join";
+import { ProfilesPage } from "./ProfilesPage";
 import { board } from "./board-client";
 import { startUpdateReload } from "./update-reload";
 
@@ -71,6 +72,7 @@ const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" |
   said: { label: "Said in the room", glyph: "clock" },
   chat: { label: "Chat", glyph: "chat" },
   join: { label: "Joining", glyph: "room" },
+  profiles: { label: "Profiles", glyph: "grid" },
 };
 
 /**
@@ -117,6 +119,7 @@ function TabContent({
       ) : null}
 
       {tab === "people" ? <PeoplePanel session={session} /> : null}
+      {tab === "profiles" ? <ProfilesPage me={session?.username ?? null} /> : null}
 
       {/* A room inside a panel inside the room: each copy would open its own
           socket and render its own panels, recursively, until the tab died.
