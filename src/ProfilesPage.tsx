@@ -1,7 +1,19 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "./api-request";
 import { board, toProfile } from "./board-client";
-import { voiceFor } from "../shared/voice-choice";
+import {
+  bodiesFromCatalogue,
+  bodyOfActor,
+  holderOfVoice,
+  slugOf,
+  standingOf,
+  voiceOfActor,
+  voiceWasChosen,
+  type BodyHolding,
+  type OwnershipLink,
+  type ProjectMembership,
+  type VoiceHolding,
+} from "./profile-view";
 
 /**
  * Three and a VRM are megabytes, and most visits here are to READ. Nothing of
@@ -46,30 +58,24 @@ type VoicesAnswer = {
    * voices are the same". Two bugs from one unchecked assumption — the picker's
    * taken-check was comparing an object to a string and never matched either.
    */
-  taken?: { actorId: string; voice: string }[];
+  taken?: VoiceHolding[];
   heardByAnybody?: boolean;
 };
 type BodiesAnswer = {
   onHand: { slug: string; catalogue: string; looked: string | null }[];
-  chosen: { actorId: string; body: string }[];
+  chosen: BodyHolding[];
   catalogue: string;
   wearable: number;
 };
 /** A body in the wardrobe, from /avatars/catalogue.json. */
 type CatalogueBody = { name: string; collection?: string; description?: string; thumbnail?: string };
 
-/**
- * The stored body is a slug ("chillpenguin"); the catalogue names it
- * ("ChillPenguin"). Compare on letters and digits only, so neither spelling has
- * to be authoritative.
- */
-const slugOf = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
 type Memory = { id: string; kind: string; body: string; about?: string | null; writtenAt?: string };
 type MemoryKind = "self" | "fact" | "opinion" | "event";
 type Presence = { actorId: string; connected: boolean }[];
 /** Who operates whom. Lineage, never permission — see shared/board-rules.ts. */
-type Ownership = { agentActorId: string; ownerActorId: string; state: string };
-type Membership = { projectId: string; actorId: string; active: boolean };
+type Ownership = OwnershipLink;
+type Membership = ProjectMembership;
 
 const bff = (path: string) => `/bff${path}`;
 
@@ -99,9 +105,8 @@ export function ProfilesPage({ me }: { me: string | null }) {
         // empty array, which fell back to the 15 on-hand ones while the hint
         // above still said 301 — the page would have shown a shortlist and
         // called it a wardrobe, which is the exact thing this is meant not to do.
-        const cat = await requestJson<Record<string, unknown>>(bodyAnswer.catalogue);
-        const list = (Array.isArray(cat) ? cat : cat.avatars ?? cat.bodies ?? []) as CatalogueBody[];
-        setCatalogue(list);
+        const cat = await requestJson<unknown>(bodyAnswer.catalogue);
+        setCatalogue(bodiesFromCatalogue(cat));
       } catch { /* the page still works with the on-hand list alone */ }
       setProfiles((people.actors as Record<string, any>[]).map(toProfile) as ActorProfile[]);
       // Came with the same call all along. The People page existed largely to
@@ -134,14 +139,8 @@ export function ProfilesPage({ me }: { me: string | null }) {
   }
   if (!profiles || !voices) return <section className="profiles" aria-busy="true" />;
 
-  const bodyOf = (actorId: string) => bodies?.chosen.find((c) => c.actorId === actorId)?.body ?? null;
-  /**
-   * The voice this actor speaks in: their choice, else the one derived from
-   * their name — the same rule the server uses, so the page agrees with the room.
-   * NEVER the viewer's, which is what the bug above produced.
-   */
-  const voiceOf = (actorId: string) =>
-    voices.taken?.find((t) => t.actorId === actorId)?.voice ?? voiceFor(actorId).id;
+  const bodyOf = (actorId: string) => bodyOfActor(actorId, bodies?.chosen);
+  const voiceOf = (actorId: string) => voiceOfActor(actorId, voices.taken);
   const isHere = (actorId: string) => here.some((p) => p.actorId === actorId);
   const open = looking ? profiles.find((p) => p.actorId === looking) ?? null : null;
 
@@ -192,7 +191,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
           memberships={memberships}
           here={isHere(open.actorId)}
           chosenVoice={voiceOf(open.actorId)}
-          voiceIsChosen={Boolean(voices.taken?.some((t) => t.actorId === open.actorId))}
+          voiceIsChosen={voiceWasChosen(open.actorId, voices.taken)}
           chosenBody={bodyOf(open.actorId)}
           onClose={() => setLooking(null)}
           onSaved={load}
@@ -287,7 +286,7 @@ function ProfileDetail(props: {
             </Suspense>
           )
           : (
-            <button type="button" className="profile-edit" onClick={() => setSeeing(true)}>
+            <button type="button" className="profile-edit profile-see" onClick={() => setSeeing(true)}>
               See them standing
             </button>
           )}
@@ -350,7 +349,7 @@ function ProfileDetail(props: {
           ? <ProfileForm profile={profile} voices={voices} bodies={props.bodies}
               catalogue={props.catalogue} chosenBody={props.chosenBody}
               onDone={() => { setEditing(false); props.onSaved(); }} />
-          : <button type="button" className="profile-edit" onClick={() => setEditing(true)}>Edit your profile</button>
+          : <button type="button" className="profile-edit profile-edit-mine" onClick={() => setEditing(true)}>Edit your profile</button>
       ) : null}
     </div>
   );
@@ -520,7 +519,7 @@ function ProfileForm(props: {
 function VoiceChooser({ voices, onChanged }: { voices: VoicesAnswer; onChanged: () => void }) {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const takenBy = (id: string) => voices.taken?.find((t) => t.voice === id)?.actorId ?? null;
+  const takenBy = (id: string) => holderOfVoice(id, voices.taken);
 
   const choose = async (id: string) => {
     setBusy(true);
@@ -684,7 +683,7 @@ function MemoryWriter({ onWritten }: { onWritten: () => void }) {
   const [refusal, setRefusal] = useState<string | null>(null);
 
   if (!open) {
-    return <button type="button" className="profile-edit" onClick={() => setOpen(true)}>Remember something</button>;
+    return <button type="button" className="profile-edit profile-remember" onClick={() => setOpen(true)}>Remember something</button>;
   }
 
   const write = async () => {
@@ -753,10 +752,7 @@ function MemoryWriter({ onWritten }: { onWritten: () => void }) {
  * would quietly assert the thing the schema goes out of its way to prevent.
  */
 function Standing(props: { actorId: string; ownerships: Ownership[]; memberships: Membership[] }) {
-  const live = (o: Ownership) => o.state !== "revoked";
-  const operatedBy = props.ownerships.filter((o) => live(o) && o.agentActorId === props.actorId);
-  const operates = props.ownerships.filter((o) => live(o) && o.ownerActorId === props.actorId);
-  const projects = props.memberships.filter((m) => m.actorId === props.actorId && m.active);
+  const { operatedBy, operates, projects } = standingOf(props.actorId, props.ownerships, props.memberships);
 
   if (!operatedBy.length && !operates.length && !projects.length) {
     return <p className="profile-absent">No ownership or membership recorded.</p>;
@@ -773,7 +769,7 @@ function Standing(props: { actorId: string; ownerships: Ownership[]; memberships
         <li key={`of-${o.agentActorId}`}>Operates <strong>{o.agentActorId}</strong></li>
       ))}
       {projects.length ? (
-        <li>Member of {projects.map((m) => m.projectId).join(", ")}</li>
+        <li>Member of {projects.join(", ")}</li>
       ) : (
         <li className="profile-absent">No project membership — which is separate from who operates them.</li>
       )}
