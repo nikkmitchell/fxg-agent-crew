@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
+import { chooseVoice } from "../../shared/voice-choice.js";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
@@ -49,6 +50,24 @@ import type { Utterance } from "../../shared/voice.js";
  * hold a core for ever — this shares a machine with the room, and a room that
  * stops moving for everybody is worse than one line going unsaid.
  */
+/**
+ * THE LINE EVERY VOICE SAYS, and it is the same line on purpose.
+ *
+ * A preview exists to let somebody CHOOSE between voices, and you cannot compare
+ * two voices saying different things — half of what you would be judging is the
+ * words. One fixed sentence makes the 54 comparable.
+ *
+ * It is also why a preview is affordable at all. The cache is keyed by text AND
+ * voice (see cacheName), so a fixed line means each voice is synthesised ONCE,
+ * ever, on the first person who listens to it, and is a file read for everybody
+ * after that. The engine speaks one line at a time and takes about two and a
+ * half seconds; 54 preview buttons that each said something different would be
+ * a queue nobody could sit through.
+ *
+ * Short, and varied enough to hear a voice in: vowels, an s, a th, and a stop.
+ */
+export const VOICE_SAMPLE = "Hello. This is how I sound in the room.";
+
 export const SPEAK_FLOOR_MS = 20_000;
 export const SPEAK_CEILING_MS = 120_000;
 
@@ -307,6 +326,57 @@ export function registerSpeechRoutes(
       return reply.code(502).send({
         code: "COULD_NOT_SPEAK",
         error: "the speech engine did not produce anything; the words are still in the room in writing",
+      });
+    }
+  });
+
+  /**
+   * HEAR A VOICE BEFORE YOU CHOOSE IT.
+   *
+   * The audio route above can only serve a line somebody ALREADY SAID, which is
+   * no use for picking: you would have to take a voice, wait for it to speak in
+   * the room, and take another if you disliked it — in front of everybody, and
+   * with `taken` refusing whatever a colleague holds.
+   *
+   * So: the same fixed sentence, in whichever voice you name. No utterance, no
+   * actor, nothing written to the room. Listening is not speaking.
+   */
+  app.get<{ Params: { voice: string } }>("/bff/space/voices/:voice/sample", async (request, reply) => {
+    if (!requireSession(request, reply)) return reply;
+
+    // Validated against the catalogue rather than passed through: this string
+    // reaches a command line, and "whatever you typed" is not a voice.
+    const chosen = chooseVoice(request.params.voice);
+    if ("error" in chosen) return reply.code(404).send(chosen);
+
+    if (!deps.speech.canSpeak()) {
+      return reply.code(501).send({
+        code: "NOT_SPOKEN_HERE",
+        error: "this server has no speech engine configured, so there is nothing to preview.",
+      });
+    }
+
+    const ready = await deps.speech.ensure(VOICE_SAMPLE, chosen.voice.id);
+    if (!ready) {
+      return reply.code(503).send({
+        code: "NOT_SAID_YET",
+        error: "the engine is busy or it failed. It speaks one line at a time; try this voice again in a moment.",
+      });
+    }
+
+    try {
+      const bytes = await readFile(deps.speech.path(VOICE_SAMPLE, chosen.voice.id));
+      return reply
+        .header("content-type", "audio/wav")
+        // A fixed line in a fixed voice is the same sound for ever — immutable,
+        // unlike an utterance, which can at least in principle be withdrawn.
+        .header("cache-control", "private, max-age=604800, immutable")
+        .send(bytes);
+    } catch (error) {
+      request.log.error({ err: error, voice: chosen.voice.id }, "made a sample and could not read it back");
+      return reply.code(502).send({
+        code: "COULD_NOT_SPEAK",
+        error: "the speech engine did not produce anything for that voice",
       });
     }
   });

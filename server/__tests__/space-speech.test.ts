@@ -5,7 +5,7 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
-import { cacheName, registerSpeechRoutes, speakWith, speechCache, timeoutFor, type Speaker } from "../space/speak.js";
+import { VOICE_SAMPLE, cacheName, registerSpeechRoutes, speakWith, speechCache, timeoutFor, type Speaker } from "../space/speak.js";
 import type { Utterance } from "../../shared/voice.js";
 
 /**
@@ -54,7 +54,11 @@ const boot = async (options: {
   const cookieFor = (username: string) => `${built.config.cookieName}=${built.sessions.create(username, "t", "agent")}`;
   const ask = (id: number | string, username = "Nikk2") =>
     app.inject({ method: "GET", url: `/bff/space/utterances/${id}/audio`, headers: { cookie: cookieFor(username) } });
-  return { app, ask, cacheRoot, close: () => Promise.all([app.close(), built.app.close()]) };
+  const sample = (voice: string, username = "Nikk2") =>
+    app.inject({ method: "GET", url: `/bff/space/voices/${voice}/sample`, headers: { cookie: cookieFor(username) } });
+  const anonymousSample = (voice: string) =>
+    app.inject({ method: "GET", url: `/bff/space/voices/${voice}/sample` });
+  return { app, ask, sample, anonymousSample, cacheRoot, close: () => Promise.all([app.close(), built.app.close()]) };
 };
 
 /** A stub engine: writes a WAV-ish file and remembers what it was asked for. */
@@ -236,5 +240,80 @@ describe("what the cache and the clock promise", () => {
     expect(timeoutFor(44)).toBeGreaterThanOrEqual(20_000);
     expect(timeoutFor(240)).toBeGreaterThan(timeoutFor(44));
     expect(timeoutFor(100_000)).toBeLessThanOrEqual(120_000);
+  });
+});
+
+/**
+ * Hearing a voice before taking it.
+ *
+ * The point of these is the COST. A preview that re-synthesised per listener
+ * would queue an engine that speaks one line at a time, so the fixed sample line
+ * is load-bearing rather than cosmetic, and the cache test below is the one that
+ * would catch somebody "improving" it into a per-agent greeting.
+ */
+describe("previewing a voice", () => {
+  it("speaks the fixed sample in the voice asked for", async () => {
+    const engine = stubSpeaker();
+    const { sample, close } = await boot({ speak: engine.speak });
+    const response = await sample("bf_emma");
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toBe("audio/wav");
+    expect(engine.calls).toEqual([{ text: VOICE_SAMPLE, voice: "bf_emma" }]);
+    await close();
+  });
+
+  it("SYNTHESISES EACH VOICE ONCE, however many people listen", async () => {
+    const engine = stubSpeaker();
+    const { sample, close } = await boot({ speak: engine.speak });
+    await sample("bf_emma", "Nikk2");
+    await sample("bf_emma", "Sill");
+    await sample("bf_emma", "Lumenfold");
+    // Three listeners, one core-second. This is the whole reason the line is fixed.
+    expect(engine.calls).toEqual([{ text: VOICE_SAMPLE, voice: "bf_emma" }]);
+    await close();
+  });
+
+  it("says the same words in a different voice, so two voices are comparable", async () => {
+    const engine = stubSpeaker();
+    const { sample, close } = await boot({ speak: engine.speak });
+    await sample("bf_emma");
+    await sample("am_michael");
+    expect(engine.calls.map((c) => c.voice)).toEqual(["bf_emma", "am_michael"]);
+    expect(new Set(engine.calls.map((c) => c.text))).toEqual(new Set([VOICE_SAMPLE]));
+    await close();
+  });
+
+  it("refuses a voice that does not exist WITHOUT reaching the engine", async () => {
+    const engine = stubSpeaker();
+    const { sample, close } = await boot({ speak: engine.speak });
+    // A plain wrong name, and a shell-shaped one. Both are refused by the
+    // catalogue check; neither is passed along to be interpreted by anything.
+    // (No slash in the shell-shaped case on purpose — a slash never reaches the
+    // handler at all, so it would test the router rather than the guard.)
+    for (const notAVoice of ["nigel", "am_michael; rm -rf ~", "../../etc/passwd".replace(/\//g, "_")]) {
+      const response = await sample(encodeURIComponent(notAVoice));
+      expect(response.statusCode, notAVoice).toBe(404);
+      expect(response.json().code, notAVoice).toBe("NO_SUCH_VOICE");
+    }
+    // The id reaches a command line. Nothing unvalidated may get that far.
+    expect(engine.calls).toEqual([]);
+    await close();
+  });
+
+  it("says plainly when the box has no engine, rather than failing oddly", async () => {
+    const { sample, close } = await boot({ speak: undefined });
+    const response = await sample("bf_emma");
+    expect(response.statusCode).toBe(501);
+    expect(response.json().code).toBe("NOT_SPOKEN_HERE");
+    await close();
+  });
+
+  it("is not readable without a session", async () => {
+    const engine = stubSpeaker();
+    const { anonymousSample, close } = await boot({ speak: engine.speak });
+    const response = await anonymousSample("bf_emma");
+    expect(response.statusCode).toBeGreaterThanOrEqual(400);
+    expect(engine.calls).toEqual([]);
+    await close();
   });
 });
