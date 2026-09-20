@@ -6,8 +6,12 @@ import type { Utterance } from "../shared/voice";
 /**
  * The room's conversation, on its own page.
  *
- * WHY IT IS NOT THE ROOM'S RAIL. This is what hangs on the arc as the Chat
- * panel, and a panel is an iframe of this app: if it opened the presence socket
+ * WHY IT IS NOT THE ROOM'S RAIL. This is what hangs on the arc as the "Said in
+ * the room" panel — NOT the Chat panel, which is the WebHarness room and lives
+ * in ChatFeed. The two are deliberately separate (see CATALOGUE in
+ * shared/space-layout.ts) and this comment used to say "the Chat panel", which
+ * is how I came to report them as duplicates of each other before reading the
+ * catalogue. A panel is an iframe of this app: if it opened the presence socket
  * the way the rail does, it would join the room as a second copy of you — two
  * occupants with one name, fighting over one position. So it reads the durable
  * record over HTTP instead, which is the same rows the socket broadcasts.

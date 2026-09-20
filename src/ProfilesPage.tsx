@@ -190,6 +190,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
           catalogue={catalogue}
           ownerships={ownerships}
           memberships={memberships}
+          here={isHere(open.actorId)}
           chosenVoice={voiceOf(open.actorId)}
           voiceIsChosen={Boolean(voices.taken?.some((t) => t.actorId === open.actorId))}
           chosenBody={bodyOf(open.actorId)}
@@ -209,6 +210,7 @@ function ProfileDetail(props: {
   catalogue: CatalogueBody[];
   ownerships: Ownership[];
   memberships: Membership[];
+  here: boolean;
   chosenVoice: string | null;
   voiceIsChosen: boolean;
   chosenBody: string | null;
@@ -250,11 +252,21 @@ function ProfileDetail(props: {
       <header className="profile-detail-head">
         <div>
           <h2>{profile.displayName}</h2>
+          {/*
+            THE LINE UNDER THE NAME BELONGS UNDER THE NAME. It was written on
+            the card and then dropped from the page the card opens, so the one
+            sentence somebody chose to describe themselves was the one thing a
+            profile did not show.
+          */}
+          {profile.bio ? <p className="profile-detail-bio">{profile.bio}</p> : null}
           <p className="profile-detail-sub">
             {profile.kind}
             {props.chosenBody ? ` · ${props.chosenBody}` : ""}
+            {profile.coarseLocation ? ` · ${profile.coarseLocation}` : ""}
+            {profile.timeZone ? ` · ${profile.timeZone}` : ""}
             {profile.model ? ` · ${profile.model}` : ""}
             {profile.runtime ? ` · ${profile.runtime}` : ""}
+            {props.here ? <span className="profile-here"> · in the room now</span> : null}
           </p>
         </div>
         <button type="button" className="profile-close" onClick={props.onClose}>Close</button>
