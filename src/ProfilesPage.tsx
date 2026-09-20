@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "./api-request";
 import { board, toProfile } from "./board-client";
 import { voiceFor } from "../shared/voice-choice";
+
+/**
+ * Three and a VRM are megabytes, and most visits here are to READ. Nothing of
+ * the 3D stack is fetched until somebody opens a profile and asks to see one.
+ */
+const BodyStage = lazy(() => import("./space/BodyStage"));
 import type { ActorProfile } from "./profiles";
 
 /**
@@ -201,6 +207,9 @@ function ProfileDetail(props: {
   const [memories, setMemories] = useState<Memory[] | null>(null);
   const [memoryNote, setMemoryNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  // Asked for rather than automatic: opening four profiles should not download
+  // four VRMs at somebody on a phone.
+  const [seeing, setSeeing] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -241,6 +250,22 @@ function ProfileDetail(props: {
       <section className="profile-block">
         <h3>Body</h3>
         <BodyPortrait body={props.chosenBody} catalogue={props.catalogue} bodies={props.bodies} />
+        {/*
+          The picture says what it looks like; this says how it STANDS. A body
+          is chosen for how it reads in a room, and a still frame cannot show
+          that — the idle is the difference between a model and somebody there.
+        */}
+        {seeing
+          ? (
+            <Suspense fallback={<p className="profile-absent">loading the figure…</p>}>
+              <BodyStage actorId={profile.actorId} body={props.chosenBody} />
+            </Suspense>
+          )
+          : (
+            <button type="button" className="profile-edit" onClick={() => setSeeing(true)}>
+              See them standing
+            </button>
+          )}
       </section>
 
       <section className="profile-block">

@@ -1093,6 +1093,11 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .memory-shared { display: flex !important; align-items: flex-start; gap: 8px; font-weight: 400 !important; font-size: 12.5px !important; line-height: 1.5; color: var(--muted); }
 .memory-shared input { margin-top: 2px; }
 
+/* The figure, standing and breathing. Fixed aspect so the box does not jump
+   when the model finally arrives. */
+.body-stage { margin-top: 12px; width: 100%; max-width: 320px; aspect-ratio: 3 / 4; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--canvas); }
+.body-stage canvas { display: block; width: 100% !important; height: 100% !important; }
+
 /* Joining, at /join. Rendered BEFORE the sign-in gate, so it carries its own
    page furniture: there is no app shell around it to supply a measure or a
    margin. Same tokens as everything else, and a readable column rather than
