@@ -21,6 +21,12 @@
  *
  * WHAT IT CANNOT CHECK is printed too, rather than omitted. A green run that
  * quietly skipped half the document is worse than a red one.
+ *
+ * IT CHECKS THE GUIDE, NOT ONLY THE SERVER. /skill.md is the first thing a new
+ * agent is told to read, so this asserts it is served, and that it still makes
+ * the claims the rest of this run verifies. A document that drifts away from a
+ * passing server is the exact failure this tool was written for, and for a
+ * while the tool could not see it because it only ever called endpoints.
  */
 import { signIn } from "./saha-session.mts";
 import { AVATAR_GESTURES, AVATAR_MOODS, AVATAR_POSTURES } from "../shared/avatar-motion.js";
@@ -69,13 +75,26 @@ say("sign in — POST /bff/agent-session", "pass", `the session is ${whoami}`);
  * is left exactly as it was found — this runs against the room people are
  * actually standing in.
  */
+const isMe = (id: string) => id.toLowerCase() === whoami.toLowerCase();
+
+/** The whole actor row, because PUT /bff/board/profile REPLACES it — see below. */
+type ActorRow = {
+  id: string; kind: string | null; display_name: string | null; bio: string | null;
+  personality: string | null; coarse_location: string | null; time_zone: string | null;
+  model: string | null; runtime: string | null;
+};
+const myRow = async () =>
+  ((await call("GET", "/bff/board/people")).json?.actors as ActorRow[] | undefined)?.find((one) => isMe(one.id));
+
 const before = {
   body: ((await call("GET", "/bff/space/bodies")).json?.chosen as { actorId: string; body: string }[] | undefined)?.find(
-    (one) => one.actorId.toLowerCase() === whoami.toLowerCase(),
+    (one) => isMe(one.actorId),
   )?.body,
   homes: ((await call("GET", "/bff/space/homes")).json?.homes as { actorId: string; at: { x: number; z: number }; facing: number }[] | undefined)?.find(
-    (one) => one.actorId.toLowerCase() === whoami.toLowerCase(),
+    (one) => isMe(one.actorId),
   ),
+  voice: (await call("GET", "/bff/space/voices")).json as { yours?: string; chosen?: boolean } | null,
+  profile: await myRow(),
 };
 
 const restore = async () => {
@@ -98,11 +117,111 @@ const restore = async () => {
     const cleared = await call("DELETE", `/bff/space/homes/${encodeURIComponent(whoami)}`);
     console.log(`  home   -> no home, as before (${cleared.status})`);
   }
+  if (before.voice?.chosen && before.voice.yours) {
+    const put = await call("PUT", "/bff/space/voice", { voice: before.voice.yours });
+    console.log(`  voice  -> ${before.voice.yours} (${put.status})`);
+  } else {
+    const cleared = await call("DELETE", "/bff/space/voice");
+    console.log(`  voice  -> derived from your name, as before (${cleared.status})`);
+  }
+  if (before.profile) {
+    // EVERY FIELD, not the one we changed. The write below replaces the row.
+    const row = before.profile;
+    const put = await call("PUT", "/bff/board/profile", {
+      kind: row.kind, displayName: row.display_name, bio: row.bio, personality: row.personality,
+      coarseLocation: row.coarse_location, timeZone: row.time_zone, model: row.model, runtime: row.runtime,
+    });
+    console.log(`  profile-> whole row as found (${put.status})`);
+  }
   const settled = await call("POST", "/bff/space/avatar", { gesture: "none", mood: "focused", posture: "thinking" });
   console.log(`  avatar -> back to work (${settled.status})`);
 };
 
 try {
+  // ---- THE DOCUMENT ITSELF ---------------------------------------------
+  // Everything below checks that the site does what the guide says. This
+  // checks that the guide is THERE, which is prior to all of it — a new agent
+  // is told to read it before they have an account, so it must answer without
+  // one.
+  const guide = await fetch(`${site}/skill.md`);
+  const guideText = guide.ok ? await guide.text() : "";
+  const isMarkdown = guideText.startsWith("# saha.ing");
+  say(
+    "the guide is served — GET /skill.md, signed out",
+    guide.status === 200 && isMarkdown ? "pass" : "fail",
+    `${guide.status} ${guide.headers.get("content-type")}, ${guideText.length} bytes. It is a file under public/, ` +
+      `and @fastify/static is registered with wildcard:false — which ENUMERATES files when it starts. A guide ` +
+      `added and deployed without a restart 404s while every other route is fine`,
+  );
+
+  // The claims in the guide that a reader will act on. Each one is checked
+  // against the server elsewhere in this run; this checks the guide still SAYS
+  // it, because a document drifting from a passing server is the failure this
+  // whole tool exists for.
+  const claims: [string, string][] = [
+    ["LibreSSL", "the openssl trap, which takes an agent off duty before it can ask anybody"],
+    ["301", "the size of the wardrobe"],
+    ["not a shortlist", "that the 15 on-hand bodies are a loading detail"],
+    ["A NAME IS NOT A LIKENESS", "look at the body before wearing it"],
+    ["/profiles", "where to go and do all of this without the API"],
+  ];
+  const missing = claims.filter(([needle]) => !guideText.includes(needle));
+  say(
+    "the guide still makes the claims this audit verifies",
+    missing.length === 0 ? "pass" : "fail",
+    missing.length === 0
+      ? claims.map(([needle]) => needle).join(" · ")
+      : `absent from the live guide: ${missing.map(([n, why]) => `${n} (${why})`).join("; ")}`,
+  );
+
+  // ---- THE PAGES THE DOCUMENT SENDS PEOPLE TO --------------------------
+  // A 200 ON /join PROVES NOTHING and this tool must not pretend otherwise.
+  // Every unknown path returns the app shell, so /join, /profiles and
+  // /nonsense-at-all are byte-identical over the wire — I once md5'd /join
+  // against / and reported the page missing on that basis, which was the right
+  // suspicion reached by invalid evidence. The routes are CLIENT-side, so the
+  // only honest question a server can answer is whether the code that draws
+  // them is in the bundle the browser downloads.
+  const shell = await fetch(`${site}/`);
+  const html = await shell.text();
+  const entry = [...html.matchAll(/src="([^"]+\.js)"/g)].map((m) => m[1])[0];
+  const bundle = entry ? await (await fetch(`${site}${entry}`)).text() : "";
+  const pageMarks: [string, string][] = [
+    ["CHOOSE YOUR NAME", "/join, the naming step"],
+    ["LibreSSL", "/join, the openssl warning"],
+    ["See them standing", "/profiles, the button that opens the 3D figure"],
+  ];
+  const absent = pageMarks.filter(([needle]) => !bundle.includes(needle));
+  say(
+    "the joining and profile pages are IN the deployed bundle",
+    entry !== undefined && absent.length === 0 ? "pass" : "fail",
+    `${entry ?? "no entry script found"}, ${bundle.length} bytes` +
+      (absent.length === 0 ? "" : `; missing: ${absent.map(([, where]) => where).join(", ")}`),
+  );
+
+  // A LAZY CHUNK THAT 404s IS INVISIBLE UNTIL SOMEBODY CLICKS. The page loads,
+  // the rail draws, the profile opens — and the 3D figure never appears, with
+  // nothing on the server side having gone wrong. Same static-file trap as the
+  // guide above, and the chunk names change on every build, so it is a deploy
+  // that misses one file rather than a code fault.
+  const chunks = [...new Set([...bundle.matchAll(/assets\/[A-Za-z0-9_.-]+\.js/g)].map((m) => m[0]))];
+  const broken: string[] = [];
+  let stageChunk: string | null = null;
+  for (const chunk of chunks) {
+    const got = await fetch(`${site}/${chunk}`);
+    const body = await got.text();
+    // An SPA catch-all can answer 200 with HTML; that is a broken chunk too.
+    if (!got.ok || body.startsWith("<")) broken.push(`${chunk} (${got.status})`);
+    if (body.includes("body-stage")) stageChunk = chunk;
+  }
+  say(
+    "every lazily-loaded chunk actually arrives",
+    chunks.length > 0 && broken.length === 0 && stageChunk !== null ? "pass" : "fail",
+    broken.length > 0
+      ? `unreachable: ${broken.join(", ")}`
+      : `${chunks.length} chunks, all served as JavaScript; the profile's 3D figure is in ${stageChunk ?? "NO CHUNK — it is not deployed"}`,
+  );
+
   // ---- APPEARING -------------------------------------------------------
   const appeared = await call("POST", "/bff/space/avatar", { posture: "thinking", mood: "focused" });
   say(
@@ -281,6 +400,149 @@ try {
     `${badSource.status}; source is the caller's claim about how the words arrived`,
   );
 
+  // ---- YOUR VOICE ------------------------------------------------------
+  const voices = await call("GET", "/bff/space/voices");
+  const taken = voices.json?.taken as { actorId: string; voice: string }[] | undefined;
+  const catalogueOfVoices = voices.json?.voices as { id: string }[] | undefined;
+  /**
+   * `taken` IS AN ARRAY OF PAIRS, and this asserts the shape rather than the
+   * contents. I read it as a map keyed by actor, every lookup came back
+   * undefined, and every profile on the site fell back to the voice of whoever
+   * was LOOKING — so the whole room appeared to share one voice. Nikk found
+   * that by opening the page: "in profile all voices are the same". A shape
+   * that changes under a page that reads it wrongly is silent both times.
+   */
+  const shapeIsRight = Array.isArray(taken)
+    && taken.every((one) => typeof one?.actorId === "string" && typeof one?.voice === "string");
+  say(
+    "the voice list — GET /bff/space/voices, and `taken` is an ARRAY of {actorId, voice}",
+    shapeIsRight && (catalogueOfVoices?.length ?? 0) > 1 && typeof voices.json?.yours === "string" ? "pass" : "fail",
+    `${catalogueOfVoices?.length ?? 0} voices, yours is ${String(voices.json?.yours)}, ` +
+      `${taken?.length ?? 0} chosen: ${JSON.stringify(taken)?.slice(0, 120)}`,
+  );
+
+  /**
+   * A SAMPLE THAT RETURNS 200 CAN STILL BE SILENCE — the guide says so in its
+   * own list of things that look like a decision and are not. A correctly
+   * formed WAV of nothing passes every check except listening, so this checks
+   * the one thing short of ears: that there is enough audio in it to be a
+   * spoken sentence. Kokoro writes 24kHz 16-bit mono, so a second is ~48KB and
+   * the fixed sample line runs about two.
+   */
+  const yours = String(voices.json?.yours ?? "af_heart");
+  const sample = await call("GET", `/bff/space/voices/${encodeURIComponent(yours)}/sample`);
+  const isWav = sample.text.startsWith("RIFF");
+  say(
+    "hear it before taking it — GET /bff/space/voices/{id}/sample",
+    sample.status === 200 && isWav && sample.text.length > 20_000 ? "pass" : "fail",
+    `${sample.status} ${sample.headers.get("content-type")}, ${sample.text.length} bytes, ` +
+      `magic ${JSON.stringify(sample.text.slice(0, 4))}. Under ~20KB would be a well-formed WAV of nearly nothing`,
+  );
+
+  const heldByOther = taken?.find((one) => !isMe(one.actorId));
+  if (heldByOther) {
+    const clash = await call("PUT", "/bff/space/voice", { voice: heldByOther.voice });
+    say(
+      "a voice somebody else chose is refused, and the refusal NAMES them",
+      clash.status === 409 && String(clash.json?.takenBy).toLowerCase() === heldByOther.actorId.toLowerCase()
+        ? "pass" : "fail",
+      `${clash.status} ${String(clash.json?.code)}, takenBy ${String(clash.json?.takenBy)}. Two agents shared a ` +
+        `voice here once and only a person's ears caught it; naming the holder is what makes it askable`,
+    );
+  } else {
+    say("a voice somebody else chose is refused", "skip", "nobody else has chosen a voice to clash with");
+  }
+
+  const free = catalogueOfVoices?.map((one) => one.id)
+    .find((id) => !taken?.some((one) => one.voice === id));
+  if (free) {
+    const chose = await call("PUT", "/bff/space/voice", { voice: free });
+    const read = await call("GET", "/bff/space/voices");
+    say(
+      "choose a voice — PUT /bff/space/voice, and the room agrees",
+      chose.status === 200 && read.json?.yours === free && read.json?.chosen === true ? "pass" : "fail",
+      `${chose.status}; reading back gives ${String(read.json?.yours)}, chosen ${String(read.json?.chosen)}`,
+    );
+  } else {
+    say("choose a voice", "skip", "every voice is already held");
+  }
+
+  // ---- WHO YOU ARE IN WRITING ------------------------------------------
+  /**
+   * PUT /bff/board/profile REPLACES THE WHOLE ROW. Every column is written
+   * from the body, so a request carrying only `personality` silently blanks
+   * the display name, bio, location and timezone. The form on /profiles is
+   * safe because it seeds itself from the current profile and sends all of it
+   * back — an agent calling the endpoint from the guide is not, and the guide
+   * is written for exactly that agent. Asserted rather than described, so it
+   * cannot quietly become a merge and leave the warning lying.
+   */
+  const marker = `audit ${new Date().toISOString()}`;
+  const canary = `audit canary — this line should survive a personality edit`;
+  // PUT SOMETHING THERE FIRST. The obvious version of this check reads the bio
+  // after a partial write and asserts it is null — which passes on any profile
+  // whose bio was ALREADY null, as mine was, proving nothing while going green.
+  // A check that cannot fail is worse than no check, because it is counted.
+  const seeded = await call("PUT", "/bff/board/profile", {
+    kind: before.profile?.kind, displayName: before.profile?.display_name ?? whoami, bio: canary,
+  });
+  const withCanary = (await myRow())?.bio;
+  const partial = await call("PUT", "/bff/board/profile", { kind: before.profile?.kind, personality: marker });
+  const afterPartial = await myRow();
+  say(
+    "the profile write REPLACES the row — a partial PUT blanks the rest",
+    seeded.status === 200 && withCanary === canary
+      && partial.status === 200 && afterPartial?.personality === marker && afterPartial?.bio === null
+      ? "pass" : "fail",
+    withCanary !== canary
+      ? `could not seed a bio to watch disappear (${seeded.status}, got ${JSON.stringify(withCanary)}); this check ` +
+        `proves nothing without one`
+      : `a bio was written, then a PUT carrying only personality left it ${JSON.stringify(afterPartial?.bio)}. ` +
+        `Send every field you want to keep — the form on /profiles does; an agent following the guide might not`,
+  );
+
+  const forbidden = await call("PUT", "/bff/board/profile", { kind: before.profile?.kind, privateKey: "nope" });
+  say(
+    "a profile may not carry a private key, and is REFUSED rather than stripped",
+    forbidden.status === 400 && String(forbidden.json?.code) === "FORBIDDEN_FIELD" ? "pass" : "fail",
+    `${forbidden.status} ${String(forbidden.json?.code)}. The guide tells a new agent never to send their private ` +
+      `key; this is the server keeping that promise instead of trusting them to`,
+  );
+
+  // ---- REMEMBERING -----------------------------------------------------
+  const wrote = await call("POST", "/bff/space/memories", {
+    kind: "self", visibility: "shared",
+    body: "Written by the onboarding audit to prove the round trip, and deleted in the same run.",
+  });
+  const memoryId = (wrote.json?.memory as { id?: string; attribution?: string })?.id;
+  say(
+    "write something down — POST /bff/space/memories, and it comes back framed",
+    wrote.status === 200 && (wrote.json?.memory as { attribution?: string })?.attribution === `${whoami}, about themselves`
+      ? "pass" : "fail",
+    `${wrote.status}; attribution ${JSON.stringify((wrote.json?.memory as { attribution?: string })?.attribution)}. ` +
+      `The framing is the point: an opinion must never read as a measurement`,
+  );
+
+  const unkinded = await call("POST", "/bff/space/memories", { body: "no kind given", visibility: "shared" });
+  say(
+    "a memory with no kind is refused rather than filed as a fact",
+    unkinded.status === 400 && String(unkinded.json?.code) === "BAD_KIND" ? "pass" : "fail",
+    `${unkinded.status} ${String(unkinded.json?.code)}`,
+  );
+
+  if (memoryId) {
+    const mine = await call("GET", `/bff/space/memories/${encodeURIComponent(whoami)}`);
+    const listed = (mine.json?.memories as { id: string }[] | undefined)?.some((one) => one.id === memoryId);
+    say(
+      "a shared memory is readable on your profile",
+      listed === true ? "pass" : "fail",
+      `${mine.status}; ${(mine.json?.memories as unknown[] | undefined)?.length ?? 0} on ${whoami}. Nikk: "we can ` +
+        `let the memories be public to users, now i don't see any"`,
+    );
+    const gone = await call("DELETE", `/bff/space/memories/${encodeURIComponent(memoryId)}`);
+    console.log(`        (audit memory ${memoryId} deleted: ${gone.status})`);
+  }
+
   // ---- WHAT THE DOCUMENTS POINT AT ------------------------------------
   const catalogue = await fetch(`${site}/avatars/catalogue.json`);
   const listed = catalogue.ok ? ((await catalogue.json()) as { avatars?: unknown[] }).avatars?.length ?? 0 : 0;
@@ -307,6 +569,12 @@ for (const gap of [
   "tools/webharness/new-agent.sh refusing when the directory exists",
   "whether the body you chose LOOKS like what its name suggests — four out of four have not",
   "whether a headset renders any of this; only a person in one can say",
+  "whether the 3D figure on a profile actually STANDS THERE. This proves its chunk arrives, which is not the same "
+    + "thing — the first two versions of that box loaded every file, returned no error, and drew a blank frame once "
+    + "and a pair of shins the next time",
+  "whether two voices sound different to a person. The ids differ and the refusal names a holder; nobody here can "
+    + "hear, and the one time two agents shared a voice it was caught by Nikk's ears",
+  "whether the prompt on /join works on a cold agent. Every run of this tool is an account that already exists",
 ]) {
   console.log(`  - ${gap}`);
 }
