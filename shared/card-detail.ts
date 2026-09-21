@@ -41,6 +41,37 @@ export const DETAIL_PX = { width: 768, height: 1024 } as const;
  */
 export const COMMENTS_SHOWN = 6;
 
+/**
+ * Where "close" is, as a fraction of the panel.
+ *
+ * A REGION RATHER THAN A BUTTON MESH, for the same reason the board's cards are
+ * hit-tested from geometry: the renderer and the test then ask the same
+ * question, and the thing you press is the thing that was drawn.
+ *
+ * GENEROUS, because this is pressed by a fingertip or a ray from across a room.
+ * A close control you have to aim at is one people give up on, and the cost of
+ * overshooting is a panel that closes when you meant to read it — annoying, but
+ * one press to undo, unlike a card that will not let go.
+ */
+export const DETAIL_CLOSE = { u0: 0.86, v0: 0.9, u1: 1, v1: 1 } as const;
+
+/**
+ * Where "write a comment" is.
+ *
+ * ALONG THE BOTTOM, full width, because it is the one thing you are likely to
+ * want after reading — and because the bottom of the panel is the one strip
+ * whose contents are never predictable enough to put something else in.
+ */
+export const DETAIL_COMMENT = { u0: 0, v0: 0, u1: 1, v1: 0.062 } as const;
+
+/** True when a point on the panel, in uv, is on the comment control. */
+export const isDetailComment = (uv: { x: number; y: number }): boolean =>
+  uv.x >= DETAIL_COMMENT.u0 && uv.x <= DETAIL_COMMENT.u1 && uv.y >= DETAIL_COMMENT.v0 && uv.y <= DETAIL_COMMENT.v1;
+
+/** True when a point on the panel, in uv, is on the close control. */
+export const isDetailClose = (uv: { x: number; y: number }): boolean =>
+  uv.x >= DETAIL_CLOSE.u0 && uv.x <= DETAIL_CLOSE.u1 && uv.y >= DETAIL_CLOSE.v0 && uv.y <= DETAIL_CLOSE.v1;
+
 export function paintDetail(
   task: TaskDetail,
   measure: (text: string, size: number) => number,
@@ -52,6 +83,14 @@ export function paintDetail(
     { kind: "rect", x: 0, y: 0, width, height, fill: CARD_INK.paper, radius: 24 },
     { kind: "line", x: 0, y: 0, width: 16, height, fill: STATUS_STRIPE[task.status] ?? CARD_INK.edge },
   ];
+
+  // THE CLOSE CONTROL, drawn where `DETAIL_CLOSE` says it is. uv has v running
+  // UP from the bottom; the canvas has y running DOWN from the top, so the top
+  // of the panel is v = 1.
+  const closeX = DETAIL_CLOSE.u0 * width;
+  const closeH = (DETAIL_CLOSE.v1 - DETAIL_CLOSE.v0) * height;
+  ink.push({ kind: "rect", x: closeX, y: 0, width: width - closeX, height: closeH, fill: CARD_INK.paperHeld, radius: 12 });
+  ink.push({ kind: "text", x: closeX + 34, y: closeH / 2 + 12, text: "close", size: 26, fill: CARD_INK.muted, weight: "bold" });
 
   let y = pad + 46;
 
@@ -129,6 +168,27 @@ export function paintDetail(
       });
     }
   }
+
+  // THE COMMENT STRIP, last so nothing drawn above can cover it. Bottom of the
+  // panel in uv is the BOTTOM of the bitmap, because v runs up and y runs down.
+  const stripHeight = (DETAIL_COMMENT.v1 - DETAIL_COMMENT.v0) * height;
+  ink.push({
+    kind: "rect",
+    x: 0,
+    y: height - stripHeight,
+    width,
+    height: stripHeight,
+    fill: CARD_INK.paperHeld,
+  });
+  ink.push({
+    kind: "text",
+    x: pad,
+    y: height - stripHeight / 2 + 10,
+    text: "write a comment",
+    size: 26,
+    fill: CARD_INK.accent,
+    weight: "bold",
+  });
 
   return ink;
 }

@@ -125,7 +125,14 @@ export function layOutBoard(cards: readonly BoardCard[], size: BoardSize = BOARD
   const columnWidth = (usableWidth - size.columnGap * (columnCount - 1)) / columnCount;
   const top = size.height / 2 - size.padding - size.headerHeight;
   const bottom = -size.height / 2 + size.padding;
-  const perColumn = Math.max(0, Math.floor((top - bottom + size.cardGap) / (size.cardHeight + size.cardGap)));
+  /**
+   * ONE FEWER THAN FITS, because the foot of every column belongs to its "add a
+   * card" strip — see `addControlOf`. Without this reservation a full column
+   * would stack a card underneath the strip, and pressing that card would make
+   * a new one instead of picking it up.
+   */
+  const addRoom = size.cardHeight + size.cardGap;
+  const perColumn = Math.max(0, Math.floor((top - bottom - addRoom + size.cardGap) / (size.cardHeight + size.cardGap)));
 
   const columns: BoardColumn[] = [];
   const places: CardPlace[] = [];
@@ -177,6 +184,65 @@ export function cardAt(layout: BoardLayout, uv: { x: number; y: number }): CardP
 /** Panel-local metres from a three.js uv. */
 export function pointFromUv(layout: BoardLayout, uv: { x: number; y: number }): { x: number; y: number } {
   return { x: (uv.x - 0.5) * layout.width, y: (uv.y - 0.5) * layout.height };
+}
+
+/**
+ * Where a column's "add a card" control sits, in panel-local metres.
+ *
+ * ONE IN EACH COLUMN, not one button somewhere on the panel. A single "new
+ * task" would have to ask which column afterwards, which is a second step and a
+ * second thing to get wrong; pressing the column you want says it in one go.
+ *
+ * NOT IN `backlog` ONLY, either. Work does not always start in the backlog —
+ * somebody writing down what they are doing right now wants it in `in_progress`
+ * and should not have to move it twice to get there.
+ *
+ * A FULL-WIDTH STRIP AT THE FOOT OF THE COLUMN, and it is the second design.
+ * The first was a small square in the header, about three per cent of the
+ * board's width — roughly seven pixels on screen at a normal panel size, and
+ * proportionally no better for a controller ray from four metres away. I could
+ * not hit it with coordinates I had CALCULATED, which is the clearest possible
+ * evidence that nobody was going to hit it by eye. The strip is the width of a
+ * card and as tall as one, so it is exactly as easy to press as the things
+ * beside it, and it sits where a new card would go anyway.
+ *
+ * THE LAYOUT RESERVES ITS ROOM — see `layOutBoard`, which fits one fewer card
+ * per column — so it can never end up underneath the card at the bottom of a
+ * full column. Overlapping controls are how a press on a card creates a card.
+ */
+export function addControlOf(
+  layout: BoardLayout,
+  column: BoardColumn,
+  size: BoardSize = BOARD,
+): { x: number; y: number; width: number; height: number } {
+  return {
+    x: column.x,
+    y: -layout.height / 2 + size.padding + size.cardHeight / 2,
+    width: column.width,
+    height: size.cardHeight,
+  };
+}
+
+/**
+ * The column whose add control is under a point, or null.
+ *
+ * EXACT, unlike `columnAt`. Dropping a card is forgiving because a card has to
+ * land somewhere; pressing "add" is not, because the nearest add control to a
+ * miss is a new card in the wrong column — silent, and more annoying to undo
+ * than to redo.
+ */
+export function addAt(layout: BoardLayout, uv: { x: number; y: number }, size: BoardSize = BOARD): BoardColumn | null {
+  const point = pointFromUv(layout, uv);
+  for (const column of layout.columns) {
+    const box = addControlOf(layout, column, size);
+    if (
+      Math.abs(point.x - box.x) <= box.width / 2 &&
+      Math.abs(point.y - box.y) <= box.height / 2
+    ) {
+      return column;
+    }
+  }
+  return null;
 }
 
 /**

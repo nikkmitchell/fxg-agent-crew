@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { board } from "../board-client";
 import type { BoardCard } from "../../shared/board-3d";
+import type { TaskDetail } from "../../shared/card-detail";
 
 /**
  * The work board's cards, for the room.
@@ -25,6 +26,16 @@ const EVERY_MS = 12_000;
 
 export type BoardFeed = {
   cards: BoardCard[];
+  /**
+   * The whole task, for the panel a card is pulled off into.
+   *
+   * FROM THE SAME ANSWER, not a second request. The project detail already
+   * carries every task's description and comments; asking again when somebody
+   * opens a card would be a second round trip for rows already in hand, and
+   * they would be a poll apart, so the panel could disagree with the card that
+   * opened it.
+   */
+  detailOf: (taskId: string) => TaskDetail | null;
   /** Null until the first answer. A board with no cards and a board that has not loaded are different. */
   loaded: boolean;
   trouble: string | null;
@@ -33,6 +44,8 @@ export type BoardFeed = {
 
 export function useBoardCards(projectId: string | null): BoardFeed {
   const [cards, setCards] = useState<BoardCard[]>([]);
+  /** The rows exactly as the server sent them, for `detailOf`. */
+  const rows = useRef<Record<string, Record<string, unknown>>>({});
   const [loaded, setLoaded] = useState(false);
   const [trouble, setTrouble] = useState<string | null>(null);
   const live = useRef(true);
@@ -58,6 +71,7 @@ export function useBoardCards(projectId: string | null): BoardFeed {
     try {
       const project = (await board.project(projectId)) as { tasks?: Record<string, unknown>[] };
       if (!live.current) return;
+      rows.current = Object.fromEntries((project.tasks ?? []).map((row) => [String(row.id), row]));
       setCards(
         (project.tasks ?? []).map((row) => ({
           id: String(row.id),
@@ -90,5 +104,26 @@ export function useBoardCards(projectId: string | null): BoardFeed {
     };
   }, [read]);
 
-  return { cards, loaded, trouble, refresh: () => void read() };
+  const detailOf = useCallback((taskId: string): TaskDetail | null => {
+    const row = rows.current[taskId];
+    if (!row) return null;
+    const comments = Array.isArray(row.comments) ? (row.comments as Record<string, unknown>[]) : [];
+    return {
+      id: String(row.id),
+      title: String(row.title ?? "untitled"),
+      status: String(row.status ?? "backlog"),
+      ...(row.description ? { description: String(row.description) } : {}),
+      ...(row.assignee_id ? { assigneeId: String(row.assignee_id) } : {}),
+      ...(typeof row.points === "number" ? { points: row.points } : {}),
+      ...(row.priority ? { priority: String(row.priority) } : {}),
+      ...(row.blocker ? { blocker: String(row.blocker) } : {}),
+      comments: comments.map((comment) => ({
+        author: String(comment.author_id ?? comment.author ?? "someone"),
+        body: String(comment.body ?? ""),
+        ...(comment.created_at ? { createdAt: String(comment.created_at) } : {}),
+      })),
+    };
+  }, []);
+
+  return { cards, loaded, trouble, detailOf, refresh: () => void read() };
 }

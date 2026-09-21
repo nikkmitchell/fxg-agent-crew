@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { BOARD, cardAt, layOutBoard, uvFromPanelPoint, type BoardCard, type CardPlace } from "../../shared/board-3d";
+import { BOARD, addAt, addControlOf, cardAt, layOutBoard, uvFromPanelPoint, type BoardCard, type BoardColumn, type CardPlace } from "../../shared/board-3d";
+import { Text } from "@react-three/drei";
 import { CARD_INK, CARD_PX, paintCard } from "../../shared/card-paint";
 import { applyPending, intentOf, settlePending, type BoardIntent, type PendingMove } from "../../shared/board-actions";
 import { canTransition } from "../../shared/board-rules";
@@ -87,6 +88,8 @@ export type BoardPanel3DProps = {
   onSay: (message: string) => void;
   /** The panel this board is drawn on, in metres. The board fills it. */
   surface: { width: number; height: number };
+  /** Somebody pressed "add" on a column and wants to write a title. */
+  onAddTask: (status: string) => void;
   now?: () => number;
 };
 
@@ -98,6 +101,7 @@ export function BoardPanel3D({
   onPullOff,
   onSay,
   surface,
+  onAddTask,
   now = Date.now,
 }: BoardPanel3DProps) {
   const [gesture, setGesture] = useState<Gesture>({ kind: "idle" });
@@ -106,6 +110,14 @@ export function BoardPanel3D({
   const grabbed = useRef<string | null>(null);
   /** The board's own frame, which every pointer position is resolved against. */
   const board = useRef<THREE.Group>(null);
+  /**
+   * The add control a press started on.
+   *
+   * PRESS AND RELEASE ON THE SAME CONTROL, like any other button. Firing on the
+   * press alone would mean a press that slid off still made a card, and a card
+   * you did not mean to make has to be noticed before it can be removed.
+   */
+  const pressedAdd = useRef<string | null>(null);
 
   // The server's cards with any un-acknowledged move laid on top, and guesses
   // retired as soon as the server catches up. See board-actions.
@@ -129,10 +141,11 @@ export function BoardPanel3D({
    * per column — `layOutBoard` works that out from the height it is given — so
    * resizing is a real answer to a crowded column rather than a magnifier.
    */
-  const layout = useMemo(
-    () => layOutBoard(shown, { ...BOARD, width: surface.width, height: surface.height }),
-    [shown, surface.width, surface.height],
+  const size = useMemo(
+    () => ({ ...BOARD, width: surface.width, height: surface.height }),
+    [surface.width, surface.height],
   );
+  const layout = useMemo(() => layOutBoard(shown, size), [shown, size]);
 
   const held = carrying(gesture);
   const heldCardId = held ? grabbed.current : null;
@@ -203,6 +216,24 @@ export function BoardPanel3D({
       // ONE SOURCE NAME FOR EVERYTHING. Nothing below may branch on it; it
       // exists so two hands do not fight over one card.
       const source: PointerSource = event.pointerType === "mouse" ? "mouse" : "hand";
+
+      // THE ADD CONTROLS ARE ASKED FIRST, and they swallow the press entirely:
+      // a press on one is not the start of a drag, and letting the gesture
+      // machine also see it would arm a drag that has nothing to carry.
+      const onAdd = addAt(layout, { x: hit.u, y: hit.v }, size);
+      if (type === "down" && onAdd) {
+        pressedAdd.current = onAdd.status;
+        return;
+      }
+      if (pressedAdd.current !== null) {
+        if (type === "up") {
+          const started = pressedAdd.current;
+          pressedAdd.current = null;
+          if (onAdd && onAdd.status === started) onAddTask(started);
+        }
+        return;
+      }
+
       if (type === "down") grabbed.current = cardAt(layout, { x: hit.u, y: hit.v })?.card.id ?? null;
       const stepped = stepGesture(gesture, { type, source, hit, at: now() } as SurfaceEvent);
       setGesture(stepped.state);
@@ -211,7 +242,7 @@ export function BoardPanel3D({
         grabbed.current = null;
       }
     },
-    [act, cardOfHit, gesture, layout, now, panelId],
+    [act, cardOfHit, gesture, layout, now, onAddTask, panelId, size],
   );
 
   // A pointer that leaves the whole panel mid-drag must not strand the card.
@@ -222,8 +253,19 @@ export function BoardPanel3D({
 
   return (
     <group ref={board}>
-      {/* The board itself. Also the drop target for "anywhere but a card". */}
+      {/*
+        The board itself. Also the drop target for "anywhere but a card", and
+        the thing that hears a press on an add strip.
+        
+        IT NEEDS `onPointerDown` TOO, which it did not have. Only the cards
+        listened for a press, because only a card can be picked up — but the add
+        strips are drawn in front of this mesh and carry no handlers of their
+        own, so R3F passes their presses down to here. With no `onPointerDown`
+        the press simply vanished: the strip was drawn, it was the right size,
+        the hit-test agreed it had been hit, and pressing it did nothing at all.
+      */}
       <mesh
+        onPointerDown={(event) => onPointer("down", event)}
         onPointerMove={(event) => onPointer("move", event)}
         onPointerUp={(event) => onPointer("up", event)}
         onPointerLeave={onLeave}
@@ -234,6 +276,12 @@ export function BoardPanel3D({
 
       {layout.columns.map((column) => (
         <ColumnHeading key={column.status} label={column.label} count={column.count} x={column.x} width={column.width} top={layout.height / 2} />
+      ))}
+
+      {/* ONE IN EVERY COLUMN. Work does not always start in the backlog, and a
+          single "new task" button would have to ask which column afterwards. */}
+      {layout.columns.map((column) => (
+        <AddControl key={`add-${column.status}`} box={addControlOf(layout, column, size)} column={column} />
       ))}
 
       {layout.cards.map((place) => (
@@ -281,5 +329,36 @@ function ColumnHeading({
       <planeGeometry args={[width, width * 0.25]} />
       <meshBasicMaterial map={texture} transparent toneMapped={false} />
     </mesh>
+  );
+}
+
+/**
+ * The "add a card here" control in a column header.
+ *
+ * DRAWN, NOT PRESSED, HERE. Its position comes from `addControlOf` and the
+ * press is handled by the panel's own pointer handler, so the thing you can hit
+ * and the thing you can see are the same rectangle by construction rather than
+ * by two pieces of arithmetic agreeing.
+ */
+function AddControl({ box, column }: { box: { x: number; y: number; width: number; height: number }; column: BoardColumn }) {
+  return (
+    <group position={[box.x, box.y, 0.005]}>
+      <mesh>
+        <planeGeometry args={[box.width - 0.01, box.height - 0.01]} />
+        {/* Dashed-outline energy without a dashed outline: a panel a shade off
+            the paper, so it reads as a place a card could go rather than as a
+            card that is already there. */}
+        <meshBasicMaterial color={CARD_INK.paperHeld} transparent opacity={0.7} toneMapped={false} />
+      </mesh>
+      <Text
+        position={[0, 0, 0.002]}
+        fontSize={box.height * 0.34}
+        color={CARD_INK.muted}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {`+  add to ${column.label}`}
+      </Text>
+    </group>
   );
 }

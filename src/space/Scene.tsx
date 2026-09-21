@@ -499,7 +499,8 @@ export default function Scene({
    * chosen by whoever is in it — see RoomShowing.
    */
   const boardFeed = useBoardCards(connection.showing.projectId ?? null);
-  const [openCard, setOpenCard] = useState<string | null>(null);  const openPanels = panels.open;
+  const [openCard, setOpenCard] = useState<string | null>(null);
+  const openPanels = panels.open;
   // The lists to choose from, and the way to change what the room shows. The
   // current VALUE comes from the socket, not from here — see useRoomShowing.
   const showingChoices = useRoomShowing(inHeadset, connection.showing);
@@ -574,6 +575,9 @@ export default function Scene({
                 boardFeed={boardFeed}
                 onSay={onPanelTrouble}
                 onOpenCard={setOpenCard}
+                openCard={openCard}
+                onCloseCard={() => setOpenCard(null)}
+                projectId={connection.showing.projectId ?? null}
               />
             </Movable>
           ))}

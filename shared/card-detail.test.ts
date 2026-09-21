@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMENTS_SHOWN, DETAIL_PX, paintDetail, type TaskDetail } from "./card-detail.js";
+import { COMMENTS_SHOWN, DETAIL_CLOSE, DETAIL_PX, isDetailClose, isDetailComment, paintDetail, type TaskDetail } from "./card-detail.js";
 import type { Ink } from "./card-paint.js";
 
 const measure = (text: string, size: number) => text.length * size * 0.55;
@@ -90,13 +90,76 @@ describe("the card you pull off the board", () => {
   });
 
   it("is quiet when there is nothing to say", () => {
-    // No "no description", no "0 comments".
+    /**
+     * No "no description", no "0 comments", no "not blocked".
+     *
+     * This used to assert the word "comment" was absent entirely, which was a
+     * proxy for "no empty-state filler" and stopped being one the moment the
+     * panel grew a "write a comment" control. An INVITATION is not filler: it
+     * is the thing you came here to do. What must stay absent is a COUNT of
+     * nothing, so that is what this now says.
+     */
     const words = said(paintDetail(task(), measure));
-    expect(words).not.toContain("comment");
+    expect(words).not.toContain("0 comment");
+    expect(words).not.toContain("comments");
     expect(words).not.toContain("Blocked");
   });
 
   it("is deterministic", () => {
     expect(paintDetail(task(), measure)).toEqual(paintDetail(task(), measure));
+  });
+});
+
+describe("closing it", () => {
+  it("has a close control, and it says so in words", () => {
+    // A bare glyph in a headset is a guess. The word costs nothing.
+    expect(said(paintDetail(task(), measure))).toContain("close");
+  });
+
+  it("answers yes in the corner and no everywhere a person reads", () => {
+    expect(isDetailClose({ x: 0.95, y: 0.95 })).toBe(true);
+    for (const point of [{ x: 0.5, y: 0.5 }, { x: 0.1, y: 0.95 }, { x: 0.95, y: 0.4 }, { x: 0, y: 0 }]) {
+      expect(isDetailClose(point), `${point.x},${point.y} should not close it`).toBe(false);
+    }
+  });
+
+  it("does not sit on top of the title", () => {
+    // The corner is empty by construction, but the title is the one thing that
+    // must never be under the close control — you would shut the panel trying
+    // to read it.
+    const long = Array.from({ length: 30 }, () => "word").join(" ");
+    const detail = paintDetail(task({ title: long }), measure);
+    const titles = detail.filter((i) => i.kind === "text" && i.text.startsWith("word"));
+    for (const item of titles) {
+      const onCloseRow = item.y <= (1 - DETAIL_CLOSE.v0) * DETAIL_PX.height;
+      const inCloseColumn = item.x >= DETAIL_CLOSE.u0 * DETAIL_PX.width;
+      expect(onCloseRow && inCloseColumn).toBe(false);
+    }
+  });
+});
+
+describe("writing a comment on it", () => {
+  it("offers it in words", () => {
+    expect(said(paintDetail(task(), measure))).toContain("write a comment");
+  });
+
+  it("offers it even on a task nobody has said anything about", () => {
+    // The empty case is exactly when somebody is most likely to be first.
+    expect(said(paintDetail(task({ comments: [] }), measure))).toContain("write a comment");
+  });
+
+  it("answers along the bottom and nowhere else", () => {
+    expect(isDetailComment({ x: 0.5, y: 0.02 })).toBe(true);
+    expect(isDetailComment({ x: 0.02, y: 0.02 })).toBe(true);
+    for (const point of [{ x: 0.5, y: 0.5 }, { x: 0.5, y: 0.95 }, { x: 0.5, y: 0.2 }]) {
+      expect(isDetailComment(point), `${point.x},${point.y}`).toBe(false);
+    }
+  });
+
+  it("does not overlap the close control", () => {
+    // Two controls sharing a pixel is one control nobody can reach.
+    for (const uv of [{ x: 0.95, y: 0.95 }, { x: 0.5, y: 0.01 }]) {
+      expect(isDetailClose(uv) && isDetailComment(uv)).toBe(false);
+    }
   });
 });

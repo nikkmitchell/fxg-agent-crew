@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, type BoardCard } from "./board-3d.js";
+import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, addAt, addControlOf, type BoardCard } from "./board-3d.js";
 import { canTransition } from "./board-rules.js";
 
 /**
@@ -259,5 +259,78 @@ describe("uv from a panel point", () => {
     const layout = layOutBoard([], { ...BOARD, width: 4.0, height: 2.5 });
     expect(uvFromPanelPoint(layout, { x: 1, y: 0 }).x).toBeGreaterThan(uvFromPanelPoint(layout, { x: -1, y: 0 }).x);
     expect(uvFromPanelPoint(layout, { x: 0, y: 1 }).y).toBeGreaterThan(uvFromPanelPoint(layout, { x: 0, y: -1 }).y);
+  });
+});
+
+describe("adding a card from the room", () => {
+  const layout = () => layOutBoard([card("a", "backlog")], { ...BOARD, width: 4.0, height: 2.5 });
+  const size = { ...BOARD, width: 4.0, height: 2.5 };
+
+  it("puts an add control in EVERY column, not just the backlog", () => {
+    // Somebody writing down what they are doing right now wants it in
+    // `in_progress`, not two moves away from it.
+    const l = layout();
+    for (const column of l.columns) {
+      const box = addControlOf(l, column, size);
+      expect(addAt(l, uvFromPanelPoint(l, { x: box.x, y: box.y }), size)?.status, column.status).toBe(column.status);
+    }
+  });
+
+  it("keeps each control inside its own column", () => {
+    const l = layout();
+    for (const column of l.columns) {
+      const box = addControlOf(l, column, size);
+      expect(box.x - box.width / 2).toBeGreaterThanOrEqual(column.x - column.width / 2 - 1e-9);
+      expect(box.x + box.width / 2).toBeLessThanOrEqual(column.x + column.width / 2 + 1e-9);
+    }
+  });
+
+  it("IS EXACT, so a near miss adds nothing rather than adding it elsewhere", () => {
+    // A card that silently appears in the wrong column is worse than a press
+    // that does nothing, because you have to notice it before you can fix it.
+    const l = layout();
+    const box = addControlOf(l, l.columns[0], size);
+    const miss = { x: box.x, y: box.y - box.height };
+    expect(addAt(l, uvFromPanelPoint(l, miss), size)).toBeNull();
+  });
+
+  it("IS AS BIG AS A CARD, because a control nobody can hit is not a feature", () => {
+    /**
+     * The first version was a small square in the column header: about three
+     * per cent of the board's width, seven pixels on screen at a normal panel
+     * size, and no better for a controller ray from across a room. I missed it
+     * twice with coordinates I had worked out from this very layout, which is
+     * about as clear a signal as testing gives you.
+     */
+    const l = layout();
+    for (const column of l.columns) {
+      const box = addControlOf(l, column, size);
+      expect(box.width, `${column.status} is narrower than its own cards`).toBeCloseTo(column.width, 6);
+      expect(box.height).toBeGreaterThanOrEqual(BOARD.cardHeight - 1e-9);
+    }
+  });
+
+  it("still has room for it when the column is overflowing", () => {
+    // The reservation has to hold in the case that pushes hardest on it.
+    const crowded = layOutBoard(Array.from({ length: 40 }, (_, i) => card(`c${i}`, "backlog")), size);
+    expect(crowded.overflow.some((o) => o.status === "backlog" && o.hidden > 0)).toBe(true);
+    const box = addControlOf(crowded, crowded.columns[0], size);
+    for (const place of crowded.cards) {
+      const apart =
+        Math.abs(place.x - box.x) >= (place.width + box.width) / 2 - 1e-9 ||
+        Math.abs(place.y - box.y) >= (place.height + box.height) / 2 - 1e-9;
+      expect(apart, `${place.card.id} is under the add strip`).toBe(true);
+    }
+  });
+
+  it("does not sit where the cards are", () => {
+    // Pressing the top card in a column must not create a new one.
+    const crowded = layOutBoard(
+      Array.from({ length: 6 }, (_, i) => card(`c${i}`, "backlog")),
+      size,
+    );
+    for (const place of crowded.cards) {
+      expect(addAt(crowded, uvFromPanelPoint(crowded, { x: place.x, y: place.y }), size), place.card.id).toBeNull();
+    }
   });
 });
