@@ -113,6 +113,29 @@ it may not choose a feature.
 
 ---
 
+## The goals, numbered
+
+Each is done when its check passes. Struck through when landed.
+
+| # | goal | check that can fail |
+| --- | --- | --- |
+| ~~1~~ | ~~Board geometry, pure and testable~~ | ~~drawn place == picked-up place~~ **DONE f1b44dc** |
+| 2 | Card painter: one function, task → texture | same task paints identically twice; long titles wrap, never overflow |
+| 3 | Panel surface: a mesh that reports pointer hits as UV | synthetic ray at a card's centre returns that card |
+| 4 | Input adapter: mouse, controller, hand → one ray event | same synthetic input gives the same result from all three |
+| 5 | Remove the iframe; canvas receives pointers on desktop | no `Html transform` in the room; a 3D object gets a desktop click |
+| 6 | Work board renders live data, both modes | a card edited on the site appears within one feed tick |
+| 7 | Drag a card between columns, persisted | drag review→done, read back from a fresh session |
+| 8 | Illegal moves refused in the air, with the server's rule | backlog→done shows refused while dragging, snaps back |
+| 9 | Add a task from inside the room | created via room, appears on the site |
+| 10 | Comment on a task from inside the room | comment via room, read back fresh |
+| 11 | Pull a card off the board into its own detail panel | detail shows more than the card; board keeps its copy |
+| 12 | Mood board on the same primitives | move/add/open with no mood-specific gesture |
+| 13 | Chat on the same surface, live | message appears without a page fetch |
+| 14 | Panel move/resize smooth and frame-rate independent | drag at 15fps and 120fps land in the same place |
+| 15 | One codebase: no headset conditional outside adapter/camera | grep test fails on a new one |
+| 16 | Delete stills renderer, WebPanel, StillPanel, duplicate input | files gone; suite still green |
+
 ## Order of work
 
 Each phase ends shippable. The room keeps working throughout — this is a live
