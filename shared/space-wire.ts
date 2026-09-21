@@ -14,6 +14,7 @@ import type { Vec3 } from "./space-layout.js";
 import type { Utterance } from "./voice.js";
 import { parseAvatarControl, type AvatarControl, type AvatarState } from "./avatar-motion.js";
 import { isTouchPart, type Touch, type TouchPart } from "./touch.js";
+import type { RoomItem } from "./room-items.js";
 
 /**
  * Where a panel hangs.
@@ -187,6 +188,8 @@ export type ServerMessage =
       panels: Placement[];
       /** What the room is showing, so an arriving viewer is not briefly blank. */
       showing: Showing;
+      /** Shared furniture and play objects already in the room. */
+      items: RoomItem[];
       /**
        * Who already has their microphone open.
        *
@@ -225,6 +228,7 @@ export type ServerMessage =
    * this is meant to solve, in miniature.
    */
   | { type: "showing"; showing: Showing }
+  | { type: "roomItems"; items: RoomItem[]; by: string }
   /**
    * Somebody said something.
    *

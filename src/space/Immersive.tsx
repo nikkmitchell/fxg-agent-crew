@@ -31,6 +31,7 @@ import { pinchTeleportEnabled, teleportNeeded, teleportOn, watchTeleport } from 
 import { holdSession } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
+import type { RoomItem } from "../../shared/room-items";
 import { useHiddenAsStill } from "./useHiddenAsStill";
 import type { RoomFeed } from "./useRoomFeed";
 import type { PanelChoices } from "./usePanelChoices";
@@ -140,6 +141,7 @@ export function ImmersivePlayer({
   showing,
   showingChoices,
   agents,
+  roomItems,
   peopleRef,
 }: {
   comfort: Comfort;
@@ -169,6 +171,7 @@ export function ImmersivePlayer({
   showingChoices: RoomShowingChoices;
   /** Agents in the room, for placing them from the menu. */
   agents: string[];
+  roomItems: RoomItem[];
   /** Everyone in the room, live, for noticing when a hand touches an agent. */
   peopleRef: RefObject<WirePerson[]>;
 }) {
@@ -856,6 +859,7 @@ export function ImmersivePlayer({
         showing={showing}
         showingChoices={showingChoices}
         agents={agents}
+        roomItems={roomItems}
         hiddenAsStill={stillNow}
         positionOf={(actorId) =>
           (peopleRef.current ?? []).find((person) => person.actorId.toLowerCase() === actorId.toLowerCase())?.at ?? null
@@ -927,6 +931,7 @@ export function Immersive({
   showing,
   showingChoices,
   agents,
+  roomItems,
   peopleRef,
 }: {
   comfort: Comfort;
@@ -944,6 +949,7 @@ export function Immersive({
   showing: Showing;
   showingChoices: RoomShowingChoices;
   agents: string[];
+  roomItems: RoomItem[];
   peopleRef: RefObject<WirePerson[]>;
 }) {
   const session = useXR((state) => state.session);
@@ -1006,6 +1012,7 @@ export function Immersive({
       showing={showing}
       showingChoices={showingChoices}
       agents={agents}
+      roomItems={roomItems}
       peopleRef={peopleRef}
     />
   ) : null;

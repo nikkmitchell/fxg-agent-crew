@@ -7,6 +7,7 @@ import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { NOT_A_PERSON, actorKey } from "../../shared/space-layout.js";
 import type { Placement, Showing } from "../../shared/space-wire.js";
+import type { RoomItem } from "../../shared/room-items.js";
 import { parseClientMessage, type ServerMessage, type WirePerson } from "../../shared/space-wire.js";
 import { Stillness } from "../../shared/stillness.js";
 import { isWalking, Presence, STALE_AFTER_MS } from "./presence.js";
@@ -255,6 +256,7 @@ export function registerSpaceRoutes(
    * that looks free until the room is full.
    */
   showingNow: () => Showing,
+  itemsNow: () => RoomItem[],
   /** Touches and agents' feelings about them. Optional so older tests run unchanged. */
   touches: Touches | null = null,
 ): void {
@@ -306,6 +308,7 @@ export function registerSpaceRoutes(
       // looks free until there are twenty people in the room.
       panels: panelsNow(),
       showing: showingNow(),
+      items: itemsNow(),
       // Who to call on arrival. Yourself excluded: a second tab of your own is
       // still you, and calling it would put your own microphone in your ears.
       voice: [...hub.voices]

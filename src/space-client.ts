@@ -4,6 +4,7 @@ import type { Placement, Showing } from "../shared/space-wire";
 import type { Utterance, UtteranceInput } from "../shared/voice";
 import type { AvatarControl, AvatarState } from "../shared/avatar-motion";
 import type { AgentHome } from "../shared/agent-home";
+import type { GoSize, RoomItem } from "../shared/room-items";
 
 /**
  * The browser's side of the room's own API.
@@ -112,4 +113,15 @@ export const space = {
         }),
       },
     ),
+  addRoomItem: () => requestJson<{ item: RoomItem }>(`${root}/items`, {
+    method: "POST", body: JSON.stringify({ kind: "go" }),
+  }),
+  configureGo: (id: string, change: { size?: GoSize; addBowl?: true }) =>
+    requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}`, {
+      method: "PATCH", body: JSON.stringify(change),
+    }),
+  actOnGo: (id: string, action: { action: "lift" } | { action: "place"; x: number; y: number }) =>
+    requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}/action`, {
+      method: "POST", body: JSON.stringify(action),
+    }),
 };

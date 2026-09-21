@@ -33,6 +33,7 @@ import { Movable } from "./Movable";
 import { placeOf, savePlacement } from "./panel-placement";
 import { defaultPlacement } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
+import { RoomItems } from "./RoomItems";
 
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
 
@@ -564,6 +565,7 @@ export default function Scene({
 
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
+        <RoomItems items={connection.roomItems} />
         <Immersive
           comfort={comfort}
           send={connection.send}
@@ -579,6 +581,7 @@ export default function Scene({
           showing={connection.showing}
           showingChoices={showingChoices}
           agents={connection.roster.filter((person) => person.kind === "agent").map((person) => person.actorId)}
+          roomItems={connection.roomItems}
           peopleRef={connection.peopleRef}
         />
       </XR>

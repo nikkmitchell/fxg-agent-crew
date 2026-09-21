@@ -35,6 +35,7 @@ import { microphoneState } from "./mic-permission";
 import { voiceReport } from "./voice-report";
 import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
+import { GO_SIZES, type RoomItem } from "../../shared/room-items";
 
 /**
  * The room's controls, in front of you at body level.
@@ -170,6 +171,7 @@ export function RoomControls({
   showing,
   showingChoices,
   agents,
+  roomItems,
   hiddenAsStill,
   positionOf,
   onResetStanding,
@@ -198,6 +200,8 @@ export function RoomControls({
   showingChoices: RoomShowingChoices;
   /** The agents in the room right now, for placing them. */
   agents: string[];
+  /** Furniture and play objects shared by everybody. */
+  roomItems: RoomItem[];
   /** Who the hide-still setting is hiding from you now, named on its row. See useHiddenAsStill. */
   hiddenAsStill: string[];
   /** Where somebody is standing, for reading them aloud as loud as they are near. */
@@ -227,7 +231,7 @@ export function RoomControls({
    * one decision, and a decision that changes what everybody in the room is
    * looking at deserves its own screen rather than a row among twenty.
    */
-  const [view, setView] = useState<"root" | "work" | "mood" | "panels" | "agents">("root");
+  const [view, setView] = useState<"root" | "work" | "mood" | "panels" | "agents" | "items">("root");
   /**
    * Whether your own hands are drawn.
    *
@@ -874,6 +878,19 @@ export function RoomControls({
       panelRows.push({ label: panels.refusal, tone: "muted", onTap: () => {} });
     }
     boxes.push({ title: "Panels", rows: panelRows });
+  } else if (open && view === "items") {
+    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    rows.push({ label: "+ Add Go table", tone: "live", onTap: () => void space.addRoomItem().catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add the table.")) });
+    for (const item of roomItems) {
+      rows.push({ label: `Go table · ${item.size}×${item.size}`, tone: "live", onTap: () => {} });
+      for (const size of GO_SIZES) rows.push({
+        label: `${item.size === size ? "✓" : "·"} ${size}×${size}${item.size === size ? "" : " — resets stones"}`,
+        tone: item.size === size ? "live" : "normal",
+        onTap: () => void space.configureGo(item.id, { size }).catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not resize the board.")),
+      });
+      rows.push({ label: `+ Add player bowl (${item.colours.length} now)`, onTap: () => void space.configureGo(item.id, { addBowl: true }).catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add a bowl.")) });
+    }
+    boxes.push({ title: "Room items — for everyone", rows });
   } else if (open && view === "agents") {
     /**
      * WHERE AGENTS LIVE, set from where you stand.
@@ -1069,6 +1086,7 @@ export function RoomControls({
     boxes.push({
       title: "Room",
       rows: [
+        { label: "Room items…", onTap: () => setView("items") },
         { label: "Panels…", onTap: () => setView("panels") },
         { label: "Place agents…", onTap: () => setView("agents") },
         {

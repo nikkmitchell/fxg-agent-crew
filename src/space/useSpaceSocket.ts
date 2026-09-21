@@ -9,6 +9,7 @@ import type {
 } from "../../shared/space-wire";
 import type { Utterance } from "../../shared/voice";
 import type { Vec3 } from "../../shared/space-layout";
+import type { RoomItem } from "../../shared/room-items";
 import { base } from "../router";
 import { backoff } from "../backoff";
 import { space } from "../space-client";
@@ -86,6 +87,7 @@ export type SpaceConnection = {
    * shared state instead of a setting.
    */
   showing: Showing;
+  roomItems: RoomItem[];
   /**
    * Listen to every frame the server sends, raw.
    *
@@ -129,6 +131,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     setBy: null,
     setAt: null,
   });
+  const [roomItems, setRoomItems] = useState<RoomItem[]>([]);
   /**
    * Anybody who wants every frame, as it arrives.
    *
@@ -237,6 +240,10 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           setShowing(message.showing);
           return;
         }
+        if (message.type === "roomItems") {
+          setRoomItems(message.items);
+          return;
+        }
         if (message.type === "said") {
           // Appended rather than replacing: an utterance is an event, and the
           // list is a transcript. Capped so a room left open all day does not
@@ -254,6 +261,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           setStatus({ state: "open", you: message.you });
           setPlaces(message.panels);
           setShowing(message.showing);
+          setRoomItems(message.items);
         }
         onSnapshot.current?.();
       });
@@ -337,6 +345,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     places,
     openPanels,
     showing,
+    roomItems,
     subscribe,
   };
 }

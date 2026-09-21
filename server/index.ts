@@ -38,6 +38,7 @@ import { registerPathRoutes } from "./space/paths.js";
 import { registerTranscribeRoutes } from "./space/transcribe.js";
 import { ScreenFrames, ShareKeys, registerScreenRoutes } from "./space/screens.js";
 import { openDatabase } from "./db/open.js";
+import { RoomItems, registerRoomItemRoutes } from "./space/items.js";
 
 /**
  * Backend-for-frontend.
@@ -168,6 +169,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // is passed in so a choice can be checked against what actually exists
   // rather than stored and discovered wrong by everybody at once later.
   const roomShowing = new RoomShowing(database, new BoardReads(database));
+  const roomItems = new RoomItems(database);
   const activity = new Activity(
     database,
     space.presence,
@@ -221,6 +223,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       space,
       () => panelPlaces.all(),
       () => roomShowing.current(),
+      () => roomItems.all(),
       touches,
     );
     registerTouchRoutes(scoped, { config, sessions, hub: space, touches });
@@ -237,6 +240,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       config,
       announce: (showing) => space.broadcast({ type: "showing", showing }),
+    });
+    registerRoomItemRoutes(scoped, {
+      config,
+      sessions,
+      items: roomItems,
+      announce: (items, by) => space.broadcast({ type: "roomItems", items, by }),
     });
     registerUtteranceRoutes(
       scoped,

@@ -857,4 +857,22 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE actors ADD COLUMN personality TEXT;
     `,
   },
+  {
+    id: 27,
+    name: "shared objects placed in the room",
+    sql: `
+      -- Furniture and play objects belong to the room, not to the browser that
+      -- added them. The JSON is a versioned object state; kind remains a column
+      -- so a later catalogue can find its own objects without decoding all rows.
+      CREATE TABLE space_items (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        state_json TEXT NOT NULL,
+        added_by TEXT NOT NULL,
+        added_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];
