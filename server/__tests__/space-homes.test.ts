@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_SPACE_ROOM } from "../../shared/space-room.js";
 import { DatabaseSync } from "node:sqlite";
 import { buildServer } from "../index.js";
 import { openDatabase } from "../db/open.js";
@@ -220,24 +221,27 @@ describe("placing an agent's home", () => {
 describe("a home is remembered", () => {
   const room = () => {
     const database = openDatabase(":memory:", DatabaseSync);
-    return { database, homes: new AgentHomes(database) };
+    const homes = new AgentHomes(database);
+    // Presence is not room-keyed yet, so it takes a homes lookup already bound
+    // to one room — the same wrapper server/index.ts builds. See `roomAtDefault`.
+    return { database, homes, homesHere: { get: (id: string) => homes.get(DEFAULT_SPACE_ROOM, id) } };
   };
 
   it("across a restart: the agent arrives at its home, facing the way it was placed", () => {
-    const { homes } = room();
-    homes.set("Sill", { at: { x: -2, y: 0, z: 1 }, facing: 2 }, "Nikk2");
-    const presence = new Presence(Date.now, null, homes);
+    const { homes, homesHere } = room();
+    homes.set(DEFAULT_SPACE_ROOM, "Sill", { at: { x: -2, y: 0, z: 1 }, facing: 2 }, "Nikk2");
+    const presence = new Presence(Date.now, null, homesHere);
     const sill = presence.join("Sill", "agent", true);
     expect(sill.at).toEqual({ x: -2, y: 0, z: 1 });
     expect(sill.facing).toBeCloseTo(2, 9);
   });
 
   it("and is where it walks back to after working at a board", () => {
-    const { database, homes } = room();
-    homes.set("Plumbline", { at: { x: 3, y: 0, z: 2 }, facing: -1 }, "Nikk2");
+    const { database, homes, homesHere } = room();
+    homes.set(DEFAULT_SPACE_ROOM, "Plumbline", { at: { x: 3, y: 0, z: 2 }, facing: -1 }, "Nikk2");
     let clock = 1_000_000;
-    const presence = new Presence(() => clock, null, homes);
-    const activity = new Activity(database, presence, () => clock, () => ({}), (id) => homes.get(id));
+    const presence = new Presence(() => clock, null, homesHere);
+    const activity = new Activity(database, presence, () => clock, () => ({}), (id) => homes.get(DEFAULT_SPACE_ROOM, id));
     activity.catchUp();
     const store = new BoardStore(database);
     const nikk = { id: "nikk", kind: "human" as const };
@@ -254,7 +258,7 @@ describe("a home is remembered", () => {
 
   it("treats two spellings of one agent as one home", () => {
     const { homes } = room();
-    homes.set("Inkstone", { at: { x: 1, y: 0, z: 1 }, facing: 0 }, "Nikk2");
-    expect(homes.get("inkstone")).not.toBeNull();
+    homes.set(DEFAULT_SPACE_ROOM, "Inkstone", { at: { x: 1, y: 0, z: 1 }, facing: 0 }, "Nikk2");
+    expect(homes.get(DEFAULT_SPACE_ROOM, "inkstone")).not.toBeNull();
   });
 });

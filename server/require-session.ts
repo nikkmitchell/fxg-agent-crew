@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { Config } from "./config.js";
 import type { Session, SessionStore } from "./session.js";
+import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
 
 /**
  * Resolve the session, or answer 401 and return undefined.
@@ -25,3 +26,15 @@ export function makeRequireSession(config: Config, sessions: SessionStore) {
     return session;
   };
 }
+
+/**
+ * Which room's space this session is standing in.
+ *
+ * ONE PLACE THAT RESOLVES THE DEFAULT. Every space route needs this, and if
+ * each one wrote `session.spaceRoom ?? "saha.ing"` then changing the default
+ * would mean finding twenty of them and missing one — and the one missed would
+ * put somebody in a different room from the rest of their own session, which
+ * shows a half-empty space with nothing to explain it.
+ */
+export const spaceRoomOf = (session: Pick<Session, "spaceRoom">): string =>
+  roomKey(session.spaceRoom ?? DEFAULT_SPACE_ROOM);

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { roomKey } from "../../shared/space-room.js";
 import type { DatabaseSync } from "node:sqlite";
 import { DEFAULT_OPEN_PANELS, STATIONS } from "../../shared/space-layout.js";
 import {
@@ -10,7 +11,7 @@ import {
 import type { Placement } from "../../shared/space-wire.js";
 import type { SessionStore } from "../session.js";
 import type { Config } from "../config.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 
 /**
  * Which panels a person has open.
@@ -50,10 +51,10 @@ export class PanelChoices {
    * and its panels have a left-to-right, and a settings list that reshuffles as
    * you click is a settings list you cannot use.
    */
-  open(): string[] {
+  open(room: string): string[] {
     const rows = this.database
-      .prepare("SELECT panel_id, open FROM space_panel_shown")
-      .all() as { panel_id: string; open: number }[];
+      .prepare("SELECT panel_id, open FROM space_panel_shown WHERE room = ?")
+      .all(roomKey(room)) as { panel_id: string; open: number }[];
     const decided = new Map(rows.map((row) => [row.panel_id, row.open === 1]));
     return Object.keys(STATIONS).filter(
       (id) => decided.get(id) ?? DEFAULT_OPEN_PANELS.includes(id),
@@ -61,7 +62,7 @@ export class PanelChoices {
   }
 
   /** Record a decision. Returns null when it was accepted, a sentence when not. */
-  set(panelId: string, open: boolean, by: string, at: string): string | null {
+  set(room: string, panelId: string, open: boolean, by: string, at: string): string | null {
     if (!(panelId in STATIONS)) return `there is no panel called "${panelId}"`;
     // REFUSING TO CLOSE THE LAST ONE. An empty arc is indistinguishable from a
     // room that failed to load, and the way out of it is a settings list the
@@ -71,15 +72,15 @@ export class PanelChoices {
     // rather than a weaker one: closing the last panel would empty the room
     // for every person in it, including people not looking at a settings menu
     // and with no idea why the walls went bare.
-    if (!open && this.open().filter((id) => id !== panelId).length === 0) {
+    if (!open && this.open(room).filter((id) => id !== panelId).length === 0) {
       return "that is the last panel open; the room would be empty for everybody and nobody could get back";
     }
     this.database
       .prepare(
-        `INSERT INTO space_panel_shown (panel_id, open, set_by, set_at) VALUES (?, ?, ?, ?)
-         ON CONFLICT(panel_id) DO UPDATE SET open = excluded.open, set_by = excluded.set_by, set_at = excluded.set_at`,
+        `INSERT INTO space_panel_shown (room, panel_id, open, set_by, set_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(room, panel_id) DO UPDATE SET open = excluded.open, set_by = excluded.set_by, set_at = excluded.set_at`,
       )
-      .run(panelId, open ? 1 : 0, by, at);
+      .run(roomKey(room), panelId, open ? 1 : 0, by, at);
     return null;
   }
 }
@@ -100,10 +101,10 @@ export class PanelPlaces {
   constructor(private readonly database: DatabaseSync) {}
 
   /** Every panel, moved or not, in catalogue order. */
-  all(): Placement[] {
+  all(room: string): Placement[] {
     const rows = this.database
-      .prepare("SELECT panel_id, x, y, z, rotation_y, scale FROM space_panel_place")
-      .all() as {
+      .prepare("SELECT panel_id, x, y, z, rotation_y, scale FROM space_panel_place WHERE room = ?")
+      .all(roomKey(room)) as {
       panel_id: string;
       x: number;
       y: number;
@@ -135,6 +136,7 @@ export class PanelPlaces {
    * one person and stay put for another.
    */
   place(
+    room: string,
     place: Placement,
     by: string,
     at: string,
@@ -149,14 +151,15 @@ export class PanelPlaces {
     };
     this.database
       .prepare(
-        `INSERT INTO space_panel_place (panel_id, x, y, z, rotation_y, scale, moved_by, moved_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(panel_id) DO UPDATE SET
+        `INSERT INTO space_panel_place (room, panel_id, x, y, z, rotation_y, scale, moved_by, moved_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(room, panel_id) DO UPDATE SET
            x = excluded.x, y = excluded.y, z = excluded.z,
            rotation_y = excluded.rotation_y, scale = excluded.scale,
            moved_by = excluded.moved_by, moved_at = excluded.moved_at`,
       )
       .run(
+        roomKey(room),
         stored.id,
         stored.position.x,
         stored.position.y,
@@ -201,8 +204,8 @@ export function registerPanelRoutes(
         label: station.label,
         tab: station.tab,
       })),
-      open: choices.open(),
-      places: places.all(),
+      open: choices.open(spaceRoomOf(session)),
+      places: places.all(spaceRoomOf(session)),
     });
   });
 
@@ -216,6 +219,7 @@ export function registerPanelRoutes(
         return reply.code(400).send({ code: "BAD_OPEN", error: "open must be true or false" });
       }
       const refused = choices.set(
+        spaceRoomOf(session),
         request.params.id,
         open,
         session.username,
@@ -224,7 +228,7 @@ export function registerPanelRoutes(
       // 422 rather than 400: the request was understood and declined on its
       // merits, and the sentence is the point.
       if (refused) return reply.code(422).send({ code: "REFUSED", error: refused });
-      const shown = choices.open();
+      const shown = choices.open(spaceRoomOf(session));
       // TOLD TO EVERYBODY, like a move. Without this the person who clicked
       // sees it and nobody else does until they reload — which is the bug this
       // change exists to fix, merely moved from the database to the socket.
@@ -276,6 +280,7 @@ export function registerPanelRoutes(
       }
 
       const result = places.place(
+        spaceRoomOf(session),
         {
           id: request.params.id,
           position: { x: position.x, y: position.y, z: position.z },

@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
+import { roomKey } from "../../shared/space-room.js";
 import type { DatabaseSync } from "node:sqlite";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { Showing } from "../../shared/space-wire.js";
 import type { BoardReads } from "../db/reads.js";
 
@@ -27,11 +28,11 @@ export class RoomShowing {
     private readonly reads: BoardReads,
   ) {}
 
-  /** What the room is showing. Nulls until somebody chooses. */
-  current(): Showing {
+  /** What THIS room is showing. Nulls until somebody in it chooses. */
+  current(room: string): Showing {
     const row = this.database
-      .prepare("SELECT project_id, board_id, set_by, set_at FROM space_showing WHERE only_row = 1")
-      .get() as
+      .prepare("SELECT project_id, board_id, set_by, set_at FROM space_showing WHERE room = ?")
+      .get(roomKey(room)) as
       | { project_id: string | null; board_id: string | null; set_by: string; set_at: string }
       | undefined;
     if (!row) return { projectId: null, boardId: null, setBy: null, setAt: null };
@@ -56,6 +57,7 @@ export class RoomShowing {
    * do with each other.
    */
   set(
+    room: string,
     choice: { projectId: string | null; boardId: string | null },
     by: string,
     at: string,
@@ -82,16 +84,16 @@ export class RoomShowing {
       }
     }
 
-    const before = this.current();
+    const before = this.current(room);
     this.database
       .prepare(
-        `INSERT INTO space_showing (only_row, project_id, board_id, set_by, set_at)
-         VALUES (1, ?, ?, ?, ?)
-         ON CONFLICT(only_row) DO UPDATE SET
+        `INSERT INTO space_showing (room, project_id, board_id, set_by, set_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(room) DO UPDATE SET
            project_id = excluded.project_id, board_id = excluded.board_id,
            set_by = excluded.set_by, set_at = excluded.set_at`,
       )
-      .run(projectId, boardId, by, at);
+      .run(roomKey(room), projectId, boardId, by, at);
 
     /**
      * RECORDED IN THE AUDIT TRAIL, because this is how an agent finds out.
@@ -154,7 +156,7 @@ export function registerShowingRoutes(
   app.get("/bff/space/showing", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    return reply.send({ showing: showing.current() });
+    return reply.send({ showing: showing.current(spaceRoomOf(session)) });
   });
 
   app.put<{ Body: { projectId?: unknown; boardId?: unknown } }>(
@@ -177,6 +179,7 @@ export function registerShowingRoutes(
       }
 
       const result = showing.set(
+        spaceRoomOf(session),
         {
           projectId: (body.projectId as string | null | undefined) ?? null,
           boardId: (body.boardId as string | null | undefined) ?? null,

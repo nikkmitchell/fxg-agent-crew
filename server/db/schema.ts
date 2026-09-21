@@ -875,4 +875,127 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 28,
+    name: "the space belongs to a room",
+    sql: `
+      -- ONE SPACE BECAME MANY, because saha.ing was both the site and the only
+      -- room in it.
+      --
+      -- Nikk: "the saha.ing room is the dev group for making saha.ing... we
+      -- need to let new users create their own new rooms... when they go to the
+      -- saha.ing website they can choose which room they want to join, and so
+      -- new users or even old users who are working on a different project will
+      -- only see that".
+      --
+      -- WHAT BELONGS TO A ROOM AND WHAT BELONGS TO YOU, which is the whole
+      -- design decision here and is not obvious.
+      --
+      --   the room   where you stand, how you appear, what is on the walls,
+      --              what was said aloud. Walk into a different room and all of
+      --              it is different, because it is the room's, not yours.
+      --
+      --   you        your body, your voice, your profile, your memories. These
+      --              deliberately DO NOT get a room column. A body you chose is
+      --              yours in every room you walk into; making you re-pick one
+      --              per room would be a worse product and a stranger idea of
+      --              a self.
+      --
+      -- BACKFILLED TO 'saha.ing', NOT TO THE NEW DEFAULT. Every row that exists
+      -- was made by somebody standing in the saha.ing room, so that is where it
+      -- belongs and where they should find it. Backfilling to 'lobby' would
+      -- silently move the whole project's furniture into a room nobody has been
+      -- in yet, and the people who built it would arrive to an empty space.
+      --
+      -- SQLite cannot add a column to a PRIMARY KEY, so the five tables whose
+      -- key changes are rebuilt rather than altered. utterances keeps its
+      -- autoincrement id and only gains a column.
+
+      ALTER TABLE utterances ADD COLUMN room TEXT NOT NULL DEFAULT 'saha.ing';
+      CREATE INDEX utterances_by_room ON utterances(room, id);
+
+      CREATE TABLE agent_homes_next (
+        room      TEXT NOT NULL,
+        actor_key TEXT NOT NULL,
+        actor_id  TEXT NOT NULL,
+        x         REAL NOT NULL,
+        z         REAL NOT NULL,
+        facing    REAL NOT NULL,
+        set_by    TEXT NOT NULL,
+        set_at    TEXT NOT NULL,
+        PRIMARY KEY (room, actor_key)
+      );
+      INSERT INTO agent_homes_next (room, actor_key, actor_id, x, z, facing, set_by, set_at)
+        SELECT 'saha.ing', actor_key, actor_id, x, z, facing, set_by, set_at FROM agent_homes;
+      DROP TABLE agent_homes;
+      ALTER TABLE agent_homes_next RENAME TO agent_homes;
+
+      -- The CHECK (only_row = 1) pinned this to a single row, because what the
+      -- room is showing is one fact about one room. It is still one fact — per
+      -- room — so the room name becomes the key and the pin comes out.
+      CREATE TABLE space_showing_next (
+        room       TEXT PRIMARY KEY,
+        project_id TEXT,
+        board_id   TEXT,
+        set_by     TEXT NOT NULL,
+        set_at     TEXT NOT NULL
+      );
+      INSERT INTO space_showing_next (room, project_id, board_id, set_by, set_at)
+        SELECT 'saha.ing', project_id, board_id, set_by, set_at FROM space_showing;
+      DROP TABLE space_showing;
+      ALTER TABLE space_showing_next RENAME TO space_showing;
+
+      CREATE TABLE space_panel_shown_next (
+        room     TEXT NOT NULL,
+        panel_id TEXT NOT NULL,
+        open     INTEGER NOT NULL CHECK (open IN (0, 1)),
+        set_by   TEXT NOT NULL,
+        set_at   TEXT NOT NULL,
+        PRIMARY KEY (room, panel_id)
+      );
+      INSERT INTO space_panel_shown_next (room, panel_id, open, set_by, set_at)
+        SELECT 'saha.ing', panel_id, open, set_by, set_at FROM space_panel_shown;
+      DROP TABLE space_panel_shown;
+      ALTER TABLE space_panel_shown_next RENAME TO space_panel_shown;
+
+      CREATE TABLE space_panel_open_next (
+        room     TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        panel_id TEXT NOT NULL,
+        open     INTEGER NOT NULL CHECK (open IN (0, 1)),
+        at       TEXT NOT NULL,
+        PRIMARY KEY (room, actor_id, panel_id)
+      );
+      INSERT INTO space_panel_open_next (room, actor_id, panel_id, open, at)
+        SELECT 'saha.ing', actor_id, panel_id, open, at FROM space_panel_open;
+      DROP TABLE space_panel_open;
+      ALTER TABLE space_panel_open_next RENAME TO space_panel_open;
+
+      -- THE scale COLUMN IS IN HERE BECAUSE THE LIVE TABLE IS NOT ITS CREATE
+      -- STATEMENT. A later migration added it with ALTER long after the table was
+      -- made, so the shape on disk is CREATE plus every later ALTER. I wrote this
+      -- rebuild from the CREATE alone and it silently dropped the column — every
+      -- panel's scale, gone, and the two queries that read it broken. Caught
+      -- only because panels.ts selects a column the CREATE never mentioned.
+      --
+      -- Any future rebuild: read PRAGMA table_info, or the ALTERs, never just
+      -- the CREATE.
+      CREATE TABLE space_panel_place_next (
+        room       TEXT NOT NULL,
+        panel_id   TEXT NOT NULL,
+        x          REAL NOT NULL,
+        y          REAL NOT NULL,
+        z          REAL NOT NULL,
+        rotation_y REAL NOT NULL,
+        scale      REAL NOT NULL DEFAULT 1,
+        moved_by   TEXT NOT NULL,
+        moved_at   TEXT NOT NULL,
+        PRIMARY KEY (room, panel_id)
+      );
+      INSERT INTO space_panel_place_next (room, panel_id, x, y, z, rotation_y, scale, moved_by, moved_at)
+        SELECT 'saha.ing', panel_id, x, y, z, rotation_y, scale, moved_by, moved_at FROM space_panel_place;
+      DROP TABLE space_panel_place;
+      ALTER TABLE space_panel_place_next RENAME TO space_panel_place;
+    `,
+  },
 ];

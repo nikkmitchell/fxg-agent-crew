@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { roomKey } from "../shared/space-room.js";
 
 /**
  * Server-side session storage.
@@ -30,6 +31,20 @@ export type Session = {
   token: string;
   kind: SessionKind;
   expiresAt: number;
+  /**
+   * Which room's space this session is standing in.
+   *
+   * ON THE SESSION RATHER THAN EVERY REQUEST, because the alternative is a
+   * `?room=` on twenty-odd space routes and a socket, and one of them would be
+   * forgotten — a space route that quietly reads the wrong room shows you a
+   * room full of the wrong people with nothing to indicate it.
+   *
+   * Undefined means "has not chosen", which resolves to DEFAULT_SPACE_ROOM
+   * rather than being written in at sign-in: the default is one decision in
+   * one file, and an undefined here can still be told apart from a deliberate
+   * choice of the same room.
+   */
+  spaceRoom?: string;
 };
 
 export interface SessionStore {
@@ -37,6 +52,8 @@ export interface SessionStore {
   get(sid: string | undefined): Session | undefined;
   /** Replace the upstream token after a transparent re-login, keeping the sid. */
   refreshToken(sid: string, token: string): void;
+  /** Stand this session in a different room's space. */
+  enterRoom(sid: string, room: string): void;
   destroy(sid: string | undefined): void;
   /** Projection safe to send to the browser. */
   publicView(session: Session): { username: string; kind: SessionKind };
@@ -87,6 +104,12 @@ export class MemorySessionStore implements SessionStore {
     if (!session) return;
     session.token = token;
     session.expiresAt = Date.now() + this.ttlMs;
+  }
+
+  enterRoom(sid: string, room: string): void {
+    const session = this.sessions.get(sid);
+    if (!session) return;
+    session.spaceRoom = roomKey(room);
   }
 
   destroy(sid: string | undefined): void {
@@ -140,6 +163,7 @@ export class SqliteSessionStore implements SessionStore {
       );
     `);
     this.addKindColumn();
+    this.addSpaceRoomColumn();
     this.db.exec("PRAGMA foreign_keys = ON");
     this.purgeExpired();
   }
@@ -170,6 +194,20 @@ export class SqliteSessionStore implements SessionStore {
     this.db.exec("ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'human'");
   }
 
+  /**
+   * Add `space_room` the same way, and for the same reason.
+   *
+   * NULLABLE, with no default. "Has not chosen a room" is a real state that
+   * resolves to DEFAULT_SPACE_ROOM at read time; writing a default in here
+   * would make every session already signed in look like it had picked the dev
+   * room on purpose, and there would be no way to tell those apart later.
+   */
+  private addSpaceRoomColumn(): void {
+    const columns = this.db.prepare("PRAGMA table_info(sessions)").all() as Array<{ name: string }>;
+    if (columns.some((column) => column.name === "space_room")) return;
+    this.db.exec("ALTER TABLE sessions ADD COLUMN space_room TEXT");
+  }
+
   create(username: string, token: string, kind: SessionKind = "human"): string {
     const sid = newSessionId();
     this.db
@@ -181,8 +219,9 @@ export class SqliteSessionStore implements SessionStore {
   get(sid: string | undefined): Session | undefined {
     if (!sid) return undefined;
     const row = this.db
-      .prepare("SELECT username, token, kind, expires_at FROM sessions WHERE sid = ?")
-      .get(sid) as { username: string; token: string; kind: string; expires_at: number } | undefined;
+      .prepare("SELECT username, token, kind, expires_at, space_room FROM sessions WHERE sid = ?")
+      .get(sid) as
+        { username: string; token: string; kind: string; expires_at: number; space_room: string | null } | undefined;
     if (!row) return undefined;
 
     if (row.expires_at <= Date.now()) {
@@ -196,6 +235,7 @@ export class SqliteSessionStore implements SessionStore {
       token: row.token,
       kind: row.kind === "agent" ? "agent" : "human",
       expiresAt: row.expires_at,
+      spaceRoom: row.space_room ?? undefined,
     };
   }
 
@@ -203,6 +243,10 @@ export class SqliteSessionStore implements SessionStore {
     this.db
       .prepare("UPDATE sessions SET token = ?, expires_at = ? WHERE sid = ?")
       .run(token, Date.now() + this.ttlMs, sid);
+  }
+
+  enterRoom(sid: string, room: string): void {
+    this.db.prepare("UPDATE sessions SET space_room = ? WHERE sid = ?").run(roomKey(room), sid);
   }
 
   destroy(sid: string | undefined): void {

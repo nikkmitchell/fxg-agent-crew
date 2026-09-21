@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { DEFAULT_SPACE_ROOM } from "../shared/space-room.js";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, resolve } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
@@ -154,8 +155,20 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Made before the room, which reads it: an agent whose screen is sharing is
   // awake. See Presence.settlePostures.
   const screenFrames = new ScreenFrames();
+  /**
+   * PRESENCE IS NOT ROOM-KEYED YET — migration 27 gave the stored space a room,
+   * and the live one still has a single map of who is standing where. Until it
+   * does, everything reads the default room, which is exactly what these two
+   * lookups did before the migration, so behaviour is unchanged.
+   *
+   * Marked rather than hidden: grep `roomAtDefault` to find every place that
+   * still assumes one room. They are the whole of the next step, and a silent
+   * `?? "saha.ing"` scattered through the file would not be findable.
+   */
+  const roomAtDefault = DEFAULT_SPACE_ROOM;
+  const homesInDefaultRoom = { get: (actorId: string) => agentHomes.get(roomAtDefault, actorId) };
   const space = new SpaceHub(
-    new Presence(Date.now, new DeclaredPostures(database), agentHomes, (actorId) => screenFrames.get(actorId) !== undefined),
+    new Presence(Date.now, new DeclaredPostures(database), homesInDefaultRoom, (actorId) => screenFrames.get(actorId) !== undefined),
     (actorId) => agentBodies.get(actorId),
   );
 
@@ -174,8 +187,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     database,
     space.presence,
     Date.now,
-    () => Object.fromEntries(panelPlaces.all().map((place) => [place.id, place])),
-    (actorId) => agentHomes.get(actorId),
+    () => Object.fromEntries(panelPlaces.all(roomAtDefault).map((place) => [place.id, place])),
+    (actorId) => agentHomes.get(roomAtDefault, actorId),
   );
   activity.onError = (error) => app.log.error({ error }, "space activity poll failed");
   // Put the agents back before anything else looks at the room. A restart
@@ -221,8 +234,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       sessions,
       space,
-      () => panelPlaces.all(),
-      () => roomShowing.current(),
+      () => panelPlaces.all(roomAtDefault),
+      // Room-scoped now; this caller still speaks for the default room.
+      () => roomShowing.current(roomAtDefault),
       () => roomItems.all(),
       touches,
     );

@@ -2,10 +2,11 @@ import type { FastifyInstance } from "fastify";
 import type { DatabaseSync } from "node:sqlite";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import { actorKey, clampToWorld, deskFor } from "../../shared/space-layout.js";
 import { normaliseRotation } from "../../shared/panel-place.js";
 import { resolveFacing, type AgentHome, type HomeSummary, type Spot } from "../../shared/agent-home.js";
+import { roomKey } from "../../shared/space-room.js";
 
 /**
  * Agents' saved home positions. See shared/agent-home.ts for what was asked.
@@ -15,6 +16,12 @@ import { resolveFacing, type AgentHome, type HomeSummary, type Spot } from "../.
  * and it should still be true tomorrow.
  *
  * Without a row, an agent's home is its desk, exactly as before.
+ *
+ * PER ROOM SINCE MIGRATION 27. Where you stand belongs to the room you are
+ * standing in — your desk in one is not your desk in another — so `room` is the
+ * first argument of every method rather than state on the instance. Explicit
+ * because the compiler then names every caller that has not thought about it,
+ * which for a change this wide is the only way to be sure none was missed.
  */
 export class AgentHomes {
   constructor(
@@ -22,35 +29,36 @@ export class AgentHomes {
     private readonly now: () => number = Date.now,
   ) {}
 
-  get(actorId: string): AgentHome | null {
+  get(room: string, actorId: string): AgentHome | null {
     const row = this.database
-      .prepare("SELECT x, z, facing FROM agent_homes WHERE actor_key = ?")
-      .get(actorKey(actorId)) as { x: number; z: number; facing: number } | undefined;
+      .prepare("SELECT x, z, facing FROM agent_homes WHERE room = ? AND actor_key = ?")
+      .get(roomKey(room), actorKey(actorId)) as { x: number; z: number; facing: number } | undefined;
     return row ? { at: { x: row.x, y: 0, z: row.z }, facing: row.facing } : null;
   }
 
-  set(actorId: string, home: AgentHome, setBy: string): AgentHome {
+  set(room: string, actorId: string, home: AgentHome, setBy: string): AgentHome {
     const at = clampHome(home.at);
     const facing = normaliseRotation(home.facing);
     this.database
       .prepare(
-        `INSERT INTO agent_homes (actor_key, actor_id, x, z, facing, set_by, set_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (actor_key) DO UPDATE SET actor_id = excluded.actor_id, x = excluded.x, z = excluded.z,
+        `INSERT INTO agent_homes (room, actor_key, actor_id, x, z, facing, set_by, set_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (room, actor_key) DO UPDATE SET actor_id = excluded.actor_id, x = excluded.x, z = excluded.z,
            facing = excluded.facing, set_by = excluded.set_by, set_at = excluded.set_at`,
       )
-      .run(actorKey(actorId), actorId, at.x, at.z, facing, setBy, new Date(this.now()).toISOString());
+      .run(roomKey(room), actorKey(actorId), actorId, at.x, at.z, facing, setBy, new Date(this.now()).toISOString());
     return { at, facing };
   }
 
-  clear(actorId: string): void {
-    this.database.prepare("DELETE FROM agent_homes WHERE actor_key = ?").run(actorKey(actorId));
+  clear(room: string, actorId: string): void {
+    this.database.prepare("DELETE FROM agent_homes WHERE room = ? AND actor_key = ?")
+      .run(roomKey(room), actorKey(actorId));
   }
 
-  all(): HomeSummary[] {
+  all(room: string): HomeSummary[] {
     return (
       this.database
-        .prepare("SELECT actor_id AS actorId, x, z, facing, set_by AS setBy, set_at AS setAt FROM agent_homes ORDER BY actor_id")
-        .all() as { actorId: string; x: number; z: number; facing: number; setBy: string; setAt: string }[]
+        .prepare("SELECT actor_id AS actorId, x, z, facing, set_by AS setBy, set_at AS setAt FROM agent_homes WHERE room = ? ORDER BY actor_id")
+        .all(roomKey(room)) as { actorId: string; x: number; z: number; facing: number; setBy: string; setAt: string }[]
     ).map((row) => ({ actorId: row.actorId, at: { x: row.x, y: 0, z: row.z }, facing: row.facing, setBy: row.setBy, setAt: row.setAt }));
   }
 }
@@ -69,9 +77,9 @@ export function clampHome(at: { x: number; z: number }): { x: number; y: number;
   return clampToWorld(at);
 }
 
-/** Home for an agent: its saved place if it has one, else its desk with no set facing. */
-export function homeOf(homes: Pick<AgentHomes, "get"> | null, actorId: string): { at: { x: number; y: number; z: number }; facing: number | null } {
-  const saved = homes?.get(actorId) ?? null;
+/** Home for an agent: its saved place in THIS room if it has one, else its desk. */
+export function homeOf(room: string, homes: Pick<AgentHomes, "get"> | null, actorId: string): { at: { x: number; y: number; z: number }; facing: number | null } {
+  const saved = homes?.get(room, actorId) ?? null;
   return saved ?? { at: deskFor(actorId), facing: null };
 }
 
@@ -108,8 +116,9 @@ export function registerHomeRoutes(
   const requireSession = makeRequireSession(deps.config, deps.sessions);
 
   app.get("/bff/space/homes", async (request, reply) => {
-    if (!requireSession(request, reply)) return reply;
-    return reply.send({ homes: deps.homes.all() });
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    return reply.send({ homes: deps.homes.all(spaceRoomOf(session)) });
   });
 
   /**
@@ -147,6 +156,7 @@ export function registerHomeRoutes(
       const asked = resolveFacing(request.body ?? {}, at, deps.whereIs, deps.whoIsHere, request.params.actorId);
       if ("error" in asked) return reply.code(400).send({ code: "BAD_HOME", error: asked.error });
       const home = deps.homes.set(
+        spaceRoomOf(session),
         request.params.actorId,
         { at, facing: asked.facing },
         session.username,
@@ -161,8 +171,8 @@ export function registerHomeRoutes(
     if (!session) return reply;
     const refusal = allowed(session, request.params.actorId);
     if (refusal) return reply.code(403).send({ code: "NOT_ALLOWED", error: refusal });
-    deps.homes.clear(request.params.actorId);
-    const ended = deps.goHome(request.params.actorId, homeOf(null, request.params.actorId));
+    deps.homes.clear(spaceRoomOf(session), request.params.actorId);
+    const ended = deps.goHome(request.params.actorId, homeOf(spaceRoomOf(session), null, request.params.actorId));
     return reply.send({ ok: true, ...ended });
   });
 }
