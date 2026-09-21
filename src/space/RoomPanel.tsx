@@ -3,11 +3,12 @@ import type { Station } from "../../shared/space-layout";
 import type { RoomFeed } from "./useRoomFeed";
 import { BoardPanel3D } from "./BoardPanel3D";
 import { ChatPanel3D } from "./ChatPanel3D";
-import { StillPanel } from "./StillPanel";
 import { CardDetail3D } from "./CardDetail3D";
 import { Typing3D } from "./Typing3D";
 import { SettingsPanel3D } from "./SettingsPanel3D";
 import { MoodPanel3D } from "./MoodPanel3D";
+import { ListPanel3D } from "./ListPanel3D";
+import type { ListRow } from "../../shared/list-paint";
 import type { SettingsItem } from "../../shared/settings-3d";
 import { nextStatuses } from "../../shared/board-rules";
 import { BOARD_COLUMNS } from "../../shared/board-3d";
@@ -28,15 +29,13 @@ import type { BoardFeed } from "./useBoardCards";
  * between a window and a headset is which device drives the pointer, and that
  * is decided far below this, inside the gesture machine, which cannot tell.
  *
- * STILLPANEL SURVIVES FOR THE PANELS NOT YET REBUILT, and it is the same
- * photograph in both modes now rather than an iframe on one side. That is
- * worse for the desktop today and it is the honest interim: two panels drawn
- * natively and two photographed is a state you can finish, while a desktop
- * that silently keeps its iframe is a second implementation that never leaves.
+ * NOTHING IS PHOTOGRAPHED ANY MORE. `StillPanel` was the honest interim while
+ * some panels were drawn and others were screenshots of the website; every
+ * station now draws its own data, so it is gone and so is the renderer that
+ * fed it.
  */
 export function RoomPanel({
   station,
-  base,
   feed,
   boardFeed,
   onSay,
@@ -46,9 +45,10 @@ export function RoomPanel({
   projectId,
   settings,
   boardId,
+  people,
+  said,
 }: {
   station: Station;
-  base: string;
   feed: RoomFeed;
   boardFeed: BoardFeed;
   onSay: (message: string) => void;
@@ -62,8 +62,34 @@ export function RoomPanel({
   settings: { items: SettingsItem[]; onPress: (id: string) => void };
   /** Which mood board the room is on, if anyone has said. */
   boardId: string | null;
+  /** Who is in the room, and what has been said in it. */
+  people: ListRow[];
+  said: ListRow[];
 }) {
   if (station.id === "chat") return <ChatPanel3D station={station} feed={feed} />;
+
+  if (station.id === "people") {
+    return (
+      <ListPanel3D
+        title="In the room"
+        rows={people}
+        surface={station.surface}
+        empty="Nobody else is here."
+      />
+    );
+  }
+
+  if (station.id === "said") {
+    return (
+      <ListPanel3D
+        title="Said in the room"
+        rows={said}
+        surface={station.surface}
+        empty="Nobody has said anything yet."
+        newestLast
+      />
+    );
+  }
 
   if (station.id === "moodBoard") {
     return (
@@ -97,7 +123,20 @@ export function RoomPanel({
     );
   }
 
-  return <StillPanel station={station} base={base} active />;
+  /**
+   * EVERY STATION IS DRAWN NATIVELY NOW, so this is only reachable if somebody
+   * adds one to the catalogue and forgets to draw it. Saying so is better than
+   * a photograph of a page that may not even exist, and far better than a
+   * blank rectangle nobody can explain.
+   */
+  return (
+    <ListPanel3D
+      title={station.label}
+      rows={[]}
+      surface={station.surface}
+      empty="This panel has nothing to draw yet."
+    />
+  );
 }
 
 /**

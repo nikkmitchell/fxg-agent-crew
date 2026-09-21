@@ -4,7 +4,7 @@ import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   SETTINGS,
-  SETTINGS_PX,
+  settingsPixels,
   layOutSettings,
   paintSettings,
   settingAt,
@@ -33,7 +33,17 @@ export function SettingsPanel3D({
   surface: { width: number; height: number };
   onPress: (id: string) => void;
 }) {
-  const { canvas, texture } = useMemo(() => makeInkCanvas(SETTINGS_PX.width, SETTINGS_PX.height), []);
+  /**
+   * The bitmap is shaped like the panel, not a fixed rectangle. A texture on a
+   * plane of a different aspect is stretched, not letterboxed — see
+   * `settingsPixels`, and the note in `label-aspect.test.ts` that states the
+   * rule this component was breaking.
+   */
+  const px = useMemo(
+    () => settingsPixels({ width: surface.width, height: surface.height }),
+    [surface.width, surface.height],
+  );
+  const { canvas, texture } = useMemo(() => makeInkCanvas(px.width, px.height), [px.width, px.height]);
   const invalidate = useThree((state) => state.invalidate);
   const plate = useRef<THREE.Mesh>(null);
   const pressed = useRef<string | null>(null);

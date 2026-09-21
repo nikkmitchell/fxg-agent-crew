@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { MOOD, layOutMood, moodItemAt, moodMove, uvOfMoodPoint, type MoodItem, type MoodPlace } from "../../shared/mood-3d";
 import { CARD_INK } from "../../shared/card-paint";
 import { drawInk, makeInkCanvas, measureWith } from "./ink-canvas";
-import { paintNote } from "../../shared/mood-paint";
+import { notePixels, paintNote } from "../../shared/mood-paint";
 import { claimPointer } from "./pointer-claim";
 
 /**
@@ -33,7 +33,10 @@ function Picture({ place, held }: { place: MoodPlace; held: boolean }) {
 }
 
 function Written({ place }: { place: MoodPlace }) {
-  const { canvas, texture } = useMemo(() => makeInkCanvas(512, 288), []);
+  // Shaped like the item, so nothing written on it is stretched — see
+  // `notePixels` and the rule in `label-aspect.test.ts`.
+  const px = useMemo(() => notePixels(place.item), [place.item.w, place.item.h]);
+  const { canvas, texture } = useMemo(() => makeInkCanvas(px.width, px.height), [px.width, px.height]);
   const invalidate = useThree((state) => state.invalidate);
   useEffect(() => {
     const context = canvas.getContext("2d");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SETTINGS, SETTINGS_PX, layOutSettings, paintSettings, settingAt, type SettingsItem } from "./settings-3d.js";
+import { SETTINGS, layOutSettings, paintSettings, settingAt, settingsPixels, type SettingsItem } from "./settings-3d.js";
 import type { Ink } from "./card-paint.js";
 
 const measure = (text: string, size: number) => text.length * size * 0.55;
@@ -113,15 +113,31 @@ describe("drawing the settings", () => {
     expect(chosen && other && chosen.fill).not.toBe(other && other.fill);
   });
 
+  it("SHAPES ITS BITMAP LIKE THE PANEL, so nothing on it is stretched", () => {
+    /**
+     * A texture on a plane of a different aspect is STRETCHED, not cropped and
+     * not letterboxed, and the result reads as blurring rather than as a
+     * mistake. This shipped as a fixed 768x838 bitmap on a 4.0 x 2.5 panel —
+     * every word squeezed to about half its width. `label-aspect.test.ts`
+     * already stated this rule; it only looked at one component.
+     */
+    for (const [width, height] of [[4.0, 2.5], [2.2, 2.4], [6.0, 2.0]] as const) {
+      const px = settingsPixels({ width, height });
+      expect(px.width / px.height, `${width}x${height}`).toBeCloseTo(width / height, 2);
+    }
+  });
+
   it("stays inside the bitmap", () => {
     const many: SettingsItem[] = Array.from({ length: 60 }, (_, i) => ({
       kind: "choice" as const, id: `p${i}`, label: `A project with a fairly long name ${i}`, selected: false,
     }));
-    for (const item of paintSettings(layOutSettings(many), measure)) {
+    const layout = layOutSettings(many);
+    const px = settingsPixels(layout);
+    for (const item of paintSettings(layout, measure)) {
       expect(item.x).toBeGreaterThanOrEqual(0);
       expect(item.y).toBeGreaterThanOrEqual(0);
-      expect(item.x).toBeLessThanOrEqual(SETTINGS_PX.width);
-      expect(item.y).toBeLessThanOrEqual(SETTINGS_PX.height);
+      expect(item.x).toBeLessThanOrEqual(px.width);
+      expect(item.y).toBeLessThanOrEqual(px.height);
     }
   });
 

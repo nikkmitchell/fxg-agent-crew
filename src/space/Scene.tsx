@@ -517,6 +517,38 @@ export default function Scene({
    * for both.
    */
   const showingChoices = useRoomShowing(true, connection.showing);
+  /**
+   * The two reading panels, as rows.
+   *
+   * SHAPED HERE rather than in the panel, so the panel stays a thing that draws
+   * a list and knows nothing about rosters or utterances.
+   */
+  const peopleRows = useMemo(
+    () =>
+      connection.roster.map((person) => ({
+        primary: person.actorId,
+        secondary: person.connected ? (person.kind ?? "here") : "away",
+        // Somebody who has left is still part of the room's memory, but saying
+        // so in full ink would claim they are standing there.
+        faded: !person.connected,
+      })),
+    [connection.roster],
+  );
+
+  const saidRows = useMemo(
+    () =>
+      connection.heard
+        // `say` is what was actually said; `detail` is the longer version some
+        // sources carry. An utterance with neither is a record that something
+        // happened, not something to read off a wall.
+        .filter((utterance) => (utterance.say ?? utterance.detail ?? "").trim() !== "")
+        .map((utterance) => ({
+          primary: (utterance.say ?? utterance.detail ?? "").trim(),
+          secondary: utterance.to ? `${utterance.actorId} → ${utterance.to}` : utterance.actorId,
+        })),
+    [connection.heard],
+  );
+
 
   /**
    * WHAT THE SETTINGS PANEL OFFERS, built from the room's own state.
@@ -659,7 +691,6 @@ export default function Scene({
                   from the other. See RoomPanel and docs/ONE-ROOM.md. */}
               <RoomPanel
                 station={station}
-                base={base}
                 feed={feed}
                 boardFeed={boardFeed}
                 onSay={onPanelTrouble}
@@ -669,6 +700,8 @@ export default function Scene({
                 projectId={connection.showing.projectId ?? null}
                 settings={settings}
                 boardId={connection.showing.boardId ?? null}
+                people={peopleRows}
+                said={saidRows}
               />
             </Movable>
           ))}

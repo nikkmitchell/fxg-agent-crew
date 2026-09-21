@@ -36,15 +36,4 @@ describe("text planes", () => {
   });
 
 
-  it("keeps the still panel's caption at the texture's own aspect", async () => {
-    const source = await import("node:fs").then((fs) =>
-      fs.readFileSync(new URL("./StillPanel.tsx", import.meta.url), "utf8"),
-    );
-    // The caption is the only hardcoded plane in this file; the frame itself is
-    // sized from the station.
-    const captions = planesIn(source);
-    expect(captions.length, "expected exactly one fixed-size plane").toBe(1);
-    const [width, height] = captions[0];
-    expect(width / height).toBeCloseTo(LABEL_CANVAS_ASPECT, 2);
-  });
 });

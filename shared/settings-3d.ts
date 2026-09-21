@@ -63,7 +63,26 @@ export const SETTINGS = {
   stepperWidth: 0.16,
 } as const;
 
-export const SETTINGS_PX = { width: 768, height: 838 } as const;
+/**
+ * The bitmap this is drawn into, SHAPED LIKE THE PANEL IT GOES ON.
+ *
+ * A texture mapped onto a plane of a different aspect is not cropped or
+ * letterboxed — it is STRETCHED, and the result reads as blurring rather than
+ * as a mistake. This file shipped with a fixed 768x838 bitmap on a 4.0 x 2.5
+ * panel, so every word on it was squeezed to about half its proper width. The
+ * room already had a test stating this exact rule; it only ever looked at one
+ * component, so it did not see this one.
+ *
+ * Width is fixed for a predictable text size; height follows the panel.
+ */
+export const SETTINGS_PX_WIDTH = 1024;
+
+export function settingsPixels(layout: { width: number; height: number }): { width: number; height: number } {
+  return {
+    width: SETTINGS_PX_WIDTH,
+    height: Math.round((SETTINGS_PX_WIDTH * layout.height) / layout.width),
+  };
+}
 
 export type SettingsTarget = {
   /** What to call back with. A stepper yields `${id}:less` / `${id}:more`. */
@@ -158,25 +177,26 @@ export function settingAt(layout: SettingsLayout, uv: { x: number; y: number }):
 }
 
 /** Panel-local metres to the bitmap's pixels, so drawing and hit-testing agree. */
-const toPx = (layout: SettingsLayout, x: number, y: number) => ({
-  x: (x / layout.width + 0.5) * SETTINGS_PX.width,
+const toPx = (layout: SettingsLayout, px: { width: number; height: number }, x: number, y: number) => ({
+  x: (x / layout.width + 0.5) * px.width,
   // v runs up, the canvas runs down.
-  y: (0.5 - y / layout.height) * SETTINGS_PX.height,
+  y: (0.5 - y / layout.height) * px.height,
 });
 
 export function paintSettings(
   layout: SettingsLayout,
   measure: (text: string, size: number) => number,
 ): Ink[] {
+  const px = settingsPixels(layout);
   const ink: Ink[] = [
-    { kind: "rect", x: 0, y: 0, width: SETTINGS_PX.width, height: SETTINGS_PX.height, fill: CARD_INK.paper, radius: 20 },
+    { kind: "rect", x: 0, y: 0, width: px.width, height: px.height, fill: CARD_INK.paper, radius: 20 },
   ];
-  const scale = SETTINGS_PX.width / layout.width;
-  const padPx = (SETTINGS.padding / layout.width) * SETTINGS_PX.width;
+  const scale = px.width / layout.width;
+  const padPx = (SETTINGS.padding / layout.width) * px.width;
 
   for (const row of layout.rows) {
     const { item } = row;
-    const top = toPx(layout, 0, row.y + row.height / 2).y;
+    const top = toPx(layout, px, 0, row.y + row.height / 2).y;
     const heightPx = row.height * scale;
 
     if (item.kind === "heading") {
@@ -193,7 +213,7 @@ export function paintSettings(
     }
 
     if (item.kind === "note") {
-      for (const line of fitLines(measure, item.label, 22, SETTINGS_PX.width - padPx * 2, 2)) {
+      for (const line of fitLines(measure, item.label, 22, px.width - padPx * 2, 2)) {
         ink.push({ kind: "text", x: padPx, y: top + heightPx * 0.62, text: line, size: 22, fill: CARD_INK.muted });
       }
       continue;
@@ -205,7 +225,7 @@ export function paintSettings(
       kind: "rect",
       x: padPx,
       y: top + 3,
-      width: SETTINGS_PX.width - padPx * 2,
+      width: px.width - padPx * 2,
       height: heightPx - 6,
       fill: on ? CARD_INK.accent : CARD_INK.paperHeld,
       radius: 10,
@@ -223,7 +243,7 @@ export function paintSettings(
     if (item.kind === "cycle" || item.kind === "stepper") {
       ink.push({
         kind: "text",
-        x: SETTINGS_PX.width - padPx - (item.kind === "stepper" ? 108 : 18),
+        x: px.width - padPx - (item.kind === "stepper" ? 108 : 18),
         y: top + heightPx * 0.62,
         text: item.value,
         size: 24,
@@ -235,7 +255,7 @@ export function paintSettings(
       for (const [glyph, target] of [["−", `${item.id}:less`], ["+", `${item.id}:more`]] as const) {
         const box = layout.targets.find((t) => t.id === target);
         if (!box) continue;
-        const centre = toPx(layout, box.x, box.y);
+        const centre = toPx(layout, px, box.x, box.y);
         ink.push({
           kind: "rect",
           x: centre.x - (box.width * scale) / 2 + 3,
@@ -254,7 +274,7 @@ export function paintSettings(
     ink.push({
       kind: "text",
       x: padPx,
-      y: SETTINGS_PX.height - 16,
+      y: px.height - 16,
       text: `${layout.hidden} more, not shown`,
       size: 20,
       fill: CARD_INK.muted,
