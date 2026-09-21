@@ -161,8 +161,14 @@ log "ship  (commit ${SHA:0:8})"
 # and the build is shipped as built, not rebuilt from a dirty tree.
 # --partial: a dropped transfer resumes from what arrived rather than sending
 # 110 MB again, which matters precisely when the link is bad enough to drop.
+# DEPLOYED_* ARE SERVER-OWNED MARKERS. With --delete, rsync used to erase them
+# at the start of every transfer because they are not in the checkout, then the
+# script recreated them after the transfer. A dropped connection in between
+# left a healthy old process with no marker and made the next guarded deploy
+# unable to prove what it would replace. Preserve them until the explicit
+# writes below advance them.
 rsync -az --delete --partial \
-  --exclude node_modules --exclude .git --exclude 'dist/.vite' \
+  --exclude node_modules --exclude .git --exclude 'dist/.vite' --exclude 'DEPLOYED_*' \
   -e "${SSH[*]}" ./ "$TARGET:$REMOTE/"
 
 # The static site, which nothing used to deploy.
