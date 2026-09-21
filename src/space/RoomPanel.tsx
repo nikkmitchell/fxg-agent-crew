@@ -6,6 +6,8 @@ import { ChatPanel3D } from "./ChatPanel3D";
 import { StillPanel } from "./StillPanel";
 import { CardDetail3D } from "./CardDetail3D";
 import { Typing3D } from "./Typing3D";
+import { SettingsPanel3D } from "./SettingsPanel3D";
+import type { SettingsItem } from "../../shared/settings-3d";
 import { nextStatuses } from "../../shared/board-rules";
 import { BOARD_COLUMNS } from "../../shared/board-3d";
 import { board } from "../board-client";
@@ -41,6 +43,7 @@ export function RoomPanel({
   openCard,
   onCloseCard,
   projectId,
+  settings,
 }: {
   station: Station;
   base: string;
@@ -53,8 +56,14 @@ export function RoomPanel({
   onCloseCard: () => void;
   /** Which project a new card belongs to. Null means nothing can be added. */
   projectId: string | null;
+  /** What the settings panel offers, and what to do when one is pressed. */
+  settings: { items: SettingsItem[]; onPress: (id: string) => void };
 }) {
   if (station.id === "chat") return <ChatPanel3D station={station} feed={feed} />;
+
+  if (station.id === "settings") {
+    return <SettingsPanel3D items={settings.items} surface={station.surface} onPress={settings.onPress} />;
+  }
 
   if (station.id === "taskBoard") {
     return (

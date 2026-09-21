@@ -31,6 +31,8 @@ import type { VoiceChat } from "./useVoiceChat";
 import { SpatialVoices } from "./SpatialVoices";
 import { Movable } from "./Movable";
 import { placeOf, savePlacement } from "./panel-placement";
+import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
+import type { SettingsItem } from "../../shared/settings-3d";
 import { defaultPlacement } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
 import { RoomItems } from "./RoomItems";
@@ -501,9 +503,96 @@ export default function Scene({
   const boardFeed = useBoardCards(connection.showing.projectId ?? null);
   const [openCard, setOpenCard] = useState<string | null>(null);
   const openPanels = panels.open;
+
+
   // The lists to choose from, and the way to change what the room shows. The
   // current VALUE comes from the socket, not from here — see useRoomShowing.
-  const showingChoices = useRoomShowing(inHeadset, connection.showing);
+  /**
+   * ALWAYS ON, WHERE IT USED TO BE HEADSET-ONLY.
+   *
+   * This was `useRoomShowing(inHeadset, …)`, so on a desktop the project list
+   * was never even fetched — and the one control that decides what the whole
+   * room is looking at could only be reached from inside a session. The
+   * settings panel is on the arc for both now, so the lists have to be there
+   * for both.
+   */
+  const showingChoices = useRoomShowing(true, connection.showing);
+
+  /**
+   * WHAT THE SETTINGS PANEL OFFERS, built from the room's own state.
+   *
+   * Assembled here rather than inside the panel because every one of these
+   * already exists somewhere above: the socket owns what the room is showing,
+   * `panels` owns which are open, `arrange` owns which are being moved, and a
+   * panel's size lives in its placement. A second source for any of them would
+   * be a second opinion.
+   */
+  const settings = useMemo(() => {
+    const items: SettingsItem[] = [{ kind: "heading", label: "What the room is showing" }];
+    if (showingChoices.projects === null) {
+      items.push({ kind: "note", label: "The projects could not be read." });
+    } else if (showingChoices.projects.length === 0) {
+      items.push({ kind: "note", label: "No projects yet." });
+    } else {
+      for (const project of showingChoices.projects) {
+        items.push({
+          kind: "choice",
+          id: `project:${project.id}`,
+          label: project.name,
+          selected: connection.showing.projectId === project.id,
+        });
+      }
+    }
+
+    if (showingChoices.boards && showingChoices.boards.length > 0) {
+      items.push({ kind: "heading", label: "Mood board" });
+      for (const moodBoard of showingChoices.boards) {
+        items.push({
+          kind: "choice",
+          id: `board:${moodBoard.id}`,
+          label: moodBoard.title,
+          selected: connection.showing.boardId === moodBoard.id,
+        });
+      }
+    }
+
+    items.push({ kind: "heading", label: "Panels" });
+    for (const panel of panels.catalogue) {
+      const open = panels.open.includes(panel.id);
+      items.push({ kind: "toggle", id: `panel:${panel.id}`, label: panel.label, on: open });
+      if (!open) continue;
+      items.push({
+        kind: "stepper",
+        id: `size:${panel.id}`,
+        label: `${panel.label} size`,
+        value: `${Math.round(scaleOf(placeOf(connection.places, panel.id)) * 100)}%`,
+      });
+      items.push({
+        kind: "cycle",
+        id: `arrange:${panel.id}`,
+        label: `${panel.label} drag`,
+        value: arrange.modeOf(panel.id),
+      });
+    }
+
+    const onPress = (id: string) => {
+      const [kind, rest] = [id.slice(0, id.indexOf(":")), id.slice(id.indexOf(":") + 1)];
+      if (kind === "project") return showingChoices.choose({ projectId: rest, boardId: null });
+      if (kind === "board") return showingChoices.choose({ projectId: connection.showing.projectId ?? null, boardId: rest });
+      if (kind === "panel") return panels.setOpen(rest, !panels.open.includes(rest));
+      if (kind === "arrange") return arrange.cycle(rest);
+      if (kind === "size") {
+        const [panelId, which] = rest.split(":");
+        const place = placeOf(connection.places, panelId);
+        const step = which === "more" ? 0.2 : -0.2;
+        const next = Math.min(PANEL_SCALE.max, Math.max(PANEL_SCALE.min, scaleOf(place) + step));
+        void savePlacement({ ...place, scale: next }).then(onPanelTrouble);
+      }
+    };
+
+    return { items, onPress };
+  }, [arrange, connection.places, connection.showing, onPanelTrouble, panels, showingChoices]);
+
 
   return (
     <Canvas
@@ -578,6 +667,7 @@ export default function Scene({
                 openCard={openCard}
                 onCloseCard={() => setOpenCard(null)}
                 projectId={connection.showing.projectId ?? null}
+                settings={settings}
               />
             </Movable>
           ))}
