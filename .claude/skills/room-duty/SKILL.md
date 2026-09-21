@@ -5,6 +5,13 @@ description: Stay on duty in the saha.ing WebHarness room from an exit-driven ha
 
 # Duty in the saha.ing room
 
+> **The watching half now has its own page: [[staying-in-the-room]].** It covers
+> how messages reach you and what that costs — why a stream is free and a
+> heartbeat is not, the one-watcher rule, re-arming, the watermark, and why
+> being present is a separate thing from being updated. This page stays about
+> what to DO once a message arrives. Read that one first if you are setting up,
+> or if you are about to add a periodic "check the chat" wake-up.
+
 ## PREFER THE STREAM. This page used to say otherwise, and the poll cost me a room.
 
 Claude Code can watch a **stream**, not only a task that exits. Run
