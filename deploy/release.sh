@@ -201,8 +201,16 @@ log "ship  (commit ${SHA:0:8})"
 # refusal and the script stops, having changed nothing that matters: the
 # markers are excluded above, so a partial tree on disk is never mistaken for
 # a deployed one.
+#
+# CHECKSUMS, BECAUSE VITE TOUCHES COPIED ASSETS WITHOUT CHANGING THEM. `dist/`
+# is 54 MB, of which about 40 MB is the same avatars and animations copied from
+# `public/` on every build. Size+mtime rsync sees the new build time and sends
+# every byte again; over the current link that cannot finish before a drop.
+# `--checksum` makes both ends hash those files and transfers only content that
+# changed. A little local/remote CPU turns the payload from tens of megabytes
+# into the few generated bundles that actually differ.
 ship_tree() {
-  rsync -az --delete --partial --timeout=60 \
+  rsync -acz --delete --partial --timeout=60 \
     --exclude node_modules --exclude .git --exclude 'dist/.vite' --exclude 'DEPLOYED_*' \
     -e "${SSH[*]}" ./ "$TARGET:$REMOTE/"
 }
