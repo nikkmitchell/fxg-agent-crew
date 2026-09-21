@@ -20,8 +20,25 @@ SSH_KEY="${SSH_KEY:-$HOME/.ssh/fxg_deploy_ed25519}"
 # None of that says "add a keepalive". It reads like the box refusing you, and
 # the first one left the deploy half-done with DEPLOYED_COMMIT deleted.
 # The identical rsync with these three options completed on the first try.
+#
+# CONNECTION ATTEMPTS, added 2026-09-21, for a different failure from the
+# keepalives above. Those keep an ESTABLISHED session alive; this is about
+# never establishing one. Port 22 on that box went intermittent — roughly one
+# attempt in three opened, the other two sat until ConnectTimeout — and two
+# deploys died on it: the first mid-transfer, leaving DEPLOYED_COMMIT deleted
+# and the disk ahead of the running process, and the second at the very first
+# read, which refused safely and shipped nothing.
+#
+# One retry is the difference between those two outcomes and a deploy that
+# simply works, because ssh gives up on the first refusal by default. Five
+# attempts against a one-in-three success rate is a failure about one run in
+# 250, rather than two in three.
+#
+# NOT a substitute for the guards. A box that cannot be reached after five
+# tries is still a refusal, and the script still stops.
 SSH=(ssh -i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
-  -o ServerAliveInterval=15 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes)
+  -o ServerAliveInterval=15 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes \
+  -o ConnectTimeout=15 -o ConnectionAttempts=5)
 REMOTE=/opt/fxg-crew
 # Mission Control is the site now; it was mounted at /space until 2026-09-10.
 BASE=""
