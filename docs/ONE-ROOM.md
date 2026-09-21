@@ -135,6 +135,12 @@ Each is done when its check passes. Struck through when landed.
 | 14 | Panel move/resize smooth and frame-rate independent | drag at 15fps and 120fps land in the same place |
 | 15 | One codebase: no headset conditional outside adapter/camera | grep test fails on a new one |
 | 16 | Delete stills renderer, WebPanel, StillPanel, duplicate input | files gone; suite still green |
+| 18 | Settings reachable and rebuilt on desktop, not only in XR | open settings in the window; every control works there |
+| 19 | Chat is a 3D plane in BOTH modes, not an HTML window | no DOM chat panel in the room; a message appears on the plane |
+| 20 | Mood board native: move, add, open | an item moved in the room persists and is read back |
+| 21 | Panels resize smoothly by grab, both modes | resize at two frame rates lands at the same scale |
+| 22 | Add text from inside the room (chat and cards) | typed in the room, read back from a fresh session |
+| 23 | Five UI/UX passes, each listing improvements then doing them | five recorded lists, each followed by its commits |
 | 17 | Exercise it in a real room end to end | mood board, cards, drag, add, comment, pull-off — driven locally in the harness, then AGAIN against the deployed server from a fresh session |
 
 ## Order of work

@@ -36,6 +36,16 @@ export function useBoardCards(projectId: string | null): BoardFeed {
   const [loaded, setLoaded] = useState(false);
   const [trouble, setTrouble] = useState<string | null>(null);
   const live = useRef(true);
+  /**
+   * ONE READ AT A TIME. Mounting produced eight requests in a burst — React
+   * mounts effects twice in development, the project id resolves a moment after
+   * the first render, and each of those re-ran the fetch. None of it is a loop,
+   * but a poll that can stack is one bad render away from becoming one, and
+   * this room's own guide warns that a poll re-asking immediately can put
+   * thousands of requests a second at a server while looking perfectly healthy.
+   * Cheaper to make it impossible than to watch for it.
+   */
+  const inFlight = useRef(false);
 
   const read = useCallback(async () => {
     if (!projectId) {
@@ -43,6 +53,8 @@ export function useBoardCards(projectId: string | null): BoardFeed {
       setLoaded(true);
       return;
     }
+    if (inFlight.current) return;
+    inFlight.current = true;
     try {
       const project = (await board.project(projectId)) as { tasks?: Record<string, unknown>[] };
       if (!live.current) return;
@@ -63,6 +75,8 @@ export function useBoardCards(projectId: string | null): BoardFeed {
       // board that lies about the work; the caption says it is stale instead.
       setTrouble(error instanceof Error ? error.message : "could not read the board");
       setLoaded(true);
+    } finally {
+      inFlight.current = false;
     }
   }, [projectId]);
 
