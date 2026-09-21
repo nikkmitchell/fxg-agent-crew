@@ -12,7 +12,6 @@ import { placeOf, savePlacement } from "./panel-placement";
 import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
 import { useVoiceChat } from "./useVoiceChat";
 import { ProjectChooser } from "../ProjectChooser";
-import { PanelGrips } from "./PanelGrips";
 import { base } from "../router";
 import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
 import { useHiddenAsStill } from "./useHiddenAsStill";
@@ -261,12 +260,6 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
             voice={voice}
           />
         </Suspense>
-        {/* The panel grab handles. Drawn here rather than in the scene: the
-            canvas cannot receive a pointer, drei's Html breaks the panels'
-            occlusion, and a portal cannot escape R3F's reconciler. See
-            grip-positions.ts. Never in a headset, where the handle is a 3D bar
-            you point a ray at. */}
-        <PanelGrips shown={entered && !inHeadset} />
 
         {/* Connecting gets the big treatment too: until the socket is open the
             room has nobody in it, including you, and a small grey line in the

@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { BOARD, cardAt, layOutBoard, type BoardCard, type CardPlace } from "../../shared/board-3d";
+import { BOARD, cardAt, layOutBoard, uvFromPanelPoint, type BoardCard, type CardPlace } from "../../shared/board-3d";
 import { CARD_INK, CARD_PX, paintCard } from "../../shared/card-paint";
 import { applyPending, intentOf, settlePending, type BoardIntent, type PendingMove } from "../../shared/board-actions";
 import { canTransition } from "../../shared/board-rules";
 import { carrying, stepGesture, type Gesture, type PointerSource, type SurfaceEvent, type SurfaceHit } from "../../shared/surface-input";
 import { drawInk, makeInkCanvas, measureWith } from "./ink-canvas";
+import { claimPointer } from "./pointer-claim";
 
 /**
  * The work board, drawn in the room.
@@ -84,6 +85,8 @@ export type BoardPanel3DProps = {
   onPullOff: (cardId: string) => void;
   /** Say something the person needs to read, like a refusal. */
   onSay: (message: string) => void;
+  /** The panel this board is drawn on, in metres. The board fills it. */
+  surface: { width: number; height: number };
   now?: () => number;
 };
 
@@ -94,12 +97,15 @@ export function BoardPanel3D({
   onOpen,
   onPullOff,
   onSay,
+  surface,
   now = Date.now,
 }: BoardPanel3DProps) {
   const [gesture, setGesture] = useState<Gesture>({ kind: "idle" });
   const [pending, setPending] = useState<PendingMove[]>([]);
   const [refusedCard, setRefusedCard] = useState<string | null>(null);
   const grabbed = useRef<string | null>(null);
+  /** The board's own frame, which every pointer position is resolved against. */
+  const board = useRef<THREE.Group>(null);
 
   // The server's cards with any un-acknowledged move laid on top, and guesses
   // retired as soon as the server catches up. See board-actions.
@@ -111,7 +117,22 @@ export function BoardPanel3D({
   }, [cards, now]);
 
   const shown = useMemo(() => applyPending(cards, pending), [cards, pending]);
-  const layout = useMemo(() => layOutBoard(shown), [shown]);
+  /**
+   * LAID OUT TO THE PANEL IT IS ON, not to a fixed rectangle.
+   *
+   * This drew itself at a hard-coded 2.4 × 1.5 on a surface that is 4.0 × 2.5,
+   * so the board used sixty per cent of its own panel and the rest was blank
+   * cream. Worse, making the panel bigger made the blank part bigger: the one
+   * thing a person does when they cannot read a card had no effect on the cards.
+   *
+   * Feeding the surface through means a taller panel genuinely fits more cards
+   * per column — `layOutBoard` works that out from the height it is given — so
+   * resizing is a real answer to a crowded column rather than a magnifier.
+   */
+  const layout = useMemo(
+    () => layOutBoard(shown, { ...BOARD, width: surface.width, height: surface.height }),
+    [shown, surface.width, surface.height],
+  );
 
   const held = carrying(gesture);
   const heldCardId = held ? grabbed.current : null;
@@ -153,9 +174,32 @@ export function BoardPanel3D({
 
   const onPointer = useCallback(
     (type: SurfaceEvent["type"], event: ThreeEvent<PointerEvent>) => {
-      if (!event.uv) return;
+      const surface = board.current;
+      if (!surface) return;
       event.stopPropagation();
-      const hit: SurfaceHit = { panelId, u: event.uv.x, v: event.uv.y };
+      // `stopPropagation` stops R3F's own dispatch; the native event still
+      // bubbles out to the container, where drag-to-look is listening. Without
+      // this, dragging a card from `review` to `done` also swings the camera.
+      claimPointer(event.nativeEvent);
+
+      /**
+       * FROM THE POINT, NOT FROM `event.uv`.
+       *
+       * This read `event.uv` directly, and it was wrong in a way that made the
+       * whole board inert: uv is PER MESH. On the board's own background it is
+       * the board's uv, which is what everything below expects — but on a card
+       * it is that card's own 0..1, so pressing a card in `review` reported a
+       * position somewhere near the middle of the board. `cardAt` then found
+       * nothing, every drag ended as "none", and nothing happened at all. No
+       * error, no refusal; the board simply did not respond, and a mouse and a
+       * hand were equally ignored.
+       *
+       * The intersection POINT is the same world position whichever mesh the
+       * ray struck first. Put it in the board's own frame and ask once.
+       */
+      const local = surface.worldToLocal(event.point.clone());
+      const uv = uvFromPanelPoint(layout, local);
+      const hit: SurfaceHit = { panelId, u: uv.x, v: uv.y };
       // ONE SOURCE NAME FOR EVERYTHING. Nothing below may branch on it; it
       // exists so two hands do not fight over one card.
       const source: PointerSource = event.pointerType === "mouse" ? "mouse" : "hand";
@@ -177,7 +221,7 @@ export function BoardPanel3D({
   }, [gesture, now]);
 
   return (
-    <group>
+    <group ref={board}>
       {/* The board itself. Also the drop target for "anywhere but a card". */}
       <mesh
         onPointerMove={(event) => onPointer("move", event)}

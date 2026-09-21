@@ -47,6 +47,7 @@ export function RoomPanel({
     return (
       <BoardPanel3D
         panelId={station.id}
+        surface={station.surface}
         cards={boardFeed.cards}
         onMove={async (cardId, to) => {
           await board.transition(cardId, to);

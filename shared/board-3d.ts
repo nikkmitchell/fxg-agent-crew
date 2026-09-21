@@ -79,7 +79,25 @@ export const BOARD_COLUMNS: readonly { status: Status; label: string }[] = [
   { status: "done", label: "Done" },
 ];
 
-/** The board's own proportions, in metres. Tuned for arm's reach in a headset. */
+/**
+ * The proportions a board can be laid out at.
+ *
+ * A TYPE, because `BOARD` below is `as const` and its literal `2.4` would
+ * otherwise become the only width the layout accepts — which quietly made the
+ * size parameter decorative and the board a fixed rectangle on a panel that is
+ * not.
+ */
+export type BoardSize = {
+  width: number;
+  height: number;
+  headerHeight: number;
+  columnGap: number;
+  cardHeight: number;
+  cardGap: number;
+  padding: number;
+};
+
+/** The board's default proportions, in metres. Tuned for arm's reach in a headset. */
 export const BOARD = {
   width: 2.4,
   height: 1.5,
@@ -101,7 +119,7 @@ const columnLabel = (status: Status): string =>
  * Cards keep the order they are given. The caller sorts — `board-order.ts`
  * already decides what "first" means, and a second opinion here would fight it.
  */
-export function layOutBoard(cards: readonly BoardCard[], size = BOARD): BoardLayout {
+export function layOutBoard(cards: readonly BoardCard[], size: BoardSize = BOARD): BoardLayout {
   const columnCount = BOARD_COLUMNS.length;
   const usableWidth = size.width - size.padding * 2;
   const columnWidth = (usableWidth - size.columnGap * (columnCount - 1)) / columnCount;
@@ -159,6 +177,28 @@ export function cardAt(layout: BoardLayout, uv: { x: number; y: number }): CardP
 /** Panel-local metres from a three.js uv. */
 export function pointFromUv(layout: BoardLayout, uv: { x: number; y: number }): { x: number; y: number } {
   return { x: (uv.x - 0.5) * layout.width, y: (uv.y - 0.5) * layout.height };
+}
+
+/**
+ * Panel-local metres back to uv — the inverse of `pointFromUv`.
+ *
+ * WHY THIS HAD TO EXIST. The room read `event.uv` straight off the R3F pointer
+ * event, which is right for the board's own background mesh and WRONG for every
+ * card on it: uv is per-mesh, so a press on a card gave the uv of THAT CARD's
+ * little plane — 0..1 across the card itself — which was then read as a
+ * position on the whole board. Pressing the right-hand edge of a card in
+ * `review` reported a point near the middle of the board, so `cardAt` found
+ * nothing and every drag silently did nothing at all.
+ *
+ * Nothing in the pure tests could catch it: they are handed a uv and are
+ * correct about what is there. The renderer was handing them the wrong one.
+ *
+ * So the room converts the intersection POINT — which is the same world point
+ * whichever mesh reports it — into the board's own frame, and asks here. One
+ * question, one answer, regardless of what the ray happened to hit first.
+ */
+export function uvFromPanelPoint(layout: BoardLayout, point: { x: number; y: number }): { x: number; y: number } {
+  return { x: point.x / layout.width + 0.5, y: point.y / layout.height + 0.5 };
 }
 
 /**

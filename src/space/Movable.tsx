@@ -5,18 +5,23 @@ import { facingArc, placementRefusal, scaleOf } from "../../shared/panel-place";
 import { resizedScale } from "./panel-resize";
 import type { ArrangeMode } from "./usePanelArrange";
 import type { Placement } from "../../shared/space-wire";
-import { dropGrip, onGrabOf, putGrip } from "./grip-positions";
+import { claimPointer } from "./pointer-claim";
 
 /**
  * A panel you can pick up and put somewhere else.
  *
- * TWO HANDLES, ONE FOR EACH WORLD, and the reason is not tidiness. In a window
- * the panels are real DOM, and drei's `occlude="blending"` sets
- * `pointer-events: none` on the WebGL canvas so those iframes stay clickable —
- * which means NO 3D object can ever receive a pointer there. I wrote a 3D drag
- * bar first, watched it do nothing, and found the canvas dead to the mouse. So
- * the window gets a DOM bar and a headset gets the 3D one, both driving the
- * same three lines of maths below.
+ * ONE HANDLE, BOTH WORLDS — it used to be two, and the reason it was two is
+ * gone. While the panels were DOM behind drei's `occlude="blending"`, the WebGL
+ * canvas carried `pointer-events: none` so those iframes stayed clickable,
+ * which meant NO 3D object could receive a pointer in a window at all. I wrote
+ * a 3D drag bar first, watched it do nothing, and found the canvas dead to the
+ * mouse; the window got a DOM bar and the headset got the 3D one.
+ *
+ * The panels are meshes now and the occluder went with the iframes, so the
+ * canvas takes a mouse again and the 3D bar works for both. A pointer is a
+ * pointer: R3F gives a mouse press and a controller ray the same event, with
+ * `pointerType` to tell them apart if anything ever needs to. Nothing here
+ * does, which is the point.
  *
  * MOVES ON THE FLOOR PLANE, KEEPS ITS HEIGHT. Dragging in three dimensions from
  * a two-dimensional pointer needs a mode switch, and every one I could think of
@@ -36,7 +41,6 @@ import { dropGrip, onGrabOf, putGrip } from "./grip-positions";
 export function Movable({
   place,
   mode,
-  inHeadset,
   onPlaced,
   onTrouble,
   children,
@@ -51,7 +55,6 @@ export function Movable({
    */
   mode: ArrangeMode;
   /** Which handle to offer. See the note above; this is not cosmetic. */
-  inHeadset: boolean;
   /** Called once, on release, with where it ended up. Never during the drag. */
   onPlaced: (place: Placement) => void;
   onTrouble: (why: string | null) => void;
@@ -247,11 +250,14 @@ export function Movable({
         Visible, faintly, because a mode you cannot see is a mode you forget you
         are in — and this one changes what pressing a board does.
       */}
-      {inHeadset && mode !== "locked" ? (
+      {mode !== "locked" ? (
         <mesh
           position={[0, 0.6, 0.02]}
           onPointerDown={(event) => {
             event.stopPropagation();
+            // Tell the look-drag this press is spoken for, or arranging a panel
+            // also swings the camera round the room.
+            claimPointer(event.nativeEvent);
             grabbedPointer.current = event.pointerId;
             // Capture, so the drag survives the ray slipping off the panel for
             // a frame. Guarded because it is not there on every pointer.
@@ -280,13 +286,16 @@ export function Movable({
         </mesh>
       ) : null}
 
-      {inHeadset ? (
-        // A 3D bar the full width of the panel: a big target for a ray from
-        // across the room, where a small gizmo arrow is a test of nerve.
-        <mesh
+      {/*
+        A 3D bar the full width of the panel: a big target for a ray from across
+        the room, where a small gizmo arrow is a test of nerve — and a perfectly
+        ordinary thing to click with a mouse.
+      */}
+      <mesh
           position={[0, top, 0.01]}
           onPointerDown={(event) => {
             event.stopPropagation();
+            claimPointer(event.nativeEvent);
             grabbedPointer.current = event.pointerId;
             (event.target as { setPointerCapture?: (id: number) => void } | null)
               ?.setPointerCapture?.(event.pointerId);
@@ -309,62 +318,7 @@ export function Movable({
             transparent
             opacity={dragging ? 0.95 : 0.6}
           />
-        </mesh>
-      ) : (
-        // A DOM bar, because the canvas beneath it is `pointer-events: none`.
-        <PanelGrip
-          id={place.id}
-          worldY={top}
-          onGrab={(clientX, clientY) => begin(floorPoint(clientX, clientY))}
-        />
-      )}
+      </mesh>
     </group>
   );
-}
-
-
-
-/**
- * Reports where this panel's handle belongs on screen, every frame.
- *
- * It draws nothing. `PanelGrips`, outside the Canvas, draws the button — see
- * `grip-positions.ts` for why it cannot be done in here.
- */
-function PanelGrip({
-  id,
-  worldY,
-  onGrab,
-}: {
-  id: string;
-  worldY: number;
-  onGrab: (clientX: number, clientY: number) => void;
-}) {
-  const anchor = useRef<THREE.Object3D>(null);
-  const camera = useThree((state) => state.camera);
-  const gl = useThree((state) => state.gl);
-  const at = useMemo(() => new THREE.Vector3(), []);
-
-  useEffect(() => {
-    onGrabOf(id, onGrab);
-  }, [id, onGrab]);
-
-  useEffect(() => () => dropGrip(id), [id]);
-
-  useFrame(() => {
-    const point = anchor.current;
-    if (!point) return;
-    point.getWorldPosition(at);
-    at.project(camera);
-    const rect = gl.domElement.getBoundingClientRect();
-    putGrip({
-      id,
-      x: rect.left + ((at.x + 1) / 2) * rect.width,
-      y: rect.top + ((1 - at.y) / 2) * rect.height,
-      // Behind the camera projects to a mirrored point on the far side of the
-      // screen, which would put a handle nowhere near its panel.
-      shown: at.z <= 1,
-    });
-  });
-
-  return <object3D ref={anchor} position={[0, worldY, 0.02]} />;
 }

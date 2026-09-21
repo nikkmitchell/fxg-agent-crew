@@ -16,6 +16,7 @@ import { Avatar3D, EYE_HEIGHT } from "./Avatar3D";
 import { Immersive } from "./Immersive";
 import { getXRStore } from "./xr-store";
 import type { Comfort } from "./comfort";
+import { pointerWasClaimed } from "./pointer-claim";
 import { RoomPanel } from "./RoomPanel";
 import { useBoardCards } from "./useBoardCards";
 import { ScreenWall } from "./ScreenWall";
@@ -220,6 +221,11 @@ function Me({
    */
   const pitch = useRef(0);
   const dragging = useRef(false);
+  /**
+   * The press that might become a look, held until the first move decides.
+   * Null once a panel has claimed it, or once the look has begun.
+   */
+  const pressed = useRef<PointerEvent | null>(null);
   const sendMove = useMemo(
     () => makeMoveSender(connection.send),
     [connection.send],
@@ -268,17 +274,24 @@ function Me({
   useEffect(() => {
     const canvas = gl.domElement;
     /**
-     * Drag-to-look listens on the canvas's CONTAINER, not the canvas.
+     * Drag-to-look listens on the canvas's CONTAINER, not the canvas, and skips
+     * a press a panel already handled.
      *
-     * `occlude="blending"` on the panels puts the canvas above the DOM with
-     * `pointer-events: none`, so the canvas itself receives nothing. The
-     * container still does — and a pointerdown that started inside a panel is
-     * ignored, so scrolling the board does not also swing the view around.
+     * IT USED TO ASK A QUESTION THAT NOW ALWAYS ANSWERS NO. While the panels
+     * were DOM behind `occlude="blending"`, the canvas was `pointer-events:
+     * none`, the press really landed on a div, and `closest(".space-panel-
+     * frame")` found it. The panels are meshes now: every press lands on the
+     * canvas, that check never matches again, and the camera would swing round
+     * under every card drag in the room.
+     *
+     * So the meshes say so themselves — see `pointer-claim.ts`. The container
+     * listener still runs second, because a DOM event reaches its target before
+     * its ancestors, which is what makes this work at all.
      */
     const surface = canvas.parentElement ?? canvas;
     const startedInAPanel = (event: PointerEvent) =>
-      event.target instanceof Element &&
-      event.target.closest(".space-panel-frame") !== null;
+      pointerWasClaimed(event) ||
+      (event.target instanceof Element && event.target.closest(".space-panel-frame") !== null);
 
     const down = (event: KeyboardEvent) => {
       if (!KEYS[event.code]) return;
@@ -290,15 +303,41 @@ function Me({
     const up = (event: KeyboardEvent) => held.current.delete(event.code);
     const blur = () => held.current.clear();
 
+    /**
+     * THE DECISION IS MADE ON THE FIRST MOVE, NOT ON THE PRESS.
+     *
+     * Both R3F and this listener sit on the same element — R3F's event source
+     * defaults to the canvas's parent, which is exactly what `surface` is — so
+     * "the mesh speaks first" is a statement about REGISTRATION ORDER, not
+     * about bubbling, and it is not something to build on. I did build on it,
+     * and the room proved it: dragging a card turned the camera, which moved
+     * the board out from under the pointer, so the drag died half-finished and
+     * the next one missed the panel entirely.
+     *
+     * Waiting for the first move removes the ordering question altogether. By
+     * the time a move arrives, the press has certainly been dispatched and any
+     * panel that wanted it has said so. It also means a click that never moves
+     * never starts a look, which is what a click should do.
+     */
     const startDrag = (event: PointerEvent) => {
-      if (startedInAPanel(event)) return;
-      dragging.current = true;
+      pressed.current = startedInAPanel(event) ? null : event;
+      dragging.current = false;
     };
     const stopDrag = () => {
+      pressed.current = null;
       dragging.current = false;
     };
     const look = (event: PointerEvent) => {
-      if (!dragging.current) return;
+      if (!dragging.current) {
+        const down = pressed.current;
+        if (!down) return;
+        // Asked now rather than at press time: a panel has had its chance.
+        if (pointerWasClaimed(down)) {
+          pressed.current = null;
+          return;
+        }
+        dragging.current = true;
+      }
       yaw.current -= event.movementX * LOOK_SENSITIVITY;
       // Clamped, and the clamp is the part that matters: "YXZ" gimbal-locks at
       // exactly ±90° and inverts past it. See look-pitch.ts.
@@ -520,7 +559,6 @@ export default function Scene({
               // appearing empty and filling in when the socket opens.
               place={placeOf(connection.places, station.id)}
               mode={arrange.modeOf(station.id)}
-              inHeadset={inHeadset}
               onPlaced={(next) => void savePlacement(next).then(onPanelTrouble)}
               onTrouble={onPanelTrouble}
             >

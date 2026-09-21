@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, type BoardCard } from "./board-3d.js";
+import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, type BoardCard } from "./board-3d.js";
 import { canTransition } from "./board-rules.js";
 
 /**
@@ -176,5 +176,88 @@ describe("uv to panel metres", () => {
     expect(pointFromUv(layout, { x: 0.5, y: 0.5 })).toEqual({ x: 0, y: 0 });
     expect(pointFromUv(layout, { x: 1, y: 1 })).toEqual({ x: layout.width / 2, y: layout.height / 2 });
     expect(pointFromUv(layout, { x: 0, y: 0 })).toEqual({ x: -layout.width / 2, y: -layout.height / 2 });
+  });
+});
+
+describe("the board fills the panel it is given", () => {
+  /**
+   * THE BUG THIS EXISTS FOR. The room drew the board at the default 2.4 × 1.5
+   * on a panel that is 4.0 × 2.5, so it used sixty per cent of its own surface
+   * and the rest was blank cream — and making the panel bigger only made the
+   * blank part bigger. The size parameter was there the whole time; nothing
+   * checked that passing one changed anything, so nothing noticed it was never
+   * passed.
+   */
+  const sized = (width: number, height: number) => ({ ...BOARD, width, height });
+  const many = Array.from({ length: 40 }, (_, i) => card(`c${i}`, "backlog"));
+
+  it("uses the width it is given", () => {
+    const wide = layOutBoard([], sized(4.0, 2.5));
+    expect(wide.width).toBe(4.0);
+    expect(wide.height).toBe(2.5);
+    // And the columns actually spread across it rather than huddling.
+    const last = wide.columns[wide.columns.length - 1];
+    expect(last.x + last.width / 2).toBeCloseTo(4.0 / 2 - BOARD.padding, 5);
+  });
+
+  it("gives wider columns on a wider panel", () => {
+    const narrow = layOutBoard([], sized(2.4, 1.5));
+    const wide = layOutBoard([], sized(4.0, 2.5));
+    expect(wide.columns[0].width).toBeGreaterThan(narrow.columns[0].width);
+  });
+
+  it("FITS MORE CARDS ON A TALLER PANEL, which is the point of resizing one", () => {
+    // A person who cannot read a crowded column makes the panel bigger. If that
+    // does not show more cards it is a magnifier, not a resize.
+    const short = layOutBoard(many, sized(2.4, 1.5));
+    const tall = layOutBoard(many, sized(2.4, 2.5));
+    expect(tall.cards.length).toBeGreaterThan(short.cards.length);
+    const shortHidden = short.overflow.reduce((sum, o) => sum + o.hidden, 0);
+    const tallHidden = tall.overflow.reduce((sum, o) => sum + o.hidden, 0);
+    expect(tallHidden).toBeLessThan(shortHidden);
+  });
+
+  it("keeps every card inside the panel at any size", () => {
+    for (const [w, h] of [[2.4, 1.5], [4.0, 2.5], [1.6, 1.0], [6.0, 3.2]] as const) {
+      const layout = layOutBoard(many, sized(w, h));
+      for (const place of layout.cards) {
+        expect(Math.abs(place.x) + place.width / 2, `${w}x${h} card off the side`).toBeLessThanOrEqual(w / 2 + 1e-9);
+        expect(Math.abs(place.y) + place.height / 2, `${w}x${h} card off the top`).toBeLessThanOrEqual(h / 2 + 1e-9);
+      }
+    }
+  });
+});
+
+describe("uv from a panel point", () => {
+  /**
+   * The regression for the bug that made every card drag do nothing: the room
+   * was reading a per-mesh uv and treating it as a board position.
+   */
+  it("is the exact inverse of pointFromUv", () => {
+    const layout = layOutBoard([card("a", "review")]);
+    for (const uv of [{ x: 0, y: 0 }, { x: 0.5, y: 0.5 }, { x: 1, y: 1 }, { x: 0.23, y: 0.77 }]) {
+      const back = uvFromPanelPoint(layout, pointFromUv(layout, uv));
+      expect(back.x).toBeCloseTo(uv.x, 10);
+      expect(back.y).toBeCloseTo(uv.y, 10);
+    }
+  });
+
+  it("finds the card the layout put there, from the point the layout gave", () => {
+    // The whole round trip: layout says a card is at (x, y); converting that
+    // point back to uv and asking `cardAt` must return the same card. This is
+    // the step the room got wrong.
+    const cards = [card("a", "review"), card("b", "review"), card("c", "backlog")];
+    const layout = layOutBoard(cards, { ...BOARD, width: 4.0, height: 2.5 });
+    for (const place of layout.cards) {
+      const uv = uvFromPanelPoint(layout, { x: place.x, y: place.y });
+      expect(cardAt(layout, uv)?.card.id, `centre of ${place.card.id}`).toBe(place.card.id);
+    }
+  });
+
+  it("grows to the right and upward, so a wrong mapping cannot look right", () => {
+    // The observed symptom was a uv that went DOWN as the pointer went right.
+    const layout = layOutBoard([], { ...BOARD, width: 4.0, height: 2.5 });
+    expect(uvFromPanelPoint(layout, { x: 1, y: 0 }).x).toBeGreaterThan(uvFromPanelPoint(layout, { x: -1, y: 0 }).x);
+    expect(uvFromPanelPoint(layout, { x: 0, y: 1 }).y).toBeGreaterThan(uvFromPanelPoint(layout, { x: 0, y: -1 }).y);
   });
 });
