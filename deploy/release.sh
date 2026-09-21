@@ -459,6 +459,14 @@ printf '  space socket 101 on loopback\n'
 printf '\n\033[33mNone of the above touched what you just shipped.\033[0m\n'
 printf 'These are health checks. They pass identically for a release that broke\n'
 printf 'the feature and one that fixed it. Verify by USE:\n\n'
+# PATH IS IN THE COMMAND ON PURPOSE. A deploy uses ssh and rsync and never
+# touches openssl, so the operator standing here may well have Apple's LibreSSL
+# first on PATH and not know it. The audit signs in, signing needs Ed25519, and
+# LibreSSL cannot do it at all — so the very next thing they run after reading
+# this line would die with an error about a subprocess exit status that reads
+# like a rejected key. Sending somebody into that with a command I knew was
+# incomplete would be its own entry in the guide.
+printf '  PATH="/opt/homebrew/bin:$PATH" \\\n'
 printf '  WEBHARNESS_HOME="$HOME/.webharness/agents/<you>" \\\n'
 printf '    pnpm exec tsx tools/onboarding-audit.mts\n\n'
 printf 'and then open the thing you changed.\n'
