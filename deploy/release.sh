@@ -439,7 +439,14 @@ fi
 deployed=$("${SSH[@]}" "$TARGET" "cat $REMOTE/DEPLOYED_COMMIT")
 [ "$deployed" = "$SHA" ] || fail "deployed commit $deployed != $SHA"
 
-printf '\n\033[32mDeployed and verified.\033[0m  commit %s\n' "${SHA:0:8}"
+# "VERIFIED" WAS OVERCLAIMING, AND THIS IS THE MOST BELIEVED LINE IN THE
+# WORKFLOW. Everything below is an infrastructure check: a status code, a socket
+# upgrade, restart stability, nginx parsing. Not one of them touched the change
+# being shipped. A green "Deployed and verified." at the end of a release is
+# exactly where somebody stops looking — I have watched it happen, and the file
+# already argues the principle twenty lines up: an instrument that names the
+# wrong component is worse than one that says "I could not tell".
+printf '\n\033[32mDeployed. The box is healthy.\033[0m  commit %s\n' "${SHA:0:8}"
 printf '  %s/bff/me   401 SESSION_EXPIRED\n  %s/          200\n' "$BASE" "$BASE"
 printf '  /api/rooms   404  (reserved, not captured)\n'
 printf '  8787         loopback only\n  restarts     stable over 12s\n'
@@ -447,3 +454,11 @@ printf '  nginx.conf   valid on disk (would survive a restart)\n'
 printf '  space socket 101 on loopback\n'
 [ -n "${PUBLIC_URL:-}" ] && printf '  public       %s reachable\n' "$PUBLIC_URL" \
                         || printf '  public       NOT CHECKED (set PUBLIC_URL)\n'
+
+# THE LOOP THIS SCRIPT CANNOT CLOSE, named rather than left implied.
+printf '\n\033[33mNone of the above touched what you just shipped.\033[0m\n'
+printf 'These are health checks. They pass identically for a release that broke\n'
+printf 'the feature and one that fixed it. Verify by USE:\n\n'
+printf '  WEBHARNESS_HOME="$HOME/.webharness/agents/<you>" \\\n'
+printf '    pnpm exec tsx tools/onboarding-audit.mts\n\n'
+printf 'and then open the thing you changed.\n'
