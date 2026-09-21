@@ -127,17 +127,21 @@ function TaskBoard({
           setAdding(status);
         }}
       />
-      {/* BESIDE THE BOARD, CLEAR OF IT. A child of the same group, so it
-          inherits the panel's position, angle and scale — including the scale,
-          because somebody who enlarged the board to read it wants this
-          enlarged too.
-          
-          PAST THE RIGHT EDGE rather than over it. The first placement floated
-          it above the board and it sat squarely on the `review` and `done`
-          columns — so opening a card to read it hid the two columns you are
-          most likely to be working in, and you could not drag anything while
-          it was open. The board is 4.0 wide, so its edge is at 2.0; this
-          clears it. */}
+      {/*
+        IN FRONT OF THE BOARD, MIDDLE, AND FORWARD.
+        
+        Two placements before this one. Over the board's right shoulder sat
+        squarely on `review` and `done` — the two columns you are most likely to
+        be working in. Pushed clear of the right edge, it inherited the panel's
+        SCALE, so on an enlarged board "just past the edge" became several
+        metres out into the room, edge-on to the reader and colliding with the
+        panel next door.
+        
+        Centred and forward reads as what it is: a thing held up in front of the
+        board, the way you would hold a card you had just taken off it. It does
+        cover the columns while it is open, which is correct for something you
+        opened deliberately and close with one press.
+      */}
       {detail ? (
         <CardDetail3D
           task={detail}
@@ -146,7 +150,7 @@ function TaskBoard({
             setAdding(null);
             setCommenting(detail.id);
           }}
-          at={[2.85, 0, 0.3]}
+          at={[0, 0, 0.55]}
         />
       ) : null}
 
@@ -162,11 +166,17 @@ function TaskBoard({
         A FRACTION OF THE PANEL'S OWN HEIGHT keeps it in the same place on the
         board however big the board is, and the lower third is the part that is
         empty: cards stack from the top.
+        
+        NEARER THAN THE DETAIL PANEL, which is the whole reason for the `z`.
+        Writing a comment opens this in front of the card you are commenting on
+        — and the first time it opened BEHIND that card, so the keyboard you
+        were meant to type on was hidden by the thing it was for. Whatever you
+        are typing into has to be the nearest thing to you.
       */}
       {adding !== null ? (
         <Typing3D
           prompt={`New card in ${columnLabel(adding)}`}
-          position={[0, -station.surface.height * 0.28, 0.35]}
+          position={[0, -station.surface.height * 0.34, 0.8]}
           onCancel={() => setAdding(null)}
           onDone={(title) => {
             const status = adding;
@@ -201,7 +211,7 @@ function TaskBoard({
       {commenting !== null ? (
         <Typing3D
           prompt="Comment"
-          position={[0, -station.surface.height * 0.28, 0.35]}
+          position={[0, -station.surface.height * 0.34, 0.8]}
           onCancel={() => setCommenting(null)}
           onDone={(text) => {
             const id = commenting;
