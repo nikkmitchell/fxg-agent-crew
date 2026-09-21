@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { LOOK_SENSITIVITY, tiltBy } from "./look-pitch";
@@ -16,13 +16,12 @@ import { Avatar3D, EYE_HEIGHT } from "./Avatar3D";
 import { Immersive } from "./Immersive";
 import { getXRStore } from "./xr-store";
 import type { Comfort } from "./comfort";
-import { WebPanel } from "./WebPanel";
-import { StillPanel } from "./StillPanel";
+import { RoomPanel } from "./RoomPanel";
+import { useBoardCards } from "./useBoardCards";
 import { ScreenWall } from "./ScreenWall";
 import { ArrivalSparkles } from "./ArrivalSparkles";
 import { SpeakingMotes } from "./SpeakingMotes";
 import { TouchReactions } from "./TouchReactions";
-import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
 import { useRoomShowing } from "./useRoomShowing";
 import type { PanelChoices } from "./usePanelChoices";
@@ -450,7 +449,18 @@ export default function Scene({
    * conversation. Read here and passed down.
    */
   const feed = useRoomFeed(inHeadset);
-  const openPanels = panels.open;
+
+
+  /**
+   * The board's cards, and which one has been pulled out into its own panel.
+   *
+   * THE ROOM NEVER HAD THIS. The board was an iframe, so its contents lived
+   * inside a page the room could not see into; drawing cards natively means
+   * fetching them. `showing.projectId` is which project the room is looking at,
+   * chosen by whoever is in it — see RoomShowing.
+   */
+  const boardFeed = useBoardCards(connection.showing.projectId ?? null);
+  const [openCard, setOpenCard] = useState<string | null>(null);  const openPanels = panels.open;
   // The lists to choose from, and the way to change what the room shows. The
   // current VALUE comes from the socket, not from here — see useRoomShowing.
   const showingChoices = useRoomShowing(inHeadset, connection.showing);
@@ -514,19 +524,19 @@ export default function Scene({
               onPlaced={(next) => void savePlacement(next).then(onPanelTrouble)}
               onTrouble={onPanelTrouble}
             >
-              {!inHeadset ? (
-                <WebPanel station={station} base={base} project={connection.showing.projectId} />
-              ) : station.id === "chat" ? (
-                // NOT A PHOTOGRAPH. The server's renderer has no WebHarness
-                // token, so its picture of the chat is the sentence saying the
-                // room could not be read. This one is drawn from the viewer's
-                // own session — see ChatPanel3D.
-                <ChatPanel3D station={station} feed={feed} />
-              ) : (
-                // Photographs of the same pages, taken on the server. The live
-                // panels are DOM and a session draws 3D only.
-                <StillPanel station={station} base={base} active={inHeadset} />
-              )}
+              {/* ONE PANEL, CHOSEN BY WHAT IT SHOWS, NOT BY WHERE YOU ARE.
+                  This was a branch on `inHeadset` that gave the desktop an
+                  iframe and a headset a photograph — two implementations of
+                  every panel, which is why anything added to one was missing
+                  from the other. See RoomPanel and docs/ONE-ROOM.md. */}
+              <RoomPanel
+                station={station}
+                base={base}
+                feed={feed}
+                boardFeed={boardFeed}
+                onSay={onPanelTrouble}
+                onOpenCard={setOpenCard}
+              />
             </Movable>
           ))}
         {/* Shared screens. A person's hangs in the row above the panels; an
