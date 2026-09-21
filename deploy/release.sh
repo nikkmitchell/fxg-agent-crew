@@ -184,9 +184,36 @@ log "ship  (commit ${SHA:0:8})"
 # left a healthy old process with no marker and made the next guarded deploy
 # unable to prove what it would replace. Preserve them until the explicit
 # writes below advance them.
-rsync -az --delete --partial \
-  --exclude node_modules --exclude .git --exclude 'dist/.vite' --exclude 'DEPLOYED_*' \
-  -e "${SSH[*]}" ./ "$TARGET:$REMOTE/"
+#
+# RETRIED, BECAUSE --partial EXISTS TO BE RESUMED FROM AND NOTHING WAS RESUMING.
+# On 2026-09-21 this link sat at ~440ms RTT and dropped transfers repeatedly:
+# three deploys died here, one of them after rsync had already replaced part of
+# the tree. `--partial` keeps what arrived, so a second attempt continues
+# instead of starting the 110 MB again — but only if something tries again, and
+# nothing did.
+#
+# FOUR ATTEMPTS, and the sleep grows, because the outages are minutes not
+# hours. --timeout=60 is what turns a silently wedged transfer into a failure
+# this loop can act on; without it rsync can sit on a dead socket indefinitely
+# and the retry never happens.
+#
+# It still gives up. A link that cannot move the tree in four tries is a real
+# refusal and the script stops, having changed nothing that matters: the
+# markers are excluded above, so a partial tree on disk is never mistaken for
+# a deployed one.
+ship_tree() {
+  rsync -az --delete --partial --timeout=60 \
+    --exclude node_modules --exclude .git --exclude 'dist/.vite' --exclude 'DEPLOYED_*' \
+    -e "${SSH[*]}" ./ "$TARGET:$REMOTE/"
+}
+shipped=no
+for attempt in 1 2 3 4; do
+  if ship_tree; then shipped=yes; break; fi
+  [ "$attempt" = 4 ] && break
+  printf '\033[33m  transfer dropped (attempt %s of 4); resuming in %ss\033[0m\n' "$attempt" "$((attempt * 10))"
+  sleep "$((attempt * 10))"
+done
+[ "$shipped" = yes ] || fail "could not ship the tree after 4 attempts; the link kept dropping. Nothing was restarted and the live marker is untouched."
 
 # The static site, which nothing used to deploy.
 #
