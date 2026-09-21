@@ -7,6 +7,7 @@ import { StillPanel } from "./StillPanel";
 import { CardDetail3D } from "./CardDetail3D";
 import { Typing3D } from "./Typing3D";
 import { SettingsPanel3D } from "./SettingsPanel3D";
+import { MoodPanel3D } from "./MoodPanel3D";
 import type { SettingsItem } from "../../shared/settings-3d";
 import { nextStatuses } from "../../shared/board-rules";
 import { BOARD_COLUMNS } from "../../shared/board-3d";
@@ -44,6 +45,7 @@ export function RoomPanel({
   onCloseCard,
   projectId,
   settings,
+  boardId,
 }: {
   station: Station;
   base: string;
@@ -58,8 +60,24 @@ export function RoomPanel({
   projectId: string | null;
   /** What the settings panel offers, and what to do when one is pressed. */
   settings: { items: SettingsItem[]; onPress: (id: string) => void };
+  /** Which mood board the room is on, if anyone has said. */
+  boardId: string | null;
 }) {
   if (station.id === "chat") return <ChatPanel3D station={station} feed={feed} />;
+
+  if (station.id === "moodBoard") {
+    return (
+      <MoodPanel3D
+        items={boardFeed.moodItemsOf(boardId)}
+        surface={station.surface}
+        onSay={onSay}
+        onMove={async (itemId, at) => {
+          await board.moveItem(itemId, at);
+          boardFeed.refresh();
+        }}
+      />
+    );
+  }
 
   if (station.id === "settings") {
     return <SettingsPanel3D items={settings.items} surface={station.surface} onPress={settings.onPress} />;

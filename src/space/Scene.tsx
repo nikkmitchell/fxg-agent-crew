@@ -668,6 +668,7 @@ export default function Scene({
                 onCloseCard={() => setOpenCard(null)}
                 projectId={connection.showing.projectId ?? null}
                 settings={settings}
+                boardId={connection.showing.boardId ?? null}
               />
             </Movable>
           ))}

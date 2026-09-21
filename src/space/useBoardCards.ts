@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { board } from "../board-client";
 import type { BoardCard } from "../../shared/board-3d";
 import type { TaskDetail } from "../../shared/card-detail";
+import type { MoodItem } from "../../shared/mood-3d";
+import { board as boardApi } from "../board-client";
 
 /**
  * The work board's cards, for the room.
@@ -36,6 +38,16 @@ export type BoardFeed = {
    * opened it.
    */
   detailOf: (taskId: string) => TaskDetail | null;
+  /**
+   * What is pinned to a mood board.
+   *
+   * FROM THE SAME ANSWER AGAIN. The project detail already carries its boards
+   * and their items; a second request for them would be a second poll of rows
+   * we have, arriving a beat apart from the ones we drew.
+   */
+  moodItemsOf: (boardId: string | null) => MoodItem[];
+  /** The mood boards this project has, for choosing between them. */
+  moodBoards: { id: string; title: string }[];
   /** Null until the first answer. A board with no cards and a board that has not loaded are different. */
   loaded: boolean;
   trouble: string | null;
@@ -46,6 +58,9 @@ export function useBoardCards(projectId: string | null): BoardFeed {
   const [cards, setCards] = useState<BoardCard[]>([]);
   /** The rows exactly as the server sent them, for `detailOf`. */
   const rows = useRef<Record<string, Record<string, unknown>>>({});
+  /** The mood boards exactly as the server sent them. */
+  const boards = useRef<Record<string, unknown>[]>([]);
+  const [moodBoards, setMoodBoards] = useState<{ id: string; title: string }[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [trouble, setTrouble] = useState<string | null>(null);
   const live = useRef(true);
@@ -69,9 +84,19 @@ export function useBoardCards(projectId: string | null): BoardFeed {
     if (inFlight.current) return;
     inFlight.current = true;
     try {
-      const project = (await board.project(projectId)) as { tasks?: Record<string, unknown>[] };
+      const project = (await board.project(projectId)) as {
+        tasks?: Record<string, unknown>[];
+        boards?: Record<string, unknown>[];
+      };
       if (!live.current) return;
       rows.current = Object.fromEntries((project.tasks ?? []).map((row) => [String(row.id), row]));
+      boards.current = (project.boards ?? []) as Record<string, unknown>[];
+      setMoodBoards(
+        boards.current.map((one) => ({
+          id: String(one.id),
+          title: String(one.title ?? one.name ?? one.id),
+        })),
+      );
       setCards(
         (project.tasks ?? []).map((row) => ({
           id: String(row.id),
@@ -125,5 +150,29 @@ export function useBoardCards(projectId: string | null): BoardFeed {
     };
   }, []);
 
-  return { cards, loaded, trouble, detailOf, refresh: () => void read() };
+  const moodItemsOf = useCallback((boardId: string | null): MoodItem[] => {
+    const chosen = boardId
+      ? boards.current.find((one) => String(one.id) === boardId)
+      : // NO BOARD CHOSEN MEANS THE FIRST ONE, rather than an empty wall. A
+        // project usually has exactly one, and making somebody pick it before
+        // they can see anything is a step for nothing.
+        boards.current[0];
+    if (!chosen) return [];
+    const items = Array.isArray(chosen.items) ? (chosen.items as Record<string, unknown>[]) : [];
+    return items.map((one) => ({
+      id: String(one.id),
+      kind: String(one.kind ?? "note"),
+      x: Number(one.x ?? 0),
+      y: Number(one.y ?? 0),
+      w: Number(one.w ?? 220),
+      h: Number(one.h ?? 120),
+      z: Number(one.z ?? 0),
+      ...(one.text ? { text: String(one.text) } : {}),
+      ...(one.caption && !one.text ? { text: String(one.caption) } : {}),
+      ...(one.blob_id ? { src: boardApi.blobUrl(String(one.blob_id)) } : one.url ? { src: String(one.url) } : {}),
+      ...(one.added_by ? { addedBy: String(one.added_by) } : {}),
+    }));
+  }, []);
+
+  return { cards, loaded, trouble, detailOf, moodItemsOf, moodBoards, refresh: () => void read() };
 }
