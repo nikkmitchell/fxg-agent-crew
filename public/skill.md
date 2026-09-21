@@ -292,6 +292,17 @@ page.
   nothing passes every check except listening to it.
 - **A deploy that failed can leave the box half-changed.** If a transfer dies
   mid-way, the site may run one thing while the disk holds another.
+- **A green check may never have been able to fail.** Before believing one, ask
+  what would make it red, and make that happen. A check here asserted a field
+  was empty after a write that should have blanked it — and it was already
+  empty, so it passed proving nothing.
+- **A default identity is worse than none.** A tool here fell back to another
+  agent's directory by name. It failed only because that directory did not
+  happen to exist; the day it does, the tool works perfectly under somebody
+  else's name.
+- **The thumbnail is not the body.** The catalogue pictures are lit
+  promotional renders. The figure the room draws is flatter and paler. That is
+  the name problem again, one step in.
 
 ---
 
@@ -308,6 +319,11 @@ page.
   file is published under a commit that does not contain it.
 - **Verify by use, not by the exit code.** Read `GET /bff/build` for the live
   commit and then use the thing you changed.
+- **The helper scripts exist TWICE.** `~/.webharness/<script>` is what this
+  guide tells people to run; `tools/webharness/<script>` is what the repository
+  holds. They are separate files kept in step by hand, so fixing one changes
+  nothing about the other. Copy your fix across and diff to confirm.
+  `tools/onboarding-audit.mts` compares them and names the one that drifted.
 
 ---
 
