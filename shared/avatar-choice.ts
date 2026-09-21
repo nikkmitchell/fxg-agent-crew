@@ -46,6 +46,16 @@ export type BodyOnHand = {
    * What somebody found when they actually LOOKED at it, or null if nobody
    * has.
    *
+   * LOOKED MEANS THE MODEL, NOT THE THUMBNAIL. The catalogue pictures are lit
+   * promotional renders — neon key lights, coloured rims — and every one of the
+   * four checked on 2026-09-21 was dramatically more vivid than the body the
+   * room actually draws, which is flatter and paler. Judging from the thumbnail
+   * is the same mistake as judging from the name, one step further in.
+   *
+   * These notes cannot speak to HEIGHT. The profile stage scales every figure
+   * to a constant height on purpose, so a short body is not a speck beside a
+   * tall one; only proportions WITHIN a figure are visible there.
+   *
    * NOT A RATING, AND NOT A FILTER. Every one of these is offered, including
    * the two that draw badly, because deciding for somebody else which bodies
    * are acceptable is the thing this feature exists to stop. What the room can
@@ -58,17 +68,17 @@ export type BodyOnHand = {
 
 export const BODIES_ON_HAND: readonly BodyOnHand[] = [
   { slug: "alienteen", catalogue: "AlienTeen", looked: "the room's default; a teenager, 1.34m, drives cleanly" },
-  { slug: "baldman", catalogue: "Baldman", looked: null },
+  { slug: "baldman", catalogue: "Baldman", looked: "bald and heavily built, with a blue band across the eyes, a striped blue-and-white top and dark shorts; bare arms and legs. A comic-book strongman, not an ordinary man" },
   { slug: "chill", catalogue: "Chill", looked: "DRAWS BADLY: the arm renders as a wedge wider than the torso, on a yellow octagonal head. Measures inside the human band anyway" },
   { slug: "chillpenguin", catalogue: "ChillPenguin", looked: "black and white, stands like a person, unmistakable" },
   { slug: "cool-candle", catalogue: "CoolCandle", looked: "upright on its own dish, the smallest figure here; its arms are inside the wax, so a tracked hand is invisible on it" },
   { slug: "cool-fridge", catalogue: null, looked: "a mint-green box with a face and a door line" },
   { slug: "crowley", catalogue: "Crowley", looked: "NOT A CROW — orange-tan with pointed ears and a dark muzzle; reads as a fox. Its forearm draws thick" },
   { slug: "dinokid", catalogue: "DinoKid", looked: "a green creature with a spiky leafy head and a spotted body; child-sized" },
-  { slug: "erika", catalogue: "Erika", looked: null },
+  { slug: "erika", catalogue: "Erika", looked: "pale lavender hair, olive top, blue-grey trousers; ordinary proportions and plain clothes — the least remarkable figure on hand, which is its own kind of useful" },
   { slug: "goodknight", catalogue: "GoodKnight", looked: "a slim humanoid in a green top; NO VISIBLE ARMOUR at conversational distance" },
-  { slug: "lydia", catalogue: "Lydia", looked: null },
-  { slug: "observer", catalogue: "Observer", looked: null },
+  { slug: "lydia", catalogue: "Lydia", looked: "ELONGATED: fashion-illustration proportions, legs far longer than the torso, on heels; dark hair up, lilac top, indigo trousers. A stylised figure rather than a person" },
+  { slug: "observer", catalogue: "Observer", looked: "NO FACE AT ALL: a flat black-and-white bullseye for a head and an ink-blot spotted body. Nothing on it can show where it is looking, so gaze reads as nothing" },
   { slug: "olivia", catalogue: "Olivia", looked: "long light hair, dark top, light legs; ordinary proportions, nothing hanging in front of the panels" },
   { slug: "retroman", catalogue: "Retroman", looked: "measures and poses well" },
   { slug: "shiro", catalogue: "Shiro", looked: "idles like somebody standing and thinking, which is how an agent with no reported hands actually appears" },
