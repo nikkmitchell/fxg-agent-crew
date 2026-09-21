@@ -134,22 +134,62 @@ def stand(site: str, seconds: int) -> int:
 
 
 def hold(site: str, until: float) -> str:
-    """One connection. Returns "done", "dropped" or "refused"."""
-    cookie = session_cookie(site)
-    url = urllib.parse.urlparse(site)
-    host = url.hostname or "saha.ing"
-    port = url.port or (443 if url.scheme == "https" else 80)
+    """One connection. Returns "done", "dropped" or "refused".
 
-    raw = socket.create_connection((host, port), timeout=30)
-    sock = ssl.create_default_context().wrap_socket(raw, server_hostname=host) if url.scheme == "https" else raw
-    key = base64.b64encode(secrets.token_bytes(16)).decode()
-    sock.sendall(
-        f"GET {url.path or ''}/bff/space/socket HTTP/1.1\r\n"
-        f"Host: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-        f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
-        f"Cookie: {cookie}\r\n\r\n".encode()
-    )
-    greeting = sock.recv(4096)
+    GETTING BACK IN IS PART OF STANDING THERE. Every line below talks to the
+    network, and none of it was inside a try — so `stand()` could only ever see
+    the value returned, never an exception, and any failure while RECONNECTING
+    killed the process outright.
+
+    That is exactly when failures happen. The reconnect follows a drop, and the
+    usual cause of a drop is the box restarting, so the retry arrives while it
+    is still coming up. On 2026-09-21 this died with
+
+        the room closed the socket
+        the socket dropped: [Errno 32] Broken pipe
+        TimeoutError: _ssl.c:1063: The handshake operation timed out
+
+    after exactly two of the three retries the backoff promises. The docstring
+    on `stand()` already said a drop is not the end of duty and only something
+    retrying cannot fix should stop — a handshake that TIMES OUT is not a
+    refusal, it is a drop, and the code could not tell them apart because one
+    arrived as a return value and the other as a traceback.
+
+    Worst of all it is silent from the inside: the agent is simply drawn
+    dozing, which looks identical to an agent that chose to be quiet.
+    """
+    try:
+        cookie = session_cookie(site)
+        url = urllib.parse.urlparse(site)
+        host = url.hostname or "saha.ing"
+        port = url.port or (443 if url.scheme == "https" else 80)
+
+        raw = socket.create_connection((host, port), timeout=30)
+        sock = ssl.create_default_context().wrap_socket(raw, server_hostname=host) if url.scheme == "https" else raw
+        key = base64.b64encode(secrets.token_bytes(16)).decode()
+        sock.sendall(
+            f"GET {url.path or ''}/bff/space/socket HTTP/1.1\r\n"
+            f"Host: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
+            f"Cookie: {cookie}\r\n\r\n".encode()
+        )
+        greeting = sock.recv(4096)
+    except OSError as error:
+        # OSError is the whole network family: TimeoutError, ssl.SSLError,
+        # socket.gaierror, ConnectionRefusedError and urllib's URLError all
+        # inherit from it. Every one of them is worth another go — the box may
+        # be restarting, or the proxy on this machine may be flapping again.
+        print(f"could not get back in: {error}", file=sys.stderr, flush=True)
+        return "dropped"
+    except subprocess.CalledProcessError as error:
+        # NOT retryable, and the docstring above promised to say so. Signing in
+        # runs openssl, and Apple's LibreSSL cannot do Ed25519 at all — so this
+        # is usually a PATH problem wearing the mask of a broken key. Trying
+        # again for six hours would only bury it.
+        print(f"cannot sign in, so there is no point retrying: {error}", file=sys.stderr, flush=True)
+        print('  check: openssl version   (LibreSSL cannot sign; use PATH="/opt/homebrew/bin:$PATH")',
+              file=sys.stderr, flush=True)
+        return "refused"
     if b"101" not in greeting.split(b"\r\n")[0]:
         print(f"the room refused the socket: {greeting.split(b'\r\n')[0]!r}", file=sys.stderr)
         return "refused"
