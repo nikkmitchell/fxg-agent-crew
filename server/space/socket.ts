@@ -5,7 +5,9 @@ import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
+import { spaceRoomOf } from "../require-session.js";
 import { NOT_A_PERSON, actorKey } from "../../shared/space-layout.js";
+import { roomKey } from "../../shared/space-room.js";
 import type { Placement, Showing } from "../../shared/space-wire.js";
 import type { RoomItem } from "../../shared/room-items.js";
 import { parseClientMessage, type ServerMessage, type WirePerson } from "../../shared/space-wire.js";
@@ -34,6 +36,7 @@ export class SpaceHub {
   readonly presence: Presence;
   /** Sockets per actor. More than one is a second tab, not a second person. */
   private readonly sockets = new Map<string, Set<WebSocket>>();
+  private readonly socketRooms = new Map<WebSocket, string>();
   private timer: NodeJS.Timeout | null = null;
 
   /**
@@ -59,16 +62,18 @@ export class SpaceHub {
   /** How long each person has looked the same. See shared/stillness.ts. */
   private readonly stillness = new Stillness();
 
-  attach(actorId: string, kind: "human" | "agent" | null, socket: WebSocket): void {
+  attach(actorId: string, kind: "human" | "agent" | null, socket: WebSocket, room = "saha.ing"): void {
     const key = actorKey(actorId);
     const existing = this.sockets.get(key);
     if (existing) existing.add(socket);
     else this.sockets.set(key, new Set([socket]));
+    this.socketRooms.set(socket, roomKey(room));
     this.presence.join(actorId, kind, true);
     this.start();
   }
 
   detach(actorId: string, socket: WebSocket): void {
+    this.socketRooms.delete(socket);
     const key = actorKey(actorId);
     const sockets = this.sockets.get(key);
     if (!sockets) return;
@@ -165,6 +170,14 @@ export class SpaceHub {
     }
   }
 
+  /** Broadcast shared state only inside the room that owns it. */
+  broadcastRoom(room: string, message: ServerMessage): void {
+    const wanted = roomKey(room);
+    for (const sockets of this.sockets.values()) {
+      for (const socket of sockets) if (this.socketRooms.get(socket) === wanted) this.send(socket, message);
+    }
+  }
+
   /**
    * The loop runs only while someone is watching.
    *
@@ -249,14 +262,14 @@ export function registerSpaceRoutes(
    * Passed in rather than imported so this file keeps knowing nothing about the
    * database — the socket's job is who is here and where they are.
    */
-  panelsNow: () => Placement[],
+  panelsNow: (room: string) => Placement[],
   /**
    * What the room is showing, read on arrival for the same reason as the
    * panels: it changes rarely, and repeating it in every snapshot is traffic
    * that looks free until the room is full.
    */
-  showingNow: () => Showing,
-  itemsNow: () => RoomItem[],
+  showingNow: (room: string) => Showing,
+  itemsNow: (room: string) => RoomItem[],
   /** Touches and agents' feelings about them. Optional so older tests run unchanged. */
   touches: Touches | null = null,
 ): void {
@@ -297,7 +310,8 @@ export function registerSpaceRoutes(
       return;
     }
 
-    hub.attach(actorId, session.kind, socket);
+    const room = spaceRoomOf(session);
+    hub.attach(actorId, session.kind, socket, room);
     hub.send(socket, {
       type: "welcome",
       you: actorId,
@@ -306,9 +320,9 @@ export function registerSpaceRoutes(
       // Once, on arrival. Panels move when somebody drags one, and repeating
       // four placements in every snapshot to say "still there" is traffic that
       // looks free until there are twenty people in the room.
-      panels: panelsNow(),
-      showing: showingNow(),
-      items: itemsNow(),
+      panels: panelsNow(room),
+      showing: showingNow(room),
+      items: itemsNow(room),
       // Who to call on arrival. Yourself excluded: a second tab of your own is
       // still you, and calling it would put your own microphone in your ears.
       voice: [...hub.voices]

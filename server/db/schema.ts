@@ -998,4 +998,15 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE space_panel_place_next RENAME TO space_panel_place;
     `,
   },
+  {
+    id: 29,
+    name: "room items stay in the room that added them",
+    sql: `
+      -- Go tables are furniture. A table added in lobby must not materialise
+      -- in saha.ing, so existing items remain where they were created and all
+      -- future reads have a room key to filter by.
+      ALTER TABLE space_items ADD COLUMN room TEXT NOT NULL DEFAULT 'saha.ing';
+      CREATE INDEX space_items_by_room ON space_items(room, added_at);
+    `,
+  },
 ];

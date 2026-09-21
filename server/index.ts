@@ -234,10 +234,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       sessions,
       space,
-      () => panelPlaces.all(roomAtDefault),
-      // Room-scoped now; this caller still speaks for the default room.
-      () => roomShowing.current(roomAtDefault),
-      () => roomItems.all(),
+      (room) => panelPlaces.all(room),
+      (room) => roomShowing.current(room),
+      (room) => roomItems.all(room),
       touches,
     );
     registerTouchRoutes(scoped, { config, sessions, hub: space, touches });
@@ -259,7 +258,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       sessions,
       items: roomItems,
-      announce: (items, by) => space.broadcast({ type: "roomItems", items, by }),
+      announce: (room, items, by) => space.broadcastRoom(room, { type: "roomItems", items, by }),
     });
     registerUtteranceRoutes(
       scoped,
