@@ -3,6 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { facingArc, placementRefusal, scaleOf } from "../../shared/panel-place";
 import { resizedScale } from "./panel-resize";
+import { PANEL_HALF_LIFE, follow, followPoint } from "../../shared/smooth-follow";
 import type { ArrangeMode } from "./usePanelArrange";
 import type { Placement } from "../../shared/space-wire";
 import { claimPointer } from "./pointer-claim";
@@ -149,6 +150,18 @@ export function Movable({
     [place],
   );
 
+  /**
+   * WHERE THE POINTER SAYS THE PANEL SHOULD BE — not where it is.
+   *
+   * The panel used to be set straight from the pointer, which is perfectly
+   * responsive and passes on every tremor: a hand in a headset is never still,
+   * and a controller ray four metres from a wall turns a millimetre of wobble
+   * at the wrist into a centimetre at the panel. The pointer now moves a
+   * target and the panel eases toward it, a frame at a time, at a rate that is
+   * the same at 60fps and at 120 — see `smooth-follow.ts`.
+   */
+  const target = useRef<{ position: { x: number; z: number }; scale: number } | null>(null);
+
   const drag = useCallback(
     (at: { x: number; z: number } | null) => {
       const node = group.current;
@@ -158,15 +171,18 @@ export function Movable({
         // The panel stays where it is; only its size follows the ray. Moving
         // and resizing at once would mean neither could be done deliberately.
         const now = Math.hypot(at.x - place.position.x, at.z - place.position.z);
-        node.scale.setScalar(resizedScale(grabbed.current.scale, grabbed.current.distance, now));
+        target.current = {
+          position: { x: node.position.x, z: node.position.z },
+          scale: resizedScale(grabbed.current.scale, grabbed.current.distance, now),
+        };
         invalidate();
         return;
       }
 
-      const x = at.x + grabOffset.current.x;
-      const z = at.z + grabOffset.current.z;
-      node.position.set(x, place.position.y, z);
-      node.rotation.y = facingArc(x, z);
+      target.current = {
+        position: { x: at.x + grabOffset.current.x, z: at.z + grabOffset.current.z },
+        scale: node.scale.x,
+      };
       // A room set to redraw only when something happens still has to redraw
       // while a panel is being dragged through it.
       invalidate();
@@ -174,18 +190,62 @@ export function Movable({
     [invalidate, place.position],
   );
 
+  /**
+   * Ease toward the target, and STOP when it arrives.
+   *
+   * The stop is not a nicety: this room redraws on demand, so a follow that is
+   * always a hair short would ask for another frame forever and keep a machine
+   * awake for a panel nobody is touching.
+   */
+  useFrame((_, delta) => {
+    const node = group.current;
+    const want = target.current;
+    if (!node || !want) return;
+    const moved = followPoint(
+      { x: node.position.x, z: node.position.z },
+      want.position,
+      delta,
+      PANEL_HALF_LIFE,
+    );
+    const sized = follow(node.scale.x, want.scale, delta, PANEL_HALF_LIFE, 0.0008);
+    node.position.set(moved.value.x, place.position.y, moved.value.z);
+    node.rotation.y = facingArc(moved.value.x, moved.value.z);
+    node.scale.setScalar(sized.value);
+    if (moved.settled && sized.settled) {
+      target.current = null;
+      return;
+    }
+    invalidate();
+  });
+
   const release = useCallback(() => {
     const node = group.current;
     setDragging(false);
     if (!node) return;
+    /**
+     * SAVED FROM THE TARGET, NOT FROM WHERE THE EASE HAS GOT TO.
+     *
+     * The panel is still catching up when the pointer is let go, so reading its
+     * current position would store somewhere slightly behind where it was put —
+     * and a little further behind each time, so a panel dragged repeatedly
+     * would drift backwards along its own path. The target is what the person
+     * asked for; the ease is only how it gets there.
+     */
+    const want = target.current;
+    const x = want ? want.position.x : node.position.x;
+    const z = want ? want.position.z : node.position.z;
+    const scale = want ? want.scale : node.scale.x;
     const next: Placement = {
       id: place.id,
-      position: { x: node.position.x, y: node.position.y, z: node.position.z },
-      rotationY: node.rotation.y,
-      scale: node.scale.x,
+      position: { x, y: node.position.y, z },
+      rotationY: facingArc(x, z),
+      scale,
     };
     const refused = placementRefusal(next);
     if (refused) {
+      // Drop the target as well, or the ease carries on pulling the panel back
+      // toward the place the server just refused.
+      target.current = null;
       node.position.set(place.position.x, place.position.y, place.position.z);
       node.rotation.y = place.rotationY;
       node.scale.setScalar(scaleOf(place));

@@ -185,8 +185,9 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
           and the room is empty, because after a restart nobody knows where anyone was standing.
         </p>
         <p className="muted-note">
-          The three panels are the real Board, Mood boards and People tabs — the actual pages, not
-          a drawing of them. They are live and you can use them from in here.
+          The panels are the board, the mood boards, who is here, what has been said, chat and
+          settings — drawn in the room itself rather than pages hung on a wall. Cards drag between
+          columns, tapping one opens it, and you can add a card or a comment without leaving.
         </p>
         {systemPrefersReduced ? (
           <p className="muted-note">
@@ -372,12 +373,14 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
                   />
                   <span>{panel.label}</span>
                 </label>
-                {/* SIZE, HERE RATHER THAN AS A DRAG. In the room you resize a
-                    panel by pulling its face, which needs a ray or a pointer the
-                    canvas can receive — and in this window the canvas is
-                    `pointer-events: none` so the live pages stay clickable. Two
-                    buttons do the same job without a gesture that cannot work
-                    here. The size itself is shared either way. */}
+                {/* SIZE, HERE AS WELL AS IN THE ROOM. The reason this pair of
+                    buttons existed was that the canvas could not receive a
+                    pointer in a window — `occlude="blending"` on the old iframe
+                    panels set `pointer-events: none` on it — so resizing by
+                    pulling a panel's face was impossible here. The iframes are
+                    gone and the canvas takes a mouse again, so the gesture works
+                    in both rooms and these are a convenience rather than the
+                    only way. Kept because a keyboard can reach them. */}
                 {open ? (
                   <span className="space-setting-size">
                     <button
