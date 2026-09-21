@@ -209,10 +209,20 @@ log "ship  (commit ${SHA:0:8})"
 # `--checksum` makes both ends hash those files and transfers only content that
 # changed. A little local/remote CPU turns the payload from tens of megabytes
 # into the few generated bundles that actually differ.
+# THE STATUS IS CAPTURED AND SAID OUT LOUD, because twice this loop did not
+# run and I could not tell from the log why. The script exited 255 — rsync's
+# code, not this script's, and fail() exits 1 — with no "transfer dropped" line
+# and no FAILED line, which means it left through neither the retry nor the
+# refusal. Reasoning about errexit did not settle it and an isolated
+# reproduction of this exact loop behaved correctly, so the next run says what
+# rsync actually returned rather than leaving me to infer it.
 ship_tree() {
+  local rc=0
   rsync -acz --delete --partial --timeout=60 \
     --exclude node_modules --exclude .git --exclude 'dist/.vite' --exclude 'DEPLOYED_*' \
-    -e "${SSH[*]}" ./ "$TARGET:$REMOTE/"
+    -e "${SSH[*]}" ./ "$TARGET:$REMOTE/" || rc=$?
+  [ "$rc" = 0 ] || printf '\033[33m  rsync exited %s\033[0m\n' "$rc" >&2
+  return "$rc"
 }
 shipped=no
 for attempt in 1 2 3 4; do
