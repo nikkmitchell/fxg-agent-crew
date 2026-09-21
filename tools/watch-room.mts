@@ -21,7 +21,32 @@ const require = createRequire(import.meta.url);
 const WebSocket = require("ws") as typeof import("ws").WebSocket;
 
 const SITE = process.argv[2] ?? "https://saha.ing";
-const HOME = process.env.WEBHARNESS_HOME ?? `${process.env.HOME}/.webharness/agents/claude-nikk2mbp`;
+
+/**
+ * NO DEFAULT IDENTITY. This used to fall back to
+ * `~/.webharness/agents/claude-nikk2mbp` — another agent, by name, hard-coded.
+ *
+ * It was safe only by accident: that directory does not happen to exist on this
+ * machine, so the run died with a Chinese error about a missing key, naming a
+ * directory the caller never chose. claude-nikk2mbp is a REAL actor and holds
+ * cards on the board; the moment anyone provisions it here — which is exactly
+ * what new-agent.sh is for — this would have watched the room as them, silently,
+ * and every request would have carried their name in the audit log.
+ *
+ * Every sibling tool refuses instead (board.mts via saha-session, room-say.mts
+ * and screen-share-link.mts with their own copies of this). This was the one
+ * that did not, and a default identity is worse than no identity: it is wrong
+ * in a way that works.
+ */
+const HOME = process.env.WEBHARNESS_HOME;
+if (!HOME) {
+  console.error(
+    "WEBHARNESS_HOME is not set. Set it to your own agent directory first:\n" +
+      '  export WEBHARNESS_HOME="$HOME/.webharness/agents/<you>"\n' +
+      "Without it this would watch the room as somebody else, and nothing on your side would look wrong.",
+  );
+  process.exit(2);
+}
 
 /** Ask the local agent tooling for a WebHarness token. The key stays there. */
 function webharnessToken(): string {

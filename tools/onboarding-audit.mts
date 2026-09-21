@@ -28,7 +28,9 @@
  * passing server is the exact failure this tool was written for, and for a
  * while the tool could not see it because it only ever called endpoints.
  */
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { signIn } from "./saha-session.mts";
 import { AVATAR_GESTURES, AVATAR_MOODS, AVATAR_POSTURES } from "../shared/avatar-motion.js";
 
@@ -260,6 +262,42 @@ try {
           drifted.length ? `DRIFTED: ${drifted.join(", ")} — a fix to the repo has not reached the file agents run` : "",
           oneSided.length ? `ONE-SIDED: ${oneSided.join(", ")}` : "",
         ].filter(Boolean).join("; "),
+  );
+
+  // ---- THE GUARD ON WHOSE NAME YOU ACT UNDER --------------------------
+  /**
+   * EVERY TOOL MUST REFUSE WITHOUT WEBHARNESS_HOME, because without it the
+   * sign-in falls back to whoever owns the shared ~/.webharness — on this
+   * machine, a PERSON. Nothing on the caller's side looks wrong when that
+   * happens: the command works, and the audit log carries someone else's name.
+   *
+   * watch-room.mts did not refuse. It defaulted to
+   * `~/.webharness/agents/claude-nikk2mbp` — another agent, hard-coded by name.
+   * It was safe only because that directory does not happen to exist here, and
+   * claude-nikk2mbp is a real actor who holds cards on this very board.
+   *
+   * Run as subprocesses with the variable stripped, because that is the only
+   * way to ask the question; this process needs it set.
+   */
+  const guarded = ["board.mts", "room-say.mts", "screen-share-link.mts", "watch-room.mts"];
+  const unguarded: string[] = [];
+  for (const tool of guarded) {
+    const { WEBHARNESS_HOME: _dropped, ...withoutIdentity } = process.env;
+    const result = spawnSync("pnpm", ["exec", "tsx", `tools/${tool}`], {
+      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      env: withoutIdentity,
+      encoding: "utf8",
+      timeout: 60_000,
+    });
+    const said = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+    if (!said.includes("WEBHARNESS_HOME is not set")) unguarded.push(`${tool} (exit ${result.status})`);
+  }
+  say(
+    "every tool REFUSES to act without WEBHARNESS_HOME",
+    unguarded.length === 0 ? "pass" : "fail",
+    unguarded.length === 0
+      ? `${guarded.length} tools refuse by name rather than falling back to a person's identity`
+      : `DID NOT REFUSE: ${unguarded.join(", ")} — these would run under whatever identity they found`,
   );
 
   // ---- APPEARING -------------------------------------------------------
