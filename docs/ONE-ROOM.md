@@ -135,6 +135,7 @@ Each is done when its check passes. Struck through when landed.
 | 14 | Panel move/resize smooth and frame-rate independent | drag at 15fps and 120fps land in the same place |
 | 15 | One codebase: no headset conditional outside adapter/camera | grep test fails on a new one |
 | 16 | Delete stills renderer, WebPanel, StillPanel, duplicate input | files gone; suite still green |
+| 17 | Exercise it in a real room end to end | mood board, cards, drag, add, comment, pull-off — driven locally in the harness, then AGAIN against the deployed server from a fresh session |
 
 ## Order of work
 
