@@ -219,25 +219,39 @@ export function paintSettings(
       continue;
     }
 
-    // THE ROW'S OWN PLATE, so it is obvious that a row is a thing you press.
-    const on = (item.kind === "choice" && item.selected) || (item.kind === "toggle" && item.on);
+    /**
+     * THE ROW'S OWN PLATE, so it is obvious that a row is a thing you press.
+     *
+     * ACCENT MEANS "THE ONE", NOT "ON". The first version filled every row that
+     * was true — and since the panels are all open by default, the panel opened
+     * as a wall of orange bars with the one CHOSEN project no louder than any
+     * of them. The accent is now spent only where there is a choice between
+     * things; an open panel says so with a quiet mark and its ordinary ink.
+     */
+    const chosen = item.kind === "choice" && item.selected;
+    const on = item.kind === "toggle" && item.on;
     ink.push({
       kind: "rect",
       x: padPx,
       y: top + 3,
       width: px.width - padPx * 2,
       height: heightPx - 6,
-      fill: on ? CARD_INK.accent : CARD_INK.paperHeld,
+      fill: chosen ? CARD_INK.accent : CARD_INK.paperHeld,
       radius: 10,
     });
+    if (on) {
+      // A tick's worth of accent down the edge: enough to scan, not enough to
+      // shout over the row that is actually selected.
+      ink.push({ kind: "line", x: padPx, y: top + 3, width: 7, height: heightPx - 6, fill: CARD_INK.accent });
+    }
     ink.push({
       kind: "text",
       x: padPx + 18,
       y: top + heightPx * 0.62,
       text: item.label,
       size: 26,
-      fill: on ? CARD_INK.paper : CARD_INK.ink,
-      weight: on ? "bold" : undefined,
+      fill: chosen ? CARD_INK.paper : CARD_INK.ink,
+      weight: chosen || on ? "bold" : undefined,
     });
 
     if (item.kind === "cycle" || item.kind === "stepper") {
