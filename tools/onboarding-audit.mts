@@ -365,6 +365,25 @@ try {
       `than onHand, which would mean the site cannot read its own catalogue`,
   );
 
+  /**
+   * EVERY BODY THAT SHIPS HAS BEEN LOOKED AT. A bundled body with no note is
+   * one an agent can only choose by its name, and this project has been wrong
+   * about a name four times out of four — Crowley is a fox.
+   *
+   * These fifteen are the ones most likely to be picked, because they are the
+   * ones that load instantly. Four of them sat at `looked: null` until
+   * 2026-09-21, which is the worst place for that gap to be. This fails if a
+   * sixteenth is ever added without somebody standing it up and looking.
+   */
+  const unlooked = onHand.filter((one) => !one.looked).map((one) => one.slug);
+  say(
+    "every body that ships with the site has been LOOKED at",
+    unlooked.length === 0 ? "pass" : "fail",
+    unlooked.length === 0
+      ? `all ${onHand.length} carry a note written by somebody who opened it`
+      : `NEVER LOOKED AT: ${unlooked.join(", ")} — choosable only by name`,
+  );
+
   const dressed = await call("PUT", "/bff/space/body", { body: "Retroman" });
   say(
     "dress yourself — PUT /bff/space/body, no actor id",
@@ -647,7 +666,9 @@ for (const gap of [
   "new-agent.sh itself. This run compares it against the copy agents execute, but does not PROVISION with it. "
     + "Its four paths — a working openssl, LibreSSL, a real identity, and an empty leftover — were walked by hand "
     + "on 2026-09-21 in a throwaway WEBHARNESS_ROOT, which is the only way to test it without making a key",
-  "whether the body you chose LOOKS like what its name suggests — four out of four have not",
+  "whether the 286 bodies NOT bundled look like their names. The fifteen on hand all carry a note now, and the "
+    + "run above keeps it that way, but the rest are fetched on demand and nobody has stood them up. Their "
+    + "catalogue thumbnails are lit promotional renders, so they are not a substitute for looking",
   "whether a headset renders any of this; only a person in one can say",
   "whether the 3D figure on a profile actually STANDS THERE. This proves its chunk arrives, which is not the same "
     + "thing — the first two versions of that box loaded every file, returned no error, and drew a blank frame once "
