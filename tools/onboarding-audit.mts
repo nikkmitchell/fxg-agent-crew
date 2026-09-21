@@ -456,7 +456,22 @@ try {
       `${toward.status}; faced ${facedSomebody} at ${JSON.stringify((toward.json?.home as { facing?: number })?.facing)}`,
     );
   } else {
-    say("walk, facing somebody by name", "skip", "nobody else is in the room to face");
+    /**
+     * ALONE IS ALSO A STATE WORTH ASSERTING. Facing genuinely needs the target
+     * present — they have no position otherwise — so the positive case cannot
+     * run. But the REFUSAL can, and it is the more common path: a name that is
+     * not in the room must be turned down, and the message must say who is
+     * here, or the caller cannot tell a typo from an empty room.
+     */
+    const absent = await call("PUT", `/bff/space/homes/${encodeURIComponent(whoami)}`, {
+      x: 1.4, z: 5.2, face: "NobodyOfThatName",
+    });
+    say(
+      "facing a name that is not in the room is refused, and the refusal says who IS",
+      absent.status === 400 && String(absent.json?.code) === "BAD_HOME"
+        && String(absent.json?.error).includes(whoami) ? "pass" : "fail",
+      `${absent.status} ${String(absent.json?.code)}: ${String(absent.json?.error).slice(0, 90)}`,
+    );
   }
 
   const outside = await call("PUT", `/bff/space/homes/${encodeURIComponent(whoami)}`, { x: 40, z: -40, facing: 0 });
@@ -467,16 +482,31 @@ try {
     `${outside.status}; landed at ${JSON.stringify(landed)}`,
   );
 
-  const somebodyElse = people.find((one) => one.actorId.toLowerCase() !== whoami.toLowerCase())?.actorId;
-  if (somebodyElse) {
-    const meddling = await call("PUT", `/bff/space/bodies/${encodeURIComponent(somebodyElse)}`, { body: "shiro" });
+  /**
+   * THIS WAS GATED ON THE WRONG THING. It used to look for somebody else in
+   * PRESENCE, and skip when nobody was there — so the only authorization check
+   * in this whole run was stepped over on almost every run, because the room is
+   * usually one agent at a time. A security check that habitually does not
+   * execute is not a security check; it is a line in a summary.
+   *
+   * The rule never depended on presence. Ownership of a body is about who you
+   * are, not who is standing nearby, and the server refuses for any actor that
+   * is not you whether they are in the room or not — checked. So it takes a
+   * target from the ROSTER instead, which is never empty.
+   */
+  const roster = ((await call("GET", "/bff/board/people")).json?.actors as { id: string }[] | undefined) ?? [];
+  const notMe = roster.find((one) => !isMe(one.id))?.id;
+  if (notMe) {
+    const meddling = await call("PUT", `/bff/space/bodies/${encodeURIComponent(notMe)}`, { body: "shiro" });
+    const inTheRoom = people.some((one) => one.actorId.toLowerCase() === notMe.toLowerCase());
     say(
       "an agent cannot dress another agent",
-      meddling.status === 403 ? "pass" : "fail",
-      `${meddling.status} on ${somebodyElse}; this is the whole security surface of the feature`,
+      meddling.status === 403 && String(meddling.json?.code) === "NOT_ALLOWED" ? "pass" : "fail",
+      `${meddling.status} ${String(meddling.json?.code)} on ${notMe} (${inTheRoom ? "in the room" : "NOT in the room"}); ` +
+        `this is the whole security surface of the feature, and it no longer skips when you are alone`,
     );
   } else {
-    say("an agent cannot dress another agent", "skip", "nobody else is in the room to try it on");
+    say("an agent cannot dress another agent", "fail", "the roster held nobody but me, which cannot be right");
   }
 
   // ---- SPEAKING --------------------------------------------------------
