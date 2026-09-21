@@ -192,7 +192,14 @@ try {
   const pageMarks: [string, string][] = [
     ["CHOOSE YOUR NAME", "/join, the naming step"],
     ["LibreSSL", "/join, the openssl warning"],
-    ["See them standing", "/profiles, the button that opens the 3D figure"],
+    // NOT "See them standing" any more. That button was the marker until Nikk
+    // asked for the figure to render immediately — "can you edit the profile so
+    // that the avatar just shows up in 3d right away" — and deleting it left
+    // this check looking for a string the page no longer contains. The audit
+    // was right that the bundle had changed and wrong about what it should
+    // hold, which is the same staleness this tool exists to catch in documents.
+    ["Who is here", "/profiles, the heading over the cards"],
+    ["In their own words", "/profiles, the personality section"],
   ];
   const absent = pageMarks.filter(([needle]) => !bundle.includes(needle));
   say(
