@@ -62,7 +62,12 @@ type VoicesAnswer = {
   heardByAnybody?: boolean;
 };
 type BodiesAnswer = {
-  onHand: { slug: string; catalogue: string; looked: string | null }[];
+  // `catalogue` IS NULLABLE and this said it was not. shared/avatar-choice.ts
+  // has `catalogue: null` for anything predating the catalogue — cool-fridge
+  // today. A type that overstates what a payload contains does not prevent the
+  // crash, it just moves it to runtime and removes the warning: I matched on
+  // this field, slugOf(null) threw, and the whole profile page went white.
+  onHand: { slug: string; catalogue: string | null; looked: string | null }[];
   chosen: BodyHolding[];
   catalogue: string;
   wearable: number;
@@ -223,7 +228,6 @@ function ProfileDetail(props: {
   const [editing, setEditing] = useState(false);
   // Asked for rather than automatic: opening four profiles should not download
   // four VRMs at somebody on a phone.
-  const [seeing, setSeeing] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -273,23 +277,35 @@ function ProfileDetail(props: {
 
       <section className="profile-block">
         <h3>Body</h3>
-        <BodyPortrait body={props.chosenBody} catalogue={props.catalogue} bodies={props.bodies} />
         {/*
-          The picture says what it looks like; this says how it STANDS. A body
-          is chosen for how it reads in a room, and a still frame cannot show
-          that — the idle is the difference between a model and somebody there.
+          THE FIGURE, STRAIGHT AWAY. Nikk, over a screenshot with the flat
+          thumbnail crossed out: "can you edit the profile so that the avatar
+          just shows up in 3d right away on profile".
+          
+          It used to sit behind a "See them standing" button, with a catalogue
+          thumbnail above it. Two pictures of the same person, one of them a
+          promotional render, and the real one needing a click — so the default
+          view of somebody was the least true image available. The body name is
+          already in the line under their name, so nothing is lost by dropping
+          the thumbnail here.
+
+          Still lazy: three and a VRM are megabytes, and this imports them when
+          a profile OPENS rather than when the page does. The list of cards
+          draws no figures at all.
         */}
-        {seeing
-          ? (
-            <Suspense fallback={<p className="profile-absent">loading the figure…</p>}>
-              <BodyStage actorId={profile.actorId} body={props.chosenBody} />
-            </Suspense>
-          )
-          : (
-            <button type="button" className="profile-edit profile-see" onClick={() => setSeeing(true)}>
-              See them standing
-            </button>
-          )}
+        <Suspense fallback={<div className="body-stage is-loading" />}>
+          <BodyStage actorId={profile.actorId} body={props.chosenBody} />
+        </Suspense>
+        {/*
+          SAY SO WHEN NOBODY CHOSE. The figure above draws the room's default in
+          that case, which is honest but indistinguishable from a deliberate
+          choice — and "has not picked yet" is a real state worth seeing. The
+          flat portrait used to carry this sentence; it is the only thing it
+          said that a 3D figure cannot.
+        */}
+        {props.chosenBody
+          ? null
+          : <p className="profile-absent">No body chosen — drawn as the room's default.</p>}
       </section>
 
       <section className="profile-block">
@@ -572,25 +588,6 @@ function VoiceChooser({ voices, onChanged }: { voices: VoicesAnswer; onChanged: 
  * orange-tan fox; the wardrobe's own notes record somebody discovering the same
  * thing. A picture settles it and a name does not.
  */
-function BodyPortrait(props: { body: string | null; catalogue: CatalogueBody[]; bodies: BodiesAnswer | null }) {
-  if (!props.body) return <p className="profile-absent">No body chosen — drawn as the room's default.</p>;
-  const entry = props.catalogue.find((c) => slugOf(c.name) === slugOf(props.body!));
-  const onHand = props.bodies?.onHand.find((o) => slugOf(o.slug) === slugOf(props.body!));
-  return (
-    <div className="body-portrait">
-      {entry?.thumbnail
-        ? <img src={entry.thumbnail} alt={`${props.body}, as it looks`} loading="lazy" />
-        : <div className="body-portrait-none">no picture</div>}
-      <div>
-        <strong>{entry?.name ?? onHand?.catalogue ?? props.body}</strong>
-        {/* `looked` is somebody who actually opened it saying what they saw. */}
-        {onHand?.looked ? <p className="body-looked">{onHand.looked}</p> : null}
-        {entry?.collection ? <p className="profile-hint">{entry.collection}</p> : null}
-      </div>
-    </div>
-  );
-}
-
 /**
  * The whole wardrobe, not the part that happens to ship with the site.
  *
@@ -609,7 +606,17 @@ function BodyChooser(props: {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  const all = props.catalogue.length ? props.catalogue : (props.bodies?.onHand ?? []).map((o) => ({ name: o.catalogue }));
+  // `o.catalogue ?? o.slug`, BECAUSE THE FALLBACK HAD THE SAME LATENT CRASH.
+  // This path runs only when the catalogue file fails to load, and it mapped a
+  // nullable field onto `name` — which is then lowercased and slugged below.
+  // Nothing flagged it while the type claimed the field was a string; making
+  // the type honest turned it into three compiler errors.
+  const all = props.catalogue.length
+    ? props.catalogue
+    : (props.bodies?.onHand ?? []).map((o) => ({ name: o.catalogue ?? o.slug }));
+  const worn = props.chosenBody
+    ? props.bodies?.onHand.find((o) => slugOf(o.slug) === slugOf(props.chosenBody!))
+    : undefined;
   const shown = filter.trim()
     ? all.filter((b) => b.name.toLowerCase().includes(filter.trim().toLowerCase())).slice(0, 120)
     : all.slice(0, 120);
@@ -634,6 +641,15 @@ function BodyChooser(props: {
         {all.length} to choose from. The 15 whose files ship with the site are not a shortlist — any of
         these can be worn, and the rest are fetched the first time somebody needs them.
       </p>
+      {/*
+        WHAT LOOKING FOUND, MOVED TO WHERE THE CHOICE IS MADE. These notes used
+        to sit on the finished profile, beside a 3D figure that already showed
+        you the body — describing what you could see. Here they are the only
+        thing standing between a name and a blind pick: Crowley is a fox,
+        Observer has no face at all. The thumbnails do not close that gap
+        either, being lit promotional renders.
+      */}
+      {worn?.looked ? <p className="body-looked">You are wearing {worn.catalogue ?? worn.slug}: {worn.looked}</p> : null}
       <input className="body-filter" value={filter} placeholder="search the wardrobe"
         onChange={(e) => setFilter(e.target.value)} />
       <ul className="body-grid">

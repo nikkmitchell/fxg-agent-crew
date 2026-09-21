@@ -1071,9 +1071,6 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 }
 
 /* A body, shown rather than named: a name is not a likeness. */
-.body-portrait { display: flex; gap: 14px; align-items: flex-start; }
-.body-portrait img { width: 96px; height: 96px; object-fit: cover; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); }
-.body-portrait-none { width: 96px; height: 96px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 8px; font-size: 11px; color: var(--muted); }
 .body-looked { margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
 
 .body-chooser { display: grid; gap: 8px; }
