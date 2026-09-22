@@ -209,6 +209,12 @@ function TaskBoard({
             setAdding(null);
             setCommenting(detail.id);
           }}
+          onMove={(to) => {
+            void board
+              .transition(detail.id, to)
+              .then(() => boardFeed.refresh())
+              .catch((error: unknown) => onSay(error instanceof Error ? error.message : "that move was refused"));
+          }}
           at={[0, 0, 0.55]}
         />
       ) : null}

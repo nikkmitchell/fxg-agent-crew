@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMENTS_SHOWN, DETAIL_CLOSE, DETAIL_PX, isDetailClose, isDetailComment, paintDetail, type TaskDetail } from "./card-detail.js";
+import { COMMENTS_SHOWN, DETAIL_CLOSE, DETAIL_MOVES, DETAIL_PX, detailMoveAt, isDetailClose, isDetailComment, paintDetail, type TaskDetail } from "./card-detail.js";
 import type { Ink } from "./card-paint.js";
 
 const measure = (text: string, size: number) => text.length * size * 0.55;
@@ -160,6 +160,62 @@ describe("writing a comment on it", () => {
     // Two controls sharing a pixel is one control nobody can reach.
     for (const uv of [{ x: 0.95, y: 0.95 }, { x: 0.5, y: 0.01 }]) {
       expect(isDetailClose(uv) && isDetailComment(uv)).toBe(false);
+    }
+  });
+});
+
+describe("moving it from the panel you pulled it off into", () => {
+  const moves = ["in_progress", "blocked", "done"];
+  const band = (DETAIL_MOVES.v0 + DETAIL_MOVES.v1) / 2;
+
+  it("OFFERS THE MOVES, so reading a card and acting on it are one place", () => {
+    // Pulling a card off to read it is exactly when you decide it is done, and
+    // the only way to say so was to close the panel, find the card again among
+    // six columns, and drag it.
+    const words = said(paintDetail(task({ moves }), measure));
+    expect(words).toContain("move it to");
+    expect(words).toContain("Doing");
+    expect(words).toContain("Done");
+  });
+
+  it("uses the board's words for a status, not the database's", () => {
+    // "in_progress" is not what the column above the card says.
+    const words = said(paintDetail(task({ moves: ["in_progress"] }), measure));
+    expect(words).toContain("Doing");
+    expect(words).not.toContain("in_progress");
+  });
+
+  it("finds the chip under a point, left to right", () => {
+    expect(detailMoveAt({ x: 0.1, y: band }, moves)).toBe("in_progress");
+    expect(detailMoveAt({ x: 0.5, y: band }, moves)).toBe("blocked");
+    expect(detailMoveAt({ x: 0.9, y: band }, moves)).toBe("done");
+  });
+
+  it("answers nothing above or below the strip", () => {
+    // The description is above it and the comment control is below.
+    expect(detailMoveAt({ x: 0.5, y: 0.5 }, moves)).toBeNull();
+    expect(detailMoveAt({ x: 0.5, y: 0.02 }, moves)).toBeNull();
+  });
+
+  it("is SILENT when there is nothing legal to do", () => {
+    // A chip that refuses when pressed is worse than a chip that is not there.
+    expect(detailMoveAt({ x: 0.5, y: band }, [])).toBeNull();
+    expect(said(paintDetail(task({ moves: [] }), measure))).not.toContain("move it to");
+  });
+
+  it("does not overlap the comment strip or the close control", () => {
+    const mid = { x: 0.5, y: band };
+    expect(isDetailComment(mid)).toBe(false);
+    expect(isDetailClose(mid)).toBe(false);
+  });
+
+  it("keeps its chips inside the panel however many there are", () => {
+    for (const many of [["a"], ["a", "b"], ["a", "b", "c"], ["a", "b", "c", "d", "e"]]) {
+      for (const item of paintDetail(task({ moves: many }), measure)) {
+        expect(item.x).toBeGreaterThanOrEqual(0);
+        expect(item.x).toBeLessThanOrEqual(DETAIL_PX.width);
+        expect(item.y).toBeLessThanOrEqual(DETAIL_PX.height);
+      }
     }
   });
 });

@@ -245,13 +245,35 @@ export function Typing3D({
         because they are alternatives to it rather than part of it.
       */}
       <WayIn
-        x={-0.18}
+        x={-0.235}
+        width={0.22}
         shown={canSpeak}
-        label={phase === "recording" ? "listening — press to stop" : phase === "writing" ? "writing it down…" : "speak"}
+        label={phase === "recording" ? "listening — stop" : phase === "writing" ? "writing…" : "speak"}
         lit={phase !== "idle"}
         onPress={speak}
       />
-      <WayIn x={0.18} shown label="system keyboard" onPress={useSystemKeyboard} />
+      <WayIn x={0} width={0.22} shown label="system keyboard" onPress={useSystemKeyboard} />
+      {/*
+        SAVE, OUT WHERE IT CAN BE HIT.
+        
+        There is a "done" key in the bottom row of the keyboard and I missed it
+        twice while testing — with coordinates I had worked out from the layout.
+        A key among forty keys is the wrong shape for the one action that ends
+        the whole interaction, and it is worse in a headset, where the keys are
+        the fiddliest thing on the panel. This is the same size as the other two
+        and sits with them.
+        
+        AN EMPTY FIELD STILL MEANS "CHANGED MY MIND", the same as pressing done
+        on one — so this cannot create a card called "".
+      */}
+      <WayIn
+        x={0.235}
+        width={0.22}
+        shown
+        lit={latest.current.text.trim().length > 0}
+        label={latest.current.text.trim() ? "save" : "close"}
+        onPress={() => settle({ ...latest.current, done: true })}
+      />
 
       <Keyboard3D typing={typing} onChange={settle} position={[0, -0.09, 0]} />
     </group>
@@ -270,12 +292,14 @@ function WayIn({
   x,
   label,
   shown,
+  width = 0.33,
   lit = false,
   onPress,
 }: {
   x: number;
   label: string;
   shown: boolean;
+  width?: number;
   lit?: boolean;
   onPress: () => void;
 }) {
@@ -289,10 +313,10 @@ function WayIn({
           onPress();
         }}
       >
-        <planeGeometry args={[0.33, 0.045]} />
+        <planeGeometry args={[width, 0.045]} />
         <meshBasicMaterial color={lit ? CARD_INK.accent : "#2b3245"} toneMapped={false} />
       </mesh>
-      <Text position={[0, 0, 0.002]} fontSize={0.022} color="#e9e6de" anchorX="center" anchorY="middle" maxWidth={0.3}>
+      <Text position={[0, 0, 0.002]} fontSize={0.019} color="#e9e6de" anchorX="center" anchorY="middle" maxWidth={width * 0.9}>
         {label}
       </Text>
     </group>
