@@ -32,8 +32,6 @@ import { claimPointer } from "./pointer-claim";
  * free as long as nothing here asks which device it was.
  */
 
-const CARD_ASPECT = CARD_PX.height / CARD_PX.width;
-
 /** One card's mesh, with its own texture, repainted only when it changes. */
 function Card({
   place,
@@ -61,7 +59,6 @@ function Card({
 
   useEffect(() => () => texture.dispose(), [texture]);
 
-  const height = place.width * CARD_ASPECT;
   return (
     <mesh
       position={[place.x, place.y, held ? 0.06 : 0.004]}
@@ -69,7 +66,17 @@ function Card({
       onPointerMove={(event) => onPointer("move", event)}
       onPointerUp={(event) => onPointer("up", event)}
     >
-      <planeGeometry args={[place.width, Math.min(height, place.height)]} />
+      {/*
+        THE PLANE THE LAYOUT ASKED FOR, unclamped.
+        
+        This was `Math.min(place.width * CARD_ASPECT, place.height)`, and the
+        clamp was doing the damage: the layout gave cards a flat 0.16m height
+        while the texture is two to one, so on a four-metre board every card was
+        drawn on a 4:1 plane and its text squashed to half its height. The
+        layout now derives a card's height from its width, so the plane and the
+        bitmap agree by construction and there is nothing left to clamp.
+      */}
+      <planeGeometry args={[place.width, place.height]} />
       <meshBasicMaterial map={texture} transparent toneMapped={false} />
     </mesh>
   );
@@ -350,12 +357,23 @@ function AddControl({ box, column }: { box: { x: number; y: number; width: numbe
             card that is already there. */}
         <meshBasicMaterial color={CARD_INK.paperHeld} transparent opacity={0.7} toneMapped={false} />
       </mesh>
+      {/*
+        BOUNDED, because a label with no width runs into the next column.
+        
+        drei's Text lays out freely unless it is told not to, and the strips sit
+        side by side with a hair between them — so "add to Backlog" ran straight
+        through "add to Assigned" and the foot of the board read as one long
+        smear. `maxWidth` is the whole fix; the smaller size is so the common
+        case does not need to wrap at all.
+      */}
       <Text
         position={[0, 0, 0.002]}
-        fontSize={box.height * 0.34}
+        fontSize={box.height * 0.2}
         color={CARD_INK.muted}
         anchorX="center"
         anchorY="middle"
+        maxWidth={box.width * 0.86}
+        textAlign="center"
       >
         {`+  add to ${column.label}`}
       </Text>

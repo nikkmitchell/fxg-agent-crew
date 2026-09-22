@@ -80,6 +80,15 @@ export const BOARD_COLUMNS: readonly { status: Status; label: string }[] = [
 ];
 
 /**
+ * How tall a card is, as a fraction of its width.
+ *
+ * It is the shape of the bitmap `card-paint` draws into, and it lives here
+ * because the LAYOUT is what has to honour it: a plane whose aspect disagrees
+ * with its texture stretches the text on it.
+ */
+export const CARD_SHAPE = 256 / 512;
+
+/**
  * The proportions a board can be laid out at.
  *
  * A TYPE, because `BOARD` below is `as const` and its literal `2.4` would
@@ -123,6 +132,22 @@ export function layOutBoard(cards: readonly BoardCard[], size: BoardSize = BOARD
   const columnCount = BOARD_COLUMNS.length;
   const usableWidth = size.width - size.padding * 2;
   const columnWidth = (usableWidth - size.columnGap * (columnCount - 1)) / columnCount;
+  /**
+   * A CARD IS AS TALL AS ITS OWN PICTURE, not a fixed number of centimetres.
+   *
+   * `card-paint` draws into a 512x256 bitmap — two to one — and the card was
+   * drawn on a plane of columnWidth by a flat 0.16m, which on a four-metre
+   * board is four to one. A texture on a plane of a different aspect is
+   * STRETCHED, so every card on the board had its text squashed to half its
+   * proper height. That is the third time this exact mistake has turned up in
+   * this room, and the first two were in panels I wrote after this one.
+   *
+   * Deriving the height from the width makes it impossible rather than
+   * unlikely. It also means FEWER, READABLE cards per column instead of a
+   * dozen cramped strips — and the ones that do not fit are reported, which is
+   * what `overflow` has always been for.
+   */
+  const cardHeight = columnWidth * CARD_SHAPE;
   const top = size.height / 2 - size.padding - size.headerHeight;
   const bottom = -size.height / 2 + size.padding;
   /**
@@ -131,8 +156,8 @@ export function layOutBoard(cards: readonly BoardCard[], size: BoardSize = BOARD
    * would stack a card underneath the strip, and pressing that card would make
    * a new one instead of picking it up.
    */
-  const addRoom = size.cardHeight + size.cardGap;
-  const perColumn = Math.max(0, Math.floor((top - bottom - addRoom + size.cardGap) / (size.cardHeight + size.cardGap)));
+  const addRoom = cardHeight + size.cardGap;
+  const perColumn = Math.max(0, Math.floor((top - bottom - addRoom + size.cardGap) / (cardHeight + size.cardGap)));
 
   const columns: BoardColumn[] = [];
   const places: CardPlace[] = [];
@@ -147,9 +172,9 @@ export function layOutBoard(cards: readonly BoardCard[], size: BoardSize = BOARD
       places.push({
         card,
         x,
-        y: top - size.cardHeight / 2 - row * (size.cardHeight + size.cardGap),
+        y: top - cardHeight / 2 - row * (cardHeight + size.cardGap),
         width: columnWidth,
-        height: size.cardHeight,
+        height: cardHeight,
         column: index,
         row,
       });
@@ -215,11 +240,14 @@ export function addControlOf(
   column: BoardColumn,
   size: BoardSize = BOARD,
 ): { x: number; y: number; width: number; height: number } {
+  // A card's height, derived the same way, so the strip stays in step with the
+  // cards above it however wide the panel is.
+  const height = column.width * CARD_SHAPE;
   return {
     x: column.x,
-    y: -layout.height / 2 + size.padding + size.cardHeight / 2,
+    y: -layout.height / 2 + size.padding + height / 2,
     width: column.width,
-    height: size.cardHeight,
+    height,
   };
 }
 

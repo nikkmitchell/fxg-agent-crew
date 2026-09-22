@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, addAt, addControlOf, type BoardCard } from "./board-3d.js";
+import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, addAt, addControlOf, CARD_SHAPE, type BoardCard } from "./board-3d.js";
 import { canTransition } from "./board-rules.js";
 
 /**
@@ -215,6 +215,25 @@ describe("the board fills the panel it is given", () => {
     const shortHidden = short.overflow.reduce((sum, o) => sum + o.hidden, 0);
     const tallHidden = tall.overflow.reduce((sum, o) => sum + o.hidden, 0);
     expect(tallHidden).toBeLessThan(shortHidden);
+  });
+
+  it("SHAPES EVERY CARD LIKE ITS OWN PICTURE, at any panel size", () => {
+    /**
+     * `card-paint` draws into a 512x256 bitmap. A plane of a different aspect
+     * stretches that, and the card was given a flat 0.16m height on columns
+     * two thirds of a metre wide — 4:1 against a 2:1 texture, so every title
+     * on the board was squashed to half its height. Third time this exact
+     * mistake has appeared in this room.
+     */
+    for (const [w, h] of [[2.4, 1.5], [4.0, 2.5], [6.0, 3.2]] as const) {
+      const layout = layOutBoard(many, sized(w, h));
+      for (const place of layout.cards) {
+        expect(place.height / place.width, `${w}x${h} card is the wrong shape`).toBeCloseTo(CARD_SHAPE, 6);
+      }
+      // And the add strip matches, so it does not read as a different object.
+      const box = addControlOf(layout, layout.columns[0], sized(w, h));
+      expect(box.height / box.width).toBeCloseTo(CARD_SHAPE, 6);
+    }
   });
 
   it("keeps every card inside the panel at any size", () => {
