@@ -466,7 +466,9 @@ export default function Scene({
       // snapshot arrived, or you pressed a key. Other people snap between
       // positions instead of gliding, which is the point rather than a
       // shortcoming.
-      frameloop={reducedMotion ? "demand" : "always"}
+      // XR tracking/contact must still run every device frame. Decorative Go
+      // motion separately honors reducedMotion, without freezing a carried stone.
+      frameloop={reducedMotion && !inHeadset ? "demand" : "always"}
       camera={{
         fov: 70,
         near: 0.1,
@@ -565,7 +567,7 @@ export default function Scene({
 
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
-        <RoomItems items={connection.roomItems} />
+        <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} inHeadset={inHeadset} you={you} peopleRef={connection.peopleRef} />
         <Immersive
           comfort={comfort}
           send={connection.send}

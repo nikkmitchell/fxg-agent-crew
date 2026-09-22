@@ -5,7 +5,8 @@ export const GO_COLOURS = [
   "#15171b", "#f4efe2", "#d85b4b", "#4d8bd6", "#e0ad3b", "#6ead68", "#a66bd4", "#de79a8",
 ] as const;
 
-export type GoStone = { x: number; y: number; colour: number };
+export type GoStone = { x: number; y: number; colour: number; id?: string };
+export type GoCapture = GoStone & { by: number };
 export type GoRoomItem = {
   id: string;
   kind: "go";
@@ -14,7 +15,11 @@ export type GoRoomItem = {
   activeColour: number;
   liftedColour: number | null;
   stones: GoStone[];
-  position: { x: number; z: number; rotationY: number };
+  captures: GoCapture[];
+  revision: number;
+  carrier: { by: string; hand: "left" | "right" | null } | null;
+  position: { x: number; y: number; z: number; rotationY: number };
+  scale: number;
 };
 export type RoomItem = GoRoomItem;
 
@@ -31,7 +36,8 @@ export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
     activeColour: 0,
     liftedColour: null,
     stones: [],
-    position: { x: ordinal * 2.35 - 1.15, z: 1.8, rotationY: 0 },
+    captures: [], revision: 0, carrier: null, scale: 1,
+    position: { x: ordinal * 2.65 - 1.15, y: 0, z: 1.8, rotationY: 0 },
   };
 }
 
@@ -52,5 +58,8 @@ export function parseRoomItem(value: unknown): RoomItem | null {
   );
   if (stones.length !== item.stones.length || !item.position ||
       ![item.position.x, item.position.z, item.position.rotationY].every(Number.isFinite)) return null;
-  return item as GoRoomItem;
+  // Upgrade old tables without clearing their game.
+  return { ...item, captures: item.captures ?? [], revision: item.revision ?? 0,
+    carrier: item.carrier ?? null, scale: item.scale ?? 1,
+    position: { ...item.position, y: item.position.y ?? 0 } } as GoRoomItem;
 }
