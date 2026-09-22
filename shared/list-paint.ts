@@ -41,7 +41,7 @@ export function paintList(
   title: string,
   rows: readonly ListRow[],
   measure: (text: string, size: number) => number,
-  options: { empty?: string; newestLast?: boolean } = {},
+  options: { empty?: string; newestLast?: boolean; leadWithSecondary?: boolean } = {},
 ): Ink[] {
   const { width, height } = LIST_PX;
   const pad = 32;
@@ -74,18 +74,41 @@ export function paintList(
     if (row.tint) {
       ink.push({ kind: "line", x: pad, y: y - 24, width: 6, height: 40, fill: row.tint });
     }
-    const [line] = fitLines(measure, row.primary, 27, width - pad * 2 - 28 - (row.secondary ? 180 : 0), 1);
-    ink.push({
-      kind: "text",
-      x: pad + 20,
-      y,
-      text: line ?? "",
-      size: 27,
-      fill: row.faded ? CARD_INK.muted : CARD_INK.ink,
-    });
-    if (row.secondary) {
-      const [quiet] = fitLines(measure, row.secondary, 22, 170, 1);
-      ink.push({ kind: "text", x: width - pad - 170, y, text: quiet ?? "", size: 22, fill: CARD_INK.muted });
+    /**
+     * A TRANSCRIPT READS "WHO, THEN WHAT". A roster reads "who, and how they
+     * are". So the quiet half leads on one and trails on the other.
+     *
+     * The speaker used to sit at the far right of the row — fine on a chat
+     * window, and a long way from the words on a panel four metres wide, where
+     * the eye has to cross the whole board to find out who said something.
+     */
+    if (options.leadWithSecondary && row.secondary) {
+      const [who] = fitLines(measure, `${row.secondary}`, 24, 210, 1);
+      const whoWidth = measure(who ?? "", 24) + 16;
+      ink.push({ kind: "text", x: pad + 20, y, text: who ?? "", size: 24, fill: CARD_INK.accent, weight: "bold" });
+      const [line] = fitLines(measure, row.primary, 27, width - pad * 2 - 28 - whoWidth, 1);
+      ink.push({
+        kind: "text",
+        x: pad + 20 + whoWidth,
+        y,
+        text: line ?? "",
+        size: 27,
+        fill: row.faded ? CARD_INK.muted : CARD_INK.ink,
+      });
+    } else {
+      const [line] = fitLines(measure, row.primary, 27, width - pad * 2 - 28 - (row.secondary ? 180 : 0), 1);
+      ink.push({
+        kind: "text",
+        x: pad + 20,
+        y,
+        text: line ?? "",
+        size: 27,
+        fill: row.faded ? CARD_INK.muted : CARD_INK.ink,
+      });
+      if (row.secondary) {
+        const [quiet] = fitLines(measure, row.secondary, 22, 170, 1);
+        ink.push({ kind: "text", x: width - pad - 170, y, text: quiet ?? "", size: 22, fill: CARD_INK.muted });
+      }
     }
     y += ROW_HEIGHT;
   }

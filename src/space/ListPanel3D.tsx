@@ -21,6 +21,7 @@ export function ListPanel3D({
   surface,
   empty,
   newestLast = false,
+  leadWithSecondary = false,
 }: {
   title: string;
   rows: ListRow[];
@@ -28,6 +29,8 @@ export function ListPanel3D({
   empty?: string;
   /** True for anything that grows: the end is the part worth showing. */
   newestLast?: boolean;
+  /** True for a transcript, which reads "who, then what". */
+  leadWithSecondary?: boolean;
 }) {
   const { canvas, texture } = useMemo(() => makeInkCanvas(LIST_PX.width, LIST_PX.height), []);
   const invalidate = useThree((state) => state.invalidate);
@@ -35,10 +38,10 @@ export function ListPanel3D({
   useEffect(() => {
     const context = canvas.getContext("2d");
     if (!context) return;
-    drawInk(canvas, paintList(title, rows, measureWith(context), { empty, newestLast }));
+    drawInk(canvas, paintList(title, rows, measureWith(context), { empty, newestLast, leadWithSecondary }));
     texture.needsUpdate = true;
     invalidate();
-  }, [canvas, texture, invalidate, title, rows, empty, newestLast]);
+  }, [canvas, texture, invalidate, title, rows, empty, newestLast, leadWithSecondary]);
 
   useEffect(() => () => texture.dispose(), [texture]);
 

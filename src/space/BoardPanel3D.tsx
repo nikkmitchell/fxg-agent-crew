@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { BOARD, addAt, addControlOf, cardAt, layOutBoard, uvFromPanelPoint, type BoardCard, type BoardColumn, type CardPlace } from "../../shared/board-3d";
+import { BOARD, addAt, addControlOf, cardAt, columnPlateOf, layOutBoard, uvFromPanelPoint, type BoardCard, type BoardColumn, type CardPlace } from "../../shared/board-3d";
 import { Text } from "@react-three/drei";
 import { CARD_INK, CARD_PX, paintCard } from "../../shared/card-paint";
 import { applyPending, intentOf, settlePending, type BoardIntent, type PendingMove } from "../../shared/board-actions";
@@ -61,7 +61,7 @@ function Card({
 
   return (
     <mesh
-      position={[place.x, place.y, held ? 0.06 : 0.004]}
+      position={[place.x, place.y, held ? 0.06 : 0.006]}
       onPointerDown={(event) => onPointer("down", event)}
       onPointerMove={(event) => onPointer("move", event)}
       onPointerUp={(event) => onPointer("up", event)}
@@ -281,6 +281,18 @@ export function BoardPanel3D({
         <meshBasicMaterial color={CARD_INK.paper} toneMapped={false} />
       </mesh>
 
+      {/* The lanes, drawn under everything, so the eye has a column to follow
+          and an empty one still has a shape. */}
+      {layout.columns.map((column) => {
+        const plate = columnPlateOf(layout, column, size);
+        return (
+          <mesh key={`plate-${column.status}`} position={[plate.x, plate.y, 0.001]}>
+            <planeGeometry args={[plate.width, plate.height]} />
+            <meshBasicMaterial color={CARD_INK.paperHeld} transparent opacity={0.55} toneMapped={false} />
+          </mesh>
+        );
+      })}
+
       {layout.columns.map((column) => (
         <ColumnHeading key={column.status} label={column.label} count={column.count} x={column.x} width={column.width} top={layout.height / 2} />
       ))}
@@ -349,7 +361,7 @@ function ColumnHeading({
  */
 function AddControl({ box, column }: { box: { x: number; y: number; width: number; height: number }; column: BoardColumn }) {
   return (
-    <group position={[box.x, box.y, 0.005]}>
+    <group position={[box.x, box.y, 0.006]}>
       <mesh>
         <planeGeometry args={[box.width - 0.01, box.height - 0.01]} />
         {/* Dashed-outline energy without a dashed outline: a panel a shade off

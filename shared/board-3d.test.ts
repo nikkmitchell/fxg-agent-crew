@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, addAt, addControlOf, CARD_SHAPE, type BoardCard } from "./board-3d.js";
+import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, addAt, addControlOf, columnPlateOf, CARD_SHAPE, type BoardCard } from "./board-3d.js";
 import { canTransition } from "./board-rules.js";
 
 /**
@@ -233,6 +233,32 @@ describe("the board fills the panel it is given", () => {
       // And the add strip matches, so it does not read as a different object.
       const box = addControlOf(layout, layout.columns[0], sized(w, h));
       expect(box.height / box.width).toBeCloseTo(CARD_SHAPE, 6);
+    }
+  });
+
+  it("gives every column a plate the cards sit inside", () => {
+    // Six columns of flat cream do not read as columns, and an empty one is
+    // indistinguishable from the gap beside it.
+    const size = { ...BOARD, width: 4.0, height: 2.5 };
+    const layout = layOutBoard(many, size);
+    for (const column of layout.columns) {
+      const plate = columnPlateOf(layout, column, size);
+      expect(plate.width).toBeCloseTo(column.width, 6);
+      expect(plate.height).toBeGreaterThan(0);
+      // Inside the panel, and clear of the headings above it.
+      expect(plate.y + plate.height / 2).toBeLessThanOrEqual(size.height / 2 - size.padding + 1e-9);
+      expect(plate.y - plate.height / 2).toBeGreaterThanOrEqual(-size.height / 2 - 1e-9);
+    }
+  });
+
+  it("holds every card of a column inside that column's plate", () => {
+    const size = { ...BOARD, width: 4.0, height: 2.5 };
+    const layout = layOutBoard(many, size);
+    for (const place of layout.cards) {
+      const column = layout.columns[place.column];
+      const plate = columnPlateOf(layout, column, size);
+      expect(Math.abs(place.x - plate.x) + place.width / 2, place.card.id).toBeLessThanOrEqual(plate.width / 2 + 1e-9);
+      expect(place.y + place.height / 2, place.card.id).toBeLessThanOrEqual(plate.y + plate.height / 2 + 1e-9);
     }
   });
 

@@ -87,6 +87,7 @@ export function RoomPanel({
         surface={station.surface}
         empty="Nobody has said anything yet."
         newestLast
+        leadWithSecondary
       />
     );
   }

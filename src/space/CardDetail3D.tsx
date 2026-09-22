@@ -76,11 +76,22 @@ export function CardDetail3D({
 
   return (
     <group position={at}>
-      {/* A back face a shade darker, so the panel reads as a thing in front of
-          the board rather than a stain on it. */}
+      {/*
+        A SHADE OVER THE BOARD BEHIND, then the panel's own edge.
+        
+        Opened centred and forward, the panel is the right size and the right
+        place and still reads as PART of the board — same paper, same ink, no
+        edge between them, so the columns behind look like more of the same
+        page. The scrim is what makes it read as held in front: the board is
+        still there, still legible, and plainly further away.
+      */}
+      <mesh position={[0, 0, -0.02]}>
+        <planeGeometry args={[DETAIL.width * 3.2, DETAIL.height * 1.45]} />
+        <meshBasicMaterial color="#14161d" transparent opacity={0.42} toneMapped={false} />
+      </mesh>
       <mesh position={[0, 0, -0.004]}>
-        <planeGeometry args={[DETAIL.width + 0.03, DETAIL.height + 0.03]} />
-        <meshBasicMaterial color="#2b3245" transparent opacity={0.85} toneMapped={false} />
+        <planeGeometry args={[DETAIL.width + 0.04, DETAIL.height + 0.04]} />
+        <meshBasicMaterial color="#2b3245" transparent opacity={0.92} toneMapped={false} />
       </mesh>
       <mesh ref={surface} onPointerDown={press}>
         <planeGeometry args={[DETAIL.width, DETAIL.height]} />

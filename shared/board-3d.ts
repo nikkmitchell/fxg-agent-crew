@@ -212,6 +212,34 @@ export function pointFromUv(layout: BoardLayout, uv: { x: number; y: number }): 
 }
 
 /**
+ * The plate behind a column, in panel-local metres.
+ *
+ * SIX COLUMNS OF FLAT CREAM DO NOT READ AS COLUMNS. The board drew one
+ * background and let the cards float on it, so which column a card was in was
+ * something you worked out from its left edge lining up with a heading a metre
+ * above. A faint plate per column gives the eye the lane, which matters most in
+ * exactly the case the board is for: judging at a glance where the work is
+ * piled up.
+ *
+ * It also gives an EMPTY column a shape. Before, a column with nothing in it
+ * was indistinguishable from the gap between two columns.
+ */
+export function columnPlateOf(
+  layout: BoardLayout,
+  column: BoardColumn,
+  size: BoardSize = BOARD,
+): { x: number; y: number; width: number; height: number } {
+  const top = layout.height / 2 - size.padding - size.headerHeight;
+  const bottom = -layout.height / 2 + size.padding;
+  return {
+    x: column.x,
+    y: (top + bottom) / 2,
+    width: column.width,
+    height: Math.max(0, top - bottom),
+  };
+}
+
+/**
  * Where a column's "add a card" control sits, in panel-local metres.
  *
  * ONE IN EACH COLUMN, not one button somewhere on the panel. A single "new

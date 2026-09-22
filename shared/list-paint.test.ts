@@ -80,3 +80,32 @@ describe("a titled list on a panel", () => {
     expect(paintList("People", rows(4), measure)).toEqual(paintList("People", rows(4), measure));
   });
 });
+
+describe("who said it", () => {
+  it("LEADS WITH THE SPEAKER for a transcript, which reads who-then-what", () => {
+    // The speaker used to sit at the far right of the row: fine in a chat
+    // window, a long way from the words on a panel four metres wide.
+    const ink = paintList("Said", [{ primary: "the chime fade is in", secondary: "nikk" }], measure, {
+      leadWithSecondary: true,
+    });
+    const xOf = (t: string) => ink.find((i) => i.kind === "text" && i.text.startsWith(t))?.x ?? -1;
+    expect(xOf("nikk")).toBeGreaterThanOrEqual(0);
+    expect(xOf("nikk")).toBeLessThan(xOf("the chime"));
+  });
+
+  it("still trails it for a roster, which reads who-and-how-they-are", () => {
+    const ink = paintList("People", [{ primary: "Wren", secondary: "away" }], measure);
+    const xOf = (t: string) => ink.find((i) => i.kind === "text" && i.text.startsWith(t))?.x ?? -1;
+    expect(xOf("away")).toBeGreaterThan(xOf("Wren"));
+  });
+
+  it("keeps a led speaker inside the panel when the line is long", () => {
+    const long = Array.from({ length: 80 }, () => "word").join(" ");
+    for (const item of paintList("Said", [{ primary: long, secondary: "somebody-with-a-long-name" }], measure, {
+      leadWithSecondary: true,
+    })) {
+      expect(item.x).toBeLessThanOrEqual(LIST_PX.width);
+      expect(item.x).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
