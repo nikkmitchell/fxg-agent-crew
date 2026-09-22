@@ -256,7 +256,39 @@ a fingertip at 60cm that a ray cannot hold at four metres.
 **The lower fifth of a panel's grab face.** The geometry is asserted by a test
 that both halves of the original bug fail; the press itself was never landed.
 
-**The speak button transcribing.** The local harness has no transcriber, so the
-button correctly does not appear there. It is wired to the same recorder and
-endpoint the wrist button already uses, and it will appear on saha.ing — but
-nobody has watched it turn speech into a card title.
+**A human voice.** The path itself is checked, on the live box, as of
+2026-09-23 — see below. What is unchecked is somebody's actual voice through a
+headset microphone inside an immersive session, where the mic is a different
+device and the room is noisier than a file.
+
+## What the speak button actually does, measured
+
+Checked against live on 2026-09-23 by walking the two requests the button makes
+— with real synthesized speech in the same format the page produces, 16 kHz
+mono 16-bit WAV, through a real session.
+
+`GET /bff/space/transcribe` answers `{"available":true}` on saha.ing, so **the
+button appears there.** It does not appear in the local harness, which has no
+transcriber, and that is the behaviour we wanted rather than a gap in testing:
+the room offers the keyboard until the server says there is something to
+transcribe with.
+
+Two utterances, posted and read back:
+
+| said | heard | took |
+| --- | --- | --- |
+| Add a card that says the room can hear me | `At a card that says the room can hear me.` | 4.3s |
+| Move the login card to review | `Move the login card to review.` | 7.1s |
+
+**"Add" came back as "At", and that is survivable by design.** The words are
+appended into the field somebody is already looking at and still need a
+confirm; a mishearing is a character to fix, not a card filed under the wrong
+name. It would be a real fault only if speech committed directly, which is
+exactly why it does not.
+
+**The full stop is left alone on purpose.** Whisper punctuates, so a dictated
+card title ends in a period it does not want. Stripping it would need the panel
+to know what is being written, and of its four callers two are labels (a card
+title, a mood note) and two are prose (a comment, what a note says) — where the
+punctuation is correct. A rule that is wrong half the time is worse than the
+character it removes.
