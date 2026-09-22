@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ThreeEvent } from "@react-three/fiber";
+import { CARD_INK } from "../../shared/card-paint";
+import { canTranscribe, createSayRecorder, type SayRecorder } from "./say-recorder";
+import { openNativeInput, type NativeInput } from "./native-input";
+import { claimPointer } from "./pointer-claim";
 import { Text } from "@react-three/drei";
 import { emptyTyping, press, type Typing } from "../../shared/keyboard-3d";
 import { Keyboard3D } from "./Keyboard3D";
@@ -18,6 +23,22 @@ import { Keyboard3D } from "./Keyboard3D";
  * open: if it is on screen, it is what you are typing into. It stops the keys
  * reaching the walk controls, which would otherwise send you wandering across
  * the room while you wrote a title with a `w` in it.
+ *
+ * THREE WAYS IN, ONE FIELD. Nikk: "we want to allow for speach to text here, or
+ * to use the native text input (so then we can have speach to text on quest)".
+ *
+ *   the 3D keys        always there, and the only thing that works inside an
+ *                      immersive session, where there is no DOM at all
+ *   SPEAK              the room already writes speech down — whisper on the box,
+ *                      the same path the press-to-speak button uses. This is the
+ *                      one that actually suits a headset: no aiming.
+ *   system keyboard    a real, focused DOM input. A headset's own keyboard has
+ *                      a dictation button on it; ours cannot. Outside an
+ *                      immersive session that is the best text entry on the
+ *                      device, so it is offered rather than reimplemented.
+ *
+ * Each is OFFERED ONLY WHEN IT WILL WORK, asked rather than assumed — a control
+ * that can only apologise is worse than one that is not there.
  */
 export function Typing3D({
   prompt,
@@ -47,6 +68,16 @@ export function Typing3D({
   scale?: number;
 }) {
   const [typing, setTyping] = useState<Typing>(() => emptyTyping(initial));
+  /** idle, listening, or waiting for the words to come back. */
+  const [phase, setPhase] = useState<"idle" | "recording" | "writing">("idle");
+  /**
+   * ASKED, NOT ASSUMED. The button must not replace a working keyboard with a
+   * recorder that can only apologise — the same rule the room's press-to-speak
+   * button already follows.
+   */
+  const [canSpeak, setCanSpeak] = useState(false);
+  const recorder = useRef<SayRecorder | null>(null);
+  const native = useRef<NativeInput | null>(null);
   /**
    * The latest text, for the key handler.
    *
@@ -60,6 +91,27 @@ export function Typing3D({
    */
   const latest = useRef(typing);
   latest.current = typing;
+
+  useEffect(() => {
+    let live = true;
+    void canTranscribe().then((yes) => {
+      if (live) setCanSpeak(yes);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  // Let go of the microphone and the DOM input when this closes. A held
+  // microphone is a light on somebody's headset; a stray focused input steals
+  // every key in the room.
+  useEffect(
+    () => () => {
+      recorder.current?.dispose();
+      native.current?.close();
+    },
+    [],
+  );
 
   const settle = (next: Typing) => {
     if (next.cancelled) return onCancel();
@@ -116,6 +168,55 @@ export function Typing3D({
     return () => window.removeEventListener("keydown", onKey, true);
   });
 
+  const write = useCallback((words: string) => {
+    const text = words.trim();
+    if (!text) return;
+    setTyping((t) => {
+      // APPENDED, NOT REPLACED. Somebody who typed half a title and then spoke
+      // the rest meant both halves.
+      const joined = t.text ? `${t.text} ${text}` : text;
+      const next = { ...t, text: joined.slice(0, limit) };
+      latest.current = next;
+      return next;
+    });
+  }, [limit]);
+
+  const speak = useCallback(() => {
+    if (!recorder.current) {
+      recorder.current = createSayRecorder({ onPhase: setPhase, onTrouble: () => setPhase("idle") });
+    }
+    const it = recorder.current;
+    if (it.recording()) {
+      void it.finish().then(write).catch(() => setPhase("idle"));
+      return;
+    }
+    void it.start().catch(() => setPhase("idle"));
+  }, [write]);
+
+  const useSystemKeyboard = useCallback(() => {
+    native.current?.close();
+    native.current = openNativeInput({
+      value: latest.current.text,
+      label: prompt,
+      onChange: (text) => {
+        setTyping((t) => {
+          const next = { ...t, text };
+          latest.current = next;
+          return next;
+        });
+      },
+      onDone: (text) => {
+        native.current = null;
+        const trimmed = text.trim();
+        if (trimmed) onDone(trimmed);
+        else onCancel();
+      },
+      onCancel: () => {
+        native.current = null;
+      },
+    });
+  }, [onCancel, onDone, prompt]);
+
   return (
     <group position={position} scale={scale}>
       <mesh position={[0, 0.16, -0.006]}>
@@ -139,9 +240,61 @@ export function Typing3D({
       <Text position={[0.33, 0.1, 0]} fontSize={0.022} color="#6f6b63" anchorX="right" anchorY="middle">
         {`${typing.text.length}/${limit} · done to save, esc to drop it`}
       </Text>
-      <Keyboard3D typing={typing} onChange={settle} position={[0, -0.02, 0]} />
+      {/*
+        THE TWO WAYS IN THAT ARE NOT KEYS. Side by side above the keyboard,
+        because they are alternatives to it rather than part of it.
+      */}
+      <WayIn
+        x={-0.18}
+        shown={canSpeak}
+        label={phase === "recording" ? "listening — press to stop" : phase === "writing" ? "writing it down…" : "speak"}
+        lit={phase !== "idle"}
+        onPress={speak}
+      />
+      <WayIn x={0.18} shown label="system keyboard" onPress={useSystemKeyboard} />
+
+      <Keyboard3D typing={typing} onChange={settle} position={[0, -0.09, 0]} />
     </group>
   );
 }
 
 export { press };
+
+/**
+ * One of the alternatives to the keys.
+ *
+ * Deliberately plain: these are not keys, and making them look like keys would
+ * invite somebody to hunt for them among the letters.
+ */
+function WayIn({
+  x,
+  label,
+  shown,
+  lit = false,
+  onPress,
+}: {
+  x: number;
+  label: string;
+  shown: boolean;
+  lit?: boolean;
+  onPress: () => void;
+}) {
+  if (!shown) return null;
+  return (
+    <group position={[x, -0.035, 0]}>
+      <mesh
+        onPointerDown={(event: ThreeEvent<PointerEvent>) => {
+          event.stopPropagation();
+          claimPointer(event.nativeEvent);
+          onPress();
+        }}
+      >
+        <planeGeometry args={[0.33, 0.045]} />
+        <meshBasicMaterial color={lit ? CARD_INK.accent : "#2b3245"} toneMapped={false} />
+      </mesh>
+      <Text position={[0, 0, 0.002]} fontSize={0.022} color="#e9e6de" anchorX="center" anchorY="middle" maxWidth={0.3}>
+        {label}
+      </Text>
+    </group>
+  );
+}
