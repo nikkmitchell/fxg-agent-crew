@@ -56,6 +56,7 @@ export function MoodPanel3D({
   onMove,
   onSay,
   onAdd,
+  onEdit,
 }: {
   items: MoodItem[];
   surface: { width: number; height: number };
@@ -63,6 +64,12 @@ export function MoodPanel3D({
   onSay: (message: string) => void;
   /** Somebody pressed the strip and wants to write a note. */
   onAdd: () => void;
+  /**
+   * Somebody TAPPED an item rather than dragging it, and wants to change what
+   * it says. A tap and a drag start identically, so they are told apart by
+   * whether anything moved — see `onUp`.
+   */
+  onEdit: (item: MoodItem) => void;
 }) {
   const plate = useRef<THREE.Group>(null);
   const [held, setHeld] = useState<{ id: string; from: { x: number; y: number } } | null>(null);
@@ -131,7 +138,21 @@ export function MoodPanel3D({
     const at = nudged[held.id];
     const id = held.id;
     setHeld(null);
-    if (!at) return;
+    /**
+     * NOTHING MOVED, SO IT WAS A TAP — and a tap on a note means "let me change
+     * what this says". The board could be added to and rearranged but an item
+     * already on it was read-only, which is half of "editable": you could pin a
+     * note up and never fix a typo in it.
+     *
+     * Told apart by whether a drag produced anything, rather than by a timer: a
+     * press that moves is a drag however brief, and a press that does not is a
+     * tap however long somebody rests on it.
+     */
+    if (!at) {
+      const item = shown.find((one) => one.id === id);
+      if (item) onEdit(item);
+      return;
+    }
     void onMove(id, at)
       .catch((error: unknown) => {
         // PUT IT BACK. An item that stays where the server would not accept it
