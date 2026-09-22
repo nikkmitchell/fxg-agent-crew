@@ -30,7 +30,6 @@ import { BoardReads } from "./db/reads.js";
 import { BoardStore } from "./db/store.js";
 import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
 import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
-import { registerStillRoutes } from "./space/stills.js";
 import { Utterances, registerUtteranceRoutes } from "./space/utterances.js";
 import { registerSpeechRoutes, speakWith, speechCache } from "./space/speak.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
@@ -240,7 +239,6 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       touches,
     );
     registerTouchRoutes(scoped, { config, sessions, hub: space, touches });
-    registerStillRoutes(scoped, config, sessions);
     registerPanelRoutes(scoped, {
       database,
       sessions,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { facingArc, placementRefusal, scaleOf } from "../../shared/panel-place";
+import { PANEL } from "../../shared/space-layout";
 import { resizedScale } from "./panel-resize";
 import { PANEL_HALF_LIFE, follow, followPoint } from "../../shared/smooth-follow";
 import type { ArrangeMode } from "./usePanelArrange";
@@ -298,6 +299,15 @@ export function Movable({
       {/*
         THE WHOLE FACE OF THE PANEL, once it is unlocked.
 
+        AND IT IS THE PANEL'S OWN SIZE NOW. It was a hardcoded 4.0 x 2.6 hung
+        0.6 above centre, which is wrong at both ends: it missed the bottom
+        fifth of the panel, so dragging worked in the top of a panel and did
+        nothing in the bottom — the worst kind of broken, because it looks
+        intermittent — and it reached 0.65 ABOVE the panel, over the drag bar
+        at 1.42, which it then stole every press from because it sits in front.
+        Found by dragging a panel by its lower half and watching nothing
+        happen.
+
         A bar along the top is fine for a deliberate nudge and hopeless as the
         only way to arrange a room from four metres away with a controller ray.
         Unlocked, the panel itself is the handle — which is what Nikk asked for:
@@ -312,7 +322,7 @@ export function Movable({
       */}
       {mode !== "locked" ? (
         <mesh
-          position={[0, 0.6, 0.02]}
+          position={[0, 0, 0.02]}
           onPointerDown={(event) => {
             event.stopPropagation();
             // Tell the look-drag this press is spoken for, or arranging a panel
@@ -336,7 +346,7 @@ export function Movable({
             release();
           }}
         >
-          <planeGeometry args={[4.0, 2.6]} />
+          <planeGeometry args={[PANEL.width, PANEL.height]} />
           <meshBasicMaterial
             color={mode === "resize" ? "#c9a86f" : "#6f86c9"}
             transparent
@@ -372,7 +382,7 @@ export function Movable({
             release();
           }}
         >
-          <boxGeometry args={[4.0, 0.14, 0.06]} />
+          <boxGeometry args={[PANEL.width, 0.14, 0.06]} />
           <meshBasicMaterial
             color={dragging ? "#6f86c9" : "#2b3245"}
             transparent

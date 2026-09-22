@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { DETAIL_PX, isDetailClose, isDetailComment, paintDetail, type TaskDetail } from "../../shared/card-detail";
+import { DETAIL_PX, detailMoveAt, isDetailClose, isDetailComment, paintDetail, type TaskDetail } from "../../shared/card-detail";
 import { drawInk, makeInkCanvas, measureWith } from "./ink-canvas";
 import { claimPointer } from "./pointer-claim";
 
@@ -39,11 +39,14 @@ export function CardDetail3D({
   task,
   onClose,
   onComment,
+  onMove,
   at,
 }: {
   task: TaskDetail;
   onClose: () => void;
   onComment: () => void;
+  /** Somebody pressed one of the "move it to" chips. */
+  onMove: (to: string) => void;
   /** Where to hang it, in the board's frame. */
   at: [number, number, number];
 }) {
@@ -72,6 +75,8 @@ export function CardDetail3D({
     const uv = { x: event.uv.x, y: event.uv.y };
     if (isDetailClose(uv)) return onClose();
     if (isDetailComment(uv)) return onComment();
+    const to = detailMoveAt(uv, task.moves ?? []);
+    if (to) return onMove(to);
   };
 
   return (

@@ -209,6 +209,12 @@ function TaskBoard({
             setAdding(null);
             setCommenting(detail.id);
           }}
+          onMove={(to) => {
+            void board
+              .transition(detail.id, to)
+              .then(() => boardFeed.refresh())
+              .catch((error: unknown) => onSay(error instanceof Error ? error.message : "that move was refused"));
+          }}
           at={[0, 0, 0.55]}
         />
       ) : null}
@@ -305,6 +311,8 @@ function MoodWall({
   onSay: (message: string) => void;
 }) {
   const [writing, setWriting] = useState(false);
+  /** The item whose words are being changed, if any. */
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const items = boardFeed.moodItemsOf(boardId);
   // NO BOARD CHOSEN MEANS THE FIRST ONE, the same rule `moodItemsOf` uses —
   // otherwise the note would be written and have nowhere to go.
@@ -318,13 +326,38 @@ function MoodWall({
         onSay={onSay}
         onAdd={() => {
           if (!target) return onSay("this project has no mood board to pin a note to");
+          setEditing(null);
           setWriting(true);
+        }}
+        onEdit={(item) => {
+          // A PICTURE HAS NO WORDS TO CHANGE. Saying so is better than opening
+          // a keyboard that cannot affect anything.
+          if (item.kind === "image") return onSay("that is a picture — there is nothing to type on it");
+          setWriting(false);
+          setEditing({ id: item.id, text: item.text ?? "" });
         }}
         onMove={async (itemId, at) => {
           await board.moveItem(itemId, at);
           boardFeed.refresh();
         }}
       />
+      {editing ? (
+        <Typing3D
+          prompt="What it says"
+          initial={editing.text}
+          position={[0, -station.surface.height * 0.34, 0.8]}
+          onCancel={() => setEditing(null)}
+          onDone={(text) => {
+            const id = editing.id;
+            setEditing(null);
+            void board
+              .editItem(id, { text })
+              .then(() => boardFeed.refresh())
+              .catch((error: unknown) => onSay(error instanceof Error ? error.message : "that edit was not saved"));
+          }}
+        />
+      ) : null}
+
       {writing ? (
         <Typing3D
           prompt="A note for the mood board"

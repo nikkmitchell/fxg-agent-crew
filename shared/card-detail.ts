@@ -27,7 +27,13 @@ export type TaskDetail = {
   blocker?: string;
   owners?: string[];
   comments?: { author: string; body: string; createdAt?: string }[];
+  /** The statuses this card may legally move to, from the board's own table. */
+  moves?: string[];
 };
+
+/** A status as the board writes it, so the panel and the columns agree. */
+const columnLabel = (status: string): string =>
+  ({ backlog: "Backlog", assigned: "Assigned", in_progress: "Doing", blocked: "Blocked", review: "Review", done: "Done" })[status] ?? status;
 
 export const DETAIL_PX = { width: 768, height: 1024 } as const;
 
@@ -54,6 +60,32 @@ export const COMMENTS_SHOWN = 6;
  * one press to undo, unlike a card that will not let go.
  */
 export const DETAIL_CLOSE = { u0: 0.86, v0: 0.9, u1: 1, v1: 1 } as const;
+
+/**
+ * The strip of "move it to…" chips, just above the comment strip.
+ *
+ * YOU COULD READ A CARD HERE AND NOT ACT ON IT. Pulling a card off the board
+ * to see its description and its comments is exactly the moment you decide it
+ * is done — and the only way to say so was to close the panel, find the card
+ * again among six columns, and drag it. The panel knew the status and the
+ * rules and offered neither.
+ *
+ * ONLY THE LEGAL ONES, from the same table the board uses. A chip that refuses
+ * when pressed is a worse answer than a chip that is not there.
+ */
+export const DETAIL_MOVES = { v0: 0.062, v1: 0.152 } as const;
+
+/** Which move a point falls on, given the moves offered, or null. */
+export function detailMoveAt(
+  uv: { x: number; y: number },
+  moves: readonly string[],
+): string | null {
+  if (moves.length === 0) return null;
+  if (uv.y < DETAIL_MOVES.v0 || uv.y > DETAIL_MOVES.v1) return null;
+  if (uv.x < 0 || uv.x > 1) return null;
+  const index = Math.min(moves.length - 1, Math.floor(uv.x * moves.length));
+  return moves[index] ?? null;
+}
 
 /**
  * Where "write a comment" is.
@@ -102,7 +134,15 @@ export function paintDetail(
   }
 
   y += 10;
-  const facts: string[] = [task.status];
+  /**
+   * THE BOARD'S WORD FOR THE STATUS, not the database's.
+   *
+   * This printed `in_progress` while the column the card came from says
+   * "Doing" — so the panel you pull a card into disagreed with the board you
+   * pulled it off. Caught by the test for the move chips, which noticed the
+   * raw value was still on the panel.
+   */
+  const facts: string[] = [columnLabel(task.status)];
   if (task.assigneeId) facts.push(task.assigneeId);
   if (task.points) facts.push(`${task.points} point${task.points === 1 ? "" : "s"}`);
   if (task.priority) facts.push(task.priority);
@@ -167,6 +207,37 @@ export function paintDetail(
         fill: CARD_INK.muted,
       });
     }
+  }
+
+  // THE MOVES, if there are any. Above the comment strip, in the same band of
+  // the panel that is reserved for things you DO rather than things you read.
+  const moves = task.moves ?? [];
+  if (moves.length > 0) {
+    const top = (1 - DETAIL_MOVES.v1) * height;
+    const band = (DETAIL_MOVES.v1 - DETAIL_MOVES.v0) * height;
+    const each = width / moves.length;
+    ink.push({ kind: "text", x: pad, y: top - 10, text: "move it to", size: 20, fill: CARD_INK.muted });
+    moves.forEach((to, index) => {
+      ink.push({
+        kind: "rect",
+        x: index * each + 4,
+        y: top,
+        width: each - 8,
+        height: band,
+        fill: CARD_INK.paperHeld,
+        radius: 10,
+      });
+      const [label] = fitLines(measure, columnLabel(to), 24, each - 24, 1);
+      ink.push({
+        kind: "text",
+        x: index * each + 16,
+        y: top + band * 0.62,
+        text: label ?? to,
+        size: 24,
+        fill: CARD_INK.accent,
+        weight: "bold",
+      });
+    });
   }
 
   // THE COMMENT STRIP, last so nothing drawn above can cover it. Bottom of the

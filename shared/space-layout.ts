@@ -102,7 +102,12 @@ export const ROOM = {
  * below spaces whatever is in the catalogue evenly and turns each panel to face
  * the person standing at the focus.
  */
-const PANEL = { width: 4.0, height: 2.5 } as const;
+/**
+ * How big a panel is. EXPORTED because the thing that lets you grab one has to
+ * be the same size as the thing you are grabbing — see `Movable`, which had
+ * hardcoded its own numbers and got them wrong in both directions.
+ */
+export const PANEL = { width: 4.0, height: 2.5 } as const;
 
 /**
  * The circle the panels hang on.

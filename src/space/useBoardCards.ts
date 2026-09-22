@@ -3,6 +3,7 @@ import { board } from "../board-client";
 import type { BoardCard } from "../../shared/board-3d";
 import type { TaskDetail } from "../../shared/card-detail";
 import type { MoodItem } from "../../shared/mood-3d";
+import { isStatus, nextStatuses } from "../../shared/board-rules";
 import { board as boardApi } from "../board-client";
 
 /**
@@ -154,6 +155,12 @@ export function useBoardCards(projectId: string | null): BoardFeed {
       ...(typeof row.points === "number" ? { points: row.points } : {}),
       ...(row.priority ? { priority: String(row.priority) } : {}),
       ...(row.blocker ? { blocker: String(row.blocker) } : {}),
+      /**
+       * WHERE IT MAY LEGALLY GO, from the board's own table — so the panel
+       * cannot offer a move the server will refuse. Same source the columns and
+       * the drag refusals use.
+       */
+      moves: isStatus(row.status) ? [...nextStatuses(row.status)] : [],
       comments: comments.map((comment) => ({
         author: String(comment.author_id ?? comment.author ?? "someone"),
         body: String(comment.body ?? ""),
