@@ -65,7 +65,7 @@ if [ -z "$TARGET" ]; then fail "usage: release.sh user@host [--allow-dirty] [--r
 
 # A DIRTY TREE REFUSES TO DEPLOY. It used to print a yellow warning on line 70
 # and ship anyway, which is out of character for this script: a failed build, a
-# failed suite, a stills renderer older than the build and an nginx body limit
+# failed suite and an nginx body limit
 # below the app's all REFUSE. The one condition meaning "what you are shipping
 # is not what you committed" was the one that shrugged, and nobody reads a
 # warning in the middle of forty lines of output.
@@ -143,17 +143,6 @@ APP_BASE_PATH="$BASE" "$PNPM" run build || fail "build failed; nothing was deplo
 # and the way that breaks is silent: one stray top-level import pulls the whole
 # thing into the main chunk and every page still works, just four times heavier.
 # Nothing in a test suite would notice.
-# The renderer's entry point, named by deploy/fxg-stills.service.
-#
-# tsc keeps the source extension, so render-stills.mts becomes render-stills.mjs
-# — and the unit pointed at .js, which starts cleanly and then fails every ten
-# seconds with MODULE_NOT_FOUND. Read out of the unit file rather than restated,
-# so the two cannot drift.
-stills_entry=$(grep -o '/opt/fxg-crew/dist-server/tools/[a-zA-Z.-]*' deploy/fxg-stills.service | head -1)
-if [ -n "$stills_entry" ]; then
-  local_entry="${stills_entry#/opt/fxg-crew/}"
-  [ -f "$local_entry" ] || fail "deploy/fxg-stills.service points at $stills_entry, which the build does not produce (looked for $local_entry). tsc keeps the source extension."
-fi
 
 main_chunk=$(ls dist/assets/index-*.js 2>/dev/null | head -1)
 [ -n "$main_chunk" ] || fail "no main chunk in dist/assets — did the build layout change?"
@@ -278,18 +267,6 @@ log "install production deps + restart"
   chown -R fxgcrew:fxgcrew /opt/fxg-crew
   systemctl daemon-reload
   systemctl restart fxg-crew
-  # THE RENDERER TOO, when it is installed. It is a second service built from
-  # the same tree — tools/render-stills.mjs — and it holds its panel list in
-  # memory from startup. Leaving it running meant a deploy that added the chat
-  # panel shipped a server that served chat.png and a renderer that had never
-  # heard of it, so the headset showed a rectangle saying the picture was
-  # coming, for ever. Nothing in the old verification would have caught that:
-  # the app restarted, the site was up, and the missing thing was a 503 on a
-  # path nobody checked.
-  if systemctl list-unit-files fxg-stills.service >/dev/null 2>&1 \
-     && systemctl is-enabled fxg-stills >/dev/null 2>&1; then
-    systemctl restart fxg-stills
-  fi
 REMOTE_CMDS
 
 log "verify the running service"
@@ -321,32 +298,6 @@ if [ -n "$started" ] && [ -n "$shipped" ] && [ "$started" -lt "$shipped" ]; then
   fail "the running process started $((shipped - started))s BEFORE these files arrived — it is serving the previous build while DEPLOYED_COMMIT claims this one. The files are in place; fix it with: ssh $TARGET systemctl restart fxg-crew"
 fi
 printf '  process      started %ss after the files, so it is running them\n' "$((started - shipped))"
-
-# THE RENDERER PHOTOGRAPHS EVERY PANEL, not the number it had at startup.
-#
-# The renderer reads its panel list once, at boot. Adding the chat panel shipped
-# an app that served chat.png and a renderer that had never heard of one, and
-# every check above still passed: the service was up, the site was up, and the
-# only symptom was a rectangle in a headset saying the picture was coming. This
-# compares what it last photographed against what this build says there is.
-panels=$(node -e "import('./dist-server/server/space/stills.js').then(m => console.log(m.STILL_TABS.length))" 2>/dev/null || echo "")
-if [ -n "$panels" ]; then
-  # SINCE THE RESTART, not the last line in the journal. Reading the whole
-  # journal made this fail its first real deploy on a line the previous
-  # renderer had written minutes earlier — the check was right that the numbers
-  # disagreed and wrong about which process said so.
-  shot=$("${SSH[@]}" "$TARGET" "since=\$(systemctl show fxg-stills -p ActiveEnterTimestamp --value); journalctl -u fxg-stills --since \"\$since\" --no-pager 2>/dev/null | grep -o 'rendered [0-9]*/[0-9]*' | tail -1" || true)
-  if [ -z "$shot" ]; then
-    # Nobody has been in the room since the restart, so it has had nothing to
-    # do. Said out loud rather than passed silently: an unchecked thing that
-    # reads as a tick is how the last one got through.
-    printf '  stills       renderer idle since restart — not checked\n'
-  else
-    want="${shot##*/}"
-    [ "$want" = "$panels" ] || fail "the renderer is photographing $shot but this build has $panels panels — it is running older code. Check: systemctl status fxg-stills"
-    printf '  stills       %s, matching this build\n' "$shot"
-  fi
-fi
 
 code=$("${SSH[@]}" "$TARGET" "curl -sS -o /tmp/me.json -w '%{http_code}' http://127.0.0.1:8787$BASE/bff/me")
 body=$("${SSH[@]}" "$TARGET" "cat /tmp/me.json")

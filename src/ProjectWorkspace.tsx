@@ -1,6 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { boardInUrl, currentProject, useCurrentProject } from "./current-project";
-import { isStill } from "./still-mode";
 import type { CrewProject, CrewTask } from "./event-core";
 import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
@@ -133,7 +132,8 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
    * Read once: a page is a still or it is not, and it does not change under
    * you. Everything it removes is something that cannot be used in a picture.
    */
-  const still = useMemo(() => isStill(), []);
+  // The renderer that wanted a chrome-less page is gone; nothing asks for one.
+  const still = false;
   const shownBoards = useMemo(() => {
     if (!namedBoard) return boards;
     const one = boards.filter((moodBoard) => moodBoard.id === namedBoard);

@@ -30,7 +30,6 @@ export type Config = {
   /** Pino level. "silent" exists so tests that bind a port stay readable. */
   logLevel: string;
   /** Where the still renderer writes its PNGs, and the app reads them from. */
-  stillsRoot: string;
   /**
    * Where bodies fetched from the avatar collection are kept.
    *
@@ -65,7 +64,6 @@ export type Config = {
    * IT, which is the right default: a deployment that has not deliberately set
    * this has no way to mint a render session at all.
    */
-  stillsToken: string;
 };
 
 /**
@@ -126,9 +124,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // Kept as a knob rather than hardcoded so a test that binds a real port can
     // silence request logging. Defaults to the level everything ran at before.
     logLevel: env.LOG_LEVEL ?? "info",
-    stillsRoot: env.STILLS_ROOT ?? (production ? "./data/stills" : "./.dev-stills"),
     bodyCacheRoot: env.BODY_CACHE_ROOT ?? beside(databasePath, "bodies", "./.dev-bodies"),
     speechCacheRoot: env.SPEECH_CACHE_ROOT ?? beside(databasePath, "speech", "./.dev-speech"),
-    stillsToken: env.STILLS_TOKEN ?? "",
   };
 }
