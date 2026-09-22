@@ -120,6 +120,51 @@ export function moodItemAt(layout: MoodLayout, uv: { x: number; y: number }): Mo
 }
 
 /**
+ * Where the "add a note" strip sits, in panel-local metres.
+ *
+ * ALONG THE FOOT, the full width. The mood board could be rearranged from the
+ * room but not ADDED to, so half of "editable" was missing: you could tidy what
+ * somebody else had pinned up and not pin anything yourself.
+ *
+ * The foot rather than a corner because the fitted board can end anywhere — it
+ * is scaled to whatever is on it — and a control that moves as the content
+ * grows is one you have to find again every time.
+ */
+export function moodAddControlOf(layout: MoodLayout, size: MoodSize = MOOD): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  const height = Math.min(size.height * 0.11, 0.26);
+  return {
+    x: 0,
+    y: -layout.height / 2 + height / 2,
+    width: layout.width,
+    height,
+  };
+}
+
+/** True when a uv point is on the "add a note" strip. */
+export function isMoodAdd(layout: MoodLayout, uv: { x: number; y: number }, size: MoodSize = MOOD): boolean {
+  const box = moodAddControlOf(layout, size);
+  const point = { x: (uv.x - 0.5) * layout.width, y: (uv.y - 0.5) * layout.height };
+  return Math.abs(point.x - box.x) <= box.width / 2 && Math.abs(point.y - box.y) <= box.height / 2;
+}
+
+/**
+ * Where a new note goes, in the board's own pixels.
+ *
+ * BELOW WHAT IS THERE, not on top of it. Dropping a new note at a fixed corner
+ * buries it under whatever is already in that corner, and the person who just
+ * wrote it cannot see it.
+ */
+export function moodNextPlace(items: readonly MoodItem[]): { x: number; y: number; w: number; h: number } {
+  const bounds = moodBounds(items);
+  return { x: Math.round(bounds.x), y: Math.round(bounds.y + bounds.height + 24), w: 260, h: 150 };
+}
+
+/**
  * A point in the panel's own frame, as uv.
  *
  * The same rule the work board had to learn: ask from the POINT, not from a

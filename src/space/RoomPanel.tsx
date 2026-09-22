@@ -9,6 +9,7 @@ import { SettingsPanel3D } from "./SettingsPanel3D";
 import { MoodPanel3D } from "./MoodPanel3D";
 import { ListPanel3D } from "./ListPanel3D";
 import type { ListRow } from "../../shared/list-paint";
+import { moodNextPlace } from "../../shared/mood-3d";
 import type { SettingsItem } from "../../shared/settings-3d";
 import { nextStatuses } from "../../shared/board-rules";
 import { BOARD_COLUMNS } from "../../shared/board-3d";
@@ -93,17 +94,7 @@ export function RoomPanel({
   }
 
   if (station.id === "moodBoard") {
-    return (
-      <MoodPanel3D
-        items={boardFeed.moodItemsOf(boardId)}
-        surface={station.surface}
-        onSay={onSay}
-        onMove={async (itemId, at) => {
-          await board.moveItem(itemId, at);
-          boardFeed.refresh();
-        }}
-      />
-    );
+    return <MoodWall station={station} boardFeed={boardFeed} boardId={boardId} onSay={onSay} />;
   }
 
   if (station.id === "settings") {
@@ -178,6 +169,7 @@ function TaskBoard({
       <BoardPanel3D
         panelId={station.id}
         surface={station.surface}
+        projectName={boardFeed.projectName}
         cards={boardFeed.cards}
         onMove={async (cardId, to) => {
           await board.transition(cardId, to);
@@ -291,5 +283,63 @@ function TaskBoard({
         />
       ) : null}
       </>
+  );
+}
+
+/**
+ * The mood board and the note somebody is writing for it.
+ *
+ * Separate from `RoomPanel` for the same reason `TaskBoard` is: it has state,
+ * and `RoomPanel` returns early for the other stations, so a hook here would be
+ * a hook called conditionally.
+ */
+function MoodWall({
+  station,
+  boardFeed,
+  boardId,
+  onSay,
+}: {
+  station: Station;
+  boardFeed: BoardFeed;
+  boardId: string | null;
+  onSay: (message: string) => void;
+}) {
+  const [writing, setWriting] = useState(false);
+  const items = boardFeed.moodItemsOf(boardId);
+  // NO BOARD CHOSEN MEANS THE FIRST ONE, the same rule `moodItemsOf` uses —
+  // otherwise the note would be written and have nowhere to go.
+  const target = boardId ?? boardFeed.moodBoards[0]?.id ?? null;
+
+  return (
+    <>
+      <MoodPanel3D
+        items={items}
+        surface={station.surface}
+        onSay={onSay}
+        onAdd={() => {
+          if (!target) return onSay("this project has no mood board to pin a note to");
+          setWriting(true);
+        }}
+        onMove={async (itemId, at) => {
+          await board.moveItem(itemId, at);
+          boardFeed.refresh();
+        }}
+      />
+      {writing ? (
+        <Typing3D
+          prompt="A note for the mood board"
+          position={[0, -station.surface.height * 0.34, 0.8]}
+          onCancel={() => setWriting(false)}
+          onDone={(text) => {
+            setWriting(false);
+            if (!target) return;
+            void board
+              .addItem(target, { kind: "note", text, ...moodNextPlace(items), z: items.length + 1 })
+              .then(() => boardFeed.refresh())
+              .catch((error: unknown) => onSay(error instanceof Error ? error.message : "that note was not saved"));
+          }}
+        />
+      ) : null}
+    </>
   );
 }

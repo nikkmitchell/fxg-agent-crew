@@ -97,6 +97,8 @@ export type BoardPanel3DProps = {
   surface: { width: number; height: number };
   /** Somebody pressed "add" on a column and wants to write a title. */
   onAddTask: (status: string) => void;
+  /** Which project this is, so the board can say so. */
+  projectName: string | null;
   now?: () => number;
 };
 
@@ -109,6 +111,7 @@ export function BoardPanel3D({
   onSay,
   surface,
   onAddTask,
+  projectName,
   now = Date.now,
 }: BoardPanel3DProps) {
   const [gesture, setGesture] = useState<Gesture>({ kind: "idle" });
@@ -315,6 +318,23 @@ export function BoardPanel3D({
         <meshBasicMaterial color={CARD_INK.paper} toneMapped={false} />
       </mesh>
 
+      {/* WHOSE BOARD THIS IS. Tucked above the headings in the quiet ink: the
+          board showed six columns and never said which project they belonged
+          to, so the only way to find out was to open settings while looking
+          straight at the work. */}
+      {projectName ? (
+        <Text
+          position={[-layout.width / 2 + BOARD.padding, layout.height / 2 - BOARD.padding, 0.004]}
+          fontSize={BOARD.titleHeight * 0.58}
+          color={CARD_INK.muted}
+          anchorX="left"
+          anchorY="top"
+          maxWidth={layout.width * 0.6}
+        >
+          {projectName}
+        </Text>
+      ) : null}
+
       {/* WHAT THE BOARD JUST SAID, over the columns and in front of them, so it
           is legible from wherever you are standing when it appears. */}
       {notice ? (
@@ -356,7 +376,14 @@ export function BoardPanel3D({
       })}
 
       {layout.columns.map((column) => (
-        <ColumnHeading key={column.status} label={column.label} count={column.count} x={column.x} width={column.width} top={layout.height / 2} />
+        <ColumnHeading
+          key={column.status}
+          label={column.label}
+          count={column.count}
+          x={column.x}
+          width={column.width}
+          top={layout.height / 2 - BOARD.titleHeight}
+        />
       ))}
 
       {/* ONE IN EVERY COLUMN. Work does not always start in the backlog, and a

@@ -48,6 +48,14 @@ export type BoardFeed = {
   moodItemsOf: (boardId: string | null) => MoodItem[];
   /** The mood boards this project has, for choosing between them. */
   moodBoards: { id: string; title: string }[];
+  /**
+   * What the project is called.
+   *
+   * The board never said which project it was showing — you could only find
+   * out by opening settings, which is a strange thing to have to do while
+   * looking straight at the work.
+   */
+  projectName: string | null;
   /** Null until the first answer. A board with no cards and a board that has not loaded are different. */
   loaded: boolean;
   trouble: string | null;
@@ -61,6 +69,7 @@ export function useBoardCards(projectId: string | null): BoardFeed {
   /** The mood boards exactly as the server sent them. */
   const boards = useRef<Record<string, unknown>[]>([]);
   const [moodBoards, setMoodBoards] = useState<{ id: string; title: string }[]>([]);
+  const [projectName, setProjectName] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [trouble, setTrouble] = useState<string | null>(null);
   const live = useRef(true);
@@ -78,6 +87,7 @@ export function useBoardCards(projectId: string | null): BoardFeed {
   const read = useCallback(async () => {
     if (!projectId) {
       setCards([]);
+      setProjectName(null);
       setLoaded(true);
       return;
     }
@@ -87,10 +97,12 @@ export function useBoardCards(projectId: string | null): BoardFeed {
       const project = (await board.project(projectId)) as {
         tasks?: Record<string, unknown>[];
         boards?: Record<string, unknown>[];
+        project?: { name?: string };
       };
       if (!live.current) return;
       rows.current = Object.fromEntries((project.tasks ?? []).map((row) => [String(row.id), row]));
       boards.current = (project.boards ?? []) as Record<string, unknown>[];
+      setProjectName(project.project?.name ?? projectId);
       setMoodBoards(
         boards.current.map((one) => ({
           id: String(one.id),
@@ -174,5 +186,5 @@ export function useBoardCards(projectId: string | null): BoardFeed {
     }));
   }, []);
 
-  return { cards, loaded, trouble, detailOf, moodItemsOf, moodBoards, refresh: () => void read() };
+  return { cards, loaded, trouble, detailOf, moodItemsOf, moodBoards, projectName, refresh: () => void read() };
 }

@@ -99,6 +99,8 @@ export const CARD_SHAPE = 256 / 512;
 export type BoardSize = {
   width: number;
   height: number;
+  /** Room above the column headings for the board's own name. */
+  titleHeight: number;
   headerHeight: number;
   columnGap: number;
   cardHeight: number;
@@ -110,6 +112,15 @@ export type BoardSize = {
 export const BOARD = {
   width: 2.4,
   height: 1.5,
+  /**
+   * A BAND FOR THE BOARD'S OWN NAME, reserved rather than borrowed.
+   *
+   * The name went in first without one, squeezed into the couple of
+   * centimetres between the panel's edge and the column headings — where it
+   * overlapped them. A caption with nowhere to go is worse than no caption:
+   * it makes the headings harder to read as well as itself.
+   */
+  titleHeight: 0.1,
   /** Room above the columns for the heading. */
   headerHeight: 0.14,
   columnGap: 0.012,
@@ -148,7 +159,7 @@ export function layOutBoard(cards: readonly BoardCard[], size: BoardSize = BOARD
    * what `overflow` has always been for.
    */
   const cardHeight = columnWidth * CARD_SHAPE;
-  const top = size.height / 2 - size.padding - size.headerHeight;
+  const top = size.height / 2 - size.padding - size.titleHeight - size.headerHeight;
   const bottom = -size.height / 2 + size.padding;
   /**
    * ONE FEWER THAN FITS, because the foot of every column belongs to its "add a
@@ -229,7 +240,7 @@ export function columnPlateOf(
   column: BoardColumn,
   size: BoardSize = BOARD,
 ): { x: number; y: number; width: number; height: number } {
-  const top = layout.height / 2 - size.padding - size.headerHeight;
+  const top = layout.height / 2 - size.padding - size.titleHeight - size.headerHeight;
   const bottom = -layout.height / 2 + size.padding;
   return {
     x: column.x,

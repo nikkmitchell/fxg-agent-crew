@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MOOD, layOutMood, moodBounds, moodItemAt, moodMove, type MoodItem } from "./mood-3d.js";
+import { MOOD, isMoodAdd, layOutMood, moodAddControlOf, moodBounds, moodItemAt, moodMove, moodNextPlace, type MoodItem } from "./mood-3d.js";
 
 const item = (id: string, over: Partial<MoodItem> = {}): MoodItem => ({
   id, kind: "note", x: 100, y: 100, w: 220, h: 120, z: 0, ...over,
@@ -109,5 +109,45 @@ describe("the bounds it fits", () => {
       expect(one.x + one.w).toBeLessThanOrEqual(bounds.x + bounds.width + 1e-9);
       expect(one.y + one.h).toBeLessThanOrEqual(bounds.y + bounds.height + 1e-9);
     }
+  });
+});
+
+describe("adding to a mood board from the room", () => {
+  it("has a strip along the foot, the full width", () => {
+    // The board could be rearranged from the room but not added to, so half of
+    // "editable" was missing.
+    const layout = layOutMood([item("a")]);
+    const box = moodAddControlOf(layout);
+    expect(box.width).toBeCloseTo(layout.width, 6);
+    expect(box.y - box.height / 2).toBeGreaterThanOrEqual(-layout.height / 2 - 1e-9);
+    expect(isMoodAdd(layout, { x: 0.5, y: 0.02 })).toBe(true);
+  });
+
+  it("does not answer where the board is", () => {
+    // Pressing a note near the bottom must pick the note up, not make a new one.
+    const layout = layOutMood([item("a")]);
+    expect(isMoodAdd(layout, { x: 0.5, y: 0.5 })).toBe(false);
+    expect(isMoodAdd(layout, { x: 0.5, y: 0.9 })).toBe(false);
+  });
+
+  it("PUTS A NEW NOTE BELOW WHAT IS THERE, not on top of it", () => {
+    // A fixed corner buries the new note under whatever is already in that
+    // corner, and the person who just wrote it cannot see it.
+    const items = [item("a", { x: 100, y: 100, h: 120 }), item("b", { x: 400, y: 600, h: 200 })];
+    const at = moodNextPlace(items);
+    for (const one of items) {
+      const overlaps =
+        at.x < one.x + one.w && at.x + at.w > one.x && at.y < one.y + one.h && at.y + at.h > one.y;
+      expect(overlaps, `would bury ${one.id}`).toBe(false);
+    }
+    expect(at.y).toBeGreaterThan(600 + 200);
+  });
+
+  it("gives an empty board somewhere sensible to start", () => {
+    const at = moodNextPlace([]);
+    expect(Number.isFinite(at.x)).toBe(true);
+    expect(Number.isFinite(at.y)).toBe(true);
+    expect(at.w).toBeGreaterThan(0);
+    expect(at.h).toBeGreaterThan(0);
   });
 });

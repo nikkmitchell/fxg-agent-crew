@@ -236,6 +236,18 @@ describe("the board fills the panel it is given", () => {
     }
   });
 
+  it("RESERVES A BAND FOR THE BOARD'S NAME, clear of the column headings", () => {
+    // The name went in without one first and overlapped the headings. A caption
+    // with nowhere to go makes the headings harder to read as well as itself.
+    const size = { ...BOARD, width: 4.0, height: 2.5 };
+    const layout = layOutBoard(many, size);
+    const plateTop = columnPlateOf(layout, layout.columns[0], size).y
+      + columnPlateOf(layout, layout.columns[0], size).height / 2;
+    const bandBottom = size.height / 2 - size.padding - size.titleHeight;
+    expect(plateTop).toBeLessThanOrEqual(bandBottom + 1e-9);
+    expect(size.titleHeight).toBeGreaterThan(0);
+  });
+
   it("gives every column a plate the cards sit inside", () => {
     // Six columns of flat cream do not read as columns, and an empty one is
     // indistinguishable from the gap beside it.
