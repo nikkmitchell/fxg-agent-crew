@@ -12,7 +12,6 @@ import { placeOf, savePlacement } from "./panel-placement";
 import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
 import { useVoiceChat } from "./useVoiceChat";
 import { ProjectChooser } from "../ProjectChooser";
-import { PanelGrips } from "./PanelGrips";
 import { base } from "../router";
 import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
 import { useHiddenAsStill } from "./useHiddenAsStill";
@@ -186,8 +185,9 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
           and the room is empty, because after a restart nobody knows where anyone was standing.
         </p>
         <p className="muted-note">
-          The three panels are the real Board, Mood boards and People tabs — the actual pages, not
-          a drawing of them. They are live and you can use them from in here.
+          The panels are the board, the mood boards, who is here, what has been said, chat and
+          settings — drawn in the room itself rather than pages hung on a wall. Cards drag between
+          columns, tapping one opens it, and you can add a card or a comment without leaving.
         </p>
         {systemPrefersReduced ? (
           <p className="muted-note">
@@ -261,12 +261,6 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
             voice={voice}
           />
         </Suspense>
-        {/* The panel grab handles. Drawn here rather than in the scene: the
-            canvas cannot receive a pointer, drei's Html breaks the panels'
-            occlusion, and a portal cannot escape R3F's reconciler. See
-            grip-positions.ts. Never in a headset, where the handle is a 3D bar
-            you point a ray at. */}
-        <PanelGrips shown={entered && !inHeadset} />
 
         {/* Connecting gets the big treatment too: until the socket is open the
             room has nobody in it, including you, and a small grey line in the
@@ -379,12 +373,14 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
                   />
                   <span>{panel.label}</span>
                 </label>
-                {/* SIZE, HERE RATHER THAN AS A DRAG. In the room you resize a
-                    panel by pulling its face, which needs a ray or a pointer the
-                    canvas can receive — and in this window the canvas is
-                    `pointer-events: none` so the live pages stay clickable. Two
-                    buttons do the same job without a gesture that cannot work
-                    here. The size itself is shared either way. */}
+                {/* SIZE, HERE AS WELL AS IN THE ROOM. The reason this pair of
+                    buttons existed was that the canvas could not receive a
+                    pointer in a window — `occlude="blending"` on the old iframe
+                    panels set `pointer-events: none` on it — so resizing by
+                    pulling a panel's face was impossible here. The iframes are
+                    gone and the canvas takes a mouse again, so the gesture works
+                    in both rooms and these are a convenience rather than the
+                    only way. Kept because a keyboard can reach them. */}
                 {open ? (
                   <span className="space-setting-size">
                     <button

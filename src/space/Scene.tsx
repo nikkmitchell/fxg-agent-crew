@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { LOOK_SENSITIVITY, tiltBy } from "./look-pitch";
@@ -16,13 +16,13 @@ import { Avatar3D, EYE_HEIGHT } from "./Avatar3D";
 import { Immersive } from "./Immersive";
 import { getXRStore } from "./xr-store";
 import type { Comfort } from "./comfort";
-import { WebPanel } from "./WebPanel";
-import { StillPanel } from "./StillPanel";
+import { pointerWasClaimed } from "./pointer-claim";
+import { RoomPanel } from "./RoomPanel";
+import { useBoardCards } from "./useBoardCards";
 import { ScreenWall } from "./ScreenWall";
 import { ArrivalSparkles } from "./ArrivalSparkles";
 import { SpeakingMotes } from "./SpeakingMotes";
 import { TouchReactions } from "./TouchReactions";
-import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
 import { useRoomShowing } from "./useRoomShowing";
 import type { PanelChoices } from "./usePanelChoices";
@@ -31,6 +31,8 @@ import type { VoiceChat } from "./useVoiceChat";
 import { SpatialVoices } from "./SpatialVoices";
 import { Movable } from "./Movable";
 import { placeOf, savePlacement } from "./panel-placement";
+import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
+import type { SettingsItem } from "../../shared/settings-3d";
 import { defaultPlacement } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
 import { RoomItems } from "./RoomItems";
@@ -221,6 +223,11 @@ function Me({
    */
   const pitch = useRef(0);
   const dragging = useRef(false);
+  /**
+   * The press that might become a look, held until the first move decides.
+   * Null once a panel has claimed it, or once the look has begun.
+   */
+  const pressed = useRef<PointerEvent | null>(null);
   const sendMove = useMemo(
     () => makeMoveSender(connection.send),
     [connection.send],
@@ -269,17 +276,24 @@ function Me({
   useEffect(() => {
     const canvas = gl.domElement;
     /**
-     * Drag-to-look listens on the canvas's CONTAINER, not the canvas.
+     * Drag-to-look listens on the canvas's CONTAINER, not the canvas, and skips
+     * a press a panel already handled.
      *
-     * `occlude="blending"` on the panels puts the canvas above the DOM with
-     * `pointer-events: none`, so the canvas itself receives nothing. The
-     * container still does — and a pointerdown that started inside a panel is
-     * ignored, so scrolling the board does not also swing the view around.
+     * IT USED TO ASK A QUESTION THAT NOW ALWAYS ANSWERS NO. While the panels
+     * were DOM behind `occlude="blending"`, the canvas was `pointer-events:
+     * none`, the press really landed on a div, and `closest(".space-panel-
+     * frame")` found it. The panels are meshes now: every press lands on the
+     * canvas, that check never matches again, and the camera would swing round
+     * under every card drag in the room.
+     *
+     * So the meshes say so themselves — see `pointer-claim.ts`. The container
+     * listener still runs second, because a DOM event reaches its target before
+     * its ancestors, which is what makes this work at all.
      */
     const surface = canvas.parentElement ?? canvas;
     const startedInAPanel = (event: PointerEvent) =>
-      event.target instanceof Element &&
-      event.target.closest(".space-panel-frame") !== null;
+      pointerWasClaimed(event) ||
+      (event.target instanceof Element && event.target.closest(".space-panel-frame") !== null);
 
     const down = (event: KeyboardEvent) => {
       if (!KEYS[event.code]) return;
@@ -291,15 +305,41 @@ function Me({
     const up = (event: KeyboardEvent) => held.current.delete(event.code);
     const blur = () => held.current.clear();
 
+    /**
+     * THE DECISION IS MADE ON THE FIRST MOVE, NOT ON THE PRESS.
+     *
+     * Both R3F and this listener sit on the same element — R3F's event source
+     * defaults to the canvas's parent, which is exactly what `surface` is — so
+     * "the mesh speaks first" is a statement about REGISTRATION ORDER, not
+     * about bubbling, and it is not something to build on. I did build on it,
+     * and the room proved it: dragging a card turned the camera, which moved
+     * the board out from under the pointer, so the drag died half-finished and
+     * the next one missed the panel entirely.
+     *
+     * Waiting for the first move removes the ordering question altogether. By
+     * the time a move arrives, the press has certainly been dispatched and any
+     * panel that wanted it has said so. It also means a click that never moves
+     * never starts a look, which is what a click should do.
+     */
     const startDrag = (event: PointerEvent) => {
-      if (startedInAPanel(event)) return;
-      dragging.current = true;
+      pressed.current = startedInAPanel(event) ? null : event;
+      dragging.current = false;
     };
     const stopDrag = () => {
+      pressed.current = null;
       dragging.current = false;
     };
     const look = (event: PointerEvent) => {
-      if (!dragging.current) return;
+      if (!dragging.current) {
+        const down = pressed.current;
+        if (!down) return;
+        // Asked now rather than at press time: a panel has had its chance.
+        if (pointerWasClaimed(down)) {
+          pressed.current = null;
+          return;
+        }
+        dragging.current = true;
+      }
       yaw.current -= event.movementX * LOOK_SENSITIVITY;
       // Clamped, and the clamp is the part that matters: "YXZ" gimbal-locks at
       // exactly ±90° and inverts past it. See look-pitch.ts.
@@ -450,10 +490,141 @@ export default function Scene({
    * conversation. Read here and passed down.
    */
   const feed = useRoomFeed(inHeadset);
+
+
+  /**
+   * The board's cards, and which one has been pulled out into its own panel.
+   *
+   * THE ROOM NEVER HAD THIS. The board was an iframe, so its contents lived
+   * inside a page the room could not see into; drawing cards natively means
+   * fetching them. `showing.projectId` is which project the room is looking at,
+   * chosen by whoever is in it — see RoomShowing.
+   */
+  const boardFeed = useBoardCards(connection.showing.projectId ?? null);
+  const [openCard, setOpenCard] = useState<string | null>(null);
   const openPanels = panels.open;
+
+
   // The lists to choose from, and the way to change what the room shows. The
   // current VALUE comes from the socket, not from here — see useRoomShowing.
-  const showingChoices = useRoomShowing(inHeadset, connection.showing);
+  /**
+   * ALWAYS ON, WHERE IT USED TO BE HEADSET-ONLY.
+   *
+   * This was `useRoomShowing(inHeadset, …)`, so on a desktop the project list
+   * was never even fetched — and the one control that decides what the whole
+   * room is looking at could only be reached from inside a session. The
+   * settings panel is on the arc for both now, so the lists have to be there
+   * for both.
+   */
+  const showingChoices = useRoomShowing(true, connection.showing);
+  /**
+   * The two reading panels, as rows.
+   *
+   * SHAPED HERE rather than in the panel, so the panel stays a thing that draws
+   * a list and knows nothing about rosters or utterances.
+   */
+  const peopleRows = useMemo(
+    () =>
+      connection.roster.map((person) => ({
+        primary: person.actorId,
+        secondary: person.connected ? (person.kind ?? "here") : "away",
+        // Somebody who has left is still part of the room's memory, but saying
+        // so in full ink would claim they are standing there.
+        faded: !person.connected,
+      })),
+    [connection.roster],
+  );
+
+  const saidRows = useMemo(
+    () =>
+      connection.heard
+        // `say` is what was actually said; `detail` is the longer version some
+        // sources carry. An utterance with neither is a record that something
+        // happened, not something to read off a wall.
+        .filter((utterance) => (utterance.say ?? utterance.detail ?? "").trim() !== "")
+        .map((utterance) => ({
+          primary: (utterance.say ?? utterance.detail ?? "").trim(),
+          secondary: utterance.to ? `${utterance.actorId} → ${utterance.to}` : utterance.actorId,
+        })),
+    [connection.heard],
+  );
+
+
+  /**
+   * WHAT THE SETTINGS PANEL OFFERS, built from the room's own state.
+   *
+   * Assembled here rather than inside the panel because every one of these
+   * already exists somewhere above: the socket owns what the room is showing,
+   * `panels` owns which are open, `arrange` owns which are being moved, and a
+   * panel's size lives in its placement. A second source for any of them would
+   * be a second opinion.
+   */
+  const settings = useMemo(() => {
+    const items: SettingsItem[] = [{ kind: "heading", label: "What the room is showing" }];
+    if (showingChoices.projects === null) {
+      items.push({ kind: "note", label: "The projects could not be read." });
+    } else if (showingChoices.projects.length === 0) {
+      items.push({ kind: "note", label: "No projects yet." });
+    } else {
+      for (const project of showingChoices.projects) {
+        items.push({
+          kind: "choice",
+          id: `project:${project.id}`,
+          label: project.name,
+          selected: connection.showing.projectId === project.id,
+        });
+      }
+    }
+
+    if (showingChoices.boards && showingChoices.boards.length > 0) {
+      items.push({ kind: "heading", label: "Mood board" });
+      for (const moodBoard of showingChoices.boards) {
+        items.push({
+          kind: "choice",
+          id: `board:${moodBoard.id}`,
+          label: moodBoard.title,
+          selected: connection.showing.boardId === moodBoard.id,
+        });
+      }
+    }
+
+    items.push({ kind: "heading", label: "Panels" });
+    for (const panel of panels.catalogue) {
+      const open = panels.open.includes(panel.id);
+      items.push({ kind: "toggle", id: `panel:${panel.id}`, label: panel.label, on: open });
+      if (!open) continue;
+      items.push({
+        kind: "stepper",
+        id: `size:${panel.id}`,
+        label: `${panel.label} size`,
+        value: `${Math.round(scaleOf(placeOf(connection.places, panel.id)) * 100)}%`,
+      });
+      items.push({
+        kind: "cycle",
+        id: `arrange:${panel.id}`,
+        label: `${panel.label} drag`,
+        value: arrange.modeOf(panel.id),
+      });
+    }
+
+    const onPress = (id: string) => {
+      const [kind, rest] = [id.slice(0, id.indexOf(":")), id.slice(id.indexOf(":") + 1)];
+      if (kind === "project") return showingChoices.choose({ projectId: rest, boardId: null });
+      if (kind === "board") return showingChoices.choose({ projectId: connection.showing.projectId ?? null, boardId: rest });
+      if (kind === "panel") return panels.setOpen(rest, !panels.open.includes(rest));
+      if (kind === "arrange") return arrange.cycle(rest);
+      if (kind === "size") {
+        const [panelId, which] = rest.split(":");
+        const place = placeOf(connection.places, panelId);
+        const step = which === "more" ? 0.2 : -0.2;
+        const next = Math.min(PANEL_SCALE.max, Math.max(PANEL_SCALE.min, scaleOf(place) + step));
+        void savePlacement({ ...place, scale: next }).then(onPanelTrouble);
+      }
+    };
+
+    return { items, onPress };
+  }, [arrange, connection.places, connection.showing, onPanelTrouble, panels, showingChoices]);
+
 
   return (
     <Canvas
@@ -512,23 +683,28 @@ export default function Scene({
               // appearing empty and filling in when the socket opens.
               place={placeOf(connection.places, station.id)}
               mode={arrange.modeOf(station.id)}
-              inHeadset={inHeadset}
               onPlaced={(next) => void savePlacement(next).then(onPanelTrouble)}
               onTrouble={onPanelTrouble}
             >
-              {!inHeadset ? (
-                <WebPanel station={station} base={base} project={connection.showing.projectId} />
-              ) : station.id === "chat" ? (
-                // NOT A PHOTOGRAPH. The server's renderer has no WebHarness
-                // token, so its picture of the chat is the sentence saying the
-                // room could not be read. This one is drawn from the viewer's
-                // own session — see ChatPanel3D.
-                <ChatPanel3D station={station} feed={feed} />
-              ) : (
-                // Photographs of the same pages, taken on the server. The live
-                // panels are DOM and a session draws 3D only.
-                <StillPanel station={station} base={base} active={inHeadset} />
-              )}
+              {/* ONE PANEL, CHOSEN BY WHAT IT SHOWS, NOT BY WHERE YOU ARE.
+                  This was a branch on `inHeadset` that gave the desktop an
+                  iframe and a headset a photograph — two implementations of
+                  every panel, which is why anything added to one was missing
+                  from the other. See RoomPanel and docs/ONE-ROOM.md. */}
+              <RoomPanel
+                station={station}
+                feed={feed}
+                boardFeed={boardFeed}
+                onSay={onPanelTrouble}
+                onOpenCard={setOpenCard}
+                openCard={openCard}
+                onCloseCard={() => setOpenCard(null)}
+                projectId={connection.showing.projectId ?? null}
+                settings={settings}
+                boardId={connection.showing.boardId ?? null}
+                people={peopleRows}
+                said={saidRows}
+              />
             </Movable>
           ))}
         {/* Shared screens. A person's hangs in the row above the panels; an

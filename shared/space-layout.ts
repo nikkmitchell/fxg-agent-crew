@@ -217,6 +217,16 @@ const CATALOGUE: { id: string; label: string; tab: string; drawnInSession?: bool
   // utterance transcript is a different thing and lives on the Chat tab's
   // sibling, "said".
   { id: "chat", label: "Chat", tab: "chat", drawnInSession: true },
+  /**
+   * SETTINGS, ON THE ARC WITH EVERYTHING ELSE.
+   *
+   * These lived on a wrist menu that only exists inside a headset, so on a
+   * desktop there was no way to change what the room was showing at all — the
+   * board would sit empty with no control anywhere that could point it at a
+   * project. A panel is reachable from both, drawn the same way and pressed by
+   * the same pointer, so it cannot drift into being two things again.
+   */
+  { id: "settings", label: "Settings", tab: "settings", drawnInSession: true },
 ];
 
 export const STATIONS: Record<string, Station> = Object.fromEntries(

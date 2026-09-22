@@ -35,8 +35,9 @@ export function Home({ onEnter }: { onEnter: () => void }) {
       </header>
 
       <p className="home-blurb">
-        A space you walk around, with everyone currently connected standing in it. The three panels
-        are the real Board, Mood boards and People pages — live, and usable from inside.
+        A space you walk around, with everyone currently connected standing in it. The board, the
+        mood boards, who is here and what has been said are drawn in the room itself — cards drag
+        between columns and you can write without leaving.
       </p>
 
       <Occupancy here={here} />

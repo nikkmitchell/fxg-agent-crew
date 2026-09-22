@@ -3,20 +3,26 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { facingArc, placementRefusal, scaleOf } from "../../shared/panel-place";
 import { resizedScale } from "./panel-resize";
+import { PANEL_HALF_LIFE, follow, followPoint } from "../../shared/smooth-follow";
 import type { ArrangeMode } from "./usePanelArrange";
 import type { Placement } from "../../shared/space-wire";
-import { dropGrip, onGrabOf, putGrip } from "./grip-positions";
+import { claimPointer } from "./pointer-claim";
 
 /**
  * A panel you can pick up and put somewhere else.
  *
- * TWO HANDLES, ONE FOR EACH WORLD, and the reason is not tidiness. In a window
- * the panels are real DOM, and drei's `occlude="blending"` sets
- * `pointer-events: none` on the WebGL canvas so those iframes stay clickable —
- * which means NO 3D object can ever receive a pointer there. I wrote a 3D drag
- * bar first, watched it do nothing, and found the canvas dead to the mouse. So
- * the window gets a DOM bar and a headset gets the 3D one, both driving the
- * same three lines of maths below.
+ * ONE HANDLE, BOTH WORLDS — it used to be two, and the reason it was two is
+ * gone. While the panels were DOM behind drei's `occlude="blending"`, the WebGL
+ * canvas carried `pointer-events: none` so those iframes stayed clickable,
+ * which meant NO 3D object could receive a pointer in a window at all. I wrote
+ * a 3D drag bar first, watched it do nothing, and found the canvas dead to the
+ * mouse; the window got a DOM bar and the headset got the 3D one.
+ *
+ * The panels are meshes now and the occluder went with the iframes, so the
+ * canvas takes a mouse again and the 3D bar works for both. A pointer is a
+ * pointer: R3F gives a mouse press and a controller ray the same event, with
+ * `pointerType` to tell them apart if anything ever needs to. Nothing here
+ * does, which is the point.
  *
  * MOVES ON THE FLOOR PLANE, KEEPS ITS HEIGHT. Dragging in three dimensions from
  * a two-dimensional pointer needs a mode switch, and every one I could think of
@@ -36,7 +42,6 @@ import { dropGrip, onGrabOf, putGrip } from "./grip-positions";
 export function Movable({
   place,
   mode,
-  inHeadset,
   onPlaced,
   onTrouble,
   children,
@@ -51,7 +56,6 @@ export function Movable({
    */
   mode: ArrangeMode;
   /** Which handle to offer. See the note above; this is not cosmetic. */
-  inHeadset: boolean;
   /** Called once, on release, with where it ended up. Never during the drag. */
   onPlaced: (place: Placement) => void;
   onTrouble: (why: string | null) => void;
@@ -146,6 +150,18 @@ export function Movable({
     [place],
   );
 
+  /**
+   * WHERE THE POINTER SAYS THE PANEL SHOULD BE — not where it is.
+   *
+   * The panel used to be set straight from the pointer, which is perfectly
+   * responsive and passes on every tremor: a hand in a headset is never still,
+   * and a controller ray four metres from a wall turns a millimetre of wobble
+   * at the wrist into a centimetre at the panel. The pointer now moves a
+   * target and the panel eases toward it, a frame at a time, at a rate that is
+   * the same at 60fps and at 120 — see `smooth-follow.ts`.
+   */
+  const target = useRef<{ position: { x: number; z: number }; scale: number } | null>(null);
+
   const drag = useCallback(
     (at: { x: number; z: number } | null) => {
       const node = group.current;
@@ -155,15 +171,18 @@ export function Movable({
         // The panel stays where it is; only its size follows the ray. Moving
         // and resizing at once would mean neither could be done deliberately.
         const now = Math.hypot(at.x - place.position.x, at.z - place.position.z);
-        node.scale.setScalar(resizedScale(grabbed.current.scale, grabbed.current.distance, now));
+        target.current = {
+          position: { x: node.position.x, z: node.position.z },
+          scale: resizedScale(grabbed.current.scale, grabbed.current.distance, now),
+        };
         invalidate();
         return;
       }
 
-      const x = at.x + grabOffset.current.x;
-      const z = at.z + grabOffset.current.z;
-      node.position.set(x, place.position.y, z);
-      node.rotation.y = facingArc(x, z);
+      target.current = {
+        position: { x: at.x + grabOffset.current.x, z: at.z + grabOffset.current.z },
+        scale: node.scale.x,
+      };
       // A room set to redraw only when something happens still has to redraw
       // while a panel is being dragged through it.
       invalidate();
@@ -171,18 +190,62 @@ export function Movable({
     [invalidate, place.position],
   );
 
+  /**
+   * Ease toward the target, and STOP when it arrives.
+   *
+   * The stop is not a nicety: this room redraws on demand, so a follow that is
+   * always a hair short would ask for another frame forever and keep a machine
+   * awake for a panel nobody is touching.
+   */
+  useFrame((_, delta) => {
+    const node = group.current;
+    const want = target.current;
+    if (!node || !want) return;
+    const moved = followPoint(
+      { x: node.position.x, z: node.position.z },
+      want.position,
+      delta,
+      PANEL_HALF_LIFE,
+    );
+    const sized = follow(node.scale.x, want.scale, delta, PANEL_HALF_LIFE, 0.0008);
+    node.position.set(moved.value.x, place.position.y, moved.value.z);
+    node.rotation.y = facingArc(moved.value.x, moved.value.z);
+    node.scale.setScalar(sized.value);
+    if (moved.settled && sized.settled) {
+      target.current = null;
+      return;
+    }
+    invalidate();
+  });
+
   const release = useCallback(() => {
     const node = group.current;
     setDragging(false);
     if (!node) return;
+    /**
+     * SAVED FROM THE TARGET, NOT FROM WHERE THE EASE HAS GOT TO.
+     *
+     * The panel is still catching up when the pointer is let go, so reading its
+     * current position would store somewhere slightly behind where it was put —
+     * and a little further behind each time, so a panel dragged repeatedly
+     * would drift backwards along its own path. The target is what the person
+     * asked for; the ease is only how it gets there.
+     */
+    const want = target.current;
+    const x = want ? want.position.x : node.position.x;
+    const z = want ? want.position.z : node.position.z;
+    const scale = want ? want.scale : node.scale.x;
     const next: Placement = {
       id: place.id,
-      position: { x: node.position.x, y: node.position.y, z: node.position.z },
-      rotationY: node.rotation.y,
-      scale: node.scale.x,
+      position: { x, y: node.position.y, z },
+      rotationY: facingArc(x, z),
+      scale,
     };
     const refused = placementRefusal(next);
     if (refused) {
+      // Drop the target as well, or the ease carries on pulling the panel back
+      // toward the place the server just refused.
+      target.current = null;
       node.position.set(place.position.x, place.position.y, place.position.z);
       node.rotation.y = place.rotationY;
       node.scale.setScalar(scaleOf(place));
@@ -247,11 +310,14 @@ export function Movable({
         Visible, faintly, because a mode you cannot see is a mode you forget you
         are in — and this one changes what pressing a board does.
       */}
-      {inHeadset && mode !== "locked" ? (
+      {mode !== "locked" ? (
         <mesh
           position={[0, 0.6, 0.02]}
           onPointerDown={(event) => {
             event.stopPropagation();
+            // Tell the look-drag this press is spoken for, or arranging a panel
+            // also swings the camera round the room.
+            claimPointer(event.nativeEvent);
             grabbedPointer.current = event.pointerId;
             // Capture, so the drag survives the ray slipping off the panel for
             // a frame. Guarded because it is not there on every pointer.
@@ -280,13 +346,16 @@ export function Movable({
         </mesh>
       ) : null}
 
-      {inHeadset ? (
-        // A 3D bar the full width of the panel: a big target for a ray from
-        // across the room, where a small gizmo arrow is a test of nerve.
-        <mesh
+      {/*
+        A 3D bar the full width of the panel: a big target for a ray from across
+        the room, where a small gizmo arrow is a test of nerve — and a perfectly
+        ordinary thing to click with a mouse.
+      */}
+      <mesh
           position={[0, top, 0.01]}
           onPointerDown={(event) => {
             event.stopPropagation();
+            claimPointer(event.nativeEvent);
             grabbedPointer.current = event.pointerId;
             (event.target as { setPointerCapture?: (id: number) => void } | null)
               ?.setPointerCapture?.(event.pointerId);
@@ -309,62 +378,7 @@ export function Movable({
             transparent
             opacity={dragging ? 0.95 : 0.6}
           />
-        </mesh>
-      ) : (
-        // A DOM bar, because the canvas beneath it is `pointer-events: none`.
-        <PanelGrip
-          id={place.id}
-          worldY={top}
-          onGrab={(clientX, clientY) => begin(floorPoint(clientX, clientY))}
-        />
-      )}
+      </mesh>
     </group>
   );
-}
-
-
-
-/**
- * Reports where this panel's handle belongs on screen, every frame.
- *
- * It draws nothing. `PanelGrips`, outside the Canvas, draws the button — see
- * `grip-positions.ts` for why it cannot be done in here.
- */
-function PanelGrip({
-  id,
-  worldY,
-  onGrab,
-}: {
-  id: string;
-  worldY: number;
-  onGrab: (clientX: number, clientY: number) => void;
-}) {
-  const anchor = useRef<THREE.Object3D>(null);
-  const camera = useThree((state) => state.camera);
-  const gl = useThree((state) => state.gl);
-  const at = useMemo(() => new THREE.Vector3(), []);
-
-  useEffect(() => {
-    onGrabOf(id, onGrab);
-  }, [id, onGrab]);
-
-  useEffect(() => () => dropGrip(id), [id]);
-
-  useFrame(() => {
-    const point = anchor.current;
-    if (!point) return;
-    point.getWorldPosition(at);
-    at.project(camera);
-    const rect = gl.domElement.getBoundingClientRect();
-    putGrip({
-      id,
-      x: rect.left + ((at.x + 1) / 2) * rect.width,
-      y: rect.top + ((1 - at.y) / 2) * rect.height,
-      // Behind the camera projects to a mirrored point on the far side of the
-      // screen, which would put a handle nowhere near its panel.
-      shown: at.z <= 1,
-    });
-  });
-
-  return <object3D ref={anchor} position={[0, worldY, 0.02]} />;
 }
