@@ -23,6 +23,10 @@ Captures and suicide rejection are implemented; scoring, passes and ko are not.
 
 ## Size and placement
 
+**Hide desk / Show desk** only toggles the wooden tabletop and its four legs.
+The board, bowls, capture trays, controls, stone positions, transform and any
+stone in flight stay exactly where they are. The choice is shared and saved.
+
 Grid size changes the physical board, not stone density. All five sizes use a
 7.5 cm virtual pitch and a 6.45 cm stone diameter before whole-table scaling.
 This is an enlarged, touch-friendly room model rather than a regulation-size prop.

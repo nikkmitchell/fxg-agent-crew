@@ -116,7 +116,7 @@ export const space = {
   addRoomItem: () => requestJson<{ item: RoomItem }>(`${root}/items`, {
     method: "POST", body: JSON.stringify({ kind: "go" }),
   }),
-  configureGo: (id: string, change: { size?: GoSize; addBowl?: true; position?: { x: number; y: number; z: number; rotationY: number }; scale?: number; revision?: number }) =>
+  configureGo: (id: string, change: { size?: GoSize; addBowl?: true; position?: { x: number; y: number; z: number; rotationY: number }; scale?: number; revision?: number; deskVisible?: boolean }) =>
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}`, {
       method: "PATCH", body: JSON.stringify(change),
     }),

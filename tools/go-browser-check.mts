@@ -16,6 +16,9 @@ await mkdir("output/playwright", { recursive: true });
 try {
   await page.request.get(`${origin}/dev/as/nikk`);
   await page.goto(`${origin}/tools/go-preview.html`);
+  await page.evaluate(async () => {
+    if (!(await (await fetch("/bff/space/items")).json()).items.length) await fetch("/bff/space/items", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "go" }) });
+  });
   const read = async (): Promise<GoRoomItem> => page.evaluate(async () => (await (await fetch("/bff/space/items")).json()).items[0]);
   const configure = async (body: object) => {
     const item = await read();
@@ -49,6 +52,14 @@ try {
   await page.screenshot({ path: "output/playwright/go-capture-final.png" });
   const signature = JSON.stringify({ stones: captured.stones, captures: captured.captures, activeColour: captured.activeColour });
   const edge = goDeckWidth(captured.size, captured.colours.length) / 2;
+  await clickLocal({ x: -0.48, y: 0.754, z: edge - 0.095 });
+  const hidden = await read(); assert.equal(hidden.deskVisible, false);
+  assert.deepEqual(hidden, { ...captured, deskVisible: false, revision: captured.revision + 1 });
+  await page.screenshot({ path: "output/playwright/go-hidden-desk-final.png" });
+  await page.reload(); await page.waitForTimeout(1000);
+  assert.equal((await read()).deskVisible, false, "hidden desk persists after reload");
+  await clickLocal({ x: -0.48, y: 0.754, z: edge - 0.095 });
+  assert.equal((await read()).deskVisible, true, "show desk stays clickable with desk hidden");
   await clickLocal({ x: 0, y: 0.754, z: -edge + 0.09 });
   // The dock is rotated60 degrees aroundX, with buttons on its localXZ plane.
   const dock = (x: number, z: number) => ({ x, y: 0.59 - Math.sin(Math.PI / 3) * z, z: edge + 0.11 + Math.cos(Math.PI / 3) * z });
@@ -72,5 +83,5 @@ try {
   await page.getByRole("button", { name: "Motion on", exact: true }).click();
   await page.screenshot({ path: "output/playwright/go-reduced-final.png" });
   assert.deepEqual(errors, [], "no browser errors");
-  console.log("PASS: real mesh lift/place, seven-move capture, XYZ + scale, game preservation, reload,5/9/19/25 and reduced motion");
+  console.log("PASS: real mesh lift/place, seven-move capture, hide/show desk without changing game or placement, XYZ + scale, game preservation, reload,5/9/19/25 and reduced motion");
 } finally { await browser.close(); }

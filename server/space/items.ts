@@ -44,11 +44,15 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (request.body?.kind !== "go") return reply.code(400).send({ code: "BAD_KIND", error: "the first room item is a Go table" });
     const room = spaceRoomOf(session); const item = options.items.add(room, session.username); publish(room, session.username); return reply.code(201).send({ item });
   });
-  app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; position?: unknown; scale?: unknown; revision?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
+  app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; position?: unknown; scale?: unknown; revision?: unknown; deskVisible?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
     const change = request.body;
     if (change?.revision !== undefined && change.revision !== item.revision) return reply.code(409).send({ error: "The table changed. Try again." });
+    if (change?.deskVisible !== undefined) {
+      if (typeof change.deskVisible !== "boolean") return reply.code(400).send({ error: "Desk visibility must be true or false." });
+      item.deskVisible = change.deskVisible;
+    }
     if (change?.position !== undefined || change?.scale !== undefined) {
       if (item.liftedColour !== null) return reply.code(409).send({ error: "Place or return the flying stone before moving the table." });
       if (change.position !== undefined) {

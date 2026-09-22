@@ -77,8 +77,8 @@ describe("Go layout", () => {
   });
   it("upgrades a persisted original table without changing stones", () => {
     const item = defaultGoItem("old");
-    const { captures: _c, carrier: _h, scale: _s, revision: _r, ...old } = item;
-    expect(parseRoomItem({ ...old, position: { x: 1, z: 2, rotationY: 0 } })).toMatchObject({ captures: [], carrier: null, scale: 1, revision: 0, position: { y: 0 } });
+    const { captures: _c, carrier: _h, scale: _s, revision: _r, deskVisible: _d, ...old } = item;
+    expect(parseRoomItem({ ...old, position: { x: 1, z: 2, rotationY: 0 } })).toMatchObject({ captures: [], carrier: null, scale: 1, revision: 0, deskVisible: true, position: { y: 0 } });
   });
   it("round trips translated, rotated and resized contact coordinates", () => {
     const item = { ...defaultGoItem("test"), position: { x: 2, y: 0.8, z: -3, rotationY: 0.7 }, scale: 1.6 };

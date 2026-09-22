@@ -258,16 +258,16 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   const wide = item.colours.length > 2, deck = goDeckWidth(item.size, item.colours.length);
   const extent = goExtent(item.size), boardWidth = goBoardWidth(item.size), edge = deck / 2;
   return <group position={[item.position.x, item.position.y, item.position.z]} rotation-y={item.position.rotationY} scale={item.scale}>
-    <RoundedBox args={[deck, 0.075, deck]} radius={0.035} smoothness={4} position={[0, 0.705, 0]} receiveShadow>
+    {item.deskVisible && <RoundedBox args={[deck, 0.075, deck]} radius={0.035} smoothness={4} position={[0, 0.705, 0]} receiveShadow>
       <meshStandardMaterial map={wood} color="#765b49" roughness={0.42} metalness={0.06} />
-    </RoundedBox>
+    </RoundedBox>}
     <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow>
       <meshPhysicalMaterial color="#975d32" roughness={0.38} clearcoat={0.4} />
     </RoundedBox>
     <RoundedBox args={[boardWidth, 0.025, boardWidth]} radius={0.01} smoothness={3} position={[0, GO_SURFACE - 0.0125, 0]} receiveShadow>
       <meshPhysicalMaterial map={wood} roughness={0.43} clearcoat={0.22} />
     </RoundedBox>
-    {[-1, 1].flatMap((x) => [-1, 1].map((z) => <mesh key={`${x}-${z}`} position={[x * edge * 0.6, 0.34, z * edge * 0.6]} castShadow>
+    {item.deskVisible && [-1, 1].flatMap((x) => [-1, 1].map((z) => <mesh key={`${x}-${z}`} position={[x * edge * 0.6, 0.34, z * edge * 0.6]} castShadow>
       <cylinderGeometry args={[0.07, 0.045, 0.68, 12]} /><meshStandardMaterial color="#382720" roughness={0.4} />
     </mesh>))}
     {offsets.map((offset, index) => <group key={index}>
@@ -304,6 +304,8 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       <Text rotation-x={-Math.PI / 2} position-y={0.001} fontSize={0.025} color="#eee0c6">RETURN STONE</Text>
     </group>}
     <TableButton label={arranging ? "DONE ARRANGING" : "MOVE / SIZE"} at={[0, 0.754, -edge + 0.09]} width={0.48} onTap={() => setArranging(!arranging)} />
+    <TableButton label={item.deskVisible ? "HIDE DESK" : "SHOW DESK"} at={[-0.48, 0.754, edge - 0.095]} width={0.4}
+      onTap={() => void configure({ deskVisible: !item.deskVisible })} />
     {arranging && item.liftedColour === null && <group position={[0, 0.59, edge + 0.11]} rotation-x={Math.PI / 3}>
       <RoundedBox args={[1.2, 0.025, 0.43]} radius={0.01} position={[0, -0.018, -0.055]}><meshStandardMaterial color="#302920" /></RoundedBox>
       {(["x", "y", "z"] as const).flatMap((axis, n) => [-1, 1].map((sign, j) => {

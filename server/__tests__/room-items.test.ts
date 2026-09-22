@@ -24,6 +24,26 @@ describe("room items", () => {
 });
 
 describe("Go actions", () => {
+  it("hides only the desk, preserving the game, transform and flying stone", async () => {
+    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    try {
+      const items = new RoomItems(database), item = items.add("saha.ing", "Moraine");
+      item.stones = [{ id: "played", x: 4, y: 4, colour: 0 }];
+      item.captures = [{ id: "captured", x: 0, y: 0, colour: 1, by: 0 }];
+      item.position = { x: 2, y: 0.3, z: -1, rotationY: 0.5 }; item.scale = 1.4;
+      item.liftedColour = 0; item.carrier = { by: "Moraine", hand: "left" };
+      items.save("saha.ing", item, "Moraine");
+      const cookie = `${config.cookieName}=${sessions.create("Moraine", "t", "agent")}`;
+      const patch = (payload: object) => app.inject({ method: "PATCH", url: `/bff/space/items/${item.id}`, headers: { cookie }, payload });
+      expect((await patch({ deskVisible: "false" })).statusCode).toBe(400);
+      const hidden = await patch({ deskVisible: false, revision: 0 });
+      expect(hidden.statusCode).toBe(200);
+      expect(hidden.json().item).toEqual({ ...item, deskVisible: false, revision: 1 });
+      expect(items.one("saha.ing", item.id)).toEqual(hidden.json().item);
+      expect((await patch({ deskVisible: true, revision: 0 })).statusCode).toBe(409);
+      expect((await patch({ deskVisible: true, revision: 1 })).json().item).toEqual({ ...item, revision: 2 });
+    } finally { await app.close(); }
+  });
   it("serializes turns, protects a carrier, stores captures and retains an unchanged size", async () => {
     const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
     try {

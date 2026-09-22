@@ -20,6 +20,7 @@ export type GoRoomItem = {
   carrier: { by: string; hand: "left" | "right" | null } | null;
   position: { x: number; y: number; z: number; rotationY: number };
   scale: number;
+  deskVisible: boolean;
 };
 export type RoomItem = GoRoomItem;
 
@@ -36,7 +37,7 @@ export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
     activeColour: 0,
     liftedColour: null,
     stones: [],
-    captures: [], revision: 0, carrier: null, scale: 1,
+    captures: [], revision: 0, carrier: null, scale: 1, deskVisible: true,
     position: { x: ordinal * 2.65 - 1.15, y: 0, z: 1.8, rotationY: 0 },
   };
 }
@@ -60,6 +61,6 @@ export function parseRoomItem(value: unknown): RoomItem | null {
       ![item.position.x, item.position.z, item.position.rotationY].every(Number.isFinite)) return null;
   // Upgrade old tables without clearing their game.
   return { ...item, captures: item.captures ?? [], revision: item.revision ?? 0,
-    carrier: item.carrier ?? null, scale: item.scale ?? 1,
+    carrier: item.carrier ?? null, scale: item.scale ?? 1, deskVisible: item.deskVisible ?? true,
     position: { ...item.position, y: item.position.y ?? 0 } } as GoRoomItem;
 }
