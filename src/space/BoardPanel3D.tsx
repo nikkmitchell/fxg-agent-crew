@@ -9,7 +9,7 @@ import { applyPending, intentOf, settlePending, type BoardIntent, type PendingMo
 import { canTransition } from "../../shared/board-rules";
 import { carrying, stepGesture, type Gesture, type PointerSource, type SurfaceEvent, type SurfaceHit } from "../../shared/surface-input";
 import { drawInk, makeInkCanvas, measureWith } from "./ink-canvas";
-import { claimPointer } from "./pointer-claim";
+import { claimPointer, pointerWasClaimed } from "./pointer-claim";
 
 /**
  * The work board, drawn in the room.
@@ -294,6 +294,51 @@ export function BoardPanel3D({
     const stepped = stepGesture(gesture, { type: "move", source: "mouse", hit: null, at: now() });
     setGesture(stepped.state);
   }, [gesture, now]);
+
+  /**
+   * WHILE DRAGGING, THE WHOLE WINDOW LISTENS FOR THE RELEASE.
+   *
+   * R3F only delivers an event when the ray hits something of ours, so letting
+   * go anywhere off the panel delivered no `up` at all — the gesture stayed
+   * "dragging" for ever, the card was stranded, and the next press began in a
+   * state nobody had left. Worse, that is exactly the gesture Nikk asked for:
+   * "tasks should even be able to be pulled off the board". Pulling one off the
+   * panel is the one drag guaranteed to end where R3F is not looking, so the
+   * feature could never have fired.
+   *
+   * `Movable` learned the same thing about its own drags and says so; the board
+   * needed telling separately.
+   */
+  useEffect(() => {
+    if (gesture.kind !== "dragging") return;
+    const release = (event: PointerEvent) => {
+      /**
+       * ONLY WHEN THE PANEL DID NOT ALREADY HANDLE IT.
+       *
+       * On an ordinary release over the board, R3F delivers the `up` to the
+       * mesh first and this listener fires afterwards on the same native event
+       * — with a `gesture` closure that is still "dragging", because React has
+       * not re-rendered yet. Without this check that is a SECOND drop: the same
+       * card moved twice, and the second one from a stale state.
+       *
+       * `claimPointer` already marks every event the panel handled, so the
+       * question is one the room can answer rather than one this has to guess.
+       */
+      if (pointerWasClaimed(event)) return;
+      const stepped = stepGesture(gesture, { type: "up", source: gesture.source, hit: null, at: now() });
+      setGesture(stepped.state);
+      if (stepped.outcome) {
+        act(intentOf(stepped.outcome, layout, cardOfHit, canTransition));
+        grabbed.current = null;
+      }
+    };
+    window.addEventListener("pointerup", release as EventListener);
+    window.addEventListener("pointercancel", release as EventListener);
+    return () => {
+      window.removeEventListener("pointerup", release as EventListener);
+      window.removeEventListener("pointercancel", release as EventListener);
+    };
+  }, [act, cardOfHit, gesture, layout, now]);
 
   return (
     <group ref={board}>
