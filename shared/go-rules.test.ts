@@ -56,6 +56,17 @@ describe("Go layout", () => {
     expect(goBoardWidth(25)).toBeGreaterThan(goBoardWidth(19));
     expect(goBoardWidth(9)).toBeGreaterThan(goBoardWidth(5));
   });
+  it("keeps capture trays clear of every bowl at all grid sizes and colour counts", () => {
+    for (const size of GO_SIZES) for (let count = 2; count <= 8; count++) for (let i = 0; i < count; i++) {
+      const tray = goTray(i, count, size);
+      for (let j = 0; j < count; j++) {
+        const bowl = goBowl(j, count, size);
+        const dx = Math.max(0, Math.abs(tray.x - bowl.x) - 0.11);
+        const dz = Math.max(0, Math.abs(tray.z - bowl.z) - 0.135);
+        expect(Math.hypot(dx, dz) - 0.18, `${size}x${size}/${count}: tray${i} bowl${j}`).toBeGreaterThan(0.01);
+      }
+    }
+  });
   it("keeps every bowl outside the playing surface and each tray on the deck", () => {
     for (const size of GO_SIZES) for (let count = 2; count <= 8; count++) for (let i = 0; i < count; i++) {
       const bowl = goBowl(i, count, size), tray = goTray(i, count, size);

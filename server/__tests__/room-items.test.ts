@@ -36,6 +36,8 @@ describe("Go actions", () => {
       expect((await action(a, { action: "place", x: 0, y: 1 })).statusCode).toBe(409);
       expect((await action(a, { action: "lift", hand: "left", colour: 1 })).statusCode).toBe(409);
       expect((await action(a, { action: "lift", hand: "left", colour: 0, revision: 0 })).statusCode).toBe(200);
+      const other = items.add("saha.ing", "Moraine");
+      expect((await app.inject({ method: "POST", url: `/bff/space/items/${other.id}/action`, headers: { cookie: a }, payload: { action: "lift", hand: "left" } })).statusCode).toBe(409);
       expect((await action(b, { action: "lift" })).statusCode).toBe(409);
       expect((await app.inject({ method: "PATCH", url: `/bff/space/items/${item.id}`, headers: { cookie: a }, payload: { scale: 1.2 } })).statusCode).toBe(409);
       expect((await action(b, { action: "place", x: 0, y: 1 })).statusCode).toBe(409);

@@ -43,4 +43,13 @@ describe("Go hand/controller contacts", () => {
     const half = Math.SQRT1_2;
     expect(goCarryPoint({ p: { x: 0, y: 0, z: 0 }, q: { x: 0, y: half, z: 0, w: half } }).x).toBeCloseTo(-0.08);
   });
+  it("does not consume placement while the lift response is pending, then starts a fresh dwell", () => {
+    const input = { item, point: center, holding: true, canLift: false, now: 0 };
+    let step = stepGoTouch(idleGoTouch(), input);
+    step = stepGoTouch(step.state, { ...input, pending: true, now: 500 });
+    expect(step.action).toBeNull(); expect(step.state.target).toBeNull();
+    step = stepGoTouch(step.state, { ...input, now: 700 }); expect(step.action).toBeNull();
+    step = stepGoTouch(step.state, { ...input, now: 879 }); expect(step.action).toBeNull();
+    step = stepGoTouch(step.state, { ...input, now: 880 }); expect(step.action).toEqual({ action: "place", x: 4, y: 4 });
+  });
 });

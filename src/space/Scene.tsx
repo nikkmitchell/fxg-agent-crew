@@ -743,7 +743,7 @@ export default function Scene({
 
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
-        <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} inHeadset={inHeadset} you={you} peopleRef={connection.peopleRef} />
+        <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} />
         <Immersive
           comfort={comfort}
           send={connection.send}

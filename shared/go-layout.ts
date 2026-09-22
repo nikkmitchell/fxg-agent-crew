@@ -5,20 +5,29 @@ export type Point3 = { x: number; y: number; z: number };
 export const GO_PITCH = 0.075;
 export const goExtent = (size: number) => (size - 1) * GO_PITCH;
 export const goBoardWidth = (size: number) => goExtent(size) + 0.2;
-export const goDeckWidth = (size: number, colours: number) => Math.max(1.7, goBoardWidth(size) + (colours > 2 ? 1.4 : 1.12));
+export function goDeckWidth(size: number, colours: number): number {
+  let halfWidth = Math.max(1.7, goBoardWidth(size) + (colours > 2 ? 1.4 : 1.12)) / 2;
+  for (let i = 0; i < colours; i++) {
+    const tray = goTray(i, colours, size);
+    halfWidth = Math.max(halfWidth, Math.abs(tray.x) + 0.11 + 0.04, Math.abs(tray.z) + 0.135 + 0.04);
+  }
+  return halfWidth * 2;
+}
 export const GO_SURFACE = 0.86;
 export const goPoint = (n: number, size: number) => -goExtent(size) / 2 + n * GO_PITCH;
 export const goRadius = (_size?: number) => GO_PITCH * 0.43;
 export function goBowl(index: number, count: number, size = 9): Point3 {
   const angle = Math.PI + index / count * Math.PI * 2;
   // A square perimeter keeps diagonal bowls outside the square playing surface.
-  const radius = (goBoardWidth(size) / 2 + 0.295) / Math.max(Math.abs(Math.cos(angle)), Math.abs(Math.sin(angle)));
+  // Small boards still need enough perimeter for eight bowl-and-tray stations.
+  const stationEdge = Math.max(goBoardWidth(size) / 2 + 0.295, count >= 6 ? 0.76 : 0);
+  const radius = stationEdge / Math.max(Math.abs(Math.cos(angle)), Math.abs(Math.sin(angle)));
   return { x: Math.cos(angle) * radius, y: GO_SURFACE - 0.06, z: Math.sin(angle) * radius };
 }
 export function goTray(index: number, count: number, size = 9): Point3 {
   const bowl = goBowl(index, count, size);
   const angle = Math.PI + index / count * Math.PI * 2;
-  return { x: bowl.x - Math.sin(angle) * 0.33, y: 0.752, z: bowl.z + Math.cos(angle) * 0.33 };
+  return { x: bowl.x - Math.sin(angle) * 0.38, y: 0.752, z: bowl.z + Math.cos(angle) * 0.38 };
 }
 export function goLocal(p: Point3, item: GoRoomItem): Point3 {
   const x = (p.x - item.position.x) / item.scale;

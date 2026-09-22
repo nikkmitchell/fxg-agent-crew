@@ -9,9 +9,12 @@ export type GoContactAction = { action: "lift" } | { action: "place"; x: number;
 /** Fresh contact only; leave the bowl before placing, then dwell 180ms to reject sweeps.
  * Once emitted, a contact cannot send again until it leaves that intersection. */
 export function stepGoTouch(state: GoTouchState, input: {
-  point: Point3 | null; item: GoRoomItem; holding: boolean; canLift: boolean; now: number;
+  point: Point3 | null; item: GoRoomItem; holding: boolean; canLift: boolean; now: number; pending?: boolean;
 }): { state: GoTouchState; action: GoContactAction | null } {
   const { point, item, holding, canLift, now } = input;
+  // A socket acknowledgement can precede the HTTP reply. Wait for dispatch to
+  // reopen and require a fresh dwell; never consume an action we cannot send.
+  if (input.pending) return { state: { ...state, target: null, since: now }, action: null };
   if (!point) return { state: { ...state, inside: false, target: null }, action: null };
   const inside = goTouchBowl(point, item);
   if (!holding) return { state: { inside, armed: false, target: null, since: now }, action: canLift && inside && !state.inside ? { action: "lift" } : null };

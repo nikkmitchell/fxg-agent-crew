@@ -86,6 +86,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       if (item.liftedColour !== null) return reply.code(409).send({ error: "A stone is already in flight. Place it or return it first." });
       if (request.body.colour !== undefined && request.body.colour !== item.activeColour) return reply.code(409).send({ error: "It is the glowing bowl's turn." });
       if (request.body.hand !== undefined && request.body.hand !== null && request.body.hand !== "left" && request.body.hand !== "right") return reply.code(400).send({ error: "Unknown hand." });
+      if (request.body.hand && options.items.all(room).some((table) => table.carrier?.by === session.username && table.carrier.hand === request.body.hand)) return reply.code(409).send({ error: "That hand is already carrying a stone at another table." });
       item.liftedColour = item.activeColour;
       item.carrier = { by: session.username, hand: (request.body.hand as "left" | "right" | null) ?? null };
     }

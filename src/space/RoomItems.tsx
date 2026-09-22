@@ -1,14 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { RoundedBox, Text } from "@react-three/drei";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { GoRoomItem, RoomItem } from "../../shared/room-items";
 import { legalGoMoves } from "../../shared/go-rules";
-import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goDeckWidth, goBowl, goPoint, goRadius, goTray, goLocal, type Point3 } from "../../shared/go-layout";
+import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goDeckWidth, goBowl, goPoint, goRadius, goTray, goLocal, goTouchBowl, type Point3 } from "../../shared/go-layout";
 import { goCarryPoint, idleGoTouch, stepGoTouch } from "../../shared/go-touch";
 import type { WirePerson } from "../../shared/space-wire";
 import { goHandInput } from "./go-hand-input";
 import { space } from "../space-client";
+import { claimPointer } from "./pointer-claim";
 
 const NAMES = ["Black", "White", "Coral", "Blue", "Gold", "Jade", "Violet", "Rose"];
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
@@ -55,16 +56,19 @@ function MoveLights({ item, reducedMotion, onPlace }: { item: GoRoomItem; reduce
     const object = new THREE.Object3D(), width = GO_PITCH * 0.88;
     moves.forEach((move, i) => {
       object.position.set(goPoint(move.x, item.size), GO_SURFACE + 0.003, goPoint(move.y, item.size));
-      object.rotation.x = -Math.PI / 2; object.scale.setScalar(width * (hover === i ? 1.45 : 1)); object.updateMatrix();
+      // Hover brightens, but never enlarges the clickable intersection into its neighbour.
+      object.rotation.x = -Math.PI / 2; object.scale.setScalar(width); object.updateMatrix();
       dots.current!.setMatrixAt(i, object.matrix);
+      dots.current!.setColorAt(i, new THREE.Color().setScalar(hover === i ? 1.7 : 1));
     });
     dots.current.count = moves.length; dots.current.instanceMatrix.needsUpdate = true;
+    if (dots.current.instanceColor) dots.current.instanceColor.needsUpdate = true;
     dots.current.computeBoundingSphere();
   }, [moves, item.size, hover]);
   useFrame(({ clock }) => { if (material.current) material.current.opacity = reducedMotion ? 0.8 : 0.62 + Math.sin(clock.elapsedTime * 2.8) * 0.22; });
   const action = (instanceId?: number) => { const point = moves[instanceId ?? -1]; if (point) onPlace(point.x, point.y); };
   return <instancedMesh ref={dots} args={[undefined, undefined, item.size * item.size]} frustumCulled={false}
-    userData={{ goAction: action }} onClick={(event) => { event.stopPropagation(); action(event.instanceId); }}
+    onClick={(event) => { event.stopPropagation(); action(event.instanceId); }}
     onPointerMove={(event) => { event.stopPropagation(); setHover(event.instanceId ?? null); }} onPointerOut={() => setHover(null)}>
     <planeGeometry args={[1, 1]} />
     <meshBasicMaterial ref={material} map={texture} color={ACCENTS[item.activeColour]} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
@@ -128,7 +132,7 @@ function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index:
   });
   const captures = item.captures.filter((stone) => stone.by === index).length;
   return <>
-    <group position={xyz(position)} userData={{ goAction: onLift }} onClick={(event) => { event.stopPropagation(); onLift(); }}>
+    <group position={xyz(position)} onClick={(event) => { event.stopPropagation(); onLift(); }}>
       <mesh position={[0, -0.055, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}>
         <planeGeometry args={[0.72, 0.72]} /><meshBasicMaterial ref={pulse} map={texture} color={accent} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
       </mesh>
@@ -139,7 +143,7 @@ function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index:
       <Stones targets={stock} reducedMotion />
       {/* Invisible contact cap also makes the stones in the bowl clickable. */}
       <mesh position={[0, 0.045, 0]}><sphereGeometry args={[0.17, 16, 8]} /><meshBasicMaterial visible={false} /></mesh>
-      <Text position={[0, -0.042, 0.24]} rotation-x={-Math.PI / 2} fontSize={0.039} color={active ? accent : "#c8b49a"} raycast={noRaycast}>
+      <Text position={[0, -0.042, tray.z > position.z ? -0.24 : 0.24]} rotation-x={-Math.PI / 2} fontSize={0.039} color={active ? accent : "#c8b49a"} raycast={noRaycast}>
         {`${NAMES[index].toUpperCase()}${active ? " · TO PLAY" : ""}`}
       </Text>
     </group>
@@ -152,13 +156,13 @@ function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index:
 
 function TableButton({ label, at, onTap, width = 0.24 }: { label: string; at: [number, number, number]; onTap: () => void; width?: number }) {
   const [hover, setHover] = useState(false);
-  return <group position={at} userData={{ goAction: onTap }} onClick={(event) => { event.stopPropagation(); onTap(); }} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
+  return <group position={at} onClick={(event) => { event.stopPropagation(); onTap(); }} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
     <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[width, 0.105]} /><meshBasicMaterial color={hover ? "#78654b" : "#483b2e"} /></mesh>
     <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={0.029} color="#f1dfbd" raycast={noRaycast}>{label}</Text>
   </group>;
 }
 
-type TableContext = { you: string | null; peopleRef: RefObject<WirePerson[]>; inHeadset: boolean;
+type TableContext = { you: string | null; peopleRef: RefObject<WirePerson[]>;
   items: RoomItem[]; reservations: RefObject<Map<string, { id: string; until: number }>> };
 function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMotion: boolean; context: TableContext }) {
   const [notice, setNotice] = useState("");
@@ -207,14 +211,14 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   };
   useFrame(({ clock }, delta) => {
     const now = performance.now();
-    if (context.inHeadset && context.you) for (const side of ["left", "right"] as const) {
+    if (context.you) for (const side of ["left", "right"] as const) {
       const sample = goHandInput[side];
       const point = sample && now - sample.at < 120 ? goLocal(sample.contact, item) : null;
       const holding = item.liftedColour !== null && item.carrier?.by === context.you && item.carrier.hand === side;
       const reservation = context.reservations.current.get(side);
       const otherTable = context.items.some((table) => table.id !== item.id && table.carrier?.by === context.you && table.carrier.hand === side);
       const canLift = item.liftedColour === null && !pending.current && !otherTable && (!reservation || reservation.until < now || reservation.id === item.id);
-      const next = stepGoTouch(contacts.current[side], { point, item, holding, canLift, now });
+      const next = stepGoTouch(contacts.current[side], { point, item, holding, canLift, now, pending: pending.current });
       contacts.current[side] = next.state;
       if (next.action && !pending.current) {
         if (next.action.action === "lift") {
@@ -229,7 +233,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       const sample = goHandInput[side];
       const remote = context.peopleRef.current.find((person) => person.actorId === item.carrier!.by)?.hands[side];
       const world = item.carrier.by === context.you
-        ? context.inHeadset && sample && now - sample.at < 120 ? sample.carry : null
+        ? sample && now - sample.at < 120 ? sample.carry : null
         : remote ? goCarryPoint(remote) : null;
       if (world) {
         const p = goLocal(world, item);
@@ -276,9 +280,18 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     <MoveLights item={item} reducedMotion={reducedMotion} onPlace={(x, y) => void act({ action: "place", x, y })} />
     <Stones targets={targets} reducedMotion={reducedMotion} />
     {item.colours.map((_, index) => <Bowl key={index} item={item} index={index} reducedMotion={reducedMotion}
-      onLift={() => { if (index === item.activeColour && item.liftedColour === null) void act({ action: "lift", colour: index }); }} />)}
+      onLift={() => {
+        if (index !== item.activeColour || item.liftedColour !== null) return;
+        // A poke click and the physical-contact adapter can arrive in either order.
+        // Both must claim the touching hand, never turn its stone into a mouse lift.
+        const hand = (["left", "right"] as const).find((side) => {
+          const sample = goHandInput[side];
+          return sample && performance.now() - sample.at < 120 && goTouchBowl(goLocal(sample.contact, item), item);
+        });
+        void act({ action: "lift", colour: index, ...(hand ? { hand } : {}) });
+      }} />)}
     {lifted && <mesh key={`held-${item.activeColour}`} ref={held} position={[lifted.x, lifted.y + 0.06, lifted.z]} scale={[radius, radius * 0.46, radius]} raycast={noRaycast} castShadow>
-      <sphereGeometry args={[1, 32, 20]} /><meshPhysicalMaterial color={item.colours[item.activeColour]} roughness={0.18} clearcoat={1} emissive={ACCENTS[item.activeColour]} emissiveIntensity={0.12} />
+      <sphereGeometry args={[1, 32, 20]} /><meshPhysicalMaterial color={item.colours[item.activeColour]} roughness={0.18} clearcoat={1} emissive={ACCENTS[item.activeColour]} emissiveIntensity={0.025} />
     </mesh>}
     <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.035 : boardWidth / 2 + 0.16]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.025 : 0.043} color={wide ? "#49331f" : ACCENTS[item.activeColour]} raycast={noRaycast}>
       {`${NAMES[item.activeColour].toUpperCase()}'S TURN`}
@@ -286,7 +299,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? "#624526" : "#d8c8ac"} raycast={noRaycast}>
       {notice || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a glowing point` : item.liftedColour !== null ? "Choose a glowing intersection" : "Touch the glowing bowl to lift a stone")}
     </Text>
-    {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} userData={{ goAction: () => void act({ action: "return" }) }} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
+    {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
       <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[0.46, 0.1]} /><meshBasicMaterial color="#493d30" /></mesh>
       <Text rotation-x={-Math.PI / 2} position-y={0.001} fontSize={0.025} color="#eee0c6">RETURN STONE</Text>
     </group>}
@@ -307,38 +320,10 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   </group>;
 }
 
-/** Desktop panels turn off canvas pointer events. Raycast only bare room clicks;
- * never intercept a button, iframe, input or drag-to-look gesture. XR uses native events. */
-function DesktopGoPointer({ root, enabled }: { root: RefObject<THREE.Group | null>; enabled: boolean }) {
-  const { gl, camera } = useThree();
-  useEffect(() => {
-    if (!enabled) return;
-    let down: { x: number; y: number } | null = null;
-    let consumed = false;
-    const bare = (event: PointerEvent) => event.target instanceof HTMLElement && (event.target === gl.domElement || event.target.contains(gl.domElement));
-    const start = (event: PointerEvent) => { consumed = false; down = bare(event) && event.button === 0 ? { x: event.clientX, y: event.clientY } : null; };
-    const end = (event: PointerEvent) => {
-      if (!down || !bare(event) || Math.hypot(event.clientX - down.x, event.clientY - down.y) > 6 || !root.current) { down = null; return; }
-      down = null;
-      const rect = gl.domElement.getBoundingClientRect(), ray = new THREE.Raycaster();
-      ray.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2), camera);
-      const hit = ray.intersectObject(root.current, true)[0];
-      for (let object: THREE.Object3D | null = hit?.object ?? null; object; object = object.parent) {
-        // Let pointer-up release look/orbit controls; suppress only the later click.
-        if (object.userData.goAction) { consumed = true; object.userData.goAction(hit.instanceId); break; }
-      }
-    };
-    const click = (event: MouseEvent) => { if (consumed) { consumed = false; event.stopImmediatePropagation(); } };
-    window.addEventListener("pointerdown", start, true); window.addEventListener("pointerup", end, true);
-    window.addEventListener("click", click, true);
-    return () => { window.removeEventListener("pointerdown", start, true); window.removeEventListener("pointerup", end, true); window.removeEventListener("click", click, true); };
-  }, [enabled, root, gl, camera]);
-  return null;
-}
-
-export function RoomItems({ items, reducedMotion, inHeadset, you = null, peopleRef }: { items: RoomItem[]; reducedMotion: boolean; inHeadset: boolean; you?: string | null; peopleRef?: RefObject<WirePerson[]> }) {
-  const root = useRef<THREE.Group>(null);
+export function RoomItems({ items, reducedMotion, you = null, peopleRef }: { items: RoomItem[]; reducedMotion: boolean; you?: string | null; peopleRef?: RefObject<WirePerson[]> }) {
   const emptyPeople = useRef<WirePerson[]>([]), reservations = useRef(new Map<string, { id: string; until: number }>());
-  const context = { you, peopleRef: peopleRef ?? emptyPeople, inHeadset, items, reservations };
-  return <><group ref={root}>{items.map((item) => <GoTable key={item.id} item={item} reducedMotion={reducedMotion} context={context} />)}</group><DesktopGoPointer root={root} enabled={!inHeadset} /></>;
+  const context = { you, peopleRef: peopleRef ?? emptyPeople, items, reservations };
+  return <group onPointerDown={(event) => { claimPointer(event.nativeEvent); event.stopPropagation(); }}>
+    {items.map((item) => <GoTable key={item.id} item={item} reducedMotion={reducedMotion} context={context} />)}
+  </group>;
 }
