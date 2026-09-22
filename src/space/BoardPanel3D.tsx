@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { BOARD, addAt, addControlOf, cardAt, columnPlateOf, layOutBoard, uvFromPanelPoint, type BoardCard, type BoardColumn, type CardPlace } from "../../shared/board-3d";
+import { BOARD, addAt, addControlOf, cardAt, columnAt, columnPlateOf, layOutBoard, uvFromPanelPoint, type BoardCard, type BoardColumn, type CardPlace } from "../../shared/board-3d";
 import { Text } from "@react-three/drei";
 import { CARD_INK, CARD_PX, paintCard } from "../../shared/card-paint";
 import { applyPending, intentOf, settlePending, type BoardIntent, type PendingMove } from "../../shared/board-actions";
@@ -114,6 +114,17 @@ export function BoardPanel3D({
   const [gesture, setGesture] = useState<Gesture>({ kind: "idle" });
   const [pending, setPending] = useState<PendingMove[]>([]);
   const [refusedCard, setRefusedCard] = useState<string | null>(null);
+  /**
+   * WHAT THE BOARD JUST SAID, DRAWN ON THE BOARD.
+   *
+   * `onSay` puts a refusal in the page's rail beside the canvas. That is fine
+   * at a desk and INVISIBLE IN A HEADSET, where there is no rail and no DOM at
+   * all — so "a card cannot go from Backlog to Done" was a sentence only half
+   * the room could read, which is the two-rooms problem wearing a small hat. It
+   * still goes to the rail, because somebody at a desk may be looking there;
+   * it is also drawn here, where the refusal happened.
+   */
+  const [notice, setNotice] = useState<string | null>(null);
   const grabbed = useRef<string | null>(null);
   /** The board's own frame, which every pointer position is resolved against. */
   const board = useRef<THREE.Group>(null);
@@ -157,6 +168,21 @@ export function BoardPanel3D({
   const held = carrying(gesture);
   const heldCardId = held ? grabbed.current : null;
 
+  /**
+   * WHERE THE CARD WOULD LAND IF YOU LET GO NOW.
+   *
+   * Dragging lifted the card and told you nothing else, so the drop was a
+   * guess — and `columnAt` is deliberately FORGIVING, snapping to the nearest
+   * column rather than requiring you to be inside one, which makes the guess
+   * harder rather than easier: the card can land in a column your pointer is
+   * not over. Lighting that column while you hold it turns the forgiveness
+   * from something that surprises you into something you can see.
+   */
+  const landingOn =
+    gesture.kind === "dragging" && gesture.over
+      ? columnAt(layout, { x: gesture.over.u, y: gesture.over.v })?.status ?? null
+      : null;
+
   const cardOfHit = useCallback(
     (hit: SurfaceHit): BoardCard | null => {
       // The grabbed card is remembered rather than looked up again: by the time
@@ -176,7 +202,12 @@ export function BoardPanel3D({
         // reads as a broken drag rather than a rule.
         setRefusedCard(intent.cardId);
         onSay(intent.why);
+        setNotice(intent.why);
         window.setTimeout(() => setRefusedCard(null), 1200);
+        // Longer than the card's own flash: the card snapping back is the
+        // signal that something was refused, and the sentence is the reason —
+        // which you go looking for after you notice the snap.
+        window.setTimeout(() => setNotice(null), 4200);
         return;
       }
       if (intent.kind !== "move") return;
@@ -186,7 +217,10 @@ export function BoardPanel3D({
         // The server refused after all: drop the guess and say why, rather than
         // leaving the card somewhere it never went.
         setPending((current) => current.filter((m) => m.cardId !== move.cardId));
-        onSay(error instanceof Error ? error.message : "that move was refused");
+        const why = error instanceof Error ? error.message : "that move was refused";
+        onSay(why);
+        setNotice(why);
+        window.setTimeout(() => setNotice(null), 4200);
       });
     },
     [now, onMove, onOpen, onPullOff, onSay],
@@ -281,14 +315,42 @@ export function BoardPanel3D({
         <meshBasicMaterial color={CARD_INK.paper} toneMapped={false} />
       </mesh>
 
+      {/* WHAT THE BOARD JUST SAID, over the columns and in front of them, so it
+          is legible from wherever you are standing when it appears. */}
+      {notice ? (
+        <group position={[0, layout.height / 2 - BOARD.padding - BOARD.headerHeight * 1.9, 0.08]}>
+          <mesh>
+            <planeGeometry args={[layout.width * 0.7, BOARD.headerHeight * 1.5]} />
+            <meshBasicMaterial color={CARD_INK.refused} toneMapped={false} />
+          </mesh>
+          <Text
+            position={[0, 0, 0.002]}
+            fontSize={BOARD.headerHeight * 0.5}
+            color="#fdf9f2"
+            anchorX="center"
+            anchorY="middle"
+            maxWidth={layout.width * 0.64}
+            textAlign="center"
+          >
+            {notice}
+          </Text>
+        </group>
+      ) : null}
+
       {/* The lanes, drawn under everything, so the eye has a column to follow
           and an empty one still has a shape. */}
       {layout.columns.map((column) => {
         const plate = columnPlateOf(layout, column, size);
+        const landing = landingOn === column.status;
         return (
           <mesh key={`plate-${column.status}`} position={[plate.x, plate.y, 0.001]}>
             <planeGeometry args={[plate.width, plate.height]} />
-            <meshBasicMaterial color={CARD_INK.paperHeld} transparent opacity={0.55} toneMapped={false} />
+            <meshBasicMaterial
+              color={landing ? CARD_INK.accent : CARD_INK.paperHeld}
+              transparent
+              opacity={landing ? 0.3 : 0.55}
+              toneMapped={false}
+            />
           </mesh>
         );
       })}
