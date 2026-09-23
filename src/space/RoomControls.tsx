@@ -1340,6 +1340,10 @@ export function RoomControls({
           limit={2000}
           position={[0, 0.05, 0.03]}
           scale={1.3}
+          // Baiwei, in a headset: "Only the keyboard is too big". The words
+          // stay at 1.3 to be tapped one at a time; the keys come down to about
+          // 5cm each.
+          keyboardScale={0.7}
           onDone={(text) => {
             setWritten(text);
             setFixing(false);

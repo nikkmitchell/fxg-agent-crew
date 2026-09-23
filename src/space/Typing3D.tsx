@@ -66,6 +66,7 @@ export function Typing3D({
   position = [0, 0, 0],
   limit = 280,
   scale = 3.2,
+  keyboardScale = 1,
 }: {
   /** What this is for — "New card in Review", "Comment". */
   prompt: string;
@@ -84,6 +85,12 @@ export function Typing3D({
    * mistake as the first "add" control, one component along.
    */
   scale?: number;
+  /**
+   * The keys alone, relative to the rest. Baiwei, fixing a voice message:
+   * "Only the keyboard is too big". The words want to be big enough to tap one
+   * at a time; forty keys at that size fill the view.
+   */
+  keyboardScale?: number;
 }) {
   const [typing, setTyping] = useState<Editing>(() => atEnd(initial));
   /** How tall the text came out, as troika laid it out — the panel is sized to it. */
@@ -382,7 +389,10 @@ export function Typing3D({
         onPress={() => settle({ ...latest.current, done: true })}
       />
 
-      <Keyboard3D typing={typing} onChange={(next) => settle(next as Editing)} onKey={onKey} position={[0, -0.09, 0]} />
+      {/* Scaled from its top edge, so smaller keys stay tucked under the buttons. */}
+      <group position={[0, -0.09, 0]} scale={keyboardScale}>
+        <Keyboard3D typing={typing} onChange={(next) => settle(next as Editing)} onKey={onKey} />
+      </group>
     </group>
   );
 }
