@@ -116,7 +116,19 @@ export const space = {
   addRoomItem: () => requestJson<{ item: RoomItem }>(`${root}/items`, {
     method: "POST", body: JSON.stringify({ kind: "go" }),
   }),
-  configureGo: (id: string, change: { size?: GoSize; addBowl?: true }) =>
+  configureGo: (
+    id: string,
+    change: {
+      size?: GoSize;
+      addBowl?: true;
+      /** How many are playing. Settable both ways, unlike `addBowl`. */
+      players?: number;
+      /** Take the stones off and give the turn back to the first player. */
+      reset?: true;
+      /** Where the table stands, for the drag that replaced the nudge buttons. */
+      position?: { x: number; z: number; rotationY: number };
+    },
+  ) =>
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}`, {
       method: "PATCH", body: JSON.stringify(change),
     }),

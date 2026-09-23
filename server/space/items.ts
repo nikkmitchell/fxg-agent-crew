@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyInstance } from "fastify";
-import { GO_COLOURS, defaultGoItem, isGoSize, parseRoomItem, type RoomItem } from "../../shared/room-items.js";
+import { GO_COLOURS, GO_PLAYERS, defaultGoItem, isGoSize, parseRoomItem, tableRefusal, type RoomItem } from "../../shared/room-items.js";
 import type { Config } from "../config.js";
 import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { SessionStore } from "../session.js";
@@ -43,7 +43,10 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (request.body?.kind !== "go") return reply.code(400).send({ code: "BAD_KIND", error: "the first room item is a Go table" });
     const room = spaceRoomOf(session); const item = options.items.add(room, session.username); publish(room, session.username); return reply.code(201).send({ item });
   });
-  app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
+  app.patch<{
+    Params: { id: string };
+    Body: { size?: unknown; addBowl?: unknown; players?: unknown; reset?: unknown; position?: unknown };
+  }>("/bff/space/items/:id", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
     if (request.body?.size !== undefined) {
@@ -53,6 +56,44 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (request.body?.addBowl === true) {
       if (item.colours.length >= GO_COLOURS.length) return reply.code(422).send({ error: "every available bowl colour is already here" });
       item.colours.push(GO_COLOURS[item.colours.length]);
+    }
+    /**
+     * HOW MANY ARE PLAYING, settable both ways.
+     *
+     * `addBowl` could only ever go up, so a room that had added a seventh
+     * player was stuck with seven. Taking a bowl away has to take that
+     * player's stones with it, or the board keeps pieces in a colour nobody
+     * is holding and the turn order steps past an empty seat.
+     */
+    if (request.body?.players !== undefined) {
+      const players = request.body.players;
+      if (!Number.isInteger(players) || (players as number) < GO_PLAYERS.min || (players as number) > GO_PLAYERS.max) {
+        return reply.code(400).send({ error: `players must be between ${GO_PLAYERS.min} and ${GO_PLAYERS.max}` });
+      }
+      const wanted = players as number;
+      item.colours = GO_COLOURS.slice(0, wanted).map((colour) => colour);
+      item.stones = item.stones.filter((stone) => stone.colour < wanted);
+      if (item.activeColour >= wanted) item.activeColour = 0;
+      if (item.liftedColour !== null && item.liftedColour >= wanted) item.liftedColour = null;
+    }
+    if (request.body?.reset === true) {
+      item.stones = []; item.liftedColour = null; item.activeColour = 0;
+    }
+    /**
+     * WHERE THE TABLE STANDS. Nikk: "lets allow for moving the go board in the
+     * same way" — the same grab-and-drag as the panels, rather than the buttons
+     * that were there, which they called "super weird". Refused by the same
+     * rule the client applies before it ever sends this.
+     */
+    if (request.body?.position !== undefined) {
+      const at = request.body.position as { x?: unknown; z?: unknown; rotationY?: unknown };
+      const x = at?.x, z = at?.z, rotationY = at?.rotationY ?? item.position.rotationY;
+      if (![x, z, rotationY].every((value) => typeof value === "number" && Number.isFinite(value))) {
+        return reply.code(400).send({ error: "a position needs a finite x, z and rotationY" });
+      }
+      const refused = tableRefusal({ x: x as number, z: z as number });
+      if (refused) return reply.code(422).send({ error: refused });
+      item.position = { x: x as number, z: z as number, rotationY: rotationY as number };
     }
     options.items.save(room, item, session.username); publish(room, session.username); return reply.send({ item });
   });

@@ -22,6 +22,47 @@ export function isGoSize(value: unknown): value is GoSize {
   return typeof value === "number" && (GO_SIZES as readonly number[]).includes(value);
 }
 
+/**
+ * How many people can be round one board.
+ *
+ * Two is a game of Go. More is what the room is actually for — Nikk asked for
+ * "number of players" as a setting, and every extra player is one more bowl
+ * colour, so the ceiling is however many colours there are to tell them apart
+ * by. A ninth player would be given a colour somebody already has, which is
+ * worse than not having a ninth player.
+ */
+export const GO_PLAYERS = { min: 2, max: GO_COLOURS.length } as const;
+
+/** The next board size up or down, stopping at the ends rather than wrapping. */
+export function stepGoSize(size: GoSize, by: number): GoSize {
+  const index = GO_SIZES.indexOf(size);
+  const next = Math.min(GO_SIZES.length - 1, Math.max(0, index + by));
+  return GO_SIZES[next];
+}
+
+/**
+ * How close to the edge of the room a table may be pushed.
+ *
+ * Smaller than a panel's margin: a panel has to be READ from a distance, and a
+ * table has to be REACHED, so a table against a wall is fine as long as there
+ * is room to stand at it.
+ */
+const TABLE_EDGE = 1.2;
+
+/**
+ * Whether a table may stand here, in the same words the room uses elsewhere.
+ *
+ * SHARED, so a drag is refused where it happens rather than travelling to the
+ * server to be undone a moment later — the rule panels already follow.
+ */
+export function tableRefusal(position: { x: number; z: number }, room = { width: 20, depth: 22 }): string | null {
+  if (!Number.isFinite(position.x) || !Number.isFinite(position.z)) return "that position is not a number";
+  if (Math.abs(position.x) > room.width / 2 - TABLE_EDGE || Math.abs(position.z) > room.depth / 2 - TABLE_EDGE) {
+    return "that is outside the room; nobody would be able to stand at it";
+  }
+  return null;
+}
+
 export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
   return {
     id,

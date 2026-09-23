@@ -35,7 +35,7 @@ import { microphoneState } from "./mic-permission";
 import { voiceReport } from "./voice-report";
 import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
-import { GO_SIZES, type RoomItem } from "../../shared/room-items";
+import type { RoomItem } from "../../shared/room-items";
 
 /**
  * The room's controls, in front of you at body level.
@@ -881,15 +881,30 @@ export function RoomControls({
   } else if (open && view === "items") {
     const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
     rows.push({ label: "+ Add Go table", tone: "live", onTap: () => void space.addRoomItem().catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add the table.")) });
+    /**
+     * THE TABLE'S OWN SETTINGS ARE ON THE TABLE NOW.
+     *
+     * This listed every board size for every table, as rows in a menu on the
+     * far side of the room — Nikk: "(now go board movement settings are just
+     * buttons which is super weird)". Size, players and clearing the board are
+     * behind the gear at the table's corner, and it is moved by dragging its
+     * base, so none of it needs a list over here. What is left is the one thing
+     * that cannot live on a table that does not exist yet: making one.
+     */
     for (const item of roomItems) {
-      rows.push({ label: `Go table · ${item.size}×${item.size}`, tone: "live", onTap: () => {} });
-      for (const size of GO_SIZES) rows.push({
-        label: `${item.size === size ? "✓" : "·"} ${size}×${size}${item.size === size ? "" : " — resets stones"}`,
-        tone: item.size === size ? "live" : "normal",
-        onTap: () => void space.configureGo(item.id, { size }).catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not resize the board.")),
+      rows.push({
+        label: `Go table · ${item.size}×${item.size} · ${item.colours.length} playing`,
+        tone: "live",
+        onTap: () => {},
       });
-      rows.push({ label: `+ Add player bowl (${item.colours.length} now)`, onTap: () => void space.configureGo(item.id, { addBowl: true }).catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add a bowl.")) });
     }
+    rows.push({
+      label: roomItems.length
+        ? "Set one up with the gear on its corner; drag its base to move it"
+        : "Add one, then use the gear on its corner",
+      tone: "muted",
+      onTap: () => {},
+    });
     boxes.push({ title: "Room items — for everyone", rows });
   } else if (open && view === "agents") {
     /**
