@@ -87,8 +87,8 @@ function CollapsedRun({ entry }: { entry: Extract<TranscriptEntry, { kind: "coll
  *
  * `onClose` is optional so this can also be embedded without a dismissal.
  */
-export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
-  const { state, login, logout, selectRoom, showRoomPicker, retry, sendMessage, retryMessage, dismissMessage } = useWebharnessRoom();
+export function LiveRoomPanel({ onClose, preferredRoom = null }: { onClose?: () => void; preferredRoom?: string | null }) {
+  const { state, login, logout, selectRoom, showRoomPicker, retry, sendMessage, retryMessage, dismissMessage } = useWebharnessRoom(preferredRoom);
 
   /**
    * Anything the server has not confirmed yet. Acknowledged items drop off:
@@ -163,7 +163,13 @@ export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
           </button>
         ) : null}
         {onClose ? (
-          <button onClick={onClose} aria-label="Close live room">×</button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close live room"
+            disabled={unsent.length > 0}
+            title={unsent.length > 0 ? "Finish, retry, or dismiss pending sends before closing this room" : "Close live room"}
+          >×</button>
         ) : null}
       </header>
 
@@ -202,6 +208,9 @@ export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
               <p>Showing the last confirmed list.</p>
               <button type="button" onClick={retry}>Try again</button>
             </div>
+          ) : null}
+          {preferredRoom && state.rooms.length > 0 && !state.rooms.some((room) => room.roomName === preferredRoom) ? (
+            <p className="room-note" role="status">The selected room is not available to this account. Choose one of your joined rooms.</p>
           ) : null}
           {state.rooms.length === 0 ? <p className="room-note">No rooms are available for this account.</p> : state.rooms.map((room) => (
             <button key={room.roomName} onClick={() => selectRoom(room.roomName)}>
@@ -253,6 +262,9 @@ export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
               {state.phase === "reconnecting" && <button onClick={retry}>Retry now</button>}
             </div>
           )}
+          {preferredRoom && state.roomName !== preferredRoom && unsent.length > 0 ? (
+            <p className="room-note" role="status">Finish the pending send before opening the newly selected room.</p>
+          ) : null}
 
           <div className="room-messages" aria-label="Room transcript">
             {/*
@@ -339,6 +351,11 @@ export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
                   )}
                   {/* Queued items DO flush by themselves; verified by inducing it. */}
                   {item.state === "queued" && !online ? <em>waiting for the connection · will send itself</em> : null}
+                  {item.state === "queued" ? (
+                    <button type="button" onClick={() => dismissMessage(item.clientId)} title="Discard this unsent local message">
+                      Discard unsent message
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -374,7 +391,7 @@ export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
 
           <footer className="room-readonly-note">
             <span>{state.phase === "read_only" ? "Viewing confirmed history" : "Live transcript"}</span>
-            <button onClick={() => void logout()}>Sign out</button>
+            <button type="button" onClick={() => void logout()} disabled={unsent.length > 0}>Sign out</button>
           </footer>
         </>
       )}

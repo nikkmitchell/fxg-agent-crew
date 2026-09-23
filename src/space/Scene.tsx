@@ -450,6 +450,7 @@ function OnDemand({ connection }: { connection: SpaceConnection }) {
 
 export default function Scene({
   connection,
+  spaceRoomName,
   reducedMotion,
   comfort,
   onImmersiveChange,
@@ -460,6 +461,8 @@ export default function Scene({
   voice,
 }: {
   connection: SpaceConnection;
+  /** Server-confirmed WebHarness room this session is standing in. */
+  spaceRoomName: string | null;
   reducedMotion: boolean;
   comfort: Comfort;
   onImmersiveChange: (inSession: boolean) => void;
@@ -489,7 +492,10 @@ export default function Scene({
    * messages — two hooks, two timers, two cursors, twice the requests, for one
    * conversation. Read here and passed down.
    */
-  const feed = useRoomFeed(inHeadset);
+  // The same room powers the native chat panel and headset posts. Fetching the
+  // selected room from the session also makes direct /room reloads safe; the
+  // front door's in-memory selection is not the source of truth.
+  const feed = useRoomFeed(spaceRoomName !== null, spaceRoomName ?? "saha.ing", spaceRoomName);
 
 
   /**

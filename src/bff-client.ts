@@ -25,6 +25,29 @@ export const bff = {
 
   rooms: (signal?: AbortSignal) => requestJson<RoomSummary[]>(`${bffRoot}/rooms`, { signal }),
 
+  publicRooms: (signal?: AbortSignal) => requestJson<RoomSummary[]>(`${bffRoot}/rooms/public`, { signal }),
+
+  joinRoom: (roomName: string, password?: string) =>
+    requestJson<{ roomName: string; joined: boolean }>(`${bffRoot}/rooms/${encodeURIComponent(roomName)}/join`, {
+      method: "POST",
+      body: JSON.stringify(password ? { password } : {}),
+    }),
+
+  createRoom: (roomName: string, visibility: "public" | "private") =>
+    requestJson<{ roomName: string; created: true }>(`${bffRoot}/rooms/create`, {
+      method: "POST",
+      body: JSON.stringify({ roomName, visibility }),
+    }),
+
+  enterSpaceRoom: (roomName: string) =>
+    requestJson<{ roomName: string }>(`${bffRoot}/space/enter`, {
+      method: "POST",
+      body: JSON.stringify({ roomName }),
+    }),
+
+  currentSpaceRoom: (signal?: AbortSignal) =>
+    requestJson<{ roomName: string }>(`${bffRoot}/space/room`, { signal }),
+
   room: (roomName: string, signal?: AbortSignal) =>
     requestJson<RoomDetail>(`${bffRoot}/rooms/${encodeURIComponent(roomName)}`, { signal }),
 

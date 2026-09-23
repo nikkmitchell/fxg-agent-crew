@@ -1,25 +1,53 @@
 import { useEffect, useState } from "react";
 import { useRoomFeed } from "./space/useRoomFeed";
+import type { RoomSummary } from "../shared/contracts";
 
 const ROOM_MEMORY_KEY = "saha.roomLobby.lastRoom";
 
+/** A shared browser can host several signed-in people without sharing a choice. */
+export const roomMemoryKey = (username: string): string | null => {
+  const identity = username.trim().toLowerCase();
+  return identity ? `${ROOM_MEMORY_KEY}:${encodeURIComponent(identity)}` : null;
+};
+
 const roomFromUrl = () => new URLSearchParams(window.location.search).get("room")?.trim() || null;
-const rememberedRoom = () => {
+export const rememberedRoom = (username: string) => {
+  const key = roomMemoryKey(username);
+  if (!key) return null;
   try {
-    return window.localStorage.getItem(ROOM_MEMORY_KEY)?.trim() || null;
+    return window.localStorage.getItem(key)?.trim() || null;
   } catch {
     return null;
   }
 };
 
-const rememberRoom = (roomName: string) => {
+export const rememberRoom = (username: string, roomName: string) => {
+  const key = roomMemoryKey(username);
+  if (!key) return;
   try {
-    window.localStorage.setItem(ROOM_MEMORY_KEY, roomName);
+    window.localStorage.setItem(key, roomName);
   } catch {
     // Room switching still works when storage is disabled; it simply will not
     // be the default the next time the lobby opens.
   }
 };
+
+export const forgetRoom = (username: string, roomName: string) => {
+  const key = roomMemoryKey(username);
+  if (!key) return;
+  try {
+    if (window.localStorage.getItem(key) === roomName) window.localStorage.removeItem(key);
+  } catch {
+    // A blocked storage API cannot prevent choosing a confirmed room.
+  }
+};
+
+export const shouldForgetRoom = (
+  selectedRoom: string | null,
+  loadingRooms: boolean,
+  roomsTrouble: string | null,
+  rooms: Pick<RoomSummary, "roomName">[],
+): boolean => Boolean(selectedRoom && !loadingRooms && !roomsTrouble && !rooms.some((room) => room.roomName === selectedRoom));
 
 /**
  * The joined WebHarness rooms, to browse and read.
@@ -38,20 +66,41 @@ const rememberRoom = (roomName: string) => {
  * READ ONLY. Posting still lives in the overlay, because a reply box you cannot
  * type into is worse than no reply box, and nobody has a keyboard in a headset.
  */
-export function ChatFeed({ onOpenRoomControls }: { onOpenRoomControls?: () => void }) {
+export function ChatFeed({ username, onOpenRoomControls }: { username: string; onOpenRoomControls?: (roomName: string) => void }) {
+  // Remount local feed state when the account changes; even a one-frame flash
+  // of the last account's transcript would be a privacy failure.
+  return <ChatFeedForIdentity key={username.trim().toLowerCase()} username={username} onOpenRoomControls={onOpenRoomControls} />;
+}
+
+function ChatFeedForIdentity({ username, onOpenRoomControls }: { username: string; onOpenRoomControls?: (roomName: string) => void }) {
   const [selectedRoom, setSelectedRoom] = useState(() =>
-    typeof window === "undefined" ? null : roomFromUrl() ?? rememberedRoom(),
+    typeof window === "undefined" ? null : roomFromUrl() ?? rememberedRoom(username),
   );
   const feed = useRoomFeed(true, "saha.ing", selectedRoom);
 
   useEffect(() => {
     const syncFromUrl = () => {
-      const roomName = roomFromUrl() ?? rememberedRoom();
+      const roomName = roomFromUrl() ?? rememberedRoom(username);
       setSelectedRoom(roomName);
     };
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);
-  }, []);
+  }, [username]);
+
+  // A URL or old preference can name a room this account can no longer read.
+  // Drop that name only after a successful membership read, then choose from
+  // the confirmed list. Never echo an unverified room name into the transcript.
+  useEffect(() => {
+    if (!shouldForgetRoom(selectedRoom, feed.loadingRooms, feed.roomsTrouble, feed.rooms)) return;
+    if (!selectedRoom) return;
+    forgetRoom(username, selectedRoom);
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("room") === selectedRoom) {
+      url.searchParams.delete("room");
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+    setSelectedRoom(null);
+  }, [feed.loadingRooms, feed.rooms, feed.roomsTrouble, selectedRoom, username]);
 
   // Give the default room a stable, linkable URL too. The first room is a
   // convenience for a new visitor; from this point on the address says which
@@ -61,19 +110,19 @@ export function ChatFeed({ onOpenRoomControls }: { onOpenRoomControls?: () => vo
     const url = new URL(window.location.href);
     if (url.searchParams.get("room")?.trim()) return;
     url.searchParams.set("room", feed.room);
-    rememberRoom(feed.room);
+    rememberRoom(username, feed.room);
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-  }, [feed.room, selectedRoom]);
+  }, [feed.room, selectedRoom, username]);
 
   useEffect(() => {
-    if (selectedRoom && feed.room === selectedRoom) rememberRoom(selectedRoom);
-  }, [feed.room, selectedRoom]);
+    if (selectedRoom && feed.room === selectedRoom) rememberRoom(username, selectedRoom);
+  }, [feed.room, selectedRoom, username]);
 
   const chooseRoom = (roomName: string) => {
     if (feed.room === roomName) return;
     const url = new URL(window.location.href);
     url.searchParams.set("room", roomName);
-    rememberRoom(roomName);
+    rememberRoom(username, roomName);
     window.history.pushState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
     setSelectedRoom(roomName);
   };
@@ -123,8 +172,8 @@ export function ChatFeed({ onOpenRoomControls }: { onOpenRoomControls?: () => vo
             <p className="eyebrow">ROOM CHAT</p>
             <h2>{feed.room ?? "Choose a room"}</h2>
           </div>
-          {onOpenRoomControls ? (
-            <button type="button" onClick={onOpenRoomControls}>Open room controls</button>
+          {onOpenRoomControls && feed.room ? (
+            <button type="button" onClick={() => onOpenRoomControls(feed.room!)}>Open {feed.room} controls</button>
           ) : null}
         </header>
 

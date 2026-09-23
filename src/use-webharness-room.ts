@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import type { LoginRequest } from "../shared/contracts";
+import type { LoginRequest, RoomSummary } from "../shared/contracts";
 import { bff } from "./bff-client";
 import { ApiError } from "./api-request";
-import { initialConnectionState, reduceConnection } from "./connection-state";
+import { initialConnectionState, reduceConnection, type ConnectionPhase } from "./connection-state";
 import { backoff } from "./backoff";
 
 /**
@@ -40,16 +40,32 @@ const waitForRetry = (delay: number, signal: AbortSignal) => new Promise<void>((
   }, { once: true });
 });
 
-export function useWebharnessRoom() {
+/** A lobby handoff is valid only after this account's membership is confirmed. */
+export function preferredRoomToOpen(
+  preferredRoom: string | null,
+  appliedRoom: string | null,
+  phase: ConnectionPhase,
+  rooms: Pick<RoomSummary, "roomName">[],
+  hasUnsent: boolean,
+): string | null {
+  const requested = preferredRoom?.trim() || null;
+  if (!requested || requested === appliedRoom || hasUnsent) return null;
+  if (phase === "checking_session" || phase === "loading_rooms" || phase === "signed_out") return null;
+  return rooms.some((room) => room.roomName === requested) ? requested : null;
+}
+
+export function useWebharnessRoom(preferredRoom: string | null = null) {
   const [state, dispatch] = useReducer(reduceConnection, initialConnectionState);
   const [run, setRun] = useState(0);
   const selectedRoomRef = useRef<string | undefined>(undefined);
+  const appliedPreferredRef = useRef<string | null>(null);
 
   const loadRooms = useCallback(async (signal?: AbortSignal) => {
     try {
-      dispatch({ type: "ROOMS_LOADED", rooms: await bff.rooms(signal) });
+      const rooms = await bff.rooms(signal);
+      if (!signal?.aborted) dispatch({ type: "ROOMS_LOADED", rooms });
     } catch (error) {
-      dispatch({ type: "POLL_FAILED", code: errorCode(error) });
+      if (!signal?.aborted) dispatch({ type: "POLL_FAILED", code: errorCode(error) });
     }
   }, []);
 
@@ -152,20 +168,41 @@ export function useWebharnessRoom() {
   }, [loadRooms]);
 
   const logout = useCallback(async () => {
+    if (state.outbox.some((item) => item.state !== "acknowledged")) return;
     try {
       await bff.logout();
     } finally {
       selectedRoomRef.current = undefined;
+      appliedPreferredRef.current = null;
       dispatch({ type: "LOGGED_OUT" });
       setRun((value) => value + 1);
     }
-  }, []);
+  }, [state.outbox]);
 
   const selectRoom = useCallback((roomName: string) => {
+    if (state.outbox.some((item) => item.state !== "acknowledged")) return;
+    if (!state.rooms.some((room) => room.roomName === roomName)) return;
     selectedRoomRef.current = roomName;
     dispatch({ type: "ROOM_SELECTED", roomName });
     setRun((value) => value + 1);
-  }, []);
+  }, [state.outbox, state.rooms]);
+
+  // Open the composer for the room selected in the lobby. Apply a preference
+  // once per prop value: choosing another room inside this panel must remain a
+  // valid choice, and a pending send must finish before any automatic switch.
+  useEffect(() => {
+    if (state.phase === "signed_out") appliedPreferredRef.current = null;
+    const requested = preferredRoomToOpen(
+      preferredRoom,
+      appliedPreferredRef.current,
+      state.phase,
+      state.rooms,
+      state.outbox.some((item) => item.state !== "acknowledged"),
+    );
+    if (!requested) return;
+    appliedPreferredRef.current = requested;
+    if (state.roomName !== requested) selectRoom(requested);
+  }, [preferredRoom, selectRoom, state.outbox, state.phase, state.roomName, state.rooms]);
 
   const showRoomPicker = useCallback(() => {
     // Moving away while a message is queued or awaiting an answer would clear

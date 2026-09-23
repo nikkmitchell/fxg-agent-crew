@@ -186,8 +186,8 @@ export function registerPanelRoutes(
     sessions: SessionStore;
     config: Config;
     /** Tell everyone in the room, so a panel moves under their eyes. */
-    announce: (placement: Placement, by: string) => void;
-    announceOpen: (open: string[], by: string) => void;
+    announce: (room: string, placement: Placement, by: string) => void;
+    announceOpen: (room: string, open: string[], by: string) => void;
   },
 ) {
   const requireSession = makeRequireSession(config, sessions);
@@ -232,7 +232,7 @@ export function registerPanelRoutes(
       // TOLD TO EVERYBODY, like a move. Without this the person who clicked
       // sees it and nobody else does until they reload — which is the bug this
       // change exists to fix, merely moved from the database to the socket.
-      announceOpen(shown, session.username);
+      announceOpen(spaceRoomOf(session), shown, session.username);
       return reply.send({ open: shown });
     },
   );
@@ -293,7 +293,7 @@ export function registerPanelRoutes(
       if ("refused" in result) {
         return reply.code(422).send({ code: "REFUSED", error: result.refused });
       }
-      announce(result.placement, session.username);
+      announce(spaceRoomOf(session), result.placement, session.username);
       return reply.send({ placement: result.placement });
     },
   );

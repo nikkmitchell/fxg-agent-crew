@@ -148,7 +148,7 @@ export function registerShowingRoutes(
     showing: RoomShowing;
     sessions: SessionStore;
     config: Config;
-    announce: (showing: Showing) => void;
+    announce: (room: string, showing: Showing) => void;
   },
 ): void {
   const requireSession = makeRequireSession(config, sessions);
@@ -191,7 +191,7 @@ export function registerShowingRoutes(
         return reply.code(422).send({ code: "REFUSED", error: result.refused });
       }
 
-      announce(result.showing);
+      announce(spaceRoomOf(session), result.showing);
       return reply.send({ showing: result.showing });
     },
   );

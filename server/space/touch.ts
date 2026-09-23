@@ -2,7 +2,8 @@ import type { FastifyInstance } from "fastify";
 import type { DatabaseSync } from "node:sqlite";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
+import { DEFAULT_SPACE_ROOM, roomKey } from "../../shared/space-room.js";
 import { actorKey } from "../../shared/space-layout.js";
 import {
   TOUCH_COOLDOWN_MS,
@@ -24,7 +25,7 @@ import type { SpaceHub } from "./socket.js";
  * agent to catch up on what it missed and not a record anybody asked for.
  */
 export class Touches {
-  private readonly recent: Touch[] = [];
+  private readonly recent: Array<{ room: string; touch: Touch }> = [];
   private nextId = 1;
   private readonly lastTouch = new Map<string, number>();
 
@@ -55,8 +56,8 @@ export class Touches {
   }
 
   /** Record a touch, or null if this person touched this agent a moment ago. */
-  record(agentId: string, by: string, part: TouchPart): Touch | null {
-    const pair = `${actorKey(by)}→${actorKey(agentId)}`;
+  record(agentId: string, by: string, part: TouchPart, room = DEFAULT_SPACE_ROOM): Touch | null {
+    const pair = JSON.stringify([roomKey(room), actorKey(by), actorKey(agentId)]);
     const now = this.now();
     const last = this.lastTouch.get(pair);
     if (last !== undefined && now - last < TOUCH_COOLDOWN_MS) return null;
@@ -69,13 +70,16 @@ export class Touches {
       feeling: feelingFor(this.preferences(agentId), part),
       at: new Date(now).toISOString(),
     };
-    this.recent.push(touch);
+    this.recent.push({ room: roomKey(room), touch });
     if (this.recent.length > 100) this.recent.shift();
     return touch;
   }
 
-  since(id: number, agentId?: string): Touch[] {
-    return this.recent.filter((touch) => touch.id > id && (!agentId || actorKey(touch.agentId) === actorKey(agentId)));
+  since(id: number, agentId?: string, room = DEFAULT_SPACE_ROOM): Touch[] {
+    return this.recent
+      .filter((entry) => entry.room === roomKey(room) && entry.touch.id > id
+        && (!agentId || actorKey(entry.touch.agentId) === actorKey(agentId)))
+      .map((entry) => entry.touch);
   }
 }
 
@@ -84,12 +88,13 @@ export class Touches {
  * tell the room. Used by the socket (a hand in a headset) and by the route.
  * Returns null when it was not a touch worth acting on.
  */
-export function touchAgent(hub: SpaceHub, touches: Touches, by: string, agentId: string, part: TouchPart): Touch | null {
+export function touchAgent(hub: SpaceHub, touches: Touches, by: string, agentId: string, part: TouchPart,
+  room = DEFAULT_SPACE_ROOM): Touch | null {
   const agent = hub.presence.find(agentId);
   // Only agents in the room, and never yourself.
   if (!agent || agent.kind !== "agent") return null;
   if (actorKey(agent.actorId) === actorKey(by)) return null;
-  const touch = touches.record(agent.actorId, hub.presence.find(by)?.actorId ?? by, part);
+  const touch = touches.record(agent.actorId, hub.presence.find(by)?.actorId ?? by, part, room);
   if (!touch) return null;
   // The reaction is the agent's own avatar state, as if it had set it itself —
   // and it is, in advance, by choosing its preferences.
@@ -100,7 +105,7 @@ export function touchAgent(hub: SpaceHub, touches: Touches, by: string, agentId:
 
 export function registerTouchRoutes(
   app: FastifyInstance,
-  deps: { config: Config; sessions: SessionStore; hub: SpaceHub; touches: Touches },
+  deps: { config: Config; sessions: SessionStore; hub: SpaceHub; hubFor?: (room: string) => SpaceHub; touches: Touches },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);
 
@@ -111,14 +116,17 @@ export function registerTouchRoutes(
     if (typeof agentId !== "string" || !isTouchPart(part)) {
       return reply.code(400).send({ code: "BAD_TOUCH", error: "agentId and a part (head, shoulder, arm, hand, back, body) are required" });
     }
-    const touch = touchAgent(deps.hub, deps.touches, session.username, agentId, part);
+    const room = spaceRoomOf(session);
+    const touch = touchAgent(deps.hubFor?.(room) ?? deps.hub, deps.touches, session.username, agentId, part, room);
     return reply.send({ ok: true, touch });
   });
 
   app.get<{ Querystring: { since?: string; agent?: string } }>("/bff/space/touches", async (request, reply) => {
-    if (!requireSession(request, reply)) return reply;
+    const session = requireSession(request, reply);
+    if (!session) return reply;
     const since = Number(request.query.since ?? 0);
-    return reply.send({ touches: deps.touches.since(Number.isFinite(since) ? since : 0, request.query.agent) });
+    return reply.send({ touches: deps.touches.since(Number.isFinite(since) ? since : 0,
+      request.query.agent, spaceRoomOf(session)) });
   });
 
   /** An agent says what it thinks of being touched, part by part. Only its own. */

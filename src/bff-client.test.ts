@@ -61,4 +61,37 @@ describe("bff client", () => {
       body: JSON.stringify({ content: "hello" }),
     }));
   });
+
+  it("keeps discovery, existing-room join, explicit create, and space entry separate", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse({ roomName: "garden", joined: true }))
+      .mockResolvedValueOnce(jsonResponse({ roomName: "haven", created: true }, 201))
+      .mockResolvedValueOnce(jsonResponse({ roomName: "haven" }))
+      .mockResolvedValueOnce(jsonResponse({ roomName: "haven" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await bff.publicRooms();
+    await bff.joinRoom("garden", "shared-pass");
+    await bff.createRoom("haven", "private");
+    await bff.enterSpaceRoom("haven");
+    await bff.currentSpaceRoom();
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/bff/rooms/public",
+      "/bff/rooms/garden/join",
+      "/bff/rooms/create",
+      "/bff/space/enter",
+      "/bff/space/room",
+    ]);
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({
+      method: "POST", credentials: "same-origin", body: JSON.stringify({ password: "shared-pass" }),
+    });
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({
+      method: "POST", body: JSON.stringify({ roomName: "haven", visibility: "private" }),
+    });
+    expect(fetchMock.mock.calls[3][1]).toMatchObject({
+      method: "POST", body: JSON.stringify({ roomName: "haven" }),
+    });
+  });
 });

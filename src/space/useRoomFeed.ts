@@ -49,6 +49,17 @@ export type RoomFeed = {
 const KEEP = 40;
 const EVERY_MS = 5_000;
 
+/** Resolve against confirmed membership, never against a remembered name alone. */
+export function resolveJoinedRoom(
+  rooms: RoomSummary[],
+  selectedRoom: string | null,
+  preferred: string,
+): string | null {
+  const requested = selectedRoom?.trim();
+  if (requested) return rooms.find((entry) => entry.roomName === requested)?.roomName ?? null;
+  return rooms.find((entry) => entry.roomName === preferred)?.roomName ?? rooms[0]?.roomName ?? null;
+}
+
 export function useRoomFeed(
   enabled: boolean,
   preferred = "saha.ing",
@@ -64,6 +75,12 @@ export function useRoomFeed(
   const [trouble, setTrouble] = useState<string | null>(null);
   const [mayHaveEarlier, setMayHaveEarlier] = useState(false);
   const cursor = useRef<number | undefined>(undefined);
+
+  // The list is refreshed independently of the selected conversation. A new
+  // array of the same rooms must not tear down the message timer or transcript.
+  const resolvedRoom = resolveJoinedRoom(rooms, selectedRoom, preferred);
+  const listReady = !loadingRooms || rooms.length > 0;
+  const listUnavailable = Boolean(roomListTrouble && rooms.length === 0);
 
   useEffect(() => {
     if (!enabled) return;
@@ -87,7 +104,7 @@ export function useRoomFeed(
   }, [enabled, roomListRevision]);
 
   useEffect(() => {
-    if (!enabled || loadingRooms || (roomListTrouble && rooms.length === 0)) return;
+    if (!enabled || !listReady || listUnavailable) return;
     let stopped = false;
     // Declared out here so the effect's own cleanup can clear it. Returning a
     // cleanup from the async function below would do nothing at all — React
@@ -103,10 +120,12 @@ export function useRoomFeed(
       if (page.messages.length > 0) {
         cursor.current = page.cursor ?? page.messages[page.messages.length - 1].id;
         setMessages((before) => [...before, ...page.messages].slice(-KEEP));
+      } else if (page.cursor !== null && page.cursor !== undefined) {
+        cursor.current = page.cursor;
       }
       // Only the first page can say this; later polls are not the start of
       // anything and leave the flag alone.
-      if (page.mayHaveEarlier !== undefined) setMayHaveEarlier(page.mayHaveEarlier);
+      if (initial && page.mayHaveEarlier !== undefined) setMayHaveEarlier(page.mayHaveEarlier);
       setTrouble(null);
       if (initial) setLoadingMessages(false);
     };
@@ -118,14 +137,9 @@ export function useRoomFeed(
     setTrouble(null);
     cursor.current = undefined;
 
-    const requested = selectedRoom?.trim() ?? "";
-    const name = requested
-      ? rooms.find((entry) => entry.roomName === requested)?.roomName ?? null
-      : rooms.find((entry) => entry.roomName === preferred)?.roomName
-        ?? rooms[0]?.roomName
-        ?? null;
-    if (requested && !name) {
-      setTrouble(`${requested} is not in your joined rooms. Choose a room from the list.`);
+    const name = resolvedRoom;
+    if (selectedRoom?.trim() && !name) {
+      setTrouble("That room is not in your joined rooms. Choose a room from the list.");
       setLoadingMessages(false);
       return () => { stopped = true; };
     }
@@ -160,15 +174,15 @@ export function useRoomFeed(
       stopped = true;
       if (timer !== undefined) window.clearInterval(timer);
     };
-  }, [enabled, loadingRooms, preferred, roomListTrouble, rooms, selectedRoom]);
+  }, [enabled, listReady, listUnavailable, resolvedRoom, selectedRoom]);
 
   return {
     rooms,
     loadingRooms,
     refreshRooms: () => setRoomListRevision((revision) => revision + 1),
-    room,
-    loadingMessages,
-    messages,
+    room: room === resolvedRoom ? room : null,
+    loadingMessages: room === resolvedRoom ? loadingMessages : true,
+    messages: room === resolvedRoom ? messages : [],
     trouble,
     roomsTrouble: roomListTrouble,
     mayHaveEarlier,

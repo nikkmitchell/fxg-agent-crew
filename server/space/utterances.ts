@@ -4,7 +4,8 @@ import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
 import { refusalFor, splitSpoken, type Utterance, type UtteranceInput } from "../../shared/voice.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
+import { DEFAULT_SPACE_ROOM, roomKey } from "../../shared/space-room.js";
 
 /**
  * What is said in the room.
@@ -34,7 +35,7 @@ export class Utterances {
    * Record something said. Throws nothing — the caller is handed the refusal so
    * it can say it back in the speaker's own terms.
    */
-  record(actorId: string, input: UtteranceInput): { utterance: Utterance } | { refused: string } {
+  record(actorId: string, input: UtteranceInput, room = DEFAULT_SPACE_ROOM): { utterance: Utterance } | { refused: string } {
     const refused = refusalFor(input);
     if (refused) return { refused };
 
@@ -62,10 +63,10 @@ export class Utterances {
     const at = new Date().toISOString();
     this.db
       .prepare(
-        `INSERT INTO utterances (at, actor_id, to_actor, say, detail, source, confidence)
-         VALUES (?,?,?,?,?,?,?)`,
+        `INSERT INTO utterances (at, actor_id, to_actor, say, detail, source, confidence, room)
+         VALUES (?,?,?,?,?,?,?,?)`,
       )
-      .run(at, actorId, to, say, detail, input.source, input.confidence ?? null);
+      .run(at, actorId, to, say, detail, input.source, input.confidence ?? null, roomKey(room));
 
     const inserted = this.db
       .prepare("SELECT * FROM utterances WHERE id = last_insert_rowid()")
@@ -79,16 +80,16 @@ export class Utterances {
    * Everything, not just what was aimed at you: the room is a shared place and
    * a conversation you can see half of is worse than one you can see none of.
    */
-  recent(limit = 50): Utterance[] {
+  recent(limit = 50, room = DEFAULT_SPACE_ROOM): Utterance[] {
     const rows = this.db
-      .prepare("SELECT * FROM utterances ORDER BY id DESC LIMIT ?")
-      .all(Math.max(1, Math.min(200, limit))) as Record<string, unknown>[];
+      .prepare("SELECT * FROM utterances WHERE room = ? ORDER BY id DESC LIMIT ?")
+      .all(roomKey(room), Math.max(1, Math.min(200, limit))) as Record<string, unknown>[];
     return rows.map(row).reverse();
   }
 
   /** One, by id, for reading a line back aloud. Null when there is no such row. */
-  one(id: number): Utterance | null {
-    const found = this.db.prepare("SELECT * FROM utterances WHERE id = ?").get(id) as
+  one(id: number, room = DEFAULT_SPACE_ROOM): Utterance | null {
+    const found = this.db.prepare("SELECT * FROM utterances WHERE id = ? AND room = ?").get(id, roomKey(room)) as
       | Record<string, unknown>
       | undefined;
     return found ? row(found) : null;
@@ -100,10 +101,11 @@ export function registerUtteranceRoutes(
   config: Config,
   sessions: SessionStore,
   database: DatabaseSync,
-  announce: (utterance: Utterance) => void,
-  attend: (actorId: string, utteranceId: number | null) => void,
-  spoke: (actorId: string, kind: "human" | "agent" | null) => void,
+  announce: (room: string, utterance: Utterance) => void,
+  attend: (room: string, actorId: string, utteranceId: number | null) => void,
+  spoke: (room: string, actorId: string, kind: "human" | "agent" | null) => void,
   speakTo: (
+    room: string,
     actorId: string,
     kind: "human" | "agent" | null,
     targetActorId: string,
@@ -136,7 +138,8 @@ export function registerUtteranceRoutes(
       return reply.code(400).send({ code: "BAD_SOURCE", error: "source must be 'voice' or 'text'" });
     }
 
-    const result = utterances.record(session.username, body);
+    const room = spaceRoomOf(session);
+    const result = utterances.record(session.username, body, room);
     if ("refused" in result) {
       // 422, not 400: the request was understood perfectly and declined on its
       // merits. The reason is the whole point — a speaker who is refused and
@@ -158,7 +161,7 @@ export function registerUtteranceRoutes(
     // `space-utterances.test.ts` asserts that no gaze is invented for one, and
     // creating an occupant for a silent note would be the same kind of
     // invention by a different route.
-    if (result.utterance.say) spoke(session.username, session.kind ?? null);
+    if (result.utterance.say) spoke(room, session.username, session.kind ?? null);
     // Only a line that was SAID is turned into sound, and the wait happens here
     // rather than in front of whoever presses play. See warmSpeech above.
     if (result.utterance.say) warmSpeech(result.utterance);
@@ -168,9 +171,9 @@ export function registerUtteranceRoutes(
     // A written-only detail has no speaking window and therefore no gaze.
     if (result.utterance.say && result.utterance.to) {
       const duration = Math.min(14_000, Math.max(6_000, 2_000 + result.utterance.say.length * 55));
-      speakTo(session.username, session.kind ?? null, result.utterance.to, duration);
+      speakTo(room, session.username, session.kind ?? null, result.utterance.to, duration);
     }
-    announce(result.utterance);
+    announce(room, result.utterance);
     return reply.send({ ok: true, utterance: result.utterance });
   });
 
@@ -200,16 +203,18 @@ export function registerUtteranceRoutes(
       // An id nobody said is refused. Declaring attention on a non-existent
       // utterance would put a state on an avatar that answers to nothing.
       if (id !== null) {
-        const exists = database.prepare("SELECT 1 FROM utterances WHERE id = ?").get(id);
+        const exists = database.prepare("SELECT 1 FROM utterances WHERE id = ? AND room = ?")
+          .get(id, spaceRoomOf(session));
         if (!exists) return reply.code(404).send({ code: "NOT_FOUND", error: "no such utterance" });
       }
-      attend(session.username, id);
+      attend(spaceRoomOf(session), session.username, id);
       return reply.send({ ok: true });
     },
   );
 
   app.get<{ Querystring: { limit?: string } }>("/bff/space/utterances", async (request, reply) => {
-    if (!requireSession(request, reply)) return reply;
-    return reply.send({ utterances: utterances.recent(Number(request.query.limit ?? 50)) });
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    return reply.send({ utterances: utterances.recent(Number(request.query.limit ?? 50), spaceRoomOf(session)) });
   });
 }

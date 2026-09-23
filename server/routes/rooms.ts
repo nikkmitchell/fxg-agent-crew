@@ -2,12 +2,13 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Message, RoomDetail, RoomSummary } from "../../shared/contracts.js";
 import type { Config } from "../config.js";
 import type { Session, SessionStore } from "../session.js";
-import { WebharnessClient } from "../webharness/client.js";
+import { WebharnessClient, WebharnessError } from "../webharness/client.js";
 import { classify } from "../webharness/errors.js";
 import { pollMessages } from "../webharness/longpoll.js";
 import { validateTransportMessage } from "../../shared/crew-events.js";
 import { CHAT_MESSAGE_LIMIT, splitForChat } from "../../shared/voice.js";
 import { makeRequireSession } from "../require-session.js";
+import { isRoomName, roomKey } from "../../shared/space-room.js";
 
 /**
  * How long and how large a voice note may be.
@@ -19,6 +20,48 @@ import { makeRequireSession } from "../require-session.js";
  * anybody.
  */
 const VOICE_LIMIT = { ms: 60_000, bytes: 8 * 1024 * 1024 } as const;
+
+const record = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+
+const roomRows = (raw: unknown): unknown[] => {
+  if (Array.isArray(raw)) return raw;
+  const rows = record(raw)?.rooms;
+  return Array.isArray(rows) ? rows : [];
+};
+
+/** Only public-list facts actually supplied upstream cross into the lobby. */
+export function normalisePublicRooms(raw: unknown): RoomSummary[] {
+  return roomRows(raw).flatMap((entry) => {
+    const row = record(entry);
+    if (!row || !isRoomName(row.roomName)) return [];
+    // The endpoint is public-only, but fail closed if an inconsistent row is
+    // explicitly marked private. Do not copy arbitrary upstream fields.
+    if (row.visibility === "private" || row.isPublic === false) return [];
+    const purpose = typeof row.purpose === "string" && row.purpose.trim()
+      ? row.purpose.trim()
+      : typeof row.description === "string" && row.description.trim()
+        ? row.description.trim()
+        : null;
+    return [{
+      roomName: row.roomName.trim(),
+      ownerName: typeof row.ownerName === "string" ? row.ownerName : "",
+      visibility: "public" as const,
+      ...(purpose ? { purpose } : {}),
+    }];
+  });
+}
+
+/** An upstream success must confirm the room we asked about, not another one. */
+function confirmedRoom(raw: unknown, requested: string): string | null {
+  const upstream = record(raw)?.roomName;
+  if (upstream === undefined) return requested;
+  return isRoomName(upstream) && roomKey(upstream) === roomKey(requested)
+    ? upstream.trim()
+    : null;
+}
 
 export function registerRoomRoutes(
   app: FastifyInstance,
@@ -66,6 +109,123 @@ export function registerRoomRoutes(
       const nested = Array.isArray(payload) ? payload : payload.rooms;
       const rooms = Array.isArray(nested) ? nested : [];
       return reply.send(rooms);
+    } catch (error) {
+      return fail(reply, error);
+    }
+  });
+
+  /** Discoverable rooms, not the caller's membership list. No invented counts. */
+  app.get("/bff/rooms/public", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    try {
+      const raw = await client.request<unknown>("/api/rooms/public", { token: session.token });
+      return reply.header("cache-control", "no-store").send(normalisePublicRooms(raw));
+    } catch (error) {
+      return fail(reply, error);
+    }
+  });
+
+  /**
+   * Joining is NOT creating. WebHarness uses one POST for both, so check that
+   * the named room exists first and never send a write after a 404. Its POST
+   * still has a race with deletion; the created flag is checked and surfaced
+   * rather than silently treating a new room as the room the user meant.
+   */
+  app.post<{ Params: { room: string }; Body: unknown }>("/bff/rooms/:room/join", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const roomName = request.params.room?.trim();
+    const body = record(request.body);
+    const password = body?.password;
+    if (!isRoomName(roomName) ||
+        (password !== undefined && (typeof password !== "string" || password.length === 0))) {
+      return reply.code(400).send({ code: "BAD_REQUEST", error: "a room name and valid password are required" });
+    }
+
+    try {
+      try {
+        const existing = await client.request<unknown>(
+          `/api/rooms/${encodeURIComponent(roomName)}`,
+          { token: session.token },
+        );
+        const confirmed = confirmedRoom(existing, roomName);
+        if (!confirmed) {
+          return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "the room service answered for a different room" });
+        }
+        return reply.send({ roomName: confirmed, joined: false });
+      } catch (error) {
+        if (!(error instanceof WebharnessError) || error.status !== 403) return fail(reply, error);
+        const state = classify(error).code;
+        if (state !== "NOT_A_MEMBER" && state !== "ROOM_PASSWORD_REQUIRED") return fail(reply, error);
+        if (state === "ROOM_PASSWORD_REQUIRED" && !password) return fail(reply, error);
+      }
+
+      // No visibility: this is an existing-room join, never a create request.
+      const result = await client.request<unknown>("/api/rooms", {
+        method: "POST",
+        token: session.token,
+        body: { roomName, ...(password ? { password } : {}) },
+      });
+      const confirmed = confirmedRoom(result, roomName);
+      const created = record(result)?.created;
+      if (!confirmed || typeof created !== "boolean") {
+        return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "the room service did not confirm what happened; check before retrying" });
+      }
+      if (created) {
+        return reply.code(409).send({
+          code: "ROOM_UNEXPECTEDLY_CREATED",
+          error: "the room disappeared during joining and a new room was created; verify its name before continuing",
+        });
+      }
+      return reply.send({ roomName: confirmed, joined: true });
+    } catch (error) {
+      return fail(reply, error);
+    }
+  });
+
+  /** Creating is a separate, explicit action; an existing room is never joined. */
+  app.post<{ Body: unknown }>("/bff/rooms/create", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const body = record(request.body);
+    const roomName = typeof body?.roomName === "string" ? body.roomName.trim() : undefined;
+    const visibility = body?.visibility;
+    const password = body?.password;
+    if (!isRoomName(roomName) ||
+        (visibility !== "public" && visibility !== "private") ||
+        (password !== undefined && (typeof password !== "string" || password.length === 0))) {
+      return reply.code(400).send({ code: "BAD_REQUEST", error: "a room name, visibility and valid optional password are required" });
+    }
+
+    try {
+      try {
+        await client.request<unknown>(`/api/rooms/${encodeURIComponent(roomName)}`, { token: session.token });
+        return reply.code(409).send({ code: "ROOM_ALREADY_EXISTS", error: "that room already exists; join it instead" });
+      } catch (error) {
+        if (!(error instanceof WebharnessError)) return fail(reply, error);
+        if (error.status === 403) {
+          return reply.code(409).send({ code: "ROOM_ALREADY_EXISTS", error: "that room already exists; join it instead" });
+        }
+        // An archived room is not the same as a name that was never used.
+        // If upstream says 410, show that state rather than create over it.
+        if (error.status !== 404) return fail(reply, error);
+      }
+
+      const result = await client.request<unknown>("/api/rooms", {
+        method: "POST",
+        token: session.token,
+        body: { roomName, visibility, ...(password ? { password } : {}) },
+      });
+      const confirmed = confirmedRoom(result, roomName);
+      const created = record(result)?.created;
+      if (!confirmed || typeof created !== "boolean") {
+        return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "the room service did not confirm what happened; check before retrying" });
+      }
+      if (!created) {
+        return reply.code(409).send({ code: "ROOM_ALREADY_EXISTS", error: "another room took that name during creation; check before continuing" });
+      }
+      return reply.code(201).send({ roomName: confirmed, created: true });
     } catch (error) {
       return fail(reply, error);
     }

@@ -1009,4 +1009,13 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX space_items_by_room ON space_items(room, added_at);
     `,
   },
+  {
+    id: 30,
+    name: "screen share links belong to their minting room",
+    sql: `
+      -- Existing live links were minted in saha.ing. Keep every one working
+      -- there; a link made in another room must never display its frame here.
+      ALTER TABLE screen_share_keys ADD COLUMN room TEXT NOT NULL DEFAULT 'saha.ing';
+    `,
+  },
 ];

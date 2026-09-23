@@ -100,6 +100,7 @@ export function registerHomeRoutes(
      * effect you should be told about, not one you should have to notice.
      */
     goHome: (
+      room: string,
       actorId: string,
       home: { at: { x: number; y: number; z: number }; facing: number | null },
     ) => { stoppedFollowing: string | null; abandonedRoute: number };
@@ -108,9 +109,9 @@ export function registerHomeRoutes(
      * party that knows this AND has the formula right, which is the whole
      * reason a caller is allowed to name a person instead of an angle.
      */
-    whereIs: (actorId: string) => Spot | null;
+    whereIs: (room: string, actorId: string) => Spot | null;
     /** Who is in the room, so a misspelled name comes back with the real ones. */
-    whoIsHere: () => string[];
+    whoIsHere: (room: string) => string[];
   },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);
@@ -153,7 +154,9 @@ export function registerHomeRoutes(
        * then be measured from somewhere the agent is not actually standing.
        */
       const at = clampHome({ x: x as number, z: z as number });
-      const asked = resolveFacing(request.body ?? {}, at, deps.whereIs, deps.whoIsHere, request.params.actorId);
+      const room = spaceRoomOf(session);
+      const asked = resolveFacing(request.body ?? {}, at,
+        (actorId) => deps.whereIs(room, actorId), () => deps.whoIsHere(room), request.params.actorId);
       if ("error" in asked) return reply.code(400).send({ code: "BAD_HOME", error: asked.error });
       const home = deps.homes.set(
         spaceRoomOf(session),
@@ -161,7 +164,7 @@ export function registerHomeRoutes(
         { at, facing: asked.facing },
         session.username,
       );
-      const ended = deps.goHome(request.params.actorId, home);
+      const ended = deps.goHome(room, request.params.actorId, home);
       return reply.send({ ok: true, home, ...ended });
     },
   );
@@ -172,7 +175,8 @@ export function registerHomeRoutes(
     const refusal = allowed(session, request.params.actorId);
     if (refusal) return reply.code(403).send({ code: "NOT_ALLOWED", error: refusal });
     deps.homes.clear(spaceRoomOf(session), request.params.actorId);
-    const ended = deps.goHome(request.params.actorId, homeOf(spaceRoomOf(session), null, request.params.actorId));
+    const ended = deps.goHome(spaceRoomOf(session), request.params.actorId,
+      homeOf(spaceRoomOf(session), null, request.params.actorId));
     return reply.send({ ok: true, ...ended });
   });
 }

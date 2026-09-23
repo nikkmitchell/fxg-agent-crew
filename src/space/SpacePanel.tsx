@@ -17,6 +17,7 @@ import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
 import { useHiddenAsStill } from "./useHiddenAsStill";
 import { takeCrumb } from "./left-crumb";
 import { useHeadsetAvailable } from "./useHeadsetAvailable";
+import { bff } from "../bff-client";
 
 /**
  * The way in to screen sharing, on the website rather than only in a terminal.
@@ -105,6 +106,23 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
    * stays false even while the door's flag is still true.
    */
   const [entered, setEntered] = useState(startEntered);
+  const [spaceRoomName, setSpaceRoomName] = useState<string | null>(null);
+  const [spaceRoomTrouble, setSpaceRoomTrouble] = useState<string | null>(null);
+  const [spaceRoomRevision, setSpaceRoomRevision] = useState(0);
+  useEffect(() => {
+    if (!entered) return;
+    const controller = new AbortController();
+    setSpaceRoomTrouble(null);
+    void bff.currentSpaceRoom(controller.signal).then(({ roomName }) => {
+      if (!controller.signal.aborted) setSpaceRoomName(roomName);
+    }).catch(() => {
+      if (!controller.signal.aborted) {
+        setSpaceRoomName(null);
+        setSpaceRoomTrouble("Could not verify which chat matches this space. Room chat and posting are paused.");
+      }
+    });
+    return () => controller.abort();
+  }, [entered, spaceRoomRevision]);
   const systemPrefersReduced = useReducedMotion();
   /**
    * The system preference is the DEFAULT, not the verdict.
@@ -232,6 +250,8 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
 
   return (
     <section className="space-panel">
+      {spaceRoomName ? <p className="space-room-label">In <strong>{spaceRoomName}</strong></p> : null}
+      {spaceRoomTrouble ? <p className="space-room-trouble" role="alert">{spaceRoomTrouble} <button type="button" onClick={() => setSpaceRoomRevision((n) => n + 1)}>Retry</button></p> : null}
       {/* HEADSET, ABOVE THE VIEW AND CENTRED — see EnterHeadsetButton.
           Offered only when the browser says immersive-vr is actually
           supported. A button that can only fail is worse than no button, and
@@ -251,6 +271,7 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
         >
           <Scene
             connection={connection}
+            spaceRoomName={spaceRoomName}
             reducedMotion={reducedMotion}
             comfort={comfort}
             onImmersiveChange={setInHeadset}
