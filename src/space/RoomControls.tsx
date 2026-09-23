@@ -101,6 +101,16 @@ import { Typing3D } from "./Typing3D";
 const OPEN_AHEAD = 1.95;
 const OPEN_HEIGHT = 1.42;
 
+/**
+ * Where fixing what you said happens: BETWEEN the two. Baiwei, in a headset,
+ * at the waist-level controls' distance: "size ok but too close"; at the open
+ * menu's: "a little bit too far. Also, when I move, it doesn't follow me." So a
+ * middle distance at eye height, and it FOLLOWS, the way the closed controls do
+ * — a panel you type on is held with you, not a menu you walk up to and read.
+ */
+const FIX_AHEAD = 1.2;
+const FIX_HEIGHT = 1.38;
+
 /** One button in the open grid. Wider and taller than the waist buttons. */
 const BOX_BUTTON = { width: 0.56, height: 0.11, gap: 0.018 } as const;
 /** How many buttons a box holds before it spills into another column. */
@@ -231,6 +241,9 @@ export function RoomControls({
    * with the whole draft in it; tap a word to retype or re-speak just that word.
    */
   const [fixing, setFixing] = useState(false);
+  /** For the frame loop, which must not wait for a re-render to know. */
+  const fixingNow = useRef(false);
+  fixingNow.current = fixing;
   /**
    * Which list you are looking at.
    *
@@ -739,18 +752,12 @@ export function RoomControls({
     setOpen(true);
   }, [pinAhead]);
 
-  /**
-   * FIXING WHAT YOU SAID HAPPENS OUT THERE TOO, where the open menu goes — not
-   * at the waist, where the closed controls live. Baiwei, in a headset: "size
-   * ok but too close". Half a metre ahead and below the eyes is the right place
-   * for two buttons you glance down at, and the wrong place for a panel of words
-   * you read and a keyboard you type on.
-   */
+  /** Fixing what you said: see FIX_AHEAD. Never pinned — it follows you. */
   const startFixing = useCallback(() => {
-    pinAhead();
+    pinned.current = null;
     setOpen(false);
     setFixing(true);
-  }, [pinAhead]);
+  }, []);
   const stopFixing = useCallback(() => {
     pinned.current = null;
     setFixing(false);
@@ -798,6 +805,15 @@ export function RoomControls({
     if (Math.abs(delta) > SLACK) facing.current += delta * EASE;
 
     const yaw = facing.current;
+    if (fixingNow.current) {
+      // Ahead of you at eye height, turned to face you, following as you move
+      // with the same lagged facing as the closed controls, so it does not
+      // swing with every glance.
+      node.position.set(body.at.x - Math.sin(yaw) * FIX_AHEAD, FIX_HEIGHT, body.at.z - Math.cos(yaw) * FIX_AHEAD);
+      node.rotation.order = "YXZ";
+      node.rotation.set(0, yaw, 0);
+      return;
+    }
     const { position, rotation } = closedControlPose(body.at, yaw);
     node.position.set(position[0], position[1], position[2]);
     /**
@@ -1358,12 +1374,12 @@ export function RoomControls({
           prompt="What you said: tap a word to fix it"
           initial={written}
           limit={2000}
-          // Pinned about 1.95m ahead at eye height (startFixing), so twice as
-          // far as the waist-level spot it was first tried at: twice the size,
-          // to look the same — Baiwei said the size was right. Dropped a little
-          // so the keys sit below the eyes and the words at them.
-          position={[0, -0.15, 0]}
-          scale={2.5}
+          // 1.2m ahead at eye height (FIX_AHEAD), about the distance from the
+          // eyes of the waist-level spot where Baiwei said the size was right,
+          // so about that size. Dropped a little so the keys sit below the eyes
+          // and the words at them.
+          position={[0, -0.12, 0]}
+          scale={1.5}
           // Baiwei, in a headset: "Only the keyboard is too big". The words
           // stay big enough to tap one at a time; the keys are 0.7 of that.
           keyboardScale={0.7}
