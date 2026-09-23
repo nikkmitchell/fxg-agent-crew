@@ -57,6 +57,17 @@ import { claimPointer } from "./pointer-claim";
 /** How far a notch of the wheel pushes a panel away from you. */
 const WHEEL_REACH = 0.0022;
 
+/**
+ * How tall the drag bar along the top of a panel is.
+ *
+ * It was 0.14, and I missed it twice trying to verify the drag: from five
+ * metres that is about 1.6 degrees — seven pixels in a window, and about as much
+ * as a controller ray wobbles. Four metres wide and too thin to take hold of.
+ * 0.28 is about 3.2 degrees at the same distance, and grab-face.test.ts holds a
+ * floor under it.
+ */
+const BAR_HEIGHT = 0.28;
+
 const distance = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 
 const normalised = (ray: Ray): Vec3 => {
@@ -107,6 +118,19 @@ export function Movable({
 
   /** How the panel is being held: how far along the ray, and where on it. */
   const held = useRef<Grab | null>(null);
+
+  /**
+   * Whether a grab is in progress, so it is let go of EXACTLY ONCE.
+   *
+   * A release arrives by two roads and both are needed. In a window the DOM
+   * `pointerup` on the window is what reliably ends a drag that has left the
+   * panel behind; in a headset there are no window pointer events at all, and
+   * only R3F's own `onPointerUp` ever arrives. A mouse gets both, so the panel
+   * was saved twice per drag — caught by watching the requests, which showed two
+   * identical PUTs for every drag. Harmless while both carry the same target,
+   * and one easing frame away from saving two different places.
+   */
+  const grabbing = useRef(false);
 
   /**
    * What a resize needs, which is not what a move needs.
@@ -188,6 +212,7 @@ export function Movable({
     (ray: Ray | null, struck: Vec3 | null, kind: "move" | "resize" = "move") => {
       const node = group.current;
       if (!ray || !node) return;
+      grabbing.current = true;
       gesture.current = kind;
       const centre = vec(node.position);
 
@@ -287,6 +312,8 @@ export function Movable({
   });
 
   const release = useCallback(() => {
+    if (!grabbing.current) return;
+    grabbing.current = false;
     const node = group.current;
     setDragging(false);
     held.current = null;
@@ -466,7 +493,7 @@ export function Movable({
         onPointerMove={steer}
         onPointerUp={letGo}
       >
-        <boxGeometry args={[PANEL.width, 0.14, 0.06]} />
+        <boxGeometry args={[PANEL.width, BAR_HEIGHT, 0.06]} />
         <meshBasicMaterial
           color={dragging ? "#6f86c9" : "#2b3245"}
           transparent

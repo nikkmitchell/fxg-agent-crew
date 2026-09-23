@@ -35,15 +35,32 @@ describe("the face you grab an unlocked panel by", () => {
     expect(Number(face![1]), "the grab face must be centred on the panel").toBe(0);
   });
 
+  const barHeight = () => Number(source.match(/const BAR_HEIGHT = ([\d.]+);/)?.[1]);
+
   it("does not reach as high as the drag bar, which would steal its presses", () => {
     // The face sits in FRONT of the bar, so any overlap is the face winning.
+    // Both numbers come from the source: this used to assume a 14cm bar
+    // (`top - 0.07`), which would have gone quietly wrong the day the bar
+    // changed — and it did change.
     const top = Number(source.match(/const top = ([\d.]+);/)?.[1]);
     expect(Number.isFinite(top)).toBe(true);
-    const barBottom = top - 0.07;
+    expect(Number.isFinite(barHeight())).toBe(true);
+    const barBottom = top - barHeight() / 2;
     expect(PANEL.height / 2, "the face's top edge overlaps the drag bar").toBeLessThanOrEqual(barBottom);
   });
 
+  it("is a bar you can actually hit from across the room", () => {
+    /**
+     * FOUND BY MISSING IT, twice, while verifying the drag. It was 14cm tall:
+     * from five metres that is about 1.6 degrees, some seven pixels in a window
+     * and about as much as a controller ray wobbles. Four metres wide and too
+     * thin to take hold of — the same fault as the Go table's rim.
+     */
+    const atFiveMetres = (2 * Math.atan(barHeight() / 2 / 5) * 180) / Math.PI;
+    expect(atFiveMetres, "the drag bar is a sliver from a normal reading distance").toBeGreaterThan(3);
+  });
+
   it("uses PANEL for the bar's width too, so they cannot drift apart", () => {
-    expect(source).toMatch(/boxGeometry args=\{\[PANEL\.width,/);
+    expect(source).toMatch(/boxGeometry args=\{\[PANEL\.width, BAR_HEIGHT,/);
   });
 });

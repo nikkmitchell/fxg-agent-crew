@@ -299,7 +299,12 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     invalidate();
   }, [invalidate]);
 
+  /**
+   * LET GO EXACTLY ONCE. A mouse delivers the release twice — the window's
+   * `pointerup` and the bar's own — while a headset delivers only the bar's.
+   */
   const dropTable = useCallback(() => {
+    if (!grab.current) return;
     const at = want.current;
     grab.current = null; want.current = null; grabbedPointer.current = null;
     setCarrying(false);
@@ -395,10 +400,21 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   const wide = item.colours.length > 2, deck = goDeckWidth(item.size, item.colours.length);
   const extent = goExtent(item.size), boardWidth = goBoardWidth(item.size), edge = deck / 2;
   return <group ref={body} position={[item.position.x, item.position.y, item.position.z]} rotation-y={item.position.rotationY} scale={item.scale}>
-    {item.deskVisible && <RoundedBox args={[deck, 0.075, deck]} radius={0.035} smoothness={4} position={[0, 0.705, 0]} receiveShadow>
+    {/*
+      NOTHING BELOW THIS LINE CATCHES A POINTER UNLESS IT DOES SOMETHING.
+
+      Nikk, in a headset: "there seems to be loads of colliders all over the
+      model... if my hand is above the board it just hits colliders and the
+      pointer is blocked". R3F raycasts a handler-bearing group RECURSIVELY, and
+      RoomItems wraps every table in one that claims the pointer — so the desk,
+      the legs, the rim and the playing surface were all targets that did
+      nothing but stop the ray. They take no rays now. table-colliders.test.ts
+      fails if anything new is added here without saying which it is.
+    */}
+    {item.deskVisible && <RoundedBox args={[deck, 0.075, deck]} radius={0.035} smoothness={4} position={[0, 0.705, 0]} receiveShadow raycast={noRaycast}>
       <meshStandardMaterial map={wood} color="#765b49" roughness={0.42} metalness={0.06} />
     </RoundedBox>}
-    <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow>
+    <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow raycast={noRaycast}>
       <meshPhysicalMaterial color={carrying ? "#c2793f" : "#975d32"} roughness={0.38} clearcoat={0.4} />
     </RoundedBox>
     {/*
@@ -409,15 +425,33 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       Three handles failed before this one, all the same way — the right size
       in metres and too small for a pointer. GoTableSettings.ts lists them.
     */}
+    {/*
+      STEERED AND RELEASED FROM R3F TOO, not only from the window. A headset
+      delivers NO window pointer events — a controller only ever reaches R3F's
+      handlers — so a bar that listened to the window alone could be picked up
+      in a headset and then never moved or put down. The window listeners stay
+      for a mouse, whose drag can outrun the bar; pointer capture keeps these
+      arriving when the ray slips off it.
+    */}
     <RoundedBox args={[barSpan, BAR.thickness, BAR.thickness]} radius={0.02} smoothness={3}
-      position={[bar.x, bar.y, bar.z]} onPointerDown={takeTable}>
+      position={[bar.x, bar.y, bar.z]} onPointerDown={takeTable}
+      onPointerMove={(event) => {
+        if (grabbedPointer.current !== event.pointerId) return;
+        event.stopPropagation();
+        steerTable({ origin: asVec(event.ray.origin), direction: asVec(event.ray.direction) });
+      }}
+      onPointerUp={(event) => {
+        if (grabbedPointer.current !== event.pointerId) return;
+        letGoOfTable.current?.();
+        dropTable();
+      }}>
       <meshStandardMaterial color={carrying ? "#e45338" : "#c9b48c"} emissive={carrying ? "#e45338" : "#6f5f43"}
         emissiveIntensity={carrying ? 0.5 : 0.2} roughness={0.4} />
     </RoundedBox>
-    <RoundedBox args={[boardWidth, 0.025, boardWidth]} radius={0.01} smoothness={3} position={[0, GO_SURFACE - 0.0125, 0]} receiveShadow>
+    <RoundedBox args={[boardWidth, 0.025, boardWidth]} radius={0.01} smoothness={3} position={[0, GO_SURFACE - 0.0125, 0]} receiveShadow raycast={noRaycast}>
       <meshPhysicalMaterial map={wood} roughness={0.43} clearcoat={0.22} />
     </RoundedBox>
-    {item.deskVisible && [-1, 1].flatMap((x) => [-1, 1].map((z) => <mesh key={`${x}-${z}`} position={[x * edge * 0.6, 0.34, z * edge * 0.6]} castShadow>
+    {item.deskVisible && [-1, 1].flatMap((x) => [-1, 1].map((z) => <mesh key={`${x}-${z}`} position={[x * edge * 0.6, 0.34, z * edge * 0.6]} castShadow raycast={noRaycast}>
       <cylinderGeometry args={[0.07, 0.045, 0.68, 12]} /><meshStandardMaterial color="#382720" roughness={0.4} />
     </mesh>))}
     {offsets.map((offset, index) => <group key={index}>
