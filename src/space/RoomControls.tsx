@@ -720,21 +720,41 @@ export function RoomControls({
    */
   const pinned = useRef<{ x: number; z: number; yaw: number } | null>(null);
 
-  const openMenu = useCallback(() => {
+  const pinAhead = useCallback(() => {
     const body = anchor();
-    if (body) {
-      // Pinned out in front of where you were STANDING when you opened it,
-      // using the panel's own lagged facing rather than your head's, so it
-      // does not appear off to one side if you happened to be glancing away.
-      const yaw = facing.current ?? body.yaw;
-      pinned.current = {
-        x: body.at.x - Math.sin(yaw) * OPEN_AHEAD,
-        z: body.at.z - Math.cos(yaw) * OPEN_AHEAD,
-        yaw,
-      };
-    }
-    setOpen(true);
+    if (!body) return;
+    // Pinned out in front of where you were STANDING when you opened it,
+    // using the panel's own lagged facing rather than your head's, so it
+    // does not appear off to one side if you happened to be glancing away.
+    const yaw = facing.current ?? body.yaw;
+    pinned.current = {
+      x: body.at.x - Math.sin(yaw) * OPEN_AHEAD,
+      z: body.at.z - Math.cos(yaw) * OPEN_AHEAD,
+      yaw,
+    };
   }, [anchor]);
+
+  const openMenu = useCallback(() => {
+    pinAhead();
+    setOpen(true);
+  }, [pinAhead]);
+
+  /**
+   * FIXING WHAT YOU SAID HAPPENS OUT THERE TOO, where the open menu goes — not
+   * at the waist, where the closed controls live. Baiwei, in a headset: "size
+   * ok but too close". Half a metre ahead and below the eyes is the right place
+   * for two buttons you glance down at, and the wrong place for a panel of words
+   * you read and a keyboard you type on.
+   */
+  const startFixing = useCallback(() => {
+    pinAhead();
+    setOpen(false);
+    setFixing(true);
+  }, [pinAhead]);
+  const stopFixing = useCallback(() => {
+    pinned.current = null;
+    setFixing(false);
+  }, []);
 
   const closeMenu = useCallback(() => {
     pinned.current = null;
@@ -1013,7 +1033,7 @@ export function RoomControls({
             },
         ...(written.trim()
           ? [
-              { label: "See and fix what you said", onTap: () => { setOpen(false); setFixing(true); } },
+              { label: "See and fix what you said", onTap: startFixing },
               { label: "Send what you wrote", tone: "live" as const, onTap: () => void sendWritten() },
               { label: "Throw away what you wrote", tone: "muted" as const, onTap: () => setWritten("") },
             ]
@@ -1338,17 +1358,20 @@ export function RoomControls({
           prompt="What you said: tap a word to fix it"
           initial={written}
           limit={2000}
-          position={[0, 0.05, 0.03]}
-          scale={1.3}
+          // Pinned about 1.95m ahead at eye height (startFixing), so twice as
+          // far as the waist-level spot it was first tried at: twice the size,
+          // to look the same — Baiwei said the size was right. Dropped a little
+          // so the keys sit below the eyes and the words at them.
+          position={[0, -0.15, 0]}
+          scale={2.5}
           // Baiwei, in a headset: "Only the keyboard is too big". The words
-          // stay at 1.3 to be tapped one at a time; the keys come down to about
-          // 5cm each.
+          // stay big enough to tap one at a time; the keys are 0.7 of that.
           keyboardScale={0.7}
           onDone={(text) => {
             setWritten(text);
-            setFixing(false);
+            stopFixing();
           }}
-          onCancel={() => setFixing(false)}
+          onCancel={stopFixing}
         />
       ) : open ? (
         columns.map((column, index) => (
@@ -1544,7 +1567,7 @@ export function RoomControls({
             if (notice || voice.trouble) setNotice(null);
             // THE WHOLE DRAFT, TO FIX — not the Quest keyboard, which opens
             // empty and can only add to it.
-            else if (draftPreview && !recordingStatus) setFixing(true);
+            else if (draftPreview && !recordingStatus) startFixing();
           }}
         />
       ) : null}
