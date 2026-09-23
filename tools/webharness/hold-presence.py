@@ -79,14 +79,55 @@ def frame(payload: bytes, opcode: int = 0x1) -> bytes:
     return header + mask + bytes(byte ^ mask[i % 4] for i, byte in enumerate(payload))
 
 
+#: How long a frame that has STARTED may go without a byte before the connection
+#: is treated as dropped. See read_frame.
+STALLED_AFTER = 30
+
+
 def read_frame(sock: socket.socket) -> tuple[int, bytes] | None:
-    """One server frame, or None when the connection ends. Servers never mask."""
+    """One server frame, or None when the connection ends. Servers never mask.
+
+    A TIMEOUT MAY ONLY ESCAPE BEFORE THE FRAME HAS STARTED.
+
+    hold() reads with a one-second timeout so it can ping on schedule, and on a
+    timeout it simply reads again. That is right when nothing has arrived. It
+    was catastrophic when the timeout landed MID-FRAME: the bytes already read
+    lived in a local variable, vanished with the exception, and the next call
+    started parsing halfway through a frame. From then on the reader was
+    interpreting JSON as frame headers — opcodes 12, 0, 2, 9 — until one byte
+    happened to look like 8, and it reported "the room said goodbye". The
+    "close reason" it printed was `2704097}}},"attending":null,"avatar":...`.
+    The room had said nothing of the kind.
+
+    It surfaced on 2026-09-24 because snapshots arrive ten times a second and
+    had grown — five people and two Go tables — so a frame spanning a network
+    stall stopped being rare. Nightjar was drawn dozing for twenty minutes,
+    reconnecting every ~20s and being "said goodbye to" each time.
+
+    So once the first byte of a frame is in, the frame is finished. A frame
+    that then makes NO progress for STALLED_AFTER seconds is a dead connection,
+    raised as OSError so hold() treats it as a drop and stands up again, rather
+    than waiting on it for ever without pinging.
+    """
+    started = [False]
+
     def exactly(count: int) -> bytes | None:
         out = b""
+        waited = 0.0
         while len(out) < count:
-            chunk = sock.recv(count - len(out))
+            try:
+                chunk = sock.recv(count - len(out))
+            except (TimeoutError, socket.timeout):
+                if not started[0] and not out:
+                    raise  # idle: nothing of this frame read yet, safe to hand back
+                waited += sock.gettimeout() or 1
+                if waited >= STALLED_AFTER:
+                    raise OSError(f"no bytes for {STALLED_AFTER}s in the middle of a frame")
+                continue
             if not chunk:
                 return None
+            started[0] = True
+            waited = 0.0
             out += chunk
         return out
 
