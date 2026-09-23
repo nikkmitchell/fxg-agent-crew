@@ -30,6 +30,7 @@
     "three": "0.186.0"
   },
   "devDependencies": {
+    "@pmndrs/pointer-events": "6.6.30",
     "@types/node": "^26.4.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

@@ -12,7 +12,7 @@ import { space } from "../space-client";
 import { claimPointer } from "./pointer-claim";
 import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
 import { goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings";
-import { goControls, goControlsShown } from "./go-controls";
+import { GO_TABLE_POINTERS, goControls, goControlsShown } from "./go-controls";
 import { goTableWriter } from "./go-table-writer";
 
 const NAMES = ["Black", "White", "Coral", "Blue", "Gold", "Jade", "Violet", "Rose"];
@@ -415,7 +415,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   const lifted = item.liftedColour === null ? null : goBowl(item.liftedColour, item.colours.length, item.size);
   const wide = item.colours.length > 2, deck = goDeckWidth(item.size, item.colours.length);
   const extent = goExtent(item.size), boardWidth = goBoardWidth(item.size), edge = deck / 2;
-  return <group ref={body} position={[item.position.x, item.position.y, item.position.z]} rotation-y={item.position.rotationY} scale={item.scale}>
+  return <group ref={body} position={[item.position.x, item.position.y, item.position.z]} rotation-y={item.position.rotationY} scale={item.scale} pointerEventsType={GO_TABLE_POINTERS}>
     {/*
       NOTHING BELOW THIS LINE CATCHES A POINTER UNLESS IT DOES SOMETHING.
 

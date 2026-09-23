@@ -127,6 +127,28 @@ export function goControls(item: Pick<GoRoomItem, "size" | "colours" | "scale" |
   };
 }
 
+/**
+ * Which of a headset's pointers the Go table answers: NOT THE GRAB SPHERE OR
+ * THE TOUCH SPHERE — only the laser.
+ *
+ * Baiwei, in a headset: "When I walk over the board or stand close to the
+ * bowls with stones, my pointer doesn't work. I have to go away and then it
+ * starts working."
+ *
+ * Each hand carries three pointers — a ray, a 7 cm grab sphere and a 10 cm
+ * touch sphere — and only ONE is live at a time: whichever hits something
+ * NEAREST (@pmndrs/pointer-events, CombinedPointer.computeActivePointer). A
+ * sphere that touches anything hits it at distance ~0, so the moment a hand is
+ * near the desk, the rim, a bowl or the board, a sphere wins and the laser
+ * switches off. `raycast={noRaycast}` does not help: that stops rays, and the
+ * spheres never ask `raycast` — they test the mesh's triangles themselves.
+ *
+ * Nothing on the table wants the spheres. Stones are lifted and placed by
+ * Moraine's fingertip loop, which reads the hand's joints directly, not through
+ * these pointers; everything else is pressed with the laser.
+ */
+export const GO_TABLE_POINTERS: { deny: string[] } = { deny: ["grab", "touch"] };
+
 /** Whether the table's own controls may be shown: never while a stone is in the air. */
 export function goControlsShown(item: Pick<GoRoomItem, "liftedColour">): boolean {
   return item.liftedColour === null;
