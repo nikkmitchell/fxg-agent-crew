@@ -12,11 +12,13 @@ import { placeOf, savePlacement } from "./panel-placement";
 import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
 import { useVoiceChat } from "./useVoiceChat";
 import { ProjectChooser } from "../ProjectChooser";
-import { base } from "../router";
+import { base, pathForTab } from "../router";
 import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
 import { useHiddenAsStill } from "./useHiddenAsStill";
 import { takeCrumb } from "./left-crumb";
 import { useHeadsetAvailable } from "./useHeadsetAvailable";
+import { bff } from "../bff-client";
+import { ApiError } from "../api-request";
 
 /**
  * The way in to screen sharing, on the website rather than only in a terminal.
@@ -105,6 +107,40 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
    * stays false even while the door's flag is still true.
    */
   const [entered, setEntered] = useState(startEntered);
+  const [directEntryTrouble, setDirectEntryTrouble] = useState<string | null>(null);
+  const [checkingDirectEntry, setCheckingDirectEntry] = useState(false);
+  const enterFromDirectLink = async () => {
+    if (checkingDirectEntry) return;
+    setCheckingDirectEntry(true);
+    setDirectEntryTrouble(null);
+    try {
+      await bff.currentSpaceRoom();
+      setEntered(true);
+    } catch (error) {
+      setDirectEntryTrouble(error instanceof ApiError && error.code === "ROOM_NOT_SELECTED"
+        ? "Choose a room at the front door before entering its space."
+        : "The room could not be confirmed. Please try again.");
+    } finally {
+      setCheckingDirectEntry(false);
+    }
+  };
+  const [spaceRoomName, setSpaceRoomName] = useState<string | null>(null);
+  const [spaceRoomTrouble, setSpaceRoomTrouble] = useState<string | null>(null);
+  const [spaceRoomRevision, setSpaceRoomRevision] = useState(0);
+  useEffect(() => {
+    if (!entered) return;
+    const controller = new AbortController();
+    setSpaceRoomTrouble(null);
+    void bff.currentSpaceRoom(controller.signal).then(({ roomName }) => {
+      if (!controller.signal.aborted) setSpaceRoomName(roomName);
+    }).catch(() => {
+      if (!controller.signal.aborted) {
+        setSpaceRoomName(null);
+        setSpaceRoomTrouble("Could not verify which chat matches this space. Room chat and posting are paused.");
+      }
+    });
+    return () => controller.abort();
+  }, [entered, spaceRoomRevision]);
   const systemPrefersReduced = useReducedMotion();
   /**
    * The system preference is the DEFAULT, not the verdict.
@@ -201,9 +237,10 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
           ask. Walk with W A S D or the arrow keys; drag to look around.
         </p>
 
-        <button type="button" className="primary-action" onClick={() => setEntered(true)}>
-          Enter the room
+        <button type="button" className="primary-action" disabled={checkingDirectEntry} onClick={() => void enterFromDirectLink()}>
+          {checkingDirectEntry ? "Checking the room…" : "Enter the room"}
         </button>
+        {directEntryTrouble ? <p className="space-room-trouble" role="alert">{directEntryTrouble} <a href={pathForTab("home")}>Choose a room</a></p> : null}
 
         <ShareScreenLink />
 
@@ -232,6 +269,8 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
 
   return (
     <section className="space-panel">
+      {spaceRoomName ? <p className="space-room-label">In <strong>{spaceRoomName}</strong></p> : null}
+      {spaceRoomTrouble ? <p className="space-room-trouble" role="alert">{spaceRoomTrouble} <button type="button" onClick={() => setSpaceRoomRevision((n) => n + 1)}>Retry</button></p> : null}
       {/* HEADSET, ABOVE THE VIEW AND CENTRED — see EnterHeadsetButton.
           Offered only when the browser says immersive-vr is actually
           supported. A button that can only fail is worse than no button, and
@@ -251,6 +290,7 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
         >
           <Scene
             connection={connection}
+            spaceRoomName={spaceRoomName}
             reducedMotion={reducedMotion}
             comfort={comfort}
             onImmersiveChange={setInHeadset}

@@ -43,6 +43,35 @@ describe("sessions survive a restart", () => {
     second.close();
   });
 
+  it("keeps a new sign-in unselected across a restart until an entry is verified", () => {
+    const first = openStore();
+    const sid = first.createUnselected("newcomer", "token");
+    first.close();
+    const second = openStore();
+    expect(second.get(sid)?.requiresRoomEntry).toBe(true);
+    expect(second.mayInferInDefaultRoom("newcomer")).toBe(false);
+    second.enterRoom(sid, "lobby");
+    expect(second.get(sid)?.requiresRoomEntry).toBe(false);
+    expect(second.get(sid)?.spaceRoom).toBe("lobby");
+    second.close();
+  });
+
+  it("does not reconstruct a private-room actor in the default room after their session ends and the server restarts", () => {
+    const first = openStore();
+    const sid = first.createUnselected("Moraine", "token", "agent");
+    first.enterRoom(sid, "private-room");
+    first.destroy(sid);
+    first.close();
+
+    const second = openStore();
+    expect(second.mayInferInDefaultRoom("moraine")).toBe(false);
+    const returnSid = second.createUnselected("Moraine", "new-token", "agent");
+    second.enterRoom(returnSid, "saha.ing");
+    second.destroy(returnSid);
+    expect(second.mayInferInDefaultRoom("moraine")).toBe(true);
+    second.close();
+  });
+
   it("does not resurrect a session that expired while the process was down", () => {
     const first = openStore(-1000); // already expired on creation
     const sid = first.create("qa-tester", "t");
@@ -121,6 +150,24 @@ describe("both stores honour the same contract", () => {
     forBoth((store, name) => {
       expect(store.get("not-a-real-sid"), name).toBeUndefined();
       expect(store.get(undefined), name).toBeUndefined();
+    });
+  });
+
+  it("lets a second default-room session keep an actor's legacy activity there", () => {
+    forBoth((store, name) => {
+      const elsewhere = store.create("Moraine", "t", "agent");
+      expect(store.mayInferInDefaultRoom("moraine"), name).toBe(true);
+      store.enterRoom(elsewhere, "alpha");
+      expect(store.mayInferInDefaultRoom("MORAINE"), name).toBe(false);
+
+      const defaultSession = store.create("moraine", "t2", "agent");
+      expect(store.mayInferInDefaultRoom("Moraine"), name).toBe(true);
+      store.enterRoom(defaultSession, "saha.ing");
+      expect(store.mayInferInDefaultRoom("Moraine"), name).toBe(true);
+      store.destroy(defaultSession);
+      expect(store.mayInferInDefaultRoom("Moraine"), name).toBe(false);
+      store.destroy(elsewhere);
+      expect(store.mayInferInDefaultRoom("Moraine"), name).toBe(true);
     });
   });
 });

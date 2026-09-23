@@ -3,21 +3,22 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { DatabaseSync } from "node:sqlite";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
+import { DEFAULT_SPACE_ROOM, roomKey } from "../../shared/space-room.js";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
 import { SCREEN_LIMITS, sniffImage, type ScreenSummary } from "../../shared/screens.js";
 
 /**
- * Screen sharing: one picture per person, always the latest.
+ * Screen sharing: one picture per person per room, always the latest.
  *
  * Nikk asked for it so that people "can see what each agent is working on, to
  * get more information than just what they share in chat" — a page that takes
  * a picture of a screen about once a second and uploads it, and a virtual
  * screen in the room for each person who is sharing.
  *
- * ONE CONSTANTLY OVERWRITTEN FRAMEBUFFER, NOT AN ARCHIVE, which was Nikk's own
- * refinement and is the whole storage design. Each person has at most one
- * frame; a new one replaces it; nothing is written to disk. That is also the
+ * ONE CONSTANTLY OVERWRITTEN FRAMEBUFFER PER ROOM, NOT AN ARCHIVE, which was
+ * Nikk's own refinement and is the whole storage design. Each person has at
+ * most one frame in a room; a new one replaces it; nothing is written to disk. That is also the
  * privacy property worth having: a screen shows what is on it now and cannot be
  * scrolled back through by anybody later.
  *
@@ -32,6 +33,7 @@ import { SCREEN_LIMITS, sniffImage, type ScreenSummary } from "../../shared/scre
  */
 
 type Frame = {
+  room: string;
   actorId: string;
   /** Who put it up for `actorId`; null when the actor shared their own. */
   sharedBy: string | null;
@@ -48,30 +50,32 @@ export class ScreenFrames {
   constructor(private readonly now: () => number = Date.now) {}
 
   /** Keyed case-insensitively: the room and the chat spell the same person differently. */
-  private key(actorId: string): string {
-    return actorId.trim().toLowerCase();
+  private key(actorId: string, room: string): string {
+    return JSON.stringify([roomKey(room), actorId.trim().toLowerCase()]);
   }
 
-  put(actorId: string, bytes: Buffer, type: string, sharedBy: string | null = null): number {
+  put(actorId: string, bytes: Buffer, type: string, sharedBy: string | null = null,
+    room = DEFAULT_SPACE_ROOM): number {
     this.seq += 1;
-    this.frames.set(this.key(actorId), { actorId, sharedBy, bytes, type, seq: this.seq, at: this.now() });
+    this.frames.set(this.key(actorId, room), { room: roomKey(room), actorId, sharedBy,
+      bytes, type, seq: this.seq, at: this.now() });
     return this.seq;
   }
 
   /** The latest frame, or nothing if there is none or it has gone stale. */
-  get(actorId: string): Frame | undefined {
-    const frame = this.frames.get(this.key(actorId));
+  get(actorId: string, room = DEFAULT_SPACE_ROOM): Frame | undefined {
+    const frame = this.frames.get(this.key(actorId, room));
     if (!frame) return undefined;
     if (this.now() - frame.at > SCREEN_LIMITS.staleMs) return undefined;
     return frame;
   }
 
-  clear(actorId: string): void {
-    this.frames.delete(this.key(actorId));
+  clear(actorId: string, room = DEFAULT_SPACE_ROOM): void {
+    this.frames.delete(this.key(actorId, room));
   }
 
   /** Everybody currently sharing, in a stable order so the room does not reshuffle. */
-  list(): ScreenSummary[] {
+  list(room = DEFAULT_SPACE_ROOM): ScreenSummary[] {
     const now = this.now();
     const live: ScreenSummary[] = [];
     for (const [key, frame] of this.frames) {
@@ -81,6 +85,7 @@ export class ScreenFrames {
         this.frames.delete(key);
         continue;
       }
+      if (frame.room !== roomKey(room)) continue;
       live.push({
         actorId: frame.actorId,
         sharedBy: frame.sharedBy,
@@ -125,25 +130,25 @@ export class ShareKeys {
     private readonly now: () => number = Date.now,
   ) {}
 
-  mint(actorId: string, sharedBy: string | null = null): { key: string; expiresAt: string } {
+  mint(actorId: string, sharedBy: string | null = null, room = DEFAULT_SPACE_ROOM): { key: string; expiresAt: string } {
     const key = randomBytes(24).toString("base64url");
     const expiresAt = this.now() + SCREEN_LIMITS.keyTtlMs;
     this.database.prepare("DELETE FROM screen_share_keys WHERE actor_key = ?").run(actorId.trim().toLowerCase());
     this.database
-      .prepare("INSERT INTO screen_share_keys (key_hash, actor_id, actor_key, expires_at, shared_by) VALUES (?, ?, ?, ?, ?)")
-      .run(hashKey(key), actorId, actorId.trim().toLowerCase(), expiresAt, sharedBy);
+      .prepare("INSERT INTO screen_share_keys (key_hash, actor_id, actor_key, expires_at, shared_by, room) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(hashKey(key), actorId, actorId.trim().toLowerCase(), expiresAt, sharedBy, roomKey(room));
     return { key, expiresAt: new Date(expiresAt).toISOString() };
   }
 
   /** Whose screen a key uploads, and who made it — or null if unknown or expired. */
-  resolve(key: string): { actorId: string; sharedBy: string | null } | null {
+  resolve(key: string): { actorId: string; sharedBy: string | null; room: string } | null {
     if (!key) return null;
     const row = this.database
-      .prepare("SELECT actor_id, expires_at, shared_by FROM screen_share_keys WHERE key_hash = ?")
-      .get(hashKey(key)) as { actor_id: string; expires_at: number; shared_by: string | null } | undefined;
+      .prepare("SELECT actor_id, expires_at, shared_by, room FROM screen_share_keys WHERE key_hash = ?")
+      .get(hashKey(key)) as { actor_id: string; expires_at: number; shared_by: string | null; room: string } | undefined;
     if (!row) return null;
     if (row.expires_at < this.now()) return null;
-    return { actorId: row.actor_id, sharedBy: row.shared_by };
+    return { actorId: row.actor_id, sharedBy: row.shared_by, room: roomKey(row.room) };
   }
 
   /**
@@ -213,12 +218,12 @@ export function registerScreenRoutes(
    * log file. The page carries it in the link's #fragment, which a browser
    * never sends to the server, and moves it into this header itself.
    */
-  const uploader = (request: FastifyRequest): { actorId: string; sharedBy: string | null } | null => {
+  const uploader = (request: FastifyRequest): { actorId: string; sharedBy: string | null; room: string } | null => {
     const header = request.headers["x-screen-key"];
     const key = Array.isArray(header) ? header[0] : header;
     if (key) return deps.keys.resolve(key);
     const session = deps.sessions.get(request.cookies[deps.config.cookieName]);
-    return session ? { actorId: session.username, sharedBy: null } : null;
+    return session ? { actorId: session.username, sharedBy: null, room: spaceRoomOf(session) } : null;
   };
 
   // Raw image bodies are already parsed as buffers app-wide — see the upload
@@ -247,7 +252,7 @@ export function registerScreenRoutes(
     if (!session) return reply;
     const wanted = typeof request.body?.for === "string" ? request.body.for.trim() : "";
     const self = !wanted || wanted.toLowerCase() === session.username.toLowerCase();
-    if (self) return reply.send(deps.keys.mint(session.username));
+    if (self) return reply.send(deps.keys.mint(session.username, null, spaceRoomOf(session)));
 
     if (deps.keys.kindOf(wanted) !== "agent") {
       return reply.code(403).send({
@@ -258,7 +263,7 @@ export function registerScreenRoutes(
     // Spelled as the actors table spells it, so the label matches the name the
     // rest of the room uses for that agent.
     const canonical = deps.keys.agents().find((id) => id.toLowerCase() === wanted.toLowerCase()) ?? wanted;
-    return reply.send({ ...deps.keys.mint(canonical, session.username), for: canonical });
+    return reply.send({ ...deps.keys.mint(canonical, session.username, spaceRoomOf(session)), for: canonical });
   });
 
   app.put<{ Body: Buffer }>(
@@ -269,7 +274,7 @@ export function registerScreenRoutes(
       if (!who) {
         return reply.code(401).send({ code: "NOT_ALLOWED", error: "sign in, or use a current share link" });
       }
-      const { actorId, sharedBy } = who;
+      const { actorId, sharedBy, room } = who;
       if (NOT_A_PERSON.has(actorId)) {
         return reply.code(403).send({ code: "NOT_ALLOWED", error: `${actorId} is not a person` });
       }
@@ -287,7 +292,7 @@ export function registerScreenRoutes(
       if (!type) {
         return reply.code(415).send({ code: "BAD_FRAME", error: "a frame must be a WebP, JPEG or PNG image" });
       }
-      const seq = deps.frames.put(actorId, body, type, sharedBy);
+      const seq = deps.frames.put(actorId, body, type, sharedBy, room);
       const header = request.headers["x-screen-key"];
       const key = Array.isArray(header) ? header[0] : header;
       if (key) deps.keys.renew(key);
@@ -300,21 +305,22 @@ export function registerScreenRoutes(
     if (!who) {
       return reply.code(401).send({ code: "NOT_ALLOWED", error: "sign in, or use a current share link" });
     }
-    deps.frames.clear(who.actorId);
+    deps.frames.clear(who.actorId, who.room);
     return reply.send({ ok: true });
   });
 
   app.get("/bff/space/screens", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const screens = deps.frames.list().map((screen) => ({ ...screen, kind: deps.keys.kindOf(screen.actorId) }));
+    const screens = deps.frames.list(spaceRoomOf(session))
+      .map((screen) => ({ ...screen, kind: deps.keys.kindOf(screen.actorId) }));
     return reply.header("cache-control", "no-store").send({ screens });
   });
 
   app.get<{ Params: { actorId: string } }>("/bff/space/screens/:actorId/frame", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const frame = deps.frames.get(request.params.actorId);
+    const frame = deps.frames.get(request.params.actorId, spaceRoomOf(session));
     if (!frame) return reply.code(404).send({ code: "NOT_SHARING", error: "not sharing a screen" });
     return reply
       .header("content-type", frame.type)

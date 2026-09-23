@@ -1165,6 +1165,14 @@ export class Presence {
     }
   }
 
+  /** Remove a default-room inference when the actor explicitly enters another
+   * room. Unlike leave(), this must also remove an agent's socketless body. */
+  forget(actorId: string): void {
+    const key = actorKey(actorId);
+    this.occupants.delete(key);
+    this.screenSeenAt.delete(key);
+  }
+
   everyone(): Occupant[] {
     return [...this.occupants.values()];
   }

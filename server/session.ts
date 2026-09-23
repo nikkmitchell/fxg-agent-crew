@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { roomKey } from "../shared/space-room.js";
+import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
+import { actorKey } from "../shared/space-layout.js";
 
 /**
  * Server-side session storage.
@@ -45,15 +46,23 @@ export type Session = {
    * choice of the same room.
    */
   spaceRoom?: string;
+  /** Newly signed-in users must choose a room verified against upstream before
+   * any room-scoped route can read the legacy default space. */
+  requiresRoomEntry?: boolean;
 };
 
 export interface SessionStore {
   create(username: string, token: string, kind?: SessionKind): string;
+  /** Production sign-in: do not grant the historical default room implicitly. */
+  createUnselected(username: string, token: string, kind?: SessionKind): string;
   get(sid: string | undefined): Session | undefined;
   /** Replace the upstream token after a transparent re-login, keeping the sid. */
   refreshToken(sid: string, token: string): void;
   /** Stand this session in a different room's space. */
   enterRoom(sid: string, room: string): void;
+  /** Legacy board activity may place this actor in the default room only when
+   * no active session explicitly places every copy of them elsewhere. */
+  mayInferInDefaultRoom(actorId: string): boolean;
   destroy(sid: string | undefined): void;
   /** Projection safe to send to the browser. */
   publicView(session: Session): { username: string; kind: SessionKind };
@@ -79,12 +88,19 @@ function publicViewOf(session: Session): { username: string; kind: SessionKind }
  */
 export class MemorySessionStore implements SessionStore {
   private readonly sessions = new Map<string, Session>();
+  private readonly lastRoomByActor = new Map<string, string>();
 
   constructor(private readonly ttlMs: number) {}
 
   create(username: string, token: string, kind: SessionKind = "human"): string {
     const sid = newSessionId();
     this.sessions.set(sid, { username, token, kind, expiresAt: Date.now() + this.ttlMs });
+    return sid;
+  }
+
+  createUnselected(username: string, token: string, kind: SessionKind = "human"): string {
+    const sid = this.create(username, token, kind);
+    this.sessions.get(sid)!.requiresRoomEntry = true;
     return sid;
   }
 
@@ -110,6 +126,21 @@ export class MemorySessionStore implements SessionStore {
     const session = this.sessions.get(sid);
     if (!session) return;
     session.spaceRoom = roomKey(room);
+    session.requiresRoomEntry = false;
+    this.lastRoomByActor.set(actorKey(session.username), session.spaceRoom);
+  }
+
+  mayInferInDefaultRoom(actorId: string): boolean {
+    let hasActiveSession = false;
+    for (const session of this.sessions.values()) {
+      if (session.expiresAt <= Date.now() || actorKey(session.username) !== actorKey(actorId)) continue;
+      hasActiveSession = true;
+      if (!session.requiresRoomEntry && roomKey(session.spaceRoom ?? DEFAULT_SPACE_ROOM) === DEFAULT_SPACE_ROOM) return true;
+    }
+    if (hasActiveSession) return false;
+    // A session can expire after an agent left the development room. Its last
+    // verified choice still outranks the old audit trail on the next restart.
+    return (this.lastRoomByActor.get(actorKey(actorId)) ?? DEFAULT_SPACE_ROOM) === DEFAULT_SPACE_ROOM;
   }
 
   destroy(sid: string | undefined): void {
@@ -121,6 +152,7 @@ export class MemorySessionStore implements SessionStore {
 
   close(): void {
     this.sessions.clear();
+    this.lastRoomByActor.clear();
   }
 }
 
@@ -164,6 +196,11 @@ export class SqliteSessionStore implements SessionStore {
     `);
     this.addKindColumn();
     this.addSpaceRoomColumn();
+    this.addRoomEntryColumn();
+    this.db.exec(`CREATE TABLE IF NOT EXISTS actor_space_choices (
+      actor_key TEXT PRIMARY KEY,
+      room_name TEXT NOT NULL
+    )`);
     this.db.exec("PRAGMA foreign_keys = ON");
     this.purgeExpired();
   }
@@ -208,6 +245,14 @@ export class SqliteSessionStore implements SessionStore {
     this.db.exec("ALTER TABLE sessions ADD COLUMN space_room TEXT");
   }
 
+  /** Existing sessions keep their pre-lobby default access; new sign-ins do
+   * not. This migration is additive so a release does not sign everyone out. */
+  private addRoomEntryColumn(): void {
+    const columns = this.db.prepare("PRAGMA table_info(sessions)").all() as Array<{ name: string }>;
+    if (columns.some((column) => column.name === "requires_room_entry")) return;
+    this.db.exec("ALTER TABLE sessions ADD COLUMN requires_room_entry INTEGER NOT NULL DEFAULT 0");
+  }
+
   create(username: string, token: string, kind: SessionKind = "human"): string {
     const sid = newSessionId();
     this.db
@@ -216,12 +261,19 @@ export class SqliteSessionStore implements SessionStore {
     return sid;
   }
 
+  createUnselected(username: string, token: string, kind: SessionKind = "human"): string {
+    const sid = newSessionId();
+    this.db.prepare("INSERT INTO sessions (sid, username, token, kind, expires_at, requires_room_entry) VALUES (?, ?, ?, ?, ?, 1)")
+      .run(sid, username, token, kind, Date.now() + this.ttlMs);
+    return sid;
+  }
+
   get(sid: string | undefined): Session | undefined {
     if (!sid) return undefined;
     const row = this.db
-      .prepare("SELECT username, token, kind, expires_at, space_room FROM sessions WHERE sid = ?")
+      .prepare("SELECT username, token, kind, expires_at, space_room, requires_room_entry FROM sessions WHERE sid = ?")
       .get(sid) as
-        { username: string; token: string; kind: string; expires_at: number; space_room: string | null } | undefined;
+        { username: string; token: string; kind: string; expires_at: number; space_room: string | null; requires_room_entry: number } | undefined;
     if (!row) return undefined;
 
     if (row.expires_at <= Date.now()) {
@@ -236,6 +288,7 @@ export class SqliteSessionStore implements SessionStore {
       kind: row.kind === "agent" ? "agent" : "human",
       expiresAt: row.expires_at,
       spaceRoom: row.space_room ?? undefined,
+      requiresRoomEntry: row.requires_room_entry === 1,
     };
   }
 
@@ -246,7 +299,32 @@ export class SqliteSessionStore implements SessionStore {
   }
 
   enterRoom(sid: string, room: string): void {
-    this.db.prepare("UPDATE sessions SET space_room = ? WHERE sid = ?").run(roomKey(room), sid);
+    const session = this.get(sid);
+    if (!session) return;
+    const wanted = roomKey(room);
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db.prepare("UPDATE sessions SET space_room = ?, requires_room_entry = 0 WHERE sid = ?").run(wanted, sid);
+      this.db.prepare(`INSERT INTO actor_space_choices (actor_key, room_name) VALUES (?, ?)
+        ON CONFLICT(actor_key) DO UPDATE SET room_name = excluded.room_name`)
+        .run(actorKey(session.username), wanted);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  mayInferInDefaultRoom(actorId: string): boolean {
+    const row = this.db.prepare(`
+      SELECT COUNT(*) AS active,
+             SUM(CASE WHEN requires_room_entry = 0 AND (space_room IS NULL OR lower(trim(space_room)) = ?) THEN 1 ELSE 0 END) AS in_default
+        FROM sessions WHERE lower(trim(username)) = ? AND expires_at > ?
+    `).get(DEFAULT_SPACE_ROOM, actorKey(actorId), Date.now()) as { active: number; in_default: number | null };
+    if (row.active > 0) return (row.in_default ?? 0) > 0;
+    const choice = this.db.prepare("SELECT room_name FROM actor_space_choices WHERE actor_key = ?")
+      .get(actorKey(actorId)) as { room_name: string } | undefined;
+    return roomKey(choice?.room_name ?? DEFAULT_SPACE_ROOM) === DEFAULT_SPACE_ROOM;
   }
 
   destroy(sid: string | undefined): void {

@@ -6,7 +6,7 @@ import type { FastifyInstance } from "fastify";
 import { chooseVoice } from "../../shared/voice-choice.js";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { Utterance } from "../../shared/voice.js";
 
 /**
@@ -264,7 +264,7 @@ export function registerSpeechRoutes(
     /** Where synthesised lines are kept, and how they get there. */
     speech: SpeechCache;
     /** The utterance being asked for, or null. */
-    utterance: (id: number) => Utterance | null;
+    utterance: (id: number, room: string) => Utterance | null;
     /** The voice this actor speaks in — their choice, or one derived from their name. */
     voiceOf: (actorId: string) => string;
   },
@@ -272,13 +272,14 @@ export function registerSpeechRoutes(
   const requireSession = makeRequireSession(deps.config, deps.sessions);
 
   app.get<{ Params: { id: string } }>("/bff/space/utterances/:id/audio", async (request, reply) => {
-    if (!requireSession(request, reply)) return reply;
+    const session = requireSession(request, reply);
+    if (!session) return reply;
 
     const id = Number(request.params.id);
     if (!Number.isInteger(id) || id <= 0) {
       return reply.code(400).send({ code: "BAD_UTTERANCE", error: "utterance id must be a positive whole number" });
     }
-    const utterance = deps.utterance(id);
+    const utterance = deps.utterance(id, spaceRoomOf(session));
     if (!utterance) return reply.code(404).send({ code: "NO_SUCH_UTTERANCE", error: "there is no utterance with that id" });
     if (!utterance.say) {
       // Written and not spoken is a real state, not a missing file: `detail`

@@ -7,7 +7,9 @@ import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { spaceRoomOf } from "../require-session.js";
 import { NOT_A_PERSON, actorKey } from "../../shared/space-layout.js";
-import { roomKey } from "../../shared/space-room.js";
+import { isRoomName, roomKey } from "../../shared/space-room.js";
+import { WebharnessClient } from "../webharness/client.js";
+import { classify } from "../webharness/errors.js";
 import type { Placement, Showing } from "../../shared/space-wire.js";
 import type { RoomItem } from "../../shared/room-items.js";
 import { parseClientMessage, type ServerMessage, type WirePerson } from "../../shared/space-wire.js";
@@ -37,6 +39,8 @@ export class SpaceHub {
   /** Sockets per actor. More than one is a second tab, not a second person. */
   private readonly sockets = new Map<string, Set<WebSocket>>();
   private readonly socketRooms = new Map<WebSocket, string>();
+  private readonly socketActors = new Map<WebSocket, string>();
+  private readonly socketSessions = new Map<WebSocket, string>();
   private timer: NodeJS.Timeout | null = null;
 
   /**
@@ -62,18 +66,22 @@ export class SpaceHub {
   /** How long each person has looked the same. See shared/stillness.ts. */
   private readonly stillness = new Stillness();
 
-  attach(actorId: string, kind: "human" | "agent" | null, socket: WebSocket, room = "saha.ing"): void {
+  attach(actorId: string, kind: "human" | "agent" | null, socket: WebSocket, room = "saha.ing", sid?: string): void {
     const key = actorKey(actorId);
     const existing = this.sockets.get(key);
     if (existing) existing.add(socket);
     else this.sockets.set(key, new Set([socket]));
     this.socketRooms.set(socket, roomKey(room));
+    this.socketActors.set(socket, actorId);
+    if (sid) this.socketSessions.set(socket, sid);
     this.presence.join(actorId, kind, true);
     this.start();
   }
 
   detach(actorId: string, socket: WebSocket): void {
     this.socketRooms.delete(socket);
+    this.socketActors.delete(socket);
+    this.socketSessions.delete(socket);
     const key = actorKey(actorId);
     const sockets = this.sockets.get(key);
     if (!sockets) return;
@@ -94,6 +102,33 @@ export class SpaceHub {
     }
     this.presence.leave(actorId);
     if (this.sockets.size === 0) this.stop();
+  }
+
+  /** A room switch ends only that session's old sockets, not other devices. */
+  evictSession(sid: string): void {
+    for (const [socket, socketSid] of [...this.socketSessions]) {
+      if (socketSid !== sid) continue;
+      const actorId = this.socketActors.get(socket);
+      if (!actorId) continue;
+      this.detach(actorId, socket);
+      try { socket.close(1000, "entered another room"); } catch { /* already closed */ }
+    }
+  }
+
+  /** Sockets outlive HTTP requests. Recheck their sessions periodically so a
+   * signed-out or expired cookie cannot keep receiving private-room snapshots. */
+  evictInvalidSessions(valid: (sid: string, room: string) => boolean): number {
+    const invalid = new Set<string>();
+    for (const [socket, sid] of this.socketSessions) {
+      const room = this.socketRooms.get(socket);
+      if (!room || !valid(sid, room)) invalid.add(sid);
+    }
+    for (const sid of invalid) this.evictSession(sid);
+    return invalid.size;
+  }
+
+  has(socket: WebSocket): boolean {
+    return this.socketRooms.has(socket);
   }
 
   /**
@@ -214,8 +249,14 @@ export class SpaceHub {
         } catch {
           // Already gone.
         }
+        this.socketRooms.delete(socket);
+        this.socketActors.delete(socket);
+        this.socketSessions.delete(socket);
       }
       this.sockets.delete(actorKey(actorId));
+      if (this.voices.delete(actorKey(actorId))) {
+        this.broadcast({ type: "voicePresence", actorId, on: false });
+      }
     }
     if (this.sockets.size === 0) {
       this.stop();
@@ -236,6 +277,10 @@ export class SpaceHub {
       }
     }
     this.sockets.clear();
+    this.socketRooms.clear();
+    this.socketActors.clear();
+    this.socketSessions.clear();
+    this.voices.clear();
   }
 
   /** People with at least one socket open. Not the number of sockets. */
@@ -272,7 +317,16 @@ export function registerSpaceRoutes(
   itemsNow: (room: string) => RoomItem[],
   /** Touches and agents' feelings about them. Optional so older tests run unchanged. */
   touches: Touches | null = null,
+  hubFor: (room: string) => SpaceHub = () => hub,
 ): void {
+  app.get("/bff/space/room", async (request, reply) => {
+    const session = sessions.get(request.cookies[config.cookieName]);
+    if (!session) {
+      return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in", reauth: true });
+    }
+    return reply.header("cache-control", "no-store").send({ roomName: spaceRoomOf(session) });
+  });
+
   /**
    * WHO IS IN THE ROOM, AND WHERE, in one read.
    *
@@ -287,10 +341,11 @@ export function registerSpaceRoutes(
    * is a position somewhere else.
    */
   app.get("/bff/space/presence", async (request, reply) => {
-    if (!sessions.get(request.cookies[config.cookieName])) {
+    const session = sessions.get(request.cookies[config.cookieName]);
+    if (!session) {
       return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in", reauth: true });
     }
-    return reply.header("cache-control", "no-store").send({ now: Date.now(), people: hub.snapshot() });
+    return reply.header("cache-control", "no-store").send({ now: Date.now(), people: hubFor(spaceRoomOf(session)).snapshot() });
   });
 
   app.get("/bff/space/socket", { websocket: true }, (socket, request) => {
@@ -311,12 +366,13 @@ export function registerSpaceRoutes(
     }
 
     const room = spaceRoomOf(session);
-    hub.attach(actorId, session.kind, socket, room);
-    hub.send(socket, {
+    const liveHub = hubFor(room);
+    liveHub.attach(actorId, session.kind, socket, room, request.cookies[config.cookieName]);
+    liveHub.send(socket, {
       type: "welcome",
       you: actorId,
       now: Date.now(),
-      people: hub.snapshot(),
+      people: liveHub.snapshot(),
       // Once, on arrival. Panels move when somebody drags one, and repeating
       // four placements in every snapshot to say "still there" is traffic that
       // looks free until there are twenty people in the room.
@@ -325,32 +381,35 @@ export function registerSpaceRoutes(
       items: itemsNow(room),
       // Who to call on arrival. Yourself excluded: a second tab of your own is
       // still you, and calling it would put your own microphone in your ears.
-      voice: [...hub.voices]
+      voice: [...liveHub.voices]
         .filter((key) => key !== actorKey(actorId))
-        .map((key) => hub.presence.find(key)?.actorId ?? key),
+        .map((key) => liveHub.presence.find(key)?.actorId ?? key),
     });
 
     /** When each distinct note was last logged. See the "note" frame below. */
     const noteAt = new Map<string, number>();
     socket.on("message", (raw: Buffer | string) => {
+      // A frame already queued when a room switch evicted this socket must not
+      // write to the room it just left.
+      if (!liveHub.has(socket)) return;
       const message = parseClientMessage(raw.toString());
       // A frame we cannot read is dropped. It is not evidence the socket is
       // bad, and disconnecting on it would make a single client bug look like
       // a server outage.
       if (!message) return;
       if (message.type === "ping") {
-        hub.presence.heard(actorId);
+        liveHub.presence.heard(actorId);
         return;
       }
       if (message.type === "voicePresence") {
         // Told to the room, not asked of it: whether somebody's microphone is
         // on is theirs to state, and nobody else's to infer from silence.
         const key = actorKey(actorId);
-        if (message.on) hub.voices.add(key);
-        else hub.voices.delete(key);
-        hub.broadcast({
+        if (message.on) liveHub.voices.add(key);
+        else liveHub.voices.delete(key);
+        liveHub.broadcast({
           type: "voicePresence",
-          actorId: hub.presence.find(key)?.actorId ?? actorId,
+          actorId: liveHub.presence.find(key)?.actorId ?? actorId,
           on: message.on,
         });
         return;
@@ -358,7 +417,7 @@ export function registerSpaceRoutes(
       if (message.type === "avatar") {
         // The actor id comes from the authenticated session, never the frame:
         // occupants may animate themselves and nobody else.
-        hub.presence.animate(actorId, message);
+        liveHub.presence.animate(actorId, message);
         return;
       }
       if (message.type === "note") {
@@ -391,7 +450,7 @@ export function registerSpaceRoutes(
       }
       if (message.type === "touch") {
         // Who touched is the session, never the frame.
-        if (touches) touchAgent(hub, touches, actorId, message.agentId, message.part);
+        if (touches) touchAgent(liveHub, touches, actorId, message.agentId, message.part, room);
         return;
       }
       if (message.type === "voice") {
@@ -403,9 +462,9 @@ export function registerSpaceRoutes(
         // Refused to a stranger rather than dropped: an unanswered call and a
         // call that was never delivered look identical from the caller's side,
         // and only one of them is worth retrying.
-        const from = hub.presence.find(actorId)?.actorId ?? actorId;
-        if (!hub.deliver(message.to, { type: "voice", from, signal: message.signal })) {
-          hub.send(socket, {
+        const from = liveHub.presence.find(actorId)?.actorId ?? actorId;
+        if (!liveHub.deliver(message.to, { type: "voice", from, signal: message.signal })) {
+          liveHub.send(socket, {
             type: "voicePresence",
             actorId: message.to,
             on: false,
@@ -413,7 +472,7 @@ export function registerSpaceRoutes(
         }
         return;
       }
-      hub.presence.moveSelf(actorId, message.at, message.facing, {
+      liveHub.presence.moveSelf(actorId, message.at, message.facing, {
         // Spread deliberately: `head: undefined` when the client did not send
         // one leaves the last known head alone, while an explicit null clears
         // it. Only a client that mentions hands changes them.
@@ -424,8 +483,62 @@ export function registerSpaceRoutes(
       message.standing);
     });
 
-    socket.on("close", () => hub.detach(actorId, socket));
-    socket.on("error", () => hub.detach(actorId, socket));
+    socket.on("close", () => liveHub.detach(actorId, socket));
+    socket.on("error", () => liveHub.detach(actorId, socket));
+  });
+}
+
+/** Entering a space is a privilege, not a client-side room-name selection. */
+export function registerSpaceEntryRoute(
+  app: FastifyInstance,
+  config: Config,
+  sessions: SessionStore,
+  client: WebharnessClient,
+  evictSessionEverywhere: (sid: string) => void,
+  afterSwitch: (actorId: string) => void = () => {},
+): void {
+  app.post<{ Body: { roomName?: unknown } }>("/bff/space/enter", async (request, reply) => {
+    const sid = request.cookies[config.cookieName];
+    const session = sessions.get(sid);
+    if (!session || !sid) {
+      return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in", reauth: true });
+    }
+    const asked = request.body?.roomName;
+    if (!isRoomName(asked)) {
+      return reply.code(400).send({ code: "BAD_REQUEST", error: "choose a valid room name" });
+    }
+    const wanted = roomKey(asked);
+    try {
+      // A public listing is not membership. Ask upstream for THIS token's joined
+      // rooms on every entry, so a room one merely discovered cannot be entered.
+      const joined = await client.rooms(session.token);
+      if (!joined.some((room) => roomKey(room) === wanted)) {
+        return reply.code(403).send({ code: "NOT_A_MEMBER", error: "join this room before entering its space" });
+      }
+    } catch (error) {
+      const failure = classify(error);
+      return reply.code(failure.status).send({
+        code: failure.code,
+        error: failure.detail,
+        ...(failure.code === "SESSION_EXPIRED" ? { reauth: true } : {}),
+      });
+    }
+    // The upstream check awaited the network. Another enter request for this
+    // same sid may have completed while we waited, so the earlier `session`
+    // object is not the current room (SQLite returns a detached row). A token
+    // rotation also invalidates the membership check we just made.
+    const latest = sessions.get(sid);
+    if (!latest || latest.token !== session.token || actorKey(latest.username) !== actorKey(session.username)) {
+      return reply.code(409).send({ code: "SESSION_CHANGED", error: "session changed while entering; retry" });
+    }
+    if (latest.spaceRoom !== wanted) {
+      // Evict this sid from ALL hubs, not only the room the original request
+      // saw. That closes a socket opened between two overlapping enter calls.
+      if (spaceRoomOf(latest) !== wanted) evictSessionEverywhere(sid);
+      sessions.enterRoom(sid, wanted);
+      afterSwitch(latest.username);
+    }
+    return reply.send({ roomName: wanted });
   });
 }
 

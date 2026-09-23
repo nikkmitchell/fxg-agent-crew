@@ -16,6 +16,7 @@ import SignIn, { CannotTell } from "./SignIn";
 import { Join } from "./Join";
 import { ProfilesPage } from "./ProfilesPage";
 import { board } from "./board-client";
+import { bff } from "./bff-client";
 import { startUpdateReload } from "./update-reload";
 
 /**
@@ -70,7 +71,7 @@ const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" |
   room: { label: "The room", glyph: "room" },
   build: { label: "Build", glyph: "clock" },
   said: { label: "Said in the room", glyph: "clock" },
-  chat: { label: "Talk", glyph: "chat" },
+  chat: { label: "Rooms", glyph: "chat" },
   join: { label: "Joining", glyph: "room" },
   profiles: { label: "People", glyph: "grid" },
 };
@@ -95,10 +96,10 @@ function TabContent({
   session: { username: string; kind?: "human" | "agent" } | null;
   /** True inside an iframe panel. The room refuses to contain itself. */
   embedded: boolean;
-  onOpenChat: () => void;
+  onOpenChat: (roomName: string) => void;
   /** Home's button: go to the room AND start loading it, rather than landing
       on a second "Enter the room" button. One click from the door to the 3D. */
-  onEnterRoom: () => void;
+  onEnterRoom: (roomName: string) => Promise<void>;
   /** True when we arrived here by pressing Enter on the front door. */
   roomStartsEntered: boolean;
 }) {
@@ -142,7 +143,7 @@ function TabContent({
           room is an iframe of this tab, and a panel whose whole content is a
           button that opens an overlay you cannot reach is worse than no panel.
           The overlay still exists for the button in the rail elsewhere. */}
-      {tab === "chat" ? <ChatFeed /> : null}
+      {tab === "chat" ? <ChatFeed username={session?.username ?? ""} onOpenRoomControls={embedded ? undefined : onOpenChat} /> : null}
     </>
   );
 }
@@ -172,6 +173,7 @@ export default function App() {
     typeof window === "undefined" ? DEFAULT_TAB : tabFromPath(window.location.pathname),
   );
   const [liveRoomOpen, setLiveRoomOpen] = useState(false);
+  const [roomControlsRoom, setRoomControlsRoom] = useState<string | null>(null);
   const viewer = useViewer();
 
   // A deploy reloads every open page once it is safe to — see update-reload.ts.
@@ -200,9 +202,14 @@ export default function App() {
    * than assuming it.
    */
   const [roomStartsEntered, setRoomStartsEntered] = useState(false);
-  const enterRoom = () => {
+  const enterRoom = async (roomName: string) => {
+    await bff.enterSpaceRoom(roomName);
     setRoomStartsEntered(true);
     go("room");
+  };
+  const openChat = (roomName: string) => {
+    setRoomControlsRoom(roomName);
+    setLiveRoomOpen(true);
   };
 
   const go = (next: Tab) => {
@@ -316,11 +323,11 @@ export default function App() {
           tab={tab}
           session={session}
           embedded
-          onOpenChat={() => setLiveRoomOpen(true)}
+          onOpenChat={openChat}
           onEnterRoom={enterRoom}
           roomStartsEntered={roomStartsEntered}
         />
-        {liveRoomOpen ? <LiveRoomPanel onClose={() => setLiveRoomOpen(false)} /> : null}
+        {liveRoomOpen ? <LiveRoomPanel preferredRoom={roomControlsRoom} onClose={() => setLiveRoomOpen(false)} /> : null}
       </main>
     );
   }
@@ -398,23 +405,23 @@ export default function App() {
           * shows which tab is active and the document title carries it too, so
           * the h1 stays for structure but stops behaving like a poster.
           */}
-        <header className="tab-header">
+        {tab !== "home" ? <header className="tab-header">
           <h1>{TAB_META[tab].label}</h1>
           <p className="eyebrow">saha / mission control</p>
-        </header>
+        </header> : null}
 
         <TabContent
           tab={tab}
           session={session}
           embedded={false}
-          onOpenChat={() => setLiveRoomOpen(true)}
+          onOpenChat={openChat}
           onEnterRoom={enterRoom}
           roomStartsEntered={roomStartsEntered}
         />
 
       </main>
 
-      {liveRoomOpen ? <LiveRoomPanel onClose={() => setLiveRoomOpen(false)} /> : null}
+      {liveRoomOpen ? <LiveRoomPanel preferredRoom={roomControlsRoom} onClose={() => setLiveRoomOpen(false)} /> : null}
     </div>
   );
 }

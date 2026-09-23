@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { Vec3 } from "../../shared/space-layout.js";
 
 /**
@@ -71,13 +71,14 @@ export function registerPathRoutes(
     config: Config;
     sessions: SessionStore;
     walk: (
+      room: string,
       actorId: string,
       kind: "human" | "agent" | null,
       waypoints: Vec3[],
       because: string | null,
     ) => { ok: true; waypoints: number; stoppedFollowing: string | null }
       | { ok: false; error: string; code: string };
-    stopWalking: (actorId: string) => { remaining: number };
+    stopWalking: (room: string, actorId: string) => { remaining: number };
   },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);
@@ -91,7 +92,7 @@ export function registerPathRoutes(
     if ("code" in read) return reply.code(400).send(read);
 
     const because = typeof body.because === "string" && body.because.trim() ? body.because.trim() : null;
-    const result = deps.walk(session.username, session.kind, read.waypoints, because);
+    const result = deps.walk(spaceRoomOf(session), session.username, session.kind, read.waypoints, because);
     if (!result.ok) return reply.code(409).send({ code: result.code, error: result.error });
 
     return reply.send({
@@ -107,7 +108,7 @@ export function registerPathRoutes(
   app.delete("/bff/space/path", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const { remaining } = deps.stopWalking(session.username);
+    const { remaining } = deps.stopWalking(spaceRoomOf(session), session.username);
     // Not an error when no route was running: stopping is a state to reach.
     return reply.send({ ok: true, abandoned: remaining });
   });

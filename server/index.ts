@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { DEFAULT_SPACE_ROOM } from "../shared/space-room.js";
+import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, resolve } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
@@ -9,13 +9,14 @@ import websocket from "@fastify/websocket";
 import staticPlugin from "@fastify/static";
 import { loadConfig, type Config } from "./config.js";
 import { MemorySessionStore, SqliteSessionStore, type SessionStore } from "./session.js";
+import { spaceRoomOf } from "./require-session.js";
 import { WebharnessClient } from "./webharness/client.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
 import { registerProjectRoutes } from "./routes/projects.js";
 import { registerBuildRoutes } from "./routes/build.js";
 import { registerBoardRoutes } from "./routes/board.js";
-import { SpaceHub, registerSpaceRoutes } from "./space/socket.js";
+import { SpaceHub, registerSpaceEntryRoute, registerSpaceRoutes } from "./space/socket.js";
 import { Presence } from "./space/presence.js";
 import { DeclaredPostures } from "./space/postures.js";
 import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
@@ -155,14 +156,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // awake. See Presence.settlePostures.
   const screenFrames = new ScreenFrames();
   /**
-   * PRESENCE IS NOT ROOM-KEYED YET — migration 27 gave the stored space a room,
-   * and the live one still has a single map of who is standing where. Until it
-   * does, everything reads the default room, which is exactly what these two
-   * lookups did before the migration, so behaviour is unchanged.
-   *
-   * Marked rather than hidden: grep `roomAtDefault` to find every place that
-   * still assumes one room. They are the whole of the next step, and a silent
-   * `?? "saha.ing"` scattered through the file would not be findable.
+   * The existing activity/re-hydration trail belongs to the development room.
+   * New rooms get independent live hubs below; board actions do not conjure an
+   * agent into a second room where that agent has not declared itself.
    */
   const roomAtDefault = DEFAULT_SPACE_ROOM;
   const homesInDefaultRoom = { get: (actorId: string) => agentHomes.get(roomAtDefault, actorId) };
@@ -170,6 +166,37 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     new Presence(Date.now, new DeclaredPostures(database), homesInDefaultRoom, (actorId) => screenFrames.get(actorId) !== undefined),
     (actorId) => agentBodies.get(actorId),
   );
+  // The default hub is the existing room, unchanged. Other rooms get their own
+  // live presence, tick, socket and voice sets; sharing a single hub is enough
+  // to leak people and calls even when all durable furniture is room-keyed.
+  const spaceHubs = new Map<string, SpaceHub>([[DEFAULT_SPACE_ROOM, space]]);
+  const hubFor = (room: string): SpaceHub => {
+    const key = roomKey(room);
+    const existing = spaceHubs.get(key);
+    if (existing) return existing;
+    const created = new SpaceHub(
+      new Presence(Date.now, new DeclaredPostures(database),
+        { get: (actorId) => agentHomes.get(key, actorId) },
+        (actorId) => screenFrames.get(actorId, key) !== undefined),
+      (actorId) => agentBodies.get(actorId),
+    );
+    spaceHubs.set(key, created);
+    return created;
+  };
+  const evictSessionEverywhere = (sid: string) => {
+    for (const hub of spaceHubs.values()) hub.evictSession(sid);
+  };
+  // A socket authenticates at handshake, but a cookie can expire or be
+  // destroyed while the connection stays open. Do not let it keep receiving a
+  // private room indefinitely. The check is bounded by connected sockets and
+  // does not poll the network or consume model turns.
+  const sessionSweep = setInterval(() => {
+    for (const hub of spaceHubs.values()) hub.evictInvalidSessions((sid, room) => {
+      const session = sessions.get(sid);
+      return !!session && !session.requiresRoomEntry && spaceRoomOf(session) === room;
+    });
+  }, 30_000);
+  sessionSweep.unref();
 
   // What makes them move: the audit table, read forward from the end of it.
   // Started here rather than on the first socket, so an agent that acts while
@@ -189,6 +216,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     () => Object.fromEntries(panelPlaces.all(roomAtDefault).map((place) => [place.id, place])),
     (actorId) => agentHomes.get(roomAtDefault, actorId),
     (id) => roomItems.one(roomAtDefault, id),
+    (actorId) => sessions.mayInferInDefaultRoom(actorId),
   );
   activity.onError = (error) => app.log.error({ error }, "space activity poll failed");
   // Put the agents back before anything else looks at the room. A restart
@@ -205,6 +233,24 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const actorBook = new BoardStore(database);
 
   app.register(async (scoped) => {
+    // Production sign-in begins with no selected room. The historical default
+    // remains for sessions created before this lobby release, but a newly
+    // signed-in member cannot read the development room merely by typing
+    // /room or calling a room endpoint before /space/enter verifies membership.
+    // Avatar, voice and memory choices are personal, not room-scoped; they stay
+    // available from the front door. A screen share upload is key-authorized.
+    scoped.addHook("onRequest", async (request, reply) => {
+      const path = request.url.split("?", 1)[0];
+      if (!path.startsWith("/bff/space/") || path === "/bff/space/enter") return;
+      const personal = /^(?:body(?:\/|$|-model\/)|bodies(?:\/|$)|voice(?:\/|$)|voices(?:\/|$)|memories(?:\/|$)|transcribe(?:\/|$)|touch-preferences(?:\/|$))/.test(path.slice("/bff/space/".length));
+      const keyUpload = path === "/bff/space/screens/frame" && request.method === "PUT";
+      const sharers = path === "/bff/space/screens/sharers";
+      if (personal || keyUpload || sharers) return;
+      const session = sessions.get(request.cookies[config.cookieName]);
+      if (session?.requiresRoomEntry) {
+        return reply.code(403).send({ code: "ROOM_NOT_SELECTED", error: "choose and enter a room first" });
+      }
+    });
     // Who signed in, with the kind WebHarness holds for them, so a new agent is
     // offered on the share page before it has touched the board.
     registerAuthRoutes(
@@ -216,6 +262,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       // The room is the claim; the store decides what it is worth. A room with
       // no link, or a link with auto_enrol off, grants nothing.
       (actorId, kind, rooms) => rooms.flatMap((room) => actorBook.enrolFromRoom(actorId, room, kind ?? undefined)),
+      (actorId) => activity.forgetIfAway(actorId),
+      evictSessionEverywhere,
     );
     registerRoomRoutes(scoped, config, sessions, client);
     registerProjectRoutes(scoped, config, sessions, client);
@@ -238,37 +286,41 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (room) => roomShowing.current(room),
       (room) => roomItems.all(room),
       touches,
+      hubFor,
     );
-    registerTouchRoutes(scoped, { config, sessions, hub: space, touches });
+    registerSpaceEntryRoute(scoped, config, sessions, client,
+      evictSessionEverywhere,
+      (actorId) => activity.forgetIfAway(actorId));
+    registerTouchRoutes(scoped, { config, sessions, hub: space, hubFor, touches });
     registerPanelRoutes(scoped, {
       database,
       sessions,
       config,
-      announce: (panel, by) => space.broadcast({ type: "panelMoved", panel, by }),
-      announceOpen: (open, by) => space.broadcast({ type: "panelsOpen", open, by }),
+      announce: (room, panel, by) => hubFor(room).broadcast({ type: "panelMoved", panel, by }),
+      announceOpen: (room, open, by) => hubFor(room).broadcast({ type: "panelsOpen", open, by }),
     });
     registerShowingRoutes(scoped, {
       showing: roomShowing,
       sessions,
       config,
-      announce: (showing) => space.broadcast({ type: "showing", showing }),
+      announce: (room, showing) => hubFor(room).broadcast({ type: "showing", showing }),
     });
     registerRoomItemRoutes(scoped, {
       config,
       sessions,
       items: roomItems,
-      announce: (room, items, by) => space.broadcastRoom(room, { type: "roomItems", items, by }),
+      announce: (room, items, by) => hubFor(room).broadcast({ type: "roomItems", items, by }),
     });
     registerUtteranceRoutes(
       scoped,
       config,
       sessions,
       database,
-      (utterance) => space.broadcast({ type: "said", utterance }),
-      (actorId, utteranceId) => space.presence.attend(actorId, utteranceId),
-      (actorId, kind) => space.presence.spoke(actorId, kind),
-      (actorId, kind, targetActorId, durationMs) =>
-        space.presence.speakTo(actorId, kind, targetActorId, durationMs),
+      (room, utterance) => hubFor(room).broadcast({ type: "said", utterance }),
+      (room, actorId, utteranceId) => hubFor(room).presence.attend(actorId, utteranceId),
+      (room, actorId, kind) => hubFor(room).presence.spoke(actorId, kind),
+      (room, actorId, kind, targetActorId, durationMs) =>
+        hubFor(room).presence.speakTo(actorId, kind, targetActorId, durationMs),
       // Said now, so it is ready to hear by the time anybody asks for it.
       (utterance) => {
         if (utterance.say) speech.warm(utterance.say, agentVoices.voiceOf(utterance.actorId).id);
@@ -289,22 +341,22 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       scoped,
       config,
       sessions,
-      (actorId, kind, control) => space.presence.animate(actorId, control, kind),
+      (room, actorId, kind, control) => hubFor(room).presence.animate(actorId, control, kind),
     );
     registerPathRoutes(scoped, {
       config,
       sessions,
-      walk: (actorId, kind, waypoints, because) =>
-        space.presence.walk(actorId, kind, waypoints, because),
-      stopWalking: (actorId) => space.presence.stopWalking(actorId),
+      walk: (room, actorId, kind, waypoints, because) =>
+        hubFor(room).presence.walk(actorId, kind, waypoints, because),
+      stopWalking: (room, actorId) => hubFor(room).presence.stopWalking(actorId),
     });
     registerFollowingRoutes(
       scoped,
       config,
       sessions,
-      (actorId, kind, targetId, side, because) =>
-        space.presence.follow(actorId, kind, targetId, side, because),
-      (actorId) => space.presence.stopFollowing(actorId),
+      (room, actorId, kind, targetId, side, because) =>
+        hubFor(room).presence.follow(actorId, kind, targetId, side, because),
+      (room, actorId) => hubFor(room).presence.stopFollowing(actorId),
     );
     registerScreenRoutes(scoped, { config, sessions, frames: screenFrames, keys: shareKeys });
     registerHomeRoutes(scoped, {
@@ -325,13 +377,13 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
        * leaves the standing instruction visible rather than pretending.
        */
       // What the placement ended goes back to the route, which tells whoever placed the agent.
-      goHome: (actorId, home) => {
+      goHome: (room, actorId, home) => {
         const { stoppedFollowing, abandonedRoute } =
-          space.presence.sendTo(actorId, "agent", home.at, null, home.facing, true);
+          hubFor(room).presence.sendTo(actorId, "agent", home.at, null, home.facing, true);
         return { stoppedFollowing, abandonedRoute };
       },
-      whereIs: (actorId) => space.presence.find(actorId)?.at ?? null,
-      whoIsHere: () => space.presence.everyone().map((occupant) => occupant.actorId).sort(),
+      whereIs: (room, actorId) => hubFor(room).presence.find(actorId)?.at ?? null,
+      whoIsHere: (room) => hubFor(room).presence.everyone().map((occupant) => occupant.actorId).sort(),
     });
     registerMemoryRoutes(scoped, { config, sessions, memories });
     registerVoiceRoutes(scoped, {
@@ -369,7 +421,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       sessions,
       speech,
-      utterance: (id) => utteranceBook.one(id),
+      utterance: (id, room) => utteranceBook.one(id, room),
       // The SPEAKER's voice, never the listener's: it is their line being read.
       voiceOf: (actorId) => agentVoices.voiceOf(actorId).id,
     });
@@ -432,14 +484,15 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // not hold the process open anyway, but a loop still broadcasting into
   // half-closed sockets during shutdown produces errors that look like bugs.
   app.addHook("onClose", async () => {
+    clearInterval(sessionSweep);
     activity.stop();
-    space.close();
+    for (const hub of spaceHubs.values()) hub.close();
   });
 
   // `sessions` is returned so a test can sign somebody in without a real
   // upstream. Deliberately not a back door into a running server: this is the
   // value the process already holds, handed to whoever constructed it.
-  return { app, config, sessions, database, space, activity, voices: agentVoices, memories };
+  return { app, config, sessions, database, space, hubFor, activity, voices: agentVoices, memories };
 }
 
 // Only listen when run directly, so tests can build the server without binding.

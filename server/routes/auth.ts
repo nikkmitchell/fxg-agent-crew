@@ -47,6 +47,8 @@ export function registerAuthRoutes(
    * BoardStore.enrolFromRoom.
    */
   enrolFromRooms: (actorId: string, kind: "human" | "agent" | null, rooms: string[]) => string[] = () => [],
+  onSessionRoomsChanged: (actorId: string) => void = () => {},
+  onSessionEnded: (sid: string) => void = () => {},
 ): void {
   const record = (username: string, kind: "human" | "agent" | null) => {
     if (!kind) return;
@@ -92,7 +94,8 @@ export function registerAuthRoutes(
 
     try {
       const token = await client.login(username, password);
-      const sid = sessions.create(username, token);
+      const sid = sessions.createUnselected(username, token);
+      onSessionRoomsChanged(username);
       roomsChecked.add(sid);
 
       /**
@@ -163,7 +166,8 @@ export function registerAuthRoutes(
 
     try {
       const { username, kind } = await client.identify(token);
-      const sid = sessions.create(username, token, "agent");
+      const sid = sessions.createUnselected(username, token, "agent");
+      onSessionRoomsChanged(username);
       roomsChecked.add(sid);
       record(username, kind);
 
@@ -202,7 +206,11 @@ export function registerAuthRoutes(
   });
 
   app.post("/bff/logout", async (request, reply) => {
-    sessions.destroy(request.cookies[config.cookieName]);
+    const sid = request.cookies[config.cookieName];
+    const actor = sessions.get(sid)?.username;
+    sessions.destroy(sid);
+    if (sid) onSessionEnded(sid);
+    if (actor) onSessionRoomsChanged(actor);
     reply.clearCookie(config.cookieName, { path: "/" });
     return reply.send({ ok: true });
   });

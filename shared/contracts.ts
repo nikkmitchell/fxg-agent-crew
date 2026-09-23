@@ -21,6 +21,8 @@ export type RoomSummary = {
   ownerName: string;
   visibility: "public" | "private";
   unreadCount?: number;
+  /** Only shown when supplied by WebHarness; never inferred from the room name. */
+  purpose?: string;
 };
 
 export type OnlineUser = {
@@ -102,6 +104,10 @@ export type BffErrorCode =
   | "MUTED"
   /** Room archived or ended. History lives under /api/archives. */
   | "ROOM_ARCHIVED"
+  /** Explicit create found an existing room; join it instead. */
+  | "ROOM_ALREADY_EXISTS"
+  /** A join raced with upstream deletion and created a room unexpectedly. */
+  | "ROOM_UNEXPECTEDLY_CREATED"
   /** Malformed request from us — a bug, not a user-facing state. */
   | "BAD_REQUEST"
   /** WebHarness unreachable or erroring. Retryable; keep showing stale data. */

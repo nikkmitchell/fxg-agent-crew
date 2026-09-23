@@ -98,6 +98,8 @@ export class Activity {
     private readonly homeOf: (actorId: string) => AgentHome | null = () => null,
     /** The Go tables as they are now, so a move played through code walks the player to its seat. */
     private readonly goTable: (id: string) => GoRoomItem | null = () => null,
+    /** A chosen non-default room outranks this legacy default-room audit trail. */
+    private readonly mayInferHere: (actorId: string) => boolean = () => true,
   ) {}
 
   /**
@@ -152,6 +154,7 @@ export class Activity {
 
     for (const { id, firstSeenAt } of agents) {
       if (NOT_A_PERSON.has(actorKey(id))) continue;
+      if (!this.mayInferHere(id)) continue;
 
       // Far enough back to pass over recent rows this room has nothing to say
       // about — a profile edit, say — without reading a whole history.
@@ -296,6 +299,7 @@ export class Activity {
     for (const row of rows) {
       this.lastSeenId = Math.max(this.lastSeenId, row.id);
       if (NOT_A_PERSON.has(actorKey(row.actorId))) continue;
+      if (!this.mayInferHere(row.actorId)) continue;
       const destination = destinationFor(row, this.panelPlaces(), this.homeOf, this.goTable);
       // An action this room has nothing to say about leaves everyone where they
       // are. It does not send them to a default corner.
@@ -324,6 +328,10 @@ export class Activity {
       }
     }
 
+    // Expiration has no route callback. A former default-room body must still
+    // disappear once its final default session expires or is destroyed, rather
+    // than waiting for a restart to apply the persisted last-room choice.
+    for (const occupant of this.presence.everyone()) this.forgetIfAway(occupant.actorId);
     this.sendStaleHome();
     return rows.length;
   }
@@ -339,10 +347,25 @@ export class Activity {
     view: "tasks" | "mood",
   ): void {
     if (NOT_A_PERSON.has(actorKey(actorId))) return;
+    if (!this.mayInferHere(actorId)) return;
     const destination = destinationForRead(view, this.panelPlaces());
     this.presence.sendTo(actorId, kind, destination.at, destination.because, destination.facing);
     this.sentAt.set(actorKey(actorId), this.now());
     this.arrivedAt.delete(actorKey(actorId));
+  }
+
+  /** An explicit room switch removes the actor's old inferred default-room
+   * body and any pending walk. Another active default-room session keeps it. */
+  forgetIfAway(actorId: string): void {
+    if (this.mayInferHere(actorId)) return;
+    const key = actorKey(actorId);
+    this.sentAt.delete(key);
+    this.arrivedAt.delete(key);
+    this.stayFor.delete(key);
+    for (const [id, pending] of this.pendingReveal) {
+      if (pending.key === key) this.pendingReveal.delete(id);
+    }
+    this.presence.forget(actorId);
   }
 
   /**

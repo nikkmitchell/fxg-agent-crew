@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 
 /**
  * Walk with somebody.
@@ -27,13 +27,14 @@ export function registerFollowingRoutes(
   config: Config,
   sessions: SessionStore,
   follow: (
+    room: string,
     actorId: string,
     kind: "human" | "agent" | null,
     targetId: string,
     side: "left" | "right" | null,
     because: string | null,
   ) => { ok: true; side: "left" | "right" } | { ok: false; error: string; code: string },
-  stopFollowing: (actorId: string) => { was: string | null },
+  stopFollowing: (room: string, actorId: string) => { was: string | null },
 ): void {
   const requireSession = makeRequireSession(config, sessions);
 
@@ -63,7 +64,7 @@ export function registerFollowingRoutes(
     }
 
     const because = typeof body.because === "string" && body.because.trim() ? body.because.trim() : null;
-    const result = follow(session.username, session.kind, actor, side, because);
+    const result = follow(spaceRoomOf(session), session.username, session.kind, actor, side, because);
     if (!result.ok) {
       // 409 rather than 400: nothing is wrong with the request, the room is not
       // in a state where it can be honoured.
@@ -75,7 +76,7 @@ export function registerFollowingRoutes(
   app.delete("/bff/space/follow", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const { was } = stopFollowing(session.username);
+    const { was } = stopFollowing(spaceRoomOf(session), session.username);
     // Not an error when nothing was being followed: "stop" is a state to reach,
     // not an event, and a retry after a dropped reply must not fail.
     return reply.send({ ok: true, stoppedFollowing: was });

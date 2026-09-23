@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import { parseAvatarControl, type AvatarControl, type AvatarState } from "../../shared/avatar-motion.js";
 
 /**
@@ -17,6 +17,7 @@ export function registerAvatarRoutes(
   config: Config,
   sessions: SessionStore,
   animate: (
+    room: string,
     actorId: string,
     kind: "human" | "agent" | null,
     control: AvatarControl,
@@ -34,6 +35,6 @@ export function registerAvatarRoutes(
         error: "provide mood (neutral, happy, focused, concerned), gesture (none, wave, nod, present, clap, shrug, disagree) and/or posture; holdMs, if given, must be a positive number of milliseconds",
       });
     }
-    return reply.send({ ok: true, avatar: animate(session.username, session.kind, control) });
+    return reply.send({ ok: true, avatar: animate(spaceRoomOf(session), session.username, session.kind, control) });
   });
 }
