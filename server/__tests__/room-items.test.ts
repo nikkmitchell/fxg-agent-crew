@@ -44,6 +44,29 @@ describe("Go actions", () => {
       expect((await patch({ deskVisible: true, revision: 1 })).json().item).toEqual({ ...item, revision: 2 });
     } finally { await app.close(); }
   });
+  it("changes the board type mid-game, with a stone in the air, keeping everything else", async () => {
+    // Nikk: "can we allow for changing board types inside the settings".
+    // Only the look changes, so nothing about the game is refused or lost.
+    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    try {
+      const items = new RoomItems(database), item = items.add("saha.ing", "Moraine");
+      expect(item.surface).toBe("bamboo");
+      item.stones = [{ id: "played", x: 4, y: 4, colour: 0 }];
+      item.liftedColour = 1; item.carrier = { by: "Moraine", hand: "left" };
+      items.save("saha.ing", item, "Moraine");
+      const cookie = `${config.cookieName}=${sessions.create("Moraine", "t", "agent")}`;
+      const patch = (payload: object) => app.inject({ method: "PATCH", url: `/bff/space/items/${item.id}`, headers: { cookie }, payload });
+      const refused = await patch({ surface: "marble" });
+      expect(refused.statusCode).toBe(400);
+      expect(refused.json().error).toMatch(/bamboo, stone/);
+      const stone = await patch({ surface: "stone", revision: 0 });
+      expect(stone.statusCode).toBe(200);
+      expect(stone.json().item).toEqual({ ...item, surface: "stone", revision: 1 });
+      expect(items.one("saha.ing", item.id)).toEqual(stone.json().item);
+      expect((await patch({ surface: "bamboo", revision: 0 })).statusCode).toBe(409);
+    } finally { await app.close(); }
+  });
+
   it("serializes turns, protects a carrier, stores captures and retains an unchanged size", async () => {
     const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
     try {

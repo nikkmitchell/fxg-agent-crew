@@ -5,6 +5,26 @@ export const GO_COLOURS = [
   "#15171b", "#f4efe2", "#d85b4b", "#4d8bd6", "#e0ad3b", "#6ead68", "#a66bd4", "#de79a8",
 ] as const;
 
+/**
+ * What the board is made of. Nikk: "can we allow for changing board types
+ * inside the settings" — after Baiwei's grey carved-stone idea. Saved on the
+ * table, so everyone round it sees the same board. The first is the default,
+ * and what every table made before this was.
+ */
+export const GO_SURFACES = ["bamboo", "stone"] as const;
+export type GoSurface = (typeof GO_SURFACES)[number];
+
+export function isGoSurface(value: unknown): value is GoSurface {
+  return typeof value === "string" && (GO_SURFACES as readonly string[]).includes(value);
+}
+
+/** The next board type along, going round: there is no "biggest" material. */
+export function stepGoSurface(surface: GoSurface, by: number): GoSurface {
+  const count = GO_SURFACES.length;
+  const index = GO_SURFACES.indexOf(surface);
+  return GO_SURFACES[(((index + by) % count) + count) % count];
+}
+
 export type GoStone = { x: number; y: number; colour: number; id?: string };
 export type GoCapture = GoStone & { by: number };
 export type GoRoomItem = {
@@ -21,6 +41,7 @@ export type GoRoomItem = {
   position: { x: number; y: number; z: number; rotationY: number };
   scale: number;
   deskVisible: boolean;
+  surface: GoSurface;
 };
 export type RoomItem = GoRoomItem;
 
@@ -55,7 +76,7 @@ export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
     activeColour: 0,
     liftedColour: null,
     stones: [],
-    captures: [], revision: 0, carrier: null, scale: 1, deskVisible: true,
+    captures: [], revision: 0, carrier: null, scale: 1, deskVisible: true, surface: GO_SURFACES[0],
     position: { x: ordinal * 2.65 - 1.15, y: 0, z: 1.8, rotationY: 0 },
   };
 }
@@ -80,6 +101,7 @@ export function parseRoomItem(value: unknown): RoomItem | null {
   // Upgrade old tables without clearing their game.
   return { ...item, captures: item.captures ?? [], revision: item.revision ?? 0,
     carrier: item.carrier ?? null, scale: item.scale ?? 1, deskVisible: item.deskVisible ?? true,
+    surface: isGoSurface(item.surface) ? item.surface : GO_SURFACES[0],
     position: { ...item.position, y: item.position.y ?? 0 } } as GoRoomItem;
 }
 

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyInstance } from "fastify";
-import { GO_COLOURS, GO_PLAYERS, defaultGoItem, isGoSize, parseRoomItem, type RoomItem } from "../../shared/room-items.js";
+import { GO_COLOURS, GO_PLAYERS, GO_SURFACES, defaultGoItem, isGoSize, isGoSurface, parseRoomItem, type RoomItem } from "../../shared/room-items.js";
 import type { Config } from "../config.js";
 import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { SessionStore } from "../session.js";
@@ -44,7 +44,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (request.body?.kind !== "go") return reply.code(400).send({ code: "BAD_KIND", error: "the first room item is a Go table" });
     const room = spaceRoomOf(session); const item = options.items.add(room, session.username); publish(room, session.username); return reply.code(201).send({ item });
   });
-  app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; players?: unknown; reset?: unknown; position?: unknown; scale?: unknown; revision?: unknown; deskVisible?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
+  app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; players?: unknown; reset?: unknown; position?: unknown; scale?: unknown; revision?: unknown; deskVisible?: unknown; surface?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
     const change = request.body;
@@ -52,6 +52,11 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (change?.deskVisible !== undefined) {
       if (typeof change.deskVisible !== "boolean") return reply.code(400).send({ error: "Desk visibility must be true or false." });
       item.deskVisible = change.deskVisible;
+    }
+    if (change?.surface !== undefined) {
+      // Only how the board looks — allowed mid-game and with a stone in the air.
+      if (!isGoSurface(change.surface)) return reply.code(400).send({ error: `Board type must be one of: ${GO_SURFACES.join(", ")}.` });
+      item.surface = change.surface;
     }
     if (change?.position !== undefined || change?.scale !== undefined) {
       if (item.liftedColour !== null) return reply.code(409).send({ error: "Place or return the flying stone before moving the table." });

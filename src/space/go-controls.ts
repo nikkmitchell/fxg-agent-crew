@@ -1,5 +1,6 @@
 import { GO_SURFACE, goBoardWidth, goExtent, goRadius } from "../../shared/go-layout";
 import type { GoRoomItem, GoSize } from "../../shared/room-items";
+import { GO_SURFACE_LOOKS } from "./go-surfaces";
 
 /**
  * Where the Go table's own controls lie — FLAT, ON THE TABLE, AS TEXT.
@@ -71,7 +72,7 @@ function turnTextHalf(fontSize: number): number {
   return 13 * 0.6 * fontSize * 0.5;
 }
 
-export function goControls(item: Pick<GoRoomItem, "size" | "colours" | "scale" | "deskVisible">): GoControls {
+export function goControls(item: Pick<GoRoomItem, "size" | "colours" | "scale" | "deskVisible" | "surface">): GoControls {
   const size = item.size as GoSize;
   const extent = goExtent(size);
   const boardWidth = goBoardWidth(size);
@@ -93,10 +94,13 @@ export function goControls(item: Pick<GoRoomItem, "size" | "colours" | "scale" |
   const move: FlatRect = { x: centre, y: line.y + 0.001, z: line.z, width, depth };
   const settings: FlatRect = { x: -centre, y: line.y + 0.001, z: line.z, width, depth };
 
-  // The sheet: rows flat on the board, sized to it, never past its edge.
-  const sheetWidth = Math.min(1.1, Math.max(0.46, boardWidth * 0.92));
-  const rowDepth = Math.min(0.12, Math.max(0.068, sheetWidth * 0.14));
+  // The sheet: rows flat on the board, sized to it, never past its edge — in
+  // depth as well as width: seven rows are taller than a 5×5 board at the row
+  // height the bigger boards use.
+  const ROWS = 7;
   const gap = 0.01;
+  const sheetWidth = Math.min(1.1, Math.max(0.46, boardWidth * 0.92));
+  const rowDepth = Math.min(0.12, Math.max(0.068, sheetWidth * 0.14), (boardWidth - 0.01 - (ROWS - 1) * gap) / ROWS);
   const pad = 0.02;
   const button = rowDepth;
   const value = rowDepth * 1.6;
@@ -116,7 +120,8 @@ export function goControls(item: Pick<GoRoomItem, "size" | "colours" | "scale" |
   });
 
   const rows: Omit<SheetRow, "z">[] = [
-    stepper("go:size", "BOARD", `${size}×${size}`),
+    stepper("go:surface", "BOARD", GO_SURFACE_LOOKS[item.surface].label),
+    stepper("go:size", "SIZE", `${size}×${size}`),
     stepper("go:players", "PLAYERS", `${item.colours.length}`),
     stepper("go:scale", "TABLE", `${Math.round(item.scale * 100)}%`),
     {
@@ -126,6 +131,7 @@ export function goControls(item: Pick<GoRoomItem, "size" | "colours" | "scale" |
     whole("go:reset", "CLEAR THE STONES"),
     whole("go:close", "DONE"),
   ];
+  if (rows.length !== ROWS) throw new Error(`the sheet is laid out for ${ROWS} rows, not ${rows.length}`);
   const total = rows.length * rowDepth + (rows.length - 1) * gap;
   const first = -total / 2 + rowDepth / 2;
 

@@ -14,6 +14,7 @@ import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 }
 import { goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings";
 import { GO_TABLE_POINTERS, goControls, goControlsShown } from "./go-controls";
 import { goSnap, type GoMove } from "./go-snap";
+import { GO_SURFACE_LOOKS } from "./go-surfaces";
 import { goTableWriter } from "./go-table-writer";
 
 const NAMES = ["Black", "White", "Coral", "Blue", "Gold", "Jade", "Violet", "Rose"];
@@ -47,6 +48,36 @@ function glowTexture(): THREE.DataTexture {
     data[at + 3] = Math.round(Math.max(0, 1 - d) ** 2 * 255);
   }
   const texture = new THREE.DataTexture(data, size, size); texture.needsUpdate = true; return texture;
+}
+
+/**
+ * Grey carved stone, for the STONE board (go-surfaces.ts): a mottled slab with
+ * fine speckle and a few faint veins. A fixed seed, so every person round the
+ * table sees the same stone rather than their own random one.
+ */
+function stoneTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext("2d")!;
+  let seed = 0x5a17e;
+  const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
+  ctx.fillStyle = GO_SURFACE_LOOKS.stone.base; ctx.fillRect(0, 0, 512, 512);
+  for (let n = 0; n < 70; n++) { // soft mottling
+    const light = random() > 0.5;
+    ctx.fillStyle = `rgba(${light ? "220,223,227" : "70,73,78"},${0.025 + random() * 0.035})`;
+    ctx.beginPath(); ctx.arc(random() * 512, random() * 512, 30 + random() * 90, 0, Math.PI * 2); ctx.fill();
+  }
+  for (let n = 0; n < 9000; n++) { // speckle
+    const v = Math.round(70 + random() * 120);
+    ctx.fillStyle = `rgba(${v},${v},${v + 4},${0.18 + random() * 0.3})`;
+    ctx.fillRect(random() * 512, random() * 512, 1 + random() * 1.4, 1 + random() * 1.4);
+  }
+  for (let n = 0; n < 6; n++) { // faint veins
+    ctx.strokeStyle = `rgba(210,213,217,${0.08 + random() * 0.08})`; ctx.lineWidth = 0.6 + random() * 1.2;
+    ctx.beginPath(); ctx.moveTo(random() * 512, 0);
+    ctx.bezierCurveTo(random() * 512, 170, random() * 512, 340, random() * 512, 512); ctx.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
+  return texture;
 }
 
 /** A vertical fade for the light column: bright at the board, gone at the top. Row 0 is the bottom (DataTexture is not flipped). */
@@ -280,6 +311,9 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   const previous = useRef(new Set(item.stones.map((stone) => stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`)));
   const wood = useMemo(woodTexture, []);
   useEffect(() => () => wood.dispose(), [wood]);
+  const look = GO_SURFACE_LOOKS[item.surface] ?? GO_SURFACE_LOOKS.bamboo;
+  const carved = useMemo(() => look.grain === "stone" ? stoneTexture() : null, [look.grain]);
+  useEffect(() => () => carved?.dispose(), [carved]);
   const radius = goRadius(item.size);
   const targets = useMemo(() => {
     const result: StoneTarget[] = item.stones.map((stone) => {
@@ -529,20 +563,27 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       <meshStandardMaterial map={wood} color="#765b49" roughness={0.42} metalness={0.06} />
     </RoundedBox>}
     <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow raycast={noRaycast}>
-      <meshPhysicalMaterial color={carrying ? "#c2793f" : "#975d32"} roughness={0.38} clearcoat={0.4} />
+      <meshPhysicalMaterial color={carrying ? look.rimCarrying : look.rim} roughness={look.grain === "stone" ? 0.7 : 0.38} clearcoat={look.grain === "stone" ? 0.05 : 0.4} />
     </RoundedBox>
     <RoundedBox args={[boardWidth, 0.025, boardWidth]} radius={0.01} smoothness={3} position={[0, GO_SURFACE - 0.0125, 0]} receiveShadow raycast={noRaycast}>
-      <meshPhysicalMaterial map={wood} roughness={0.43} clearcoat={0.22} />
+      <meshPhysicalMaterial map={carved ?? wood} roughness={look.roughness} clearcoat={look.clearcoat} />
     </RoundedBox>
     {item.deskVisible && [-1, 1].flatMap((x) => [-1, 1].map((z) => <mesh key={`${x}-${z}`} position={[x * edge * 0.6, 0.34, z * edge * 0.6]} castShadow raycast={noRaycast}>
       <cylinderGeometry args={[0.07, 0.045, 0.68, 12]} /><meshStandardMaterial color="#382720" roughness={0.4} />
     </mesh>))}
-    {offsets.map((offset, index) => <group key={index}>
-      <mesh position={[offset, GO_SURFACE + 0.0015, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}><planeGeometry args={[index === 0 || index === item.size - 1 ? 0.0035 : 0.0025, extent]} /><meshBasicMaterial color="#503822" polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-2} /></mesh>
-      <mesh position={[0, GO_SURFACE + 0.0016, offset]} rotation-x={-Math.PI / 2} raycast={noRaycast}><planeGeometry args={[extent, index === 0 || index === item.size - 1 ? 0.0035 : 0.0025]} /><meshBasicMaterial color="#503822" polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-2} /></mesh>
-    </group>)}
+    {offsets.map((offset, index) => {
+      const width = index === 0 || index === item.size - 1 ? 0.0035 : 0.0025;
+      // Carved stone: a lit lip beside each groove, never overlapping it.
+      const lip = width / 2 + 0.0007;
+      return <group key={index}>
+        <mesh position={[offset, GO_SURFACE + 0.0015, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}><planeGeometry args={[width, extent]} /><meshBasicMaterial color={look.lines} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-2} /></mesh>
+        <mesh position={[0, GO_SURFACE + 0.0016, offset]} rotation-x={-Math.PI / 2} raycast={noRaycast}><planeGeometry args={[extent, width]} /><meshBasicMaterial color={look.lines} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-2} /></mesh>
+        {look.lineLight && <mesh position={[offset + lip, GO_SURFACE + 0.0014, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}><planeGeometry args={[0.0012, extent]} /><meshBasicMaterial color={look.lineLight} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-2} /></mesh>}
+        {look.lineLight && <mesh position={[0, GO_SURFACE + 0.0014, offset + lip]} rotation-x={-Math.PI / 2} raycast={noRaycast}><planeGeometry args={[extent, 0.0012]} /><meshBasicMaterial color={look.lineLight} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-2} /></mesh>}
+      </group>;
+    })}
     {stars.flatMap((x) => stars.map((y) => <mesh key={`star-${x}-${y}`} position={[goPoint(x, item.size), GO_SURFACE + 0.001, goPoint(y, item.size)]} rotation-x={-Math.PI / 2} raycast={noRaycast}>
-      <circleGeometry args={[0.0045, 16]} /><meshBasicMaterial color="#503822" />
+      <circleGeometry args={[0.0045, 16]} /><meshBasicMaterial color={look.lines} />
     </mesh>))}
     <MoveLights item={item} reducedMotion={reducedMotion} onPlace={(x, y) => void act({ action: "place", x, y })} />
     <Stones targets={targets} reducedMotion={reducedMotion} />
@@ -560,10 +601,10 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     {lifted && <mesh key={`held-${item.activeColour}`} ref={held} position={[lifted.x, lifted.y + 0.06, lifted.z]} scale={[radius, radius * 0.46, radius]} raycast={noRaycast} castShadow>
       <sphereGeometry args={[1, 32, 20]} /><meshPhysicalMaterial color={item.colours[item.activeColour]} roughness={0.18} clearcoat={1} emissive={ACCENTS[item.activeColour]} emissiveIntensity={0.025} />
     </mesh>}
-    {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.035 : boardWidth / 2 + 0.16]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.025 : 0.043} color={wide ? "#49331f" : ACCENTS[item.activeColour]} raycast={noRaycast}>
+    {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.035 : boardWidth / 2 + 0.16]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.025 : 0.043} color={wide ? look.ink : ACCENTS[item.activeColour]} raycast={noRaycast}>
       {`${NAMES[item.activeColour].toUpperCase()}'S TURN`}
     </Text>}
-    {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? "#624526" : "#d8c8ac"} raycast={noRaycast}>
+    {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? look.inkSoft : "#d8c8ac"} raycast={noRaycast}>
       {notice || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a glowing point` : item.liftedColour !== null ? "Choose a glowing intersection" : "Touch the glowing bowl to lift a stone")}
     </Text>}
     {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>

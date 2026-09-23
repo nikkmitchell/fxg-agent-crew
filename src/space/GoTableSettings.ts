@@ -1,4 +1,4 @@
-import { GO_PLAYERS, GO_SIZES, stepGoSize, type GoRoomItem, type GoSize } from "../../shared/room-items";
+import { GO_PLAYERS, GO_SIZES, stepGoSize, stepGoSurface, type GoRoomItem, type GoSize, type GoSurface } from "../../shared/room-items";
 
 /**
  * What a press on the Go table's settings means, what it costs, and what it
@@ -29,6 +29,7 @@ export type GoSettingChange =
   | { kind: "players"; players: number }
   | { kind: "scale"; scale: number }
   | { kind: "desk"; shown: boolean }
+  | { kind: "surface"; surface: GoSurface }
   | { kind: "reset" }
   | { kind: "close" }
   /** Pressed a limit — say so rather than doing nothing silently. */
@@ -52,6 +53,12 @@ export function goSettingFor(item: GoRoomItem, id: string): GoSettingChange | nu
   }
 
   if (id === "go:desk") return { kind: "desk", shown: !item.deskVisible };
+
+  // Board types go round: past the last is the first. Only the look changes,
+  // so it never costs anything and is never refused.
+  if (id === "go:surface:less" || id === "go:surface:more") {
+    return { kind: "surface", surface: stepGoSurface(item.surface, id.endsWith(":more") ? 1 : -1) };
+  }
 
   if (id === "go:scale:less" || id === "go:scale:more") {
     const wanted = Math.round((item.scale + (id.endsWith(":more") ? 1 : -1) * TABLE_SCALE.step) * 100) / 100;
@@ -92,6 +99,7 @@ export type GoSettingRequest =
   | { players: number }
   | { scale: number }
   | { deskVisible: boolean }
+  | { surface: GoSurface }
   | { reset: true };
 
 /**
@@ -116,6 +124,8 @@ export function goSettingRequest(item: GoRoomItem, id: string): GoSettingRequest
       return { scale: change.scale };
     case "desk":
       return { deskVisible: change.shown };
+    case "surface":
+      return { surface: change.surface };
     case "reset":
       return { reset: true };
     default:

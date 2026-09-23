@@ -102,6 +102,7 @@ describe("the settings sheet, flat on the board", () => {
   it("has every setting on it, and a way out", () => {
     const ids = goControls(table(9, 2)).sheet.rows.flatMap((row) => row.buttons.map((b) => b.id));
     expect(ids).toEqual(expect.arrayContaining([
+      "go:surface:less", "go:surface:more",
       "go:size:less", "go:size:more", "go:players:less", "go:players:more",
       "go:scale:less", "go:scale:more", "go:desk", "go:reset", "go:close",
     ]));
@@ -142,8 +143,9 @@ describe("the settings sheet, flat on the board", () => {
   });
 
   it("says the table's own values", () => {
-    const rows = goControls(table(13, 3, { scale: 1.2, deskVisible: false })).sheet.rows;
-    expect(rows.find((r) => r.label === "BOARD")?.value).toBe("13×13");
+    const rows = goControls(table(13, 3, { scale: 1.2, deskVisible: false, surface: "stone" })).sheet.rows;
+    expect(rows.find((r) => r.label === "BOARD")?.value).toBe("STONE");
+    expect(rows.find((r) => r.label === "SIZE")?.value).toBe("13×13");
     expect(rows.find((r) => r.label === "PLAYERS")?.value).toBe("3");
     expect(rows.find((r) => r.label === "TABLE")?.value).toBe("120%");
     expect(rows.find((r) => r.label === "DESK")?.buttons[0].label).toBe("OFF");
