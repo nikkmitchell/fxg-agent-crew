@@ -87,6 +87,16 @@ export const initialConnectionState: ConnectionState = {
   outbox: [],
 };
 
+/** Select a lobby-provided room only when the account is confirmed to have joined it. */
+export function initialJoinedRoomSelection(
+  rooms: readonly Pick<RoomSummary, "roomName">[],
+  requestedRoom: string | null,
+): string | null {
+  const name = requestedRoom?.trim();
+  if (!name) return null;
+  return rooms.find((room) => room.roomName === name)?.roomName ?? null;
+}
+
 const readOnlyCodes = new Set(["MUTED", "NOT_A_MEMBER", "ROOM_ARCHIVED"]);
 
 export function reduceConnection(state: ConnectionState, event: ConnectionEvent): ConnectionState {

@@ -87,8 +87,15 @@ function CollapsedRun({ entry }: { entry: Extract<TranscriptEntry, { kind: "coll
  *
  * `onClose` is optional so this can also be embedded without a dismissal.
  */
-export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
-  const { state, login, logout, selectRoom, showRoomPicker, retry, sendMessage, retryMessage, dismissMessage } = useWebharnessRoom();
+export function LiveRoomPanel({
+  onClose,
+  initialRoomName = null,
+}: {
+  onClose?: () => void;
+  /** The lobby's selected room, so room controls open in the same context. */
+  initialRoomName?: string | null;
+}) {
+  const { state, login, logout, selectRoom, showRoomPicker, retry, sendMessage, retryMessage, dismissMessage } = useWebharnessRoom(initialRoomName);
 
   /**
    * Anything the server has not confirmed yet. Acknowledged items drop off:

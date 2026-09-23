@@ -30,7 +30,7 @@ export function ChatFeed({
   onOpenRoomControls,
 }: {
   roomIdentity: string | null;
-  onOpenRoomControls?: () => void;
+  onOpenRoomControls?: (roomName: string | null) => void;
 }) {
   const selection = useRoomSelection();
   const feed = useRoomFeed(
@@ -117,7 +117,7 @@ export function ChatFeed({
             <h2>{feed.room ?? "Choose a room"}</h2>
           </div>
           {onOpenRoomControls ? (
-            <button type="button" onClick={onOpenRoomControls}>Open room controls</button>
+            <button type="button" onClick={() => onOpenRoomControls(feed.room)}>Open room controls</button>
           ) : null}
         </header>
 

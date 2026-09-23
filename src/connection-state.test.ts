@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Message, RoomDetail } from "../shared/contracts";
-import { initialConnectionState, reduceConnection, type ConnectionState } from "./connection-state";
+import { initialConnectionState, initialJoinedRoomSelection, reduceConnection, type ConnectionState } from "./connection-state";
 
 const room: RoomDetail = {
   roomName: "AgentParty",
@@ -22,6 +22,13 @@ const message = (id: number, content = String(id)): Message => ({
 });
 
 describe("connection state", () => {
+  it("carries a lobby selection into room controls only when it is joined", () => {
+    const rooms = [{ roomName: "AgentParty" }, { roomName: "Studio" }];
+    expect(initialJoinedRoomSelection(rooms, " Studio ")).toBe("Studio");
+    expect(initialJoinedRoomSelection(rooms, "not joined")).toBeNull();
+    expect(initialJoinedRoomSelection(rooms, null)).toBeNull();
+  });
+
   it("moves through session, room list, and connection", () => {
     let state = reduceConnection(initialConnectionState, { type: "SESSION_READY", username: "nikk" });
     state = reduceConnection(state, { type: "ROOMS_LOADED", rooms: [{ roomName: "AgentParty", ownerName: "Nikk2", visibility: "public" }] });

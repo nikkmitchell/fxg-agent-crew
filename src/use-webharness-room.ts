@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { LoginRequest } from "../shared/contracts";
 import { bff } from "./bff-client";
 import { ApiError } from "./api-request";
-import { initialConnectionState, reduceConnection } from "./connection-state";
+import { initialConnectionState, initialJoinedRoomSelection, reduceConnection } from "./connection-state";
 import { backoff } from "./backoff";
 
 /**
@@ -40,14 +40,24 @@ const waitForRetry = (delay: number, signal: AbortSignal) => new Promise<void>((
   }, { once: true });
 });
 
-export function useWebharnessRoom() {
+export function useWebharnessRoom(initialRoomName: string | null = null) {
   const [state, dispatch] = useReducer(reduceConnection, initialConnectionState);
   const [run, setRun] = useState(0);
+  const initialRoomRef = useRef(initialRoomName?.trim() || null);
   const selectedRoomRef = useRef<string | undefined>(undefined);
 
   const loadRooms = useCallback(async (signal?: AbortSignal) => {
     try {
-      dispatch({ type: "ROOMS_LOADED", rooms: await bff.rooms(signal) });
+      const rooms = await bff.rooms(signal);
+      if (signal?.aborted) return;
+      dispatch({ type: "ROOMS_LOADED", rooms });
+      const initialRoom = initialJoinedRoomSelection(rooms, initialRoomRef.current);
+      initialRoomRef.current = null;
+      if (initialRoom) {
+        selectedRoomRef.current = initialRoom;
+        dispatch({ type: "ROOM_SELECTED", roomName: initialRoom });
+        setRun((value) => value + 1);
+      }
     } catch (error) {
       dispatch({ type: "POLL_FAILED", code: errorCode(error) });
     }

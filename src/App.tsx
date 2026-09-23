@@ -95,7 +95,7 @@ function TabContent({
   session: { username: string; kind?: "human" | "agent" } | null;
   /** True inside an iframe panel. The room refuses to contain itself. */
   embedded: boolean;
-  onOpenChat: () => void;
+  onOpenChat: (roomName?: string | null) => void;
   /** Home's button: go to the room AND start loading it, rather than landing
       on a second "Enter the room" button. One click from the door to the 3D. */
   onEnterRoom: () => void;
@@ -177,6 +177,11 @@ export default function App() {
     typeof window === "undefined" ? DEFAULT_TAB : tabFromPath(window.location.pathname),
   );
   const [liveRoomOpen, setLiveRoomOpen] = useState(false);
+  const [liveRoomInitialRoomName, setLiveRoomInitialRoomName] = useState<string | null>(null);
+  const openLiveRoom = (roomName?: string | null) => {
+    setLiveRoomInitialRoomName(roomName ?? null);
+    setLiveRoomOpen(true);
+  };
   const viewer = useViewer();
 
   // A deploy reloads every open page once it is safe to — see update-reload.ts.
@@ -321,11 +326,11 @@ export default function App() {
           tab={tab}
           session={session}
           embedded
-          onOpenChat={() => setLiveRoomOpen(true)}
+          onOpenChat={openLiveRoom}
           onEnterRoom={enterRoom}
           roomStartsEntered={roomStartsEntered}
         />
-        {liveRoomOpen ? <LiveRoomPanel onClose={() => setLiveRoomOpen(false)} /> : null}
+        {liveRoomOpen ? <LiveRoomPanel initialRoomName={liveRoomInitialRoomName} onClose={() => setLiveRoomOpen(false)} /> : null}
       </main>
     );
   }
@@ -412,14 +417,14 @@ export default function App() {
           tab={tab}
           session={session}
           embedded={false}
-          onOpenChat={() => setLiveRoomOpen(true)}
+          onOpenChat={openLiveRoom}
           onEnterRoom={enterRoom}
           roomStartsEntered={roomStartsEntered}
         />
 
       </main>
 
-      {liveRoomOpen ? <LiveRoomPanel onClose={() => setLiveRoomOpen(false)} /> : null}
+      {liveRoomOpen ? <LiveRoomPanel initialRoomName={liveRoomInitialRoomName} onClose={() => setLiveRoomOpen(false)} /> : null}
     </div>
   );
 }
