@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { bff } from "../bff-client";
 import type { Message, RoomSummary } from "../../shared/contracts";
+import { DEFAULT_WEBHARNESS_ROOM } from "./room-selection";
 
 /**
  * The WebHarness room, read through saha.ing.
@@ -66,10 +67,19 @@ export function resolveJoinedRoom(
 
 export function useRoomFeed(
   enabled: boolean,
-  preferred = "saha.ing",
+  preferred = DEFAULT_WEBHARNESS_ROOM,
   selectedRoom: string | null = null,
+  roomIdentity: string | null = null,
 ): RoomFeed {
+  const requestedRoom = selectedRoom?.trim() || null;
+  // A saved preference has no bearing on an explicit request; changes to a
+  // different tab's last-room value must not restart that feed.
+  const selectionKey = JSON.stringify([
+    requestedRoom,
+    requestedRoom ? null : preferred,
+  ]);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
+  const [roomsIdentity, setRoomsIdentity] = useState(roomIdentity);
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [roomListRevision, setRoomListRevision] = useState(0);
   const [roomListTrouble, setRoomListTrouble] = useState<string | null>(null);
@@ -84,6 +94,16 @@ export function useRoomFeed(
     if (!enabled) return;
     let stopped = false;
     const controller = new AbortController();
+    if (roomsIdentity !== roomIdentity) {
+      setRoomsIdentity(roomIdentity);
+      setRooms([]);
+      setRoom(null);
+      setMessages([]);
+      setLoadingMessages(true);
+      setMayHaveEarlier(false);
+      cursor.current = undefined;
+      setTrouble(null);
+    }
     setLoadingRooms(true);
     setRoomListTrouble(null);
     void bff.rooms(controller.signal).then((joined) => {
@@ -99,10 +119,10 @@ export function useRoomFeed(
       stopped = true;
       controller.abort();
     };
-  }, [enabled, roomListRevision]);
+  }, [enabled, roomIdentity, roomListRevision]);
 
   useEffect(() => {
-    if (!enabled || loadingRooms || (roomListTrouble && rooms.length === 0)) return;
+    if (!enabled || loadingRooms || roomsIdentity !== roomIdentity || (roomListTrouble && rooms.length === 0)) return;
     let stopped = false;
     // Declared out here so the effect's own cleanup can clear it. Returning a
     // cleanup from the async function below would do nothing at all — React
@@ -133,10 +153,10 @@ export function useRoomFeed(
     setTrouble(null);
     cursor.current = undefined;
 
-    const selection = resolveJoinedRoom(rooms, preferred, selectedRoom);
+    const selection = resolveJoinedRoom(rooms, preferred, requestedRoom);
     const name = selection.roomName;
     if (selection.invalidRequest) {
-      setTrouble(`${selectedRoom?.trim()} is not in your joined rooms. Choose a room from the list.`);
+      setTrouble(`${requestedRoom} is not in your joined rooms. Choose a room from the list.`);
       setLoadingMessages(false);
       return () => { stopped = true; };
     }
@@ -171,7 +191,7 @@ export function useRoomFeed(
       stopped = true;
       if (timer !== undefined) window.clearInterval(timer);
     };
-  }, [enabled, loadingRooms, preferred, roomListTrouble, rooms, selectedRoom]);
+  }, [enabled, loadingRooms, roomIdentity, roomListTrouble, rooms, roomsIdentity, selectionKey]);
 
   return {
     rooms,

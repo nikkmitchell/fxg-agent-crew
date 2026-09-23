@@ -2,6 +2,7 @@ import { Html } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GROWING_PANELS, grownPanel, naturalHeight } from "../../shared/panel-growth";
 import type { Station } from "../../shared/space-layout";
+import { isRoomPreferenceHistoryState } from "./room-selection";
 
 /**
  * A real tab, hanging in space.
@@ -106,8 +107,19 @@ export function WebPanel({
   // Changing the PROJECT is the one case where reloading is right — the panel
   // is meant to be showing something else now.
   const src = useMemo(
-    () => `${base}/${station.tab}?embed=1${project ? `&project=${encodeURIComponent(project)}` : ""}`,
-    [base, station.tab, project],
+    () => {
+      const query = new URLSearchParams({ embed: "1" });
+      if (project) query.set("project", project);
+      if (station.id === "chat") {
+        const room = new URLSearchParams(window.location.search).get("room")?.trim();
+        if (room) {
+          query.set("room", room);
+          if (isRoomPreferenceHistoryState(window.history.state)) query.set("room-preference", "1");
+        }
+      }
+      return `${base}/${station.tab}?${query.toString()}`;
+    },
+    [base, station.id, station.tab, project],
   );
 
   return (

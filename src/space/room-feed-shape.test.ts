@@ -40,6 +40,13 @@ describe("choosing which room the chat panel shows", () => {
     });
   });
 
+  it("treats another account's remembered room as a preference, not a hard request", () => {
+    expect(resolveJoinedRoom(rooms, "a-room-from-another-account", null)).toEqual({
+      roomName: "AgentParty",
+      invalidRequest: false,
+    });
+  });
+
   it("returns no selection when there are no joined rooms", () => {
     expect(resolveJoinedRoom([], "saha.ing", null)).toEqual({
       roomName: null,

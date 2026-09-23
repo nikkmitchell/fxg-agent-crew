@@ -24,6 +24,7 @@ import { SpeakingMotes } from "./SpeakingMotes";
 import { TouchReactions } from "./TouchReactions";
 import { ChatPanel3D } from "./ChatPanel3D";
 import { useRoomFeed } from "./useRoomFeed";
+import { useRoomSelection } from "./room-selection";
 import { useRoomShowing } from "./useRoomShowing";
 import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
@@ -410,6 +411,7 @@ function OnDemand({ connection }: { connection: SpaceConnection }) {
 
 export default function Scene({
   connection,
+  roomIdentity,
   reducedMotion,
   comfort,
   onImmersiveChange,
@@ -420,6 +422,7 @@ export default function Scene({
   voice,
 }: {
   connection: SpaceConnection;
+  roomIdentity: string | null;
   reducedMotion: boolean;
   comfort: Comfort;
   onImmersiveChange: (inSession: boolean) => void;
@@ -449,7 +452,13 @@ export default function Scene({
    * messages — two hooks, two timers, two cursors, twice the requests, for one
    * conversation. Read here and passed down.
    */
-  const feed = useRoomFeed(inHeadset);
+  const roomSelection = useRoomSelection();
+  const feed = useRoomFeed(
+    inHeadset,
+    roomSelection.preferredRoom,
+    roomSelection.requestedRoom,
+    roomIdentity,
+  );
   const openPanels = panels.open;
   // The lists to choose from, and the way to change what the room shows. The
   // current VALUE comes from the socket, not from here — see useRoomShowing.

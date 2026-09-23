@@ -1,25 +1,12 @@
-import { useEffect, useState } from "react";
-import { useRoomFeed } from "./space/useRoomFeed";
-
-const ROOM_MEMORY_KEY = "saha.roomLobby.lastRoom";
-
-const roomFromUrl = () => new URLSearchParams(window.location.search).get("room")?.trim() || null;
-const rememberedRoom = () => {
-  try {
-    return window.localStorage.getItem(ROOM_MEMORY_KEY)?.trim() || null;
-  } catch {
-    return null;
-  }
-};
-
-const rememberRoom = (roomName: string) => {
-  try {
-    window.localStorage.setItem(ROOM_MEMORY_KEY, roomName);
-  } catch {
-    // Room switching still works when storage is disabled; it simply will not
-    // be the default the next time the lobby opens.
-  }
-};
+import { useEffect } from "react";
+import {
+  roomHistoryState,
+  roomUrlForSelection,
+  shouldNormalizePreferredRoomUrl,
+  shouldRememberRoom,
+  useRoomSelection,
+} from "./space/room-selection";
+import { resolveJoinedRoom, useRoomFeed } from "./space/useRoomFeed";
 
 /**
  * The joined WebHarness rooms, to browse and read.
@@ -38,44 +25,50 @@ const rememberRoom = (roomName: string) => {
  * READ ONLY. Posting still lives in the overlay, because a reply box you cannot
  * type into is worse than no reply box, and nobody has a keyboard in a headset.
  */
-export function ChatFeed({ onOpenRoomControls }: { onOpenRoomControls?: () => void }) {
-  const [selectedRoom, setSelectedRoom] = useState(() =>
-    typeof window === "undefined" ? null : roomFromUrl() ?? rememberedRoom(),
+export function ChatFeed({
+  roomIdentity,
+  onOpenRoomControls,
+}: {
+  roomIdentity: string | null;
+  onOpenRoomControls?: () => void;
+}) {
+  const selection = useRoomSelection();
+  const feed = useRoomFeed(
+    true,
+    selection.preferredRoom,
+    selection.requestedRoom,
+    roomIdentity,
   );
-  const feed = useRoomFeed(true, "saha.ing", selectedRoom);
 
+  // Persist only a selection confirmed by this account's current room list.
+  // While a selection changes, the feed can still show the previous room for
+  // one render; writing that stale value back would undo the new choice.
   useEffect(() => {
-    const syncFromUrl = () => {
-      const roomName = roomFromUrl() ?? rememberedRoom();
-      setSelectedRoom(roomName);
-    };
-    window.addEventListener("popstate", syncFromUrl);
-    return () => window.removeEventListener("popstate", syncFromUrl);
-  }, []);
-
-  // Give the default room a stable, linkable URL too. The first room is a
-  // convenience for a new visitor; from this point on the address says which
-  // conversation is actually on screen.
-  useEffect(() => {
-    if (selectedRoom || !feed.room) return;
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("room")?.trim()) return;
-    url.searchParams.set("room", feed.room);
-    rememberRoom(feed.room);
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-  }, [feed.room, selectedRoom]);
-
-  useEffect(() => {
-    if (selectedRoom && feed.room === selectedRoom) rememberRoom(selectedRoom);
-  }, [feed.room, selectedRoom]);
+    const expected = resolveJoinedRoom(feed.rooms, selection.preferredRoom, selection.requestedRoom);
+    if (feed.room && shouldRememberRoom(
+      feed.loadingRooms,
+      feed.room,
+      expected.roomName,
+      selection.requestedRoom,
+    )) {
+      if (shouldNormalizePreferredRoomUrl(
+        window.location.href,
+        feed.room,
+        selection.requestedRoom,
+        window.history.state,
+      )) {
+        window.history.replaceState(
+          roomHistoryState(window.history.state, true),
+          "",
+          roomUrlForSelection(window.location.href, feed.room),
+        );
+      }
+      selection.rememberRoom(feed.room);
+    }
+  }, [feed.loadingRooms, feed.room, feed.rooms, selection.preferredRoom, selection.rememberRoom, selection.requestedRoom]);
 
   const chooseRoom = (roomName: string) => {
-    if (feed.room === roomName) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set("room", roomName);
-    rememberRoom(roomName);
-    window.history.pushState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-    setSelectedRoom(roomName);
+    selection.chooseRoom(roomName, feed.room);
   };
 
   return (

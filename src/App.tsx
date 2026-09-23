@@ -128,7 +128,7 @@ function TabContent({
         embedded ? (
           <p className="muted-note">The room cannot be shown inside itself.</p>
         ) : (
-          <SpacePanel startEntered={roomStartsEntered} />
+          <SpacePanel startEntered={roomStartsEntered} roomIdentity={session?.username ?? null} />
         )
       ) : null}
 
@@ -142,7 +142,12 @@ function TabContent({
           room is an iframe of this tab, and a panel whose whole content is a
           button that opens an overlay you cannot reach is worse than no panel.
           The overlay still exists for the button in the rail elsewhere. */}
-      {tab === "chat" ? <ChatFeed onOpenRoomControls={embedded ? undefined : onOpenChat} /> : null}
+      {tab === "chat" ? (
+        <ChatFeed
+          roomIdentity={session?.username ?? null}
+          onOpenRoomControls={embedded ? undefined : onOpenChat}
+        />
+      ) : null}
     </>
   );
 }

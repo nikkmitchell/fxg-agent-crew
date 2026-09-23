@@ -96,7 +96,10 @@ function useReducedMotion(): boolean {
  * point of capping what gets said aloud.
  */
 
-export function SpacePanel({ startEntered = false }: { startEntered?: boolean } = {}) {
+export function SpacePanel({
+  startEntered = false,
+  roomIdentity = null,
+}: { startEntered?: boolean; roomIdentity?: string | null } = {}) {
   /**
    * `startEntered` comes from the front door: pressing Enter there should land
    * you in the 3D view, not on a second Enter button.
@@ -251,6 +254,7 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
         >
           <Scene
             connection={connection}
+            roomIdentity={roomIdentity}
             reducedMotion={reducedMotion}
             comfort={comfort}
             onImmersiveChange={setInHeadset}
