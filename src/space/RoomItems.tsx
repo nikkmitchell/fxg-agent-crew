@@ -438,13 +438,27 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       <mesh position={[0, -0.12, 0]} raycast={noRaycast}>
         <cylinderGeometry args={[0.008, 0.008, 0.24, 8]} /><meshStandardMaterial color="#6b4328" roughness={0.6} />
       </mesh>
+      {/*
+        PALE, NOT DARK. The first one was #2b2118 — a near-black sphere in an
+        unlit room. I could not find it in a screenshot of the table I had just
+        built, which is a good sign nobody would find it by eye either. A
+        control nobody can see is the same as a control that is not there.
+      */}
       <mesh onClick={(event) => { event.stopPropagation(); setNotice(""); setSettingsOpen((open) => !open); }}>
         <sphereGeometry args={[GEAR.radius, 20, 12]} />
-        <meshStandardMaterial color={settingsOpen ? "#e45338" : "#2b2118"} roughness={0.4} />
+        <meshStandardMaterial
+          color={settingsOpen ? "#e45338" : "#f2e6cf"}
+          emissive={settingsOpen ? "#e45338" : "#c9b48c"}
+          emissiveIntensity={settingsOpen ? 0.5 : 0.28}
+          roughness={0.35}
+        />
       </mesh>
-      <Text position={[0, 0, GEAR.radius + 0.002]} fontSize={0.07} color="#f1d8aa" anchorX="center" anchorY="middle" raycast={noRaycast}>
-        ⚙
-      </Text>
+      {[1, -1].map((face) => (
+        <Text key={face} position={[0, 0, face * (GEAR.radius + 0.002)]} rotation-y={face > 0 ? 0 : Math.PI}
+          fontSize={0.075} color={settingsOpen ? "#fff3ea" : "#3b2c1c"} anchorX="center" anchorY="middle" raycast={noRaycast}>
+          ⚙
+        </Text>
+      ))}
     </group>
     {settingsOpen && <group position={[gear.x, gear.y + 0.78, gear.z]}>
       <SettingsPanel3D items={settingsItems} surface={{ width: GO_PANEL.width, height: GO_PANEL.height }} onPress={onSetting} />
