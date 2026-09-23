@@ -6,6 +6,13 @@ import { bff } from "../bff-client";
 import { space } from "../space-client";
 import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
+import {
+  joinedRoomChoiceLabel,
+  joinedRoomPage,
+  joinedRoomSelectionPage,
+  roomNamePages,
+  JOINED_ROOM_PAGE_SIZE,
+} from "./joined-room-menu";
 import { micGlyph, micPress } from "./mic-press";
 import { closedControlPose } from "./control-pose";
 import { handModelsShown, pinchTeleportEnabled, setPinchTeleport, showHandModels } from "./xr-store";
@@ -166,6 +173,7 @@ export function RoomControls({
   voice,
   liveUtterance,
   feed,
+  onSelectRoom,
   panels,
   arrange,
   showing,
@@ -190,6 +198,8 @@ export function RoomControls({
   liveUtterance: Utterance | null;
   /** The WebHarness chat, which is where the agents actually answer. */
   feed: RoomFeed;
+  /** Switch the WebHarness room used by the immersive chat and agent messages. */
+  onSelectRoom: (roomName: string) => void;
   /** Which panels are hanging on the arc, and the way to change it. */
   panels: PanelChoices;
   /** Whether a panel is currently being moved or resized. */
@@ -231,7 +241,14 @@ export function RoomControls({
    * one decision, and a decision that changes what everybody in the room is
    * looking at deserves its own screen rather than a row among twenty.
    */
-  const [view, setView] = useState<"root" | "work" | "mood" | "panels" | "agents" | "items">("root");
+  const [view, setView] = useState<"root" | "work" | "mood" | "panels" | "agents" | "items" | "joinedRooms" | "roomDetails">("root");
+  const [joinedRoomsPageNumber, setJoinedRoomsPageNumber] = useState(0);
+  const [roomPreview, setRoomPreview] = useState<{ roomName: string; ownerName: string } | null>(null);
+  const [roomNamePageNumber, setRoomNamePageNumber] = useState(0);
+  useEffect(() => {
+    if (view !== "joinedRooms" || feed.loadingRooms) return;
+    setJoinedRoomsPageNumber(joinedRoomSelectionPage(feed.rooms, feed.room));
+  }, [feed.loadingRooms, feed.room, feed.rooms, view]);
   /**
    * Whether your own hands are drawn.
    *
@@ -783,7 +800,7 @@ export function RoomControls({
     node.rotation.set(rotation[0], rotation[1], rotation[2]);
   });
 
-  type Row = { label: string; tone?: "normal" | "muted" | "live"; onTap: () => void };
+  type Row = { label: string; tone?: "normal" | "muted" | "live"; lines?: number; onTap: () => void };
   type Box = { title: string; rows: Row[] };
 
   const boxes: Box[] = [];
@@ -849,6 +866,83 @@ export function RoomControls({
       }
     }
     boxes.push({ title: "Mood board — for everyone", rows });
+  } else if (open && view === "joinedRooms") {
+    const page = joinedRoomPage(feed.rooms, joinedRoomsPageNumber);
+    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    if (feed.loadingRooms) {
+      rows.push({ label: "Refreshing joined rooms…", tone: "muted", onTap: () => {} });
+    }
+    if (feed.roomsTrouble) {
+      rows.push({
+        label: "Room refresh failed — tap to retry",
+        tone: "muted",
+        onTap: feed.refreshRooms,
+      });
+    }
+    if (!feed.loadingRooms && !feed.roomsTrouble && feed.rooms.length === 0) {
+      rows.push({ label: "No joined WebHarness rooms", tone: "muted", onTap: () => {} });
+    }
+    if (!feed.loadingRooms && page.hasPrevious) {
+      rows.push({
+        label: "← Previous rooms",
+        onTap: () => setJoinedRoomsPageNumber(page.pageIndex - 1),
+      });
+    }
+    if (!feed.loadingRooms) {
+      for (const [index, room] of page.rooms.entries()) {
+        const current = room.roomName === feed.room;
+        rows.push({
+          label: joinedRoomChoiceLabel(
+            room.roomName,
+            current,
+            page.pageIndex * JOINED_ROOM_PAGE_SIZE + index + 1,
+          ),
+          tone: current ? "live" : "normal",
+          lines: 3,
+          onTap: () => {
+            setRoomPreview(room);
+            setRoomNamePageNumber(0);
+            setView("roomDetails");
+          },
+        });
+      }
+    }
+    if (!feed.loadingRooms && page.hasNext) {
+      rows.push({
+        label: "More rooms →",
+        onTap: () => setJoinedRoomsPageNumber(page.pageIndex + 1),
+      });
+    }
+    if (!feed.loadingRooms && !feed.roomsTrouble) {
+      rows.push({ label: "Refresh joined rooms", onTap: feed.refreshRooms });
+    }
+    boxes.push({ title: `Joined rooms ${page.pageIndex + 1}/${page.pageCount}`, rows });
+  } else if (open && view === "roomDetails") {
+    const namePages = roomNamePages(roomPreview?.roomName ?? "");
+    const pageIndex = Math.min(roomNamePageNumber, namePages.length - 1);
+    const rows: Row[] = [{ label: "← Back to joined rooms", onTap: () => setView("joinedRooms") }];
+    if (roomPreview) {
+      rows.push({ label: namePages[pageIndex], tone: "normal", lines: 3, onTap: () => {} });
+      rows.push({ label: `By ${roomPreview.ownerName || "unknown owner"}`, tone: "muted", onTap: () => {} });
+      if (pageIndex > 0) {
+        rows.push({ label: "← Previous part", onTap: () => setRoomNamePageNumber(pageIndex - 1) });
+      }
+      if (pageIndex + 1 < namePages.length) {
+        rows.push({ label: "Continue →", onTap: () => setRoomNamePageNumber(pageIndex + 1) });
+      } else {
+        rows.push({
+          label: "Use this room",
+          tone: "live",
+          onTap: () => {
+            onSelectRoom(roomPreview.roomName);
+            setView("root");
+          },
+        });
+      }
+    } else {
+      rows.push({ label: "Room details are unavailable", tone: "muted", onTap: () => setView("joinedRooms") });
+    }
+    boxes.push({ title: `Room destination ${pageIndex + 1}/${namePages.length}`, rows });
   } else if (open && view === "panels") {
     const panelRows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
     for (const panel of panels.catalogue) {
@@ -1086,6 +1180,13 @@ export function RoomControls({
     boxes.push({
       title: "Room",
       rows: [
+        {
+          label: "Joined WebHarness rooms…",
+          onTap: () => {
+            setJoinedRoomsPageNumber(joinedRoomSelectionPage(feed.rooms, feed.room));
+            setView("joinedRooms");
+          },
+        },
         { label: "Room items…", onTap: () => setView("items") },
         { label: "Panels…", onTap: () => setView("panels") },
         { label: "Place agents…", onTap: () => setView("agents") },
@@ -1303,6 +1404,7 @@ export function RoomControls({
                 key={`${at}-${row.label}`}
                 label={row.label}
                 tone={row.tone}
+                lines={row.lines}
                 y={-at * (BOX_BUTTON.height + BOX_BUTTON.gap)}
                 width={BOX_BUTTON.width}
                 height={BOX_BUTTON.height}

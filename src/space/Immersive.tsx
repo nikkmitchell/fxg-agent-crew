@@ -133,6 +133,7 @@ export function ImmersivePlayer({
   openPanels,
   you,
   groupRoom,
+  onSelectRoom,
   voice,
   liveUtterance,
   feed,
@@ -156,6 +157,8 @@ export function ImmersivePlayer({
   you: string | null;
   /** The WebHarness room to post into when you choose to tell the agents. */
   groupRoom: string | null;
+  /** Change the joined WebHarness room used by the headset chat panel. */
+  onSelectRoom: (roomName: string) => void;
   /** Live voice, owned above the session so entering one cannot close it. */
   voice: VoiceChat;
   /** The newest thing said in the room, for reading replies aloud. */
@@ -847,6 +850,7 @@ export function ImmersivePlayer({
         anchor={bodyAnchor}
         you={you}
         groupRoom={groupRoom}
+        onSelectRoom={onSelectRoom}
         passthrough={passthrough}
         passthroughAvailable={passthroughAvailable}
         blendMode={blendMode}
@@ -923,6 +927,7 @@ export function Immersive({
   openPanels,
   you,
   groupRoom,
+  onSelectRoom,
   voice,
   liveUtterance,
   feed,
@@ -940,6 +945,7 @@ export function Immersive({
   openPanels: string[];
   you: string | null;
   groupRoom: string | null;
+  onSelectRoom: (roomName: string) => void;
   voice: VoiceChat;
   /** The newest thing said in the room, for reading replies aloud. */
   liveUtterance: Utterance | null;
@@ -1004,6 +1010,7 @@ export function Immersive({
       openPanels={openPanels}
       you={you}
       groupRoom={groupRoom}
+      onSelectRoom={onSelectRoom}
       voice={voice}
       liveUtterance={liveUtterance}
       feed={feed}

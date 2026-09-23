@@ -582,6 +582,7 @@ export default function Scene({
           openPanels={openPanels}
           you={you}
           groupRoom={feed.room}
+          onSelectRoom={(roomName) => roomSelection.chooseRoom(roomName, feed.room)}
           voice={voice}
           liveUtterance={connection.liveUtterance}
           feed={feed}
