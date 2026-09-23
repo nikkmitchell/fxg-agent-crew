@@ -126,13 +126,14 @@ function LightColumn({ x, z, colour, stone, reducedMotion }: { x: number; z: num
 }
 
 /**
- * The legal points glow, and the WHOLE BOARD takes the press: where the laser
- * meets it is snapped to the nearest free intersection (go-snap.ts), a column
- * of light rises there, and pressing puts the stone under the column.
+ * The WHOLE BOARD takes the press: where the laser meets it is snapped to the
+ * nearest free intersection (go-snap.ts), that one point lights, a column of
+ * light rises there, and pressing puts the stone under the column.
  *
- * The dots used to be the only targets, each a little smaller than a square:
- * a ray between two of them pressed nothing, and a shaky one flickered on and
- * off a dot. They are only light now.
+ * Dots used to be the only targets, each a little smaller than a square: a ray
+ * between two of them pressed nothing, and a shaky one flickered on and off a
+ * dot. Then every legal point glowed as a hint, until Baiwei asked for only the
+ * target. Now just the aimed point is lit.
  */
 function MoveLights({ item, reducedMotion, onPlace }: { item: GoRoomItem; reducedMotion: boolean; onPlace: (x: number, y: number) => void }) {
   const dots = useRef<THREE.InstancedMesh>(null), material = useRef<THREE.MeshBasicMaterial>(null), frame = useRef<THREE.Group>(null);
@@ -148,13 +149,21 @@ function MoveLights({ item, reducedMotion, onPlace }: { item: GoRoomItem; reduce
   useLayoutEffect(() => {
     if (!dots.current) return;
     const object = new THREE.Object3D(), width = GO_PITCH * 0.88;
+    // ONLY THE POINT BEING AIMED AT, or none. Baiwei: "While a stone hovers over
+    // the board, preview only the target intersection (or none), not every
+    // spot." Every legal point used to glow at once, which made the board
+    // shimmer exactly when the one point that mattered needed to stand out.
+    // The legal points still decide where the magnet can snap (goSnap).
+    let lit = 0;
     moves.forEach((move, i) => {
+      if (i !== hover) return;
       object.position.set(goPoint(move.x, item.size), GO_SURFACE + 0.003, goPoint(move.y, item.size));
-      object.rotation.x = -Math.PI / 2; object.scale.setScalar(hover === i ? width * 1.25 : width); object.updateMatrix();
-      dots.current!.setMatrixAt(i, object.matrix);
-      dots.current!.setColorAt(i, new THREE.Color().setScalar(hover === i ? 2 : 1));
+      object.rotation.x = -Math.PI / 2; object.scale.setScalar(width * 1.25); object.updateMatrix();
+      dots.current!.setMatrixAt(lit, object.matrix);
+      dots.current!.setColorAt(lit, new THREE.Color().setScalar(2));
+      lit += 1;
     });
-    dots.current.count = moves.length; dots.current.instanceMatrix.needsUpdate = true;
+    dots.current.count = lit; dots.current.instanceMatrix.needsUpdate = true;
     if (dots.current.instanceColor) dots.current.instanceColor.needsUpdate = true;
     dots.current.computeBoundingSphere();
   }, [moves, item.size, hover]);
@@ -248,6 +257,15 @@ function Stones({ targets, reducedMotion }: { targets: StoneTarget[]; reducedMot
 function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index: number; reducedMotion: boolean; onLift: () => void }) {
   const pulse = useRef<THREE.MeshBasicMaterial>(null), rim = useRef<THREE.MeshStandardMaterial>(null);
   const active = index === item.activeColour;
+  /**
+   * A DELICATE GLOW UNDER THE BOWL WHOSE TURN IT IS — and only until its stone
+   * is lifted. Baiwei: "Selecting a stone should show a delicate glow under its
+   * source bowl; once lifted and carried for placement, that bowl glow should
+   * turn off." It used to be a bright 72cm pool that stayed on all turn,
+   * competing with the board just when the board was what mattered.
+   */
+  const glowing = active && item.liftedColour === null;
+  const look = GO_SURFACE_LOOKS[item.surface] ?? GO_SURFACE_LOOKS.bamboo;
   const colour = item.colours[index], accent = ACCENTS[index];
   const position = goBowl(index, item.colours.length, item.size), tray = goTray(index, item.colours.length, item.size);
   const texture = useMemo(glowTexture, []);
@@ -260,18 +278,18 @@ function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index:
   }), [colour]);
   useFrame(({ clock }) => {
     const wave = reducedMotion ? 0.7 : 0.65 + Math.sin(clock.elapsedTime * 2.8) * 0.25;
-    if (pulse.current) pulse.current.opacity = active ? wave : 0;
-    if (rim.current) rim.current.emissiveIntensity = active ? wave * 0.8 : 0;
+    if (pulse.current) pulse.current.opacity = glowing ? wave * 0.55 : 0;
+    if (rim.current) rim.current.emissiveIntensity = glowing ? wave * 0.6 : 0;
   });
   const captures = item.captures.filter((stone) => stone.by === index).length;
   return <>
     <group position={xyz(position)} onClick={(event) => { event.stopPropagation(); onLift(); }}>
       <mesh position={[0, -0.055, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}>
-        <planeGeometry args={[0.72, 0.72]} /><meshBasicMaterial ref={pulse} map={texture} color={accent} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+        <planeGeometry args={[0.5, 0.5]} /><meshBasicMaterial ref={pulse} map={texture} color={accent} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
       </mesh>
-      <mesh castShadow><latheGeometry args={[profile, 48]} /><meshPhysicalMaterial color="#6d3b23" roughness={0.38} clearcoat={0.55} side={THREE.DoubleSide} /></mesh>
+      <mesh castShadow><latheGeometry args={[profile, 48]} /><meshPhysicalMaterial color={look.bowl.body} roughness={look.bowl.roughness} clearcoat={look.bowl.clearcoat} side={THREE.DoubleSide} /></mesh>
       <mesh position={[0, 0.066, 0]} rotation-x={Math.PI / 2}>
-        <torusGeometry args={[0.172, 0.007, 8, 64]} /><meshStandardMaterial ref={rim} color={active ? accent : "#c38d52"} emissive={accent} roughness={0.3} metalness={0.4} />
+        <torusGeometry args={[0.172, 0.007, 8, 64]} /><meshStandardMaterial ref={rim} color={active ? accent : look.bowl.rim} emissive={accent} roughness={0.3} metalness={0.4} />
       </mesh>
       <Stones targets={stock} reducedMotion />
       {/* Invisible contact cap also makes the stones in the bowl clickable. */}
@@ -605,7 +623,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       {`${NAMES[item.activeColour].toUpperCase()}'S TURN`}
     </Text>}
     {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? look.inkSoft : "#d8c8ac"} raycast={noRaycast}>
-      {notice || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a glowing point` : item.liftedColour !== null ? "Choose a glowing intersection" : "Touch the glowing bowl to lift a stone")}
+      {notice || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a column shows where it lands" : "Touch the glowing bowl to lift a stone")}
     </Text>}
     {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
       <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[0.46, 0.1]} /><meshBasicMaterial color="#493d30" /></mesh>
