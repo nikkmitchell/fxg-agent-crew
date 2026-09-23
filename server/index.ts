@@ -201,6 +201,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     () => Object.fromEntries(panelPlaces.all(roomAtDefault).map((place) => [place.id, place])),
     (actorId) => agentHomes.get(roomAtDefault, actorId),
     (id) => roomItems.one(roomAtDefault, id),
+    (actorId) => sessions.mayInferInDefaultRoom(actorId),
   );
   activity.onError = (error) => app.log.error({ error }, "space activity poll failed");
   // Put the agents back before anything else looks at the room. A restart
@@ -217,6 +218,24 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const actorBook = new BoardStore(database);
 
   app.register(async (scoped) => {
+    // Production sign-in begins with no selected room. The historical default
+    // remains for sessions created before this lobby release, but a newly
+    // signed-in member cannot read the development room merely by typing
+    // /room or calling a room endpoint before /space/enter verifies membership.
+    // Avatar, voice and memory choices are personal, not room-scoped; they stay
+    // available from the front door. A screen share upload is key-authorized.
+    scoped.addHook("onRequest", async (request, reply) => {
+      const path = request.url.split("?", 1)[0];
+      if (!path.startsWith("/bff/space/") || path === "/bff/space/enter") return;
+      const personal = /^(?:body(?:\/|$|-model\/)|bodies(?:\/|$)|voice(?:\/|$)|voices(?:\/|$)|memories(?:\/|$)|transcribe(?:\/|$)|touch-preferences(?:\/|$))/.test(path.slice("/bff/space/".length));
+      const keyUpload = path === "/bff/space/screens/frame" && request.method === "PUT";
+      const sharers = path === "/bff/space/screens/sharers";
+      if (personal || keyUpload || sharers) return;
+      const session = sessions.get(request.cookies[config.cookieName]);
+      if (session?.requiresRoomEntry) {
+        return reply.code(403).send({ code: "ROOM_NOT_SELECTED", error: "choose and enter a room first" });
+      }
+    });
     // Who signed in, with the kind WebHarness holds for them, so a new agent is
     // offered on the share page before it has touched the board.
     registerAuthRoutes(
@@ -228,6 +247,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       // The room is the claim; the store decides what it is worth. A room with
       // no link, or a link with auto_enrol off, grants nothing.
       (actorId, kind, rooms) => rooms.flatMap((room) => actorBook.enrolFromRoom(actorId, room, kind ?? undefined)),
+      (actorId) => activity.forgetIfAway(actorId),
     );
     registerRoomRoutes(scoped, config, sessions, client);
     registerProjectRoutes(scoped, config, sessions, client);
@@ -252,7 +272,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       touches,
       hubFor,
     );
-    registerSpaceEntryRoute(scoped, config, sessions, client, hubFor);
+    registerSpaceEntryRoute(scoped, config, sessions, client,
+      (sid) => { for (const hub of spaceHubs.values()) hub.evictSession(sid); },
+      (actorId) => activity.forgetIfAway(actorId));
     registerTouchRoutes(scoped, { config, sessions, hub: space, hubFor, touches });
     registerPanelRoutes(scoped, {
       database,

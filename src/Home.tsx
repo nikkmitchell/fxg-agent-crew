@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { RoomSummary } from "../shared/contracts";
 import { ApiError } from "./api-request";
@@ -48,6 +48,7 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
   const [createName, setCreateName] = useState("");
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [reviewed, setReviewed] = useState(false);
+  const detailsRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -60,6 +61,7 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
     });
     if (mine.status === "fulfilled" || publicList.status === "fulfilled") setCheckedAt(Date.now());
     setLoading(false);
+    return mine.status === "fulfilled" ? mine.value : null;
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -81,6 +83,18 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
     ?? all.find((item) => item.joined)
     ?? all.find((item) => sameRoom(item.room.roomName, "lobby"))
     ?? all[0] ?? null;
+  const choose = (roomName: string) => {
+    setSelected(roomName);
+    setNotice(null);
+    // On a narrow screen the selected room sits above the directory, so bring
+    // its action back into view after a different room is chosen below it.
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      requestAnimationFrame(() => detailsRef.current?.scrollIntoView({
+        block: "start",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      }));
+    }
+  };
 
   const join = async (name: string, password?: string) => {
     const roomName = name.trim();
@@ -92,8 +106,11 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
       setSelected(result.roomName);
       setJoinOpen(false);
       setJoinPassword("");
-      await refresh();
-      setNotice({ kind: "success", text: (result.joined ? "Joined " : "Already a member of ") + result.roomName + ". Choose Enter to step inside." });
+      const listed = await refresh();
+      const visible = listed?.some((room) => sameRoom(room.roomName, result.roomName));
+      setNotice(visible
+        ? { kind: "success", text: (result.joined ? "Joined " : "Already a member of ") + result.roomName + ". Choose Enter to step inside." }
+        : { kind: "error", text: "The join was accepted, but your room list has not confirmed it yet. Refresh rooms before entering." });
     } catch (error) {
       setNotice({ kind: "error", text: roomActionError(error) });
       if (error instanceof ApiError && (error.code === "ROOM_PASSWORD_REQUIRED" || error.code === "ROOM_PASSWORD_INCORRECT")) {
@@ -130,8 +147,11 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
       setSelected(result.roomName);
       setCreateOpen(false);
       setReviewed(false);
-      await refresh();
-      setNotice({ kind: "success", text: "Created " + result.roomName + ". You are its first member; invite people before expecting company." });
+      const listed = await refresh();
+      const visible = listed?.some((room) => sameRoom(room.roomName, result.roomName));
+      setNotice(visible
+        ? { kind: "success", text: "Created " + result.roomName + ". You are its first member; invite people before expecting company." }
+        : { kind: "error", text: "The room was created, but your room list has not confirmed it yet. Refresh rooms before entering." });
     } catch (error) {
       setNotice({ kind: "error", text: roomActionError(error) });
     } finally {
@@ -148,7 +168,7 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
         <a className="room-front-avatar-link" href={pathForTab("profiles")}>Choose your avatar <span aria-hidden="true">↗</span></a>
       </div>
       <div className="room-front-layout">
-        <div className="room-front-directory">
+        <div className="room-front-directory" id="room-directory">
           <div className="room-front-directory-head">
             <div><h2>Rooms</h2><p>Membership and public discovery are shown separately.</p></div>
             <button type="button" onClick={() => void refresh()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
@@ -160,16 +180,16 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
           {checkedAt && !loading ? <p className="room-front-freshness">Checked {new Date(checkedAt).toLocaleTimeString()}</p> : null}
           <div className="room-front-list-group">
             <h3>Your rooms <span>{joined.length}</span></h3>
-            {joined.map((room) => <RoomOption key={room.roomName} room={room} joined selected={sameRoom(chosen?.room.roomName ?? "", room.roomName)} onChoose={() => { setSelected(room.roomName); setNotice(null); }} />)}
+            {joined.map((room) => <RoomOption key={room.roomName} room={room} joined selected={sameRoom(chosen?.room.roomName ?? "", room.roomName)} onChoose={() => choose(room.roomName)} />)}
             {!joined.length && !loading && !errors.joined ? <p className="room-front-empty">You have not joined a room yet. Explore public rooms or join one by name.</p> : null}
           </div>
           <div className="room-front-list-group">
             <h3>Explore public rooms <span>{discoverable.length}</span></h3>
-            {discoverable.map((room) => <RoomOption key={room.roomName} room={room} joined={false} selected={sameRoom(chosen?.room.roomName ?? "", room.roomName)} onChoose={() => { setSelected(room.roomName); setNotice(null); }} />)}
+            {discoverable.map((room) => <RoomOption key={room.roomName} room={room} joined={false} selected={sameRoom(chosen?.room.roomName ?? "", room.roomName)} onChoose={() => choose(room.roomName)} />)}
             {!discoverable.length && !loading && !errors.public ? <p className="room-front-empty">No other public rooms are listed. Private rooms can be joined by exact name.</p> : null}
           </div>
         </div>
-        <div className="room-front-details">
+        <div className="room-front-details" ref={detailsRef}>
           {chosen ? <>
             <div className="room-front-selected-head">
               <span className="room-front-status">{chosen.joined ? "YOUR ROOM" : "PUBLIC ROOM"}</span>

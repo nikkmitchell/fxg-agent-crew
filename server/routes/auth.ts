@@ -47,6 +47,7 @@ export function registerAuthRoutes(
    * BoardStore.enrolFromRoom.
    */
   enrolFromRooms: (actorId: string, kind: "human" | "agent" | null, rooms: string[]) => string[] = () => [],
+  onUnselected: (actorId: string) => void = () => {},
 ): void {
   const record = (username: string, kind: "human" | "agent" | null) => {
     if (!kind) return;
@@ -92,7 +93,8 @@ export function registerAuthRoutes(
 
     try {
       const token = await client.login(username, password);
-      const sid = sessions.create(username, token);
+      const sid = sessions.createUnselected(username, token);
+      onUnselected(username);
       roomsChecked.add(sid);
 
       /**
@@ -163,7 +165,8 @@ export function registerAuthRoutes(
 
     try {
       const { username, kind } = await client.identify(token);
-      const sid = sessions.create(username, token, "agent");
+      const sid = sessions.createUnselected(username, token, "agent");
+      onUnselected(username);
       roomsChecked.add(sid);
       record(username, kind);
 

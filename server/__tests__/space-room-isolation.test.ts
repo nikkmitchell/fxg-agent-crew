@@ -3,6 +3,7 @@ import { buildServer } from "../index.js";
 import type { ServerMessage } from "../../shared/space-wire.js";
 import { DatabaseSync } from "node:sqlite";
 import { MIGRATIONS } from "../db/schema.js";
+import { BoardStore } from "../db/store.js";
 
 const running: Array<() => Promise<void>> = [];
 
@@ -65,6 +66,23 @@ async function connect(origin: string, cookie: string) {
 }
 
 describe("entering and isolating room spaces", () => {
+  it("does not expose the legacy default space to a new session before room membership is checked", async () => {
+    joinedRooms({ newcomer: ["lobby"] });
+    const { sessions, config, app, enter } = await boot();
+    const cookie = `${config.cookieName}=${sessions.createUnselected("Newcomer", "newcomer")}`;
+    for (const url of ["/bff/space/room", "/bff/space/presence", "/bff/space/items", "/bff/space/utterances"]) {
+      const denied = await app.inject({ method: "GET", url, headers: { cookie } });
+      expect(denied.statusCode, url).toBe(403);
+      expect(denied.json().code, url).toBe("ROOM_NOT_SELECTED");
+    }
+    // Choosing a body is personal and works at the front door.
+    expect((await app.inject({ method: "GET", url: "/bff/space/bodies", headers: { cookie } })).statusCode).toBe(200);
+    expect((await enter(cookie, "saha.ing")).statusCode).toBe(403);
+    expect((await enter(cookie, "lobby")).statusCode).toBe(200);
+    expect((await app.inject({ method: "GET", url: "/bff/space/room", headers: { cookie } })).json())
+      .toEqual({ roomName: "lobby" });
+  });
+
   it("uses current upstream membership rather than a public room name to enter", async () => {
     joinedRooms({ token: ["saha.ing"] });
     const { as, enter, sessions, config, app } = await boot();
@@ -148,6 +166,61 @@ describe("entering and isolating room spaces", () => {
     expect(hubFor("alpha").connectedSockets).toBe(1);
     expect(hubFor("alpha").presence.find("Aster")).toBeDefined();
     expect(secondTab.socket.readyState).toBe(WebSocket.OPEN);
+  });
+
+  it("evicts a socket opened between overlapping enter requests for one session", async () => {
+    let releaseFirst!: () => void;
+    let sawFirst!: () => void;
+    const firstIsWaiting = new Promise<void>((resolve) => { sawFirst = resolve; });
+    const firstMayFinish = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      if (++calls === 1) { sawFirst(); await firstMayFinish; }
+      return new Response(JSON.stringify({ rooms: [{ roomName: "alpha" }, { roomName: "beta" }] }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }));
+    const { as, enter, origin, hubFor, sessions, config } = await boot();
+    const cookie = as("Aster", "both");
+    const sid = cookie.slice(`${config.cookieName}=`.length);
+
+    const slowAlpha = enter(cookie, "alpha");
+    await firstIsWaiting;
+    expect((await enter(cookie, "beta")).statusCode).toBe(200);
+    const beta = await connect(origin, cookie);
+    await beta.until((frame) => frame.type === "welcome");
+    expect(hubFor("beta").connectedSockets).toBe(1);
+
+    releaseFirst();
+    expect((await slowAlpha).statusCode).toBe(200);
+    expect(sessions.get(sid)?.spaceRoom).toBe("alpha");
+    expect(hubFor("beta").connectedSockets).toBe(0);
+    const alpha = await connect(origin, cookie);
+    const welcome = await alpha.until((frame) => frame.type === "welcome");
+    if (welcome.type !== "welcome") throw new Error("no welcome");
+    expect(welcome.people.map((person) => person.actorId)).toEqual(["Aster"]);
+  });
+
+  it("keeps legacy activity out of another explicitly selected room without ejecting a second default session", async () => {
+    joinedRooms({ agent: ["saha.ing", "alpha"] });
+    const { sessions, config, enter, activity, space, database } = await boot();
+    new BoardStore(database).ensureActor("Moraine", "agent");
+    const first = `${config.cookieName}=${sessions.create("Moraine", "agent", "agent")}`;
+    activity.rehydrate();
+    expect(space.presence.find("Moraine")).toBeDefined();
+
+    expect((await enter(first, "alpha")).statusCode).toBe(200);
+    expect(space.presence.find("Moraine")).toBeUndefined();
+    activity.observeRead("Moraine", "agent", "tasks");
+    activity.rehydrate();
+    expect(space.presence.find("Moraine")).toBeUndefined();
+
+    // Another device deliberately stays in the development room. Its actor
+    // may still be inferred there even when the first device is in alpha.
+    const second = `${config.cookieName}=${sessions.create("moraine", "agent", "agent")}`;
+    expect((await enter(second, "saha.ing")).statusCode).toBe(200);
+    activity.observeRead("Moraine", "agent", "tasks");
+    expect(space.presence.find("Moraine")).toBeDefined();
   });
 
   it("does not disclose another room's words or screens, including audio and a share-link upload", async () => {

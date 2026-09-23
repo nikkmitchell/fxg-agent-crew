@@ -12,12 +12,13 @@ import { placeOf, savePlacement } from "./panel-placement";
 import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
 import { useVoiceChat } from "./useVoiceChat";
 import { ProjectChooser } from "../ProjectChooser";
-import { base } from "../router";
+import { base, pathForTab } from "../router";
 import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
 import { useHiddenAsStill } from "./useHiddenAsStill";
 import { takeCrumb } from "./left-crumb";
 import { useHeadsetAvailable } from "./useHeadsetAvailable";
 import { bff } from "../bff-client";
+import { ApiError } from "../api-request";
 
 /**
  * The way in to screen sharing, on the website rather than only in a terminal.
@@ -106,6 +107,23 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
    * stays false even while the door's flag is still true.
    */
   const [entered, setEntered] = useState(startEntered);
+  const [directEntryTrouble, setDirectEntryTrouble] = useState<string | null>(null);
+  const [checkingDirectEntry, setCheckingDirectEntry] = useState(false);
+  const enterFromDirectLink = async () => {
+    if (checkingDirectEntry) return;
+    setCheckingDirectEntry(true);
+    setDirectEntryTrouble(null);
+    try {
+      await bff.currentSpaceRoom();
+      setEntered(true);
+    } catch (error) {
+      setDirectEntryTrouble(error instanceof ApiError && error.code === "ROOM_NOT_SELECTED"
+        ? "Choose a room at the front door before entering its space."
+        : "The room could not be confirmed. Please try again.");
+    } finally {
+      setCheckingDirectEntry(false);
+    }
+  };
   const [spaceRoomName, setSpaceRoomName] = useState<string | null>(null);
   const [spaceRoomTrouble, setSpaceRoomTrouble] = useState<string | null>(null);
   const [spaceRoomRevision, setSpaceRoomRevision] = useState(0);
@@ -219,9 +237,10 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
           ask. Walk with W A S D or the arrow keys; drag to look around.
         </p>
 
-        <button type="button" className="primary-action" onClick={() => setEntered(true)}>
-          Enter the room
+        <button type="button" className="primary-action" disabled={checkingDirectEntry} onClick={() => void enterFromDirectLink()}>
+          {checkingDirectEntry ? "Checking the room…" : "Enter the room"}
         </button>
+        {directEntryTrouble ? <p className="space-room-trouble" role="alert">{directEntryTrouble} <a href={pathForTab("home")}>Choose a room</a></p> : null}
 
         <ShareScreenLink />
 

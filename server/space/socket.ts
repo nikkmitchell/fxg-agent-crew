@@ -482,7 +482,8 @@ export function registerSpaceEntryRoute(
   config: Config,
   sessions: SessionStore,
   client: WebharnessClient,
-  hubFor: (room: string) => SpaceHub,
+  evictSessionEverywhere: (sid: string) => void,
+  afterSwitch: (actorId: string) => void = () => {},
 ): void {
   app.post<{ Body: { roomName?: unknown } }>("/bff/space/enter", async (request, reply) => {
     const sid = request.cookies[config.cookieName];
@@ -510,9 +511,21 @@ export function registerSpaceEntryRoute(
         ...(failure.code === "SESSION_EXPIRED" ? { reauth: true } : {}),
       });
     }
-    const previous = spaceRoomOf(session);
-    if (previous !== wanted) hubFor(previous).evictSession(sid);
-    sessions.enterRoom(sid, wanted);
+    // The upstream check awaited the network. Another enter request for this
+    // same sid may have completed while we waited, so the earlier `session`
+    // object is not the current room (SQLite returns a detached row). A token
+    // rotation also invalidates the membership check we just made.
+    const latest = sessions.get(sid);
+    if (!latest || latest.token !== session.token || actorKey(latest.username) !== actorKey(session.username)) {
+      return reply.code(409).send({ code: "SESSION_CHANGED", error: "session changed while entering; retry" });
+    }
+    if (latest.spaceRoom !== wanted) {
+      // Evict this sid from ALL hubs, not only the room the original request
+      // saw. That closes a socket opened between two overlapping enter calls.
+      if (spaceRoomOf(latest) !== wanted) evictSessionEverywhere(sid);
+      sessions.enterRoom(sid, wanted);
+      afterSwitch(latest.username);
+    }
     return reply.send({ roomName: wanted });
   });
 }

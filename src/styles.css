@@ -1005,8 +1005,8 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .room-front-form .room-front-review { padding: 10px 12px; border-left: 3px solid #dfc684; background: #3e3a30; color: #fff2d5; }
 @media (max-width: 900px) {
   .room-front-layout { grid-template-columns: minmax(0, 1fr); }
-  .room-front-directory { border-right: 0; border-bottom: 1px solid var(--line); }
-  .room-front-details { min-height: 470px; }
+  .room-front-directory { border-right: 0; }
+  .room-front-details { order: -1; min-height: 0; }
 }
 @media (max-width: 560px) {
   .room-front { padding-top: 4px; }

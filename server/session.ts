@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { roomKey } from "../shared/space-room.js";
+import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
+import { actorKey } from "../shared/space-layout.js";
 
 /**
  * Server-side session storage.
@@ -45,15 +46,23 @@ export type Session = {
    * choice of the same room.
    */
   spaceRoom?: string;
+  /** Newly signed-in users must choose a room verified against upstream before
+   * any room-scoped route can read the legacy default space. */
+  requiresRoomEntry?: boolean;
 };
 
 export interface SessionStore {
   create(username: string, token: string, kind?: SessionKind): string;
+  /** Production sign-in: do not grant the historical default room implicitly. */
+  createUnselected(username: string, token: string, kind?: SessionKind): string;
   get(sid: string | undefined): Session | undefined;
   /** Replace the upstream token after a transparent re-login, keeping the sid. */
   refreshToken(sid: string, token: string): void;
   /** Stand this session in a different room's space. */
   enterRoom(sid: string, room: string): void;
+  /** Legacy board activity may place this actor in the default room only when
+   * no active session explicitly places every copy of them elsewhere. */
+  mayInferInDefaultRoom(actorId: string): boolean;
   destroy(sid: string | undefined): void;
   /** Projection safe to send to the browser. */
   publicView(session: Session): { username: string; kind: SessionKind };
@@ -88,6 +97,12 @@ export class MemorySessionStore implements SessionStore {
     return sid;
   }
 
+  createUnselected(username: string, token: string, kind: SessionKind = "human"): string {
+    const sid = this.create(username, token, kind);
+    this.sessions.get(sid)!.requiresRoomEntry = true;
+    return sid;
+  }
+
   get(sid: string | undefined): Session | undefined {
     if (!sid) return undefined;
     const session = this.sessions.get(sid);
@@ -110,6 +125,18 @@ export class MemorySessionStore implements SessionStore {
     const session = this.sessions.get(sid);
     if (!session) return;
     session.spaceRoom = roomKey(room);
+    session.requiresRoomEntry = false;
+  }
+
+  mayInferInDefaultRoom(actorId: string): boolean {
+    let hasActiveSession = false;
+    for (const session of this.sessions.values()) {
+      if (session.expiresAt <= Date.now() || actorKey(session.username) !== actorKey(actorId)) continue;
+      hasActiveSession = true;
+      if (!session.requiresRoomEntry && roomKey(session.spaceRoom ?? DEFAULT_SPACE_ROOM) === DEFAULT_SPACE_ROOM) return true;
+    }
+    // Preserve the pre-lobby audit trail for agents with no current session.
+    return !hasActiveSession;
   }
 
   destroy(sid: string | undefined): void {
@@ -164,6 +191,7 @@ export class SqliteSessionStore implements SessionStore {
     `);
     this.addKindColumn();
     this.addSpaceRoomColumn();
+    this.addRoomEntryColumn();
     this.db.exec("PRAGMA foreign_keys = ON");
     this.purgeExpired();
   }
@@ -208,6 +236,14 @@ export class SqliteSessionStore implements SessionStore {
     this.db.exec("ALTER TABLE sessions ADD COLUMN space_room TEXT");
   }
 
+  /** Existing sessions keep their pre-lobby default access; new sign-ins do
+   * not. This migration is additive so a release does not sign everyone out. */
+  private addRoomEntryColumn(): void {
+    const columns = this.db.prepare("PRAGMA table_info(sessions)").all() as Array<{ name: string }>;
+    if (columns.some((column) => column.name === "requires_room_entry")) return;
+    this.db.exec("ALTER TABLE sessions ADD COLUMN requires_room_entry INTEGER NOT NULL DEFAULT 0");
+  }
+
   create(username: string, token: string, kind: SessionKind = "human"): string {
     const sid = newSessionId();
     this.db
@@ -216,12 +252,19 @@ export class SqliteSessionStore implements SessionStore {
     return sid;
   }
 
+  createUnselected(username: string, token: string, kind: SessionKind = "human"): string {
+    const sid = newSessionId();
+    this.db.prepare("INSERT INTO sessions (sid, username, token, kind, expires_at, requires_room_entry) VALUES (?, ?, ?, ?, ?, 1)")
+      .run(sid, username, token, kind, Date.now() + this.ttlMs);
+    return sid;
+  }
+
   get(sid: string | undefined): Session | undefined {
     if (!sid) return undefined;
     const row = this.db
-      .prepare("SELECT username, token, kind, expires_at, space_room FROM sessions WHERE sid = ?")
+      .prepare("SELECT username, token, kind, expires_at, space_room, requires_room_entry FROM sessions WHERE sid = ?")
       .get(sid) as
-        { username: string; token: string; kind: string; expires_at: number; space_room: string | null } | undefined;
+        { username: string; token: string; kind: string; expires_at: number; space_room: string | null; requires_room_entry: number } | undefined;
     if (!row) return undefined;
 
     if (row.expires_at <= Date.now()) {
@@ -236,6 +279,7 @@ export class SqliteSessionStore implements SessionStore {
       kind: row.kind === "agent" ? "agent" : "human",
       expiresAt: row.expires_at,
       spaceRoom: row.space_room ?? undefined,
+      requiresRoomEntry: row.requires_room_entry === 1,
     };
   }
 
@@ -246,7 +290,16 @@ export class SqliteSessionStore implements SessionStore {
   }
 
   enterRoom(sid: string, room: string): void {
-    this.db.prepare("UPDATE sessions SET space_room = ? WHERE sid = ?").run(roomKey(room), sid);
+    this.db.prepare("UPDATE sessions SET space_room = ?, requires_room_entry = 0 WHERE sid = ?").run(roomKey(room), sid);
+  }
+
+  mayInferInDefaultRoom(actorId: string): boolean {
+    const row = this.db.prepare(`
+      SELECT COUNT(*) AS active,
+             SUM(CASE WHEN requires_room_entry = 0 AND (space_room IS NULL OR lower(trim(space_room)) = ?) THEN 1 ELSE 0 END) AS in_default
+        FROM sessions WHERE lower(trim(username)) = ? AND expires_at > ?
+    `).get(DEFAULT_SPACE_ROOM, actorKey(actorId), Date.now()) as { active: number; in_default: number | null };
+    return row.active === 0 || (row.in_default ?? 0) > 0;
   }
 
   destroy(sid: string | undefined): void {
