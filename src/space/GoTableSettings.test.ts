@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GO_PLAYERS, GO_SIZES, defaultGoItem, type GoRoomItem } from "../../shared/room-items.js";
-import { GEAR, GO_PANEL, gearAt, gearClearance, goSettingCost, goSettingFor, goSettingsFit, goSettingsItems } from "./GoTableSettings.js";
+import { BAR, GEAR, GO_PANEL, barAt, barWidth, gearAt, gearClearance, handleClearance, goSettingCost, goSettingFor, goSettingsFit, goSettingsItems } from "./GoTableSettings.js";
 import { GO_SURFACE, goBoardWidth } from "../../shared/go-layout.js";
 import { layOutSettings, settingAt } from "../../shared/settings-3d.js";
 
@@ -133,18 +133,74 @@ describe("where the gear sits", () => {
 
   it("clears them by STANDING ABOVE them, which widening the board cannot eat into", () => {
     // Everything pressable on this table lives in a thin slab around the
-    // surface. Horizontal room runs out as the board grows; height does not.
+    // surface. Horizontal room runs out as the board grows; height does not,
+    // so the clearance barely moves between the smallest board and the largest.
     expect(GEAR.y).toBeGreaterThan(GO_SURFACE + 0.085 + GEAR.radius);
     const small = gearClearance(5, 8);
     const large = gearClearance(25, 8);
-    expect(Math.abs(small - large)).toBeLessThan(0.01);
+    expect(Math.abs(small - large)).toBeLessThan(0.05);
+    expect(Math.min(small, large)).toBeGreaterThan(0.05);
   });
 
-  it("stands just in front of the board, and follows it as it grows", () => {
+  it("stands just in front of the board, beside the bar, and follows both as they grow", () => {
     const small = gearAt({ size: 5 });
     const large = gearAt({ size: 25 });
     expect(small.z).toBeCloseTo(goBoardWidth(5) / 2 + GEAR.ahead, 9);
     expect(large.z).toBeGreaterThan(small.z);
-    expect(small.x).toBe(0);
+    // Off to one side now: the middle of that edge is the grab bar.
+    expect(small.x).toBeGreaterThan(0);
+    expect(large.x).toBeGreaterThan(small.x);
+  });
+});
+
+describe("the bar you pick the table up by", () => {
+  /**
+   * FOUND BY DRAGGING AND WATCHING THE CAMERA SWING INSTEAD.
+   *
+   * Three handles failed before this one, all the same way — the right size in
+   * metres and too small for a pointer:
+   *
+   *   - the board's RIM: twice I aimed at a rim I could see and the press fell
+   *     through to the look-drag, swinging the room instead of moving the table;
+   *   - a fat invisible COLLAR below the board, which this very test file
+   *     killed before it shipped — at 5x5 it reached into the bowls' reach, and
+   *     dropping it below them put it under the desk top, which has no handler
+   *     and would have taken every ray first.
+   *
+   * The bar stands in the air beside the gear, and its clearance is vertical.
+   */
+  const SEATINGS = [2, 3, 4, 5, 6, 7, 8];
+
+  it("stands clear of every stone and every bowl, at every size and seating", () => {
+    for (const size of GO_SIZES) {
+      for (const colours of SEATINGS) {
+        expect(handleClearance(size, colours), `${size}x${size}, ${colours}`).toBeGreaterThan(0.05);
+      }
+    }
+  });
+
+  it("is clear BY HEIGHT, which widening the board cannot eat into", () => {
+    // The collar failed because its clearance was horizontal and the table
+    // grows horizontally. This one does not change with the board at all.
+    const small = handleClearance(5, 8), large = handleClearance(25, 8);
+    expect(Math.abs(small - large)).toBeLessThan(0.01);
+  });
+
+  it("is a wide target, and grows with the board without running away", () => {
+    for (const size of GO_SIZES) {
+      expect(barWidth(size)).toBeGreaterThanOrEqual(BAR.minWidth);
+      expect(barWidth(size)).toBeLessThanOrEqual(BAR.maxWidth);
+    }
+    expect(barWidth(25)).toBeGreaterThan(barWidth(5));
+  });
+
+  it("does not sit on top of the gear", () => {
+    for (const size of GO_SIZES) {
+      const bar = barAt(size), gear = gearAt({ size });
+      expect(bar.y).toBe(gear.y);
+      expect(bar.z).toBeCloseTo(gear.z, 9);
+      // The gear clears the bar's right-hand end.
+      expect(gear.x - GEAR.radius).toBeGreaterThan(barWidth(size) / 2);
+    }
   });
 });

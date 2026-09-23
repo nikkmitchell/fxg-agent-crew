@@ -68,9 +68,13 @@ export const GEAR = {
   ahead: 0.1,
 } as const;
 
-/** Where the gear stands, in the table's own frame. */
+/** Where the gear stands, in the table's own frame: at the right-hand end of the grab bar. */
 export function gearAt(item: { size: GoSize }): { x: number; y: number; z: number } {
-  return { x: 0, y: GEAR.y, z: goBoardWidth(item.size) / 2 + GEAR.ahead };
+  return {
+    x: barWidth(item.size) / 2 + GEAR.radius + 0.05,
+    y: GEAR.y,
+    z: goBoardWidth(item.size) / 2 + GEAR.ahead,
+  };
 }
 
 /**
@@ -106,6 +110,62 @@ export function gearClearance(size: GoSize, colours: number): number {
     worst = Math.min(worst, Math.max(flat - 0.19, over) - GEAR.radius);
   }
 
+  return worst;
+}
+
+/**
+ * THE BAR YOU PICK THE TABLE UP BY.
+ *
+ * Three handles failed before this one, and each failed the same way: it was
+ * the right size in metres and too small for a pointer.
+ *
+ *   - The board's own RIM. Twice I aimed at a rim I could see on screen and
+ *     the press fell through to the look-drag, swinging the room instead of
+ *     moving the table. A rim seen edge-on is a few pixels.
+ *   - A fat invisible COLLAR around and below the board. A test killed it
+ *     before it shipped: at 5×5 it reached 4.5cm into the bowls' own reach,
+ *     and lowering it under them put it beneath the desk top, where the desk
+ *     — which has no handler at all — would have taken every ray first.
+ *
+ * So the handle is a BAR, in the air in front of the board, beside the gear and
+ * at the same height. That is the shape Nikk asked for in the first place —
+ * "you grab a window and drag it" — and it is exactly what the room's panels
+ * already do, which have carried a bar along their top edge from the start.
+ *
+ * Its clearance is VERTICAL, like the gear's: everything else on this table
+ * lives in a thin slab around the surface, so a handle held a head above them
+ * cannot be confused with any of them at any size or seating.
+ */
+export const BAR = {
+  /** Half the width of the board, within sensible bounds, so it scales with the table. */
+  minWidth: 0.44,
+  maxWidth: 0.9,
+  thickness: 0.055,
+} as const;
+
+export function barWidth(size: GoSize): number {
+  return Math.min(BAR.maxWidth, Math.max(BAR.minWidth, goBoardWidth(size) * 0.55));
+}
+
+/** Where the grab bar sits, in the table's own frame. */
+export function barAt(size: GoSize): { x: number; y: number; z: number } {
+  return { x: 0, y: GEAR.y, z: goBoardWidth(size) / 2 + GEAR.ahead };
+}
+
+/**
+ * How far the bar and the gear stand clear of everything pressable below them.
+ *
+ * One number, because they share a height and that height is the whole
+ * argument. Positive means no ray aimed at a stone or a bowl can reach either.
+ */
+export function handleClearance(size: GoSize, colours: number): number {
+  const bar = barAt(size);
+  const stoneTop = GO_SURFACE + 0.085;
+  let worst = bar.y - BAR.thickness / 2 - stoneTop;
+  for (let index = 0; index < colours; index += 1) {
+    const bowl = goBowl(index, colours, size);
+    worst = Math.min(worst, bar.y - BAR.thickness / 2 - (bowl.y + 0.15));
+  }
   return worst;
 }
 

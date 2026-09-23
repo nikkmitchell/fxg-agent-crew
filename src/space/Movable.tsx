@@ -326,16 +326,27 @@ export function Movable({
   }, [invalidate, onPlaced, onTrouble, place]);
 
   /**
-   * While dragging, the whole window listens.
+   * While dragging, the whole window listens — FROM THE MOMENT OF THE GRAB.
    *
    * Not the bar: a pointer moving faster than React re-renders leaves a small
    * DOM element behind within the first few pixels, and the panel would stop
    * following halfway through every drag.
+   *
+   * And not a `useEffect` gated on the dragging flag, which is the obvious
+   * shape and has a hole in it: an effect does not run until React has
+   * re-rendered, so a drag that starts and finishes inside that gap never
+   * receives a single `pointermove`. The panel survived that because its whole
+   * face also carries `onPointerMove`, which covers a drag that stays on the
+   * panel; the Go table had no such second path and simply did not move. Same
+   * bug, one of them visible. A flick of a controller is faster than a render,
+   * so the window is listening before the press handler returns.
    */
-  useEffect(() => {
-    if (!dragging) return;
+  const stopListening = useRef<(() => void) | null>(null);
+
+  const listenWhileDragging = useCallback(() => {
+    stopListening.current?.();
     const move = (event: PointerEvent) => drag(rayFromScreen(event.clientX, event.clientY));
-    const up = () => release();
+    const up = () => { stopListening.current?.(); release(); };
     const wheel = (event: WheelEvent) => {
       if (gesture.current !== "move") return;
       // Or the page scrolls underneath the room while somebody is placing a
@@ -348,13 +359,17 @@ export function Movable({
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
     window.addEventListener("wheel", wheel, { passive: false });
-    return () => {
+    stopListening.current = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
       window.removeEventListener("wheel", wheel);
+      stopListening.current = null;
     };
-  }, [dragging, drag, rayFromScreen, reachBy, release]);
+  }, [drag, rayFromScreen, reachBy, release]);
+
+  // Never leave a listener behind on a panel that has gone away.
+  useEffect(() => () => stopListening.current?.(), []);
 
   // Follow the authoritative place whenever it changes and we are not the one
   // moving it — somebody else dragging a panel must move it here too.
@@ -380,6 +395,7 @@ export function Movable({
     (event.target as { setPointerCapture?: (id: number) => void } | null)
       ?.setPointerCapture?.(event.pointerId);
     begin(rayOf(event), event.point ? vec(event.point) : null, kind);
+    listenWhileDragging();
   };
 
   const steer = (event: ThreeEvent<PointerEvent>) => {

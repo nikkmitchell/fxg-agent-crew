@@ -12,7 +12,7 @@ import { space } from "../space-client";
 import { claimPointer } from "./pointer-claim";
 import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
 import { SettingsPanel3D } from "./SettingsPanel3D";
-import { GEAR, GO_PANEL, gearAt, goSettingCost, goSettingFor, goSettingsItems } from "./GoTableSettings";
+import { BAR, GEAR, GO_PANEL, barAt, barWidth, gearAt, goSettingCost, goSettingFor, goSettingsItems } from "./GoTableSettings";
 
 const NAMES = ["Black", "White", "Coral", "Blue", "Gold", "Jade", "Violet", "Rose"];
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
@@ -307,10 +307,26 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     void configure({ position: { x: at.x, y: at.y, z: at.z, rotationY: item.position.rotationY } });
   }, [item.position.rotationY]);
 
-  useEffect(() => {
-    if (!carrying) return;
+  /**
+   * THE LISTENERS GO ON AT THE MOMENT OF THE GRAB, not on the next render.
+   *
+   * They used to be a `useEffect` gated on a `carrying` state flag, which is
+   * the obvious shape and is wrong: the effect does not run until React has
+   * re-rendered, so a drag that starts and finishes inside that gap never gets
+   * a single `pointermove` and the table does not move at all. I found it by
+   * dragging the bar and watching the position not change — three times, while
+   * blaming my aim, because a grab that takes hold and then ignores you looks
+   * exactly like a grab that missed.
+   *
+   * A flick of a controller is faster than a render. So the window is listening
+   * before this handler returns.
+   */
+  const letGoOfTable = useRef<(() => void) | null>(null);
+
+  const listenWhileCarrying = useCallback(() => {
+    letGoOfTable.current?.();
     const move = (event: PointerEvent) => steerTable(rayFromScreen(event.clientX, event.clientY));
-    const up = () => dropTable();
+    const up = () => { letGoOfTable.current?.(); dropTable(); };
     const wheel = (event: WheelEvent) => {
       if (!grab.current) return;
       event.preventDefault();
@@ -321,13 +337,17 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
     window.addEventListener("wheel", wheel, { passive: false });
-    return () => {
+    letGoOfTable.current = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
       window.removeEventListener("wheel", wheel);
+      letGoOfTable.current = null;
     };
-  }, [carrying, steerTable, rayFromScreen, dropTable, invalidate]);
+  }, [steerTable, rayFromScreen, dropTable, invalidate]);
+
+  // Never leave a listener behind on a table that has gone away.
+  useEffect(() => () => letGoOfTable.current?.(), []);
 
   useFrame(() => {
     const node = body.current, at = want.current;
@@ -350,6 +370,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     (event.target as { setPointerCapture?: (id: number) => void } | null)?.setPointerCapture?.(event.pointerId);
     setNotice("");
     setCarrying(true);
+    listenWhileCarrying();
   };
 
   const onSetting = (id: string) => {
@@ -367,7 +388,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     );
   };
 
-  const gear = gearAt(item);
+  const gear = gearAt(item), bar = barAt(item.size), barSpan = barWidth(item.size);
   const settingsItems = useMemo(() => goSettingsItems(item), [item]);
   const stars = item.size === 5 ? [2] : item.size === 9 ? [2, 4, 6] : [3, (item.size - 1) / 2, item.size - 4];
   const lifted = item.liftedColour === null ? null : goBowl(item.liftedColour, item.colours.length, item.size);
@@ -377,15 +398,21 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     {item.deskVisible && <RoundedBox args={[deck, 0.075, deck]} radius={0.035} smoothness={4} position={[0, 0.705, 0]} receiveShadow>
       <meshStandardMaterial map={wood} color="#765b49" roughness={0.42} metalness={0.06} />
     </RoundedBox>}
-    {/*
-      THE BOARD'S RIM IS THE HANDLE. It sits below the playing surface and
-      carries no stone targets, so grabbing the table cannot be confused with
-      placing a stone — the same reasoning as picking up a table by its edge
-      rather than by the pieces on it.
-    */}
-    <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow
-      onPointerDown={takeTable}>
+    <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow>
       <meshPhysicalMaterial color={carrying ? "#c2793f" : "#975d32"} roughness={0.38} clearcoat={0.4} />
+    </RoundedBox>
+    {/*
+      THE BAR YOU PICK IT UP BY. In the air in front of the board, beside the
+      gear — the same shape the room's panels have always had along their top
+      edge, and the shape Nikk asked for: "you grab a window and drag it".
+
+      Three handles failed before this one, all the same way — the right size
+      in metres and too small for a pointer. GoTableSettings.ts lists them.
+    */}
+    <RoundedBox args={[barSpan, BAR.thickness, BAR.thickness]} radius={0.02} smoothness={3}
+      position={[bar.x, bar.y, bar.z]} onPointerDown={takeTable}>
+      <meshStandardMaterial color={carrying ? "#e45338" : "#c9b48c"} emissive={carrying ? "#e45338" : "#6f5f43"}
+        emissiveIntensity={carrying ? 0.5 : 0.2} roughness={0.4} />
     </RoundedBox>
     <RoundedBox args={[boardWidth, 0.025, boardWidth]} radius={0.01} smoothness={3} position={[0, GO_SURFACE - 0.0125, 0]} receiveShadow>
       <meshPhysicalMaterial map={wood} roughness={0.43} clearcoat={0.22} />
