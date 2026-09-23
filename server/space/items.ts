@@ -140,10 +140,28 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       item.stones = move.stones;
       item.captures.push(...move.captured.map((stone) => ({ ...stone, by: item.activeColour })));
       item.liftedColour = null; item.carrier = null; item.activeColour = (item.activeColour + 1) % item.colours.length;
+    } else if (request.body?.action === "play") {
+      // A whole move in one request, for agents and their programs playing
+      // through code (tools/go.mts). Lift-then-place is two requests with a
+      // stone in the air between them, and a program that dies in between
+      // leaves it hanging over everybody's game. This names the colour it is
+      // playing, so it can never play somebody else's turn by being quick.
+      const { x, y, colour } = request.body;
+      if (item.liftedColour !== null) return reply.code(409).send({ error: `${item.carrier?.by ?? "Somebody"} is carrying a stone. Wait for it to land.` });
+      if (!Number.isInteger(colour) || (colour as number) < 0 || (colour as number) >= item.colours.length)
+        return reply.code(400).send({ error: "Say which colour you are playing: colour is the bowl's number, 0 for the first." });
+      if (colour !== item.activeColour) return reply.code(409).send({ code: "NOT_YOUR_TURN", error: "It is not that colour's turn." });
+      if (!Number.isInteger(x) || !Number.isInteger(y) || (x as number) < 0 || (y as number) < 0 || (x as number) >= item.size || (y as number) >= item.size)
+        return reply.code(400).send({ error: "that intersection is not on the board" });
+      const move = placeGoStone(item.stones, item.size, { id: randomUUID(), x: x as number, y: y as number, colour: item.activeColour });
+      if ("error" in move) return reply.code(409).send({ error: move.error });
+      item.stones = move.stones;
+      item.captures.push(...move.captured.map((stone) => ({ ...stone, by: item.activeColour })));
+      item.activeColour = (item.activeColour + 1) % item.colours.length;
     } else if (request.body?.action === "return") {
       // Deliberate recovery for a disconnected carrier; never steals on incidental contact.
       item.liftedColour = null; item.carrier = null;
-    } else return reply.code(400).send({ error: "action must be lift, place or return" });
+    } else return reply.code(400).send({ error: "action must be lift, place, play or return" });
     item.revision++;
     options.items.save(room, item, session.username); publish(room, session.username); return reply.send({ item });
   });

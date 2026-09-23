@@ -67,6 +67,42 @@ describe("Go actions", () => {
     } finally { await app.close(); }
   });
 
+  it("plays a whole move in one request for code — only on that colour's turn, never over a stone in the air", async () => {
+    // Nikk: "a way for agents to read the board through code and place their
+    // pieces through code". Lift-then-place leaves a stone hanging if a
+    // program dies between them; `play` cannot.
+    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    try {
+      const items = new RoomItems(database), item = items.add("saha.ing", "Moraine");
+      const agent = `${config.cookieName}=${sessions.create("Sill", "t", "agent")}`;
+      const person = `${config.cookieName}=${sessions.create("baiwei2", "t", "human")}`;
+      const action = (cookie: string, payload: object) => app.inject({ method: "POST", url: `/bff/space/items/${item.id}/action`, headers: { cookie }, payload });
+
+      expect((await action(agent, { action: "play", x: 2, y: 2 })).statusCode).toBe(400); // no colour named
+      const early = await action(agent, { action: "play", x: 2, y: 2, colour: 1 });
+      expect(early.statusCode).toBe(409);
+      expect(early.json().code).toBe("NOT_YOUR_TURN");
+
+      const played = await action(agent, { action: "play", x: 2, y: 2, colour: 0, revision: 0 });
+      expect(played.statusCode).toBe(200);
+      expect(played.json().item).toMatchObject({ activeColour: 1, liftedColour: null, carrier: null, revision: 1 });
+      expect(played.json().item.stones).toEqual([expect.objectContaining({ x: 2, y: 2, colour: 0 })]);
+      expect(items.one("saha.ing", item.id)?.stones).toHaveLength(1);
+
+      // A stale revision is refused like every other change.
+      expect((await action(agent, { action: "play", x: 3, y: 3, colour: 1, revision: 0 })).statusCode).toBe(409);
+      // Occupied, and off the board.
+      expect((await action(agent, { action: "play", x: 2, y: 2, colour: 1 })).json().error).toMatch(/occupied/i);
+      expect((await action(agent, { action: "play", x: 9, y: 0, colour: 1 })).statusCode).toBe(400);
+
+      // Somebody in a headset has White's stone in their hand: code waits.
+      expect((await action(person, { action: "lift", hand: "right", colour: 1 })).statusCode).toBe(200);
+      const busy = await action(agent, { action: "play", x: 3, y: 3, colour: 1 });
+      expect(busy.statusCode).toBe(409);
+      expect(busy.json().error).toMatch(/baiwei2 is carrying/);
+    } finally { await app.close(); }
+  });
+
   it("serializes turns, protects a carrier, stores captures and retains an unchanged size", async () => {
     const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
     try {

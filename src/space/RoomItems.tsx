@@ -15,9 +15,9 @@ import { goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings
 import { GO_TABLE_POINTERS, goControls, goControlsShown } from "./go-controls";
 import { goSnap, type GoMove } from "./go-snap";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
+import { GO_NAMES as NAMES, goStarPoints } from "../../shared/go-text";
 import { goTableWriter } from "./go-table-writer";
 
-const NAMES = ["Black", "White", "Coral", "Blue", "Gold", "Jade", "Violet", "Rose"];
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
 const xyz = (p: Point3): [number, number, number] => [p.x, p.y, p.z];
 const noRaycast = () => {};
@@ -543,7 +543,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   // Lifting a stone puts the glowing intersections on the board the sheet was
   // lying on, so the sheet closes rather than waiting underneath them.
   useEffect(() => { if (!showControls) setSettingsOpen(false); }, [showControls]);
-  const stars = item.size === 5 ? [2] : item.size === 9 ? [2, 4, 6] : [3, (item.size - 1) / 2, item.size - 4];
+  const stars = goStarPoints(item.size);
   const lifted = item.liftedColour === null ? null : goBowl(item.liftedColour, item.colours.length, item.size);
   const wide = item.colours.length > 2, deck = goDeckWidth(item.size, item.colours.length);
   const extent = goExtent(item.size), boardWidth = goBoardWidth(item.size), edge = deck / 2;
