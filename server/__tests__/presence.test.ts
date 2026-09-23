@@ -1,3 +1,4 @@
+import { testBlobRoot } from "./test-roots.js";
 import { describe, expect, it } from "vitest";
 import { facingToward, Presence, STALE_AFTER_MS } from "../space/presence.js";
 import { ROOM, WALK_SPEED, deskFor } from "../../shared/space-layout.js";
@@ -686,7 +687,7 @@ describe("GET /bff/space/presence", () => {
     buildServer({
       WEBHARNESS_URL: "https://example.test",
       DATABASE_PATH: ":memory:",
-      BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+      BLOB_ROOT: testBlobRoot(),
       LOG_LEVEL: "silent",
     });
 

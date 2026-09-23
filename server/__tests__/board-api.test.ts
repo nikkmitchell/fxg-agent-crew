@@ -1,3 +1,4 @@
+import { testBlobRoot } from "./test-roots.js";
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
 import { STATIONS } from "../../shared/space-layout.js";
@@ -14,7 +15,7 @@ const boot = () => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: testBlobRoot(),
   });
   const as = (username: string, kind: "human" | "agent" = "human") =>
     `${built.config.cookieName}=${built.sessions.create(username, "upstream-token", kind)}`;

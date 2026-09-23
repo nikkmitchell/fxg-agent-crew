@@ -1,3 +1,4 @@
+import { testBlobRoot } from "./test-roots.js";
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
 import { Presence } from "../space/presence.js";
@@ -47,7 +48,7 @@ describe("the snapshot says how long each person has been still", () => {
     const built = buildServer({
       WEBHARNESS_URL: "https://example.test",
       DATABASE_PATH: ":memory:",
-      BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+      BLOB_ROOT: testBlobRoot(),
       LOG_LEVEL: "silent",
     });
     built.space.presence.join("Corvid", "agent", false);

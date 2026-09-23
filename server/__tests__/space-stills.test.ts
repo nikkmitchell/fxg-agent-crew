@@ -1,3 +1,4 @@
+import { testBlobRoot } from "./test-roots.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,7 +26,7 @@ const boot = (stillsToken = "a-real-secret") => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: testBlobRoot(),
     STILLS_ROOT: stillsRoot,
     STILLS_TOKEN: stillsToken,
     LOG_LEVEL: "silent",

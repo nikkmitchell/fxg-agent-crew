@@ -1,3 +1,4 @@
+import { testBlobRoot } from "./test-roots.js";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,7 +38,7 @@ const boot = async (options: {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: testBlobRoot(),
     LOG_LEVEL: "silent",
   });
   const app = Fastify({ logger: false });

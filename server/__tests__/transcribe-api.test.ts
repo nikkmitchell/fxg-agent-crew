@@ -1,3 +1,4 @@
+import { testBlobRoot } from "./test-roots.js";
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
 import { registerTranscribeRoutes, MAX_AUDIO_BYTES } from "../space/transcribe.js";
@@ -25,7 +26,7 @@ const boot = (transcriber?: (path: string) => Promise<string>) => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: testBlobRoot(),
   });
   // A second registration on its own prefix, so one server can be asked both
   // "what if nothing is configured" and "what if something is".
