@@ -49,18 +49,23 @@ export const GO_SURFACE_LOOKS: Record<GoSurface, GoSurfaceLook> = {
     ink: "#49331f",
     inkSoft: "#624526",
   },
+  // Lumenfold's spec: slab #777B7D, carved grid #3C4143, bevel #969A9B —
+  // "starting values, not locked finals", to be tuned for Baiwei's eye
+  // comfort. The slab and bevel are theirs. The grid is a shade deeper than
+  // theirs: #3C4143 is 2.4:1 on that slab, and the lines are what a player
+  // aims by, so it is taken to the 3:1 the test holds.
   stone: {
     label: "STONE",
     grain: "stone",
-    base: "#8e9195",
+    base: "#777b7d",
     roughness: 0.82,
     clearcoat: 0.04,
-    rim: "#5d6166",
+    rim: "#55595b",
     rimCarrying: "#8a96a3",
-    lines: "#2e3135",
-    lineLight: "#b9bcc0",
-    ink: "#23262a",
-    inkSoft: "#34383d",
+    lines: "#2b2f31",
+    lineLight: "#969a9b",
+    ink: "#1f2224",
+    inkSoft: "#2e3235",
   },
 };
 
