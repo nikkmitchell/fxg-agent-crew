@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import { facingArc, placementRefusal, scaleOf } from "../../shared/panel-place";
+import { PANEL_Y, facingArc, placementRefusal, scaleOf } from "../../shared/panel-place";
 import { PANEL } from "../../shared/space-layout";
 import { resizedScale } from "./panel-resize";
-import { PANEL_HALF_LIFE, follow, followPoint } from "../../shared/smooth-follow";
+import { PANEL_HALF_LIFE, follow, followVec3 } from "../../shared/smooth-follow";
+import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
 import type { ArrangeMode } from "./usePanelArrange";
 import type { Placement } from "../../shared/space-wire";
 import { claimPointer } from "./pointer-claim";
@@ -21,13 +22,26 @@ import { claimPointer } from "./pointer-claim";
  *
  * The panels are meshes now and the occluder went with the iframes, so the
  * canvas takes a mouse again and the 3D bar works for both. A pointer is a
- * pointer: R3F gives a mouse press and a controller ray the same event, with
- * `pointerType` to tell them apart if anything ever needs to. Nothing here
- * does, which is the point.
+ * pointer: R3F gives a mouse press and a controller ray the same event, and
+ * both carry `event.ray` — a world-space ray, with no screen anywhere in it.
+ * That is the whole input, for both worlds.
  *
- * MOVES ON THE FLOOR PLANE, KEEPS ITS HEIGHT. Dragging in three dimensions from
- * a two-dimensional pointer needs a mode switch, and every one I could think of
- * was worse than not offering it.
+ * HELD AT ARM'S LENGTH, THE WAY A HEADSET DOES IT. The panel keeps the distance
+ * it was grabbed at and goes where you point — left, right, up, down. Pushing
+ * it away and pulling it in is a separate input, because that is the one
+ * direction a ray cannot express. All of that arithmetic lives in
+ * `shared/grab-move.ts`, which says at length what the old version got wrong:
+ * it cast at a level plane three centimetres above the eye, so one degree of
+ * pointing was nearly a metre of travel and the panel flew to your feet. Nikk:
+ * "the drags for movement are very strange, like when you start dragging a
+ * board is pulled right to where you are."
+ *
+ * IT MOVES UP AND DOWN NOW. The note that used to be here said that dragging in
+ * three dimensions from a two-dimensional pointer needed a mode switch, and
+ * that every one I could think of was worse than not offering it. That was true
+ * of a pointer read as a POSITION ON A PLANE and false of a pointer read as a
+ * DIRECTION: a ray already points up and down, and it was only the plane that
+ * threw that away.
  *
  * THE PANEL TURNS TO FACE THE ROOM as it moves, rather than keeping the angle
  * it had. A panel dragged round the arc while staying edge-on to everybody is a
@@ -39,6 +53,32 @@ import { claimPointer } from "./pointer-claim";
  * where it came from and says why, rather than travelling to the server to be
  * undone a moment later.
  */
+
+/** How far a notch of the wheel pushes a panel away from you. */
+const WHEEL_REACH = 0.0022;
+
+const distance = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+
+const normalised = (ray: Ray): Vec3 => {
+  const l = Math.hypot(ray.direction.x, ray.direction.y, ray.direction.z) || 1;
+  return { x: ray.direction.x / l, y: ray.direction.y / l, z: ray.direction.z / l };
+};
+
+/** How far along a ray a world point sits. */
+function alongRay(ray: Ray, at: Vec3): number {
+  const d = normalised(ray);
+  return (at.x - ray.origin.x) * d.x + (at.y - ray.origin.y) * d.y + (at.z - ray.origin.z) * d.z;
+}
+
+/** The point a given way along a ray. */
+function reachAt(ray: Ray, along: number): Vec3 {
+  const d = normalised(ray);
+  return {
+    x: ray.origin.x + d.x * along,
+    y: ray.origin.y + d.y * along,
+    z: ray.origin.z + d.z * along,
+  };
+}
 
 export function Movable({
   place,
@@ -56,7 +96,6 @@ export function Movable({
    * which is what makes it usable from across the room with a controller ray.
    */
   mode: ArrangeMode;
-  /** Which handle to offer. See the note above; this is not cosmetic. */
   /** Called once, on release, with where it ended up. Never during the drag. */
   onPlaced: (place: Placement) => void;
   onTrouble: (why: string | null) => void;
@@ -65,9 +104,21 @@ export function Movable({
   const group = useRef<THREE.Group>(null);
   const [dragging, setDragging] = useState(false);
   const gesture = useRef<"move" | "resize">("move");
-  const grabOffset = useRef({ x: 0, z: 0 });
-  /** Where the resize started: how far out it was grabbed, and the size then. */
-  const grabbed = useRef({ distance: 1, scale: 1 });
+
+  /** How the panel is being held: how far along the ray, and where on it. */
+  const held = useRef<Grab | null>(null);
+
+  /**
+   * What a resize needs, which is not what a move needs.
+   *
+   * A move carries the panel; a resize leaves it exactly where it is and reads
+   * HOW FAR FROM ITS MIDDLE you are pointing. So it remembers the distance
+   * along the ray at which the panel was struck, and compares the reach point
+   * at that same distance against the panel's centre. No plane is involved, so
+   * none of the grazing trouble that made moving unusable.
+   */
+  const sizing = useRef({ along: 1, from: 1, scale: 1, centre: { x: 0, y: 0, z: 0 } as Vec3 });
+
   /**
    * Which pointer is doing the dragging.
    *
@@ -80,75 +131,44 @@ export function Movable({
   const gl = useThree((state) => state.gl);
   const invalidate = useThree((state) => state.invalidate);
 
-  const scratch = useRef({
-    plane: new THREE.Plane(),
-    ray: new THREE.Raycaster(),
-    hit: new THREE.Vector3(),
-    ndc: new THREE.Vector2(),
-  });
+  const scratch = useMemo(() => ({ caster: new THREE.Raycaster(), ndc: new THREE.Vector2() }), []);
+
+  const vec = (v: { x: number; y: number; z: number }): Vec3 => ({ x: v.x, y: v.y, z: v.z });
 
   /**
-   * A world point, flattened to the floor plane the panel moves on.
+   * The ray an R3F event was cast along — mouse or controller, the same field.
    *
-   * In a headset the pointer event already carries the world position where
-   * the ray struck — no screen, no projection, no camera involved. The panel
-   * moves on the floor plane and keeps its height (see the note at the top),
-   * so the height of the strike is deliberately dropped.
+   * This is what lets one piece of maths serve both rooms. A window builds this
+   * ray from the camera and a cursor; a headset builds it from a controller's
+   * pose. Neither fact reaches this file.
    */
-  const onFloor = useCallback(
-    (point: THREE.Vector3 | undefined): { x: number; z: number } | null =>
-      point ? { x: point.x, z: point.z } : null,
+  const rayOf = useCallback(
+    (event: ThreeEvent<PointerEvent>): Ray => ({
+      origin: vec(event.ray.origin),
+      direction: vec(event.ray.direction),
+    }),
     [],
   );
 
-  /** Where on the floor, at the panel's height, a screen point lands. */
-  const floorPoint = useCallback(
-    (clientX: number, clientY: number): { x: number; z: number } | null => {
-      const { plane, ray, hit, ndc } = scratch.current;
+  /**
+   * The same ray, rebuilt from a raw window pointer event.
+   *
+   * Needed because R3F only delivers events while the ray is over one of our
+   * meshes, and a drag that has carried the panel out from under the pointer
+   * must keep steering — see the window listener below.
+   */
+  const rayFromScreen = useCallback(
+    (clientX: number, clientY: number): Ray | null => {
       const rect = gl.domElement.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return null;
-      ndc.set(
+      scratch.ndc.set(
         ((clientX - rect.left) / rect.width) * 2 - 1,
         -(((clientY - rect.top) / rect.height) * 2 - 1),
       );
-      plane.set(new THREE.Vector3(0, 1, 0), -place.position.y);
-      ray.setFromCamera(ndc, camera);
-      return ray.ray.intersectPlane(plane, hit) ? { x: hit.x, z: hit.z } : null;
+      scratch.caster.setFromCamera(scratch.ndc, camera);
+      return { origin: vec(scratch.caster.ray.origin), direction: vec(scratch.caster.ray.direction) };
     },
-    [camera, gl, place.position.y],
-  );
-
-  /**
-   * Take hold, at a point on the floor plane.
-   *
-   * A FLOOR POINT RATHER THAN SCREEN COORDINATES, and this is the whole reason
-   * dragging never worked in a headset. It used to take `clientX/clientY` and
-   * cast a ray from the camera through that screen position — which is exactly
-   * right for a mouse and meaningless in an immersive session, where there is
-   * no screen, no cursor, and a controller event carries no useful client
-   * coordinates. Nikk: "on panel movement and rescaling, draggin never worked
-   * on those." It could not have: every drag was computing a ray through the
-   * point (0, 0) of a canvas nobody was looking at.
-   *
-   * The window converts its pointer to a floor point and passes that in; the
-   * headset passes the world position where its ray actually struck the panel.
-   * One piece of maths, two ways of pointing at it.
-   */
-  const begin = useCallback(
-    (at: { x: number; z: number } | null, kind: "move" | "resize" = "move") => {
-      gesture.current = kind;
-      // Remember where on the panel it was taken hold of, so it does not jump
-      // its own centre under the pointer the moment you grab it.
-      grabOffset.current = at
-        ? { x: place.position.x - at.x, z: place.position.z - at.z }
-        : { x: 0, z: 0 };
-      grabbed.current = {
-        distance: at ? Math.hypot(at.x - place.position.x, at.z - place.position.z) : 0,
-        scale: scaleOf(place),
-      };
-      setDragging(true);
-    },
-    [place],
+    [camera, gl, scratch],
   );
 
   /**
@@ -161,34 +181,86 @@ export function Movable({
    * target and the panel eases toward it, a frame at a time, at a rate that is
    * the same at 60fps and at 120 — see `smooth-follow.ts`.
    */
-  const target = useRef<{ position: { x: number; z: number }; scale: number } | null>(null);
+  const target = useRef<{ position: Vec3; scale: number } | null>(null);
+
+  /** Take hold, along a ray, at the point on the panel the ray struck. */
+  const begin = useCallback(
+    (ray: Ray | null, struck: Vec3 | null, kind: "move" | "resize" = "move") => {
+      const node = group.current;
+      if (!ray || !node) return;
+      gesture.current = kind;
+      const centre = vec(node.position);
+
+      if (kind === "resize") {
+        // Along the ray to where it actually hit the panel, so the reach point
+        // used from here on sits on the panel's own surface.
+        const along = alongRay(ray, struck ?? centre);
+        sizing.current = { along, from: distance(reachAt(ray, along), centre), scale: scaleOf(place), centre };
+        held.current = null;
+      } else {
+        held.current = beginGrab(ray, centre);
+      }
+      setDragging(true);
+    },
+    [place],
+  );
 
   const drag = useCallback(
-    (at: { x: number; z: number } | null) => {
+    (ray: Ray | null) => {
       const node = group.current;
-      if (!node || !at) return;
+      if (!node || !ray) return;
 
       if (gesture.current === "resize") {
-        // The panel stays where it is; only its size follows the ray. Moving
-        // and resizing at once would mean neither could be done deliberately.
-        const now = Math.hypot(at.x - place.position.x, at.z - place.position.z);
+        const { along, from, scale, centre } = sizing.current;
         target.current = {
-          position: { x: node.position.x, z: node.position.z },
-          scale: resizedScale(grabbed.current.scale, grabbed.current.distance, now),
+          // The panel stays exactly where it is; only its size follows. Moving
+          // and resizing at once would mean neither could be done deliberately.
+          position: centre,
+          scale: resizedScale(scale, from, distance(reachAt(ray, along), centre)),
         };
         invalidate();
         return;
       }
 
+      const grab = held.current;
+      if (!grab) return;
+      const want = grabbedTo(ray, grab);
       target.current = {
-        position: { x: at.x + grabOffset.current.x, z: at.z + grabOffset.current.z },
+        /**
+         * CLAMPED AT THE CEILING AND THE FLOOR rather than refused there.
+         *
+         * The room refuses an impossible placement on release and says why, and
+         * that is right for somewhere across the room. Height is different: a
+         * ray sweeps past the ceiling constantly, and a gesture that stops at
+         * the limit is better than one that works all the way and is thrown
+         * away at the end of it.
+         */
+        position: { x: want.x, y: clamp(want.y, PANEL_Y.min, PANEL_Y.max), z: want.z },
         scale: node.scale.x,
       };
       // A room set to redraw only when something happens still has to redraw
       // while a panel is being dragged through it.
       invalidate();
     },
-    [invalidate, place.position],
+    [invalidate],
+  );
+
+  /**
+   * Push it away, pull it in.
+   *
+   * THE ONE AXIS A RAY CANNOT SAY ANYTHING ABOUT, so it gets an input of its
+   * own rather than being guessed at from the other two. Guessing at it is
+   * exactly what the old plane-cast did, and why a panel could never be put
+   * further away than about three metres.
+   */
+  const reachBy = useCallback(
+    (metres: number) => {
+      const grab = held.current;
+      if (!grab || gesture.current !== "move") return;
+      held.current = pushPull(grab, metres);
+      invalidate();
+    },
+    [invalidate],
   );
 
   /**
@@ -202,14 +274,9 @@ export function Movable({
     const node = group.current;
     const want = target.current;
     if (!node || !want) return;
-    const moved = followPoint(
-      { x: node.position.x, z: node.position.z },
-      want.position,
-      delta,
-      PANEL_HALF_LIFE,
-    );
+    const moved = followVec3(vec(node.position), want.position, delta, PANEL_HALF_LIFE);
     const sized = follow(node.scale.x, want.scale, delta, PANEL_HALF_LIFE, 0.0008);
-    node.position.set(moved.value.x, place.position.y, moved.value.z);
+    node.position.set(moved.value.x, moved.value.y, moved.value.z);
     node.rotation.y = facingArc(moved.value.x, moved.value.z);
     node.scale.setScalar(sized.value);
     if (moved.settled && sized.settled) {
@@ -222,6 +289,7 @@ export function Movable({
   const release = useCallback(() => {
     const node = group.current;
     setDragging(false);
+    held.current = null;
     if (!node) return;
     /**
      * SAVED FROM THE TARGET, NOT FROM WHERE THE EASE HAS GOT TO.
@@ -233,13 +301,12 @@ export function Movable({
      * asked for; the ease is only how it gets there.
      */
     const want = target.current;
-    const x = want ? want.position.x : node.position.x;
-    const z = want ? want.position.z : node.position.z;
+    const at = want ? want.position : vec(node.position);
     const scale = want ? want.scale : node.scale.x;
     const next: Placement = {
       id: place.id,
-      position: { x, y: node.position.y, z },
-      rotationY: facingArc(x, z),
+      position: { x: at.x, y: at.y, z: at.z },
+      rotationY: facingArc(at.x, at.z),
       scale,
     };
     const refused = placementRefusal(next);
@@ -267,17 +334,27 @@ export function Movable({
    */
   useEffect(() => {
     if (!dragging) return;
-    const move = (event: PointerEvent) => drag(floorPoint(event.clientX, event.clientY));
+    const move = (event: PointerEvent) => drag(rayFromScreen(event.clientX, event.clientY));
     const up = () => release();
+    const wheel = (event: WheelEvent) => {
+      if (gesture.current !== "move") return;
+      // Or the page scrolls underneath the room while somebody is placing a
+      // panel, which moves the canvas out from under the drag.
+      event.preventDefault();
+      // Wheel up is negative, and wheel up should send it away from you.
+      reachBy(-event.deltaY * WHEEL_REACH);
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
+    window.addEventListener("wheel", wheel, { passive: false });
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
+      window.removeEventListener("wheel", wheel);
     };
-  }, [dragging, drag, floorPoint, release]);
+  }, [dragging, drag, rayFromScreen, reachBy, release]);
 
   // Follow the authoritative place whenever it changes and we are not the one
   // moving it — somebody else dragging a panel must move it here too.
@@ -291,6 +368,31 @@ export function Movable({
   }, [dragging, invalidate, place]);
 
   const top = 1.42;
+
+  const take = (kind: "move" | "resize") => (event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    // Tell the look-drag this press is spoken for, or arranging a panel also
+    // swings the camera round the room.
+    claimPointer(event.nativeEvent);
+    grabbedPointer.current = event.pointerId;
+    // Capture, so the drag survives the ray slipping off the panel for a frame.
+    // Guarded because it is not there on every pointer.
+    (event.target as { setPointerCapture?: (id: number) => void } | null)
+      ?.setPointerCapture?.(event.pointerId);
+    begin(rayOf(event), event.point ? vec(event.point) : null, kind);
+  };
+
+  const steer = (event: ThreeEvent<PointerEvent>) => {
+    if (grabbedPointer.current !== event.pointerId) return;
+    event.stopPropagation();
+    drag(rayOf(event));
+  };
+
+  const letGo = (event: ThreeEvent<PointerEvent>) => {
+    if (grabbedPointer.current !== event.pointerId) return;
+    grabbedPointer.current = null;
+    release();
+  };
 
   return (
     <group ref={group}>
@@ -323,28 +425,9 @@ export function Movable({
       {mode !== "locked" ? (
         <mesh
           position={[0, 0, 0.02]}
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            // Tell the look-drag this press is spoken for, or arranging a panel
-            // also swings the camera round the room.
-            claimPointer(event.nativeEvent);
-            grabbedPointer.current = event.pointerId;
-            // Capture, so the drag survives the ray slipping off the panel for
-            // a frame. Guarded because it is not there on every pointer.
-            (event.target as { setPointerCapture?: (id: number) => void } | null)
-              ?.setPointerCapture?.(event.pointerId);
-            begin(onFloor(event.point), mode === "resize" ? "resize" : "move");
-          }}
-          onPointerMove={(event) => {
-            if (grabbedPointer.current !== event.pointerId) return;
-            event.stopPropagation();
-            drag(onFloor(event.point));
-          }}
-          onPointerUp={(event) => {
-            if (grabbedPointer.current !== event.pointerId) return;
-            grabbedPointer.current = null;
-            release();
-          }}
+          onPointerDown={take(mode === "resize" ? "resize" : "move")}
+          onPointerMove={steer}
+          onPointerUp={letGo}
         >
           <planeGeometry args={[PANEL.width, PANEL.height]} />
           <meshBasicMaterial
@@ -362,32 +445,17 @@ export function Movable({
         ordinary thing to click with a mouse.
       */}
       <mesh
-          position={[0, top, 0.01]}
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            claimPointer(event.nativeEvent);
-            grabbedPointer.current = event.pointerId;
-            (event.target as { setPointerCapture?: (id: number) => void } | null)
-              ?.setPointerCapture?.(event.pointerId);
-            begin(onFloor(event.point));
-          }}
-          onPointerMove={(event) => {
-            if (grabbedPointer.current !== event.pointerId) return;
-            event.stopPropagation();
-            drag(onFloor(event.point));
-          }}
-          onPointerUp={(event) => {
-            if (grabbedPointer.current !== event.pointerId) return;
-            grabbedPointer.current = null;
-            release();
-          }}
-        >
-          <boxGeometry args={[PANEL.width, 0.14, 0.06]} />
-          <meshBasicMaterial
-            color={dragging ? "#6f86c9" : "#2b3245"}
-            transparent
-            opacity={dragging ? 0.95 : 0.6}
-          />
+        position={[0, top, 0.01]}
+        onPointerDown={take("move")}
+        onPointerMove={steer}
+        onPointerUp={letGo}
+      >
+        <boxGeometry args={[PANEL.width, 0.14, 0.06]} />
+        <meshBasicMaterial
+          color={dragging ? "#6f86c9" : "#2b3245"}
+          transparent
+          opacity={dragging ? 0.95 : 0.6}
+        />
       </mesh>
     </group>
   );

@@ -69,6 +69,26 @@ export function followPoint(
 }
 
 /**
+ * The same again, in three dimensions.
+ *
+ * Panels move up and down now as well as around — see `grab-move.ts` — so the
+ * height has to be eased with everything else. A height that snapped while x
+ * and z glided would read as the panel catching on something.
+ */
+export function followVec3(
+  current: { x: number; y: number; z: number },
+  target: { x: number; y: number; z: number },
+  dt: number,
+  halfLife: number,
+  epsilon = 0.0005,
+): { value: { x: number; y: number; z: number }; settled: boolean } {
+  const x = follow(current.x, target.x, dt, halfLife, epsilon);
+  const y = follow(current.y, target.y, dt, halfLife, epsilon);
+  const z = follow(current.z, target.z, dt, halfLife, epsilon);
+  return { value: { x: x.value, y: y.value, z: z.value }, settled: x.settled && y.settled && z.settled };
+}
+
+/**
  * How long a panel takes to close half the gap to the pointer.
  *
  * Short enough that it feels attached rather than dragged through treacle, long

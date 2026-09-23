@@ -16,7 +16,17 @@ import type { BoardCard } from "./board-3d.js";
 
 export type Ink =
   | { kind: "rect"; x: number; y: number; width: number; height: number; fill: string; radius?: number }
-  | { kind: "text"; x: number; y: number; text: string; size: number; fill: string; weight?: "normal" | "bold" }
+  | {
+      kind: "text";
+      /** The anchor. With `align: "right"` this is the text's RIGHT edge, not its left. */
+      x: number;
+      y: number;
+      text: string;
+      size: number;
+      fill: string;
+      weight?: "normal" | "bold";
+      align?: "left" | "right";
+    }
   | { kind: "line"; x: number; y: number; width: number; height: number; fill: string };
 
 /** Measured in card-local pixels, origin top-left — canvas's own convention. */

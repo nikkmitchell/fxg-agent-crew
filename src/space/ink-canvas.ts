@@ -31,6 +31,9 @@ export function drawInk(canvas: HTMLCanvasElement, ink: readonly Ink[]): void {
     if (item.kind === "text") {
       context.font = `${item.weight === "bold" ? "600 " : ""}${item.size}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
       context.textBaseline = "alphabetic";
+      // SET EVERY TIME, not only when aligned right: canvas state is sticky, so
+      // one right-aligned label would silently re-anchor every label after it.
+      context.textAlign = item.align ?? "left";
       context.fillText(item.text, item.x, item.y);
     } else if (item.kind === "rect" && item.radius) {
       roundedRect(context, item.x, item.y, item.width, item.height, item.radius);
