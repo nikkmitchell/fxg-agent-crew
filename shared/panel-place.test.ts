@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   defaultPlacement,
   facingArc,
+  facingPoint,
   normaliseRotation,
   placementRefusal,
   standFor,
@@ -127,5 +128,50 @@ describe("turning a dragged panel to face the room", () => {
     const panelToFocus = Math.hypot(ARC_FOCUS.x - x, ARC_FOCUS.z - z);
     const standToFocus = Math.hypot(ARC_FOCUS.x - stand.x, ARC_FOCUS.z - stand.z);
     expect(standToFocus).toBeLessThan(panelToFocus);
+  });
+});
+
+/**
+ * A panel somebody picks up turns to face THEM, not the middle of the arc.
+ * Nikk: "they're always facing towards some center point in the scene, but we
+ * don't actually have a center point in the scene".
+ */
+describe("a panel faces whoever moves it", () => {
+  /** A plane with no rotation faces +z, so its normal is (sin ry, cos ry). */
+  const normal = (ry: number) => ({ x: Math.sin(ry), z: Math.cos(ry) });
+
+  it("turns its face toward the person dragging it", () => {
+    for (const [x, z, toward] of [
+      [3, 1, { x: -2, z: 4 }],
+      [-4, -3, { x: 0, z: 0 }],
+      [0, 5, { x: 6, z: 5 }],
+    ] as const) {
+      const ry = facingPoint(x, z, toward)!;
+      const to = { x: toward.x - x, z: toward.z - z };
+      const length = Math.hypot(to.x, to.z);
+      // The face points straight at the person: the normal IS the direction to them.
+      expect(normal(ry).x).toBeCloseTo(to.x / length, 6);
+      expect(normal(ry).z).toBeCloseTo(to.z / length, 6);
+    }
+  });
+
+  /**
+   * THE BUG ITSELF. Dragged to the side, a panel used to swing toward
+   * ARC_FOCUS whoever was holding it. Standing somewhere other than that
+   * point, the person now gets the face, and the old answer is measurably wrong.
+   */
+  it("no longer faces the arc's centre when the person is somewhere else", () => {
+    const [x, z] = [4, 2];
+    const person = { x: ARC_FOCUS.x + 5, z: ARC_FOCUS.z - 3 };
+    const toPerson = facingPoint(x, z, person)!;
+    expect(Math.abs(toPerson - facingArc(x, z))).toBeGreaterThan(0.3);
+  });
+
+  it("keeps its rotation rather than snapping when the person is right on top of it", () => {
+    expect(facingPoint(2, 3, { x: 2.01, z: 3.01 })).toBeNull();
+  });
+
+  it("agrees with facingArc when the person happens to stand at the arc's centre", () => {
+    expect(facingPoint(3, -1, ARC_FOCUS)).toBeCloseTo(facingArc(3, -1), 9);
   });
 });

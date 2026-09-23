@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import { PANEL_Y, facingArc, placementRefusal, scaleOf } from "../../shared/panel-place";
+import { PANEL_Y, facingPoint, placementRefusal, scaleOf } from "../../shared/panel-place";
 import { PANEL } from "../../shared/space-layout";
 import { resizedScale } from "./panel-resize";
 import { PANEL_HALF_LIFE, follow, followVec3 } from "../../shared/smooth-follow";
@@ -205,7 +205,12 @@ export function Movable({
    * target and the panel eases toward it, a frame at a time, at a rate that is
    * the same at 60fps and at 120 — see `smooth-follow.ts`.
    */
-  const target = useRef<{ position: Vec3; scale: number } | null>(null);
+  /**
+   * `toward` is where the person dragging is — the pointer ray's origin — and
+   * the panel turns to face it. Absent for a resize, which does not move the
+   * panel and so must not swing it either.
+   */
+  const target = useRef<{ position: Vec3; scale: number; toward?: { x: number; z: number } } | null>(null);
 
   /** Take hold, along a ray, at the point on the panel the ray struck. */
   const begin = useCallback(
@@ -251,6 +256,8 @@ export function Movable({
       if (!grab) return;
       const want = grabbedTo(ray, grab);
       target.current = {
+        // FACE WHOEVER IS MOVING IT, not a centre the room does not have.
+        toward: { x: ray.origin.x, z: ray.origin.z },
         /**
          * CLAMPED AT THE CEILING AND THE FLOOR rather than refused there.
          *
@@ -302,7 +309,10 @@ export function Movable({
     const moved = followVec3(vec(node.position), want.position, delta, PANEL_HALF_LIFE);
     const sized = follow(node.scale.x, want.scale, delta, PANEL_HALF_LIFE, 0.0008);
     node.position.set(moved.value.x, moved.value.y, moved.value.z);
-    node.rotation.y = facingArc(moved.value.x, moved.value.z);
+    if (want.toward) {
+      const facing = facingPoint(moved.value.x, moved.value.z, want.toward);
+      if (facing !== null) node.rotation.y = facing;
+    }
     node.scale.setScalar(sized.value);
     if (moved.settled && sized.settled) {
       target.current = null;
@@ -333,7 +343,7 @@ export function Movable({
     const next: Placement = {
       id: place.id,
       position: { x: at.x, y: at.y, z: at.z },
-      rotationY: facingArc(at.x, at.z),
+      rotationY: (want?.toward ? facingPoint(at.x, at.z, want.toward) : null) ?? node.rotation.y,
       scale,
     };
     const refused = placementRefusal(next);
