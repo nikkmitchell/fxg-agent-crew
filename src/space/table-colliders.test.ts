@@ -24,7 +24,7 @@ import { scanJsx } from "./jsx-scan";
  *
  *   - carries a pointer handler itself, or sits inside an element that does —
  *     it is part of something you can press: a bowl, an intersection, the
- *     return-stone button, the gear, the grab bar; or
+ *     return-stone button, MOVE and the settings; or
  *   - says `raycast={...}` — somebody decided, in writing, that it takes no rays.
  *
  * A new piece of decoration added without either fails here, which is the
@@ -56,7 +56,7 @@ describe("colliders on the Go table", () => {
     // Enough of the file to be meaningful, and the specific things we know are there.
     expect(tags.filter((t) => MESH_LIKE.has(t.name)).length).toBeGreaterThan(20);
     expect(tags.some((t) => t.name === "instancedMesh" && HANDLER.test(t.attrs))).toBe(true);
-    expect(tags.some((t) => t.name === "RoundedBox" && /onPointerDown=\{takeTable\}/.test(t.attrs))).toBe(true);
+    expect(tags.some((t) => /onPointerDown=\{takeTable\}/.test(t.attrs))).toBe(true);
   });
 
   it("follows fragments, which is the first thing it tripped on", () => {

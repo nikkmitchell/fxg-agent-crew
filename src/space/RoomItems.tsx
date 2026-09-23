@@ -9,11 +9,11 @@ import { goCarryPoint, idleGoTouch, stepGoTouch } from "../../shared/go-touch";
 import type { WirePerson } from "../../shared/space-wire";
 import { goHandInput } from "./go-hand-input";
 import { space } from "../space-client";
-import { ApiError } from "../api-request";
 import { claimPointer } from "./pointer-claim";
 import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
-import { SettingsPanel3D } from "./SettingsPanel3D";
-import { BAR, GEAR, GO_PANEL, barAt, barWidth, gearAt, goSettingCost, goSettingFor, goSettingRequest, goSettingsItems } from "./GoTableSettings";
+import { goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings";
+import { goControls, goControlsShown } from "./go-controls";
+import { goTableWriter } from "./go-table-writer";
 
 const NAMES = ["Black", "White", "Coral", "Blue", "Gold", "Jade", "Violet", "Rose"];
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
@@ -158,11 +158,11 @@ function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index:
   </>;
 }
 
-function TableButton({ label, at, onTap, width = 0.24 }: { label: string; at: [number, number, number]; onTap: () => void; width?: number }) {
+function TableButton({ label, at, onTap, width = 0.24, depth = 0.105, fontSize = 0.029 }: { label: string; at: [number, number, number]; onTap: () => void; width?: number; depth?: number; fontSize?: number }) {
   const [hover, setHover] = useState(false);
   return <group position={at} onClick={(event) => { event.stopPropagation(); onTap(); }} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
-    <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[width, 0.105]} /><meshBasicMaterial color={hover ? "#78654b" : "#483b2e"} /></mesh>
-    <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={0.029} color="#f1dfbd" raycast={noRaycast}>{label}</Text>
+    <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[width, depth]} /><meshBasicMaterial color={hover ? "#78654b" : "#483b2e"} /></mesh>
+    <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={fontSize} color="#f1dfbd" raycast={noRaycast}>{label}</Text>
   </group>;
 }
 
@@ -203,82 +203,32 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   useEffect(() => { previous.current = new Set(item.stones.map((stone) => stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`)); }, [item.stones]);
   useEffect(() => { setNotice(""); }, [item.revision]);
   /**
-   * THE ANSWER TO A CHANGE IS APPLIED THE MOMENT IT ARRIVES, and a refusal for
-   * being out of date catches the table up.
-   *
-   * Nikk's headset pressed settings fifteen times; the server accepted four and
-   * refused eleven as "The table changed". The table's new state reached the
-   * headset only by its socket, which was reconnecting every half minute — so
-   * after one success the headset held a stale revision, every press after it
-   * was refused, and a refusal broadcasts nothing to fix that. Press, nothing.
-   *
-   * The answer already carries the table as it now is, so it is applied at once;
-   * and "The table changed" fetches the fresh table instead of leaving the next
-   * press to fail the same way.
+   * Changes go through go-table-writer.ts, where the rules that fixed Nikk's
+   * headset live and are tested against a socket that never delivers: apply the
+   * answer at once, catch up on "The table changed", retry a settings change
+   * once from the fresh table, never retry a move. It shares `pending` with the
+   * hand-contact loop below, which reads it every frame.
    */
-  const tableChanged = (error: unknown) => error instanceof ApiError && error.code === "TABLE_CHANGED";
-  const catchUp = async (): Promise<GoRoomItem | null> => {
-    try {
-      const { items: now } = await space.roomItems();
-      now.forEach((one) => context.onItem(one));
-      return (now.find((one) => one.id === item.id) as GoRoomItem | undefined) ?? null;
-    } catch {
-      return null;
-    }
-  };
-  const act = async (action: Parameters<typeof space.actOnGo>[1]) => {
-    if (pending.current) return false;
-    pending.current = true;
-    try {
-      const { item: now } = await space.actOnGo(item.id, { ...action, revision: item.revision });
-      context.onItem(now);
-      return true;
-    }
-    catch (error) {
-      // A MOVE is never retried: a stone placed against a board that changed
-      // underneath it is exactly what the revision exists to refuse. The table
-      // is caught up so the NEXT press is judged against the real board.
-      if (tableChanged(error)) void catchUp();
-      setNotice(error instanceof Error ? error.message : "Could not update the table.");
-      return false;
-    }
-    finally { pending.current = false; }
-  };
-  /**
-   * `again` works the request out afresh from the table as it now is, for the
-   * one retry after "The table changed". See goSettingRequest: resending the
-   * original would undo whatever somebody else just did.
-   */
-  const configure = async (
+  const latest = useRef(item);
+  latest.current = item;
+  const applyItem = useRef(context.onItem);
+  applyItem.current = context.onItem;
+  const writer = useMemo(() => goTableWriter({
+    current: () => latest.current,
+    apply: (one) => applyItem.current(one),
+    api: {
+      configure: (id, change) => space.configureGo(id, change as Parameters<typeof space.configureGo>[1]),
+      act: (id, action) => space.actOnGo(id, action as Parameters<typeof space.actOnGo>[1]),
+      items: () => space.roomItems(),
+    },
+    notice: setNotice,
+    pending,
+  }), []);
+  const act = (action: Parameters<typeof space.actOnGo>[1]) => writer.act(action);
+  const configure = (
     change: Parameters<typeof space.configureGo>[1],
     again?: (fresh: GoRoomItem) => Parameters<typeof space.configureGo>[1] | null,
-  ) => {
-    if (pending.current) return;
-    pending.current = true;
-    try {
-      const { item: now } = await space.configureGo(item.id, { ...change, revision: item.revision });
-      context.onItem(now);
-    }
-    catch (error) {
-      if (tableChanged(error)) {
-        const fresh = await catchUp();
-        const retry = fresh && again ? again(fresh) : null;
-        if (fresh && retry) {
-          try {
-            const { item: now } = await space.configureGo(item.id, { ...retry, revision: fresh.revision });
-            context.onItem(now);
-            setNotice("");
-            return;
-          } catch (second) {
-            setNotice(second instanceof Error ? second.message : "Could not change the table.");
-            return;
-          }
-        }
-      }
-      setNotice(error instanceof Error ? error.message : "Could not change the table.");
-    }
-    finally { pending.current = false; }
-  };
+  ) => writer.configure(change, again as ((fresh: GoRoomItem) => Record<string, unknown> | null) | undefined);
   useFrame(({ clock }, delta) => {
     const now = performance.now();
     if (context.you) for (const side of ["left", "right"] as const) {
@@ -456,8 +406,11 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     if (request) void configure(request, (fresh) => goSettingRequest(fresh, id));
   };
 
-  const gear = gearAt(item), bar = barAt(item.size), barSpan = barWidth(item.size);
-  const settingsItems = useMemo(() => goSettingsItems(item), [item]);
+  const controls = useMemo(() => goControls(item), [item]);
+  const showControls = goControlsShown(item);
+  // Lifting a stone puts the glowing intersections on the board the sheet was
+  // lying on, so the sheet closes rather than waiting underneath them.
+  useEffect(() => { if (!showControls) setSettingsOpen(false); }, [showControls]);
   const stars = item.size === 5 ? [2] : item.size === 9 ? [2, 4, 6] : [3, (item.size - 1) / 2, item.size - 4];
   const lifted = item.liftedColour === null ? null : goBowl(item.liftedColour, item.colours.length, item.size);
   const wide = item.colours.length > 2, deck = goDeckWidth(item.size, item.colours.length);
@@ -479,37 +432,6 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     </RoundedBox>}
     <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow raycast={noRaycast}>
       <meshPhysicalMaterial color={carrying ? "#c2793f" : "#975d32"} roughness={0.38} clearcoat={0.4} />
-    </RoundedBox>
-    {/*
-      THE BAR YOU PICK IT UP BY. In the air in front of the board, beside the
-      gear — the same shape the room's panels have always had along their top
-      edge, and the shape Nikk asked for: "you grab a window and drag it".
-
-      Three handles failed before this one, all the same way — the right size
-      in metres and too small for a pointer. GoTableSettings.ts lists them.
-    */}
-    {/*
-      STEERED AND RELEASED FROM R3F TOO, not only from the window. A headset
-      delivers NO window pointer events — a controller only ever reaches R3F's
-      handlers — so a bar that listened to the window alone could be picked up
-      in a headset and then never moved or put down. The window listeners stay
-      for a mouse, whose drag can outrun the bar; pointer capture keeps these
-      arriving when the ray slips off it.
-    */}
-    <RoundedBox args={[barSpan, BAR.thickness, BAR.thickness]} radius={0.02} smoothness={3}
-      position={[bar.x, bar.y, bar.z]} onPointerDown={takeTable}
-      onPointerMove={(event) => {
-        if (grabbedPointer.current !== event.pointerId) return;
-        event.stopPropagation();
-        steerTable({ origin: asVec(event.ray.origin), direction: asVec(event.ray.direction) });
-      }}
-      onPointerUp={(event) => {
-        if (grabbedPointer.current !== event.pointerId) return;
-        letGoOfTable.current?.();
-        dropTable();
-      }}>
-      <meshStandardMaterial color={carrying ? "#e45338" : "#c9b48c"} emissive={carrying ? "#e45338" : "#6f5f43"}
-        emissiveIntensity={carrying ? 0.5 : 0.2} roughness={0.4} />
     </RoundedBox>
     <RoundedBox args={[boardWidth, 0.025, boardWidth]} radius={0.01} smoothness={3} position={[0, GO_SURFACE - 0.0125, 0]} receiveShadow raycast={noRaycast}>
       <meshPhysicalMaterial map={wood} roughness={0.43} clearcoat={0.22} />
@@ -540,52 +462,68 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     {lifted && <mesh key={`held-${item.activeColour}`} ref={held} position={[lifted.x, lifted.y + 0.06, lifted.z]} scale={[radius, radius * 0.46, radius]} raycast={noRaycast} castShadow>
       <sphereGeometry args={[1, 32, 20]} /><meshPhysicalMaterial color={item.colours[item.activeColour]} roughness={0.18} clearcoat={1} emissive={ACCENTS[item.activeColour]} emissiveIntensity={0.025} />
     </mesh>}
-    <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.035 : boardWidth / 2 + 0.16]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.025 : 0.043} color={wide ? "#49331f" : ACCENTS[item.activeColour]} raycast={noRaycast}>
+    {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.035 : boardWidth / 2 + 0.16]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.025 : 0.043} color={wide ? "#49331f" : ACCENTS[item.activeColour]} raycast={noRaycast}>
       {`${NAMES[item.activeColour].toUpperCase()}'S TURN`}
-    </Text>
-    <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? "#624526" : "#d8c8ac"} raycast={noRaycast}>
+    </Text>}
+    {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? "#624526" : "#d8c8ac"} raycast={noRaycast}>
       {notice || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a glowing point` : item.liftedColour !== null ? "Choose a glowing intersection" : "Touch the glowing bowl to lift a stone")}
-    </Text>
+    </Text>}
     {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
       <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[0.46, 0.1]} /><meshBasicMaterial color="#493d30" /></mesh>
       <Text rotation-x={-Math.PI / 2} position-y={0.001} fontSize={0.025} color="#eee0c6">RETURN STONE</Text>
     </group>}
     {/*
-      THE GEAR. Board size, how many are playing, the table's own size, the
-      desk, and clearing the stones — the things that used to be a nudge pad of
-      X/Y/Z buttons and two floating labels. It stands above the near edge
-      rather than lying on the deck; `GoTableSettings.ts` says why, at length,
-      and a test holds it clear of every stone target and bowl at every size
-      and seating.
+      FLAT ON THE TABLE, AS TEXT. Nikk, in a headset: "I really don't like the
+      grab for the Go thing being floating above in the air it should be like on
+      the ground the end of Black's turn... the settings those should also be
+      flat on the ground like you can just be [a] text on the ground". MOVE sits
+      at the end of the turn line, SETTINGS at its start, and the settings lay
+      themselves on the board. go-controls.ts places all of it; its test holds
+      it clear of every bowl at every size and seating.
+
+      ONLY WHILE NO STONE IS IN THE AIR. The glowing intersections exist only
+      while one is, so the two can never be under the same pointer.
     */}
-    <group position={[gear.x, gear.y, gear.z]}>
-      <mesh position={[0, -0.12, 0]} raycast={noRaycast}>
-        <cylinderGeometry args={[0.008, 0.008, 0.24, 8]} /><meshStandardMaterial color="#6b4328" roughness={0.6} />
-      </mesh>
+    {showControls && !settingsOpen && <group position={[controls.move.x, controls.move.y, controls.move.z]}
+      onPointerDown={takeTable}
+      onPointerMove={(event) => {
+        if (grabbedPointer.current !== event.pointerId) return;
+        event.stopPropagation();
+        steerTable({ origin: asVec(event.ray.origin), direction: asVec(event.ray.direction) });
+      }}
+      onPointerUp={(event) => {
+        if (grabbedPointer.current !== event.pointerId) return;
+        letGoOfTable.current?.();
+        dropTable();
+      }}>
       {/*
-        PALE, NOT DARK. The first one was #2b2118 — a near-black sphere in an
-        unlit room. I could not find it in a screenshot of the table I had just
-        built, which is a good sign nobody would find it by eye either. A
-        control nobody can see is the same as a control that is not there.
+        STEERED AND RELEASED FROM R3F TOO, not only from the window: a headset
+        delivers no window pointer events at all, so a handle that relied on the
+        window could be picked up in a headset and never moved or put down.
       */}
-      <mesh onClick={(event) => { event.stopPropagation(); setNotice(""); setSettingsOpen((open) => !open); }}>
-        <sphereGeometry args={[GEAR.radius, 20, 12]} />
-        <meshStandardMaterial
-          color={settingsOpen ? "#e45338" : "#f2e6cf"}
-          emissive={settingsOpen ? "#e45338" : "#c9b48c"}
-          emissiveIntensity={settingsOpen ? 0.5 : 0.28}
-          roughness={0.35}
-        />
+      <mesh rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[controls.move.width, controls.move.depth]} />
+        <meshBasicMaterial color={carrying ? "#e45338" : "#483b2e"} transparent opacity={carrying ? 0.9 : 0.72} />
       </mesh>
-      {[1, -1].map((face) => (
-        <Text key={face} position={[0, 0, face * (GEAR.radius + 0.002)]} rotation-y={face > 0 ? 0 : Math.PI}
-          fontSize={0.075} color={settingsOpen ? "#fff3ea" : "#3b2c1c"} anchorX="center" anchorY="middle" raycast={noRaycast}>
-          ⚙
-        </Text>
-      ))}
-    </group>
-    {settingsOpen && <group position={[gear.x, gear.y + 0.78, gear.z]}>
-      <SettingsPanel3D items={settingsItems} surface={{ width: GO_PANEL.width, height: GO_PANEL.height }} onPress={onSetting} />
+      <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={controls.line.fontSize * 0.8} color="#f1dfbd" raycast={noRaycast}>
+        {carrying ? "MOVING" : "MOVE ✥"}
+      </Text>
+    </group>}
+    {showControls && !settingsOpen && <TableButton label="⚙ SETTINGS" at={[controls.settings.x, controls.settings.y, controls.settings.z]}
+      width={controls.settings.width} depth={controls.settings.depth} fontSize={controls.line.fontSize * 0.8}
+      onTap={() => { setNotice(""); setSettingsOpen(true); }} />}
+    {showControls && settingsOpen && <group>
+      {notice && <Text position={[0, controls.sheet.y, controls.sheet.rows[0].z - controls.sheet.rowDepth]} rotation-x={-Math.PI / 2}
+        fontSize={controls.sheet.fontSize * 0.8} maxWidth={controls.sheet.width} color="#ff9f8d" raycast={noRaycast}>{notice}</Text>}
+      {controls.sheet.rows.map((row) => <group key={row.label || row.buttons[0].id}>
+        {row.label && <Text position={[-controls.sheet.width / 2 + 0.03, controls.sheet.y, row.z]} rotation-x={-Math.PI / 2}
+          anchorX="left" fontSize={controls.sheet.fontSize} color="#3b2a1a" raycast={noRaycast}>{row.label}</Text>}
+        {row.value && <Text position={[row.valueX ?? 0, controls.sheet.y, row.z]} rotation-x={-Math.PI / 2}
+          fontSize={controls.sheet.fontSize} color="#3b2a1a" raycast={noRaycast}>{row.value}</Text>}
+        {row.buttons.map((button) => <TableButton key={button.id} label={button.label}
+          at={[button.x, controls.sheet.y, row.z]} width={button.width} depth={controls.sheet.rowDepth * 0.86}
+          fontSize={controls.sheet.fontSize} onTap={() => onSetting(button.id)} />)}
+      </group>)}
     </group>}
   </group>;
 }
