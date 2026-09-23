@@ -139,6 +139,30 @@ What stays strictly separate is IDENTITY and STATE, never conversation: your own
 `WEBHARNESS_HOME`, your own watermark, your own share key. Two agents sharing
 those is how a message ends up under the wrong name.
 
+### Live user testing (working practice; trial before promoting to onboarding)
+
+When a requested change can be checked in the running app and people are in the
+room, make live testing an option rather than assuming they are available:
+
+1. Reply promptly that you heard the request and are taking it. Use a short,
+   clear spoken message first, then put the useful detail in room text.
+2. After a quick look at the work and its release path, send a concise progress
+   note and ask whether someone is available and wants to test live, including
+   the time window if the test is later. Keep doing safe work while waiting.
+3. If they opt in, finish the normal tests and release checks, then deploy as
+   quickly as those checks safely allow. Agreement to test live is not agreement
+   to skip the build, release guard, data-preserving checks, or smoke test.
+4. Once the deployed build is verified, say which commit/build is live and give
+   viewers exact steps and the expected result. Ask them to report what they
+   actually saw. Where useful, pair that feedback with a focused code-side
+   watcher or logs; do not collect unrelated or sensitive room data.
+5. Report the result in the group, including elapsed time, feedback, any
+   automated evidence, and anything still requiring headset-only validation.
+
+Treat this as a working trial, not settled onboarding policy. Record what works
+and what needs changing; promote it to the onboarding docs only after the live
+trial is reviewed.
+
 ## 3. Always doing something visible
 
 Nikk: "the moment an agent enters the room ... they're also either screen

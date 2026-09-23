@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   SETTINGS,
+  SETTINGS_NEXT_PAGE,
+  SETTINGS_PREVIOUS_PAGE,
   settingsPixels,
   layOutSettings,
   paintSettings,
@@ -47,11 +49,16 @@ export function SettingsPanel3D({
   const invalidate = useThree((state) => state.invalidate);
   const plate = useRef<THREE.Mesh>(null);
   const pressed = useRef<string | null>(null);
+  const [page, setPage] = useState(0);
 
   const layout = useMemo(
-    () => layOutSettings(items, { ...SETTINGS, width: surface.width, height: surface.height }),
-    [items, surface.width, surface.height],
+    () => layOutSettings(items, { ...SETTINGS, width: surface.width, height: surface.height }, page),
+    [items, page, surface.width, surface.height],
   );
+
+  useEffect(() => {
+    if (page !== layout.page) setPage(layout.page);
+  }, [layout.page, page]);
 
   useEffect(() => {
     const context = canvas.getContext("2d");
@@ -87,7 +94,10 @@ export function SettingsPanel3D({
           const started = pressed.current;
           pressed.current = null;
           const ending = at(event);
-          if (started && ending === started) onPress(started);
+          if (!started || ending !== started) return;
+          if (started === SETTINGS_PREVIOUS_PAGE) setPage((current) => Math.max(0, current - 1));
+          else if (started === SETTINGS_NEXT_PAGE) setPage((current) => Math.min(layout.pageCount - 1, current + 1));
+          else onPress(started);
         }}
         onPointerLeave={() => {
           pressed.current = null;

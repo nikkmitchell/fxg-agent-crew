@@ -63,6 +63,12 @@ export const SETTINGS = {
   stepperWidth: 0.16,
 } as const;
 
+/** Internal press targets owned by SettingsPanel3D, not by the room settings. */
+export const SETTINGS_PREVIOUS_PAGE = "__settings:previous-page";
+export const SETTINGS_NEXT_PAGE = "__settings:next-page";
+const SETTINGS_FOOTER_HEIGHT = 0.14;
+const SETTINGS_FOOTER_GAP = 0.025;
+
 /**
  * The bitmap this is drawn into, SHAPED LIKE THE PANEL IT GOES ON.
  *
@@ -100,33 +106,75 @@ export type SettingsLayout = {
   /** The items that fitted, in order, with where they were put. */
   rows: { item: SettingsItem; y: number; height: number }[];
   targets: SettingsTarget[];
-  /** How many items did not fit. Reported, never silently dropped. */
+  /** Zero-based page index and total pages; every item remains reachable. */
+  page: number;
+  pageCount: number;
+  /** Items unreachable through all pages (always zero with explicit paging). */
   hidden: number;
 };
 
-/**
- * Stack the items down the panel.
- *
- * NO SCROLLING. A scrolling surface in a room needs a scrollbar, a drag that
- * competes with moving the panel, and a second thing to test — and the drag
- * would fight the one that moves the panel itself. What does not fit is
- * counted and said out loud instead, which is a smaller lie than a list that
- * quietly stops.
- */
-export function layOutSettings(items: readonly SettingsItem[], size: SettingsSize = SETTINGS): SettingsLayout {
+const itemHeight = (item: SettingsItem, size: SettingsSize) =>
+  item.kind === "heading" ? size.headingHeight : size.rowHeight;
+
+/** Keep section context when a long settings list continues onto another page. */
+function paginateSettings(items: readonly SettingsItem[], size: SettingsSize, available: number): SettingsItem[][] {
+  const pages: SettingsItem[][] = [[]];
+  let used = 0;
+  let heading: Extract<SettingsItem, { kind: "heading" }> | null = null;
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    const height = itemHeight(item, size);
+    const page = pages[pages.length - 1];
+    const following = items[index + 1];
+    const wouldOrphanHeading = item.kind === "heading" && following !== undefined && page.length > 0 &&
+      used + height + size.rowGap + itemHeight(following, size) > available;
+    const doesNotFit = used + height > available;
+
+    if (page.length > 0 && (doesNotFit || wouldOrphanHeading)) {
+      pages.push([]);
+      used = 0;
+
+      // Repeat the active section title when its rows span pages, but never
+      // carry it if doing so would leave too little room for the next row.
+      if (heading && item.kind !== "heading" && height + itemHeight(heading, size) + size.rowGap <= available) {
+        pages[pages.length - 1].push(heading);
+        used = itemHeight(heading, size) + size.rowGap;
+      }
+    }
+
+    let current = pages[pages.length - 1];
+    if (current.length > 0 && used + height > available) {
+      pages.push([]);
+      used = 0;
+      current = pages[pages.length - 1];
+    }
+    current.push(item);
+    used += height + size.rowGap;
+    if (item.kind === "heading") heading = item;
+  }
+
+  return pages;
+}
+
+/** Stack one page of settings down the panel, with explicit controls for the rest. */
+export function layOutSettings(
+  items: readonly SettingsItem[],
+  size: SettingsSize = SETTINGS,
+  requestedPage = 0,
+): SettingsLayout {
   const rows: SettingsLayout["rows"] = [];
   const targets: SettingsTarget[] = [];
   const left = -size.width / 2 + size.padding;
   const innerWidth = size.width - size.padding * 2;
   let y = size.height / 2 - size.padding;
-  let hidden = 0;
+  const contentBottom = -size.height / 2 + size.padding + SETTINGS_FOOTER_HEIGHT + SETTINGS_FOOTER_GAP;
+  const pages = paginateSettings(items, size, y - contentBottom);
+  const pageCount = pages.length;
+  const page = Math.max(0, Math.min(pageCount - 1, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 0));
 
-  for (const item of items) {
-    const height = item.kind === "heading" ? size.headingHeight : size.rowHeight;
-    if (y - height < -size.height / 2 + size.padding) {
-      hidden += 1;
-      continue;
-    }
+  for (const item of pages[page]) {
+    const height = itemHeight(item, size);
     const centre = y - height / 2;
     rows.push({ item, y: centre, height });
 
@@ -153,7 +201,18 @@ export function layOutSettings(items: readonly SettingsItem[], size: SettingsSiz
     y -= height + size.rowGap;
   }
 
-  return { width: size.width, height: size.height, rows, targets, hidden };
+  if (pageCount > 1) {
+    const footerY = -size.height / 2 + size.padding + SETTINGS_FOOTER_HEIGHT / 2;
+    const buttonWidth = Math.min(0.52, innerWidth * 0.32);
+    if (page > 0) {
+      targets.push({ id: SETTINGS_PREVIOUS_PAGE, x: -innerWidth / 2 + buttonWidth / 2, y: footerY, width: buttonWidth, height: SETTINGS_FOOTER_HEIGHT });
+    }
+    if (page < pageCount - 1) {
+      targets.push({ id: SETTINGS_NEXT_PAGE, x: innerWidth / 2 - buttonWidth / 2, y: footerY, width: buttonWidth, height: SETTINGS_FOOTER_HEIGHT });
+    }
+  }
+
+  return { width: size.width, height: size.height, rows, targets, page, pageCount, hidden: 0 };
 }
 
 /**
@@ -303,14 +362,25 @@ export function paintSettings(
     }
   }
 
-  if (layout.hidden > 0) {
+  if (layout.pageCount > 1) {
+    for (const [id, label] of [[SETTINGS_PREVIOUS_PAGE, "< PREV"], [SETTINGS_NEXT_PAGE, "NEXT >"]] as const) {
+      const target = layout.targets.find((candidate) => candidate.id === id);
+      if (!target) continue;
+      const centre = toPx(layout, px, target.x, target.y);
+      const width = target.width * scale;
+      const height = target.height * scale;
+      ink.push({ kind: "rect", x: centre.x - width / 2 + 2, y: centre.y - height / 2 + 2, width: width - 4, height: height - 4, fill: CARD_INK.edge, radius: 8 });
+      ink.push({ kind: "text", x: centre.x - measure(label, 18) / 2, y: centre.y + 6, text: label, size: 18, fill: CARD_INK.paper, weight: "bold" });
+    }
+    const pageLabel = `PAGE ${layout.page + 1} / ${layout.pageCount}`;
     ink.push({
       kind: "text",
-      x: padPx,
-      y: px.height - 16,
-      text: `${layout.hidden} more, not shown`,
-      size: 20,
+      x: (px.width - measure(pageLabel, 18)) / 2,
+      y: px.height - 29,
+      text: pageLabel,
+      size: 18,
       fill: CARD_INK.muted,
+      weight: "bold",
     });
   }
 

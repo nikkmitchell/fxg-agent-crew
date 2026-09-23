@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { SETTINGS, layOutSettings, paintSettings, settingAt, settingsPixels, type SettingsItem } from "./settings-3d.js";
+import {
+  SETTINGS,
+  SETTINGS_NEXT_PAGE,
+  SETTINGS_PREVIOUS_PAGE,
+  layOutSettings,
+  paintSettings,
+  settingAt,
+  settingsPixels,
+  type SettingsItem,
+} from "./settings-3d.js";
 import type { Ink } from "./card-paint.js";
 
 const measure = (text: string, size: number) => text.length * size * 0.55;
@@ -78,21 +87,49 @@ describe("laying the settings out", () => {
     }
   });
 
-  it("COUNTS WHAT DID NOT FIT rather than quietly stopping", () => {
-    // A list that silently ends looks like a list that has ended.
+  it("makes every setting reachable through explicit pages", () => {
     const many: SettingsItem[] = Array.from({ length: 60 }, (_, i) => ({
       kind: "choice" as const, id: `p${i}`, label: `Project ${i}`, selected: false,
     }));
-    const layout = layOutSettings(many);
-    expect(layout.hidden).toBeGreaterThan(0);
-    expect(layout.rows.length + layout.hidden).toBe(many.length);
-    expect(said(paintSettings(layout, measure))).toContain("not shown");
+    const first = layOutSettings(many);
+    expect(first.pageCount).toBeGreaterThan(1);
+    expect(first.page).toBe(0);
+    expect(first.targets.map((target) => target.id)).toContain(SETTINGS_NEXT_PAGE);
+    expect(first.targets.map((target) => target.id)).not.toContain(SETTINGS_PREVIOUS_PAGE);
+    expect(said(paintSettings(first, measure))).toContain(`PAGE 1 / ${first.pageCount}`);
+    expect(said(paintSettings(first, measure))).not.toContain("not shown");
+
+    const reachable = new Set<string>();
+    for (let page = 0; page < first.pageCount; page += 1) {
+      const layout = layOutSettings(many, SETTINGS, page);
+      expect(layout.page).toBe(page);
+      for (const target of layout.targets) {
+        expect(settingAt(layout, uvOf(layout, target.id)), target.id).toBe(target.id);
+        expect(Math.abs(target.x) + target.width / 2).toBeLessThanOrEqual(layout.width / 2 + 1e-9);
+        expect(Math.abs(target.y) + target.height / 2).toBeLessThanOrEqual(layout.height / 2 + 1e-9);
+        if (target.id.startsWith("p")) reachable.add(target.id);
+      }
+      expect(layout.targets.map((target) => target.id).includes(SETTINGS_PREVIOUS_PAGE)).toBe(page > 0);
+      expect(layout.targets.map((target) => target.id).includes(SETTINGS_NEXT_PAGE)).toBe(page < first.pageCount - 1);
+      expect(said(paintSettings(layout, measure))).toContain(`PAGE ${page + 1} / ${first.pageCount}`);
+    }
+    expect(reachable.size).toBe(many.length);
   });
 
-  it("is quiet about overflow when everything fits", () => {
+  it("does not add paging controls when everything fits", () => {
     const layout = layOutSettings(sample);
-    expect(layout.hidden).toBe(0);
+    expect(layout.pageCount).toBe(1);
+    expect(layout.targets.map((target) => target.id)).not.toContain(SETTINGS_PREVIOUS_PAGE);
+    expect(layout.targets.map((target) => target.id)).not.toContain(SETTINGS_NEXT_PAGE);
     expect(said(paintSettings(layout, measure))).not.toContain("not shown");
+  });
+
+  it("clamps an old page index when the list shrinks", () => {
+    const many: SettingsItem[] = Array.from({ length: 60 }, (_, i) => ({
+      kind: "choice" as const, id: `p${i}`, label: `Project ${i}`, selected: false,
+    }));
+    expect(layOutSettings(sample, SETTINGS, 99).page).toBe(0);
+    expect(layOutSettings(many, SETTINGS, 99).page).toBe(layOutSettings(many).pageCount - 1);
   });
 });
 
