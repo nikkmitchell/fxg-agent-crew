@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { applyRoomTheme } from "../../shared/room-theme";
 
 /**
  * How one person likes the room drawn for them.
@@ -35,6 +36,16 @@ export type RoomPreferences = {
    * moving is in shared/stillness.ts.
    */
   hideStill: boolean;
+  /**
+   * The room's boards, menus and chat wall drawn dark.
+   *
+   * ON UNLESS SOMEBODY TURNS IT OFF. Nikk: "a darkmode that is on
+   * automatically, as baiwei mentioned the white is hard to look at in VR for a
+   * long time (also add a setting to turn off dark mode in settings)". Because
+   * only chosen fields are stored, turning this default on reaches everybody who
+   * never touched it — including people who arrived before it existed.
+   */
+  dark: boolean;
 };
 
 /**
@@ -42,7 +53,7 @@ export type RoomPreferences = {
  * headset: "can we make the... pointer brightness... if they don't set it, start
  * automatically at 70%".
  */
-export const DEFAULT_ROOM_PREFERENCES: RoomPreferences = { rings: false, pointer: 0.7, hideStill: false };
+export const DEFAULT_ROOM_PREFERENCES: RoomPreferences = { rings: false, pointer: 0.7, hideStill: false, dark: true };
 
 /** One press of − or +. */
 export const POINTER_STEP = 0.1;
@@ -68,6 +79,9 @@ export function parseRoomPreferences(raw: unknown): RoomPreferences {
         : DEFAULT_ROOM_PREFERENCES.pointer,
     // Only a real `true` turns it on. Anything odd in storage leaves everybody visible.
     hideStill: stored.hideStill === true,
+    // Only a real `false` turns it off. Anything odd leaves the room dark, which
+    // is the comfortable failure: a corrupt setting should not blind somebody.
+    dark: stored.dark !== false,
   };
 }
 
@@ -108,6 +122,11 @@ export function roomPreferences(): RoomPreferences {
   if (typeof window === "undefined") return DEFAULT_ROOM_PREFERENCES;
   chosen = readChosen();
   current = parseRoomPreferences(chosen);
+  // BEFORE ANYTHING PAINTS. The first read of the preferences is the first
+  // moment the room knows which palette it wants, and it happens before the
+  // first board is drawn — so dark is dark from the first frame, not a flash of
+  // white and then a repaint.
+  applyRoomTheme(current.dark);
   return current;
 }
 
@@ -115,6 +134,7 @@ export function setRoomPreferences(change: Partial<RoomPreferences>): void {
   roomPreferences();
   chosen = { ...chosen, ...change };
   current = parseRoomPreferences(chosen);
+  applyRoomTheme(current.dark);
   try {
     window.localStorage.setItem(KEY, JSON.stringify(chosen));
   } catch {

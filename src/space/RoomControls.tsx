@@ -1151,6 +1151,19 @@ export function RoomControls({
             flash("Measuring your height from where your head is now.");
           },
         },
+        /**
+         * DARK MODE, ON UNTIL TURNED OFF. Nikk: "a darkmode that is on
+         * automatically... also add a setting to turn off dark mode in
+         * settings". First in the list of how the room is drawn, because it is
+         * the one change that decides whether the rest is comfortable to look at
+         * for an hour. Says what it IS, not what pressing it will do — the same
+         * rule as every other row here.
+         */
+        {
+          label: preferences.dark ? "Dark mode: on" : "Dark mode: off",
+          tone: preferences.dark ? "live" : "normal",
+          onTap: () => setRoomPreferences({ dark: !preferences.dark }),
+        },
         {
           label: preferences.rings ? "Rings under people: shown" : "Rings under people: hidden",
           tone: preferences.rings ? "live" : "normal",

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { avatarRecipe } from "../avatar";
+import { bubbleFor, chatInk } from "../../shared/room-theme";
 import { moreNote, shortForm } from "./short-form";
 import type { RoomMessage } from "./useRoomFeed";
 
@@ -111,13 +112,16 @@ export function paintChat(
   const context = canvas.getContext("2d");
   if (!context) return;
 
-  context.fillStyle = "#f2efe6";
+  // The wall's colours come from the room theme — dark unless somebody turned
+  // it off. See shared/room-theme.ts.
+  const wall = chatInk();
+  context.fillStyle = wall.background;
   context.fillRect(0, 0, WIDTH, HEIGHT);
 
   // The room's name, so a panel showing an unexpected conversation says which
   // one it is rather than leaving you to guess.
   context.font = `600 ${NAME_SIZE}px ui-sans-serif, system-ui, sans-serif`;
-  context.fillStyle = "#8a8578";
+  context.fillStyle = wall.meta;
   context.textBaseline = "top";
   context.fillText(paint.room ?? "no room", PAD, PAD - 6);
 
@@ -151,7 +155,7 @@ export function paintChat(
 
   let y = bottom - used;
   for (const block of blocks) {
-    const recipe = avatarRecipe(block.name);
+    const recipe = bubbleFor(avatarRecipe(block.name));
     const height = NAME_SIZE + 6 + (block.lines.length + (block.more ? 1 : 0)) * LINE;
     const widest = Math.max(
       ...[...block.lines, ...(block.more ? [block.more] : [])].map((line) => {
@@ -205,7 +209,7 @@ export function paintChat(
 
   if (blocks.length === 0 && !paint.trouble) {
     context.font = `400 ${BODY_SIZE}px ui-sans-serif, system-ui, sans-serif`;
-    context.fillStyle = "#8a8578";
+    context.fillStyle = wall.meta;
     context.fillText("Reading the room…", PAD, top);
   }
 
@@ -214,7 +218,7 @@ export function paintChat(
   // with an error would hide the very thing somebody is standing there for.
   if (paint.trouble) {
     context.font = `400 ${NAME_SIZE}px ui-sans-serif, system-ui, sans-serif`;
-    context.fillStyle = "#8a3d3d";
+    context.fillStyle = wall.failed;
     context.fillText(paint.trouble, PAD, HEIGHT - PAD - NAME_SIZE);
   }
 

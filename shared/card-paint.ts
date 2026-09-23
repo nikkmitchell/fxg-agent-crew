@@ -40,7 +40,22 @@ export const CARD_PX = { width: 512, height: 256 } as const;
  * looks like a different product. If these drift from styles.css, that is a bug
  * and not a preference.
  */
-export const CARD_INK = {
+/**
+ * NOT `as const` ANY MORE, and deliberately: shared/room-theme.ts replaces
+ * these values IN PLACE when the room switches between dark and light, so every
+ * file that reads `CARD_INK.paper` at paint time gets the current theme without
+ * being told. These starting values are the light theme; the room applies dark
+ * on arrival unless somebody has turned it off.
+ */
+export const CARD_INK: {
+  paper: string;
+  paperHeld: string;
+  edge: string;
+  ink: string;
+  muted: string;
+  accent: string;
+  refused: string;
+} = {
   paper: "#faf8f2",
   paperHeld: "#fffdf5",
   edge: "#d9d3c4",
@@ -48,7 +63,7 @@ export const CARD_INK = {
   muted: "#6b6559",
   accent: "#e45338",
   refused: "#b23b22",
-} as const;
+};
 
 /** A status's stripe, so a card is recognisable without reading it. */
 export const STATUS_STRIPE: Record<string, string> = {
