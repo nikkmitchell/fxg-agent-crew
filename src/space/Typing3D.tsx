@@ -1,11 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
 import { CARD_INK } from "../../shared/card-paint";
 import { canTranscribe, createSayRecorder, type SayRecorder } from "./say-recorder";
 import { openNativeInput, type NativeInput } from "./native-input";
 import { claimPointer } from "./pointer-claim";
 import { Text } from "@react-three/drei";
-import { emptyTyping, press, type Typing } from "../../shared/keyboard-3d";
+import { emptyTyping, press, type Key, type Typing } from "../../shared/keyboard-3d";
+import { backspaceIn, charAtPoint, dictateInto, tapAt, typeInto, type DraftEdit, type Span } from "../../shared/draft-edit";
+
+/** What is being typed, plus where: a caret, and a word selected by tapping it (shared/draft-edit.ts). */
+type Editing = Typing & { caret: number; selected: Span | null };
+
+const atEnd = (text: string): Editing => ({ ...emptyTyping(text), caret: text.length, selected: null });
+const draftOf = (t: Editing): DraftEdit => ({ text: t.text, caret: t.caret, selected: t.selected });
+
+/**
+ * The text grows UPWARD from just above the buttons, and the panel with it, so
+ * a long spoken message is all visible and never runs into the keys. A card
+ * title looks as it always did: one line where the one line always was.
+ */
+const TEXT_BOTTOM = 0.1485;
+const PANEL_BOTTOM = 0.06;
+/** Smaller type for a long message, so a spoken paragraph fits at arm's length. */
+const textSize = (length: number) => (length <= 120 ? 0.036 : Math.max(0.022, 0.036 * Math.sqrt(120 / length)));
 import { Keyboard3D } from "./Keyboard3D";
 
 /**
@@ -67,7 +85,12 @@ export function Typing3D({
    */
   scale?: number;
 }) {
-  const [typing, setTyping] = useState<Typing>(() => emptyTyping(initial));
+  const [typing, setTyping] = useState<Editing>(() => atEnd(initial));
+  /** How tall the text came out, as troika laid it out — the panel is sized to it. */
+  const [textHeight, setTextHeight] = useState(0.043);
+  /** Where troika put each character, for the band behind a lit word. */
+  const [layout, setLayout] = useState<ArrayLike<number> | null>(null);
+  const shown = useRef<THREE.Mesh & { textRenderInfo?: { caretPositions?: ArrayLike<number> } }>(null);
   /** idle, listening, or waiting for the words to come back. */
   const [phase, setPhase] = useState<"idle" | "recording" | "writing">("idle");
   /**
@@ -92,6 +115,20 @@ export function Typing3D({
   const latest = useRef(typing);
   latest.current = typing;
 
+  /**
+   * Every change to the words goes through here: a key, ⌫, speech, from the 3D
+   * keys or the real keyboard alike. Functional, and through `latest`, for the
+   * same reason as above — a burst of keys must never edit a stale draft.
+   */
+  const edit = useCallback((change: (draft: DraftEdit) => DraftEdit, releaseShift = false) => {
+    setTyping((t) => {
+      const d = change(draftOf(t));
+      const next: Editing = { ...t, text: d.text, caret: d.caret, selected: d.selected, shifted: releaseShift ? false : t.shifted };
+      latest.current = next;
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     let live = true;
     void canTranscribe().then((yes) => {
@@ -113,7 +150,7 @@ export function Typing3D({
     [],
   );
 
-  const settle = (next: Typing) => {
+  const settle = (next: Editing) => {
     if (next.cancelled) return onCancel();
     if (next.done) {
       const text = next.text.trim();
@@ -148,20 +185,9 @@ export function Typing3D({
       event.stopPropagation();
       if (event.key === "Escape") return onCancel();
       if (event.key === "Enter") return settle({ ...latest.current, done: true });
-      if (event.key === "Backspace") {
-        setTyping((t) => {
-          const next = { ...t, text: t.text.slice(0, -1) };
-          latest.current = next;
-          return next;
-        });
-        return;
-      }
+      if (event.key === "Backspace") return edit((d) => backspaceIn(d));
       if (event.key.length !== 1) return;
-      setTyping((t) => {
-        const next = t.text.length >= limit ? t : { ...t, text: t.text + event.key };
-        latest.current = next;
-        return next;
-      });
+      edit((d) => typeInto(d, event.key, limit));
     };
     // Capture, so this wins over the room's own walk and look handlers.
     window.addEventListener("keydown", onKey, true);
@@ -169,17 +195,11 @@ export function Typing3D({
   });
 
   const write = useCallback((words: string) => {
-    const text = words.trim();
-    if (!text) return;
-    setTyping((t) => {
-      // APPENDED, NOT REPLACED. Somebody who typed half a title and then spoke
-      // the rest meant both halves.
-      const joined = t.text ? `${t.text} ${text}` : text;
-      const next = { ...t, text: joined.slice(0, limit) };
-      latest.current = next;
-      return next;
-    });
-  }, [limit]);
+    // APPENDED at the end, as it always was: somebody who typed half a title
+    // and then spoke the rest meant both halves. With a word selected, it
+    // REPLACES that word — saying it again is how a misheard word is fixed.
+    edit((d) => dictateInto(d, words, limit));
+  }, [edit, limit]);
 
   const speak = useCallback(() => {
     if (!recorder.current) {
@@ -195,19 +215,32 @@ export function Typing3D({
 
   const useSystemKeyboard = useCallback(() => {
     native.current?.close();
+    /**
+     * OPENED EMPTY, AND WHAT IT TAKES DOWN GOES WHERE THE CARET OR THE LIT
+     * WORD IS. It used to be handed the whole text — and inside a headset's
+     * session Meta documents that the first key press of each keyboard session
+     * "overwrites the entire existing value" (system-keyboard.ts), so one key
+     * would wipe a spoken paragraph. The input is also one invisible pixel, so
+     * editing inside it was blind anyway. This way the keyboard's own
+     * microphone can re-dictate one tapped word.
+     */
+    const base = draftOf(latest.current);
+    const merged = (typed: string): DraftEdit =>
+      !typed ? base : base.selected ? typeInto(base, typed, limit) : dictateInto(base, typed, limit);
     native.current = openNativeInput({
-      value: latest.current.text,
+      value: "",
       label: prompt,
-      onChange: (text) => {
+      onChange: (typed) => {
+        const d = merged(typed);
         setTyping((t) => {
-          const next = { ...t, text };
+          const next: Editing = { ...t, text: d.text, caret: d.caret, selected: d.selected };
           latest.current = next;
           return next;
         });
       },
-      onDone: (text) => {
+      onDone: (typed) => {
         native.current = null;
-        const trimmed = text.trim();
+        const trimmed = merged(typed).text.trim();
         if (trimmed) onDone(trimmed);
         else onCancel();
       },
@@ -215,30 +248,104 @@ export function Typing3D({
         native.current = null;
       },
     });
-  }, [onCancel, onDone, prompt]);
+  }, [limit, onCancel, onDone, prompt]);
+
+  /**
+   * THE WHOLE TEXT, with a caret where typing will go — or, when a word has
+   * been tapped, that word lit instead. A caret inside the text is a character
+   * of the display, so a tap after it maps back one place.
+   */
+  const caretAt = typing.selected ? null : Math.max(0, Math.min(typing.caret, typing.text.length));
+  const display = caretAt === null ? typing.text : `${typing.text.slice(0, caretAt)}▏${typing.text.slice(caretAt)}`;
+  /**
+   * THE LIT WORD, as a band behind it rather than a colour on it: troika's
+   * colorRanges drew the word DARKER than its neighbours on this material,
+   * which reads as "gone" rather than "chosen". The band comes from the same
+   * character layout the tap is read from, so it sits exactly on the word.
+   */
+  const band = (() => {
+    const chosen = typing.selected;
+    if (!chosen || !layout || layout.length < chosen.end * 4) return null;
+    const left = layout[chosen.start * 4];
+    const right = layout[(chosen.end - 1) * 4 + 1];
+    const bottom = layout[chosen.start * 4 + 2];
+    const top = layout[chosen.start * 4 + 3];
+    return { x: (left + right) / 2, y: (bottom + top) / 2, width: Math.abs(right - left) + 0.012, height: Math.abs(top - bottom) + 0.006 };
+  })();
+  const promptY = Math.max(0.225, TEXT_BOTTOM + textHeight + 0.034);
+  const panelTop = promptY + 0.035;
+
+  const tapText = (event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    claimPointer(event.nativeEvent);
+    const mesh = shown.current;
+    const layout = mesh?.textRenderInfo?.caretPositions;
+    if (!mesh || !layout) return;
+    const local = mesh.worldToLocal(event.point.clone());
+    const at = charAtPoint(layout, local.x, local.y);
+    if (at === null) return;
+    const index = caretAt !== null && at > caretAt ? at - 1 : at;
+    setTyping((t) => {
+      const d = tapAt(draftOf(t), Math.min(index, t.text.length));
+      const next: Editing = { ...t, caret: d.caret, selected: d.selected };
+      latest.current = next;
+      return next;
+    });
+  };
+
+  const onKey = (key: Key) => {
+    switch (key.action) {
+      case "backspace":
+        return edit((d) => backspaceIn(d));
+      case "space":
+        return edit((d) => typeInto(d, " ", limit));
+      case "shift":
+      case "symbols":
+      case "enter":
+      case "cancel":
+        return settle(press(latest.current, key) as Editing);
+      default:
+        return edit((d) => typeInto(d, key.value, limit), true);
+    }
+  };
 
   return (
     <group position={position} scale={scale}>
-      <mesh position={[0, 0.16, -0.006]}>
-        <planeGeometry args={[0.72, 0.2]} />
+      <mesh position={[0, (PANEL_BOTTOM + panelTop) / 2, -0.006]}>
+        <planeGeometry args={[0.72, panelTop - PANEL_BOTTOM]} />
         <meshBasicMaterial color="#14161d" transparent opacity={0.94} toneMapped={false} />
       </mesh>
-      <Text position={[-0.33, 0.225, 0]} fontSize={0.028} color="#9a978f" anchorX="left" anchorY="middle">
+      <Text position={[-0.33, promptY, 0]} fontSize={0.028} color="#9a978f" anchorX="left" anchorY="middle">
         {prompt}
       </Text>
       <Text
-        position={[-0.33, 0.17, 0]}
-        fontSize={0.036}
+        ref={shown}
+        position={[-0.33, TEXT_BOTTOM, 0]}
+        fontSize={textSize(typing.text.length)}
         color="#f2efe6"
         anchorX="left"
-        anchorY="middle"
+        anchorY="bottom"
         maxWidth={0.66}
+        onSync={(troika: { textRenderInfo?: { blockBounds?: number[]; caretPositions?: ArrayLike<number> } }) => {
+          const bounds = troika.textRenderInfo?.blockBounds;
+          if (bounds) setTextHeight(Math.max(0.043, bounds[3] - bounds[1]));
+          setLayout(troika.textRenderInfo?.caretPositions ?? null);
+        }}
+        onPointerDown={tapText}
       >
         {/* A caret, so an empty field looks ready rather than broken. */}
-        {`${typing.text}▏`}
+        {display}
       </Text>
+      {band ? (
+        <mesh position={[-0.33 + band.x, TEXT_BOTTOM + band.y, -0.002]}>
+          <planeGeometry args={[band.width, band.height]} />
+          <meshBasicMaterial color="#d99a2b" transparent opacity={0.55} toneMapped={false} />
+        </mesh>
+      ) : null}
       <Text position={[0.33, 0.1, 0]} fontSize={0.022} color="#6f6b63" anchorX="right" anchorY="middle">
-        {`${typing.text.length}/${limit} · done to save, esc to drop it`}
+        {typing.selected
+          ? "type, speak or ⌫ to change the lit word"
+          : `${typing.text.length}/${limit} · ${typing.text ? "tap a word to fix it · " : ""}done to save`}
       </Text>
       {/*
         THE TWO WAYS IN THAT ARE NOT KEYS. Side by side above the keyboard,
@@ -275,7 +382,7 @@ export function Typing3D({
         onPress={() => settle({ ...latest.current, done: true })}
       />
 
-      <Keyboard3D typing={typing} onChange={settle} position={[0, -0.09, 0]} />
+      <Keyboard3D typing={typing} onChange={(next) => settle(next as Editing)} onKey={onKey} position={[0, -0.09, 0]} />
     </group>
   );
 }

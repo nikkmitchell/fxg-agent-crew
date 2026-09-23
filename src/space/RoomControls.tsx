@@ -36,6 +36,7 @@ import { voiceReport } from "./voice-report";
 import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
 import type { RoomItem } from "../../shared/room-items";
+import { Typing3D } from "./Typing3D";
 
 /**
  * The room's controls, in front of you at body level.
@@ -221,6 +222,15 @@ export function RoomControls({
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
+  /**
+   * SEEING AND FIXING WHAT YOU SAID. Baiwei: "instead of seeing everything I
+   * said, I only see an empty bar with a keyboard... I would like to see
+   * everything that I've said." The draft line shows only its end, and the
+   * Quest's keyboard can only ADD (system-keyboard.ts says why), so a
+   * misheard word could never be fixed. This opens the room's own typing panel
+   * with the whole draft in it; tap a word to retype or re-speak just that word.
+   */
+  const [fixing, setFixing] = useState(false);
   /**
    * Which list you are looking at.
    *
@@ -1003,6 +1013,7 @@ export function RoomControls({
             },
         ...(written.trim()
           ? [
+              { label: "See and fix what you said", onTap: () => { setOpen(false); setFixing(true); } },
               { label: "Send what you wrote", tone: "live" as const, onTap: () => void sendWritten() },
               { label: "Throw away what you wrote", tone: "muted" as const, onTap: () => setWritten("") },
             ]
@@ -1316,7 +1327,26 @@ export function RoomControls({
   return (
     <>
       <group ref={group} visible={false}>
-      {open ? (
+      {fixing ? (
+        /*
+          IN PLACE OF THE CONTROLS, not beside them: the editor has its own
+          speak and save, and a mic button behind the keys would be one more
+          thing to mis-press. Centred where the gear and mic were, at the size
+          of those controls (their icons are 18cm), not a board's.
+        */
+        <Typing3D
+          prompt="What you said: tap a word to fix it"
+          initial={written}
+          limit={2000}
+          position={[0, 0.05, 0.03]}
+          scale={1.3}
+          onDone={(text) => {
+            setWritten(text);
+            setFixing(false);
+          }}
+          onCancel={() => setFixing(false)}
+        />
+      ) : open ? (
         columns.map((column, index) => (
           <ButtonBox
             key={`${index}-${column.title}`}
@@ -1508,7 +1538,9 @@ export function RoomControls({
             // Tapping the draft adds to it; tapping a notice dismisses it. The
             // recording status is not a notice and a tap does nothing to it.
             if (notice || voice.trouble) setNotice(null);
-            else if (draftPreview && !recordingStatus) openTextEntry();
+            // THE WHOLE DRAFT, TO FIX — not the Quest keyboard, which opens
+            // empty and can only add to it.
+            else if (draftPreview && !recordingStatus) setFixing(true);
           }}
         />
       ) : null}

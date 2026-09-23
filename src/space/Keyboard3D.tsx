@@ -65,10 +65,17 @@ function KeyCap({ item, onPress }: { item: Key; onPress: (key: Key) => void }) {
 export function Keyboard3D({
   typing,
   onChange,
+  onKey,
   position = [0, 0, 0],
 }: {
   typing: Typing;
   onChange: (next: Typing) => void;
+  /**
+   * Take the key itself instead of the typed result — for a field that edits
+   * in the middle of its text (a tapped word, a caret), which `press` cannot
+   * know about. When given, `onChange` is not called.
+   */
+  onKey?: (key: Key) => void;
   position?: [number, number, number];
 }) {
   const board = useMemo(() => buildKeyboard(typing.mode, typing.shifted), [typing.mode, typing.shifted]);
@@ -81,7 +88,7 @@ export function Keyboard3D({
         <meshBasicMaterial color="#14161d" transparent opacity={0.94} toneMapped={false} />
       </mesh>
       {board.keys.map((item) => (
-        <KeyCap key={`${item.value}-${item.x}-${item.y}`} item={item} onPress={(key) => onChange(press(typing, key))} />
+        <KeyCap key={`${item.value}-${item.x}-${item.y}`} item={item} onPress={(key) => (onKey ? onKey(key) : onChange(press(typing, key)))} />
       ))}
     </group>
   );
