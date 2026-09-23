@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { Text } from "@react-three/drei";
 import * as THREE from "three";
 import { PANEL_Y, facingPoint, placementRefusal, scaleOf } from "../../shared/panel-place";
 import { PANEL } from "../../shared/space-layout";
@@ -9,6 +10,9 @@ import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 }
 import type { ArrangeMode } from "./usePanelArrange";
 import type { Placement } from "../../shared/space-wire";
 import { claimPointer } from "./pointer-claim";
+import { grabHold } from "./grab-hold";
+import { space } from "../space-client";
+import { CARD_INK } from "../../shared/card-paint";
 
 /**
  * A panel you can pick up and put somewhere else.
@@ -68,6 +72,11 @@ const WHEEL_REACH = 0.0022;
  */
 const BAR_HEIGHT = 0.28;
 
+/** How long the panel says why it would not move. Long enough to read twice. */
+const SAYS_FOR_MS = 4_000;
+
+const noRaycast = () => undefined;
+
 const distance = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 
 const normalised = (ray: Ray): Vec3 => {
@@ -107,13 +116,39 @@ export function Movable({
    * which is what makes it usable from across the room with a controller ray.
    */
   mode: ArrangeMode;
-  /** Called once, on release, with where it ended up. Never during the drag. */
-  onPlaced: (place: Placement) => void;
+  /**
+   * Called once, on release, with where it ended up. Never during the drag.
+   *
+   * May answer with the save: a promise of the server's refusal, or null. The
+   * panel's hold is let go only once that has landed, and a refused save puts
+   * the panel back where the room still has it.
+   */
+  onPlaced: (place: Placement) => void | Promise<string | null | void>;
   onTrouble: (why: string | null) => void;
   children: React.ReactNode;
 }) {
   const group = useRef<THREE.Group>(null);
   const [dragging, setDragging] = useState(false);
+
+  /**
+   * WHY IT WOULD NOT MOVE, SAID ON THE PANEL ITSELF.
+   *
+   * Every refusal used to reach only a line in the side column of the page —
+   * 1,800 pixels down, found by looking for it — and a headset has no side
+   * column at all. So a panel somebody else was holding would simply jump back
+   * out of your hand with no reason given. The reason now appears just above
+   * the bar you grabbed, where you are already looking, for a few seconds.
+   */
+  const [says, setSays] = useState<string | null>(null);
+  useEffect(() => {
+    if (!says) return;
+    const quiet = setTimeout(() => setSays(null), SAYS_FOR_MS);
+    return () => clearTimeout(quiet);
+  }, [says]);
+  const refuse = useCallback((why: string) => {
+    setSays(why);
+    onTrouble(why);
+  }, [onTrouble]);
   const gesture = useRef<"move" | "resize">("move");
 
   /** How the panel is being held: how far along the ray, and where on it. */
@@ -212,6 +247,33 @@ export function Movable({
    */
   const target = useRef<{ position: Vec3; scale: number; toward?: { x: number; z: number } } | null>(null);
 
+  /** The room's word on where this panel is, NOW — read after a save, which is later than any render. */
+  const placeNow = useRef(place);
+  placeNow.current = place;
+
+  /** Put the panel back where the room has it, and forget where it was headed. */
+  const putBack = useCallback(() => {
+    const node = group.current;
+    target.current = null;
+    if (!node) return;
+    const at = placeNow.current;
+    node.position.set(at.position.x, at.position.y, at.position.z);
+    node.rotation.y = at.rotationY;
+    node.scale.setScalar(scaleOf(at));
+    invalidate();
+  }, [invalidate]);
+
+  /**
+   * NOBODY ELSE MAY MOVE IT WHILE YOU DO — see grab-hold.ts. The grab starts
+   * at once and claims the panel in the background; if somebody else already
+   * has it, the drag ends in your hand and the room says who.
+   */
+  const cancelled = useRef<(why: string) => void>(() => undefined);
+  const hold = useMemo(
+    () => grabHold({ thing: `panel:${place.id}`, api: space.hold, refused: (why) => cancelled.current(why) }),
+    [place.id],
+  );
+
   /** Take hold, along a ray, at the point on the panel the ray struck. */
   const begin = useCallback(
     (ray: Ray | null, struck: Vec3 | null, kind: "move" | "resize" = "move") => {
@@ -219,6 +281,7 @@ export function Movable({
       if (!ray || !node) return;
       grabbing.current = true;
       gesture.current = kind;
+      hold.take();
       const centre = vec(node.position);
 
       if (kind === "resize") {
@@ -232,7 +295,7 @@ export function Movable({
       }
       setDragging(true);
     },
-    [place],
+    [hold, place],
   );
 
   const drag = useCallback(
@@ -348,19 +411,27 @@ export function Movable({
     };
     const refused = placementRefusal(next);
     if (refused) {
+      hold.release();
       // Drop the target as well, or the ease carries on pulling the panel back
       // toward the place the server just refused.
-      target.current = null;
-      node.position.set(place.position.x, place.position.y, place.position.z);
-      node.rotation.y = place.rotationY;
-      node.scale.setScalar(scaleOf(place));
-      invalidate();
-      onTrouble(refused);
+      putBack();
+      refuse(refused);
       return;
     }
     onTrouble(null);
-    onPlaced(next);
-  }, [invalidate, onPlaced, onTrouble, place]);
+    setSays(null);
+    const saved = Promise.resolve(onPlaced(next));
+    hold.release(saved);
+    // REFUSED BY THE ROOM, not just by the rule above — somebody else was
+    // holding it, say, and this drag was over before the claim came back. The
+    // panel goes back to where everybody else can see it, not left where the
+    // room said no.
+    void saved.then((why) => {
+      if (typeof why !== "string" || grabbing.current) return;
+      putBack();
+      setSays(why);
+    });
+  }, [hold, onPlaced, onTrouble, place.id, putBack, refuse]);
 
   /**
    * While dragging, the whole window listens — FROM THE MOMENT OF THE GRAB.
@@ -405,8 +476,25 @@ export function Movable({
     };
   }, [drag, rayFromScreen, reachBy, release]);
 
-  // Never leave a listener behind on a panel that has gone away.
+  // Never leave a listener behind on a panel that has gone away — nor a claim
+  // on it being renewed every few seconds by a drag that no longer exists.
   useEffect(() => () => stopListening.current?.(), []);
+  useEffect(() => () => hold.release(), [hold]);
+
+  /**
+   * SOMEBODY ELSE HAS IT. The drag ends where it is, exactly as a release would
+   * end it, except that nothing is saved and the panel goes back.
+   */
+  cancelled.current = (why: string) => {
+    if (!grabbing.current) return;
+    grabbing.current = false;
+    grabbedPointer.current = null;
+    stopListening.current?.();
+    held.current = null;
+    setDragging(false);
+    putBack();
+    refuse(why);
+  };
 
   // Follow the authoritative place whenever it changes and we are not the one
   // moving it — somebody else dragging a panel must move it here too.
@@ -490,6 +578,27 @@ export function Movable({
             side={THREE.DoubleSide}
           />
         </mesh>
+      ) : null}
+
+      {says ? (
+        <group position={[0, top + BAR_HEIGHT / 2 + 0.22, 0.04]}>
+          <mesh raycast={noRaycast}>
+            <planeGeometry args={[PANEL.width * 0.9, 0.34]} />
+            <meshBasicMaterial color={CARD_INK.paperHeld} toneMapped={false} />
+          </mesh>
+          <Text
+            position={[0, 0, 0.005]}
+            // About the size of a panel title: readable from where you stood to grab it.
+            fontSize={0.17}
+            maxWidth={PANEL.width * 0.85}
+            color={CARD_INK.refused}
+            anchorX="center"
+            anchorY="middle"
+            raycast={noRaycast}
+          >
+            {says}
+          </Text>
+        </group>
       ) : null}
 
       {/*

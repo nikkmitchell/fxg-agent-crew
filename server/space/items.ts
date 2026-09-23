@@ -8,6 +8,7 @@ import type { SessionStore } from "../session.js";
 import { roomKey } from "../../shared/space-room.js";
 import { placeGoStone } from "../../shared/go-rules.js";
 import { goTableEntityId } from "./destinations.js";
+import { heldBySentence, type Holds } from "./holds.js";
 
 export class RoomItems {
   constructor(private readonly database: DatabaseSync) {}
@@ -44,6 +45,8 @@ export class RoomItems {
 
 export function registerRoomItemRoutes(app: FastifyInstance, options: {
   config: Config; sessions: SessionStore; items: RoomItems; announce: (room: string, items: RoomItem[], by: string) => void;
+  /** Who is carrying which item; moving or resizing one somebody else holds is refused. */
+  holds?: Holds;
 }) {
   const requireSession = makeRequireSession(options.config, options.sessions);
   const publish = (room: string, by: string) => { const items = options.items.all(room); options.announce(room, items, by); return items; };
@@ -71,6 +74,10 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     }
     if (change?.position !== undefined || change?.scale !== undefined) {
       if (item.liftedColour !== null) return reply.code(409).send({ error: "Place or return the flying stone before moving the table." });
+      // Only the MOVE is guarded: the game, the board type and the players are
+      // not what a person carrying the table has in their hands.
+      const heldBy = options.holds?.heldByOther(room, `item:${item.id}`, session.username);
+      if (heldBy) return reply.code(409).send({ code: "HELD", heldBy, error: heldBySentence(heldBy) });
       if (change.position !== undefined) {
         if (!change.position || typeof change.position !== "object") return reply.code(400).send({ error: "Position needs x, y, z and rotationY." });
         const p = change.position as Record<string, unknown>;

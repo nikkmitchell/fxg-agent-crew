@@ -113,6 +113,11 @@ export const space = {
         }),
       },
     ),
+  /** Claim, renew or let go of the thing you are moving — see grab-hold.ts. */
+  hold: (thing: string, held: boolean) =>
+    requestJson<{ ok: true; held: boolean }>(`${root}/holds`, {
+      method: "POST", body: JSON.stringify({ thing, held }),
+    }),
   /** The tables as they are now — for catching up after being told one changed. */
   roomItems: () => requestJson<{ items: RoomItem[] }>(`${root}/items`),
   addRoomItem: () => requestJson<{ item: RoomItem }>(`${root}/items`, {

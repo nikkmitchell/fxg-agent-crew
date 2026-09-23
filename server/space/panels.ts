@@ -12,6 +12,7 @@ import type { Placement } from "../../shared/space-wire.js";
 import type { SessionStore } from "../session.js";
 import type { Config } from "../config.js";
 import { makeRequireSession, spaceRoomOf } from "../require-session.js";
+import { heldBySentence, type Holds } from "./holds.js";
 
 /**
  * Which panels a person has open.
@@ -181,10 +182,13 @@ export function registerPanelRoutes(
     config,
     announce,
     announceOpen,
+    holds,
   }: {
     database: DatabaseSync;
     sessions: SessionStore;
     config: Config;
+    /** Who is holding which panel; a panel somebody else holds is not yours to place. */
+    holds?: Holds;
     /** Tell everyone in the room, so a panel moves under their eyes. */
     announce: (room: string, placement: Placement, by: string) => void;
     announceOpen: (room: string, open: string[], by: string) => void;
@@ -278,6 +282,16 @@ export function registerPanelRoutes(
       if (body.scale !== undefined && typeof body.scale !== "number") {
         return reply.code(400).send({ code: "BAD_PLACE", error: "scale must be a number" });
       }
+
+      /**
+       * NOT WHILE SOMEBODY ELSE IS HOLDING IT. Two people dragging one panel
+       * used to settle it by whoever let go last, each watching it jump out of
+       * their hands. Refused with who has it, so the one who let go of nothing
+       * knows why. A hold of your own, or none at all, changes nothing here:
+       * an agent placing a panel by API never takes one.
+       */
+      const heldBy = holds?.heldByOther(spaceRoomOf(session), `panel:${request.params.id}`, session.username);
+      if (heldBy) return reply.code(409).send({ code: "HELD", heldBy, error: heldBySentence(heldBy) });
 
       const result = places.place(
         spaceRoomOf(session),

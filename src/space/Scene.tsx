@@ -708,7 +708,9 @@ export default function Scene({
               // appearing empty and filling in when the socket opens.
               place={placeOf(connection.places, station.id)}
               mode={arrange.modeOf(station.id)}
-              onPlaced={(next) => void savePlacement(next).then(onPanelTrouble)}
+              // The save is handed back so the panel lets go of its hold only
+              // once the save has landed, and goes back if the room refused it.
+              onPlaced={(next) => savePlacement(next).then((why) => { onPanelTrouble(why); return why; })}
               onTrouble={onPanelTrouble}
             >
               {/* ONE PANEL, CHOSEN BY WHAT IT SHOWS, NOT BY WHERE YOU ARE.

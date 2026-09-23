@@ -40,6 +40,7 @@ import { registerTranscribeRoutes } from "./space/transcribe.js";
 import { ScreenFrames, ShareKeys, registerScreenRoutes } from "./space/screens.js";
 import { openDatabase } from "./db/open.js";
 import { RoomItems, registerRoomItemRoutes } from "./space/items.js";
+import { Holds, registerHoldRoutes } from "./space/holds.js";
 
 /**
  * Backend-for-frontend.
@@ -209,6 +210,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // rather than stored and discovered wrong by everybody at once later.
   const roomShowing = new RoomShowing(database, new BoardReads(database));
   const roomItems = new RoomItems(database);
+  // One for the whole server: a panel's hold and the Go table's must be the
+  // same registry the place and move routes consult, or the lock locks nothing.
+  const holds = new Holds();
   const activity = new Activity(
     database,
     space.presence,
@@ -298,7 +302,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       announce: (room, panel, by) => hubFor(room).broadcast({ type: "panelMoved", panel, by }),
       announceOpen: (room, open, by) => hubFor(room).broadcast({ type: "panelsOpen", open, by }),
+      holds,
     });
+    registerHoldRoutes(scoped, { config, sessions, holds });
     registerShowingRoutes(scoped, {
       showing: roomShowing,
       sessions,
@@ -310,6 +316,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       items: roomItems,
       announce: (room, items, by) => hubFor(room).broadcast({ type: "roomItems", items, by }),
+      holds,
     });
     registerUtteranceRoutes(
       scoped,

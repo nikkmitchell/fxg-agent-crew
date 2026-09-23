@@ -17,6 +17,7 @@ import { goSnap, type GoMove } from "./go-snap";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
 import { GO_NAMES as NAMES, goStarPoints } from "../../shared/go-text";
 import { goTableWriter } from "./go-table-writer";
+import { grabHold } from "./grab-hold";
 
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
 const xyz = (p: Point3): [number, number, number] => [p.x, p.y, p.z];
@@ -478,6 +479,31 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   const caster = useMemo(() => ({ ray: new THREE.Raycaster(), ndc: new THREE.Vector2() }), []);
   const asVec = (v: { x: number; y: number; z: number }): Vec3 => ({ x: v.x, y: v.y, z: v.z });
 
+  /**
+   * ONE CARRIER AT A TIME — where Nikk found it: two people carried this table
+   * at once, and because a carry is retried after "the table changed", both
+   * succeeded and the later simply overwrote the earlier. The carry claims the
+   * table in the background (grab-hold.ts); if somebody else has it, the table
+   * leaves your hand and the notice says who.
+   */
+  const refusedCarry = useRef<(why: string) => void>(() => undefined);
+  const tableHold = useMemo(
+    () => grabHold({ thing: `item:${item.id}`, api: space.hold, refused: (why) => refusedCarry.current(why) }),
+    [item.id],
+  );
+  useEffect(() => () => tableHold.release(), [tableHold]);
+
+  /**
+   * Back where the room has it. Needed by hand: the group's position is a prop,
+   * and a prop that has not changed is not applied again, so a table let go of
+   * without a new position would stay wherever the carry had left it.
+   */
+  const putTableBack = useCallback(() => {
+    const node = body.current, at = latest.current.position;
+    if (node) node.position.set(at.x, at.y, at.z);
+    invalidate();
+  }, [invalidate]);
+
   const rayFromScreen = useCallback((clientX: number, clientY: number): Ray | null => {
     const rect = gl.domElement.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return null;
@@ -505,11 +531,15 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     const at = want.current;
     grab.current = null; want.current = null; grabbedPointer.current = null;
     setCarrying(false);
-    if (!at) return;
+    if (!at) { tableHold.release(); return; }
     const place = { position: { x: at.x, y: at.y, z: at.z, rotationY: item.position.rotationY } };
     // Where it was put does not depend on anything else about the table.
-    void configure(place, () => place);
-  }, [item.position.rotationY]);
+    const saved = configure(place, () => place);
+    // Let go of the claim only once the save has landed, or it could arrive
+    // first and let somebody else in ahead of this very drop.
+    tableHold.release(saved);
+    void saved.then((ok) => { if (!ok && !grab.current) putTableBack(); });
+  }, [item.position.rotationY, putTableBack, tableHold]);
 
   /**
    * THE LISTENERS GO ON AT THE MOMENT OF THE GRAB, not on the next render.
@@ -553,6 +583,15 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   // Never leave a listener behind on a table that has gone away.
   useEffect(() => () => letGoOfTable.current?.(), []);
 
+  refusedCarry.current = (why: string) => {
+    if (!grab.current) return;
+    letGoOfTable.current?.();
+    grab.current = null; want.current = null; grabbedPointer.current = null;
+    setCarrying(false);
+    putTableBack();
+    setNotice(why);
+  };
+
   useFrame(() => {
     const node = body.current, at = want.current;
     if (!node || !at) return;
@@ -570,6 +609,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       { origin: asVec(event.ray.origin), direction: asVec(event.ray.direction) },
       { x: item.position.x, y: item.position.y, z: item.position.z },
     );
+    tableHold.take();
     grabbedPointer.current = event.pointerId;
     (event.target as { setPointerCapture?: (id: number) => void } | null)?.setPointerCapture?.(event.pointerId);
     setNotice("");
