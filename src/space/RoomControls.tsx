@@ -101,6 +101,16 @@ import { Typing3D } from "./Typing3D";
 const OPEN_AHEAD = 1.95;
 const OPEN_HEIGHT = 1.42;
 
+/**
+ * Where fixing what you said happens: BETWEEN the two. Baiwei, in a headset,
+ * at the waist-level controls' distance: "size ok but too close"; at the open
+ * menu's: "a little bit too far. Also, when I move, it doesn't follow me." So a
+ * middle distance at eye height, and it FOLLOWS, the way the closed controls do
+ * — a panel you type on is held with you, not a menu you walk up to and read.
+ */
+const FIX_AHEAD = 1.2;
+const FIX_HEIGHT = 1.38;
+
 /** One button in the open grid. Wider and taller than the waist buttons. */
 const BOX_BUTTON = { width: 0.56, height: 0.11, gap: 0.018 } as const;
 /** How many buttons a box holds before it spills into another column. */
@@ -231,6 +241,9 @@ export function RoomControls({
    * with the whole draft in it; tap a word to retype or re-speak just that word.
    */
   const [fixing, setFixing] = useState(false);
+  /** For the frame loop, which must not wait for a re-render to know. */
+  const fixingNow = useRef(false);
+  fixingNow.current = fixing;
   /**
    * Which list you are looking at.
    *
@@ -720,21 +733,35 @@ export function RoomControls({
    */
   const pinned = useRef<{ x: number; z: number; yaw: number } | null>(null);
 
-  const openMenu = useCallback(() => {
+  const pinAhead = useCallback(() => {
     const body = anchor();
-    if (body) {
-      // Pinned out in front of where you were STANDING when you opened it,
-      // using the panel's own lagged facing rather than your head's, so it
-      // does not appear off to one side if you happened to be glancing away.
-      const yaw = facing.current ?? body.yaw;
-      pinned.current = {
-        x: body.at.x - Math.sin(yaw) * OPEN_AHEAD,
-        z: body.at.z - Math.cos(yaw) * OPEN_AHEAD,
-        yaw,
-      };
-    }
-    setOpen(true);
+    if (!body) return;
+    // Pinned out in front of where you were STANDING when you opened it,
+    // using the panel's own lagged facing rather than your head's, so it
+    // does not appear off to one side if you happened to be glancing away.
+    const yaw = facing.current ?? body.yaw;
+    pinned.current = {
+      x: body.at.x - Math.sin(yaw) * OPEN_AHEAD,
+      z: body.at.z - Math.cos(yaw) * OPEN_AHEAD,
+      yaw,
+    };
   }, [anchor]);
+
+  const openMenu = useCallback(() => {
+    pinAhead();
+    setOpen(true);
+  }, [pinAhead]);
+
+  /** Fixing what you said: see FIX_AHEAD. Never pinned — it follows you. */
+  const startFixing = useCallback(() => {
+    pinned.current = null;
+    setOpen(false);
+    setFixing(true);
+  }, []);
+  const stopFixing = useCallback(() => {
+    pinned.current = null;
+    setFixing(false);
+  }, []);
 
   const closeMenu = useCallback(() => {
     pinned.current = null;
@@ -778,6 +805,15 @@ export function RoomControls({
     if (Math.abs(delta) > SLACK) facing.current += delta * EASE;
 
     const yaw = facing.current;
+    if (fixingNow.current) {
+      // Ahead of you at eye height, turned to face you, following as you move
+      // with the same lagged facing as the closed controls, so it does not
+      // swing with every glance.
+      node.position.set(body.at.x - Math.sin(yaw) * FIX_AHEAD, FIX_HEIGHT, body.at.z - Math.cos(yaw) * FIX_AHEAD);
+      node.rotation.order = "YXZ";
+      node.rotation.set(0, yaw, 0);
+      return;
+    }
     const { position, rotation } = closedControlPose(body.at, yaw);
     node.position.set(position[0], position[1], position[2]);
     /**
@@ -1013,7 +1049,7 @@ export function RoomControls({
             },
         ...(written.trim()
           ? [
-              { label: "See and fix what you said", onTap: () => { setOpen(false); setFixing(true); } },
+              { label: "See and fix what you said", onTap: startFixing },
               { label: "Send what you wrote", tone: "live" as const, onTap: () => void sendWritten() },
               { label: "Throw away what you wrote", tone: "muted" as const, onTap: () => setWritten("") },
             ]
@@ -1338,17 +1374,20 @@ export function RoomControls({
           prompt="What you said: tap a word to fix it"
           initial={written}
           limit={2000}
-          position={[0, 0.05, 0.03]}
-          scale={1.3}
+          // 1.2m ahead at eye height (FIX_AHEAD), about the distance from the
+          // eyes of the waist-level spot where Baiwei said the size was right,
+          // so about that size. Dropped a little so the keys sit below the eyes
+          // and the words at them.
+          position={[0, -0.12, 0]}
+          scale={1.5}
           // Baiwei, in a headset: "Only the keyboard is too big". The words
-          // stay at 1.3 to be tapped one at a time; the keys come down to about
-          // 5cm each.
+          // stay big enough to tap one at a time; the keys are 0.7 of that.
           keyboardScale={0.7}
           onDone={(text) => {
             setWritten(text);
-            setFixing(false);
+            stopFixing();
           }}
-          onCancel={() => setFixing(false)}
+          onCancel={stopFixing}
         />
       ) : open ? (
         columns.map((column, index) => (
@@ -1544,7 +1583,7 @@ export function RoomControls({
             if (notice || voice.trouble) setNotice(null);
             // THE WHOLE DRAFT, TO FIX — not the Quest keyboard, which opens
             // empty and can only add to it.
-            else if (draftPreview && !recordingStatus) setFixing(true);
+            else if (draftPreview && !recordingStatus) startFixing();
           }}
         />
       ) : null}
