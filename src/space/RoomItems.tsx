@@ -4,7 +4,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { GoRoomItem, RoomItem } from "../../shared/room-items";
 import { legalGoMoves } from "../../shared/go-rules";
-import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goDeckWidth, goBowl, goPoint, goRadius, goTray, goLocal, goTouchBowl, type Point3 } from "../../shared/go-layout";
+import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goBowlScale, goDeckWidth, goBowl, goPoint, goRadius, goTray, goLocal, goTouchBowl, type Point3 } from "../../shared/go-layout";
 import { goCarryPoint, idleGoTouch, stepGoTouch } from "../../shared/go-touch";
 import type { WirePerson } from "../../shared/space-wire";
 import { goHandInput } from "./go-hand-input";
@@ -80,55 +80,72 @@ function stoneTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-/** A vertical fade for the light column: bright at the board, gone at the top. Row 0 is the bottom (DataTexture is not flipped). */
-function columnTexture(): THREE.DataTexture {
-  const rows = 32, data = new Uint8Array(rows * 4);
-  for (let i = 0; i < rows; i++) {
-    const v = Math.round((1 - i / (rows - 1)) ** 1.6 * 255);
-    data.set([v, v, v, 255], i * 4); // alphaMap reads the green channel
+/**
+ * The carving in a bowl's side, as a bump map: white is raised, and blurred a
+ * little so it reads as carved rather than stamped. The lathe's u runs round
+ * the bowl and v up its profile (bottom, out and up to the rim, then down the
+ * inside), so the outer belly is v 0.08-0.40 — the canvas's lower part, as a
+ * CanvasTexture is flipped.
+ */
+function bowlRelief(style: "lotus" | "fret"): THREE.CanvasTexture {
+  const width = 1024, height = 256;
+  const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, width, height);
+  ctx.filter = "blur(1.5px)";
+  ctx.strokeStyle = "#fff"; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const top = height * (1 - 0.4), bottom = height * (1 - 0.08), band = bottom - top;
+  if (style === "lotus") {
+    // Lotus petals round the belly, each with a rib: Longquan's classic carving.
+    const petals = 14, w = width / petals;
+    for (let i = 0; i < petals; i++) {
+      const cx = (i + 0.5) * w;
+      ctx.lineWidth = 5; ctx.beginPath();
+      ctx.moveTo(cx - w * 0.44, bottom);
+      ctx.quadraticCurveTo(cx - w * 0.5, top + band * 0.3, cx, top);
+      ctx.quadraticCurveTo(cx + w * 0.5, top + band * 0.3, cx + w * 0.44, bottom);
+      ctx.stroke();
+      ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx, top + band * 0.22); ctx.lineTo(cx, bottom - 8); ctx.stroke();
+    }
+  } else {
+    // A fret (key) band between two lines, round the belly of the clay.
+    const y0 = top + band * 0.25, y1 = bottom - band * 0.25, mid = (y0 + y1) / 2;
+    ctx.lineWidth = 4; ctx.beginPath();
+    ctx.moveTo(0, y0 - 10); ctx.lineTo(width, y0 - 10); ctx.moveTo(0, y1 + 10); ctx.lineTo(width, y1 + 10); ctx.stroke();
+    const units = 22, u = width / units;
+    for (let i = 0; i < units; i++) {
+      const x = i * u;
+      ctx.beginPath();
+      ctx.moveTo(x + u * 0.1, y1); ctx.lineTo(x + u * 0.1, y0); ctx.lineTo(x + u * 0.9, y0); ctx.lineTo(x + u * 0.9, y1);
+      ctx.lineTo(x + u * 0.35, y1); ctx.lineTo(x + u * 0.35, mid); ctx.lineTo(x + u * 0.65, mid);
+      ctx.stroke();
+    }
   }
-  const texture = new THREE.DataTexture(data, 1, rows); texture.needsUpdate = true; return texture;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  return texture;
 }
 
-const COLUMN_HEIGHT = 0.16;
-
 /**
- * The column of light over the point a held stone will land on — Baiwei's
- * idea: "create a small column of light from that spot so that I'm sure that
- * I'm putting stone where I want to". Tall enough to see from standing height
- * across the board, thin enough not to hide the neighbouring points.
- *
- * AND A GHOST OF THE STONE ITSELF at its foot. Light on a pale board is faint —
- * a light-blue column over White's turn barely showed in the first look at it —
- * but a translucent stone of the right colour, exactly where it will rest, is
- * unmistakable at any distance.
+ * Where a held stone will land: A GHOST OF THE STONE, half-transparent, with
+ * the aimed point glowing softly under it (MoveLights lights it). There was a
+ * column of light rising from the point too; Nikk, via Lumenfold: "remove the
+ * vertical light column/beam during stone placement. Show only a
+ * half-transparent ghost stone at the aimed intersection with a small soft
+ * glow directly underneath it."
  */
-function LightColumn({ x, z, colour, stone, reducedMotion }: { x: number; z: number; colour: string; stone: string; reducedMotion: boolean }) {
-  const texture = useMemo(columnTexture, []);
-  useEffect(() => () => texture.dispose(), [texture]);
-  const glow = useRef<THREE.MeshBasicMaterial>(null);
-  useFrame(({ clock }) => { if (glow.current) glow.current.opacity = reducedMotion ? 0.9 : 0.78 + Math.sin(clock.elapsedTime * 6) * 0.14; });
-  const outer = GO_PITCH * 0.2, core = GO_PITCH * 0.05, radius = goRadius();
-  return <group position={[x, GO_SURFACE, z]}>
-    <mesh position-y={radius * 0.46} scale={[radius, radius * 0.46, radius]} raycast={noRaycast}>
-      <sphereGeometry args={[1, 24, 12]} />
-      <meshStandardMaterial color={stone} transparent opacity={0.55} depthWrite={false} roughness={0.3} />
-    </mesh>
-    <mesh position-y={COLUMN_HEIGHT / 2} raycast={noRaycast}>
-      <cylinderGeometry args={[outer, outer * 0.8, COLUMN_HEIGHT, 20, 1, true]} />
-      <meshBasicMaterial ref={glow} color={colour} alphaMap={texture} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
-    </mesh>
-    <mesh position-y={COLUMN_HEIGHT * 0.4} raycast={noRaycast}>
-      <cylinderGeometry args={[core, core, COLUMN_HEIGHT * 0.8, 8, 1, true]} />
-      <meshBasicMaterial color="#ffffff" alphaMap={texture} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
-    </mesh>
-  </group>;
+function GhostStone({ x, z, stone }: { x: number; z: number; stone: string }) {
+  const radius = goRadius();
+  return <mesh position={[x, GO_SURFACE + radius * 0.46, z]} scale={[radius, radius * 0.46, radius]} raycast={noRaycast}>
+    <sphereGeometry args={[1, 24, 12]} />
+    <meshStandardMaterial color={stone} transparent opacity={0.5} depthWrite={false} roughness={0.3} />
+  </mesh>;
 }
 
 /**
  * The WHOLE BOARD takes the press: where the laser meets it is snapped to the
- * nearest free intersection (go-snap.ts), that one point lights, a column of
- * light rises there, and pressing puts the stone under the column.
+ * nearest free intersection (go-snap.ts), that one point lights, a ghost of the
+ * stone appears on it (GhostStone), and pressing puts the stone there.
  *
  * Dots used to be the only targets, each a little smaller than a square: a ray
  * between two of them pressed nothing, and a shaky one flickered on and off a
@@ -192,7 +209,7 @@ function MoveLights({ item, reducedMotion, onPlace }: { item: GoRoomItem; reduce
       <planeGeometry args={[catcher, catcher]} />
       <meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>}
-    {aim && <LightColumn x={goPoint(aim.x, item.size)} z={goPoint(aim.y, item.size)} colour={ACCENTS[item.activeColour]} stone={item.colours[item.activeColour]} reducedMotion={reducedMotion} />}
+    {aim && <GhostStone x={goPoint(aim.x, item.size)} z={goPoint(aim.y, item.size)} stone={item.colours[item.activeColour]} />}
   </group>;
 }
 
@@ -266,6 +283,8 @@ function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index:
    */
   const glowing = active && item.liftedColour === null;
   const look = GO_SURFACE_LOOKS[item.surface] ?? GO_SURFACE_LOOKS.bamboo;
+  const relief = useMemo(() => bowlRelief(look.bowl.relief), [look.bowl.relief]);
+  useEffect(() => () => relief.dispose(), [relief]);
   const colour = item.colours[index], accent = ACCENTS[index];
   const position = goBowl(index, item.colours.length, item.size), tray = goTray(index, item.colours.length, item.size);
   const texture = useMemo(glowTexture, []);
@@ -278,16 +297,19 @@ function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index:
   }), [colour]);
   useFrame(({ clock }) => {
     const wave = reducedMotion ? 0.7 : 0.65 + Math.sin(clock.elapsedTime * 2.8) * 0.25;
-    if (pulse.current) pulse.current.opacity = glowing ? wave * 0.55 : 0;
-    if (rim.current) rim.current.emissiveIntensity = glowing ? wave * 0.6 : 0;
+    // "Increase the existing under-bowl turn glow just a little, still soft
+    // and comfortable in VR" — a little stronger and a little wider.
+    if (pulse.current) pulse.current.opacity = glowing ? wave * 0.7 : 0;
+    if (rim.current) rim.current.emissiveIntensity = glowing ? wave * 0.7 : 0;
   });
   const captures = item.captures.filter((stone) => stone.by === index).length;
   return <>
-    <group position={xyz(position)} onClick={(event) => { event.stopPropagation(); onLift(); }}>
+    {/* In proportion to the board: see goBowlScale. */}
+    <group position={xyz(position)} scale={goBowlScale(item.size)} onClick={(event) => { event.stopPropagation(); onLift(); }}>
       <mesh position={[0, -0.055, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}>
-        <planeGeometry args={[0.5, 0.5]} /><meshBasicMaterial ref={pulse} map={texture} color={accent} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+        <planeGeometry args={[0.56, 0.56]} /><meshBasicMaterial ref={pulse} map={texture} color={accent} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
       </mesh>
-      <mesh castShadow><latheGeometry args={[profile, 48]} /><meshPhysicalMaterial color={look.bowl.body} roughness={look.bowl.roughness} clearcoat={look.bowl.clearcoat} side={THREE.DoubleSide} /></mesh>
+      <mesh castShadow><latheGeometry args={[profile, 48]} /><meshPhysicalMaterial color={look.bowl.body} roughness={look.bowl.roughness} clearcoat={look.bowl.clearcoat} bumpMap={relief} bumpScale={look.bowl.relief === "lotus" ? 1.2 : 1.6} side={THREE.DoubleSide} /></mesh>
       <mesh position={[0, 0.066, 0]} rotation-x={Math.PI / 2}>
         <torusGeometry args={[0.172, 0.007, 8, 64]} /><meshStandardMaterial ref={rim} color={active ? accent : look.bowl.rim} emissive={accent} roughness={0.3} metalness={0.4} />
       </mesh>
@@ -324,6 +346,14 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   const pending = useRef(false), held = useRef<THREE.Mesh>(null);
   const contacts = useRef({ left: idleGoTouch(), right: idleGoTouch() });
   const lastHeld = useRef<Point3 | null>(null);
+  /**
+   * THE GLOW UNDER A PICKED-UP STONE, from the moment it leaves the bowl:
+   * "When a stone is picked up from the bowl, give it that same subtle glow
+   * immediately, before it reaches the board." It follows the stone.
+   */
+  const heldGlow = useRef<THREE.Mesh>(null);
+  const heldGlowMap = useMemo(glowTexture, []);
+  useEffect(() => () => heldGlowMap.dispose(), [heldGlowMap]);
   const liftAge = useRef(0);
   useEffect(() => { liftAge.current = 0; }, [item.liftedColour, item.carrier?.by, item.carrier?.hand]);
   const previous = useRef(new Set(item.stones.map((stone) => stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`)));
@@ -421,6 +451,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       held.current.position.y = reducedMotion ? height : THREE.MathUtils.damp(held.current.position.y, height, 7, delta);
     }
     lastHeld.current = { x: held.current.position.x, y: held.current.position.y, z: held.current.position.z };
+    heldGlow.current?.position.set(held.current.position.x, held.current.position.y - radius * 0.46 - 0.003, held.current.position.z);
   });
   const offsets = Array.from({ length: item.size }, (_, n) => goPoint(n, item.size));
   /**
@@ -616,6 +647,10 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
         });
         void act({ action: "lift", colour: index, ...(hand ? { hand } : {}) });
       }} />)}
+    {lifted && <mesh key={`held-glow-${item.activeColour}`} ref={heldGlow} position={[lifted.x, lifted.y + 0.06 - radius * 0.46 - 0.003, lifted.z]} rotation-x={-Math.PI / 2} raycast={noRaycast}>
+      <planeGeometry args={[GO_PITCH * 1.1, GO_PITCH * 1.1]} />
+      <meshBasicMaterial map={heldGlowMap} color={ACCENTS[item.activeColour]} transparent opacity={0.75} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+    </mesh>}
     {lifted && <mesh key={`held-${item.activeColour}`} ref={held} position={[lifted.x, lifted.y + 0.06, lifted.z]} scale={[radius, radius * 0.46, radius]} raycast={noRaycast} castShadow>
       <sphereGeometry args={[1, 32, 20]} /><meshPhysicalMaterial color={item.colours[item.activeColour]} roughness={0.18} clearcoat={1} emissive={ACCENTS[item.activeColour]} emissiveIntensity={0.025} />
     </mesh>}
@@ -623,7 +658,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       {`${NAMES[item.activeColour].toUpperCase()}'S TURN`}
     </Text>}
     {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? look.inkSoft : "#d8c8ac"} raycast={noRaycast}>
-      {notice || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a column shows where it lands" : "Touch the glowing bowl to lift a stone")}
+      {notice || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone")}
     </Text>}
     {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
       <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[0.46, 0.1]} /><meshBasicMaterial color="#493d30" /></mesh>

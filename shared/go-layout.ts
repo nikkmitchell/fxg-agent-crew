@@ -77,3 +77,17 @@ export function goSeat(item: GoRoomItem, colour: number): { at: Point3; facing: 
   const centre = goWorld({ x: 0, y: 0, z: 0 }, item);
   return { at: { x: at.x, y: 0, z: at.z }, facing: Math.atan2(at.x - centre.x, at.z - centre.z) };
 }
+
+/**
+ * How big the bowls are drawn beside a board of this size — in proportion to
+ * it. Nikk's request, via Lumenfold: "Scale the bowl models proportionally to
+ * the board size/type so they feel right beside the intersections and do not
+ * crowd play." A 36cm bowl was drawn beside every board, which beside a 5×5
+ * board half a metre across looked like two buckets. Full size at 19×19, the
+ * board they were made beside; smaller for smaller boards, never below 65%;
+ * never bigger than full for 25×25, where they sit further out anyway.
+ */
+export function goBowlScale(size: number): number {
+  const full = goBoardWidth(19);
+  return Math.min(1, Math.max(0.65, 0.55 + 0.45 * (goBoardWidth(size) / full)));
+}

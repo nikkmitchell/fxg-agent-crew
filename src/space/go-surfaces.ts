@@ -38,7 +38,19 @@ export type GoSurfaceLook = {
    * tabletop and Longquan celadon bowls with bamboo" — unglazed earth beside
    * the grey slab, a pale green-blue glaze beside the warm wood.
    */
-  bowl: { body: string; rim: string; roughness: number; clearcoat: number };
+  bowl: {
+    body: string;
+    rim: string;
+    roughness: number;
+    clearcoat: number;
+    /**
+     * The carving in the bowl's side, as a relief (a bump map, not paint).
+     * "Add subtle carved classical relief patterns to both bowl styles": lotus
+     * petals are the classic carving on Longquan celadon; a fret (key) band on
+     * the red clay.
+     */
+    relief: "lotus" | "fret";
+  };
 };
 
 export const GO_SURFACE_LOOKS: Record<GoSurface, GoSurfaceLook> = {
@@ -55,7 +67,7 @@ export const GO_SURFACE_LOOKS: Record<GoSurface, GoSurfaceLook> = {
     ink: "#49331f",
     inkSoft: "#624526",
     // Longquan celadon: a thick, glossy, pale green-blue glaze.
-    bowl: { body: "#9dbcaa", rim: "#b9d2c4", roughness: 0.18, clearcoat: 0.9 },
+    bowl: { body: "#9dbcaa", rim: "#b9d2c4", roughness: 0.18, clearcoat: 0.9, relief: "lotus" },
   },
   // Lumenfold's spec: slab #777B7D, carved grid #3C4143, bevel #969A9B —
   // "starting values, not locked finals", to be tuned for Baiwei's eye
@@ -78,7 +90,7 @@ export const GO_SURFACE_LOOKS: Record<GoSurface, GoSurfaceLook> = {
     ink: "#0f1113",
     inkSoft: "#1c1f21",
     // Red clay, as Yixing ware: unglazed, warm and matte.
-    bowl: { body: "#8f4630", rim: "#a85a40", roughness: 0.78, clearcoat: 0.05 },
+    bowl: { body: "#8f4630", rim: "#a85a40", roughness: 0.78, clearcoat: 0.05, relief: "fret" },
   },
 };
 

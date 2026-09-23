@@ -49,6 +49,9 @@ describe("every board type can still be read", () => {
     const [rr, rg] = rgb(stone.body);
     expect(cg).toBeGreaterThan(cr);
     expect(rr).toBeGreaterThan(rg);
+    // Each carved differently: lotus petals on the celadon, a fret on the clay.
+    expect(bamboo.relief).toBe("lotus");
+    expect(stone.relief).toBe("fret");
   });
 
   it("the grid lines stand out from the surface", () => {
