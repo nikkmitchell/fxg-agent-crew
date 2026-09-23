@@ -56,6 +56,34 @@ export function registerAuthRoutes(
       // Signing in must not fail because a bookkeeping write did.
     }
   };
+  /**
+   * Enrol whoever holds this token into the projects of the rooms they are in.
+   *
+   * BEST EFFORT, ON PURPOSE, in every caller: being locked out of the site
+   * because a question about a BOARD could not be answered would be a worse
+   * failure than the one this fixes. An upstream that cannot answer leaves the
+   * person signed in and un-enrolled, which is where they were before.
+   */
+  const enrolFromToken = async (
+    username: string,
+    kind: "human" | "agent" | null,
+    token: string,
+    log: { warn: (details: object, message: string) => void },
+  ): Promise<void> => {
+    try {
+      enrolFromRooms(username, kind, await client.rooms(token));
+    } catch (error) {
+      log.warn({ err: error }, "could not check room membership for enrolment");
+    }
+  };
+
+  /**
+   * Sessions already checked for rooms since this process started. /bff/me is
+   * asked on every page load; the rooms need asking once per session, not once
+   * per page. Bounded by the sessions one process sees, which is a handful.
+   */
+  const roomsChecked = new Set<string>();
+
   app.post<{ Body: { username?: string; password?: string } }>("/bff/login", async (request, reply) => {
     const { username, password } = request.body ?? {};
     if (!username || !password) {
@@ -65,6 +93,22 @@ export function registerAuthRoutes(
     try {
       const token = await client.login(username, password);
       const sid = sessions.create(username, token);
+      roomsChecked.add(sid);
+
+      /**
+       * A PERSON IN THE ROOM IS ENROLLED EXACTLY AS AN AGENT IS.
+       *
+       * This line was only ever in /bff/agent-session, so every agent in
+       * saha.ing got the saha.ing board at sign-in and every PERSON who signed
+       * in with a password got PROJECT_PERMISSION_REQUIRED on their first card.
+       * Baiwei, in the room, could not edit the board in it. Nikk: "why can't
+       * baiwei access the workboard, anyone who is here should be able to
+       * access". Same rooms, asked of WebHarness with this person's own token;
+       * same link table; same refusal to re-add anybody a manager revoked.
+       *
+       * AWAITED, like the agent's, so the first edit after signing in works.
+       */
+      await enrolFromToken(username, null, token, request.log);
       // Best effort: the sign-in has already succeeded, and not knowing the
       // kind only means it is learned later, as before.
       void client
@@ -120,6 +164,7 @@ export function registerAuthRoutes(
     try {
       const { username, kind } = await client.identify(token);
       const sid = sessions.create(username, token, "agent");
+      roomsChecked.add(sid);
       record(username, kind);
 
       /**
@@ -133,11 +178,7 @@ export function registerAuthRoutes(
        * leaves the agent signed in and un-enrolled — the state it was in
        * before, and the next sign-in tries again.
        */
-      try {
-        enrolFromRooms(username, kind, await client.rooms(token));
-      } catch (error) {
-        request.log.warn({ err: error }, "could not check room membership for enrolment");
-      }
+      await enrolFromToken(username, kind, token, request.log);
 
       reply.setCookie(config.cookieName, sid, {
         httpOnly: true,
@@ -167,8 +208,20 @@ export function registerAuthRoutes(
   });
 
   app.get("/bff/me", async (request, reply) => {
-    const session = sessions.get(request.cookies[config.cookieName]);
+    const sid = request.cookies[config.cookieName];
+    const session = sessions.get(sid);
     if (!session) return reply.code(401).send({ code: "SESSION_EXPIRED", error: "not signed in", reauth: true });
+
+    /**
+     * SESSIONS THAT PREDATE THE FIX HEAL ON THEIR NEXT PAGE LOAD. A session
+     * lasts days, so enrolling only at sign-in would leave everybody already
+     * signed in — Baiwei included — locked out until they happened to sign out.
+     * Once per session, and NOT awaited: nobody's page waits on it.
+     */
+    if (sid && !roomsChecked.has(sid)) {
+      roomsChecked.add(sid);
+      void enrolFromToken(session.username, null, session.token, request.log);
+    }
     return reply.send(sessions.publicView(session));
   });
 }
