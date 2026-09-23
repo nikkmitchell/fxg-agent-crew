@@ -1,40 +1,49 @@
 import { describe, expect, it } from "vitest";
+import { resolveJoinedRoom } from "./useRoomFeed";
 
 /**
- * The room list's field is `roomName`.
- *
- * This test exists because I read `name`, found undefined on every room, and
- * shipped a Chat panel that told somebody standing in five rooms that they were
- * in none. The shape comes from WebHarness and saha.ing passes it through
- * unchanged, so it is not ours to rename — it is ours to read correctly.
+ * Exercise the production selection rule: an explicit joined room wins, an
+ * invalid deep link is not silently redirected, and a new visitor gets the
+ * preferred room (or the first joined room).
  */
-const pickRoom = (list: { roomName?: string }[], preferred: string): string | null => {
-  const names = list.map((entry) => entry.roomName).filter(Boolean) as string[];
-  return names.find((name) => name === preferred) ?? names[0] ?? null;
-};
-
 describe("choosing which room the chat panel shows", () => {
   const rooms = [
-    { roomId: 3, roomName: "AgentParty" },
-    { roomId: 16, roomName: "saha.ing" },
+    { roomName: "AgentParty" },
+    { roomName: "saha.ing" },
   ];
 
-  it("prefers the room asked for", () => {
-    expect(pickRoom(rooms, "saha.ing")).toBe("saha.ing");
+  it("uses an explicitly selected room when it is joined", () => {
+    expect(resolveJoinedRoom(rooms, "saha.ing", "AgentParty")).toEqual({
+      roomName: "AgentParty",
+      invalidRequest: false,
+    });
   });
 
-  it("falls back to whichever room they are actually in", () => {
-    expect(pickRoom(rooms, "nowhere")).toBe("AgentParty");
+  it("does not silently redirect an invalid room deep link", () => {
+    expect(resolveJoinedRoom(rooms, "saha.ing", "nowhere")).toEqual({
+      roomName: null,
+      invalidRequest: true,
+    });
   });
 
-  it("says nothing rather than guessing when there are no rooms", () => {
-    expect(pickRoom([], "saha.ing")).toBeNull();
+  it("prefers saha.ing for a new visitor when joined", () => {
+    expect(resolveJoinedRoom(rooms, "saha.ing", null)).toEqual({
+      roomName: "saha.ing",
+      invalidRequest: false,
+    });
   });
 
-  it("does not accept a list of objects with a `name` field", () => {
-    // The exact shipped bug: reading the wrong field yields undefined for every
-    // entry, and `filter(Boolean)` then makes an empty list look like an empty
-    // membership.
-    expect(pickRoom([{ name: "saha.ing" } as { roomName?: string }], "saha.ing")).toBeNull();
+  it("falls back to the first joined room when the preferred room is absent", () => {
+    expect(resolveJoinedRoom([rooms[0]], "saha.ing", null)).toEqual({
+      roomName: "AgentParty",
+      invalidRequest: false,
+    });
+  });
+
+  it("returns no selection when there are no joined rooms", () => {
+    expect(resolveJoinedRoom([], "saha.ing", null)).toEqual({
+      roomName: null,
+      invalidRequest: false,
+    });
   });
 });

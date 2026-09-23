@@ -49,6 +49,21 @@ export type RoomFeed = {
 const KEEP = 40;
 const EVERY_MS = 5_000;
 
+export function resolveJoinedRoom(
+  rooms: readonly Pick<RoomSummary, "roomName">[],
+  preferred: string,
+  requested: string | null,
+): { roomName: string | null; invalidRequest: boolean } {
+  const explicit = requested?.trim() ?? "";
+  if (explicit) {
+    const joined = rooms.find((entry) => entry.roomName === explicit);
+    return { roomName: joined?.roomName ?? null, invalidRequest: !joined };
+  }
+
+  const fallback = rooms.find((entry) => entry.roomName === preferred) ?? rooms[0];
+  return { roomName: fallback?.roomName ?? null, invalidRequest: false };
+}
+
 export function useRoomFeed(
   enabled: boolean,
   preferred = "saha.ing",
@@ -118,14 +133,10 @@ export function useRoomFeed(
     setTrouble(null);
     cursor.current = undefined;
 
-    const requested = selectedRoom?.trim() ?? "";
-    const name = requested
-      ? rooms.find((entry) => entry.roomName === requested)?.roomName ?? null
-      : rooms.find((entry) => entry.roomName === preferred)?.roomName
-        ?? rooms[0]?.roomName
-        ?? null;
-    if (requested && !name) {
-      setTrouble(`${requested} is not in your joined rooms. Choose a room from the list.`);
+    const selection = resolveJoinedRoom(rooms, preferred, selectedRoom);
+    const name = selection.roomName;
+    if (selection.invalidRequest) {
+      setTrouble(`${selectedRoom?.trim()} is not in your joined rooms. Choose a room from the list.`);
       setLoadingMessages(false);
       return () => { stopped = true; };
     }
