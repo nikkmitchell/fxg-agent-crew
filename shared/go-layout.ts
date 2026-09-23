@@ -51,3 +51,29 @@ export function goTouchIntersection(p: Point3, size: number): { x: number; y: nu
   if (x < 0 || y < 0 || x >= size || y >= size) return null;
   return Math.hypot(p.x - goPoint(x, size), p.z - goPoint(y, size)) < step * 0.43 ? { x, y } : null;
 }
+
+/**
+ * Where somebody playing a colour stands: BEHIND THEIR OWN BOWL, just off the
+ * edge of the desk, facing the middle of the table. In room coordinates, on the
+ * floor, with the same yaw convention as a panel's standing place (an avatar
+ * faces -Z, so facing the table from S means atan2(S - centre)).
+ *
+ * For agents playing through code (tools/go.mts): the room walks them here
+ * when they move, so the people in the room see who is playing, and where.
+ * Their own bowl rather than the near side, because the near side is where a
+ * person stands to read the turn line — an agent arriving there would stand in
+ * them. With two players the bowls are left and right of the board, so the
+ * two agents face each other across it.
+ */
+export function goSeat(item: GoRoomItem, colour: number): { at: Point3; facing: number } {
+  const bowl = goBowl(colour, item.colours.length, item.size);
+  const length = Math.hypot(bowl.x, bowl.z) || 1;
+  const out = { x: bowl.x / length, z: bowl.z / length };
+  // The desk is square, so both the edge and the 0.4 m clearance are measured
+  // square to it: a diagonal seat would otherwise stand only 0.28 m off a corner.
+  const along = Math.max(Math.abs(out.x), Math.abs(out.z));
+  const reach = (goDeckWidth(item.size, item.colours.length) / 2 + 0.4) / along;
+  const at = goWorld({ x: out.x * reach, y: 0, z: out.z * reach }, item);
+  const centre = goWorld({ x: 0, y: 0, z: 0 }, item);
+  return { at: { x: at.x, y: 0, z: at.z }, facing: Math.atan2(at.x - centre.x, at.z - centre.z) };
+}

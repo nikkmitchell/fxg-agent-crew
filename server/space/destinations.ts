@@ -2,6 +2,8 @@ import { deskFor, type Vec3 } from "../../shared/space-layout.js";
 import type { AgentHome } from "../../shared/agent-home.js";
 import { defaultPlacement, standFor } from "../../shared/panel-place.js";
 import type { Placement } from "../../shared/space-wire.js";
+import { goSeat } from "../../shared/go-layout.js";
+import type { GoRoomItem } from "../../shared/room-items.js";
 
 /**
  * Where an action puts the person who did it.
@@ -43,7 +45,22 @@ export type Destination = {
    * must not turn one into the other.
    */
   because: string | null;
+  /**
+   * How long to stay after being sent, when it is not a panel's few seconds.
+   * An agent at the board does its thing and walks back (Nikk: "place your
+   * tasks on the board, and then return"); an agent PLAYING GO has not
+   * finished when its move lands — the game is still on — and walking away and
+   * back for every move would be a lie about what it is doing.
+   */
+  stayMs?: number;
 };
+
+/**
+ * How long an agent stays at its Go seat after its last move: the other
+ * player's think, and then some. Every move sends it again and starts this
+ * over, so it stays for the game and walks home once the game stops.
+ */
+export const GO_SEAT_MS = 10 * 60_000;
 
 /**
  * Where the panels are, as far as this mapping is concerned.
@@ -87,7 +104,21 @@ export function destinationFor(
   panels: PanelPlaces = {},
   /** An agent's saved home, when it has one. See server/space/homes.ts. */
   homeOf: (actorId: string) => AgentHome | null = () => null,
+  /** A Go table as it is now, by id — passed in for the same reason panels are: tables move. */
+  goTable: (id: string) => GoRoomItem | null = () => null,
 ): Destination | null {
+  if (row.entity === "go_table") {
+    // A move played through code (tools/go.mts): stand at your seat, behind
+    // your own bowl, facing the board. entity_id is "<table>/<colour>" — the
+    // colour is where you sit, and a table you cannot find, or a seat it no
+    // longer has, sends you nowhere rather than somewhere invented.
+    const { table: id, colour } = goTableEntity(row.entityId);
+    const table = id ? goTable(id) : null;
+    if (!table || colour === null || colour >= table.colours.length) return null;
+    const seat = goSeat(table, colour);
+    return { at: seat.at, facing: seat.facing, because: "is playing Go", stayMs: GO_SEAT_MS };
+  }
+
   if (row.entity === "task") {
     switch (row.action) {
       case "comment":
@@ -137,6 +168,18 @@ export function destinationFor(
 
   // Deliberately not a fallback destination. See above.
   return null;
+}
+
+/** The audit row's entity_id for a Go move: the table, and the colour played. */
+export function goTableEntityId(tableId: string, colour: number): string {
+  return `${tableId}/${colour}`;
+}
+
+export function goTableEntity(entityId: string): { table: string | null; colour: number | null } {
+  const slash = entityId.lastIndexOf("/");
+  if (slash <= 0) return { table: null, colour: null };
+  const colour = Number(entityId.slice(slash + 1));
+  return { table: entityId.slice(0, slash), colour: Number.isInteger(colour) && colour >= 0 ? colour : null };
 }
 
 /**

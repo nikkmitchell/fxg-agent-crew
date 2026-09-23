@@ -7,6 +7,7 @@ import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { SessionStore } from "../session.js";
 import { roomKey } from "../../shared/space-room.js";
 import { placeGoStone } from "../../shared/go-rules.js";
+import { goTableEntityId } from "./destinations.js";
 
 export class RoomItems {
   constructor(private readonly database: DatabaseSync) {}
@@ -24,6 +25,16 @@ export class RoomItems {
     this.database.prepare("INSERT INTO space_items (id, kind, state_json, added_by, added_at, updated_by, updated_at, room) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run(item.id, item.kind, JSON.stringify(item), by, now, by, now, roomKey(room));
     return item;
+  }
+  /**
+   * A move played through code, written to the business audit — which is what
+   * the room reads to walk an agent to where it acted (activity.ts). Without it
+   * an agent playing Go stayed at its desk and nobody could see who was
+   * playing. Only `play`: a person placing a stone by hand is already there.
+   */
+  recordPlay(by: string, tableId: string, colour: number, point: { x: number; y: number }): void {
+    this.database.prepare("INSERT INTO audit (at, actor_id, action, entity, entity_id, before, after) VALUES (?, ?, 'play', 'go_table', ?, NULL, ?)")
+      .run(new Date().toISOString(), by, goTableEntityId(tableId, colour), JSON.stringify(point));
   }
   save(room: string, item: RoomItem, by: string): void {
     this.database.prepare("UPDATE space_items SET state_json = ?, updated_by = ?, updated_at = ? WHERE room = ? AND id = ?")
@@ -121,6 +132,9 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
     if (request.body?.revision !== undefined && request.body.revision !== item.revision) return reply.code(409).send({ code: "TABLE_CHANGED", error: "The table changed. Try again." });
+    // Recorded only AFTER the table is saved: the room walks an agent to its
+    // seat on this row, and must never do that for a move that did not happen.
+    let played: { colour: number; x: number; y: number } | null = null;
     if (request.body?.action === "lift") {
       if (item.liftedColour !== null) return reply.code(409).send({ error: "A stone is already in flight. Place it or return it first." });
       if (request.body.colour !== undefined && request.body.colour !== item.activeColour) return reply.code(409).send({ error: "It is the glowing bowl's turn." });
@@ -158,11 +172,14 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       item.stones = move.stones;
       item.captures.push(...move.captured.map((stone) => ({ ...stone, by: item.activeColour })));
       item.activeColour = (item.activeColour + 1) % item.colours.length;
+      played = { colour: colour as number, x: x as number, y: y as number };
     } else if (request.body?.action === "return") {
       // Deliberate recovery for a disconnected carrier; never steals on incidental contact.
       item.liftedColour = null; item.carrier = null;
     } else return reply.code(400).send({ error: "action must be lift, place, play or return" });
     item.revision++;
-    options.items.save(room, item, session.username); publish(room, session.username); return reply.send({ item });
+    options.items.save(room, item, session.username);
+    if (played) options.items.recordPlay(session.username, item.id, played.colour, played);
+    publish(room, session.username); return reply.send({ item });
   });
 }
