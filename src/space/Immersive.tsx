@@ -11,6 +11,8 @@ import * as THREE from "three";
 import { ROOM, WORLD, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
+import { goHandInput, clearGoHands } from "./go-hand-input";
+import { goCarryPoint } from "../../shared/go-touch";
 import { StandingHeight, gripToWristConvention } from "./tracked-body";
 import {
   IDLE,
@@ -178,6 +180,7 @@ export function ImmersivePlayer({
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
   const held = useRef<{ left: Held; right: Held }>({ left: NO_HAND, right: NO_HAND });
+  useEffect(() => () => clearGoHands(), []);
   /** When this person last touched each agent, so a resting hand is one touch. */
   const lastTouch = useRef(new Map<string, number>());
   /** The palm joystick, one per hand — see palm-joystick.ts. */
@@ -714,10 +717,8 @@ export function ImmersivePlayer({
     // head height comes from the headset's own tracking, not from us.
     group.position.y = 0;
 
-    // Tell the room where we are, at the same rate as the flat view.
+    // Local contact/carrying is device-rate; only the network pose is throttled.
     const now = clock.getElapsedTime() * 1000;
-    if (now - lastSent.current < 100) return;
-    lastSent.current = now;
     const at: Vec3 = { x: group.position.x, y: 0, z: group.position.z };
 
     // The clamp above moved the group, so the matrix cached from last frame is
@@ -754,6 +755,14 @@ export function ImmersivePlayer({
     const liveRight =
       poseOfSpace(rightHand?.inputSource.hand.get("wrist"), frame, group) ??
       gripAsWrist(poseOfSpace(rightController?.inputSource.gripSpace, frame, group), "right");
+    // Fingertip contact on hands; grip contact on controllers. Carrying always
+    // follows the palm convention that the room already shares over the socket.
+    for (const [side, wrist, input] of [["left", liveLeft, leftHand], ["right", liveRight, rightHand]] as const) {
+      const tip = input ? poseOfSpace(input.inputSource.hand.get("index-finger-tip"), frame, group) : null;
+      goHandInput[side] = wrist ? { contact: (tip ?? wrist).p, carry: goCarryPoint(wrist), at: performance.now() } : null;
+    }
+    if (now - lastSent.current < 100) return;
+    lastSent.current = now;
     held.current.left = heldHand(held.current.left, liveLeft, now, undefined, head);
     held.current.right = heldHand(held.current.right, liveRight, now, undefined, head);
 

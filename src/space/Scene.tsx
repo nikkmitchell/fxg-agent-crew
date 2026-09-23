@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { LOOK_SENSITIVITY, tiltBy } from "./look-pitch";
+import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
 import {
   ROOM,
   STATIONS,
@@ -484,6 +485,13 @@ export default function Scene({
   /** Live voice, owned above the scene so a session change cannot close it. */
   voice: VoiceChat;
 }) {
+  /**
+   * THE ROOM'S THEME, read FIRST. Reading the preferences is what applies the
+   * palette (see room-preferences.ts), and a parent renders before its
+   * children — so by the time any board below paints, CARD_INK is already the
+   * dark one. Without this the first frame would be white and then repaint.
+   */
+  const { dark } = useRoomPreferences();
   const you = connection.status.state === "open" ? connection.status.you : null;
   /**
    * The WebHarness room, read ONCE for the whole scene.
@@ -566,7 +574,17 @@ export default function Scene({
    * be a second opinion.
    */
   const settings = useMemo(() => {
-    const items: SettingsItem[] = [{ kind: "heading", label: "What the room is showing" }];
+    /**
+     * HOW THE ROOM LOOKS, FIRST. Dark mode is on for everybody until they turn
+     * it off, and this panel is the settings a person actually has in front of
+     * them — so the switch belongs here as well as in the look-down menu.
+     * Nikk: "also add a setting to turn off dark mode in settings".
+     */
+    const items: SettingsItem[] = [
+      { kind: "heading", label: "How the room looks" },
+      { kind: "toggle", id: "theme:dark", label: "Dark mode", on: dark },
+      { kind: "heading", label: "What the room is showing" },
+    ];
     if (showingChoices.projects === null) {
       items.push({ kind: "note", label: "The projects could not be read." });
     } else if (showingChoices.projects.length === 0) {
@@ -615,6 +633,7 @@ export default function Scene({
 
     const onPress = (id: string) => {
       const [kind, rest] = [id.slice(0, id.indexOf(":")), id.slice(id.indexOf(":") + 1)];
+      if (kind === "theme") return setRoomPreferences({ dark: !dark });
       if (kind === "project") return showingChoices.choose({ projectId: rest, boardId: null });
       if (kind === "board") return showingChoices.choose({ projectId: connection.showing.projectId ?? null, boardId: rest });
       if (kind === "panel") return panels.setOpen(rest, !panels.open.includes(rest));
@@ -629,7 +648,7 @@ export default function Scene({
     };
 
     return { items, onPress };
-  }, [arrange, connection.places, connection.showing, onPanelTrouble, panels, showingChoices]);
+  }, [arrange, connection.places, connection.showing, dark, onPanelTrouble, panels, showingChoices]);
 
 
   return (
@@ -643,7 +662,9 @@ export default function Scene({
       // snapshot arrived, or you pressed a key. Other people snap between
       // positions instead of gliding, which is the point rather than a
       // shortcoming.
-      frameloop={reducedMotion ? "demand" : "always"}
+      // XR tracking/contact must still run every device frame. Decorative Go
+      // motion separately honors reducedMotion, without freezing a carried stone.
+      frameloop={reducedMotion && !inHeadset ? "demand" : "always"}
       camera={{
         fov: 70,
         near: 0.1,
@@ -696,6 +717,11 @@ export default function Scene({
                   every panel, which is why anything added to one was missing
                   from the other. See RoomPanel and docs/ONE-ROOM.md. */}
               <RoomPanel
+                // A NEW THEME IS A NEW PANEL. Painted canvases keep the colours
+                // they were drawn in, so switching dark or light remounts every
+                // panel and each paints itself again from CARD_INK. Rare, cheap,
+                // and it does not end a headset session: only these meshes go.
+                key={dark ? "dark" : "light"}
                 station={station}
                 feed={feed}
                 boardFeed={boardFeed}
@@ -747,7 +773,7 @@ export default function Scene({
 
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
-        <RoomItems items={connection.roomItems} />
+        <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} />
         <Immersive
           comfort={comfort}
           send={connection.send}

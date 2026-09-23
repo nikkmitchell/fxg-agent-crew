@@ -1,5 +1,28 @@
 # The headset, and what only you can check
 
+## Go table — device checks for the new model
+
+The Go changes have automated rules, transforms, ownership and synthetic-contact
+tests. Those do not establish physical contact accuracy or comfort in a headset.
+On the build containing the new Go model, check:
+
+1. Touch the glowing active bowl with each hand, then each controller. A single
+   stone lifts and follows that side. The inactive bowl must not supply a stone.
+2. Leave the bowl and move freely. No pinch/trigger hold is needed. Rest at a
+   glowing intersection briefly (180 ms); exactly one stone is placed.
+3. Hide the carrying hand, then restore tracking. The stone stays in flight while
+   tracking is absent. It never drops from a stale or missing hand sample.
+4. Have a second person watch the same table. They see the carrier, placed stone,
+   next colour and captures. They cannot accidentally take the carried stone.
+5. Use **Move / size** to shift X, Y and Z and scale the table. Repeat pickup and
+   placement at the new location. A flying stone must first be placed or returned.
+6. Compare 5×5, 9×9 and 19×19 on a disposable game. The wood grows, while grid
+   spacing and stone diameter stay constant. Grid changes clear that game's stones.
+7. Check reduced motion: steady turn and legal-point glows, immediate decorative
+   transitions, but hand following remains smooth and live.
+
+The older panel notes below are historical; the room now uses native 3D panels.
+
 The room at **/room** is two different things depending on where you open it,
 and the difference is not a matter of polish.
 

@@ -99,6 +99,31 @@ export function facingArc(x: number, z: number): number {
 }
 
 /**
+ * Which way a panel at (x, z) must be turned to face a given point — the person
+ * dragging it, rather than the middle of the arc.
+ *
+ * Nikk, from the headset: "the panels when you move them left and right
+ * they're always facing towards some center point in the scene, but we don't
+ * actually have a center point in the scene, so just adjust that with your move
+ * and drag system". `facingArc` still describes the room's DEFAULT layout, which
+ * really is laid out round that point; a panel somebody has picked up turns to
+ * face THEM instead, which is the only reference a moved panel has.
+ *
+ * Same maths as facingArc — a plane with no rotation faces +z, so `ry =
+ * atan2(dx, dz)` — with the point passed in.
+ *
+ * NULL WHEN THE POINT IS ON TOP OF THE PANEL. Straight overhead the direction is
+ * undefined and atan2(0, 0) would snap the panel to face +z for no reason; the
+ * caller keeps whatever rotation it already had.
+ */
+export function facingPoint(x: number, z: number, toward: { x: number; z: number }): number | null {
+  const dx = toward.x - x;
+  const dz = toward.z - z;
+  if (Math.hypot(dx, dz) < 0.05) return null;
+  return Math.atan2(dx, dz);
+}
+
+/**
  * Where an avatar stands to attend to a panel that may have been moved.
  *
  * Derived from the panel rather than stored beside it, so moving a board moves

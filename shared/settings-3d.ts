@@ -255,14 +255,33 @@ export function paintSettings(
     });
 
     if (item.kind === "cycle" || item.kind === "stepper") {
+      /**
+       * ANCHORED BY ITS RIGHT EDGE.
+       *
+       * This drew the value left-aligned a fixed 18px in from the padding, so
+       * it started 18px from the edge and ran off it: every cycle in the room
+       * read "loc" for "locked" and "mo" for "move". That is worse than an
+       * unreadable label, because the whole point of the row is to say which of
+       * three modes a panel is in, and the two that matter are told apart by
+       * the letters that fell off.
+       *
+       * A stepper's value sits just clear of its own "−" button, measured
+       * from where that button actually is rather than from a hand-tuned
+       * offset, so the two cannot drift apart.
+       */
+      const less = item.kind === "stepper" ? layout.targets.find((t) => t.id === `${item.id}:less`) : undefined;
+      const rightEdge = less
+        ? toPx(layout, px, less.x, less.y).x - (less.width * scale) / 2 - 14
+        : px.width - padPx;
       ink.push({
         kind: "text",
-        x: px.width - padPx - (item.kind === "stepper" ? 108 : 18),
+        x: rightEdge,
         y: top + heightPx * 0.62,
         text: item.value,
         size: 24,
         fill: CARD_INK.muted,
         weight: "bold",
+        align: "right",
       });
     }
     if (item.kind === "stepper") {

@@ -9,6 +9,7 @@ import {
 } from "./destinations.js";
 import { Presence } from "./presence.js";
 import type { AgentHome } from "../../shared/agent-home.js";
+import type { GoRoomItem } from "../../shared/room-items.js";
 import { REVEAL_CAP_MS } from "../../shared/board-freshness.js";
 
 /**
@@ -65,6 +66,8 @@ export class Activity {
   private readonly sentAt = new Map<string, number>();
   /** When an agent sent somewhere was first seen standing there. */
   private readonly arrivedAt = new Map<string, number>();
+  /** How long somebody sent to a place that keeps them (a Go seat) stays there. See Destination.stayMs. */
+  private readonly stayFor = new Map<string, number>();
   /**
    * Board changes waiting for their agent to reach the board, by audit id.
    * See shared/board-freshness.ts: the card moves when the agent arrives.
@@ -93,6 +96,8 @@ export class Activity {
     private readonly panelPlaces: () => PanelPlaces = () => ({}),
     /** Agents' saved homes, where they walk back to. See homes.ts. */
     private readonly homeOf: (actorId: string) => AgentHome | null = () => null,
+    /** The Go tables as they are now, so a move played through code walks the player to its seat. */
+    private readonly goTable: (id: string) => GoRoomItem | null = () => null,
   ) {}
 
   /**
@@ -209,7 +214,7 @@ export class Activity {
       const places = this.panelPlaces();
       let restored = false;
       for (const row of rows) {
-        const destination = destinationFor(row, places, this.homeOf);
+        const destination = destinationFor(row, places, this.homeOf, this.goTable);
         if (!destination) continue;
         // The time of the ACTION, not of this boot, so an agent that last did
         // something yesterday settles into sleeping rather than standing up and
@@ -262,12 +267,15 @@ export class Activity {
          * Counting from the rebuild, as this did first, gave those agents a
          * fresh hour at every deploy and they never reached one.
          */
-        const fresh = actedAt !== null && this.now() - actedAt < AGENT_AT_PANEL_MS;
+        // A place that keeps you (a Go seat) is still yours for its whole stay
+        // — a deploy mid-game must not walk the players away from the board.
+        const fresh = actedAt !== null && this.now() - actedAt < (destination.stayMs ?? AGENT_AT_PANEL_MS);
         const place = fresh ? destination : restingPlace(id, this.homeOf(id));
         this.presence.restore(id, place.at, place.because, place.facing, actedAt);
         if (fresh) {
           this.sentAt.set(actorKey(id), actedAt);
           this.arrivedAt.set(actorKey(id), actedAt);
+          if (destination.stayMs !== undefined) this.stayFor.set(actorKey(id), destination.stayMs);
         }
         restored = true;
         break;
@@ -288,7 +296,7 @@ export class Activity {
     for (const row of rows) {
       this.lastSeenId = Math.max(this.lastSeenId, row.id);
       if (NOT_A_PERSON.has(actorKey(row.actorId))) continue;
-      const destination = destinationFor(row, this.panelPlaces(), this.homeOf);
+      const destination = destinationFor(row, this.panelPlaces(), this.homeOf, this.goTable);
       // An action this room has nothing to say about leaves everyone where they
       // are. It does not send them to a default corner.
       if (!destination) continue;
@@ -301,6 +309,8 @@ export class Activity {
       );
       this.sentAt.set(actorKey(row.actorId), this.now());
       this.arrivedAt.delete(actorKey(row.actorId));
+      if (destination.stayMs !== undefined) this.stayFor.set(actorKey(row.actorId), destination.stayMs);
+      else this.stayFor.delete(actorKey(row.actorId));
       // An AGENT walking to a panel: hold the card change until it gets there.
       // A person moves themselves, so theirs shows at once.
       // Not when nobody has the room open: then nothing walks (the room only
@@ -374,9 +384,14 @@ export class Activity {
       if (!occupant) {
         this.sentAt.delete(key);
         this.arrivedAt.delete(key);
+        this.stayFor.delete(key);
         continue;
       }
-      if (at > cutoff) {
+      const stay = this.stayFor.get(key);
+      if (stay !== undefined) {
+        // A place that keeps you: stay the whole time, however quickly you got there.
+        if (now - at < stay) continue;
+      } else if (at > cutoff) {
         if (occupant.kind !== "agent") continue;
         const there = Math.hypot(occupant.at.x - occupant.heading.x, occupant.at.z - occupant.heading.z) < 0.05;
         if (!there) {
@@ -390,6 +405,7 @@ export class Activity {
       }
       this.sentAt.delete(key);
       this.arrivedAt.delete(key);
+      this.stayFor.delete(key);
       /**
        * Somebody who drives their own avatar walks themselves.
        *

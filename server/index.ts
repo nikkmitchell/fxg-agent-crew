@@ -200,6 +200,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     Date.now,
     () => Object.fromEntries(panelPlaces.all(roomAtDefault).map((place) => [place.id, place])),
     (actorId) => agentHomes.get(roomAtDefault, actorId),
+    (id) => roomItems.one(roomAtDefault, id),
   );
   activity.onError = (error) => app.log.error({ error }, "space activity poll failed");
   // Put the agents back before anything else looks at the room. A restart

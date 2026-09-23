@@ -35,7 +35,8 @@ import { microphoneState } from "./mic-permission";
 import { voiceReport } from "./voice-report";
 import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
-import { GO_SIZES, type RoomItem } from "../../shared/room-items";
+import type { RoomItem } from "../../shared/room-items";
+import { Typing3D } from "./Typing3D";
 
 /**
  * The room's controls, in front of you at body level.
@@ -221,6 +222,15 @@ export function RoomControls({
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
+  /**
+   * SEEING AND FIXING WHAT YOU SAID. Baiwei: "instead of seeing everything I
+   * said, I only see an empty bar with a keyboard... I would like to see
+   * everything that I've said." The draft line shows only its end, and the
+   * Quest's keyboard can only ADD (system-keyboard.ts says why), so a
+   * misheard word could never be fixed. This opens the room's own typing panel
+   * with the whole draft in it; tap a word to retype or re-speak just that word.
+   */
+  const [fixing, setFixing] = useState(false);
   /**
    * Which list you are looking at.
    *
@@ -881,15 +891,30 @@ export function RoomControls({
   } else if (open && view === "items") {
     const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
     rows.push({ label: "+ Add Go table", tone: "live", onTap: () => void space.addRoomItem().catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add the table.")) });
+    /**
+     * THE TABLE'S OWN SETTINGS ARE ON THE TABLE NOW.
+     *
+     * This listed every board size for every table, as rows in a menu on the
+     * far side of the room — Nikk: "(now go board movement settings are just
+     * buttons which is super weird)". Size, players and clearing the board are
+     * behind the gear at the table's corner, and it is moved by dragging its
+     * base, so none of it needs a list over here. What is left is the one thing
+     * that cannot live on a table that does not exist yet: making one.
+     */
     for (const item of roomItems) {
-      rows.push({ label: `Go table · ${item.size}×${item.size}`, tone: "live", onTap: () => {} });
-      for (const size of GO_SIZES) rows.push({
-        label: `${item.size === size ? "✓" : "·"} ${size}×${size}${item.size === size ? "" : " — resets stones"}`,
-        tone: item.size === size ? "live" : "normal",
-        onTap: () => void space.configureGo(item.id, { size }).catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not resize the board.")),
+      rows.push({
+        label: `Go table · ${item.size}×${item.size} · ${item.colours.length} playing`,
+        tone: "live",
+        onTap: () => {},
       });
-      rows.push({ label: `+ Add player bowl (${item.colours.length} now)`, onTap: () => void space.configureGo(item.id, { addBowl: true }).catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add a bowl.")) });
     }
+    rows.push({
+      label: roomItems.length
+        ? "Set one up with the gear on its corner; drag its base to move it"
+        : "Add one, then use the gear on its corner",
+      tone: "muted",
+      onTap: () => {},
+    });
     boxes.push({ title: "Room items — for everyone", rows });
   } else if (open && view === "agents") {
     /**
@@ -988,6 +1013,7 @@ export function RoomControls({
             },
         ...(written.trim()
           ? [
+              { label: "See and fix what you said", onTap: () => { setOpen(false); setFixing(true); } },
               { label: "Send what you wrote", tone: "live" as const, onTap: () => void sendWritten() },
               { label: "Throw away what you wrote", tone: "muted" as const, onTap: () => setWritten("") },
             ]
@@ -1135,6 +1161,19 @@ export function RoomControls({
             onResetStanding();
             flash("Measuring your height from where your head is now.");
           },
+        },
+        /**
+         * DARK MODE, ON UNTIL TURNED OFF. Nikk: "a darkmode that is on
+         * automatically... also add a setting to turn off dark mode in
+         * settings". First in the list of how the room is drawn, because it is
+         * the one change that decides whether the rest is comfortable to look at
+         * for an hour. Says what it IS, not what pressing it will do — the same
+         * rule as every other row here.
+         */
+        {
+          label: preferences.dark ? "Dark mode: on" : "Dark mode: off",
+          tone: preferences.dark ? "live" : "normal",
+          onTap: () => setRoomPreferences({ dark: !preferences.dark }),
         },
         {
           label: preferences.rings ? "Rings under people: shown" : "Rings under people: hidden",
@@ -1288,7 +1327,30 @@ export function RoomControls({
   return (
     <>
       <group ref={group} visible={false}>
-      {open ? (
+      {fixing ? (
+        /*
+          IN PLACE OF THE CONTROLS, not beside them: the editor has its own
+          speak and save, and a mic button behind the keys would be one more
+          thing to mis-press. Centred where the gear and mic were, at the size
+          of those controls (their icons are 18cm), not a board's.
+        */
+        <Typing3D
+          prompt="What you said: tap a word to fix it"
+          initial={written}
+          limit={2000}
+          position={[0, 0.05, 0.03]}
+          scale={1.3}
+          // Baiwei, in a headset: "Only the keyboard is too big". The words
+          // stay at 1.3 to be tapped one at a time; the keys come down to about
+          // 5cm each.
+          keyboardScale={0.7}
+          onDone={(text) => {
+            setWritten(text);
+            setFixing(false);
+          }}
+          onCancel={() => setFixing(false)}
+        />
+      ) : open ? (
         columns.map((column, index) => (
           <ButtonBox
             key={`${index}-${column.title}`}
@@ -1480,7 +1542,9 @@ export function RoomControls({
             // Tapping the draft adds to it; tapping a notice dismisses it. The
             // recording status is not a notice and a tap does nothing to it.
             if (notice || voice.trouble) setNotice(null);
-            else if (draftPreview && !recordingStatus) openTextEntry();
+            // THE WHOLE DRAFT, TO FIX — not the Quest keyboard, which opens
+            // empty and can only add to it.
+            else if (draftPreview && !recordingStatus) setFixing(true);
           }}
         />
       ) : null}

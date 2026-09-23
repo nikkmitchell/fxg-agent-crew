@@ -124,3 +124,109 @@ describe("an agent in the room is enrolled when it signs in", () => {
     await app.close();
   });
 });
+
+/**
+ * A PERSON is enrolled the same way. This half was missing: only
+ * /bff/agent-session ever enrolled anybody, so every human who signed in with a
+ * password met PROJECT_PERMISSION_REQUIRED on their first card. Baiwei, in the
+ * saha.ing room, could not edit the saha.ing board. Nikk: "why can't baiwei
+ * access the workboard, anyone who is here should be able to access".
+ */
+const upstreamForPeople = (username: string, rooms: string[] | Error) =>
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (String(url).includes("/api/login")) {
+      return new Response(JSON.stringify({ token: `token-for-${username}` }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (String(url).includes("/api/rooms")) {
+      if (rooms instanceof Error) return new Response("upstream is sulking", { status: 502 });
+      return new Response(JSON.stringify({ rooms: rooms.map((roomName) => ({ roomName })) }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ id: 2, username, kind: "human" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }));
+
+const logIn = (app: ReturnType<typeof boot>["app"], username: string) =>
+  app.inject({ method: "POST", url: "/bff/login", payload: { username, password: "correct horse" } });
+
+describe("a PERSON in the room is enrolled when they sign in", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("joins the linked project, exactly as an agent does", async () => {
+    upstreamForPeople("baiwei2", ["saha.ing"]);
+    const { app, membership } = boot();
+    expect((await logIn(app, "baiwei2")).statusCode).toBe(200);
+    expect(membership("baiwei2")).toEqual({ roles: "[]", active: 1 });
+    await app.close();
+  });
+
+  /** "Anyone in the space" means anyone in THIS room, not anyone anywhere. */
+  it("does not enrol a person who is only in other rooms", async () => {
+    upstreamForPeople("Elsewhere", ["their-own-room"]);
+    const { app, membership } = boot();
+    expect((await logIn(app, "Elsewhere")).statusCode).toBe(200);
+    expect(membership("Elsewhere")).toBeUndefined();
+    await app.close();
+  });
+
+  it("signs the person in anyway when upstream cannot say which rooms they are in", async () => {
+    upstreamForPeople("baiwei2", new Error("down"));
+    const { app, membership } = boot();
+    expect((await logIn(app, "baiwei2")).statusCode).toBe(200);
+    expect(membership("baiwei2")).toBeUndefined();
+    await app.close();
+  });
+
+  /** The one rule this path promises, for people too. */
+  it("does not undo a membership a manager revoked", async () => {
+    upstreamForPeople("baiwei2", ["saha.ing"]);
+    const { app, membership, database, store } = boot();
+    store.ensureActor("Baiwei2", "human");
+    database
+      .prepare("INSERT INTO memberships (project_id, actor_id, roles, active, granted_by, granted_at) VALUES (?,?,?,?,?,?)")
+      .run("saha-ing", "Baiwei2", "[]", 0, "Nikk2", new Date().toISOString());
+    expect((await logIn(app, "baiwei2")).statusCode).toBe(200);
+    // Still the one revoked row, under its original spelling: nothing re-added.
+    expect(membership("baiwei2")).toBeUndefined();
+    expect(membership("Baiwei2")).toEqual({ roles: "[]", active: 0 });
+    await app.close();
+  });
+
+  /**
+   * SESSIONS THAT PREDATE THE FIX. A session lasts days, so somebody already
+   * signed in must not stay locked out until they happen to sign out: their
+   * next page load, which asks /bff/me, enrols them.
+   */
+  it("enrols somebody already signed in, on their next page load", async () => {
+    upstreamForPeople("baiwei2", ["saha.ing"]);
+    const { app, membership, sessions, config } = boot();
+    const sid = sessions.create("baiwei2", "an-old-token");
+    expect(membership("baiwei2")).toBeUndefined();
+    const me = await app.inject({ method: "GET", url: "/bff/me", headers: { cookie: `${config.cookieName}=${sid}` } });
+    expect(me.statusCode).toBe(200);
+    await vi.waitFor(() => expect(membership("baiwei2")).toEqual({ roles: "[]", active: 1 }));
+    await app.close();
+  });
+
+  it("asks upstream about a session's rooms once, not on every page load", async () => {
+    upstreamForPeople("baiwei2", ["saha.ing"]);
+    const { app, sessions, config } = boot();
+    const sid = sessions.create("baiwei2", "an-old-token");
+    const headers = { cookie: `${config.cookieName}=${sid}` };
+    for (let load = 0; load < 5; load += 1) await app.inject({ method: "GET", url: "/bff/me", headers });
+    await vi.waitFor(() => {
+      const roomCalls = (fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.filter(([url]) =>
+        String(url).includes("/api/rooms"),
+      );
+      expect(roomCalls).toHaveLength(1);
+    });
+    await app.close();
+  });
+});

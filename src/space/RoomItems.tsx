@@ -1,72 +1,677 @@
-import { useMemo, useRef } from "react";
-import { Text } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { RoundedBox, Text } from "@react-three/drei";
+import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { GoRoomItem, RoomItem } from "../../shared/room-items";
+import { legalGoMoves } from "../../shared/go-rules";
+import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goDeckWidth, goBowl, goPoint, goRadius, goTray, goLocal, goTouchBowl, type Point3 } from "../../shared/go-layout";
+import { goCarryPoint, idleGoTouch, stepGoTouch } from "../../shared/go-touch";
+import type { WirePerson } from "../../shared/space-wire";
+import { goHandInput } from "./go-hand-input";
 import { space } from "../space-client";
+import { claimPointer } from "./pointer-claim";
+import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
+import { goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings";
+import { GO_TABLE_POINTERS, goControls, goControlsShown } from "./go-controls";
+import { goSnap, type GoMove } from "./go-snap";
+import { GO_SURFACE_LOOKS } from "./go-surfaces";
+import { GO_NAMES as NAMES, goStarPoints } from "../../shared/go-text";
+import { goTableWriter } from "./go-table-writer";
 
-function GoTable({ item }: { item: GoRoomItem }) {
-  const glow = useRef<THREE.MeshStandardMaterial>(null);
-  const extent = 1.22;
-  const step = extent / (item.size - 1);
-  const lines = useMemo(() => Array.from({ length: item.size }, (_, index) => -extent / 2 + index * step), [item.size, step]);
-  useFrame(({ clock }) => {
-    if (glow.current) glow.current.emissiveIntensity = 0.65 + Math.sin(clock.elapsedTime * 4) * 0.35;
-  });
-  const point = (n: number) => -extent / 2 + n * step;
-  const bowlPosition = (index: number): [number, number, number] => {
-    const angle = (index / item.colours.length) * Math.PI * 2 + Math.PI / 2;
-    return [Math.cos(angle) * 0.94, 0.86, Math.sin(angle) * 0.94];
-  };
-  return (
-    <group position={[item.position.x, 0, item.position.z]} rotation-y={item.position.rotationY}>
-      <mesh position={[0, 0.38, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.92, 0.8, 0.72, 8]} />
-        <meshStandardMaterial color="#39261c" roughness={0.72} />
-      </mesh>
-      <mesh position={[0, 0.77, 0]} castShadow receiveShadow>
-        <boxGeometry args={[1.48, 0.1, 1.48]} />
-        <meshStandardMaterial color="#c79855" roughness={0.56} />
-      </mesh>
-      {lines.map((offset, index) => (
-        <group key={index}>
-          <mesh position={[offset, 0.826, 0]} rotation-x={Math.PI / 2}>
-            <planeGeometry args={[0.008, extent]} /><meshBasicMaterial color="#51351f" />
-          </mesh>
-          <mesh position={[0, 0.827, offset]} rotation-x={Math.PI / 2}>
-            <planeGeometry args={[extent, 0.008]} /><meshBasicMaterial color="#51351f" />
-          </mesh>
-        </group>
-      ))}
-      {Array.from({ length: item.size * item.size }, (_, index) => {
-        const x = index % item.size; const y = Math.floor(index / item.size);
-        return <mesh key={`hit-${index}`} position={[point(x), 0.845, point(y)]} rotation-x={-Math.PI / 2}
-          onClick={(event) => { event.stopPropagation(); void space.actOnGo(item.id, { action: "place", x, y }); }}>
-          <circleGeometry args={[Math.max(0.025, step * 0.38), 12]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
-        </mesh>;
-      })}
-      {item.stones.map((stone, index) => (
-        <mesh key={`${stone.x}-${stone.y}-${index}`} position={[point(stone.x), 0.86, point(stone.y)]} castShadow>
-          <sphereGeometry args={[Math.min(0.055, step * 0.42), 22, 10]} /><meshStandardMaterial color={item.colours[stone.colour]} roughness={0.28} />
-        </mesh>
-      ))}
-      {item.colours.map((colour, index) => {
-        const position = bowlPosition(index); const active = index === item.activeColour;
-        return <group key={colour} position={position} onClick={(event) => { event.stopPropagation(); if (active) void space.actOnGo(item.id, { action: "lift" }); }}>
-          <mesh castShadow><cylinderGeometry args={[0.16, 0.12, 0.09, 24]} /><meshStandardMaterial color="#6b4328" roughness={0.68} /></mesh>
-          <mesh position={[0, 0.055, 0]} castShadow><sphereGeometry args={[0.095, 20, 10]} />
-            <meshStandardMaterial ref={active ? glow : undefined} color={colour} emissive={active ? colour : "#000000"} emissiveIntensity={active ? 0.8 : 0} roughness={0.25} />
-          </mesh>
-          {item.liftedColour === index && <mesh position={[0, 0.25, 0]} castShadow><sphereGeometry args={[0.06, 22, 10]} /><meshStandardMaterial color={colour} emissive={colour} emissiveIntensity={0.3} /></mesh>}
-        </group>;
-      })}
-      <Text position={[0, 0.48, -0.91]} rotation={[0, 0, 0]} fontSize={0.09} color="#f1d8aa" anchorX="center" anchorY="middle">
-        {`GO  ${item.size}×${item.size}`}
-      </Text>
-    </group>
-  );
+const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
+const xyz = (p: Point3): [number, number, number] => [p.x, p.y, p.z];
+const noRaycast = () => {};
+
+function woodTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#d9ad6f"; ctx.fillRect(0, 0, 512, 512);
+  for (let n = 0; n < 240; n++) {
+    ctx.strokeStyle = `rgba(103,60,26,${0.025 + (Math.sin(n * 3.17) + 1) * 0.023})`;
+    ctx.lineWidth = n % 9 === 0 ? 1.4 : 0.6; ctx.beginPath();
+    for (let y = 0; y <= 512; y += 8) {
+      const x = n * 2.2 + Math.sin(y * 0.014 + n * 0.18) * 2.4 + Math.sin(y * 0.004 + n) * 5;
+      if (!y) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
+  return texture;
 }
 
-export function RoomItems({ items }: { items: RoomItem[] }) {
-  return <>{items.map((item) => item.kind === "go" ? <GoTable key={item.id} item={item} /> : null)}</>;
+function glowTexture(): THREE.DataTexture {
+  const size = 64, data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const d = Math.hypot((x + 0.5) / size * 2 - 1, (y + 0.5) / size * 2 - 1);
+    const at = (y * size + x) * 4;
+    data[at] = data[at + 1] = data[at + 2] = 255;
+    data[at + 3] = Math.round(Math.max(0, 1 - d) ** 2 * 255);
+  }
+  const texture = new THREE.DataTexture(data, size, size); texture.needsUpdate = true; return texture;
+}
+
+/**
+ * Grey carved stone, for the STONE board (go-surfaces.ts): a mottled slab with
+ * fine speckle and a few faint veins. A fixed seed, so every person round the
+ * table sees the same stone rather than their own random one.
+ */
+function stoneTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext("2d")!;
+  let seed = 0x5a17e;
+  const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
+  ctx.fillStyle = GO_SURFACE_LOOKS.stone.base; ctx.fillRect(0, 0, 512, 512);
+  for (let n = 0; n < 70; n++) { // soft mottling
+    const light = random() > 0.5;
+    ctx.fillStyle = `rgba(${light ? "220,223,227" : "70,73,78"},${0.025 + random() * 0.035})`;
+    ctx.beginPath(); ctx.arc(random() * 512, random() * 512, 30 + random() * 90, 0, Math.PI * 2); ctx.fill();
+  }
+  for (let n = 0; n < 9000; n++) { // speckle
+    const v = Math.round(70 + random() * 120);
+    ctx.fillStyle = `rgba(${v},${v},${v + 4},${0.18 + random() * 0.3})`;
+    ctx.fillRect(random() * 512, random() * 512, 1 + random() * 1.4, 1 + random() * 1.4);
+  }
+  for (let n = 0; n < 6; n++) { // faint veins
+    ctx.strokeStyle = `rgba(210,213,217,${0.08 + random() * 0.08})`; ctx.lineWidth = 0.6 + random() * 1.2;
+    ctx.beginPath(); ctx.moveTo(random() * 512, 0);
+    ctx.bezierCurveTo(random() * 512, 170, random() * 512, 340, random() * 512, 512); ctx.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
+  return texture;
+}
+
+/** A vertical fade for the light column: bright at the board, gone at the top. Row 0 is the bottom (DataTexture is not flipped). */
+function columnTexture(): THREE.DataTexture {
+  const rows = 32, data = new Uint8Array(rows * 4);
+  for (let i = 0; i < rows; i++) {
+    const v = Math.round((1 - i / (rows - 1)) ** 1.6 * 255);
+    data.set([v, v, v, 255], i * 4); // alphaMap reads the green channel
+  }
+  const texture = new THREE.DataTexture(data, 1, rows); texture.needsUpdate = true; return texture;
+}
+
+const COLUMN_HEIGHT = 0.16;
+
+/**
+ * The column of light over the point a held stone will land on — Baiwei's
+ * idea: "create a small column of light from that spot so that I'm sure that
+ * I'm putting stone where I want to". Tall enough to see from standing height
+ * across the board, thin enough not to hide the neighbouring points.
+ *
+ * AND A GHOST OF THE STONE ITSELF at its foot. Light on a pale board is faint —
+ * a light-blue column over White's turn barely showed in the first look at it —
+ * but a translucent stone of the right colour, exactly where it will rest, is
+ * unmistakable at any distance.
+ */
+function LightColumn({ x, z, colour, stone, reducedMotion }: { x: number; z: number; colour: string; stone: string; reducedMotion: boolean }) {
+  const texture = useMemo(columnTexture, []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  const glow = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(({ clock }) => { if (glow.current) glow.current.opacity = reducedMotion ? 0.9 : 0.78 + Math.sin(clock.elapsedTime * 6) * 0.14; });
+  const outer = GO_PITCH * 0.2, core = GO_PITCH * 0.05, radius = goRadius();
+  return <group position={[x, GO_SURFACE, z]}>
+    <mesh position-y={radius * 0.46} scale={[radius, radius * 0.46, radius]} raycast={noRaycast}>
+      <sphereGeometry args={[1, 24, 12]} />
+      <meshStandardMaterial color={stone} transparent opacity={0.55} depthWrite={false} roughness={0.3} />
+    </mesh>
+    <mesh position-y={COLUMN_HEIGHT / 2} raycast={noRaycast}>
+      <cylinderGeometry args={[outer, outer * 0.8, COLUMN_HEIGHT, 20, 1, true]} />
+      <meshBasicMaterial ref={glow} color={colour} alphaMap={texture} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+    </mesh>
+    <mesh position-y={COLUMN_HEIGHT * 0.4} raycast={noRaycast}>
+      <cylinderGeometry args={[core, core, COLUMN_HEIGHT * 0.8, 8, 1, true]} />
+      <meshBasicMaterial color="#ffffff" alphaMap={texture} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+    </mesh>
+  </group>;
+}
+
+/**
+ * The legal points glow, and the WHOLE BOARD takes the press: where the laser
+ * meets it is snapped to the nearest free intersection (go-snap.ts), a column
+ * of light rises there, and pressing puts the stone under the column.
+ *
+ * The dots used to be the only targets, each a little smaller than a square:
+ * a ray between two of them pressed nothing, and a shaky one flickered on and
+ * off a dot. They are only light now.
+ */
+function MoveLights({ item, reducedMotion, onPlace }: { item: GoRoomItem; reducedMotion: boolean; onPlace: (x: number, y: number) => void }) {
+  const dots = useRef<THREE.InstancedMesh>(null), material = useRef<THREE.MeshBasicMaterial>(null), frame = useRef<THREE.Group>(null);
+  const [aim, setAim] = useState<GoMove | null>(null);
+  // Where the column stood when the press went DOWN: that is where the stone
+  // goes, even if the ray shivers before it comes up.
+  const pressed = useRef<GoMove | null>(null);
+  const texture = useMemo(glowTexture, []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  const moves = useMemo(() => item.liftedColour === null ? [] : legalGoMoves(item.stones, item.size, item.activeColour), [item.stones, item.size, item.activeColour, item.liftedColour]);
+  useEffect(() => { setAim(null); pressed.current = null; }, [moves]);
+  const hover = aim ? moves.findIndex((move) => move.x === aim.x && move.y === aim.y) : -1;
+  useLayoutEffect(() => {
+    if (!dots.current) return;
+    const object = new THREE.Object3D(), width = GO_PITCH * 0.88;
+    moves.forEach((move, i) => {
+      object.position.set(goPoint(move.x, item.size), GO_SURFACE + 0.003, goPoint(move.y, item.size));
+      object.rotation.x = -Math.PI / 2; object.scale.setScalar(hover === i ? width * 1.25 : width); object.updateMatrix();
+      dots.current!.setMatrixAt(i, object.matrix);
+      dots.current!.setColorAt(i, new THREE.Color().setScalar(hover === i ? 2 : 1));
+    });
+    dots.current.count = moves.length; dots.current.instanceMatrix.needsUpdate = true;
+    if (dots.current.instanceColor) dots.current.instanceColor.needsUpdate = true;
+    dots.current.computeBoundingSphere();
+  }, [moves, item.size, hover]);
+  useFrame(({ clock }) => { if (material.current) material.current.opacity = reducedMotion ? 0.8 : 0.62 + Math.sin(clock.elapsedTime * 2.8) * 0.22; });
+  const aimAt = (event: ThreeEvent<PointerEvent | MouseEvent>): GoMove | null => {
+    if (!frame.current) return null;
+    const local = frame.current.worldToLocal(event.point.clone());
+    return goSnap({ x: local.x, z: local.z }, moves, item.size);
+  };
+  const catcher = goExtent(item.size) + GO_PITCH;
+  return <group ref={frame}>
+    <instancedMesh ref={dots} args={[undefined, undefined, item.size * item.size]} frustumCulled={false} raycast={noRaycast}>
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial ref={material} map={texture} color={ACCENTS[item.activeColour]} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+    </instancedMesh>
+    {moves.length > 0 && <mesh position={[0, GO_SURFACE + 0.004, 0]} rotation-x={-Math.PI / 2}
+      onPointerMove={(event) => { event.stopPropagation(); setAim(aimAt(event)); }}
+      onPointerOut={() => { setAim(null); pressed.current = null; }}
+      onPointerDown={(event) => { event.stopPropagation(); pressed.current = aimAt(event); }}
+      onClick={(event) => {
+        event.stopPropagation();
+        const at = pressed.current ?? aimAt(event);
+        pressed.current = null;
+        if (at) onPlace(at.x, at.y);
+      }}>
+      <planeGeometry args={[catcher, catcher]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>}
+    {aim && <LightColumn x={goPoint(aim.x, item.size)} z={goPoint(aim.y, item.size)} colour={ACCENTS[item.activeColour]} stone={item.colours[item.activeColour]} reducedMotion={reducedMotion} />}
+  </group>;
+}
+
+/**
+ * What the board fades behind while SETTINGS is open — Baiwei: "Maybe the
+ * board with stones could fade out a little bit while the settings appear."
+ * It fades in and out rather than switching, and lies just above the stones,
+ * under the sheet (go-controls.ts). Drawn before the sheet's words
+ * (renderOrder), so it can never tint them.
+ */
+function Veil({ open, y, width, opacity, reducedMotion }: { open: boolean; y: number; width: number; opacity: number; reducedMotion: boolean }) {
+  const mesh = useRef<THREE.Mesh>(null), material = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame((_, delta) => {
+    if (!mesh.current || !material.current) return;
+    const target = open ? opacity : 0;
+    material.current.opacity = reducedMotion ? target : THREE.MathUtils.damp(material.current.opacity, target, 14, delta);
+    mesh.current.visible = material.current.opacity > 0.01;
+  });
+  return <mesh ref={mesh} position-y={y} rotation-x={-Math.PI / 2} renderOrder={-1} visible={false} raycast={noRaycast}>
+    <planeGeometry args={[width, width]} />
+    <meshBasicMaterial ref={material} color="#ecdcbf" transparent opacity={0} depthWrite={false} />
+  </mesh>;
+}
+
+type StoneTarget = { id: string; at: Point3; colour: string; radius: number; from: Point3 };
+/** Stable IDs let a captured stone fly to its tray instead of disappearing. */
+function Stones({ targets, reducedMotion }: { targets: StoneTarget[]; reducedMotion: boolean }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const motions = useRef(new Map<string, { p: THREE.Vector3; from: THREE.Vector3; to: THREE.Vector3; t: number }>());
+  const scratch = useMemo(() => ({ object: new THREE.Object3D(), colour: new THREE.Color() }), []);
+  useLayoutEffect(() => {
+    const keep = new Set(targets.map((target) => target.id));
+    for (const id of motions.current.keys()) if (!keep.has(id)) motions.current.delete(id);
+    for (const target of targets) {
+      const to = new THREE.Vector3(...xyz(target.at));
+      const old = motions.current.get(target.id);
+      if (!old) { const from = new THREE.Vector3(...xyz(target.from)); motions.current.set(target.id, { p: from.clone(), from, to, t: 0 }); }
+      else if (!old.to.equals(to)) { old.from.copy(old.p); old.to.copy(to); old.t = 0; }
+    }
+  }, [targets]);
+  useFrame((_, delta) => {
+    if (!mesh.current) return;
+    targets.forEach((target, i) => {
+      const motion = motions.current.get(target.id); if (!motion) return;
+      motion.t = reducedMotion ? 1 : Math.min(1, motion.t + delta / 0.48);
+      const ease = 1 - (1 - motion.t) ** 3;
+      motion.p.lerpVectors(motion.from, motion.to, ease);
+      motion.p.y += Math.sin(Math.PI * motion.t) * 0.15;
+      scratch.object.position.copy(motion.p); scratch.object.scale.set(target.radius, target.radius * 0.46, target.radius);
+      scratch.object.updateMatrix(); mesh.current!.setMatrixAt(i, scratch.object.matrix);
+      mesh.current!.setColorAt(i, scratch.colour.set(target.colour));
+    });
+    mesh.current.count = targets.length;
+    mesh.current.instanceMatrix.needsUpdate = true;
+    if (mesh.current.instanceColor) mesh.current.instanceColor.needsUpdate = true;
+  });
+  return <instancedMesh ref={mesh} args={[undefined, undefined, Math.max(1, targets.length)]} frustumCulled={false} raycast={noRaycast} castShadow>
+    <sphereGeometry args={[1, 28, 16]} /><meshPhysicalMaterial roughness={0.22} clearcoat={0.7} clearcoatRoughness={0.2} metalness={0.04} />
+  </instancedMesh>;
+}
+
+function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index: number; reducedMotion: boolean; onLift: () => void }) {
+  const pulse = useRef<THREE.MeshBasicMaterial>(null), rim = useRef<THREE.MeshStandardMaterial>(null);
+  const active = index === item.activeColour;
+  const colour = item.colours[index], accent = ACCENTS[index];
+  const position = goBowl(index, item.colours.length, item.size), tray = goTray(index, item.colours.length, item.size);
+  const texture = useMemo(glowTexture, []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  const profile = useMemo(() => [[0.055, -0.064], [0.09, -0.057], [0.139, -0.026], [0.17, 0.025], [0.18, 0.063], [0.173, 0.072], [0.163, 0.062], [0.155, 0.028], [0.125, -0.009], [0.078, -0.038], [0, -0.041]].map(([r, y]) => new THREE.Vector2(r, y)), []);
+  const stock = useMemo(() => Array.from({ length: 13 }, (_, i) => {
+    const angle = i * 2.4, r = i < 9 ? 0.095 : 0.048;
+    const at = { x: Math.cos(angle) * r, y: i < 9 ? 0.029 : 0.062, z: Math.sin(angle) * r };
+    return { id: `stock-${i}`, at, from: at, colour, radius: goRadius() };
+  }), [colour]);
+  useFrame(({ clock }) => {
+    const wave = reducedMotion ? 0.7 : 0.65 + Math.sin(clock.elapsedTime * 2.8) * 0.25;
+    if (pulse.current) pulse.current.opacity = active ? wave : 0;
+    if (rim.current) rim.current.emissiveIntensity = active ? wave * 0.8 : 0;
+  });
+  const captures = item.captures.filter((stone) => stone.by === index).length;
+  return <>
+    <group position={xyz(position)} onClick={(event) => { event.stopPropagation(); onLift(); }}>
+      <mesh position={[0, -0.055, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}>
+        <planeGeometry args={[0.72, 0.72]} /><meshBasicMaterial ref={pulse} map={texture} color={accent} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+      <mesh castShadow><latheGeometry args={[profile, 48]} /><meshPhysicalMaterial color="#6d3b23" roughness={0.38} clearcoat={0.55} side={THREE.DoubleSide} /></mesh>
+      <mesh position={[0, 0.066, 0]} rotation-x={Math.PI / 2}>
+        <torusGeometry args={[0.172, 0.007, 8, 64]} /><meshStandardMaterial ref={rim} color={active ? accent : "#c38d52"} emissive={accent} roughness={0.3} metalness={0.4} />
+      </mesh>
+      <Stones targets={stock} reducedMotion />
+      {/* Invisible contact cap also makes the stones in the bowl clickable. */}
+      <mesh position={[0, 0.045, 0]}><sphereGeometry args={[0.17, 16, 8]} /><meshBasicMaterial visible={false} /></mesh>
+      <Text position={[0, -0.042, tray.z > position.z ? -0.24 : 0.24]} rotation-x={-Math.PI / 2} fontSize={0.039} color={active ? accent : "#c8b49a"} raycast={noRaycast}>
+        {`${NAMES[index].toUpperCase()}${active ? " · TO PLAY" : ""}`}
+      </Text>
+    </group>
+    <RoundedBox args={[0.22, 0.025, 0.27]} radius={0.011} smoothness={3} position={xyz(tray)} raycast={noRaycast}>
+      <meshStandardMaterial color="#352920" roughness={0.46} />
+    </RoundedBox>
+    <Text position={[tray.x, tray.y + 0.017, tray.z + 0.18]} rotation-x={-Math.PI / 2} fontSize={0.028} color="#c8b49a" raycast={noRaycast}>{`${captures} CAPTURED`}</Text>
+  </>;
+}
+
+function TableButton({ label, at, onTap, width = 0.24, depth = 0.105, fontSize = 0.029 }: { label: string; at: [number, number, number]; onTap: () => void; width?: number; depth?: number; fontSize?: number }) {
+  const [hover, setHover] = useState(false);
+  return <group position={at} onClick={(event) => { event.stopPropagation(); onTap(); }} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
+    <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[width, depth]} /><meshBasicMaterial color={hover ? "#78654b" : "#483b2e"} /></mesh>
+    <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={fontSize} color="#f1dfbd" raycast={noRaycast}>{label}</Text>
+  </group>;
+}
+
+type TableContext = { you: string | null; peopleRef: RefObject<WirePerson[]>;
+  items: RoomItem[]; reservations: RefObject<Map<string, { id: string; until: number }>>;
+  /** Apply a table as the server just answered with it — see withFresher. */
+  onItem: (item: RoomItem) => void };
+function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMotion: boolean; context: TableContext }) {
+  const [notice, setNotice] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [carrying, setCarrying] = useState(false);
+  const pending = useRef(false), held = useRef<THREE.Mesh>(null);
+  const contacts = useRef({ left: idleGoTouch(), right: idleGoTouch() });
+  const lastHeld = useRef<Point3 | null>(null);
+  const liftAge = useRef(0);
+  useEffect(() => { liftAge.current = 0; }, [item.liftedColour, item.carrier?.by, item.carrier?.hand]);
+  const previous = useRef(new Set(item.stones.map((stone) => stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`)));
+  const wood = useMemo(woodTexture, []);
+  useEffect(() => () => wood.dispose(), [wood]);
+  const look = GO_SURFACE_LOOKS[item.surface] ?? GO_SURFACE_LOOKS.bamboo;
+  const carved = useMemo(() => look.grain === "stone" ? stoneTexture() : null, [look.grain]);
+  useEffect(() => () => carved?.dispose(), [carved]);
+  const radius = goRadius(item.size);
+  const targets = useMemo(() => {
+    const result: StoneTarget[] = item.stones.map((stone) => {
+      const id = stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`;
+      const at = { x: goPoint(stone.x, item.size), y: GO_SURFACE + radius * 0.46, z: goPoint(stone.y, item.size) };
+      const bowl = goBowl(stone.colour, item.colours.length, item.size);
+      return { id, at, from: previous.current.has(id) ? at : lastHeld.current ?? { ...bowl, y: bowl.y + 0.3 }, colour: item.colours[stone.colour], radius };
+    });
+    item.colours.forEach((_, index) => {
+      const tray = goTray(index, item.colours.length, item.size);
+      item.captures.filter((stone) => stone.by === index).slice(-24).forEach((stone, n) => {
+        const at = { x: tray.x + (n % 3 - 1) * 0.065, y: tray.y + 0.026 + Math.floor(n / 9) * 0.028, z: tray.z + (Math.floor(n / 3) % 3 - 1) * 0.073 };
+        result.push({ id: stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`, at,
+          from: at, colour: item.colours[stone.colour], radius: Math.min(radius, 0.032) });
+      });
+    });
+    return result;
+  }, [item.stones, item.captures, item.colours, item.size, radius]);
+  useEffect(() => { previous.current = new Set(item.stones.map((stone) => stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`)); }, [item.stones]);
+  useEffect(() => { setNotice(""); }, [item.revision]);
+  /**
+   * Changes go through go-table-writer.ts, where the rules that fixed Nikk's
+   * headset live and are tested against a socket that never delivers: apply the
+   * answer at once, catch up on "The table changed", retry a settings change
+   * once from the fresh table, never retry a move. It shares `pending` with the
+   * hand-contact loop below, which reads it every frame.
+   */
+  const latest = useRef(item);
+  latest.current = item;
+  const applyItem = useRef(context.onItem);
+  applyItem.current = context.onItem;
+  const writer = useMemo(() => goTableWriter({
+    current: () => latest.current,
+    apply: (one) => applyItem.current(one),
+    api: {
+      configure: (id, change) => space.configureGo(id, change as Parameters<typeof space.configureGo>[1]),
+      act: (id, action) => space.actOnGo(id, action as Parameters<typeof space.actOnGo>[1]),
+      items: () => space.roomItems(),
+    },
+    notice: setNotice,
+    pending,
+  }), []);
+  const act = (action: Parameters<typeof space.actOnGo>[1]) => writer.act(action);
+  const configure = (
+    change: Parameters<typeof space.configureGo>[1],
+    again?: (fresh: GoRoomItem) => Parameters<typeof space.configureGo>[1] | null,
+  ) => writer.configure(change, again as ((fresh: GoRoomItem) => Record<string, unknown> | null) | undefined);
+  useFrame(({ clock }, delta) => {
+    const now = performance.now();
+    if (context.you) for (const side of ["left", "right"] as const) {
+      const sample = goHandInput[side];
+      const point = sample && now - sample.at < 120 ? goLocal(sample.contact, item) : null;
+      const holding = item.liftedColour !== null && item.carrier?.by === context.you && item.carrier.hand === side;
+      const reservation = context.reservations.current.get(side);
+      const otherTable = context.items.some((table) => table.id !== item.id && table.carrier?.by === context.you && table.carrier.hand === side);
+      const canLift = item.liftedColour === null && !pending.current && !otherTable && (!reservation || reservation.until < now || reservation.id === item.id);
+      const next = stepGoTouch(contacts.current[side], { point, item, holding, canLift, now, pending: pending.current });
+      contacts.current[side] = next.state;
+      if (next.action && !pending.current) {
+        if (next.action.action === "lift") {
+          context.reservations.current.set(side, { id: item.id, until: now + 5000 });
+          void act({ action: "lift", hand: side, colour: item.activeColour }).then((ok) => { if (!ok) context.reservations.current.delete(side); });
+        } else void act(next.action);
+      }
+    }
+    if (!held.current || item.liftedColour === null) return;
+    if (item.carrier?.hand) {
+      const side = item.carrier.hand;
+      const sample = goHandInput[side];
+      const remote = context.peopleRef.current.find((person) => person.actorId === item.carrier!.by)?.hands[side];
+      const world = item.carrier.by === context.you
+        ? sample && now - sample.at < 120 ? sample.carry : null
+        : remote ? goCarryPoint(remote) : null;
+      if (world) {
+        const p = goLocal(world, item);
+        // Tracking is functional motion, never disabled by reduced-motion preference.
+        liftAge.current += delta;
+        const amount = reducedMotion || liftAge.current > 0.35 ? 1 : 1 - Math.exp(-delta * 14);
+        held.current.position.x += (p.x - held.current.position.x) * amount;
+        held.current.position.y += (p.y - held.current.position.y) * amount;
+        held.current.position.z += (p.z - held.current.position.z) * amount;
+      }
+      // Lost tracking freezes the stone in flight; it never places a remembered hand.
+    } else {
+      const bowl = goBowl(item.liftedColour, item.colours.length, item.size);
+      const height = bowl.y + 0.29 + (reducedMotion ? 0 : Math.sin(clock.elapsedTime * 2.2) * 0.012);
+      held.current.position.y = reducedMotion ? height : THREE.MathUtils.damp(held.current.position.y, height, 7, delta);
+    }
+    lastHeld.current = { x: held.current.position.x, y: held.current.position.y, z: held.current.position.z };
+  });
+  const offsets = Array.from({ length: item.size }, (_, n) => goPoint(n, item.size));
+  /**
+   * CARRYING THE TABLE, the same gesture the panels use.
+   *
+   * Nikk asked for "a standard move system like in the vision pro, or other
+   * places where you grab a window and drag it left or right or up or down, or
+   * forward and backward", and then "also lets allow for moving the go board in
+   * the same way" — pointing at the X/Y/Z nudge pad that used to be here:
+   * "(now go board movement settings are just buttons which is super weird)".
+   *
+   * So the table is taken hold of and carried at the distance it was grabbed
+   * at, going wherever the ray points, with the wheel for nearer and further.
+   * The arithmetic is `shared/grab-move.ts`, shared with the panels, and the
+   * reasons it is not a cast at a level plane are written down there.
+   */
+  const body = useRef<THREE.Group>(null);
+  const grab = useRef<Grab | null>(null);
+  const grabbedPointer = useRef<number | null>(null);
+  const want = useRef<Vec3 | null>(null);
+  const gl = useThree((state) => state.gl);
+  const camera = useThree((state) => state.camera);
+  const invalidate = useThree((state) => state.invalidate);
+  const caster = useMemo(() => ({ ray: new THREE.Raycaster(), ndc: new THREE.Vector2() }), []);
+  const asVec = (v: { x: number; y: number; z: number }): Vec3 => ({ x: v.x, y: v.y, z: v.z });
+
+  const rayFromScreen = useCallback((clientX: number, clientY: number): Ray | null => {
+    const rect = gl.domElement.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    caster.ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -(((clientY - rect.top) / rect.height) * 2 - 1));
+    caster.ray.setFromCamera(caster.ndc, camera);
+    return { origin: asVec(caster.ray.ray.origin), direction: asVec(caster.ray.ray.direction) };
+  }, [camera, gl, caster]);
+
+  const steerTable = useCallback((ray: Ray | null) => {
+    const hold = grab.current;
+    if (!ray || !hold) return;
+    const to = grabbedTo(ray, hold);
+    // The server keeps a table's height between -0.5 and 5; stopping the
+    // gesture at the limit beats letting it run and refusing it at the end.
+    want.current = { x: to.x, y: clamp(to.y, -0.5, 5), z: to.z };
+    invalidate();
+  }, [invalidate]);
+
+  /**
+   * LET GO EXACTLY ONCE. A mouse delivers the release twice — the window's
+   * `pointerup` and the bar's own — while a headset delivers only the bar's.
+   */
+  const dropTable = useCallback(() => {
+    if (!grab.current) return;
+    const at = want.current;
+    grab.current = null; want.current = null; grabbedPointer.current = null;
+    setCarrying(false);
+    if (!at) return;
+    const place = { position: { x: at.x, y: at.y, z: at.z, rotationY: item.position.rotationY } };
+    // Where it was put does not depend on anything else about the table.
+    void configure(place, () => place);
+  }, [item.position.rotationY]);
+
+  /**
+   * THE LISTENERS GO ON AT THE MOMENT OF THE GRAB, not on the next render.
+   *
+   * They used to be a `useEffect` gated on a `carrying` state flag, which is
+   * the obvious shape and is wrong: the effect does not run until React has
+   * re-rendered, so a drag that starts and finishes inside that gap never gets
+   * a single `pointermove` and the table does not move at all. I found it by
+   * dragging the bar and watching the position not change — three times, while
+   * blaming my aim, because a grab that takes hold and then ignores you looks
+   * exactly like a grab that missed.
+   *
+   * A flick of a controller is faster than a render. So the window is listening
+   * before this handler returns.
+   */
+  const letGoOfTable = useRef<(() => void) | null>(null);
+
+  const listenWhileCarrying = useCallback(() => {
+    letGoOfTable.current?.();
+    const move = (event: PointerEvent) => steerTable(rayFromScreen(event.clientX, event.clientY));
+    const up = () => { letGoOfTable.current?.(); dropTable(); };
+    const wheel = (event: WheelEvent) => {
+      if (!grab.current) return;
+      event.preventDefault();
+      grab.current = pushPull(grab.current, -event.deltaY * 0.0022);
+      invalidate();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    window.addEventListener("wheel", wheel, { passive: false });
+    letGoOfTable.current = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      window.removeEventListener("wheel", wheel);
+      letGoOfTable.current = null;
+    };
+  }, [steerTable, rayFromScreen, dropTable, invalidate]);
+
+  // Never leave a listener behind on a table that has gone away.
+  useEffect(() => () => letGoOfTable.current?.(), []);
+
+  useFrame(() => {
+    const node = body.current, at = want.current;
+    if (!node || !at) return;
+    node.position.set(at.x, at.y, at.z);
+  });
+
+  const takeTable = (event: ThreeEvent<PointerEvent>) => {
+    if (item.liftedColour !== null) {
+      setNotice("Place or return the flying stone before moving the table.");
+      return;
+    }
+    event.stopPropagation();
+    claimPointer(event.nativeEvent);
+    grab.current = beginGrab(
+      { origin: asVec(event.ray.origin), direction: asVec(event.ray.direction) },
+      { x: item.position.x, y: item.position.y, z: item.position.z },
+    );
+    grabbedPointer.current = event.pointerId;
+    (event.target as { setPointerCapture?: (id: number) => void } | null)?.setPointerCapture?.(event.pointerId);
+    setNotice("");
+    setCarrying(true);
+    listenWhileCarrying();
+  };
+
+  const onSetting = (id: string) => {
+    const change = goSettingFor(item, id);
+    if (!change) return;
+    if (change.kind === "close") { setSettingsOpen(false); return; }
+    if (change.kind === "refused") { setNotice(change.why); return; }
+    setNotice(goSettingCost(item, change) ?? "");
+    const request = goSettingRequest(item, id);
+    if (request) void configure(request, (fresh) => goSettingRequest(fresh, id));
+  };
+
+  const controls = useMemo(() => goControls(item), [item]);
+  const showControls = goControlsShown(item);
+  // Lifting a stone puts the glowing intersections on the board the sheet was
+  // lying on, so the sheet closes rather than waiting underneath them.
+  useEffect(() => { if (!showControls) setSettingsOpen(false); }, [showControls]);
+  const stars = goStarPoints(item.size);
+  const lifted = item.liftedColour === null ? null : goBowl(item.liftedColour, item.colours.length, item.size);
+  const wide = item.colours.length > 2, deck = goDeckWidth(item.size, item.colours.length);
+  const extent = goExtent(item.size), boardWidth = goBoardWidth(item.size), edge = deck / 2;
+  return <group ref={body} position={[item.position.x, item.position.y, item.position.z]} rotation-y={item.position.rotationY} scale={item.scale} pointerEventsType={GO_TABLE_POINTERS}>
+    {/*
+      NOTHING BELOW THIS LINE CATCHES A POINTER UNLESS IT DOES SOMETHING.
+
+      Nikk, in a headset: "there seems to be loads of colliders all over the
+      model... if my hand is above the board it just hits colliders and the
+      pointer is blocked". R3F raycasts a handler-bearing group RECURSIVELY, and
+      RoomItems wraps every table in one that claims the pointer — so the desk,
+      the legs, the rim and the playing surface were all targets that did
+      nothing but stop the ray. They take no rays now. table-colliders.test.ts
+      fails if anything new is added here without saying which it is.
+    */}
+    {item.deskVisible && <RoundedBox args={[deck, 0.075, deck]} radius={0.035} smoothness={4} position={[0, 0.705, 0]} receiveShadow raycast={noRaycast}>
+      <meshStandardMaterial map={wood} color="#765b49" roughness={0.42} metalness={0.06} />
+    </RoundedBox>}
+    <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow raycast={noRaycast}>
+      <meshPhysicalMaterial color={carrying ? look.rimCarrying : look.rim} roughness={look.grain === "stone" ? 0.7 : 0.38} clearcoat={look.grain === "stone" ? 0.05 : 0.4} />
+    </RoundedBox>
+    <RoundedBox args={[boardWidth, 0.025, boardWidth]} radius={0.01} smoothness={3} position={[0, GO_SURFACE - 0.0125, 0]} receiveShadow raycast={noRaycast}>
+      <meshPhysicalMaterial map={carved ?? wood} roughness={look.roughness} clearcoat={look.clearcoat} />
+    </RoundedBox>
+    {item.deskVisible && [-1, 1].flatMap((x) => [-1, 1].map((z) => <mesh key={`${x}-${z}`} position={[x * edge * 0.6, 0.34, z * edge * 0.6]} castShadow raycast={noRaycast}>
+      <cylinderGeometry args={[0.07, 0.045, 0.68, 12]} /><meshStandardMaterial color="#382720" roughness={0.4} />
+    </mesh>))}
+    {offsets.map((offset, index) => {
+      const width = index === 0 || index === item.size - 1 ? 0.0035 : 0.0025;
+      // Carved stone: a lit lip beside each groove, never overlapping it.
+      const lip = width / 2 + 0.0007;
+      return <group key={index}>
+        <mesh position={[offset, GO_SURFACE + 0.0015, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}><planeGeometry args={[width, extent]} /><meshBasicMaterial color={look.lines} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-2} /></mesh>
+        <mesh position={[0, GO_SURFACE + 0.0016, offset]} rotation-x={-Math.PI / 2} raycast={noRaycast}><planeGeometry args={[extent, width]} /><meshBasicMaterial color={look.lines} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-2} /></mesh>
+        {look.lineLight && <mesh position={[offset + lip, GO_SURFACE + 0.0014, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}><planeGeometry args={[0.0012, extent]} /><meshBasicMaterial color={look.lineLight} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-2} /></mesh>}
+        {look.lineLight && <mesh position={[0, GO_SURFACE + 0.0014, offset + lip]} rotation-x={-Math.PI / 2} raycast={noRaycast}><planeGeometry args={[extent, 0.0012]} /><meshBasicMaterial color={look.lineLight} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-2} /></mesh>}
+      </group>;
+    })}
+    {stars.flatMap((x) => stars.map((y) => <mesh key={`star-${x}-${y}`} position={[goPoint(x, item.size), GO_SURFACE + 0.001, goPoint(y, item.size)]} rotation-x={-Math.PI / 2} raycast={noRaycast}>
+      <circleGeometry args={[0.0045, 16]} /><meshBasicMaterial color={look.lines} />
+    </mesh>))}
+    <MoveLights item={item} reducedMotion={reducedMotion} onPlace={(x, y) => void act({ action: "place", x, y })} />
+    <Stones targets={targets} reducedMotion={reducedMotion} />
+    {item.colours.map((_, index) => <Bowl key={index} item={item} index={index} reducedMotion={reducedMotion}
+      onLift={() => {
+        if (index !== item.activeColour || item.liftedColour !== null) return;
+        // A poke click and the physical-contact adapter can arrive in either order.
+        // Both must claim the touching hand, never turn its stone into a mouse lift.
+        const hand = (["left", "right"] as const).find((side) => {
+          const sample = goHandInput[side];
+          return sample && performance.now() - sample.at < 120 && goTouchBowl(goLocal(sample.contact, item), item);
+        });
+        void act({ action: "lift", colour: index, ...(hand ? { hand } : {}) });
+      }} />)}
+    {lifted && <mesh key={`held-${item.activeColour}`} ref={held} position={[lifted.x, lifted.y + 0.06, lifted.z]} scale={[radius, radius * 0.46, radius]} raycast={noRaycast} castShadow>
+      <sphereGeometry args={[1, 32, 20]} /><meshPhysicalMaterial color={item.colours[item.activeColour]} roughness={0.18} clearcoat={1} emissive={ACCENTS[item.activeColour]} emissiveIntensity={0.025} />
+    </mesh>}
+    {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.035 : boardWidth / 2 + 0.16]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.025 : 0.043} color={wide ? look.ink : ACCENTS[item.activeColour]} raycast={noRaycast}>
+      {`${NAMES[item.activeColour].toUpperCase()}'S TURN`}
+    </Text>}
+    {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? look.inkSoft : "#d8c8ac"} raycast={noRaycast}>
+      {notice || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a glowing point` : item.liftedColour !== null ? "Choose a glowing intersection" : "Touch the glowing bowl to lift a stone")}
+    </Text>}
+    {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
+      <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[0.46, 0.1]} /><meshBasicMaterial color="#493d30" /></mesh>
+      <Text rotation-x={-Math.PI / 2} position-y={0.001} fontSize={0.025} color="#eee0c6">RETURN STONE</Text>
+    </group>}
+    {/*
+      FLAT ON THE TABLE, AS TEXT. Nikk, in a headset: "I really don't like the
+      grab for the Go thing being floating above in the air it should be like on
+      the ground the end of Black's turn... the settings those should also be
+      flat on the ground like you can just be [a] text on the ground". MOVE sits
+      at the end of the turn line, SETTINGS at its start, and the settings lay
+      themselves on the board. go-controls.ts places all of it; its test holds
+      it clear of every bowl at every size and seating.
+
+      ONLY WHILE NO STONE IS IN THE AIR. The glowing intersections exist only
+      while one is, so the two can never be under the same pointer.
+    */}
+    {showControls && !settingsOpen && <group position={[controls.move.x, controls.move.y, controls.move.z]}
+      onPointerDown={takeTable}
+      onPointerMove={(event) => {
+        if (grabbedPointer.current !== event.pointerId) return;
+        event.stopPropagation();
+        steerTable({ origin: asVec(event.ray.origin), direction: asVec(event.ray.direction) });
+      }}
+      onPointerUp={(event) => {
+        if (grabbedPointer.current !== event.pointerId) return;
+        letGoOfTable.current?.();
+        dropTable();
+      }}>
+      {/*
+        STEERED AND RELEASED FROM R3F TOO, not only from the window: a headset
+        delivers no window pointer events at all, so a handle that relied on the
+        window could be picked up in a headset and never moved or put down.
+      */}
+      <mesh rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[controls.move.width, controls.move.depth]} />
+        <meshBasicMaterial color={carrying ? "#e45338" : "#483b2e"} transparent opacity={carrying ? 0.9 : 0.72} />
+      </mesh>
+      <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={controls.line.fontSize * 0.8} color="#f1dfbd" raycast={noRaycast}>
+        {carrying ? "MOVING" : "MOVE ✥"}
+      </Text>
+    </group>}
+    {showControls && !settingsOpen && <TableButton label="⚙ SETTINGS" at={[controls.settings.x, controls.settings.y, controls.settings.z]}
+      width={controls.settings.width} depth={controls.settings.depth} fontSize={controls.line.fontSize * 0.8}
+      onTap={() => { setNotice(""); setSettingsOpen(true); }} />}
+    <Veil open={showControls && settingsOpen} y={controls.veil.y} width={controls.veil.width} opacity={controls.veil.opacity} reducedMotion={reducedMotion} />
+    {showControls && settingsOpen && <group>
+      {notice && <Text position={[0, controls.sheet.y, controls.sheet.rows[0].z - controls.sheet.rowDepth]} rotation-x={-Math.PI / 2}
+        fontSize={controls.sheet.fontSize * 0.8} maxWidth={controls.sheet.width} color="#ff9f8d" raycast={noRaycast}>{notice}</Text>}
+      {controls.sheet.rows.map((row) => <group key={row.label || row.buttons[0].id}>
+        {row.label && <Text position={[-controls.sheet.width / 2 + 0.03, controls.sheet.y, row.z]} rotation-x={-Math.PI / 2}
+          anchorX="left" fontSize={controls.sheet.fontSize} color="#3b2a1a" raycast={noRaycast}>{row.label}</Text>}
+        {row.value && <Text position={[row.valueX ?? 0, controls.sheet.y, row.z]} rotation-x={-Math.PI / 2}
+          fontSize={controls.sheet.fontSize} color="#3b2a1a" raycast={noRaycast}>{row.value}</Text>}
+        {row.buttons.map((button) => <TableButton key={button.id} label={button.label}
+          at={[button.x, controls.sheet.y, row.z]} width={button.width} depth={controls.sheet.rowDepth * 0.86}
+          fontSize={controls.sheet.fontSize} onTap={() => onSetting(button.id)} />)}
+      </group>)}
+    </group>}
+  </group>;
+}
+
+export function RoomItems({ items, reducedMotion, you = null, peopleRef, onItem }: { items: RoomItem[]; reducedMotion: boolean; you?: string | null; peopleRef?: RefObject<WirePerson[]>; onItem?: (item: RoomItem) => void }) {
+  const emptyPeople = useRef<WirePerson[]>([]), reservations = useRef(new Map<string, { id: string; until: number }>());
+  const context = { you, peopleRef: peopleRef ?? emptyPeople, items, reservations, onItem: onItem ?? (() => {}) };
+  return <group onPointerDown={(event) => { claimPointer(event.nativeEvent); event.stopPropagation(); }}>
+    {items.map((item) => <GoTable key={item.id} item={item} reducedMotion={reducedMotion} context={context} />)}
+  </group>;
 }

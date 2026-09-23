@@ -12,18 +12,40 @@ describe("how one person likes the room drawn", () => {
     // Nikk: rings "automatically off when you start"; the pointer "start
     // automatically at 70%"; still avatars hidden only by choice, "though
     // don't hide them automatically".
-    expect(DEFAULT_ROOM_PREFERENCES).toEqual({ rings: false, pointer: 0.7, hideStill: false });
+    // And dark mode ON: "a darkmode that is on automatically".
+    expect(DEFAULT_ROOM_PREFERENCES).toEqual({ rings: false, pointer: 0.7, hideStill: false, dark: true });
     expect(parseRoomPreferences(null)).toEqual(DEFAULT_ROOM_PREFERENCES);
   });
 
   it("keeps what was chosen, and ignores anything it cannot read", () => {
-    expect(parseRoomPreferences({ rings: true, pointer: 0.6, hideStill: true })).toEqual({
+    expect(parseRoomPreferences({ rings: true, pointer: 0.6, hideStill: true, dark: false })).toEqual({
       rings: true,
       pointer: 0.6,
       hideStill: true,
+      dark: false,
     });
     expect(parseRoomPreferences({ rings: "yes", pointer: "bright", hideStill: "yes" })).toEqual(DEFAULT_ROOM_PREFERENCES);
     expect(parseRoomPreferences({ pointer: 7 }).pointer).toBe(1);
+  });
+
+  /**
+   * DARK UNLESS PLAINLY TURNED OFF, and the opposite rule from hideStill for
+   * the same reason: each fails in the direction that hurts nobody. A corrupt
+   * setting that hid people would lose them; a corrupt setting that turned the
+   * room white would put a lit panel back in front of somebody's eyes.
+   */
+  it("is dark unless it was plainly turned off", () => {
+    for (const odd of ["false", 0, {}, null, undefined]) expect(parseRoomPreferences({ dark: odd }).dark).toBe(true);
+    expect(parseRoomPreferences({ dark: false }).dark).toBe(false);
+  });
+
+  /**
+   * EVERYBODY WHO ARRIVED BEFORE IT EXISTED GETS IT. Only chosen fields are
+   * stored, so a person who set their rings last week has no `dark` field at
+   * all — and must come back to a dark room, not the white one they left.
+   */
+  it("reaches people whose stored settings predate it", () => {
+    expect(parseRoomPreferences({ rings: true, pointer: 0.5 }).dark).toBe(true);
   });
 
   it("hides nobody unless it was plainly asked to", () => {

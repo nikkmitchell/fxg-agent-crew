@@ -1,4 +1,5 @@
 import { createXRStore, type XRStore } from "@react-three/xr";
+import { TwoToneCursorMaterial, TwoToneRayMaterial } from "./pointer-materials";
 import { roomPreferences } from "./room-preferences";
 
 /**
@@ -144,11 +145,18 @@ export function pinchTeleportEnabled(): boolean {
  */
 const LIBRARY_POINTER_OPACITY = 0.4;
 const pointerOpacity = () => LIBRARY_POINTER_OPACITY * roomPreferences().pointer;
+/**
+ * LIGHT WITH A DARK EDGE, not pure white. Nikk: "the pointer that comes off the
+ * hand is pure white so when you're on a pure white background the menu pointer
+ * can't be seen at all". See pointer-materials.ts; the brightness above still
+ * scales both.
+ */
+const cursor = { opacity: pointerOpacity, materialClass: TwoToneCursorMaterial };
 const pointerOptions = {
-  rayPointer: { rayModel: { opacity: pointerOpacity }, cursorModel: { opacity: pointerOpacity } },
-  grabPointer: { cursorModel: { opacity: pointerOpacity } },
+  rayPointer: { rayModel: { opacity: pointerOpacity, materialClass: TwoToneRayMaterial }, cursorModel: cursor },
+  grabPointer: { cursorModel: cursor },
 } as const;
-const handPointerOptions = { ...pointerOptions, touchPointer: { cursorModel: { opacity: pointerOpacity } } } as const;
+const handPointerOptions = { ...pointerOptions, touchPointer: { cursorModel: cursor } } as const;
 
 export function getXRStore(): XRStore {
   store ??= createXRStore({

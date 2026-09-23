@@ -9,7 +9,7 @@ import type {
 } from "../../shared/space-wire";
 import type { Utterance } from "../../shared/voice";
 import type { Vec3 } from "../../shared/space-layout";
-import type { RoomItem } from "../../shared/room-items";
+import { mergeRoomItems, withFresher, type RoomItem } from "../../shared/room-items";
 import { base } from "../router";
 import { backoff } from "../backoff";
 import { space } from "../space-client";
@@ -34,6 +34,8 @@ export type SpaceStatus =
   | { state: "closed"; retryInSeconds: number | null };
 
 export type SpaceConnection = {
+  /** Apply a table as the server just answered with it. Never goes backwards. */
+  applyRoomItem: (item: RoomItem) => void;
   status: SpaceStatus;
   /** Live positions, read every frame by the renderer. Never a React state. */
   peopleRef: RefObject<WirePerson[]>;
@@ -241,7 +243,9 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           return;
         }
         if (message.type === "roomItems") {
-          setRoomItems(message.items);
+          // Merged, never taken at face value: an older broadcast can land after
+          // a newer answer has already been applied. See mergeRoomItems.
+          setRoomItems((current) => mergeRoomItems(current, message.items));
           return;
         }
         if (message.type === "said") {
@@ -261,7 +265,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           setStatus({ state: "open", you: message.you });
           setPlaces(message.panels);
           setShowing(message.showing);
-          setRoomItems(message.items);
+          setRoomItems((current) => mergeRoomItems(current, message.items));
         }
         onSnapshot.current?.();
       });
@@ -334,7 +338,15 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     };
   }, []);
 
+  /**
+   * Apply a table as the server just answered with it, without waiting for the
+   * socket — which, in a headset on a flaky link, may not deliver it for a long
+   * time, and until it does every change to that table is refused as stale.
+   */
+  const applyRoomItem = useCallback((item: RoomItem) => setRoomItems((current) => withFresher(current, item)), []);
+
   return {
+    applyRoomItem,
     status,
     peopleRef,
     roster,

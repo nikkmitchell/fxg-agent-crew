@@ -146,3 +146,54 @@ describe("drawing the settings", () => {
     expect(paintSettings(layout, measure)).toEqual(paintSettings(layout, measure));
   });
 });
+
+describe("the words stay on the panel", () => {
+  /**
+   * WHY THIS IS A SWEEP AND NOT A CASE. The bug it exists for was one line
+   * putting a cycle's value 18px in from the right edge and drawing it
+   * left-aligned, so "locked" rendered as "loc" and "move" as "mo" — on every
+   * panel row in the room, for as long as the panel had existed, and visible
+   * in any screenshot of it. Nobody spotted it because nothing ever asked where
+   * a word ended.
+   */
+  const rightEdgeOf = (ink: Ink, width: (text: string, size: number) => number) =>
+    ink.kind === "text" ? (ink.align === "right" ? ink.x : ink.x + width(ink.text, ink.size)) : 0;
+
+  it("never writes past the right edge, whatever a value says", () => {
+    const wordy: SettingsItem[] = [
+      { kind: "heading", label: "Panels" },
+      { kind: "cycle", id: "arrange:said", label: "Said in the room drag", value: "locked" },
+      { kind: "stepper", id: "size:said", label: "Said in the room size", value: "100%" },
+    ];
+    const layout = layOutSettings(wordy);
+    const px = settingsPixels(layout);
+    for (const item of paintSettings(layout, measure)) {
+      if (item.kind !== "text") continue;
+      expect(rightEdgeOf(item, measure)).toBeLessThanOrEqual(px.width);
+    }
+  });
+
+  it("writes the whole word, not the first three letters", () => {
+    const layout = layOutSettings(sample);
+    const px = settingsPixels(layout);
+    const value = paintSettings(layout, measure).find((i) => i.kind === "text" && i.text === "locked");
+    expect(value).toBeDefined();
+    // Anchored by its right edge — so the value can be as long as it likes and
+    // still ends where the panel ends.
+    expect(value && value.kind === "text" && value.align).toBe("right");
+    const left = value && value.kind === "text" ? value.x - measure("locked", value.size) : 0;
+    expect(left).toBeGreaterThan(0);
+    expect(value && value.kind === "text" ? value.x : px.width + 1).toBeLessThanOrEqual(px.width);
+  });
+
+  it("keeps a stepper's value clear of its own minus button", () => {
+    const layout = layOutSettings(sample);
+    const px = settingsPixels(layout);
+    const scale = px.width / layout.width;
+    const less = layout.targets.find((t) => t.id === "size:taskBoard:less");
+    expect(less).toBeDefined();
+    const buttonLeft = (less!.x / layout.width + 0.5) * px.width - (less!.width * scale) / 2;
+    const value = paintSettings(layout, measure).find((i) => i.kind === "text" && i.text === "100%");
+    expect(value && value.kind === "text" ? value.x : Infinity).toBeLessThanOrEqual(buttonLeft);
+  });
+});

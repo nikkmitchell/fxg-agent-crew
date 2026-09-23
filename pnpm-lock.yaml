@@ -54,6 +54,9 @@ importers:
         specifier: 0.186.0
         version: 0.186.0
     devDependencies:
+      '@pmndrs/pointer-events':
+        specifier: 6.6.30
+        version: 6.6.30
       '@types/node':
         specifier: ^26.4.1
         version: 26.4.1

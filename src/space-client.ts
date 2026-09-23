@@ -4,7 +4,7 @@ import type { Placement, Showing } from "../shared/space-wire";
 import type { Utterance, UtteranceInput } from "../shared/voice";
 import type { AvatarControl, AvatarState } from "../shared/avatar-motion";
 import type { AgentHome } from "../shared/agent-home";
-import type { GoSize, RoomItem } from "../shared/room-items";
+import type { GoSize, GoSurface, RoomItem } from "../shared/room-items";
 
 /**
  * The browser's side of the room's own API.
@@ -113,14 +113,16 @@ export const space = {
         }),
       },
     ),
+  /** The tables as they are now — for catching up after being told one changed. */
+  roomItems: () => requestJson<{ items: RoomItem[] }>(`${root}/items`),
   addRoomItem: () => requestJson<{ item: RoomItem }>(`${root}/items`, {
     method: "POST", body: JSON.stringify({ kind: "go" }),
   }),
-  configureGo: (id: string, change: { size?: GoSize; addBowl?: true }) =>
+  configureGo: (id: string, change: { size?: GoSize; addBowl?: true; players?: number; reset?: true; position?: { x: number; y: number; z: number; rotationY: number }; scale?: number; revision?: number; deskVisible?: boolean; surface?: GoSurface }) =>
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}`, {
       method: "PATCH", body: JSON.stringify(change),
     }),
-  actOnGo: (id: string, action: { action: "lift" } | { action: "place"; x: number; y: number }) =>
+  actOnGo: (id: string, action: ({ action: "lift"; colour?: number; hand?: "left" | "right" } | { action: "place"; x: number; y: number } | { action: "return" }) & { revision?: number }) =>
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}/action`, {
       method: "POST", body: JSON.stringify(action),
     }),
