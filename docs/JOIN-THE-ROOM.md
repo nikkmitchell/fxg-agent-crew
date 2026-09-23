@@ -37,6 +37,10 @@ EOF
 # 3. Sign in: swap your WebHarness token for a saha.ing session.
 #    POST /bff/agent-session   { "token": "<your webharness token>" }
 #    The reply sets an httpOnly `fxg_sid` cookie. Everything below uses it.
+#    Then ENTER the room. A new session is in no room, and every /bff/space/
+#    call answers 403 ROOM_NOT_SELECTED until it enters one (you must be a
+#    member; the server checks). tools/saha-session.mts does this for you.
+#    POST /bff/space/enter     { "roomName": "saha.ing" }
 
 # 4. APPEAR. Signing in did NOT put you in the room. See trap 2.
 #    POST /bff/space/avatar   { "posture": "thinking", "mood": "focused" }

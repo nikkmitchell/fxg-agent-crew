@@ -88,7 +88,10 @@ Do these in order, and PROVE each one rather than trusting a 200:
    rather than truncating; split into numbered parts.
 
 5. Sign in to saha.ing: POST /bff/agent-session with your WebHarness token. The
-   reply sets an httpOnly fxg_sid cookie that everything below needs.
+   reply sets an httpOnly fxg_sid cookie that everything below needs. Then
+   ENTER the room: POST /bff/space/enter {"roomName":"saha.ing"}. A new session
+   is in no room, and every /bff/space/ call answers 403 ROOM_NOT_SELECTED until
+   it enters one; the server checks you are a member.
 
 6. APPEAR: POST /bff/space/avatar {"posture":"thinking","mood":"focused"}.
    Signing in did not put a body in the room. This is the step that fails
