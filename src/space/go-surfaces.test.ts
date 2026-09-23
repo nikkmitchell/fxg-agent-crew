@@ -37,6 +37,20 @@ describe("every board type can still be read", () => {
     }
   });
 
+  it("gives each board its own bowls, as Baiwei asked: celadon with bamboo, red clay with stone", () => {
+    const bamboo = GO_SURFACE_LOOKS.bamboo.bowl, stone = GO_SURFACE_LOOKS.stone.bowl;
+    expect(bamboo.body).not.toBe(stone.body);
+    // Celadon is a glaze: glossy. Red clay is unglazed: matte.
+    expect(bamboo.clearcoat).toBeGreaterThan(stone.clearcoat);
+    expect(bamboo.roughness).toBeLessThan(stone.roughness);
+    // Celadon is green-blue; red clay is red.
+    const rgb = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+    const [cr, cg] = rgb(bamboo.body);
+    const [rr, rg] = rgb(stone.body);
+    expect(cg).toBeGreaterThan(cr);
+    expect(rr).toBeGreaterThan(rg);
+  });
+
   it("the grid lines stand out from the surface", () => {
     for (const surface of GO_SURFACES) {
       const look = GO_SURFACE_LOOKS[surface];
