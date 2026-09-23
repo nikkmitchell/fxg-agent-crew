@@ -143,26 +143,34 @@ describe("clearing the board", () => {
 });
 
 describe("where the table stands", () => {
+  /**
+   * These rules are MORAINE'S, not mine. We rebuilt the Go table at the same
+   * time without knowing; theirs shipped first and carries x, y, z, rotationY,
+   * a scale and a revision, so I dropped my own x/z-only placement rather than
+   * keep two answers. What is still mine here is the gesture that writes it —
+   * carrying the table on the pointer ray instead of nudging it with X/Y/Z
+   * buttons — so the contract it writes through is worth holding down.
+   */
   it("moves it, and remembers", async () => {
     const { app, as } = boot();
     const cookie = as("Nikk2");
     const table = await addTable(app, cookie);
-    const moved = await patch(app, cookie, table.id, { position: { x: 2.5, z: -3, rotationY: 0.4 } });
+    const moved = await patch(app, cookie, table.id, { position: { x: 2.5, y: 0.2, z: -3, rotationY: 0.4 } });
     expect(moved.statusCode).toBe(200);
-    expect(moved.json().item.position).toEqual({ x: 2.5, z: -3, rotationY: expect.closeTo(0.4, 9) });
+    expect(moved.json().item.position).toEqual({ x: 2.5, y: expect.closeTo(0.2, 9), z: -3, rotationY: expect.closeTo(0.4, 9) });
 
     const again = await app.inject({ method: "GET", url: "/bff/space/items", headers: { cookie } });
     expect(again.json().items[0].position.x).toBeCloseTo(2.5, 9);
     await app.close();
   });
 
-  it("refuses somewhere nobody could stand at it, and says so", async () => {
+  it("refuses a height nobody could play at, and says so", async () => {
     const { app, as } = boot();
     const cookie = as("Nikk2");
     const table = await addTable(app, cookie);
-    const refused = await patch(app, cookie, table.id, { position: { x: 400, z: 0, rotationY: 0 } });
-    expect(refused.statusCode).toBe(422);
-    expect(refused.json().error).toMatch(/stand at it/);
+    const refused = await patch(app, cookie, table.id, { position: { x: 0, y: 40, z: 0, rotationY: 0 } });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().error).toMatch(/height offset/);
     await app.close();
   });
 
@@ -170,9 +178,19 @@ describe("where the table stands", () => {
     const { app, as } = boot();
     const cookie = as("Nikk2");
     const table = await addTable(app, cookie);
-    for (const position of [{ x: "2", z: 0, rotationY: 0 }, { x: 1 }, { x: Number.NaN, z: 0, rotationY: 0 }]) {
+    for (const position of [{ x: "2", y: 0, z: 0, rotationY: 0 }, { x: 1 }, { x: Number.NaN, y: 0, z: 0, rotationY: 0 }]) {
       expect((await patch(app, cookie, table.id, { position })).statusCode).toBe(400);
     }
+    await app.close();
+  });
+
+  it("WILL NOT MOVE THE TABLE OUT FROM UNDER A STONE IN THE AIR", async () => {
+    const { app, as } = boot();
+    const cookie = as("Nikk2");
+    const table = await addTable(app, cookie);
+    await app.inject({ method: "POST", url: `/bff/space/items/${table.id}/action`, headers: { cookie }, payload: { action: "lift" } });
+    const refused = await patch(app, cookie, table.id, { position: { x: 1, y: 0, z: 1, rotationY: 0 } });
+    expect(refused.statusCode).toBe(409);
     await app.close();
   });
 
@@ -185,8 +203,9 @@ describe("where the table stands", () => {
       method: "POST", url: `/bff/space/items/${table.id}/action`, headers: { cookie },
       payload: { action: "place", x: 3, y: 3 },
     });
-    const moved = await patch(app, cookie, table.id, { position: { x: 1, z: 1, rotationY: 0 } });
-    expect(moved.json().item.stones).toEqual([{ x: 3, y: 3, colour: 0 }]);
+    const moved = await patch(app, cookie, table.id, { position: { x: 1, y: 0, z: 1, rotationY: 0 } });
+    expect(moved.statusCode).toBe(200);
+    expect(moved.json().item.stones).toMatchObject([{ x: 3, y: 3, colour: 0 }]);
     await app.close();
   });
 });

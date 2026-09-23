@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GO_PLAYERS, GO_SIZES, defaultGoItem, type GoRoomItem } from "../../shared/room-items.js";
-import { BOARD, GEAR, GO_PANEL, gearClearance, goSettingCost, goSettingFor, goSettingsFit, goSettingsItems, stoneTargetRadius } from "./GoTableSettings.js";
+import { GEAR, GO_PANEL, gearAt, gearClearance, goSettingCost, goSettingFor, goSettingsFit, goSettingsItems } from "./GoTableSettings.js";
+import { GO_SURFACE, goBoardWidth } from "../../shared/go-layout.js";
 import { layOutSettings, settingAt } from "../../shared/settings-3d.js";
 
 const table = (over: Partial<GoRoomItem> = {}): GoRoomItem => ({ ...defaultGoItem("t"), ...over });
@@ -101,41 +102,49 @@ describe("where the gear sits", () => {
   /**
    * FOUND BY CLICKING IT AND WATCHING NOTHING HAPPEN.
    *
-   * The first gear sat on the tabletop at (0.62, 0.62) and was unreachable: the
-   * board's stone targets are drawn above it and reach past the outermost
-   * intersections by their own radius, so the press went to one of those and
-   * came back 409 "lift the glowing stone first", which the room does not show.
-   * A dead-looking button, no error, nothing in the console.
+   * My first gear lay on the tabletop and was unreachable: the board's stone
+   * targets are drawn above it and reach past the outermost intersections by
+   * their own radius, so the press went to one of those and came back 409
+   * "lift the glowing stone first", which the room swallows. A dead-looking
+   * button, no error, nothing in the console.
    *
-   * The trap is that it depends on the BOARD SIZE, and the smallest board is
-   * the worst case because its intersections are furthest apart. Checked at
-   * 19x19 by eye it would have looked perfectly fine.
+   * The trap is that the crowding depends on BOTH the board size and how many
+   * are playing, and the bowls sit on a square perimeter — so the deck corner
+   * that is obviously empty on a small two-player table is exactly where the
+   * diagonal stations land at six or eight players.
    */
-  it("is clear of every stone target, at every board size", () => {
-    for (const size of GO_SIZES) {
-      expect(gearClearance(size), `${size}x${size}`).toBeGreaterThan(0);
-    }
-  });
+  const SEATINGS = [2, 3, 4, 5, 6, 7, 8];
 
-  it("is worst on the SMALLEST board, which is the one nobody would check", () => {
-    const smallest = gearClearance(GO_SIZES[0]);
-    for (const size of GO_SIZES.slice(1)) {
-      expect(gearClearance(size)).toBeGreaterThanOrEqual(smallest - 1e-9);
+  it("is clear of every stone target and every bowl, at every size and seating", () => {
+    for (const size of GO_SIZES) {
+      for (const colours of SEATINGS) {
+        expect(gearClearance(size, colours), `${size}x${size}, ${colours} players`).toBeGreaterThan(0);
+      }
     }
-    // The old placement, for the record: on the top at 0.62, which a 5x5
-    // board's targets reach straight through.
-    const corner = BOARD.extent / 2;
-    const oldClearance = Math.hypot(0.62 - corner, 0.62 - corner) - stoneTargetRadius(GO_SIZES[0]) - GEAR.radius;
-    expect(oldClearance).toBeLessThan(0);
   });
 
   it("keeps a real margin rather than only just clearing", () => {
-    // A hair of clearance is a miss waiting for a slightly different radius.
-    for (const size of GO_SIZES) expect(gearClearance(size)).toBeGreaterThan(0.05);
+    for (const size of GO_SIZES) {
+      for (const colours of SEATINGS) {
+        expect(gearClearance(size, colours)).toBeGreaterThan(0.05);
+      }
+    }
   });
 
-  it("stands above the stones so a ray meets it first", () => {
-    // The stone targets sit at 0.845 and the board surface at 0.827.
-    expect(GEAR.y).toBeGreaterThan(0.845);
+  it("clears them by STANDING ABOVE them, which widening the board cannot eat into", () => {
+    // Everything pressable on this table lives in a thin slab around the
+    // surface. Horizontal room runs out as the board grows; height does not.
+    expect(GEAR.y).toBeGreaterThan(GO_SURFACE + 0.085 + GEAR.radius);
+    const small = gearClearance(5, 8);
+    const large = gearClearance(25, 8);
+    expect(Math.abs(small - large)).toBeLessThan(0.01);
+  });
+
+  it("stands just in front of the board, and follows it as it grows", () => {
+    const small = gearAt({ size: 5 });
+    const large = gearAt({ size: 25 });
+    expect(small.z).toBeCloseTo(goBoardWidth(5) / 2 + GEAR.ahead, 9);
+    expect(large.z).toBeGreaterThan(small.z);
+    expect(small.x).toBe(0);
   });
 });

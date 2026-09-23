@@ -1,4 +1,5 @@
 import { GO_PLAYERS, GO_SIZES, stepGoSize, type GoRoomItem, type GoSize } from "../../shared/room-items";
+import { GO_SURFACE, goBoardWidth, goBowl, goPoint, goExtent, GO_PITCH } from "../../shared/go-layout";
 import { SETTINGS, layOutSettings, type SettingsItem, type SettingsSize } from "../../shared/settings-3d";
 
 /**
@@ -15,6 +16,13 @@ import { SETTINGS, layOutSettings, type SettingsItem, type SettingsSize } from "
  * in a menu you reached by walking away from the table. The settings for a
  * thing belong on the thing.
  *
+ * BUILT ON MORAINE'S TABLE, not my own. We redesigned this at the same time
+ * without knowing; their version shipped first and is better — constant pitch,
+ * captures, trays, carrying, a revision for concurrency — so the geometry here
+ * reads from `shared/go-layout.ts` rather than from numbers of mine. What is
+ * left of mine is the part they did not build: this panel, and `players` and
+ * `reset` on the server.
+ *
  * PURE, so what the rows say and what each press means are decided here and
  * checked without a renderer — the same split as the room's own settings.
  */
@@ -27,67 +35,90 @@ import { SETTINGS, layOutSettings, type SettingsItem, type SettingsSize } from "
  * panel silently drops what does not fit and says "4 more, not shown", which is
  * honest and still means a setting nobody can reach.
  */
-export const GO_PANEL: SettingsSize = { ...SETTINGS, width: 1.6, height: 1.0 };
+export const GO_PANEL: SettingsSize = { ...SETTINGS, width: 1.6, height: 1.25 };
 
 /**
- * The board's own geometry, in the numbers the table is drawn from.
+ * WHERE THE GEAR SITS, and why it floats rather than lying on the deck.
  *
- * Here rather than in the component because the gear has to be placed CLEAR of
- * it, and that is arithmetic worth checking rather than eyeballing — see
- * `gearClearance` below.
+ * MY FIRST ONE DID NOT WORK, and I only know because I clicked it. It lay on
+ * the tabletop, and the press went to an invisible stone target drawn above it
+ * and came back 409 "lift the glowing stone first" — which the room swallows,
+ * so the gear looked simply dead. No error, nothing in the console.
+ *
+ * Laying it flat somewhere else only moves the problem. The deck is crowded and
+ * gets more crowded as the table grows: the board widens with every size, and
+ * the bowls and trays sit on a SQUARE perimeter, so the corners — the obvious
+ * empty spot on a small two-player table — are exactly where the diagonal
+ * stations land once there are six or eight players. I checked every size
+ * against every seating and the diagonal only clears at the very edge of the
+ * deck, two metres out from the middle of a 25×25.
+ *
+ * So it stands ABOVE the near edge instead. Everything you can touch on this
+ * table lives in a thin slab around the surface — stone targets stop at
+ * GO_SURFACE + 0.085 and bowls at GO_SURFACE + 0.09 — so a gear held a clear
+ * head above them cannot be confused with any of them at any size or seating,
+ * and the clearance is vertical, which no amount of widening the board eats
+ * into.
  */
-export const BOARD = {
-  /** How far across the playing grid runs, corner intersection to corner intersection. */
-  extent: 1.22,
-  /** Half the wooden top. */
-  halfTop: 0.74,
+export const GEAR = {
+  /** Above every touch volume on the table, with room to spare. */
+  y: GO_SURFACE + 0.3,
+  radius: 0.075,
+  /** How far in front of the board's near edge it stands. */
+  ahead: 0.1,
 } as const;
 
-/** The gap between intersections, and how big each one's hit target is. */
-export function boardStep(size: GoSize): number {
-  return BOARD.extent / (size - 1);
-}
-export function stoneTargetRadius(size: GoSize): number {
-  return Math.max(0.025, boardStep(size) * 0.38);
+/** Where the gear stands, in the table's own frame. */
+export function gearAt(item: { size: GoSize }): { x: number; y: number; z: number } {
+  return { x: 0, y: GEAR.y, z: goBoardWidth(item.size) / 2 + GEAR.ahead };
 }
 
 /**
- * WHERE THE GEAR SITS, and why it is out past the corner.
+ * The smallest gap between the gear and anything else on this table that takes
+ * a press.
  *
- * I put it on the tabletop first and it did not work — the press went to an
- * invisible stone target instead and came back 409 "lift the glowing stone
- * first", which the room swallows, so the gear looked simply dead. The stone
- * targets are round, they are centred ON the outermost intersections, and they
- * are drawn ABOVE the gear, so they reach past the edge of the grid by their
- * own radius and take every ray aimed near the corner.
- *
- * The worst case is the SMALLEST board: 5×5 has the widest spacing, so its
- * targets are the biggest — a radius of 0.116 reaching out to 0.726, nearly
- * the edge of the wood. Sized for 19×19 this would have looked fine and broken
- * the moment anybody chose a small board.
- *
- * So the gear stands out past the corner on a short stalk, diagonally, where
- * the nearest stone target is a quarter of a metre away at every board size.
+ * Positive means no ray and no fingertip can mean both. Asserted across every
+ * board size and every seating, because the crowding depends on both.
  */
-export const GEAR = { out: 0.84, y: 0.92, radius: 0.09 } as const;
+export function gearClearance(size: GoSize, colours: number): number {
+  const gear = gearAt({ size });
+  let worst = Infinity;
 
-/**
- * How much clear air there is between the gear and the nearest stone target.
- *
- * Positive means they cannot both be under the same ray. Asserted for every
- * board size there is.
- */
-export function gearClearance(size: GoSize): number {
-  const corner = BOARD.extent / 2;
-  const between = Math.hypot(GEAR.out - corner, GEAR.out - corner);
-  return between - stoneTargetRadius(size) - GEAR.radius;
+  // Stone targets: a disc at each intersection, reaching up to +0.085.
+  const stoneTop = GO_SURFACE + 0.085;
+  const stoneReach = GO_PITCH * 0.43;
+  const half = goExtent(size) / 2;
+  for (let i = 0; i < size; i += 1) {
+    for (let j = 0; j < size; j += 1) {
+      const flat = Math.hypot(gear.x - goPoint(i, size), gear.z - goPoint(j, size));
+      const over = gear.y - stoneTop;
+      // Outside the disc horizontally OR above it vertically is clear; the
+      // separation is whichever gives more room.
+      worst = Math.min(worst, Math.max(flat - stoneReach, over) - GEAR.radius);
+    }
+  }
+
+  // Bowls: reachable within 0.19 across, and up to +0.09 above the surface.
+  for (let index = 0; index < colours; index += 1) {
+    const bowl = goBowl(index, colours, size);
+    const flat = Math.hypot(gear.x - bowl.x, gear.z - bowl.z);
+    const over = gear.y - (bowl.y + 0.15);
+    worst = Math.min(worst, Math.max(flat - 0.19, over) - GEAR.radius);
+  }
+
+  return worst;
 }
+
+/** How big the whole table may be made. Moraine's server enforces the same range. */
+export const TABLE_SCALE = { min: 0.45, max: 2.5, step: 0.1 } as const;
 
 export function goSettingsItems(item: GoRoomItem): SettingsItem[] {
   return [
     { kind: "heading", label: "Go table" },
-    { kind: "stepper", id: "go:size", label: "Board", value: `${item.size}×${item.size}` },
+    { kind: "stepper", id: "go:size", label: "Board", value: `${item.size}\u00d7${item.size}` },
     { kind: "stepper", id: "go:players", label: "Players", value: `${item.colours.length}` },
+    { kind: "stepper", id: "go:scale", label: "Table size", value: `${Math.round(item.scale * 100)}%` },
+    { kind: "toggle", id: "go:desk", label: "Desk under the board", on: item.deskVisible },
     { kind: "choice", id: "go:reset", label: "Clear the stones", selected: false },
     { kind: "choice", id: "go:close", label: "Done", selected: false },
   ];
@@ -97,6 +128,8 @@ export function goSettingsItems(item: GoRoomItem): SettingsItem[] {
 export type GoSettingChange =
   | { kind: "size"; size: GoSize }
   | { kind: "players"; players: number }
+  | { kind: "scale"; scale: number }
+  | { kind: "desk"; shown: boolean }
   | { kind: "reset" }
   | { kind: "close" }
   /** Pressed a limit — say so rather than doing nothing silently. */
@@ -119,9 +152,17 @@ export function goSettingFor(item: GoRoomItem, id: string): GoSettingChange | nu
     return { kind: "size", size };
   }
 
+  if (id === "go:desk") return { kind: "desk", shown: !item.deskVisible };
+
+  if (id === "go:scale:less" || id === "go:scale:more") {
+    const wanted = Math.round((item.scale + (id.endsWith(":more") ? 1 : -1) * TABLE_SCALE.step) * 100) / 100;
+    if (wanted > TABLE_SCALE.max) return { kind: "refused", why: `${Math.round(TABLE_SCALE.max * 100)}% is as big as the table goes` };
+    if (wanted < TABLE_SCALE.min) return { kind: "refused", why: `${Math.round(TABLE_SCALE.min * 100)}% is as small as the table goes` };
+    return { kind: "scale", scale: wanted };
+  }
+
   if (id === "go:players:less" || id === "go:players:more") {
-    const now = item.colours.length;
-    const players = now + (id.endsWith(":more") ? 1 : -1);
+    const players = item.colours.length + (id.endsWith(":more") ? 1 : -1);
     if (players > GO_PLAYERS.max) return { kind: "refused", why: `${GO_PLAYERS.max} is as many bowl colours as there are` };
     if (players < GO_PLAYERS.min) return { kind: "refused", why: "a board needs two players" };
     return { kind: "players", players };

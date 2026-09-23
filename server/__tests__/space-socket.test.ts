@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
 import type { ServerMessage } from "../../shared/space-wire.js";
+import { RoomItems } from "../space/items.js";
 
 /**
  * The socket the room is drawn from.
@@ -131,6 +132,33 @@ const until = async (condition: () => boolean, what: string, timeoutMs = 3_000) 
 };
 
 describe("the space socket", () => {
+  it("broadcasts Go carrying, captures and transforms to a second session and a reconnect", async () => {
+    const { app, origin, as, database } = await boot();
+    const store = new RoomItems(database), item = store.add("saha.ing", "Moraine");
+    item.stones = [{ id: "enemy", x: 0, y: 0, colour: 1 }, { id: "friend", x: 1, y: 0, colour: 0 }];
+    store.save("saha.ing", item, "Moraine");
+    const a = as("Moraine", "agent"), b = as("Sill", "agent");
+    const observer = await connect(origin, b);
+    const welcome = await observer.where((message) => message.type === "welcome", "Go welcome");
+    expect(welcome).toMatchObject({ items: [{ id: item.id, stones: item.stones }] });
+    const action = (cookie: string, payload: object) => app.inject({ method: "POST", url: `/bff/space/items/${item.id}/action`, headers: { cookie }, payload });
+    expect((await action(a, { action: "lift", hand: "right", revision: 0 })).statusCode).toBe(200);
+    const lifted = await observer.where((m) => m.type === "roomItems" && m.items[0]?.revision === 1, "carried stone");
+    expect(lifted).toMatchObject({ items: [{ carrier: { by: "Moraine", hand: "right" }, liftedColour: 0 }] });
+    expect((await action(b, { action: "place", x: 0, y: 1, revision: 1 })).statusCode).toBe(409);
+    expect((await action(a, { action: "place", x: 0, y: 1, revision: 1 })).statusCode).toBe(200);
+    const captured = await observer.where((m) => m.type === "roomItems" && m.items[0]?.revision === 2, "captured group");
+    expect(captured).toMatchObject({ items: [{ activeColour: 1, carrier: null, captures: [{ id: "enemy", by: 0, colour: 1 }] }] });
+    const position = { x: 1.2, y: 0.25, z: 2.1, rotationY: 0.4 };
+    expect((await app.inject({ method: "PATCH", url: `/bff/space/items/${item.id}`, headers: { cookie: b }, payload: { position, scale: 1.2, revision: 2 } })).statusCode).toBe(200);
+    const moved = await observer.where((m) => m.type === "roomItems" && m.items[0]?.revision === 3, "table transform");
+    expect(moved).toMatchObject({ items: [{ position, scale: 1.2, captures: [{ id: "enemy" }] }] });
+    observer.close(); await observer.closed();
+    const fresh = await connect(origin, as("Sill", "agent"));
+    expect(await fresh.where((m) => m.type === "welcome", "persisted table")).toMatchObject({ items: [{ id: item.id, revision: 3, activeColour: 1, position, scale: 1.2, captures: [{ id: "enemy" }] }] });
+    fresh.close();
+  });
+
   it("refuses a socket with no session, and says why before closing", async () => {
     const { origin } = await boot();
     const nobody = await connect(origin);

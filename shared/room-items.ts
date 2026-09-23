@@ -5,7 +5,8 @@ export const GO_COLOURS = [
   "#15171b", "#f4efe2", "#d85b4b", "#4d8bd6", "#e0ad3b", "#6ead68", "#a66bd4", "#de79a8",
 ] as const;
 
-export type GoStone = { x: number; y: number; colour: number };
+export type GoStone = { x: number; y: number; colour: number; id?: string };
+export type GoCapture = GoStone & { by: number };
 export type GoRoomItem = {
   id: string;
   kind: "go";
@@ -14,7 +15,12 @@ export type GoRoomItem = {
   activeColour: number;
   liftedColour: number | null;
   stones: GoStone[];
-  position: { x: number; z: number; rotationY: number };
+  captures: GoCapture[];
+  revision: number;
+  carrier: { by: string; hand: "left" | "right" | null } | null;
+  position: { x: number; y: number; z: number; rotationY: number };
+  scale: number;
+  deskVisible: boolean;
 };
 export type RoomItem = GoRoomItem;
 
@@ -40,29 +46,6 @@ export function stepGoSize(size: GoSize, by: number): GoSize {
   return GO_SIZES[next];
 }
 
-/**
- * How close to the edge of the room a table may be pushed.
- *
- * Smaller than a panel's margin: a panel has to be READ from a distance, and a
- * table has to be REACHED, so a table against a wall is fine as long as there
- * is room to stand at it.
- */
-const TABLE_EDGE = 1.2;
-
-/**
- * Whether a table may stand here, in the same words the room uses elsewhere.
- *
- * SHARED, so a drag is refused where it happens rather than travelling to the
- * server to be undone a moment later — the rule panels already follow.
- */
-export function tableRefusal(position: { x: number; z: number }, room = { width: 20, depth: 22 }): string | null {
-  if (!Number.isFinite(position.x) || !Number.isFinite(position.z)) return "that position is not a number";
-  if (Math.abs(position.x) > room.width / 2 - TABLE_EDGE || Math.abs(position.z) > room.depth / 2 - TABLE_EDGE) {
-    return "that is outside the room; nobody would be able to stand at it";
-  }
-  return null;
-}
-
 export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
   return {
     id,
@@ -72,7 +55,8 @@ export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
     activeColour: 0,
     liftedColour: null,
     stones: [],
-    position: { x: ordinal * 2.35 - 1.15, z: 1.8, rotationY: 0 },
+    captures: [], revision: 0, carrier: null, scale: 1, deskVisible: true,
+    position: { x: ordinal * 2.65 - 1.15, y: 0, z: 1.8, rotationY: 0 },
   };
 }
 
@@ -93,5 +77,8 @@ export function parseRoomItem(value: unknown): RoomItem | null {
   );
   if (stones.length !== item.stones.length || !item.position ||
       ![item.position.x, item.position.z, item.position.rotationY].every(Number.isFinite)) return null;
-  return item as GoRoomItem;
+  // Upgrade old tables without clearing their game.
+  return { ...item, captures: item.captures ?? [], revision: item.revision ?? 0,
+    carrier: item.carrier ?? null, scale: item.scale ?? 1, deskVisible: item.deskVisible ?? true,
+    position: { ...item.position, y: item.position.y ?? 0 } } as GoRoomItem;
 }
