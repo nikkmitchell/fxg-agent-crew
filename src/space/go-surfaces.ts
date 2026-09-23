@@ -52,21 +52,23 @@ export const GO_SURFACE_LOOKS: Record<GoSurface, GoSurfaceLook> = {
   // Lumenfold's spec: slab #777B7D, carved grid #3C4143, bevel #969A9B —
   // "starting values, not locked finals", to be tuned for Baiwei's eye
   // comfort. The bevel is theirs. Then Baiwei, in a headset: "slightly
-  // darker", so the slab is one step down (#6B6F71, a fifth less light) and
-  // everything drawn on it went down with it, to the contrast
-  // go-surfaces.test.ts holds — the lines are what a player aims by.
+  // darker", and then "could be still darker": two steps down, to #626668,
+  // with everything drawn on it taken down too, to the contrast
+  // go-surfaces.test.ts holds — the lines are what a player aims by. THIS IS
+  // AS DARK AS A DARK GRID GOES: any darker slab and near-black lines fall
+  // under 3:1, so going further means light, inlaid lines instead.
   stone: {
     label: "STONE",
     grain: "stone",
-    base: "#6b6f71",
+    base: "#626668",
     roughness: 0.82,
     clearcoat: 0.04,
-    rim: "#4a4e50",
+    rim: "#414547",
     rimCarrying: "#8a96a3",
-    lines: "#1c1f21",
+    lines: "#121416",
     lineLight: "#969a9b",
-    ink: "#16181a",
-    inkSoft: "#26292c",
+    ink: "#0f1113",
+    inkSoft: "#1c1f21",
   },
 };
 
