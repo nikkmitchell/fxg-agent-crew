@@ -1570,7 +1570,11 @@ export function RoomControls({
           unbidden — a failed send, a microphone that would not open — and if it
           joined a column it would jog every button in it at the exact moment
           you were reaching for one. */}
-      {said ? (
+      {/* NOT WHILE FIXING WHAT YOU SAID: the editor shows the whole draft, and
+          this line, placed for the closed controls, landed on its buttons —
+          Baiwei: "Whatever I have said is hovering over the settings above
+          the keyboard, so they overlap." */}
+      {said && !fixing ? (
         <WristButton
           label={said}
           tone={!notice && listening ? "live" : "muted"}
