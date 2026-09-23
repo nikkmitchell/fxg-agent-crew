@@ -243,6 +243,8 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .live-room-header p { margin: 0 0 5px; color: var(--vermilion); font-size: 12px; font-weight: 800; letter-spacing: .12em; }
 .live-room-header h2 { margin: 0; font-family: "Instrument Serif", serif; font-size: 32px; line-height: 1; font-weight: 400; }
 .live-room-header button { width: 44px; height: 44px; display: grid; place-items: center; margin: -8px -8px 0 0; border: 0; background: transparent; font-size: 28px; cursor: pointer; }
+.live-room-header .room-change-button { width: auto; height: auto; margin: 0; padding: 8px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; }
+.live-room-header .room-change-button:disabled { cursor: not-allowed; opacity: .55; }
 .connection-banner { min-height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 22px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
 .connection-banner > span { width: 8px; height: 8px; border: 1.5px solid currentColor; border-radius: 50%; }
 .connection-banner strong { color: var(--ink); }
@@ -262,6 +264,7 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .room-error { padding: 10px 12px; border-left: 3px solid var(--vermilion); background: color-mix(in srgb, var(--vermilion) 8%, var(--surface)); font-size: 13px; }
 .room-picker { padding: 10px 22px 22px; overflow-y: auto; }
 .room-section-title { display: flex; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--ink); color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .09em; }
+.room-section-title button { margin-left: auto; border: 0; background: transparent; color: var(--ink); font: inherit; letter-spacing: 0; text-decoration: underline; cursor: pointer; }
 .room-picker > button:not(.room-logout) { width: 100%; min-height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 10px 4px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; }
 .room-picker button span strong, .room-picker button span small { display: block; }
 .room-picker button span strong { font-family: "Instrument Serif", serif; font-size: 20px; font-weight: 400; }
@@ -362,6 +365,9 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .outbox-receipt span { color: var(--cobalt); font-size: 11px; font-weight: 800; text-transform: uppercase; }
 .outbox-receipt p { margin: 0; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .outbox-receipt button { min-height: 28px; border: 0; background: transparent; font-size: 12px; font-weight: 800; text-decoration: underline; cursor: pointer; }
+.outbox-failed-actions { display: grid; justify-items: end; gap: 4px; }
+.outbox-failed-actions small { max-width: 120px; color: var(--muted); font-size: 10px; line-height: 1.35; text-align: right; }
+.outbox-failed-actions em { color: var(--muted); font-size: 10px; text-align: right; }
 .outbox-receipt--failed { border-color: var(--vermilion); }
 .outbox-receipt--failed span { color: var(--vermilion); }
 .outbox-receipt--acknowledged { border-color: var(--sage); }
@@ -929,14 +935,36 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .panel-grip:hover { background: rgba(52,62,88,.92); }
 .panel-grip.is-dragging { cursor: grabbing; background: #6f86c9; color: #0b0d12; }
 
-/* The WebHarness room, read-only, as the Chat panel embeds it. */
-.chat-feed { display: grid; gap: 10px; max-width: 760px; }
+/* Joined rooms and their live feeds; also fits the room's embedded Chat panel. */
+.room-lobby { display: grid; grid-template-columns: minmax(180px, 245px) minmax(0, 1fr); align-items: start; gap: 22px; max-width: 1180px; }
+.room-lobby-list { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.room-lobby-list > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.room-lobby-list > header .eyebrow, .room-lobby-feed-header .eyebrow { margin: 0 0 3px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.room-lobby-list h2, .room-lobby-feed-header h2 { margin: 0; font-family: "Instrument Serif", serif; font-size: 23px; font-weight: 400; }
+.room-lobby-list > header > span { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 5px; border-radius: 999px; background: var(--canvas); color: var(--muted); font-size: 12px; }
+.room-lobby-list > header > button { flex: none; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; }
+.room-lobby-list > header > button:disabled { cursor: wait; opacity: .65; }
+.room-lobby-list nav { display: grid; gap: 5px; max-height: 58vh; overflow-y: auto; }
+.room-lobby-list nav button { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.room-lobby-list nav button:hover { background: var(--canvas); }
+.room-lobby-list nav button.is-selected { border-color: var(--line); background: var(--canvas); }
+.room-lobby-list nav button span { min-width: 0; }
+.room-lobby-list nav button strong, .room-lobby-list nav button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-lobby-list nav button strong { font-size: 13px; }
+.room-lobby-list nav button small, .room-lobby-list nav button b { margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 500; }
+.room-lobby-feed-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.room-lobby-feed-header > button { flex: none; padding: 8px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.chat-feed { display: grid; gap: 10px; min-width: 0; max-width: 760px; }
 .chat-feed ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .chat-feed li p { margin: 0; }
 .chat-feed li p:first-child { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
 .chat-feed time { color: var(--muted); font-size: 12px; }
 .chat-feed-body { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .chat-feed [role="status"] { color: var(--ink); font-size: 13px; }
+@media (max-width: 740px) {
+  .room-lobby { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .room-lobby-list nav { grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); grid-template-columns: none; max-height: none; overflow-x: auto; }
+}
 
 /* The conversation on its own page, as the room's Chat panel embeds it. Wider
    than the rail's copy because it has the whole panel rather than a column. */

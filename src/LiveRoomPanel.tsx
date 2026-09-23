@@ -88,7 +88,7 @@ function CollapsedRun({ entry }: { entry: Extract<TranscriptEntry, { kind: "coll
  * `onClose` is optional so this can also be embedded without a dismissal.
  */
 export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
-  const { state, login, logout, selectRoom, retry, sendMessage, retryMessage } = useWebharnessRoom();
+  const { state, login, logout, selectRoom, showRoomPicker, retry, sendMessage, retryMessage, dismissMessage } = useWebharnessRoom();
 
   /**
    * Anything the server has not confirmed yet. Acknowledged items drop off:
@@ -151,6 +151,17 @@ export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
           <p>LIVE COORDINATION</p>
           <h2>{state.roomName ?? "WebHarness"}</h2>
         </div>
+        {state.roomName && state.phase !== "selecting_room" ? (
+          <button
+            type="button"
+            className="room-change-button"
+            onClick={showRoomPicker}
+            disabled={unsent.length > 0}
+            title={unsent.length > 0 ? "Wait for pending sends, or retry or dismiss a failed send before changing rooms" : "Choose another joined room"}
+          >
+            Change room
+          </button>
+        ) : null}
         {onClose ? (
           <button onClick={onClose} aria-label="Close live room">×</button>
         ) : null}
@@ -178,9 +189,20 @@ export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
 
       {state.phase === "loading_rooms" && <div className="room-empty"><i /><p>Finding your rooms…</p></div>}
 
-      {state.phase === "selecting_room" && (
+      {(state.phase === "selecting_room" || (state.phase === "reconnecting" && !state.roomName)) && (
         <div className="room-picker">
-          <div className="room-section-title"><span>YOUR ROOMS</span><small>{state.rooms.length}</small></div>
+          <div className="room-section-title">
+            <span>YOUR ROOMS</span>
+            <small>{state.rooms.length}</small>
+            <button type="button" onClick={retry}>Refresh</button>
+          </div>
+          {state.phase === "reconnecting" ? (
+            <div className="room-callout" role="status">
+              <strong>Room list could not be refreshed</strong>
+              <p>Showing the last confirmed list.</p>
+              <button type="button" onClick={retry}>Try again</button>
+            </div>
+          ) : null}
           {state.rooms.length === 0 ? <p className="room-note">No rooms are available for this account.</p> : state.rooms.map((room) => (
             <button key={room.roomName} onClick={() => selectRoom(room.roomName)}>
               <span><strong>{room.roomName}</strong><small>Owned by {room.ownerName}</small></span>
@@ -301,9 +323,19 @@ export function LiveRoomPanel({ onClose }: { onClose?: () => void }) {
                     * reads as the app ignoring you.
                     */}
                   {item.state === "failed" && (
-                    online
-                      ? <button type="button" onClick={() => retryMessage(item.clientId)}>Retry</button>
-                      : <em>not sent · retry once you are back online</em>
+                    <div className="outbox-failed-actions">
+                      <small>Delivery is unknown; the room may already have received this message.</small>
+                      {online
+                        ? <button type="button" onClick={() => retryMessage(item.clientId)}>Retry</button>
+                        : <em>not sent · retry once you are back online</em>}
+                      <button
+                        type="button"
+                        onClick={() => dismissMessage(item.clientId)}
+                        title="Removes only this local receipt; it does not resend or delete the room message"
+                      >
+                        Dismiss receipt
+                      </button>
+                    </div>
                   )}
                   {/* Queued items DO flush by themselves; verified by inducing it. */}
                   {item.state === "queued" && !online ? <em>waiting for the connection · will send itself</em> : null}

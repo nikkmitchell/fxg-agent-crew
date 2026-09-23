@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { bff } from "../bff-client";
-import type { Message } from "../../shared/contracts";
+import type { Message, RoomSummary } from "../../shared/contracts";
 
 /**
  * The WebHarness room, read through saha.ing.
@@ -27,10 +27,17 @@ import type { Message } from "../../shared/contracts";
 export type RoomMessage = Message;
 
 export type RoomFeed = {
+  /** Rooms this session has already joined; discovery never joins implicitly. */
+  rooms: RoomSummary[];
+  loadingRooms: boolean;
+  refreshRooms: () => void;
   room: string | null;
+  loadingMessages: boolean;
   messages: RoomMessage[];
   /** Null while it is working. A sentence when the feed is not what it seems. */
   trouble: string | null;
+  /** A failed refresh leaves the last confirmed room list visible. */
+  roomsTrouble: string | null;
   /**
    * True when there is older conversation above the first page that was never
    * fetched. The server says so; it is not inferred from the count.
@@ -42,8 +49,17 @@ export type RoomFeed = {
 const KEEP = 40;
 const EVERY_MS = 5_000;
 
-export function useRoomFeed(enabled: boolean, preferred = "saha.ing"): RoomFeed {
+export function useRoomFeed(
+  enabled: boolean,
+  preferred = "saha.ing",
+  selectedRoom: string | null = null,
+): RoomFeed {
+  const [rooms, setRooms] = useState<RoomSummary[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(true);
+  const [roomListRevision, setRoomListRevision] = useState(0);
+  const [roomListTrouble, setRoomListTrouble] = useState<string | null>(null);
   const [room, setRoom] = useState<string | null>(null);
+  const [loadingMessages, setLoadingMessages] = useState(true);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [trouble, setTrouble] = useState<string | null>(null);
   const [mayHaveEarlier, setMayHaveEarlier] = useState(false);
@@ -52,22 +68,33 @@ export function useRoomFeed(enabled: boolean, preferred = "saha.ing"): RoomFeed 
   useEffect(() => {
     if (!enabled) return;
     let stopped = false;
+    const controller = new AbortController();
+    setLoadingRooms(true);
+    setRoomListTrouble(null);
+    void bff.rooms(controller.signal).then((joined) => {
+      if (stopped) return;
+      setRooms(joined);
+      setRoomListTrouble(null);
+    }).catch(() => {
+      if (!stopped) setRoomListTrouble("Your joined rooms could not be loaded. You may need to sign in again.");
+    }).finally(() => {
+      if (!stopped) setLoadingRooms(false);
+    });
+    return () => {
+      stopped = true;
+      controller.abort();
+    };
+  }, [enabled, roomListRevision]);
+
+  useEffect(() => {
+    if (!enabled || loadingRooms || (roomListTrouble && rooms.length === 0)) return;
+    let stopped = false;
     // Declared out here so the effect's own cleanup can clear it. Returning a
     // cleanup from the async function below would do nothing at all — React
     // never sees it — and the poll would outlive the component.
     let timer: number | undefined;
 
-    const pickRoom = async (): Promise<string | null> => {
-      const rooms = await bff.rooms();
-      // The room Nikk means by "our normal chat" if it is there, and otherwise
-      // whichever one they are actually in — guessing a name that does not
-      // exist would show an empty panel with no explanation.
-      return rooms.find((entry) => entry.roomName === preferred)?.roomName
-        ?? rooms[0]?.roomName
-        ?? null;
-    };
-
-    const read = async (name: string) => {
+    const read = async (name: string, initial = false) => {
       // wait=0: a poll on a timer, not a long poll. A held connection per panel
       // per person is not worth five seconds of freshness, and a long poll
       // abandoned when the tab sleeps looks like a hang.
@@ -81,18 +108,37 @@ export function useRoomFeed(enabled: boolean, preferred = "saha.ing"): RoomFeed 
       // anything and leave the flag alone.
       if (page.mayHaveEarlier !== undefined) setMayHaveEarlier(page.mayHaveEarlier);
       setTrouble(null);
+      if (initial) setLoadingMessages(false);
     };
 
+    setMessages([]);
+    setLoadingMessages(true);
+    setMayHaveEarlier(false);
+    setRoom(null);
+    setTrouble(null);
+    cursor.current = undefined;
+
+    const requested = selectedRoom?.trim() ?? "";
+    const name = requested
+      ? rooms.find((entry) => entry.roomName === requested)?.roomName ?? null
+      : rooms.find((entry) => entry.roomName === preferred)?.roomName
+        ?? rooms[0]?.roomName
+        ?? null;
+    if (requested && !name) {
+      setTrouble(`${requested} is not in your joined rooms. Choose a room from the list.`);
+      setLoadingMessages(false);
+      return () => { stopped = true; };
+    }
+    if (!name) {
+      setTrouble("You are not in any WebHarness room, so there is nothing to show here.");
+      setLoadingMessages(false);
+      return () => { stopped = true; };
+    }
+
+    setRoom(name);
     void (async () => {
       try {
-        const name = await pickRoom();
-        if (stopped) return;
-        if (!name) {
-          setTrouble("You are not in any WebHarness room, so there is nothing to show here.");
-          return;
-        }
-        setRoom(name);
-        await read(name);
+        await read(name, true);
         if (stopped) return;
         timer = window.setInterval(() => {
           void read(name).catch(() =>
@@ -103,7 +149,10 @@ export function useRoomFeed(enabled: boolean, preferred = "saha.ing"): RoomFeed 
           );
         }, EVERY_MS);
       } catch {
-        if (!stopped) setTrouble("The room could not be read. You may need to sign in again.");
+        if (!stopped) {
+          setTrouble("The room could not be read. You may need to sign in again.");
+          setLoadingMessages(false);
+        }
       }
     })();
 
@@ -111,7 +160,17 @@ export function useRoomFeed(enabled: boolean, preferred = "saha.ing"): RoomFeed 
       stopped = true;
       if (timer !== undefined) window.clearInterval(timer);
     };
-  }, [enabled, preferred]);
+  }, [enabled, loadingRooms, preferred, roomListTrouble, rooms, selectedRoom]);
 
-  return { room, messages, trouble, mayHaveEarlier };
+  return {
+    rooms,
+    loadingRooms,
+    refreshRooms: () => setRoomListRevision((revision) => revision + 1),
+    room,
+    loadingMessages,
+    messages,
+    trouble,
+    roomsTrouble: roomListTrouble,
+    mayHaveEarlier,
+  };
 }
