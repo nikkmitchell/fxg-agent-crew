@@ -76,5 +76,32 @@ print(t)
     process.exit(1);
   }
   const cookie = (auth.headers.getSetCookie?.() ?? []).map((part) => part.split(";")[0]).join("; ");
+  await enterRoom(site, cookie);
   return { cookie, site, home };
+}
+
+/**
+ * ENTER THE ROOM, which signing in no longer does by itself.
+ *
+ * Since the lobby (e34f556) a new session starts in NO room: every
+ * /bff/space/ call answers 403 ROOM_NOT_SELECTED until /bff/space/enter names
+ * one, and the server checks upstream that you are a member. That is right —
+ * a stranger must not read a room by guessing its URLs — but every tool here
+ * went straight from sign-in to the room, so on the day it shipped every
+ * agent's presence, Go moves, gestures and the onboarding audit were refused.
+ *
+ * The room is saha.ing unless SAHA_ROOM names another. A server from before
+ * the lobby has no /bff/space/enter (404): one room, nothing to enter.
+ */
+export async function enterRoom(site: string, cookie: string, room = process.env.SAHA_ROOM ?? "saha.ing"): Promise<void> {
+  const answer = await fetch(`${site}/bff/space/enter`, {
+    method: "POST",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ roomName: room }),
+  });
+  if (answer.status === 404) return;
+  if (!answer.ok) {
+    console.error(`entering room "${room}" refused: ${answer.status} ${await answer.text()}`);
+    process.exit(1);
+  }
 }

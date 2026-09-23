@@ -39,6 +39,7 @@ import subprocess
 import sys
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 
 HOME = os.environ.get("WEBHARNESS_HOME")
@@ -63,6 +64,35 @@ def session_cookie(site: str) -> str:
             if header.startswith("fxg_sid="):
                 return header.split(";")[0]
     raise SystemExit("signed in but no fxg_sid came back")
+
+
+def enter_room(site: str, cookie: str) -> None:
+    """Enter the room, which signing in no longer does by itself.
+
+    Since the lobby (e34f556) a new session starts in NO room, and the socket
+    answers 403 until /bff/space/enter names one (the server checks upstream
+    that you are a member). This holder went straight from sign-in to the
+    socket, so on the day the lobby shipped it was refused and stopped, and the
+    agent vanished from the room. See tools/saha-session.mts for the same step.
+
+    The room is saha.ing unless SAHA_ROOM names another. A server from before
+    the lobby has no /bff/space/enter (404): one room, nothing to enter. Any
+    other refusal is not something retrying fixes, so it stops with the reason.
+    """
+    room = os.environ.get("SAHA_ROOM", "saha.ing")
+    request = urllib.request.Request(
+        f"{site}/bff/space/enter",
+        data=json.dumps({"roomName": room}).encode(),
+        headers={"content-type": "application/json", "Cookie": cookie},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30):
+            return
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return
+        raise SystemExit(f"entering room {room!r} refused: {error.code} {error.read().decode(errors='replace')}")
 
 
 def frame(payload: bytes, opcode: int = 0x1) -> bytes:
@@ -201,6 +231,7 @@ def hold(site: str, until: float) -> str:
     """
     try:
         cookie = session_cookie(site)
+        enter_room(site, cookie)
         url = urllib.parse.urlparse(site)
         host = url.hostname or "saha.ing"
         port = url.port or (443 if url.scheme == "https" else 80)

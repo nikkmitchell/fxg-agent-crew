@@ -31,6 +31,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { CHAT_MESSAGE_LIMIT, SPOKEN_LIMIT, refusalFor, saidInRoomHeading, splitForChat } from "../shared/voice.js";
+import { enterRoom } from "./saha-session.mts";
 
 const SITE = process.env.SAHA_URL ?? "https://saha.ing";
 
@@ -116,6 +117,8 @@ if (!auth.ok) {
   process.exit(1);
 }
 const cookie = (auth.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
+// A new session is in no room until it enters one (see saha-session.mts).
+await enterRoom(SITE, cookie);
 
 const said = await fetch(`${SITE}/bff/space/utterances`, {
   method: "POST",
