@@ -70,7 +70,7 @@ const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" |
   room: { label: "The room", glyph: "room" },
   build: { label: "Build", glyph: "clock" },
   said: { label: "Said in the room", glyph: "clock" },
-  chat: { label: "Talk", glyph: "chat" },
+  chat: { label: "Rooms", glyph: "chat" },
   join: { label: "Joining", glyph: "room" },
   profiles: { label: "People", glyph: "grid" },
 };
@@ -142,7 +142,7 @@ function TabContent({
           room is an iframe of this tab, and a panel whose whole content is a
           button that opens an overlay you cannot reach is worse than no panel.
           The overlay still exists for the button in the rail elsewhere. */}
-      {tab === "chat" ? <ChatFeed /> : null}
+      {tab === "chat" ? <ChatFeed onOpenRoomControls={embedded ? undefined : onOpenChat} /> : null}
     </>
   );
 }

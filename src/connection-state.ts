@@ -59,6 +59,7 @@ export type ConnectionEvent =
   | { type: "LOGIN_SUCCEEDED"; username: string }
   | { type: "LOGIN_FAILED"; code: string }
   | { type: "ROOMS_LOADED"; rooms: RoomSummary[] }
+  | { type: "ROOM_PICKER_OPENED" }
   | { type: "ROOM_SELECTED"; roomName: string }
   | { type: "ROOM_CONNECTED"; room: RoomDetail }
   | { type: "MESSAGES_RECEIVED"; messages: Message[]; cursor: number | null; mayHaveEarlier?: boolean }
@@ -70,6 +71,7 @@ export type ConnectionEvent =
   | { type: "MESSAGE_SENDING"; clientId: string }
   | { type: "MESSAGE_ACKNOWLEDGED"; clientId: string; message: Message }
   | { type: "MESSAGE_FAILED"; clientId: string; code: string }
+  | { type: "MESSAGE_DISMISSED"; clientId: string }
   | { type: "LOGGED_OUT" };
 
 export const initialConnectionState: ConnectionState = {
@@ -100,6 +102,21 @@ export function reduceConnection(state: ConnectionState, event: ConnectionEvent)
       return { ...state, phase: "signed_out", errorCode: event.code, notice: undefined };
     case "ROOMS_LOADED":
       return { ...state, phase: "selecting_room", rooms: event.rooms, errorCode: undefined };
+    case "ROOM_PICKER_OPENED":
+      return {
+        ...state,
+        phase: "selecting_room",
+        roomName: undefined,
+        room: undefined,
+        messages: [],
+        lastCursor: undefined,
+        attempt: 0,
+        errorCode: undefined,
+        notice: undefined,
+        stale: false,
+        mayHaveEarlier: false,
+        outbox: [],
+      };
     case "ROOM_SELECTED":
       // mayHaveEarlier is per-room and must be cleared here. Carrying it over
       // would accuse a short room of hiding history it does not have, and a
@@ -170,6 +187,8 @@ export function reduceConnection(state: ConnectionState, event: ConnectionEvent)
     }
     case "MESSAGE_FAILED":
       return { ...state, outbox: state.outbox.map((item) => item.clientId === event.clientId ? { ...item, state: "failed", errorCode: event.code } : item) };
+    case "MESSAGE_DISMISSED":
+      return { ...state, outbox: state.outbox.filter((item) => item.clientId !== event.clientId) };
     case "LOGGED_OUT":
       return { ...initialConnectionState, phase: "signed_out" };
   }

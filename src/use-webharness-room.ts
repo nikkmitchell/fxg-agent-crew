@@ -167,6 +167,16 @@ export function useWebharnessRoom() {
     setRun((value) => value + 1);
   }, []);
 
+  const showRoomPicker = useCallback(() => {
+    // Moving away while a message is queued or awaiting an answer would clear
+    // the only room-scoped receipt we have. Keep the current room open until
+    // every send is acknowledged or explicitly retried.
+    if (state.outbox.some((item) => item.state !== "acknowledged")) return;
+    selectedRoomRef.current = undefined;
+    dispatch({ type: "ROOM_PICKER_OPENED" });
+    setRun((value) => value + 1);
+  }, [state.outbox]);
+
   const sendOne = useCallback(async (clientId: string, content: string) => {
     const roomName = selectedRoomRef.current;
     if (!roomName) return;
@@ -191,6 +201,10 @@ export function useWebharnessRoom() {
     const item = state.outbox.find((candidate) => candidate.clientId === clientId);
     if (item && navigator.onLine) void sendOne(item.clientId, item.content);
   }, [sendOne, state.outbox]);
+
+  const dismissMessage = useCallback((clientId: string) => {
+    dispatch({ type: "MESSAGE_DISMISSED", clientId });
+  }, []);
 
   /**
    * Send anything queued, whenever sending becomes possible again.
@@ -229,5 +243,5 @@ export function useWebharnessRoom() {
     }
   }, [loadRooms]);
 
-  return { state, login, logout, selectRoom, retry, sendMessage, retryMessage };
+  return { state, login, logout, selectRoom, showRoomPicker, retry, sendMessage, retryMessage, dismissMessage };
 }
