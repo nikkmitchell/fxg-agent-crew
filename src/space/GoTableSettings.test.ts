@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GO_PLAYERS, GO_SIZES, defaultGoItem, type GoRoomItem } from "../../shared/room-items.js";
-import { BAR, GEAR, GO_PANEL, barAt, barWidth, gearAt, gearClearance, handleClearance, goSettingCost, goSettingFor, goSettingsFit, goSettingsItems } from "./GoTableSettings.js";
+import { BAR, GEAR, GO_PANEL, barAt, barWidth, gearAt, gearClearance, handleClearance, goSettingCost, goSettingFor, goSettingRequest, goSettingsFit, goSettingsItems } from "./GoTableSettings.js";
 import { GO_SURFACE, goBoardWidth } from "../../shared/go-layout.js";
 import { layOutSettings, settingAt } from "../../shared/settings-3d.js";
 
@@ -202,5 +202,27 @@ describe("the bar you pick the table up by", () => {
       // The gear clears the bar's right-hand end.
       expect(gear.x - GEAR.radius).toBeGreaterThan(barWidth(size) / 2);
     }
+  });
+});
+
+describe("what a press sends, and what its retry sends", () => {
+  it("sends the change the press means", () => {
+    expect(goSettingRequest(table({ size: 9 }), "go:size:more")).toEqual({ size: 13 });
+    expect(goSettingRequest(table({ colours: ["a", "b"] }), "go:players:more")).toEqual({ players: 3 });
+    expect(goSettingRequest(table(), "go:reset")).toEqual({ reset: true });
+  });
+
+  it("sends nothing for closing, or for a press against a limit", () => {
+    expect(goSettingRequest(table(), "go:close")).toBeNull();
+    expect(goSettingRequest(table({ colours: ["a", "b"] }), "go:players:less")).toBeNull();
+  });
+
+  it("RE-READS THE TABLE for a retry, so it does not undo somebody else's change", () => {
+    // Pressed "one more player" against a table of 2; before it landed, somebody
+    // else made it 4. The retry must ask for 5 — not resend 3 and undo them.
+    const pressedAgainst = table({ colours: ["a", "b"] });
+    const nowIs = table({ colours: ["a", "b", "c", "d"] });
+    expect(goSettingRequest(pressedAgainst, "go:players:more")).toEqual({ players: 3 });
+    expect(goSettingRequest(nowIs, "go:players:more")).toEqual({ players: 5 });
   });
 });

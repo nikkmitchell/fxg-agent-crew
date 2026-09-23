@@ -48,7 +48,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
     const change = request.body;
-    if (change?.revision !== undefined && change.revision !== item.revision) return reply.code(409).send({ error: "The table changed. Try again." });
+    if (change?.revision !== undefined && change.revision !== item.revision) return reply.code(409).send({ code: "TABLE_CHANGED", error: "The table changed. Try again." });
     if (change?.deskVisible !== undefined) {
       if (typeof change.deskVisible !== "boolean") return reply.code(400).send({ error: "Desk visibility must be true or false." });
       item.deskVisible = change.deskVisible;
@@ -115,7 +115,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
   app.post<{ Params: { id: string }; Body: { action?: unknown; x?: unknown; y?: unknown; hand?: unknown; colour?: unknown; revision?: unknown } }>("/bff/space/items/:id/action", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
-    if (request.body?.revision !== undefined && request.body.revision !== item.revision) return reply.code(409).send({ error: "The table changed. Try again." });
+    if (request.body?.revision !== undefined && request.body.revision !== item.revision) return reply.code(409).send({ code: "TABLE_CHANGED", error: "The table changed. Try again." });
     if (request.body?.action === "lift") {
       if (item.liftedColour !== null) return reply.code(409).send({ error: "A stone is already in flight. Place it or return it first." });
       if (request.body.colour !== undefined && request.body.colour !== item.activeColour) return reply.code(409).send({ error: "It is the glowing bowl's turn." });

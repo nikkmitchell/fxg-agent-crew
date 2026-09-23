@@ -251,3 +251,40 @@ export function goSettingCost(item: GoRoomItem, change: GoSettingChange): string
 export function goSettingsFit(item: GoRoomItem): boolean {
   return layOutSettings(goSettingsItems(item), GO_PANEL).hidden === 0;
 }
+
+/** What to send the server for a settings press, worked out from a given state of the table. */
+export type GoSettingRequest =
+  | { size: GoSize }
+  | { players: number }
+  | { scale: number }
+  | { deskVisible: boolean }
+  | { reset: true };
+
+/**
+ * The request a press means, FROM THIS STATE OF THE TABLE — or null when it
+ * means nothing to send (closing the panel, or a press against a limit).
+ *
+ * A function of the table rather than a value computed once, because the
+ * retry after "The table changed" has to mean the same thing against the table
+ * as it now is: "one more player" is one more than there are NOW, not one more
+ * than there were when the press was made. Resending the old value would undo
+ * whatever somebody else just changed.
+ */
+export function goSettingRequest(item: GoRoomItem, id: string): GoSettingRequest | null {
+  const change = goSettingFor(item, id);
+  if (!change) return null;
+  switch (change.kind) {
+    case "size":
+      return { size: change.size };
+    case "players":
+      return { players: change.players };
+    case "scale":
+      return { scale: change.scale };
+    case "desk":
+      return { deskVisible: change.shown };
+    case "reset":
+      return { reset: true };
+    default:
+      return null;
+  }
+}

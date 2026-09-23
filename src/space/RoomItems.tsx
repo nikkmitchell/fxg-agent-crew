@@ -9,10 +9,11 @@ import { goCarryPoint, idleGoTouch, stepGoTouch } from "../../shared/go-touch";
 import type { WirePerson } from "../../shared/space-wire";
 import { goHandInput } from "./go-hand-input";
 import { space } from "../space-client";
+import { ApiError } from "../api-request";
 import { claimPointer } from "./pointer-claim";
 import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
 import { SettingsPanel3D } from "./SettingsPanel3D";
-import { BAR, GEAR, GO_PANEL, barAt, barWidth, gearAt, goSettingCost, goSettingFor, goSettingsItems } from "./GoTableSettings";
+import { BAR, GEAR, GO_PANEL, barAt, barWidth, gearAt, goSettingCost, goSettingFor, goSettingRequest, goSettingsItems } from "./GoTableSettings";
 
 const NAMES = ["Black", "White", "Coral", "Blue", "Gold", "Jade", "Violet", "Rose"];
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
@@ -166,7 +167,9 @@ function TableButton({ label, at, onTap, width = 0.24 }: { label: string; at: [n
 }
 
 type TableContext = { you: string | null; peopleRef: RefObject<WirePerson[]>;
-  items: RoomItem[]; reservations: RefObject<Map<string, { id: string; until: number }>> };
+  items: RoomItem[]; reservations: RefObject<Map<string, { id: string; until: number }>>;
+  /** Apply a table as the server just answered with it — see withFresher. */
+  onItem: (item: RoomItem) => void };
 function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMotion: boolean; context: TableContext }) {
   const [notice, setNotice] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -199,18 +202,81 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   }, [item.stones, item.captures, item.colours, item.size, radius]);
   useEffect(() => { previous.current = new Set(item.stones.map((stone) => stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`)); }, [item.stones]);
   useEffect(() => { setNotice(""); }, [item.revision]);
+  /**
+   * THE ANSWER TO A CHANGE IS APPLIED THE MOMENT IT ARRIVES, and a refusal for
+   * being out of date catches the table up.
+   *
+   * Nikk's headset pressed settings fifteen times; the server accepted four and
+   * refused eleven as "The table changed". The table's new state reached the
+   * headset only by its socket, which was reconnecting every half minute — so
+   * after one success the headset held a stale revision, every press after it
+   * was refused, and a refusal broadcasts nothing to fix that. Press, nothing.
+   *
+   * The answer already carries the table as it now is, so it is applied at once;
+   * and "The table changed" fetches the fresh table instead of leaving the next
+   * press to fail the same way.
+   */
+  const tableChanged = (error: unknown) => error instanceof ApiError && error.code === "TABLE_CHANGED";
+  const catchUp = async (): Promise<GoRoomItem | null> => {
+    try {
+      const { items: now } = await space.roomItems();
+      now.forEach((one) => context.onItem(one));
+      return (now.find((one) => one.id === item.id) as GoRoomItem | undefined) ?? null;
+    } catch {
+      return null;
+    }
+  };
   const act = async (action: Parameters<typeof space.actOnGo>[1]) => {
     if (pending.current) return false;
     pending.current = true;
-    try { await space.actOnGo(item.id, { ...action, revision: item.revision }); return true; }
-    catch (error) { setNotice(error instanceof Error ? error.message : "Could not update the table."); return false; }
+    try {
+      const { item: now } = await space.actOnGo(item.id, { ...action, revision: item.revision });
+      context.onItem(now);
+      return true;
+    }
+    catch (error) {
+      // A MOVE is never retried: a stone placed against a board that changed
+      // underneath it is exactly what the revision exists to refuse. The table
+      // is caught up so the NEXT press is judged against the real board.
+      if (tableChanged(error)) void catchUp();
+      setNotice(error instanceof Error ? error.message : "Could not update the table.");
+      return false;
+    }
     finally { pending.current = false; }
   };
-  const configure = async (change: Parameters<typeof space.configureGo>[1]) => {
+  /**
+   * `again` works the request out afresh from the table as it now is, for the
+   * one retry after "The table changed". See goSettingRequest: resending the
+   * original would undo whatever somebody else just did.
+   */
+  const configure = async (
+    change: Parameters<typeof space.configureGo>[1],
+    again?: (fresh: GoRoomItem) => Parameters<typeof space.configureGo>[1] | null,
+  ) => {
     if (pending.current) return;
     pending.current = true;
-    try { await space.configureGo(item.id, { ...change, revision: item.revision }); }
-    catch (error) { setNotice(error instanceof Error ? error.message : "Could not move the table."); }
+    try {
+      const { item: now } = await space.configureGo(item.id, { ...change, revision: item.revision });
+      context.onItem(now);
+    }
+    catch (error) {
+      if (tableChanged(error)) {
+        const fresh = await catchUp();
+        const retry = fresh && again ? again(fresh) : null;
+        if (fresh && retry) {
+          try {
+            const { item: now } = await space.configureGo(item.id, { ...retry, revision: fresh.revision });
+            context.onItem(now);
+            setNotice("");
+            return;
+          } catch (second) {
+            setNotice(second instanceof Error ? second.message : "Could not change the table.");
+            return;
+          }
+        }
+      }
+      setNotice(error instanceof Error ? error.message : "Could not change the table.");
+    }
     finally { pending.current = false; }
   };
   useFrame(({ clock }, delta) => {
@@ -309,7 +375,9 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     grab.current = null; want.current = null; grabbedPointer.current = null;
     setCarrying(false);
     if (!at) return;
-    void configure({ position: { x: at.x, y: at.y, z: at.z, rotationY: item.position.rotationY } });
+    const place = { position: { x: at.x, y: at.y, z: at.z, rotationY: item.position.rotationY } };
+    // Where it was put does not depend on anything else about the table.
+    void configure(place, () => place);
   }, [item.position.rotationY]);
 
   /**
@@ -384,13 +452,8 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     if (change.kind === "close") { setSettingsOpen(false); return; }
     if (change.kind === "refused") { setNotice(change.why); return; }
     setNotice(goSettingCost(item, change) ?? "");
-    void configure(
-      change.kind === "size" ? { size: change.size }
-      : change.kind === "players" ? { players: change.players }
-      : change.kind === "scale" ? { scale: change.scale }
-      : change.kind === "desk" ? { deskVisible: change.shown }
-      : { reset: true },
-    );
+    const request = goSettingRequest(item, id);
+    if (request) void configure(request, (fresh) => goSettingRequest(fresh, id));
   };
 
   const gear = gearAt(item), bar = barAt(item.size), barSpan = barWidth(item.size);
@@ -527,9 +590,9 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   </group>;
 }
 
-export function RoomItems({ items, reducedMotion, you = null, peopleRef }: { items: RoomItem[]; reducedMotion: boolean; you?: string | null; peopleRef?: RefObject<WirePerson[]> }) {
+export function RoomItems({ items, reducedMotion, you = null, peopleRef, onItem }: { items: RoomItem[]; reducedMotion: boolean; you?: string | null; peopleRef?: RefObject<WirePerson[]>; onItem?: (item: RoomItem) => void }) {
   const emptyPeople = useRef<WirePerson[]>([]), reservations = useRef(new Map<string, { id: string; until: number }>());
-  const context = { you, peopleRef: peopleRef ?? emptyPeople, items, reservations };
+  const context = { you, peopleRef: peopleRef ?? emptyPeople, items, reservations, onItem: onItem ?? (() => {}) };
   return <group onPointerDown={(event) => { claimPointer(event.nativeEvent); event.stopPropagation(); }}>
     {items.map((item) => <GoTable key={item.id} item={item} reducedMotion={reducedMotion} context={context} />)}
   </group>;

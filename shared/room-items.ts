@@ -82,3 +82,48 @@ export function parseRoomItem(value: unknown): RoomItem | null {
     carrier: item.carrier ?? null, scale: item.scale ?? 1, deskVisible: item.deskVisible ?? true,
     position: { ...item.position, y: item.position.y ?? 0 } } as GoRoomItem;
 }
+
+/**
+ * THE CLIENT'S TABLES NEVER GO BACKWARDS.
+ *
+ * Nikk, in a headset: "all the go board settings don't do anything when I open
+ * the settings and then click on things... that menu doesn't seem to actually
+ * change anything". The server's log said otherwise: fifteen changes arrived,
+ * four succeeded and eleven were refused 409, "The table changed. Try again."
+ *
+ * The headset's socket was reconnecting every half minute or so, and a table's
+ * new state reached the client ONLY by that socket. So one success moved the
+ * table's revision on, the headset never heard, and every later press carried
+ * the old revision and was refused — and a refusal broadcasts nothing, so the
+ * headset stayed stale until the socket happened to reconnect. From inside the
+ * headset: press, nothing; press, nothing.
+ *
+ * The answer to a change already carries the table as it now is. Applying it
+ * the moment it arrives makes the table's freshness independent of the socket,
+ * which is the part of this that the network gets to break.
+ */
+export function withFresher(items: RoomItem[], incoming: RoomItem): RoomItem[] {
+  const at = items.findIndex((item) => item.id === incoming.id);
+  if (at < 0) return [...items, incoming];
+  if ((items[at].revision ?? 0) > (incoming.revision ?? 0)) return items;
+  const next = items.slice();
+  next[at] = incoming;
+  return next;
+}
+
+/**
+ * A whole list from the socket, merged without letting any table go backwards.
+ *
+ * The answer to a change and the socket's broadcast travel on different
+ * connections, so an older broadcast can land AFTER a newer answer has already
+ * been applied. Taken at face value it would roll the table back a step — and
+ * the next press would be refused for being out of date. Tables missing from
+ * the list are gone, and go.
+ */
+export function mergeRoomItems(current: RoomItem[], incoming: RoomItem[]): RoomItem[] {
+  const known = new Map(current.map((item) => [item.id, item]));
+  return incoming.map((item) => {
+    const mine = known.get(item.id);
+    return mine && (mine.revision ?? 0) > (item.revision ?? 0) ? mine : item;
+  });
+}
