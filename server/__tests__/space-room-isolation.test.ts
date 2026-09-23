@@ -168,6 +168,26 @@ describe("entering and isolating room spaces", () => {
     expect(secondTab.socket.readyState).toBe(WebSocket.OPEN);
   });
 
+  it("closes room sockets on logout and removes an expired session at the next sweep", async () => {
+    joinedRooms({ member: ["alpha"] });
+    const { as, enter, origin, hubFor, app, sessions, config } = await boot();
+    const first = as("Aster", "member");
+    expect((await enter(first, "alpha")).statusCode).toBe(200);
+    const live = await connect(origin, first);
+    await live.until((frame) => frame.type === "welcome");
+    expect((await app.inject({ method: "POST", url: "/bff/logout", headers: { cookie: first } })).statusCode).toBe(200);
+    expect(hubFor("alpha").connectedSockets).toBe(0);
+
+    const second = as("Beryl", "member");
+    expect((await enter(second, "alpha")).statusCode).toBe(200);
+    const waiting = await connect(origin, second);
+    await waiting.until((frame) => frame.type === "welcome");
+    const sid = second.slice(`${config.cookieName}=`.length);
+    sessions.destroy(sid); // expiration has the same observable store state
+    expect(hubFor("alpha").evictInvalidSessions((socketSid) => !!sessions.get(socketSid))).toBe(1);
+    expect(hubFor("alpha").connectedSockets).toBe(0);
+  });
+
   it("evicts a socket opened between overlapping enter requests for one session", async () => {
     let releaseFirst!: () => void;
     let sawFirst!: () => void;
@@ -203,7 +223,7 @@ describe("entering and isolating room spaces", () => {
 
   it("keeps legacy activity out of another explicitly selected room without ejecting a second default session", async () => {
     joinedRooms({ agent: ["saha.ing", "alpha"] });
-    const { sessions, config, enter, activity, space, database } = await boot();
+    const { sessions, config, enter, activity, space, database, app } = await boot();
     new BoardStore(database).ensureActor("Moraine", "agent");
     const first = `${config.cookieName}=${sessions.create("Moraine", "agent", "agent")}`;
     activity.rehydrate();
@@ -221,6 +241,15 @@ describe("entering and isolating room spaces", () => {
     expect((await enter(second, "saha.ing")).statusCode).toBe(200);
     activity.observeRead("Moraine", "agent", "tasks");
     expect(space.presence.find("Moraine")).toBeDefined();
+    expect((await app.inject({ method: "POST", url: "/bff/logout", headers: { cookie: second } })).statusCode).toBe(200);
+    expect(space.presence.find("Moraine")).toBeUndefined();
+
+    const expiringSid = sessions.create("Moraine", "agent", "agent");
+    activity.observeRead("Moraine", "agent", "tasks");
+    expect(space.presence.find("Moraine")).toBeDefined();
+    sessions.destroy(expiringSid);
+    activity.step();
+    expect(space.presence.find("Moraine")).toBeUndefined();
   });
 
   it("does not disclose another room's words or screens, including audio and a share-link upload", async () => {

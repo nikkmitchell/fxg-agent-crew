@@ -115,6 +115,18 @@ export class SpaceHub {
     }
   }
 
+  /** Sockets outlive HTTP requests. Recheck their sessions periodically so a
+   * signed-out or expired cookie cannot keep receiving private-room snapshots. */
+  evictInvalidSessions(valid: (sid: string, room: string) => boolean): number {
+    const invalid = new Set<string>();
+    for (const [socket, sid] of this.socketSessions) {
+      const room = this.socketRooms.get(socket);
+      if (!room || !valid(sid, room)) invalid.add(sid);
+    }
+    for (const sid of invalid) this.evictSession(sid);
+    return invalid.size;
+  }
+
   has(socket: WebSocket): boolean {
     return this.socketRooms.has(socket);
   }

@@ -9,6 +9,7 @@ import websocket from "@fastify/websocket";
 import staticPlugin from "@fastify/static";
 import { loadConfig, type Config } from "./config.js";
 import { MemorySessionStore, SqliteSessionStore, type SessionStore } from "./session.js";
+import { spaceRoomOf } from "./require-session.js";
 import { WebharnessClient } from "./webharness/client.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
@@ -182,6 +183,20 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     spaceHubs.set(key, created);
     return created;
   };
+  const evictSessionEverywhere = (sid: string) => {
+    for (const hub of spaceHubs.values()) hub.evictSession(sid);
+  };
+  // A socket authenticates at handshake, but a cookie can expire or be
+  // destroyed while the connection stays open. Do not let it keep receiving a
+  // private room indefinitely. The check is bounded by connected sockets and
+  // does not poll the network or consume model turns.
+  const sessionSweep = setInterval(() => {
+    for (const hub of spaceHubs.values()) hub.evictInvalidSessions((sid, room) => {
+      const session = sessions.get(sid);
+      return !!session && !session.requiresRoomEntry && spaceRoomOf(session) === room;
+    });
+  }, 30_000);
+  sessionSweep.unref();
 
   // What makes them move: the audit table, read forward from the end of it.
   // Started here rather than on the first socket, so an agent that acts while
@@ -248,6 +263,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       // no link, or a link with auto_enrol off, grants nothing.
       (actorId, kind, rooms) => rooms.flatMap((room) => actorBook.enrolFromRoom(actorId, room, kind ?? undefined)),
       (actorId) => activity.forgetIfAway(actorId),
+      evictSessionEverywhere,
     );
     registerRoomRoutes(scoped, config, sessions, client);
     registerProjectRoutes(scoped, config, sessions, client);
@@ -273,7 +289,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       hubFor,
     );
     registerSpaceEntryRoute(scoped, config, sessions, client,
-      (sid) => { for (const hub of spaceHubs.values()) hub.evictSession(sid); },
+      evictSessionEverywhere,
       (actorId) => activity.forgetIfAway(actorId));
     registerTouchRoutes(scoped, { config, sessions, hub: space, hubFor, touches });
     registerPanelRoutes(scoped, {
@@ -468,6 +484,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // not hold the process open anyway, but a loop still broadcasting into
   // half-closed sockets during shutdown produces errors that look like bugs.
   app.addHook("onClose", async () => {
+    clearInterval(sessionSweep);
     activity.stop();
     for (const hub of spaceHubs.values()) hub.close();
   });

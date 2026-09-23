@@ -328,6 +328,10 @@ export class Activity {
       }
     }
 
+    // Expiration has no route callback. A former default-room body must still
+    // disappear once its final default session expires or is destroyed, rather
+    // than waiting for a restart to apply the persisted last-room choice.
+    for (const occupant of this.presence.everyone()) this.forgetIfAway(occupant.actorId);
     this.sendStaleHome();
     return rows.length;
   }

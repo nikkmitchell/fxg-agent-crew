@@ -56,6 +56,22 @@ describe("sessions survive a restart", () => {
     second.close();
   });
 
+  it("does not reconstruct a private-room actor in the default room after their session ends and the server restarts", () => {
+    const first = openStore();
+    const sid = first.createUnselected("Moraine", "token", "agent");
+    first.enterRoom(sid, "private-room");
+    first.destroy(sid);
+    first.close();
+
+    const second = openStore();
+    expect(second.mayInferInDefaultRoom("moraine")).toBe(false);
+    const returnSid = second.createUnselected("Moraine", "new-token", "agent");
+    second.enterRoom(returnSid, "saha.ing");
+    second.destroy(returnSid);
+    expect(second.mayInferInDefaultRoom("moraine")).toBe(true);
+    second.close();
+  });
+
   it("does not resurrect a session that expired while the process was down", () => {
     const first = openStore(-1000); // already expired on creation
     const sid = first.create("qa-tester", "t");

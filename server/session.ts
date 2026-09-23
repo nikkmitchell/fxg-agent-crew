@@ -88,6 +88,7 @@ function publicViewOf(session: Session): { username: string; kind: SessionKind }
  */
 export class MemorySessionStore implements SessionStore {
   private readonly sessions = new Map<string, Session>();
+  private readonly lastRoomByActor = new Map<string, string>();
 
   constructor(private readonly ttlMs: number) {}
 
@@ -126,6 +127,7 @@ export class MemorySessionStore implements SessionStore {
     if (!session) return;
     session.spaceRoom = roomKey(room);
     session.requiresRoomEntry = false;
+    this.lastRoomByActor.set(actorKey(session.username), session.spaceRoom);
   }
 
   mayInferInDefaultRoom(actorId: string): boolean {
@@ -135,8 +137,10 @@ export class MemorySessionStore implements SessionStore {
       hasActiveSession = true;
       if (!session.requiresRoomEntry && roomKey(session.spaceRoom ?? DEFAULT_SPACE_ROOM) === DEFAULT_SPACE_ROOM) return true;
     }
-    // Preserve the pre-lobby audit trail for agents with no current session.
-    return !hasActiveSession;
+    if (hasActiveSession) return false;
+    // A session can expire after an agent left the development room. Its last
+    // verified choice still outranks the old audit trail on the next restart.
+    return (this.lastRoomByActor.get(actorKey(actorId)) ?? DEFAULT_SPACE_ROOM) === DEFAULT_SPACE_ROOM;
   }
 
   destroy(sid: string | undefined): void {
@@ -148,6 +152,7 @@ export class MemorySessionStore implements SessionStore {
 
   close(): void {
     this.sessions.clear();
+    this.lastRoomByActor.clear();
   }
 }
 
@@ -192,6 +197,10 @@ export class SqliteSessionStore implements SessionStore {
     this.addKindColumn();
     this.addSpaceRoomColumn();
     this.addRoomEntryColumn();
+    this.db.exec(`CREATE TABLE IF NOT EXISTS actor_space_choices (
+      actor_key TEXT PRIMARY KEY,
+      room_name TEXT NOT NULL
+    )`);
     this.db.exec("PRAGMA foreign_keys = ON");
     this.purgeExpired();
   }
@@ -290,7 +299,20 @@ export class SqliteSessionStore implements SessionStore {
   }
 
   enterRoom(sid: string, room: string): void {
-    this.db.prepare("UPDATE sessions SET space_room = ?, requires_room_entry = 0 WHERE sid = ?").run(roomKey(room), sid);
+    const session = this.get(sid);
+    if (!session) return;
+    const wanted = roomKey(room);
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db.prepare("UPDATE sessions SET space_room = ?, requires_room_entry = 0 WHERE sid = ?").run(wanted, sid);
+      this.db.prepare(`INSERT INTO actor_space_choices (actor_key, room_name) VALUES (?, ?)
+        ON CONFLICT(actor_key) DO UPDATE SET room_name = excluded.room_name`)
+        .run(actorKey(session.username), wanted);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   mayInferInDefaultRoom(actorId: string): boolean {
@@ -299,7 +321,10 @@ export class SqliteSessionStore implements SessionStore {
              SUM(CASE WHEN requires_room_entry = 0 AND (space_room IS NULL OR lower(trim(space_room)) = ?) THEN 1 ELSE 0 END) AS in_default
         FROM sessions WHERE lower(trim(username)) = ? AND expires_at > ?
     `).get(DEFAULT_SPACE_ROOM, actorKey(actorId), Date.now()) as { active: number; in_default: number | null };
-    return row.active === 0 || (row.in_default ?? 0) > 0;
+    if (row.active > 0) return (row.in_default ?? 0) > 0;
+    const choice = this.db.prepare("SELECT room_name FROM actor_space_choices WHERE actor_key = ?")
+      .get(actorKey(actorId)) as { room_name: string } | undefined;
+    return roomKey(choice?.room_name ?? DEFAULT_SPACE_ROOM) === DEFAULT_SPACE_ROOM;
   }
 
   destroy(sid: string | undefined): void {
