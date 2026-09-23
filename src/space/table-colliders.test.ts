@@ -55,7 +55,10 @@ describe("colliders on the Go table", () => {
     const tags = scanJsx(readFileSync(SOURCE, "utf8"));
     // Enough of the file to be meaningful, and the specific things we know are there.
     expect(tags.filter((t) => MESH_LIKE.has(t.name)).length).toBeGreaterThan(20);
-    expect(tags.some((t) => t.name === "instancedMesh" && HANDLER.test(t.attrs))).toBe(true);
+    // The glowing points are light only; the board-wide catcher under them
+    // takes the press and snaps it (go-snap.ts).
+    expect(tags.some((t) => t.name === "instancedMesh" && /raycast=\{noRaycast\}/.test(t.attrs) && !HANDLER.test(t.attrs))).toBe(true);
+    expect(tags.some((t) => t.name === "mesh" && /onClick=/.test(t.attrs) && /onPointerMove=/.test(t.attrs))).toBe(true);
     expect(tags.some((t) => /onPointerDown=\{takeTable\}/.test(t.attrs))).toBe(true);
   });
 

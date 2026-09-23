@@ -1,4 +1,4 @@
-import { GO_SURFACE, goBoardWidth, goExtent } from "../../shared/go-layout";
+import { GO_SURFACE, goBoardWidth, goExtent, goRadius } from "../../shared/go-layout";
 import type { GoRoomItem, GoSize } from "../../shared/room-items";
 
 /**
@@ -15,7 +15,8 @@ import type { GoRoomItem, GoSize } from "../../shared/room-items";
  *     Moraine's layout already puts that line for this seating — on the deck in
  *     front of the board for two players, on the board's near margin for more.
  *     MOVE is at the end of the line, where Nikk pointed.
- *   - Opening SETTINGS lays its rows flat ON THE BOARD, as text.
+ *   - Opening SETTINGS lays its rows flat ON THE BOARD, as text, on a cover
+ *     that fades in just above the stones.
  *
  * WHY THE BOARD IS FREE TO WRITE ON. Flat things have no height to hide behind,
  * which is what kept the old floating gear clear of everything; here the
@@ -40,8 +41,23 @@ export type GoControls = {
   line: { y: number; z: number; fontSize: number };
   move: FlatRect;
   settings: FlatRect;
+  /** What the board fades behind while the sheet is open: a board-sized cover, just above the stones. */
+  veil: { y: number; width: number; opacity: number };
   sheet: { y: number; width: number; rowDepth: number; fontSize: number; rows: SheetRow[] };
 };
+
+/**
+ * The top of a stone lying on the board. Stones are spheres squashed to 0.46 of
+ * their radius and rest on the surface, so they stand 0.92 of a radius tall —
+ * about 3 cm.
+ *
+ * The sheet used to lie at the surface, UNDER that: on a board with a game on
+ * it, the stones stood through the rows and covered the words. Baiwei: "it's
+ * not very smooth. Maybe the board with stones could fade out a little bit
+ * while the settings appear." So the sheet lies above the stones, on a cover
+ * that fades in over the board.
+ */
+export const GO_STONE_TOP = GO_SURFACE + goRadius() * 0.46 * 2;
 
 /** More than two seats moves the turn line onto the board, as Moraine's layout does. */
 const isWide = (item: { colours: unknown[] }) => item.colours.length > 2;
@@ -117,8 +133,9 @@ export function goControls(item: Pick<GoRoomItem, "size" | "colours" | "scale" |
     line,
     move,
     settings,
+    veil: { y: GO_STONE_TOP + 0.003, width: boardWidth, opacity: 0.84 },
     sheet: {
-      y: GO_SURFACE + 0.004,
+      y: GO_STONE_TOP + 0.006,
       width: sheetWidth,
       rowDepth,
       fontSize: rowDepth * 0.36,

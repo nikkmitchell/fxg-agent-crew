@@ -13,6 +13,7 @@ import { claimPointer } from "./pointer-claim";
 import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
 import { goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings";
 import { GO_TABLE_POINTERS, goControls, goControlsShown } from "./go-controls";
+import { goSnap, type GoMove } from "./go-snap";
 import { goTableWriter } from "./go-table-writer";
 
 const NAMES = ["Black", "White", "Coral", "Blue", "Gold", "Jade", "Violet", "Rose"];
@@ -48,35 +49,132 @@ function glowTexture(): THREE.DataTexture {
   const texture = new THREE.DataTexture(data, size, size); texture.needsUpdate = true; return texture;
 }
 
-/** One draw call for all legal points, not 625 independent animated lights. */
+/** A vertical fade for the light column: bright at the board, gone at the top. Row 0 is the bottom (DataTexture is not flipped). */
+function columnTexture(): THREE.DataTexture {
+  const rows = 32, data = new Uint8Array(rows * 4);
+  for (let i = 0; i < rows; i++) {
+    const v = Math.round((1 - i / (rows - 1)) ** 1.6 * 255);
+    data.set([v, v, v, 255], i * 4); // alphaMap reads the green channel
+  }
+  const texture = new THREE.DataTexture(data, 1, rows); texture.needsUpdate = true; return texture;
+}
+
+const COLUMN_HEIGHT = 0.16;
+
+/**
+ * The column of light over the point a held stone will land on — Baiwei's
+ * idea: "create a small column of light from that spot so that I'm sure that
+ * I'm putting stone where I want to". Tall enough to see from standing height
+ * across the board, thin enough not to hide the neighbouring points.
+ *
+ * AND A GHOST OF THE STONE ITSELF at its foot. Light on a pale board is faint —
+ * a light-blue column over White's turn barely showed in the first look at it —
+ * but a translucent stone of the right colour, exactly where it will rest, is
+ * unmistakable at any distance.
+ */
+function LightColumn({ x, z, colour, stone, reducedMotion }: { x: number; z: number; colour: string; stone: string; reducedMotion: boolean }) {
+  const texture = useMemo(columnTexture, []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  const glow = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(({ clock }) => { if (glow.current) glow.current.opacity = reducedMotion ? 0.9 : 0.78 + Math.sin(clock.elapsedTime * 6) * 0.14; });
+  const outer = GO_PITCH * 0.2, core = GO_PITCH * 0.05, radius = goRadius();
+  return <group position={[x, GO_SURFACE, z]}>
+    <mesh position-y={radius * 0.46} scale={[radius, radius * 0.46, radius]} raycast={noRaycast}>
+      <sphereGeometry args={[1, 24, 12]} />
+      <meshStandardMaterial color={stone} transparent opacity={0.55} depthWrite={false} roughness={0.3} />
+    </mesh>
+    <mesh position-y={COLUMN_HEIGHT / 2} raycast={noRaycast}>
+      <cylinderGeometry args={[outer, outer * 0.8, COLUMN_HEIGHT, 20, 1, true]} />
+      <meshBasicMaterial ref={glow} color={colour} alphaMap={texture} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+    </mesh>
+    <mesh position-y={COLUMN_HEIGHT * 0.4} raycast={noRaycast}>
+      <cylinderGeometry args={[core, core, COLUMN_HEIGHT * 0.8, 8, 1, true]} />
+      <meshBasicMaterial color="#ffffff" alphaMap={texture} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+    </mesh>
+  </group>;
+}
+
+/**
+ * The legal points glow, and the WHOLE BOARD takes the press: where the laser
+ * meets it is snapped to the nearest free intersection (go-snap.ts), a column
+ * of light rises there, and pressing puts the stone under the column.
+ *
+ * The dots used to be the only targets, each a little smaller than a square:
+ * a ray between two of them pressed nothing, and a shaky one flickered on and
+ * off a dot. They are only light now.
+ */
 function MoveLights({ item, reducedMotion, onPlace }: { item: GoRoomItem; reducedMotion: boolean; onPlace: (x: number, y: number) => void }) {
-  const dots = useRef<THREE.InstancedMesh>(null), material = useRef<THREE.MeshBasicMaterial>(null);
-  const [hover, setHover] = useState<number | null>(null);
+  const dots = useRef<THREE.InstancedMesh>(null), material = useRef<THREE.MeshBasicMaterial>(null), frame = useRef<THREE.Group>(null);
+  const [aim, setAim] = useState<GoMove | null>(null);
+  // Where the column stood when the press went DOWN: that is where the stone
+  // goes, even if the ray shivers before it comes up.
+  const pressed = useRef<GoMove | null>(null);
   const texture = useMemo(glowTexture, []);
   useEffect(() => () => texture.dispose(), [texture]);
   const moves = useMemo(() => item.liftedColour === null ? [] : legalGoMoves(item.stones, item.size, item.activeColour), [item.stones, item.size, item.activeColour, item.liftedColour]);
+  useEffect(() => { setAim(null); pressed.current = null; }, [moves]);
+  const hover = aim ? moves.findIndex((move) => move.x === aim.x && move.y === aim.y) : -1;
   useLayoutEffect(() => {
     if (!dots.current) return;
     const object = new THREE.Object3D(), width = GO_PITCH * 0.88;
     moves.forEach((move, i) => {
       object.position.set(goPoint(move.x, item.size), GO_SURFACE + 0.003, goPoint(move.y, item.size));
-      // Hover brightens, but never enlarges the clickable intersection into its neighbour.
-      object.rotation.x = -Math.PI / 2; object.scale.setScalar(width); object.updateMatrix();
+      object.rotation.x = -Math.PI / 2; object.scale.setScalar(hover === i ? width * 1.25 : width); object.updateMatrix();
       dots.current!.setMatrixAt(i, object.matrix);
-      dots.current!.setColorAt(i, new THREE.Color().setScalar(hover === i ? 1.7 : 1));
+      dots.current!.setColorAt(i, new THREE.Color().setScalar(hover === i ? 2 : 1));
     });
     dots.current.count = moves.length; dots.current.instanceMatrix.needsUpdate = true;
     if (dots.current.instanceColor) dots.current.instanceColor.needsUpdate = true;
     dots.current.computeBoundingSphere();
   }, [moves, item.size, hover]);
   useFrame(({ clock }) => { if (material.current) material.current.opacity = reducedMotion ? 0.8 : 0.62 + Math.sin(clock.elapsedTime * 2.8) * 0.22; });
-  const action = (instanceId?: number) => { const point = moves[instanceId ?? -1]; if (point) onPlace(point.x, point.y); };
-  return <instancedMesh ref={dots} args={[undefined, undefined, item.size * item.size]} frustumCulled={false}
-    onClick={(event) => { event.stopPropagation(); action(event.instanceId); }}
-    onPointerMove={(event) => { event.stopPropagation(); setHover(event.instanceId ?? null); }} onPointerOut={() => setHover(null)}>
-    <planeGeometry args={[1, 1]} />
-    <meshBasicMaterial ref={material} map={texture} color={ACCENTS[item.activeColour]} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
-  </instancedMesh>;
+  const aimAt = (event: ThreeEvent<PointerEvent | MouseEvent>): GoMove | null => {
+    if (!frame.current) return null;
+    const local = frame.current.worldToLocal(event.point.clone());
+    return goSnap({ x: local.x, z: local.z }, moves, item.size);
+  };
+  const catcher = goExtent(item.size) + GO_PITCH;
+  return <group ref={frame}>
+    <instancedMesh ref={dots} args={[undefined, undefined, item.size * item.size]} frustumCulled={false} raycast={noRaycast}>
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial ref={material} map={texture} color={ACCENTS[item.activeColour]} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+    </instancedMesh>
+    {moves.length > 0 && <mesh position={[0, GO_SURFACE + 0.004, 0]} rotation-x={-Math.PI / 2}
+      onPointerMove={(event) => { event.stopPropagation(); setAim(aimAt(event)); }}
+      onPointerOut={() => { setAim(null); pressed.current = null; }}
+      onPointerDown={(event) => { event.stopPropagation(); pressed.current = aimAt(event); }}
+      onClick={(event) => {
+        event.stopPropagation();
+        const at = pressed.current ?? aimAt(event);
+        pressed.current = null;
+        if (at) onPlace(at.x, at.y);
+      }}>
+      <planeGeometry args={[catcher, catcher]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>}
+    {aim && <LightColumn x={goPoint(aim.x, item.size)} z={goPoint(aim.y, item.size)} colour={ACCENTS[item.activeColour]} stone={item.colours[item.activeColour]} reducedMotion={reducedMotion} />}
+  </group>;
+}
+
+/**
+ * What the board fades behind while SETTINGS is open — Baiwei: "Maybe the
+ * board with stones could fade out a little bit while the settings appear."
+ * It fades in and out rather than switching, and lies just above the stones,
+ * under the sheet (go-controls.ts). Drawn before the sheet's words
+ * (renderOrder), so it can never tint them.
+ */
+function Veil({ open, y, width, opacity, reducedMotion }: { open: boolean; y: number; width: number; opacity: number; reducedMotion: boolean }) {
+  const mesh = useRef<THREE.Mesh>(null), material = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame((_, delta) => {
+    if (!mesh.current || !material.current) return;
+    const target = open ? opacity : 0;
+    material.current.opacity = reducedMotion ? target : THREE.MathUtils.damp(material.current.opacity, target, 14, delta);
+    mesh.current.visible = material.current.opacity > 0.01;
+  });
+  return <mesh ref={mesh} position-y={y} rotation-x={-Math.PI / 2} renderOrder={-1} visible={false} raycast={noRaycast}>
+    <planeGeometry args={[width, width]} />
+    <meshBasicMaterial ref={material} color="#ecdcbf" transparent opacity={0} depthWrite={false} />
+  </mesh>;
 }
 
 type StoneTarget = { id: string; at: Point3; colour: string; radius: number; from: Point3 };
@@ -512,6 +610,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     {showControls && !settingsOpen && <TableButton label="⚙ SETTINGS" at={[controls.settings.x, controls.settings.y, controls.settings.z]}
       width={controls.settings.width} depth={controls.settings.depth} fontSize={controls.line.fontSize * 0.8}
       onTap={() => { setNotice(""); setSettingsOpen(true); }} />}
+    <Veil open={showControls && settingsOpen} y={controls.veil.y} width={controls.veil.width} opacity={controls.veil.opacity} reducedMotion={reducedMotion} />
     {showControls && settingsOpen && <group>
       {notice && <Text position={[0, controls.sheet.y, controls.sheet.rows[0].z - controls.sheet.rowDepth]} rotation-x={-Math.PI / 2}
         fontSize={controls.sheet.fontSize * 0.8} maxWidth={controls.sheet.width} color="#ff9f8d" raycast={noRaycast}>{notice}</Text>}

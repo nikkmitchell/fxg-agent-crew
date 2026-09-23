@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GO_SIZES, defaultGoItem, type GoRoomItem, type GoSize } from "../../shared/room-items.js";
-import { goBoardWidth, goBowl } from "../../shared/go-layout.js";
-import { goControls, goControlsShown, type FlatRect } from "./go-controls.js";
+import { GO_SURFACE, goBoardWidth, goBowl, goRadius } from "../../shared/go-layout.js";
+import { GO_STONE_TOP, goControls, goControlsShown, type FlatRect } from "./go-controls.js";
 
 /**
  * The Go table's controls lie flat on the table — Nikk: "it should be like on
@@ -124,6 +124,21 @@ describe("the settings sheet, flat on the board", () => {
     const { sheet } = goControls(table(5, 2));
     for (const row of sheet.rows) for (const button of row.buttons) expect(button.width).toBeGreaterThanOrEqual(0.06);
     expect(sheet.rowDepth).toBeGreaterThanOrEqual(0.06);
+  });
+
+  it("lies ABOVE the stones, on a cover that hides the game behind it", () => {
+    // Baiwei: the board with stones should fade while the settings appear. The
+    // rows used to lie at the surface, and a game's stones stood through them.
+    const stoneTop = GO_SURFACE + goRadius() * 0.46 * 2;
+    expect(GO_STONE_TOP).toBeCloseTo(stoneTop, 9);
+    for (const size of GO_SIZES) {
+      const { veil, sheet } = goControls(table(size, 2));
+      expect(veil.y, `${size}x${size} cover`).toBeGreaterThan(stoneTop);
+      expect(sheet.y, `${size}x${size} rows`).toBeGreaterThan(veil.y);
+      expect(veil.width, `${size}x${size} cover covers the board`).toBeGreaterThanOrEqual(goBoardWidth(size));
+      expect(veil.opacity).toBeGreaterThan(0.5);
+      expect(veil.opacity).toBeLessThan(1); // faded, not gone: the game is still there
+    }
   });
 
   it("says the table's own values", () => {
