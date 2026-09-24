@@ -19,6 +19,7 @@ import { GO_NAMES as NAMES, goStarPoints } from "../../shared/go-text";
 import { countGo } from "../../shared/go-score";
 import { canPass, lastPassLine, noMoveLine, passLabel, resultRows, scoreLine, turnLine, winners } from "./go-status";
 import { goTableWriter } from "./go-table-writer";
+import { bambooPixels, goTextureRepeat, stonePixels } from "./go-textures";
 import { grabHold } from "./grab-hold";
 
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
@@ -54,32 +55,28 @@ function glowTexture(): THREE.DataTexture {
 }
 
 /**
- * Grey carved stone, for the STONE board (go-surfaces.ts): a mottled slab with
- * fine speckle and a few faint veins. A fixed seed, so every person round the
- * table sees the same stone rather than their own random one.
+ * The playing surface's grain: a tile from go-textures.ts, repeated by the
+ * metre so a 5x5 and a 25x25 board have the same grain (card saha-ing-67276601).
+ * The pixels are made once per look and shared; each board gets its own
+ * texture only so it can set its own repeat.
  */
-function stoneTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 512;
-  const ctx = canvas.getContext("2d")!;
-  let seed = 0x5a17e;
-  const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
-  ctx.fillStyle = GO_SURFACE_LOOKS.stone.base; ctx.fillRect(0, 0, 512, 512);
-  for (let n = 0; n < 70; n++) { // soft mottling
-    const light = random() > 0.5;
-    ctx.fillStyle = `rgba(${light ? "220,223,227" : "70,73,78"},${0.025 + random() * 0.035})`;
-    ctx.beginPath(); ctx.arc(random() * 512, random() * 512, 30 + random() * 90, 0, Math.PI * 2); ctx.fill();
+const surfacePixels = new Map<string, Uint8ClampedArray>();
+function surfaceTexture(grain: "wood" | "stone", base: string, width: number): THREE.DataTexture {
+  const key = `${grain}/${base}`, size = 512;
+  let pixels = surfacePixels.get(key);
+  if (!pixels) {
+    pixels = grain === "stone" ? stonePixels(size, base) : bambooPixels(size, base);
+    surfacePixels.set(key, pixels);
   }
-  for (let n = 0; n < 9000; n++) { // speckle
-    const v = Math.round(70 + random() * 120);
-    ctx.fillStyle = `rgba(${v},${v},${v + 4},${0.18 + random() * 0.3})`;
-    ctx.fillRect(random() * 512, random() * 512, 1 + random() * 1.4, 1 + random() * 1.4);
-  }
-  for (let n = 0; n < 6; n++) { // faint veins
-    ctx.strokeStyle = `rgba(210,213,217,${0.08 + random() * 0.08})`; ctx.lineWidth = 0.6 + random() * 1.2;
-    ctx.beginPath(); ctx.moveTo(random() * 512, 0);
-    ctx.bezierCurveTo(random() * 512, 170, random() * 512, 340, random() * 512, 512); ctx.stroke();
-  }
-  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
+  const texture = new THREE.DataTexture(pixels, size, size);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.setScalar(goTextureRepeat(width));
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
   return texture;
 }
 
@@ -477,8 +474,8 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   const wood = useMemo(woodTexture, []);
   useEffect(() => () => wood.dispose(), [wood]);
   const look = GO_SURFACE_LOOKS[item.surface] ?? GO_SURFACE_LOOKS.bamboo;
-  const carved = useMemo(() => look.grain === "stone" ? stoneTexture() : null, [look.grain]);
-  useEffect(() => () => carved?.dispose(), [carved]);
+  const surface = useMemo(() => surfaceTexture(look.grain, look.base, goBoardWidth(item.size)), [look.grain, look.base, item.size]);
+  useEffect(() => () => surface.dispose(), [surface]);
   const radius = goRadius(item.size);
   const targets = useMemo(() => {
     const result: StoneTarget[] = item.stones.map((stone) => {
@@ -813,7 +810,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       <meshPhysicalMaterial color={carrying ? look.rimCarrying : look.rim} roughness={look.grain === "stone" ? 0.7 : 0.38} clearcoat={look.grain === "stone" ? 0.05 : 0.4} />
     </RoundedBox>
     <RoundedBox args={[boardWidth, 0.025, boardWidth]} radius={0.01} smoothness={3} position={[0, GO_SURFACE - 0.0125, 0]} receiveShadow raycast={noRaycast}>
-      <meshPhysicalMaterial map={carved ?? wood} roughness={look.roughness} clearcoat={look.clearcoat} />
+      <meshPhysicalMaterial map={surface} roughness={look.roughness} clearcoat={look.clearcoat} />
     </RoundedBox>
     {item.deskVisible && [-1, 1].flatMap((x) => [-1, 1].map((z) => <mesh key={`${x}-${z}`} position={[x * edge * 0.6, 0.34, z * edge * 0.6]} castShadow raycast={noRaycast}>
       <cylinderGeometry args={[0.07, 0.045, 0.68, 12]} /><meshStandardMaterial color="#382720" roughness={0.4} />
