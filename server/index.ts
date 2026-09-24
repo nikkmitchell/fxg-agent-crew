@@ -275,13 +275,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     );
     // ONE ROOM, ONE PROJECT (Nikk 4586): a new room gets its project, linked,
     // and the room shows it from the start; joining or entering a room enrols
-    // you in its project if its link says being there is enough, which for a
-    // new room means it was made with a password (see createRoomProject).
+    // you in its project if its link says being there is enough.
     const enrolInRoom = (session: Session, roomName: string) =>
       actorBook.enrolFromRoom(session.username, roomName, session.kind);
     registerRoomRoutes(scoped, config, sessions, client, {
-      created: (session, roomName, locked) => {
-        const projectId = actorBook.createRoomProject({ id: session.username, kind: session.kind }, roomName, locked);
+      created: (session, roomName, visibility) => {
+        const projectId = actorBook.createRoomProject({ id: session.username, kind: session.kind }, roomName, visibility);
         roomShowing.set(roomKey(roomName), { projectId, boardId: null }, session.username, new Date().toISOString());
       },
       joined: enrolInRoom,
