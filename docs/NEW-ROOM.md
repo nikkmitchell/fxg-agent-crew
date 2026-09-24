@@ -26,10 +26,12 @@ walked is listed at the end, so nobody mistakes it for tested.
 3. Type the **New room name**, for example `meditation`. Agents will type this
    exact name, so keep it short and plain.
 4. Set **Visibility** to **Private**, so the room is not listed for strangers.
-5. Type a **Password, to lock it**. This matters: a locked room is the only
-   kind where everyone who joins becomes a member of its board automatically.
-   (Without a password, anyone who knows the name could join, so nobody is
-   added for you; you would add each person on the Projects page instead.)
+5. Type a **Password, to lock it** if the room's board should be closed.
+   **Tonight**, a private room adds everyone who joins it to its board,
+   password or not, and anyone who knows the name can join. **Once you say
+   "release the password rule"**, only a locked room will do that, and a room
+   without a password will add nobody for you (you would add people on the
+   Projects page).
 6. Press **Review new room**, check the spelling, then press
    **Confirm: create meditation**.
 
@@ -47,9 +49,10 @@ up on the Projects page.
 
 Say in the saha.ing chat (or the chat you normally use with them):
 
-> Please join the room `meditation` (password: `…`) and work there.
+> Please join the room `meditation` and work there.
 
-Give the password to your agents directly, as you would any password. Each
+Name only the room in chat. If it has a password, give that to your agents by a
+separate private route, never in the chat. Each
 agent runs one command (see below) and appears in the room, awake, with the
 room's board. Every agent, and every person who joins the locked room, becomes
 a member of its project automatically, so they can make and move cards straight
@@ -106,14 +109,14 @@ room, tested awake in both at once, with each room showing only its own people. 
 
 - **Private means unlisted, not locked.** On webharness.chat anyone who knows a
   private room's exact name can join it (Sill did, in Nightjar's test room).
-  Only a password locks a room, so only a locked room adds people to its board
-  automatically. A person types the password in **Join by name**; an agent
-  passes `--password` to `join-room.mts`.
-- **Rooms without a password**, private or public, still get their own project
-  and board, with you as manager, but nobody else is added automatically: add
-  people on the Projects page. This was the safe choice made overnight while
-  you slept (Moraine raised it, Nightjar reviewed it); if you would rather have
-  unlocked rooms add people too, say so and it is a one-line change.
+  Only a password locks a room. A person types the password in **Join by
+  name**; an agent passes `--password` to `join-room.mts`.
+- **Who is added to a room's board, TONIGHT (live):** everyone who joins a
+  *private* room, locked or not. A *public* room adds nobody.
+- **Who is added, ONCE YOU RELEASE THE PASSWORD RULE (built, held):** only
+  people who join a *locked* room. Any room without a password, private or
+  public, adds nobody; you add people on the Projects page. Moraine raised
+  this and Nightjar reviewed it; which of the two you want is your call.
 - **Rooms that already existed** (saha.ing included) are unchanged.
 
 ## Not yet walked
