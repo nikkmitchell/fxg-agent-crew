@@ -3,6 +3,14 @@
  *
  *   export WEBHARNESS_HOME="$HOME/.webharness/agents/<you>"
  *   pnpm exec tsx tools/join-room.mts <room>
+ *   pnpm exec tsx tools/join-room.mts <room> --password <password>   (a locked room)
+ *
+ * A PASSWORD IS WHAT LOCKS A ROOM. On webharness.chat "private" only means
+ * unlisted: anyone with the name can join, and joining a room enrols you in its
+ * project's board. So a room meant for invited people has a password, and its
+ * owner gives it to each agent they bring in. It is sent to webharness.chat
+ * once, to join, and never printed, logged or kept: after joining you are a
+ * member and never need it again.
  *
  * Nikk (4582): "I can make a new room for building a new project and bring in
  * my agents and me to work on it". Every piece existed — joining the chat room,
@@ -32,7 +40,13 @@ import { signIn } from "./saha-session.mts";
 
 const room = process.argv[2];
 if (!room || room.startsWith("-")) {
-  console.error("usage: pnpm exec tsx tools/join-room.mts <room>   (the room's exact name)");
+  console.error("usage: pnpm exec tsx tools/join-room.mts <room> [--password <password>]   (the room's exact name)");
+  process.exit(2);
+}
+const passwordAt = process.argv.indexOf("--password");
+const password = passwordAt === -1 ? undefined : process.argv[passwordAt + 1];
+if (passwordAt !== -1 && !password) {
+  console.error("--password needs the room's password after it");
   process.exit(2);
 }
 if (!process.env.WEBHARNESS_HOME) {
@@ -51,6 +65,7 @@ import json, os, sys
 sys.path.insert(0, os.path.expanduser("~/.webharness"))
 import inbox
 room = sys.argv[1]
+password = os.environ.get("JOIN_ROOM_PASSWORD") or None
 me, token = inbox.login()
 code, _ = inbox.request("GET", f"/api/rooms/{room}", token=token)
 if code == 200:
@@ -58,14 +73,20 @@ if code == 200:
 elif code == 404:
     print(json.dumps({"me": me, "state": "missing"}))
 else:
-    # Not a member yet (403): join. ONLY roomName — anything else can create.
-    jc, jp = inbox.request("POST", "/api/rooms", {"roomName": room}, token=token)
+    # Not a member yet (403): join with the name (and the password, for a
+    # locked room). The 404 above already ruled out creating one by mistake.
+    body = {"roomName": room}
+    if password:
+        body["password"] = password
+    jc, jp = inbox.request("POST", "/api/rooms", body, token=token)
     created = isinstance(jp, dict) and jp.get("created") is True
     print(json.dumps({"me": me, "state": "joined" if jc in (200, 201) and not created else "refused", "code": jc}))
 `,
       room,
     ],
-    { env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" }, encoding: "utf8" },
+    // The password travels in the environment of this one child process, not on
+    // its command line, where any other process on the machine could read it.
+    { env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat", ...(password ? { JOIN_ROOM_PASSWORD: password } : {}) }, encoding: "utf8" },
   ).trim(),
 ) as { me: string; state: "member" | "joined" | "missing" | "refused"; code?: number };
 
@@ -74,7 +95,7 @@ if (joined.state === "missing") {
   process.exit(1);
 }
 if (joined.state === "refused") {
-  console.error(`webharness.chat would not let ${joined.me} join "${room}" (${joined.code}). A private room may need its owner to let you in.`);
+  console.error(`webharness.chat would not let ${joined.me} join "${room}" (${joined.code}).${password ? " Check the password with the room's owner." : " If the room has a password, ask its owner for it and add --password <password>."}`);
   process.exit(1);
 }
 console.log(`1. chat room: ${joined.state === "member" ? "already a member of" : "joined"} "${room}" as ${joined.me}`);
