@@ -5,13 +5,13 @@ import * as THREE from "three";
 import type { GoRoomItem, RoomItem } from "../../shared/room-items";
 import { legalGoMoves } from "../../shared/go-rules";
 import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goBowlScale, goDeckWidth, goBowl, goPoint, goRadius, goTray, goLocal, goTouchBowl, type Point3 } from "../../shared/go-layout";
-import { goCarryPoint, idleGoTouch, stepGoTouch } from "../../shared/go-touch";
+import { heldStoneWorld, idleGoTouch, restOnBoard, stepGoTouch } from "../../shared/go-touch";
 import type { WirePerson } from "../../shared/space-wire";
 import { goHandInput } from "./go-hand-input";
 import { space } from "../space-client";
 import { claimPointer } from "./pointer-claim";
 import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
-import { goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings";
+import { CONFIRM_DELETE_MS, goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings";
 import { GO_TABLE_POINTERS, goControls, goControlsShown } from "./go-controls";
 import { goSnap, type GoMove } from "./go-snap";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
@@ -339,7 +339,9 @@ function TableButton({ label, at, onTap, width = 0.24, depth = 0.105, fontSize =
 type TableContext = { you: string | null; peopleRef: RefObject<WirePerson[]>;
   items: RoomItem[]; reservations: RefObject<Map<string, { id: string; until: number }>>;
   /** Apply a table as the server just answered with it — see withFresher. */
-  onItem: (item: RoomItem) => void };
+  onItem: (item: RoomItem) => void;
+  /** Take a table out of the room here, now: it was deleted. */
+  onRemoved: (id: string) => void };
 function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMotion: boolean; context: TableContext }) {
   const [notice, setNotice] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -433,11 +435,18 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       const side = item.carrier.hand;
       const sample = goHandInput[side];
       const remote = context.peopleRef.current.find((person) => person.actorId === item.carrier!.by)?.hands[side];
-      const world = item.carrier.by === context.you
-        ? sample && now - sample.at < 120 ? sample.carry : null
-        : remote ? goCarryPoint(remote) : null;
+      // YOUR STONE IS AT YOUR FINGERTIP, where the touch that plays it is (Nikk
+      // 4452). It floated at the palm while the fingertip played the board. See
+      // heldStoneWorld in shared/go-touch.ts.
+      const yours = item.carrier.by === context.you;
+      const world = heldStoneWorld({
+        yours,
+        fingertip: sample && now - sample.at < 120 ? sample.contact : null,
+        theirWrist: remote ?? null,
+      });
       if (world) {
-        const p = goLocal(world, item);
+        const local = goLocal(world, item);
+        const p = yours ? restOnBoard(local, radius * 0.46) : local;
         // Tracking is functional motion, never disabled by reduced-motion preference.
         liftAge.current += delta;
         const amount = reducedMotion || liftAge.current > 0.35 ? 1 : 1 - Math.exp(-delta * 14);
@@ -617,17 +626,49 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     listenWhileCarrying();
   };
 
+  /**
+   * DELETE THIS BOARD, in two presses. The first arms it and says what the
+   * second will do; the second, within CONFIRM_DELETE_MS, deletes. A game is
+   * the one thing here that cannot be put back, and a laser from across the
+   * room is exactly how a button gets pressed by accident.
+   */
+  const [deleteArmedAt, setDeleteArmedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (deleteArmedAt === null) return;
+    const disarm = setTimeout(() => setDeleteArmedAt(null), CONFIRM_DELETE_MS);
+    return () => clearTimeout(disarm);
+  }, [deleteArmedAt]);
+  const deleteTable = async () => {
+    try {
+      await space.removeRoomItem(item.id);
+      context.onRemoved(item.id);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not delete the table.");
+    }
+  };
+
   const onSetting = (id: string) => {
-    const change = goSettingFor(item, id);
+    const change = goSettingFor(item, id, Date.now(), deleteArmedAt);
     if (!change) return;
+    if (change.kind !== "delete") setDeleteArmedAt(null);
     if (change.kind === "close") { setSettingsOpen(false); return; }
     if (change.kind === "refused") { setNotice(change.why); return; }
+    if (change.kind === "delete") {
+      if (!change.confirmed) {
+        setDeleteArmedAt(Date.now());
+        setNotice(goSettingCost(item, change) ?? "");
+        return;
+      }
+      setDeleteArmedAt(null);
+      void deleteTable();
+      return;
+    }
     setNotice(goSettingCost(item, change) ?? "");
     const request = goSettingRequest(item, id);
     if (request) void configure(request, (fresh) => goSettingRequest(fresh, id));
   };
 
-  const controls = useMemo(() => goControls(item), [item]);
+  const controls = useMemo(() => goControls(item, deleteArmedAt !== null), [item, deleteArmedAt]);
   const showControls = goControlsShown(item);
   // Lifting a stone puts the glowing intersections on the board the sheet was
   // lying on, so the sheet closes rather than waiting underneath them.
@@ -761,9 +802,9 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   </group>;
 }
 
-export function RoomItems({ items, reducedMotion, you = null, peopleRef, onItem }: { items: RoomItem[]; reducedMotion: boolean; you?: string | null; peopleRef?: RefObject<WirePerson[]>; onItem?: (item: RoomItem) => void }) {
+export function RoomItems({ items, reducedMotion, you = null, peopleRef, onItem, onRemoved }: { items: RoomItem[]; reducedMotion: boolean; you?: string | null; peopleRef?: RefObject<WirePerson[]>; onItem?: (item: RoomItem) => void; onRemoved?: (id: string) => void }) {
   const emptyPeople = useRef<WirePerson[]>([]), reservations = useRef(new Map<string, { id: string; until: number }>());
-  const context = { you, peopleRef: peopleRef ?? emptyPeople, items, reservations, onItem: onItem ?? (() => {}) };
+  const context = { you, peopleRef: peopleRef ?? emptyPeople, items, reservations, onItem: onItem ?? (() => {}), onRemoved: onRemoved ?? (() => {}) };
   return <group onPointerDown={(event) => { claimPointer(event.nativeEvent); event.stopPropagation(); }}>
     {items.map((item) => <GoTable key={item.id} item={item} reducedMotion={reducedMotion} context={context} />)}
   </group>;

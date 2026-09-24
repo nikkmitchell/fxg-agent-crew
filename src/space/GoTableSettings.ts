@@ -31,13 +31,34 @@ export type GoSettingChange =
   | { kind: "desk"; shown: boolean }
   | { kind: "surface"; surface: GoSurface }
   | { kind: "reset" }
+  /** The first press asks; only a second press, soon after, deletes. See CONFIRM_DELETE_MS. */
+  | { kind: "delete"; confirmed: boolean }
   | { kind: "close" }
   /** Pressed a limit — say so rather than doing nothing silently. */
   | { kind: "refused"; why: string };
 
-export function goSettingFor(item: GoRoomItem, id: string): GoSettingChange | null {
+/**
+ * How long a first press on DELETE stays armed. Long enough to read "press
+ * again to delete" and press it; short enough that a stray press much later is
+ * a first press again, not the one that throws a game away.
+ */
+export const CONFIRM_DELETE_MS = 4_000;
+
+/**
+ * `deleteArmedAt` is when DELETE was last pressed, or null — the table keeps
+ * it, because the question is the person's, not the server's.
+ */
+export function goSettingFor(
+  item: GoRoomItem,
+  id: string,
+  now = Date.now(),
+  deleteArmedAt: number | null = null,
+): GoSettingChange | null {
   if (id === "go:close") return { kind: "close" };
   if (id === "go:reset") return { kind: "reset" };
+  if (id === "go:delete") {
+    return { kind: "delete", confirmed: deleteArmedAt !== null && now - deleteArmedAt <= CONFIRM_DELETE_MS };
+  }
 
   if (id === "go:size:less" || id === "go:size:more") {
     const size = stepGoSize(item.size, id.endsWith(":more") ? 1 : -1);
@@ -85,6 +106,11 @@ export function goSettingFor(item: GoRoomItem, id: string): GoSettingChange | nu
  * and cannot undo.
  */
 export function goSettingCost(item: GoRoomItem, change: GoSettingChange): string | null {
+  if (change.kind === "delete" && !change.confirmed) {
+    return item.stones.length > 0
+      ? `press DELETE again to remove this board and its game of ${item.stones.length} stone${item.stones.length === 1 ? "" : "s"}`
+      : "press DELETE again to remove this board";
+  }
   if (change.kind === "size" && item.stones.length > 0) return "this clears the board";
   if (change.kind === "players" && change.players < item.colours.length) {
     const losing = item.stones.filter((stone) => stone.colour >= change.players).length;

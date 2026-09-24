@@ -120,6 +120,9 @@ export const space = {
     }),
   /** The tables as they are now — for catching up after being told one changed. */
   roomItems: () => requestJson<{ items: RoomItem[] }>(`${root}/items`),
+  /** Delete a table for good. Answers with the room's tables as they now are. */
+  removeRoomItem: (id: string) =>
+    requestJson<{ items: RoomItem[] }>(`${root}/items/${encodeURIComponent(id)}`, { method: "DELETE" }),
   addRoomItem: () => requestJson<{ item: RoomItem }>(`${root}/items`, {
     method: "POST", body: JSON.stringify({ kind: "go" }),
   }),

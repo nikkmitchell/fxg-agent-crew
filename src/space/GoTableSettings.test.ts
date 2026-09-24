@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GO_PLAYERS, GO_SIZES, defaultGoItem, type GoRoomItem } from "../../shared/room-items.js";
-import { goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings.js";
+import { CONFIRM_DELETE_MS, goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings.js";
 
 const table = (over: Partial<GoRoomItem> = {}): GoRoomItem => ({ ...defaultGoItem("t"), ...over });
 
@@ -93,5 +93,33 @@ describe("what a press sends, and what its retry sends", () => {
     const nowIs = table({ colours: ["a", "b", "c", "d"] });
     expect(goSettingRequest(pressedAgainst, "go:players:more")).toEqual({ players: 3 });
     expect(goSettingRequest(nowIs, "go:players:more")).toEqual({ players: 5 });
+  });
+});
+
+/**
+ * Nikk (4452): "we need to adjust it so that you can delete a go board, so in
+ * settings there should also be a button for delete this board". A game is the
+ * one thing here that cannot be put back, so it takes two presses.
+ */
+describe("deleting the board", () => {
+  const t0 = 1_000_000;
+
+  it("does not delete on the first press; it says what the second will do", () => {
+    const busy = table({ stones: [{ id: "a", x: 1, y: 1, colour: 0 }, { id: "b", x: 2, y: 2, colour: 1 }] });
+    const first = goSettingFor(busy, "go:delete", t0, null);
+    expect(first).toEqual({ kind: "delete", confirmed: false });
+    expect(goSettingCost(busy, first!)).toMatch(/press DELETE again .* 2 stones/);
+  });
+
+  it("deletes on a second press soon after the first", () => {
+    expect(goSettingFor(table(), "go:delete", t0 + CONFIRM_DELETE_MS, t0)).toEqual({ kind: "delete", confirmed: true });
+  });
+
+  it("treats a press long after the first as a first press again", () => {
+    expect(goSettingFor(table(), "go:delete", t0 + CONFIRM_DELETE_MS + 1, t0)).toEqual({ kind: "delete", confirmed: false });
+  });
+
+  it("is never sent as a settings change: deleting is its own request", () => {
+    expect(goSettingRequest(table(), "go:delete")).toBeNull();
   });
 });

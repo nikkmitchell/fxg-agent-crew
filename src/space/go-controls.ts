@@ -72,7 +72,11 @@ function turnTextHalf(fontSize: number): number {
   return 13 * 0.6 * fontSize * 0.5;
 }
 
-export function goControls(item: Pick<GoRoomItem, "size" | "colours" | "scale" | "deskVisible" | "surface">): GoControls {
+export function goControls(
+  item: Pick<GoRoomItem, "size" | "colours" | "scale" | "deskVisible" | "surface">,
+  /** DELETE has been pressed once and is waiting for the second press. */
+  deleteArmed = false,
+): GoControls {
   const size = item.size as GoSize;
   const extent = goExtent(size);
   const boardWidth = goBoardWidth(size);
@@ -128,7 +132,24 @@ export function goControls(item: Pick<GoRoomItem, "size" | "colours" | "scale" |
       label: "DESK",
       buttons: [{ id: "go:desk", label: item.deskVisible ? "ON" : "OFF", x: right - (button + value) / 2, width: button + value }],
     },
-    whole("go:reset", "CLEAR THE STONES"),
+    /**
+     * CLEAR and DELETE share a row. Nikk (4452): "in settings there should also
+     * be a button for delete this board". Seven rows is what fits a 5×5 board
+     * at a size you can hit, so it is not an eighth row. DELETE says what the
+     * second press will do once it has been pressed once.
+     */
+    {
+      label: "",
+      buttons: [
+        { id: "go:reset", label: "CLEAR STONES", x: -(sheetWidth - pad * 2 + gap) / 4, width: (sheetWidth - pad * 2 - gap) / 2 },
+        {
+          id: "go:delete",
+          label: deleteArmed ? "SURE? DELETE" : "DELETE BOARD",
+          x: (sheetWidth - pad * 2 + gap) / 4,
+          width: (sheetWidth - pad * 2 - gap) / 2,
+        },
+      ],
+    },
     whole("go:close", "DONE"),
   ];
   if (rows.length !== ROWS) throw new Error(`the sheet is laid out for ${ROWS} rows, not ${rows.length}`);

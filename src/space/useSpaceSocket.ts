@@ -36,6 +36,8 @@ export type SpaceStatus =
 export type SpaceConnection = {
   /** Apply a table as the server just answered with it. Never goes backwards. */
   applyRoomItem: (item: RoomItem) => void;
+  /** Take a deleted table out now, rather than waiting on a socket that may be reconnecting. */
+  removeRoomItem: (id: string) => void;
   status: SpaceStatus;
   /** Live positions, read every frame by the renderer. Never a React state. */
   peopleRef: RefObject<WirePerson[]>;
@@ -344,9 +346,11 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
    * time, and until it does every change to that table is refused as stale.
    */
   const applyRoomItem = useCallback((item: RoomItem) => setRoomItems((current) => withFresher(current, item)), []);
+  const removeRoomItem = useCallback((id: string) => setRoomItems((current) => current.filter((item) => item.id !== id)), []);
 
   return {
     applyRoomItem,
+    removeRoomItem,
     status,
     peopleRef,
     roster,

@@ -37,6 +37,11 @@ export class RoomItems {
     this.database.prepare("INSERT INTO audit (at, actor_id, action, entity, entity_id, before, after) VALUES (?, ?, 'play', 'go_table', ?, NULL, ?)")
       .run(new Date().toISOString(), by, goTableEntityId(tableId, colour), JSON.stringify(point));
   }
+  /** Take a table out of the room for good. True when there was one to take. */
+  remove(room: string, id: string): boolean {
+    const result = this.database.prepare("DELETE FROM space_items WHERE room = ? AND id = ?").run(roomKey(room), id);
+    return Number(result.changes) > 0;
+  }
   save(room: string, item: RoomItem, by: string): void {
     this.database.prepare("UPDATE space_items SET state_json = ?, updated_by = ?, updated_at = ? WHERE room = ? AND id = ?")
       .run(JSON.stringify(item), by, new Date().toISOString(), roomKey(room), item.id);
@@ -57,6 +62,25 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     const session = requireSession(request, reply); if (!session) return reply;
     if (request.body?.kind !== "go") return reply.code(400).send({ code: "BAD_KIND", error: "the first room item is a Go table" });
     const room = spaceRoomOf(session); const item = options.items.add(room, session.username); publish(room, session.username); return reply.code(201).send({ item });
+  });
+  /**
+   * DELETE THIS BOARD. Nikk (4452): "we need to adjust it so that you can
+   * delete a go board, so in settings there should also be a button for delete
+   * this board". The press is confirmed on the table (a second press); this is
+   * the deletion itself.
+   *
+   * NOT WHILE SOMEBODY ELSE IS CARRYING IT: a table vanishing out of another
+   * person's hands is the same surprise the grab lock exists to prevent.
+   */
+  app.delete<{ Params: { id: string } }>("/bff/space/items/:id", async (request, reply) => {
+    const session = requireSession(request, reply); if (!session) return reply;
+    const room = spaceRoomOf(session);
+    const item = options.items.one(room, request.params.id);
+    if (!item) return reply.code(404).send({ error: "room item not found" });
+    const heldBy = options.holds?.heldByOther(room, `item:${item.id}`, session.username);
+    if (heldBy) return reply.code(409).send({ code: "HELD", heldBy, error: heldBySentence(heldBy) });
+    options.items.remove(room, item.id);
+    return reply.send({ items: publish(room, session.username) });
   });
   app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; players?: unknown; reset?: unknown; position?: unknown; scale?: unknown; revision?: unknown; deskVisible?: unknown; surface?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;

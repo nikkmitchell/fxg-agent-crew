@@ -104,8 +104,15 @@ describe("the settings sheet, flat on the board", () => {
     expect(ids).toEqual(expect.arrayContaining([
       "go:surface:less", "go:surface:more",
       "go:size:less", "go:size:more", "go:players:less", "go:players:more",
-      "go:scale:less", "go:scale:more", "go:desk", "go:reset", "go:close",
+      "go:scale:less", "go:scale:more", "go:desk", "go:reset", "go:delete", "go:close",
     ]));
+  });
+
+  it("says what the second press on DELETE will do, once it has been pressed", () => {
+    const label = (armed: boolean) =>
+      goControls(table(9, 2), armed).sheet.rows.flatMap((row) => row.buttons).find((b) => b.id === "go:delete")!.label;
+    expect(label(false)).toBe("DELETE BOARD");
+    expect(label(true)).toBe("SURE? DELETE");
   });
 
   it("never overlaps two buttons, or two rows", () => {

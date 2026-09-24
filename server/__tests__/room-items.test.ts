@@ -142,3 +142,58 @@ describe("Go actions", () => {
     } finally { await app.close(); }
   });
 });
+
+/**
+ * Nikk (4452): "we need to adjust it so that you can delete a go board, so in
+ * settings there should also be a button for delete this board".
+ */
+describe("deleting a table", () => {
+  const boot = () => {
+    const built = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    const cookie = (name: string) => `${built.config.cookieName}=${built.sessions.create(name, "t", "human")}`;
+    const remove = (who: string, id: string) =>
+      built.app.inject({ method: "DELETE", url: `/bff/space/items/${id}`, headers: { cookie: cookie(who) } });
+    return { ...built, cookie, remove, items: new RoomItems(built.database) };
+  };
+
+  it("takes the table out of the room and answers with what is left", async () => {
+    const { app, items, remove } = boot();
+    try {
+      const doomed = items.add("saha.ing", "Nikk2");
+      const kept = items.add("saha.ing", "Nikk2");
+      const response = await remove("Nikk2", doomed.id);
+      expect(response.statusCode).toBe(200);
+      expect(response.json().items.map((item: { id: string }) => item.id)).toEqual([kept.id]);
+      expect(items.one("saha.ing", doomed.id)).toBeNull();
+    } finally { await app.close(); }
+  });
+
+  it("says so for a table that is not there", async () => {
+    const { app, remove } = boot();
+    try {
+      expect((await remove("Nikk2", "no-such-table")).statusCode).toBe(404);
+    } finally { await app.close(); }
+  });
+
+  it("cannot reach a table in another room", async () => {
+    const { app, items, remove } = boot();
+    try {
+      const elsewhere = items.add("lobby", "Sill");
+      expect((await remove("Nikk2", elsewhere.id)).statusCode).toBe(404);
+      expect(items.one("lobby", elsewhere.id)).not.toBeNull();
+    } finally { await app.close(); }
+  });
+
+  /** A table vanishing out of somebody's hands is what the grab lock exists to prevent. */
+  it("will not delete a table somebody else is carrying", async () => {
+    const { app, items, remove, cookie } = boot();
+    try {
+      const table = items.add("saha.ing", "Nikk2");
+      await app.inject({ method: "POST", url: "/bff/space/holds", headers: { cookie: cookie("baiwei2") }, payload: { thing: `item:${table.id}`, held: true } });
+      const refused = await remove("Nikk2", table.id);
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json()).toMatchObject({ code: "HELD", heldBy: "baiwei2" });
+      expect(items.one("saha.ing", table.id)).not.toBeNull();
+    } finally { await app.close(); }
+  });
+});

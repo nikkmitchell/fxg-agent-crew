@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { defaultGoItem } from "./room-items";
 import { goBowl, GO_SURFACE } from "./go-layout";
-import { goCarryPoint, idleGoTouch, stepGoTouch } from "./go-touch";
+import { goCarryPoint, heldStoneWorld, idleGoTouch, restOnBoard, stepGoTouch } from "./go-touch";
+import { goTouchIntersection } from "./go-layout";
 
 describe("Go hand/controller contacts", () => {
   const item = defaultGoItem("touch");
@@ -51,5 +52,44 @@ describe("Go hand/controller contacts", () => {
     step = stepGoTouch(step.state, { ...input, now: 700 }); expect(step.action).toBeNull();
     step = stepGoTouch(step.state, { ...input, now: 879 }); expect(step.action).toBeNull();
     step = stepGoTouch(step.state, { ...input, now: 880 }); expect(step.action).toEqual({ action: "place", x: 4, y: 4 });
+  });
+});
+
+/**
+ * Nikk (4452): "the touch position is not where the stone floats to ... the
+ * stone should float out to the position of where the collider is, so you move
+ * the stone that's floating down and you can place it".
+ */
+describe("where a lifted stone floats", () => {
+  const wrist = { p: { x: 0.1, y: 1.0, z: 0.2 }, q: { x: 0, y: 0, z: 0, w: 1 } };
+  const fingertip = { x: 0.12, y: 0.9, z: 0.05 };
+
+  it("is at YOUR fingertip, the point that plays it, not your palm", () => {
+    const at = heldStoneWorld({ yours: true, fingertip, theirWrist: wrist });
+    expect(at).toEqual(fingertip);
+    expect(at).not.toEqual(goCarryPoint(wrist));
+  });
+
+  it("so a stone held over an intersection is the stone that gets played there", () => {
+    // The contact that places is the fingertip; the stone is drawn at the same
+    // point, so what you see over the board is exactly where it will land.
+    const over = { x: 0, y: GO_SURFACE + 0.03, z: 0 };
+    const drawn = heldStoneWorld({ yours: true, fingertip: over, theirWrist: null });
+    expect(goTouchIntersection(drawn!, 9)).toEqual(goTouchIntersection(over, 9));
+  });
+
+  it("follows somebody else's palm, because only a wrist crosses the socket", () => {
+    expect(heldStoneWorld({ yours: false, fingertip, theirWrist: wrist })).toEqual(goCarryPoint(wrist));
+  });
+
+  it("stays where it was when there is no fresh hand, rather than a remembered one", () => {
+    expect(heldStoneWorld({ yours: true, fingertip: null, theirWrist: wrist })).toBeNull();
+    expect(heldStoneWorld({ yours: false, fingertip, theirWrist: null })).toBeNull();
+  });
+
+  it("rests ON the board as the finger reaches it, never sunk into it", () => {
+    const half = 0.01;
+    expect(restOnBoard({ x: 0, y: GO_SURFACE - 0.02, z: 0 }, half).y).toBe(GO_SURFACE + half);
+    expect(restOnBoard({ x: 0, y: GO_SURFACE + 0.05, z: 0 }, half).y).toBe(GO_SURFACE + 0.05);
   });
 });
