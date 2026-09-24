@@ -64,7 +64,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (request.body?.size !== undefined) {
       if (!isGoSize(request.body.size)) return reply.code(400).send({ error: "size must be 5, 9, 13, 19, or 25" });
       if ((item.moveNumber > 0 && !item.gameOver) || item.liftedColour !== null || item.turnActor !== null)
-        return reply.code(409).send({ error: "finish the current game or complete the picked-up turn before resetting the board" });
+        return reply.code(409).send({ error: "finish the current game or put the picked-up stone back before resetting the board" });
       item.size = request.body.size; item.stones = []; item.liftedColour = null;
       item.activeColour = 0; item.turnActor = null;
       item.previousPosition = null; item.moveNumber = 0; item.consecutivePasses = 0; item.gameOver = false; item.score = null;
@@ -84,14 +84,24 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (!Number.isInteger(request.body?.expectedMoveNumber) || request.body?.expectedMoveNumber !== item.moveNumber)
       return reply.code(409).send({ error: "the board changed; refresh it and choose again", code: "STALE_GO_TURN" });
     const action = request.body?.action;
-    if (action !== "lift" && action !== "place") return reply.code(400).send({ error: "action must be lift or place" });
+    if (action !== "lift" && action !== "place" && action !== "return") return reply.code(400).send({ error: "action must be lift, place, or return" });
     if (item.gameOver) return reply.code(409).send({ error: "this game has ended; resize the board to start a fresh game" });
     const playerSeat = item.seats.findIndex((seat) => seat?.toLocaleLowerCase("en-US") === session.username.toLocaleLowerCase("en-US"));
-    if (item.mode === "seated") {
+    if (item.mode === "roles") {
       if (playerSeat < 0) return reply.code(409).send({ error: "choose an open bowl to claim a color before playing" });
       if (playerSeat !== item.activeColour) return reply.code(409).send({ error: "it is another player's turn" });
     } else if (item.turnActor && goActorKey(item.turnActor) !== goActorKey(session.username)) {
       return reply.code(409).send({ error: "another player has picked up this turn" });
+    }
+    if (action === "return") {
+      if (item.liftedColour !== item.activeColour) return reply.code(409).send({ error: "there is no picked-up stone to return" });
+      if (item.mode === "open") {
+        if (!item.turnActor || goActorKey(item.turnActor) !== goActorKey(session.username))
+          return reply.code(409).send({ error: "only the person holding this Open turn can return its stone" });
+        item.turnActor = null;
+      }
+      item.liftedColour = null;
+      options.items.save(room, item, session.username); publish(room, session.username); return reply.send({ item });
     }
     const card = options.items.playerCard(room, item.id, session.username);
     if (card?.style === "observer") return reply.code(409).send({ error: "your Go card is set to observe, so it will not make a move" });
@@ -128,8 +138,9 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (!item) return reply.code(404).send({ error: "room item not found" });
     const actorKey = session.username.toLocaleLowerCase("en-US");
     if (request.body?.action === "mode") {
-      const mode = request.body.mode;
-      if (mode !== "open" && mode !== "seated") return reply.code(400).send({ error: "mode must be open or seated" });
+      const requestedMode = request.body.mode;
+      if (requestedMode !== "open" && requestedMode !== "roles" && requestedMode !== "seated") return reply.code(400).send({ error: "mode must be open or roles" });
+      const mode: GoMode = requestedMode === "open" ? "open" : "roles";
       if (item.moveNumber > 0 || item.stones.length > 0 || item.liftedColour !== null || item.turnActor !== null)
         return reply.code(409).send({ error: "choose a mode before the first move" });
       if (item.mode === mode) return reply.send({ item });
@@ -140,7 +151,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       return reply.send({ item });
     }
     if (request.body?.action === "sit") {
-      if (item.mode !== "seated") return reply.code(409).send({ error: "switch to Seated mode to claim a color" });
+      if (item.mode !== "roles") return reply.code(409).send({ error: "switch to Roles mode to claim a color" });
       const current = item.seats.findIndex((seat) => seat?.toLocaleLowerCase("en-US") === actorKey);
       const requested = request.body.colour;
       const colour = requested === undefined ? (current >= 0 ? current : item.seats.findIndex((seat) => seat === null)) : requested;
@@ -157,8 +168,9 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     }
     if (request.body?.action === "stand") {
       const seat = item.seats.findIndex((owner) => owner?.toLocaleLowerCase("en-US") === actorKey);
-      if (seat < 0) return reply.code(409).send({ error: "you are not seated at this table" });
+      if (seat < 0) return reply.code(409).send({ error: "you have no color role at this table" });
       item.seats[seat] = null;
+      if (item.liftedColour === seat) item.liftedColour = null;
       if (item.activeColour === seat) item.activeColour = nextColour(item, seat);
       options.items.save(room, item, session.username); publish(room, session.username);
       return reply.send({ item, seat: null });
@@ -183,11 +195,11 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       return reply.code(409).send({ error: "the board changed; refresh it and choose again", code: "STALE_GO_TURN" });
     if (item.gameOver) return reply.code(409).send({ error: "this game has ended; resize the board to start a fresh game" });
     const seat = item.seats.findIndex((owner) => owner?.toLocaleLowerCase("en-US") === session.username.toLocaleLowerCase("en-US"));
-    if (item.mode === "seated" && seat < 0) return reply.code(409).send({ error: "choose an open bowl to claim a color before playing" });
+    if (item.mode === "roles" && seat < 0) return reply.code(409).send({ error: "choose an open bowl to claim a color before playing" });
     if (item.mode === "open" && item.turnActor && goActorKey(item.turnActor) !== goActorKey(session.username))
       return reply.code(409).send({ error: "another player has picked up this turn" });
     const colour = item.mode === "open" ? item.activeColour : seat;
-    if (item.mode === "seated" && colour !== item.activeColour) return reply.code(409).send({ error: "it is another player's turn" });
+    if (item.mode === "roles" && colour !== item.activeColour) return reply.code(409).send({ error: "it is another player's turn" });
     const card = options.items.playerCard(room, item.id, session.username);
     if (!card) return reply.code(409).send({ error: "choose your own Go play card before asking for an agent move" });
     if (card.style === "observer") return reply.code(409).send({ error: "your Go card is set to observe, so it will not make a move" });
@@ -219,8 +231,8 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
 }
 
 function nextColour(item: RoomItem, from: number): number {
-  const seated = item.seats.map((seat, index) => seat ? index : -1).filter((index) => index >= 0);
-  const candidates = seated.length ? seated : item.colours.map((_, index) => index);
+  const assigned = item.seats.map((seat, index) => seat ? index : -1).filter((index) => index >= 0);
+  const candidates = assigned.length ? assigned : item.colours.map((_, index) => index);
   const after = candidates.find((index) => index > from);
   return after ?? candidates[0] ?? 0;
 }

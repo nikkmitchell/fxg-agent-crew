@@ -12,7 +12,7 @@ export type GoRisk = (typeof GO_RISKS)[number];
 export type GoPlayCard = { style: GoStyle; risk: GoRisk; signature: string };
 
 export type GoStone = { x: number; y: number; colour: number };
-export type GoMode = "open" | "seated";
+export type GoMode = "open" | "roles";
 export type GoScore = { area: number[]; komi: number[]; totals: number[]; winner: number | null };
 export type GoRoomItem = {
   id: string;
@@ -23,7 +23,7 @@ export type GoRoomItem = {
   liftedColour: number | null;
   /** Open mode grants only the current move to the first actor who lifts the active stone. */
   turnActor: string | null;
-  /** Open: no lasting color ownership. Seated: players claim a persistent bowl/color. */
+  /** Open: no lasting color ownership. Roles: players claim a persistent bowl/color. */
   mode: GoMode;
   stones: GoStone[];
   /** Public seat ownership; personal play preferences are stored separately. */
@@ -72,11 +72,14 @@ export function parseRoomItem(value: unknown): RoomItem | null {
   const lifted = item.liftedColour;
   if (lifted !== null && (!Number.isInteger(lifted) || lifted! < 0 || lifted! >= item.colours.length)) return null;
   // Existing saved tables predate modes and were seat-only; preserve their behavior.
-  const mode = item.mode ?? "seated";
+  // "seated" was the first name used for color-role assignment. Keep saved
+  // rooms readable, but expose the clearer, non-spatial name from now on.
+  const rawMode: unknown = item.mode ?? "roles";
+  if (rawMode !== "open" && rawMode !== "roles" && rawMode !== "seated") return null;
+  const mode: GoMode = rawMode === "open" ? "open" : "roles";
   const turnActor = item.turnActor ?? null;
   const score = item.score ?? null;
-  if ((mode !== "open" && mode !== "seated") ||
-      (turnActor !== null && (typeof turnActor !== "string" || turnActor.length === 0 || turnActor.length > 128)) ||
+  if ((turnActor !== null && (typeof turnActor !== "string" || turnActor.length === 0 || turnActor.length > 128)) ||
       (score !== null && (!Array.isArray(score.area) || !Array.isArray(score.komi) || !Array.isArray(score.totals) ||
         score.area.length !== item.colours.length || score.komi.length !== item.colours.length || score.totals.length !== item.colours.length ||
         ![...score.area, ...score.komi, ...score.totals].every(Number.isFinite) ||

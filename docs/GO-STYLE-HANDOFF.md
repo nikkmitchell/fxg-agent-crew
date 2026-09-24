@@ -1,16 +1,16 @@
 # Saha Go: gameplay and style handoff
 
-Status: implemented locally in the shared lobby worktree; not deployed. The
-checkout also contains other in-progress lobby edits, so this work has not been
-committed or pushed separately.
+Status: published to `feat/lobby-multiple-rooms-inkstone`; not deployed. The
+checkout still contains unrelated in-progress co-op edits that remain local.
 
 ## What works now
 
 - Two explicit modes are available before the first move. **Open** (the default)
   has no persistent player/color assignment: the first actor to lift the glowing
-  stone owns only that turn, then the next color is open again. **Seated** lets
+  stone owns only that turn, then the next color is open again. **Roles** lets
   an actor claim a bowl/color; choosing a bowl is the role assignment, and
-  turns rotate among seated colors. Black still opens even if white claims a
+  turns rotate among assigned colors. This is color ownership only; avatars
+  remain free to move through the XR workspace. Black still opens even if white claims a
   bowl first. The table can add bowls before play for multi-color house games.
 - Each player can privately choose a play card: patient, tactical,
   experimental, casual, or observer; plus cautious, balanced, or bold risk and
@@ -31,7 +31,8 @@ committed or pushed separately.
   leave controls. Cards live in a separate table and are not included in the
   room-item snapshot or socket broadcast; seat ownership is public. Setup
   controls switch modes and add bowls before play; a finished game offers a
-  new-game control that keeps its mode and seated roles.
+  new-game control that keeps its mode and color roles. A picked-up stone can
+  be returned without playing; the board and turn remain unchanged.
 - Portable onboarding lives in `public/skills/saha-go/SKILL.md`; the shared
   guide and copyable invite make it discoverable without enrolling anyone.
 
@@ -49,9 +50,9 @@ no shared rating or model training.
 ## Agent turn contract
 
 1. Read `GET /bff/space/items` once and select the table. New tables start in
-   Open mode. To join a persistent role, switch to Seated before the first move
-   using `{"action":"mode","mode":"seated"}`.
-2. In Seated mode, read `GET /bff/space/items/{id}/player` and claim a color
+   Open mode. To join a persistent role, switch to Roles before the first move
+   using `{"action":"mode","mode":"roles"}`.
+2. In Roles mode, read `GET /bff/space/items/{id}/player` and claim a color
    using `{"action":"sit","colour":N}`; the first bowl you choose is your
    role. In Open mode, leave seats empty; the first actor to submit the current
    turn gets only that move, and a manual player first lifts the glowing stone.
@@ -66,10 +67,10 @@ no shared rating or model training.
 
 - `npm run build` passed, including client and server TypeScript builds. Vite
   emitted the existing large-chunk warning.
-- Focused Go tests pass (17 tests) for capture, suicide, simple ko, area scoring,
+- Focused Go tests pass (18 tests) for capture, suicide, simple ko, area scoring,
   style differentiation, observer behavior, old-state parsing, private cards,
   both turn modes, role selection, atomic style moves, stale turns, and passing.
-- The full suite covered 1,784 tests: 1,775 passed and 9 failed in
+- The full suite covered 1,785 tests: 1,776 passed and 9 failed in
   unrelated Windows/platform assumptions (path separators, Linux-style path
   expectations, number-grouping whitespace, `bash` spawn restrictions, and
   process spawning). The same nine environment-sensitive failures occurred on
@@ -79,6 +80,9 @@ no shared rating or model training.
 
 ## Next useful work
 
+- Room items, stones, and turn state are stored in SQLite and have no idle
+  expiry; they remain available across later visits as long as the room
+  database is retained. There is no forced avatar location or turn timeout.
 - Add dead-stone marking and a dispute/resume scoring phase if the room wants
   closer-to-standard game completion.
 - Do visual QA for the new table controls in flat browser and XR, especially

@@ -96,28 +96,32 @@ position. Do not silently turn practice notes into a permanent shared rating.
 Choose the table's mode before play. **Open** (the default) has no assigned
 players: whoever first lifts the glowing stone, or submits the current one-shot
 move, owns only that turn. The next color is open again after the move. In
-**Seated**, choose an available bowl to take that color for the game; bowl
-selection is your role choice, and turns rotate among claimed colors. Black
+**Roles** means choosing an available bowl to take that color for the game;
+this is only a game role, not a physical seat or avatar position. You remain
+free to move around the XR workspace. Turns rotate among claimed colors; Black
 still starts. Additional bowls can be added before the first move for a
 multi-color house game. Your card and signature stay private in either mode;
-bowl/seat ownership and the active turn are public.
+bowl/color ownership and the active turn are public.
 
 For a low-compute agent move, read `GET /bff/space/items`, note the table's
 `moveNumber`, then make one `POST /bff/space/items/{id}/play` with
 `{"action":"suggest","expectedMoveNumber":N}`. In Open mode, this claims and
-plays only the current turn; in Seated mode, it also checks your color seat.
+plays only the current turn; in Roles mode, it also checks your assigned color.
 The server checks your card, turn, legality, and freshness, then applies the
 move in one request. A stale-turn refusal means refresh the item once; do not
 poll or resend the stale request. You can also send `action:"pass"`. Humans may
 use visible lift-and-place; in Open mode, lifting the glowing stone claims the
-turn before placement.
+turn before placement. If you need to step away mid-turn, use **Put Back**: the
+stone returns to its bowl and the position/turn stay exactly as they were.
 
 The server enforces captures, suicide, simple ko, occupied points, turn
 ownership, and consecutive passes. The game ends after every active color
 passes once and displays a lightweight area score (stones plus empty regions
 bordered by one color; 6.5 komi to white in two-color games). It does **not**
 mark dead stones or allow a dispute/resume scoring phase, so treat the result
-as an MVP estimate, not tournament adjudication. Extra bowls make a
+as an MVP estimate, not tournament adjudication. The table has no idle timeout;
+its room-item state stays saved between visits while the room database is
+retained, and no avatar is anchored to a bowl. Extra bowls make a
 multi-color house variant, not standard Go. The suggestion scans legal points
 once and ranks simple local features; it does no deep search. A signature or
 motif remains private inspiration and is not yet consumed by the move ranker.

@@ -15,7 +15,7 @@ describe("playing Go together", () => {
     const white = { cookie: as("White") };
     const unseated = { cookie: as("Visitor") };
     const id = (await app.inject({ method: "POST", url: "/bff/space/items", headers: black, payload: { kind: "go" } })).json().item.id;
-    await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: black, payload: { action: "mode", mode: "seated" } });
+    await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: black, payload: { action: "mode", mode: "roles" } });
 
     const visitorMove = await app.inject({ method: "POST", url: `/bff/space/items/${id}/action`, headers: unseated,
       payload: { action: "lift", expectedMoveNumber: 0 } });
@@ -47,7 +47,7 @@ describe("playing Go together", () => {
     const white = { cookie: as("Sill") };
     const created = await app.inject({ method: "POST", url: "/bff/space/items", headers: black, payload: { kind: "go" } });
     const id = created.json().item.id as string;
-    await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: black, payload: { action: "mode", mode: "seated" } });
+    await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: black, payload: { action: "mode", mode: "roles" } });
 
     expect((await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: black, payload: { action: "sit", colour: 0 } })).statusCode).toBe(200);
     expect((await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: white, payload: { action: "sit", colour: 1 } })).statusCode).toBe(200);
@@ -88,7 +88,7 @@ describe("playing Go together", () => {
     const headers = { cookie: as("Observer") };
     const unseated = { cookie: as("Unseated") };
     const id = (await app.inject({ method: "POST", url: "/bff/space/items", headers, payload: { kind: "go" } })).json().item.id;
-    await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers, payload: { action: "mode", mode: "seated" } });
+    await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers, payload: { action: "mode", mode: "roles" } });
     await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers, payload: { action: "sit", colour: 0 } });
     await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers, payload: { action: "card", style: "observer", risk: "balanced" } });
     const denied = await app.inject({ method: "POST", url: `/bff/space/items/${id}/play`, headers: unseated,
@@ -102,12 +102,12 @@ describe("playing Go together", () => {
     await app.close();
   });
 
-  it("ends the game after every seated player passes once", async () => {
+  it("ends the game after every assigned color passes once", async () => {
     const { app, as } = boot();
     const black = { cookie: as("Black") };
     const white = { cookie: as("White") };
     const id = (await app.inject({ method: "POST", url: "/bff/space/items", headers: black, payload: { kind: "go" } })).json().item.id;
-    await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: black, payload: { action: "mode", mode: "seated" } });
+    await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: black, payload: { action: "mode", mode: "roles" } });
     for (const [headers, colour] of [[black, 0], [white, 1]] as const) {
       await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers, payload: { action: "sit", colour } });
       await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers, payload: { action: "card", style: "casual", risk: "balanced" } });
@@ -138,23 +138,32 @@ describe("playing Go together", () => {
       payload: { action: "lift", expectedMoveNumber: 0 } });
     expect(blocked.statusCode).toBe(409);
     expect(blocked.json().error).toMatch(/picked up this turn/);
+    const returned = await app.inject({ method: "POST", url: `/bff/space/items/${id}/action`, headers: first,
+      payload: { action: "return", expectedMoveNumber: 0 } });
+    expect(returned.json().item).toMatchObject({ moveNumber: 0, activeColour: 0, turnActor: null, liftedColour: null, seats: [null, null] });
+    const secondLift = await app.inject({ method: "POST", url: `/bff/space/items/${id}/action`, headers: second,
+      payload: { action: "lift", expectedMoveNumber: 0 } });
+    expect(secondLift.json().item.turnActor).toBe("Second");
     const placed = await app.inject({ method: "POST", url: `/bff/space/items/${id}/action`, headers: first,
       payload: { action: "place", x: 2, y: 2, expectedMoveNumber: 0 } });
-    expect(placed.json().item).toMatchObject({ moveNumber: 1, activeColour: 1, turnActor: null, seats: [null, null] });
+    expect(placed.statusCode).toBe(409);
+    const finalPlace = await app.inject({ method: "POST", url: `/bff/space/items/${id}/action`, headers: second,
+      payload: { action: "place", x: 2, y: 2, expectedMoveNumber: 0 } });
+    expect(finalPlace.json().item).toMatchObject({ moveNumber: 1, activeColour: 1, turnActor: null, seats: [null, null] });
     const activeReset = await app.inject({ method: "PATCH", url: `/bff/space/items/${id}`, headers: first, payload: { size: 9 } });
     expect(activeReset.statusCode).toBe(409);
     const modeChange = await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: first,
-      payload: { action: "mode", mode: "seated" } });
+      payload: { action: "mode", mode: "roles" } });
     expect(modeChange.statusCode).toBe(409);
     await app.close();
   });
 
-  it("lets the first bowl picker choose their lasting role in Seated mode", async () => {
+  it("lets the first bowl picker choose their lasting color role", async () => {
     const { app, as } = boot();
     const white = { cookie: as("White") };
     const id = (await app.inject({ method: "POST", url: "/bff/space/items", headers: white, payload: { kind: "go" } })).json().item.id;
     await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: white,
-      payload: { action: "mode", mode: "seated" } });
+      payload: { action: "mode", mode: "roles" } });
     const choseWhite = await app.inject({ method: "PUT", url: `/bff/space/items/${id}/player`, headers: white,
       payload: { action: "sit", colour: 1 } });
     expect(choseWhite.json()).toMatchObject({ seat: 1, item: { activeColour: 0, seats: [null, "White"] } });

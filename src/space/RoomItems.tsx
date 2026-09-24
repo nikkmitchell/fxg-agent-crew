@@ -42,16 +42,16 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
       setCard(next); setNotice("");
     } catch (error) { setNotice(messageOf(error)); }
   };
-  const chooseMode = async (mode: "open" | "seated") => {
+  const chooseMode = async (mode: "open" | "roles") => {
     try {
       await space.setGoPlayer(item.id, { action: "mode", mode });
-      setSeat(-1); setNotice(mode === "open" ? "Open play: pick up the glowing stone to claim one turn." : "Seated play: choose a bowl to claim a color.");
+      setSeat(-1); setNotice(mode === "open" ? "Open play: pick up the glowing stone to claim one turn." : "Color roles: choose a bowl; your avatar stays free to move.");
     } catch (error) { setNotice(messageOf(error)); }
   };
   const addBowl = async () => {
     try {
       const { item: next } = await space.configureGo(item.id, { addBowl: true });
-      setNotice(`Stone bowl ${next.colours.length} added. ${item.mode === "seated" ? "Choose it to claim that color." : "Open turns stay unassigned."}`);
+      setNotice(`Stone bowl ${next.colours.length} added. ${item.mode === "roles" ? "Choose it to claim that color." : "Open turns stay unassigned."}`);
     } catch (error) { setNotice(messageOf(error)); }
   };
   const restart = async () => {
@@ -72,6 +72,12 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
       setNotice(next.score ? `Game complete · ${scoreSummary(next)}` : "Passed.");
     } catch (error) { setNotice(messageOf(error)); }
   };
+  const returnStone = async () => {
+    try {
+      await space.actOnGo(item.id, { action: "return", expectedMoveNumber: item.moveNumber });
+      setNotice("Stone returned. Board and turn are unchanged, ready whenever you come back.");
+    } catch (error) { setNotice(messageOf(error)); }
+  };
   const stand = async () => {
     try {
       await space.setGoPlayer(item.id, { action: "stand" });
@@ -83,6 +89,8 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
   const canTakeTurn = item.mode === "open"
     ? (!item.turnActor || sameActor(item.turnActor, actorId))
     : seat === item.activeColour;
+  const canReturnStone = Boolean(actorId && item.liftedColour === item.activeColour &&
+    (item.mode === "open" ? sameActor(item.turnActor, actorId) : seat === item.activeColour));
   const canChooseSetup = item.moveNumber === 0 && !item.turnActor && item.liftedColour === null;
   const canUseCard = Boolean(actorId && canTakeTurn && card && card.style !== "observer" && !item.gameOver);
   const bowlPosition = (index: number): [number, number, number] => {
@@ -129,11 +137,11 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
           if (item.mode === "open" && actorId && active && canTakeTurn && !item.gameOver) {
             void space.actOnGo(item.id, { action: "lift", expectedMoveNumber: item.moveNumber }).then(() => setNotice("Your turn is claimed. Place a stone on the board."))
               .catch((error) => setNotice(messageOf(error)));
-          } else if (item.mode === "seated" && actorId && seat < 0 && !owner) {
+          } else if (item.mode === "roles" && actorId && seat < 0 && !owner) {
             void space.setGoPlayer(item.id, { action: "sit", colour: index }).then((answer) => {
               setSeat(answer.seat ?? index); setNotice("");
             }).catch((error) => setNotice(messageOf(error)));
-          } else if (item.mode === "seated" && active && seat === index && !item.gameOver) {
+          } else if (item.mode === "roles" && active && seat === index && !item.gameOver) {
             void space.actOnGo(item.id, { action: "lift", expectedMoveNumber: item.moveNumber }).catch((error) => setNotice(messageOf(error)));
           }
         }}>
@@ -147,11 +155,11 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
         </group>;
       })}
       {actorId && <group>
-        {(["open", "seated"] as const).map((mode, index) => {
+        {(["open", "roles"] as const).map((mode, index) => {
           const selected = item.mode === mode;
           return <group key={mode} position={[(index - 1) * 0.33, 1.31, -0.6]} onClick={(event) => { event.stopPropagation(); if (!selected && canChooseSetup) void chooseMode(mode); }}>
             <mesh><planeGeometry args={[0.29, 0.065]} /><meshBasicMaterial color={selected ? "#80694b" : canChooseSetup ? "#302b27" : "#242326"} transparent opacity={0.94} /></mesh>
-            <Text position={[0, 0, 0.006]} fontSize={0.033} color="#fff4df" anchorX="center" anchorY="middle">{mode === "open" ? "OPEN" : "SEATED"}</Text>
+            <Text position={[0, 0, 0.006]} fontSize={0.033} color="#fff4df" anchorX="center" anchorY="middle">{mode === "open" ? "OPEN" : "ROLES"}</Text>
           </group>;
         })}
         {item.moveNumber === 0 && !item.turnActor && item.liftedColour === null && item.colours.length < 8 && <group position={[0.33, 1.31, -0.6]} onClick={(event) => { event.stopPropagation(); void addBowl(); }}>
@@ -161,7 +169,7 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
         <Text position={[0, 1.19, -0.6]} fontSize={0.046} color="#f1d8aa" anchorX="center" anchorY="middle">
           {item.mode === "open"
             ? (item.turnActor ? (sameActor(item.turnActor, actorId) ? "YOUR TURN · PLACE A STONE" : `TURN HELD · ${item.turnActor.slice(0, 16)}`) : "OPEN PLAY · PICK UP THE GLOWING STONE")
-            : (seat < 0 ? "CHOOSE A BOWL TO CLAIM THAT COLOR" : `YOUR COLOR · STONE ${seat + 1}`)}
+            : (seat < 0 ? "CHOOSE A COLOR ROLE · MOVE FREELY" : `YOUR COLOR · STONE ${seat + 1} · MOVE FREELY`)}
         </Text>
         {GO_STYLES.map((style, index) => {
           const x = (index - (GO_STYLES.length - 1) / 2) * 0.24;
@@ -180,17 +188,18 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
               <Text position={[0, 0, 0.006]} fontSize={0.03} color="#f1d8aa" anchorX="center" anchorY="middle">{risk.toUpperCase()}</Text>
             </group>;
           })}
-        {canUseCard ? <group position={[0, 0.83, -0.6]} onClick={(event) => { event.stopPropagation(); void playStyleMove(); }}>
+          {canUseCard ? <group position={[0, 0.83, -0.6]} onClick={(event) => { event.stopPropagation(); void playStyleMove(); }}>
             <mesh><planeGeometry args={[0.7, 0.075]} /><meshBasicMaterial color="#476b58" transparent opacity={0.96} /></mesh>
             <Text position={[0, 0, 0.006]} fontSize={0.035} color="white" anchorX="center" anchorY="middle">PLAY MY STYLE MOVE · {item.moveNumber + 1}</Text>
-        </group> : null}
+          </group> : null}
+        </group>}
+        {canUseCard && !canReturnStone ? <Text position={[0, 0.74, -0.6]} fontSize={0.035} color="#f1d8aa" anchorX="center" anchorY="middle" onClick={(event) => { event.stopPropagation(); void pass(); }}>PASS</Text> : null}
+        {canReturnStone && <Text position={[0, 0.74, -0.6]} fontSize={0.035} color="#f1d8aa" anchorX="center" anchorY="middle" onClick={(event) => { event.stopPropagation(); void returnStone(); }}>PUT BACK · KEEP TURN</Text>}
         {item.gameOver && <group position={[0, 0.83, -0.6]} onClick={(event) => { event.stopPropagation(); void restart(); }}>
           <mesh><planeGeometry args={[0.7, 0.075]} /><meshBasicMaterial color="#476b58" transparent opacity={0.96} /></mesh>
           <Text position={[0, 0, 0.006]} fontSize={0.035} color="white" anchorX="center" anchorY="middle">START A NEW GAME</Text>
         </group>}
-          {canUseCard ? <Text position={[0, 0.74, -0.6]} fontSize={0.035} color="#f1d8aa" anchorX="center" anchorY="middle" onClick={(event) => { event.stopPropagation(); void pass(); }}>PASS</Text> : null}
-        </group>}
-        {seat >= 0 && <Text position={[0.55, 0.74, -0.6]} fontSize={0.032} color="#f1d8aa" anchorX="center" anchorY="middle" onClick={(event) => { event.stopPropagation(); void stand(); }}>LEAVE</Text>}
+        {seat >= 0 && <Text position={[0.55, 0.74, -0.6]} fontSize={0.032} color="#f1d8aa" anchorX="center" anchorY="middle" onClick={(event) => { event.stopPropagation(); void stand(); }}>LEAVE ROLE</Text>}
         {notice && <Text position={[0, 0.68, -0.6]} fontSize={0.035} color="#ffb39c" anchorX="center" anchorY="middle">{notice.slice(0, 90)}</Text>}
       </group>}
       <Text position={[0, 0.48, -0.91]} rotation={[0, 0, 0]} fontSize={0.09} color="#f1d8aa" anchorX="center" anchorY="middle">

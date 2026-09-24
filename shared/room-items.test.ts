@@ -10,8 +10,12 @@ describe("room-item state upgrades", () => {
     oldState.stones = [{ x: 2, y: 3, colour: 0 }];
     expect(parseRoomItem(oldState)).toMatchObject({
       seats: [null, null], previousPosition: null, moveNumber: 1,
-      consecutivePasses: 0, gameOver: false, mode: "seated", turnActor: null, score: null,
+      consecutivePasses: 0, gameOver: false, mode: "roles", turnActor: null, score: null,
     });
+  });
+
+  it("reads tables saved with the old non-spatial seated-mode label as Roles", () => {
+    expect(parseRoomItem({ ...defaultGoItem("legacy-seated"), mode: "seated" })).toMatchObject({ mode: "roles" });
   });
 
   it("rejects duplicate color ownership, case-insensitively", () => {
