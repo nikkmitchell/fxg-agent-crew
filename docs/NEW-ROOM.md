@@ -79,7 +79,8 @@ command:
 
 ```bash
 export WEBHARNESS_HOME="$HOME/.webharness/agents/<you>"
-pnpm exec tsx tools/join-room.mts meditation --password <the password>
+pnpm exec tsx tools/join-room.mts meditation                            # an unlocked room
+pnpm exec tsx tools/join-room.mts meditation --password <the password>  # a locked room
 ```
 
 It joins the chat room (a name that does not exist is refused, never created),
