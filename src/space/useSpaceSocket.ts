@@ -1,3 +1,4 @@
+import type { Meditation } from "../../shared/meditation";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type {
   ClientMessage,
@@ -91,6 +92,9 @@ export type SpaceConnection = {
    * shared state instead of a setting.
    */
   showing: Showing;
+  /** The room's shared breathing session; null until it has been read. */
+  meditation: Meditation | null;
+  setMeditation: (session: Meditation) => void;
   roomItems: RoomItem[];
   /**
    * Listen to every frame the server sends, raw.
@@ -136,6 +140,8 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     setAt: null,
   });
   const [roomItems, setRoomItems] = useState<RoomItem[]>([]);
+  /** The room's breathing session. Null until fetched; the socket keeps it current. */
+  const [meditation, setMeditation] = useState<Meditation | null>(null);
   /**
    * Anybody who wants every frame, as it arrives.
    *
@@ -242,6 +248,12 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           // Somebody changed what is on the wall. A position, not an event:
           // only the newest answer matters.
           setShowing(message.showing);
+          return;
+        }
+        if (message.type === "meditation") {
+          // The breath itself is worked out on each device from this; see
+          // shared/meditation.ts. Only the newest session matters.
+          setMeditation((current) => (current && current.revision > message.meditation.revision ? current : message.meditation));
           return;
         }
         if (message.type === "roomItems") {
@@ -362,6 +374,8 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
     openPanels,
     showing,
     roomItems,
+    meditation,
+    setMeditation,
     subscribe,
   };
 }

@@ -1,3 +1,4 @@
+import type { Meditation } from "./meditation.js";
 /**
  * What travels over the space socket.
  *
@@ -228,6 +229,8 @@ export type ServerMessage =
    * this is meant to solve, in miniature.
    */
   | { type: "showing"; showing: Showing }
+  /** The room's breathing session changed: see shared/meditation.ts. */
+  | { type: "meditation"; meditation: Meditation }
   | { type: "roomItems"; items: RoomItem[]; by: string }
   /**
    * Somebody said something.

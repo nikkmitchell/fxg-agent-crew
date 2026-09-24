@@ -1018,4 +1018,19 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE screen_share_keys ADD COLUMN room TEXT NOT NULL DEFAULT 'saha.ing';
     `,
   },
+  {
+    id: 31,
+    name: "each room's breathing orb",
+    sql: `
+      -- Whether a room has the meditation orb, its pattern and length, and any
+      -- session running (shared/meditation.ts). One row per room, as JSON,
+      -- because the shape belongs to the client and server together.
+      CREATE TABLE space_meditation (
+        room TEXT PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];

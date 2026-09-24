@@ -31,6 +31,7 @@ import { BoardReads } from "./db/reads.js";
 import { BoardStore } from "./db/store.js";
 import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
 import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
+import { RoomMeditations, registerMeditationRoutes } from "./space/meditation.js";
 import { Utterances, registerUtteranceRoutes } from "./space/utterances.js";
 import { registerSpeechRoutes, speakWith, speechCache } from "./space/speak.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
@@ -213,6 +214,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // is passed in so a choice can be checked against what actually exists
   // rather than stored and discovered wrong by everybody at once later.
   const roomShowing = new RoomShowing(database, new BoardReads(database));
+  // The breathing session each room shares, in memory: see space/meditation.ts.
+  const roomMeditations = new RoomMeditations(database);
   const roomItems = new RoomItems(database);
   // One for the whole server: a panel's hold and the Go table's must be the
   // same registry the place and move routes consult, or the lock locks nothing.
@@ -343,6 +346,13 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       config,
       announce: (room, showing) => hubFor(room).broadcast({ type: "showing", showing }),
+    });
+    registerMeditationRoutes(scoped, {
+      config,
+      sessions,
+      meditations: roomMeditations,
+      present: (room) => hubFor(room).presence.everyone().filter((one) => one.connected).map((one) => one.actorId),
+      announce: (room, meditation) => hubFor(room).broadcast({ type: "meditation", meditation }),
     });
     registerRoomItemRoutes(scoped, {
       config,

@@ -4,6 +4,7 @@ import type { Placement, Showing } from "../shared/space-wire";
 import type { Utterance, UtteranceInput } from "../shared/voice";
 import type { AvatarControl, AvatarState } from "../shared/avatar-motion";
 import type { AgentHome } from "../shared/agent-home";
+import type { Meditation, MeditationChange } from "../shared/meditation";
 import type { GoSize, GoSurface, RoomItem } from "../shared/room-items";
 
 /**
@@ -133,5 +134,11 @@ export const space = {
   actOnGo: (id: string, action: ({ action: "lift"; colour?: number; hand?: "left" | "right" } | { action: "place"; x: number; y: number } | { action: "pass"; colour?: number } | { action: "return" }) & { revision?: number }) =>
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}/action`, {
       method: "POST", body: JSON.stringify(action),
+    }),
+  /** The room's breathing session, with the server's clock to line ours up to. */
+  meditation: () => requestJson<{ meditation: Meditation; now: number }>(`${root}/meditation`),
+  meditate: (change: MeditationChange & { revision?: number }) =>
+    requestJson<{ meditation: Meditation; now: number }>(`${root}/meditation`, {
+      method: "POST", body: JSON.stringify(change),
     }),
 };
