@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { DETAIL_LIMIT, SPOKEN_LIMIT, splitSpoken, type Utterance, type UtteranceInput } from "../../shared/voice";
 import type { SpaceConnection } from "./useSpaceSocket";
 import { createSteadyRecorder, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
-import { readAloud } from "./said-aloud";
+import { queueAloud } from "./said-aloud";
 import { space } from "../space-client";
 import { holdReload, inSession } from "../update-reload";
 import { volumeAt } from "./agent-voice";
@@ -55,7 +55,8 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const inputRef = useRef<SteadyRecorder | null>(null);
-  const outputRef = useRef<SpeechOutput | null>(null);
+  /** Every line queued here and not yet heard end — see queueAloud. */
+  const outputRef = useRef(new Set<SpeechOutput>());
   const consideredUtteranceRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -69,9 +70,23 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
     return () => inputRef.current?.dispose();
   }, []);
 
+  /**
+   * STOP TALKING THE MOMENT THE MICROPHONE OPENS, or sound is turned off. This
+   * used to happen as a side effect of every new line cancelling the last;
+   * lines now wait their turn instead (see queueAloud), so it is said plainly:
+   * the speaker must never feed a reply back into active recognition.
+   */
   useEffect(() => {
-    outputRef.current?.cancel();
-    outputRef.current = null;
+    if (!listening && hearReplies) return;
+    for (const line of outputRef.current) line.cancel();
+    outputRef.current.clear();
+  }, [listening, hearReplies]);
+  useEffect(() => () => {
+    for (const line of outputRef.current) line.cancel();
+    outputRef.current.clear();
+  }, []);
+
+  useEffect(() => {
     const utterance = connection.liveUtterance;
     if (!utterance || consideredUtteranceRef.current === utterance.id) return;
     // Mark it even while playback is off or the microphone is open. Enabling
@@ -89,15 +104,20 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
     const me = find(you);
     // The box's own rendering of this line, in the speaker's chosen voice, with
     // the browser's synthesiser behind it. See said-aloud.ts.
-    outputRef.current = readAloud({
+    // IN TURN, NOT OVER THE TOP: a new line used to cancel the one playing.
+    let line: SpeechOutput | null = null;
+    line = queueAloud({
       utteranceId: utterance.id,
       say: utterance.say ?? "",
       speaker: utterance.actorId,
       volume: volumeAt(speaker && me ? Math.hypot(speaker.at.x - me.at.x, speaker.at.z - me.at.z) : null),
-      onPhase: (phase) => setSpeaking(phase === "speaking"),
+      onPhase: (phase) => {
+        setSpeaking(phase === "speaking");
+        if (phase === "idle" && line) outputRef.current.delete(line);
+      },
       onFailure: (failure) => setNotice(failure.message),
     });
-    return () => outputRef.current?.cancel();
+    outputRef.current.add(line);
   }, [connection.liveUtterance, hearReplies, listening, you]);
 
   const send = async () => {

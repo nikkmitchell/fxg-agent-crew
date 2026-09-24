@@ -5,7 +5,7 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
-import { VOICE_SAMPLE, cacheName, registerSpeechRoutes, speakWith, speechCache, timeoutFor, type Speaker } from "../space/speak.js";
+import { MOST_WAITING, VOICE_SAMPLE, cacheName, registerSpeechRoutes, speakWith, speechCache, timeoutFor, type Speaker } from "../space/speak.js";
 import type { Utterance } from "../../shared/voice.js";
 
 /**
@@ -172,12 +172,90 @@ describe("reading a line aloud", () => {
     speech.warm("a line", "af_heart");
     await new Promise((settle) => setTimeout(settle, 10));
     const listener = speech.ensure("a line", "af_heart");
-    // A DIFFERENT line is still refused while the engine is busy.
-    expect(await speech.ensure("another line", "af_heart")).toBe(false);
 
     finish?.();
     expect(await listener, "the listener got the line, not a refusal").toBe(true);
     expect(calls, "and it was only said once").toBe(1);
+  });
+
+
+  /**
+   * Nikk (2026-09-24): "we definitely want it to wait, we don't want them to
+   * fall back to robot voices ... wait until the previous one's finished before
+   * it begins the next one". A second line used to be REFUSED while the engine
+   * was busy, and the listener's page read every refusal with the robot.
+   */
+  describe("several lines at once", () => {
+    /** An engine that holds each line until the test lets it go, and counts overlaps. */
+    const gated = () => {
+      const order: string[] = [];
+      const gates: (() => void)[] = [];
+      let running = 0;
+      let mostAtOnce = 0;
+      const speak: Speaker = async (text, _voice, outPath) => {
+        running += 1;
+        mostAtOnce = Math.max(mostAtOnce, running);
+        order.push(text);
+        await new Promise<void>((done) => gates.push(done));
+        await writeFile(outPath, Buffer.from("RIFF....WAVE"));
+        running -= 1;
+      };
+      const release = async () => {
+        // Let each started line finish, in turn, until none is left waiting.
+        for (let spins = 0; spins < 200; spins += 1) {
+          const next = gates.shift();
+          if (next) next();
+          await new Promise((settle) => setTimeout(settle, 1));
+        }
+      };
+      return { speak, order, release, mostAtOnce: () => mostAtOnce };
+    };
+
+    it("says a second line after the first, in its own voice, rather than refusing it", async () => {
+      const engine = gated();
+      const speech = speechCache({ cacheRoot: await mkdtemp(join(tmpdir(), "speech-turn-")), speaker: () => engine.speak });
+      const first = speech.ensure("Sill: deployed.", "af_heart");
+      const second = speech.ensure("Moraine: lobby is live.", "bf_emma");
+      await engine.release();
+      expect(await first).toBe(true);
+      expect(await second, "waited, then was said: never refused").toBe(true);
+    });
+
+    it("never runs two at once, and says them in the order they were said", async () => {
+      const engine = gated();
+      const speech = speechCache({ cacheRoot: await mkdtemp(join(tmpdir(), "speech-order-")), speaker: () => engine.speak });
+      const lines = ["one", "two", "three", "four"].map((text) => speech.ensure(text, "af_heart"));
+      await engine.release();
+      expect(await Promise.all(lines)).toEqual([true, true, true, true]);
+      expect(engine.mostAtOnce(), "540MB each: never two at once").toBe(1);
+      expect(engine.order).toEqual(["one", "two", "three", "four"]);
+    });
+
+    it("carries on past a line that fails", async () => {
+      let calls = 0;
+      const speech = speechCache({
+        cacheRoot: await mkdtemp(join(tmpdir(), "speech-fail-")),
+        speaker: () => async (text, _voice, outPath) => {
+          calls += 1;
+          if (text === "broken") throw new Error("engine exited 1");
+          await writeFile(outPath, Buffer.from("RIFF....WAVE"));
+        },
+      });
+      const broken = speech.ensure("broken", "af_heart");
+      const after = speech.ensure("fine", "af_heart");
+      expect(await broken).toBe(false);
+      expect(await after, "one bad line must not silence the ones behind it").toBe(true);
+      expect(calls).toBe(2);
+    });
+
+    it("refuses only past a bound no conversation reaches, and keeps the rest", async () => {
+      const engine = gated();
+      const speech = speechCache({ cacheRoot: await mkdtemp(join(tmpdir(), "speech-bound-")), speaker: () => engine.speak });
+      const queued = Array.from({ length: MOST_WAITING }, (_, i) => speech.ensure(`line ${i}`, "af_heart"));
+      expect(await speech.ensure("one too many", "af_heart"), "a runaway loop cannot queue the box for ever").toBe(false);
+      await engine.release();
+      expect((await Promise.all(queued)).every(Boolean)).toBe(true);
+    });
   });
 
   it("warming never throws, whatever the engine does", async () => {

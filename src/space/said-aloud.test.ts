@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { readAloud, type Playable } from "./said-aloud";
+import { LONGEST_TURN_MS, NO_ENGINE, clearAloudQueue, queueAloud, readAloud, type Playable } from "./said-aloud";
 
 /**
  * Hearing an agent's OWN voice, and never hearing nothing.
  *
  * The box makes the sound; the browser's synthesiser is the fallback. These
  * check which one speaks in each case, because the failure that matters is
- * silence with no reason: a box with no engine, a busy one, or a headset that
- * will not autoplay must all still say the words.
+ * silence with no reason: a box with no engine, or a headset that will not
+ * autoplay, must still say the words.
+ *
+ * AND WHICH ONE MUST NOT. Nikk (2026-09-24): "we don't want them to fall back
+ * to robot voices". A box that tried and failed is not read by the robot any
+ * more; it says so. The robot is only for a box with no voice at all.
  */
 const fakeAudio = () => {
   const played: string[] = [];
@@ -101,7 +105,7 @@ describe("reading a line aloud", () => {
       say: "Deployed and verified.",
       onPhase: () => {},
       onFailure: (failure) => failures.push(failure as { code: string }),
-      fetchSaid: async () => null,
+      fetchSaid: async () => NO_ENGINE,
       makeAudio: fakeAudio().makeAudio,
     });
     await settle();
@@ -109,7 +113,7 @@ describe("reading a line aloud", () => {
   });
 
   it("falls back to the browser when the box has no engine", async () => {
-    // 501 or 503 both arrive here as null: not from here, not now.
+    // 501: the browser's voice is the only one there is.
     const audio = fakeAudio();
     const spoke = vi.fn();
     (globalThis as { speechSynthesis?: unknown }).speechSynthesis = { speak: spoke, cancel: () => {} };
@@ -121,12 +125,34 @@ describe("reading a line aloud", () => {
       say: "Deployed and verified.",
       onPhase: () => {},
       onFailure: () => {},
-      fetchSaid: async () => null,
+      fetchSaid: async () => NO_ENGINE,
       makeAudio: audio.makeAudio,
     });
     await settle();
     expect(audio.played, "nothing was played from the box").toEqual([]);
     expect(spoke, "the browser said it instead").toHaveBeenCalled();
+  });
+
+  it("does NOT use the robot when the box tried and failed; it says so", async () => {
+    const spoke = vi.fn();
+    (globalThis as { speechSynthesis?: unknown }).speechSynthesis = { speak: spoke, cancel: () => {} };
+    (globalThis as { SpeechSynthesisUtterance?: unknown }).SpeechSynthesisUtterance = class {
+      constructor(public text: string) {}
+    };
+    const failures: { code: string }[] = [];
+    const phases: string[] = [];
+    readAloud({
+      utteranceId: 7,
+      say: "Deployed and verified.",
+      onPhase: (phase) => phases.push(phase),
+      onFailure: (failure) => failures.push(failure as { code: string }),
+      fetchSaid: async () => null,
+      makeAudio: fakeAudio().makeAudio,
+    });
+    await settle();
+    expect(spoke, "no robot voice").not.toHaveBeenCalled();
+    expect(failures.map((f) => f.code)).toEqual(["not-voiced"]);
+    expect(phases, "and it finished, so the next line can start").toEqual(["idle"]);
   });
 
   it("falls back when the device refuses to play it", async () => {
@@ -201,5 +227,115 @@ describe("reading a line aloud", () => {
     await settle();
     await settle();
     expect(audio.played, "nothing starts playing after the listener left").toEqual([]);
+  });
+});
+
+/**
+ * Nikk: "we also don't want them speaking at the same time, so it's very fine
+ * to have it wait until the previous one's finished before it begins the next
+ * one". A new line used to CANCEL the one playing.
+ */
+describe("lines said close together", () => {
+  beforeEach(() => clearAloudQueue());
+
+  /** Several audio elements, each ended by the test. */
+  const box = () => {
+    const asked: number[] = [];
+    const elements: (Playable & { url: string })[] = [];
+    const fetchSaid = async (id: number) => {
+      asked.push(id);
+      return `blob:said-${id}`;
+    };
+    const makeAudio = (url: string) => {
+      const audio: Playable & { url: string } = {
+        url, volume: 1, onended: null, onerror: null,
+        play: () => Promise.resolve(), pause: vi.fn(),
+      };
+      elements.push(audio);
+      return audio;
+    };
+    const end = (index: number) => elements[index].onended?.();
+    return { asked, elements, fetchSaid, makeAudio, end };
+  };
+  const line = (id: number, b: ReturnType<typeof box>, failures: string[] = []) =>
+    queueAloud({
+      utteranceId: id, say: `line ${id}`, onPhase: () => {},
+      onFailure: (f) => failures.push(f.code), fetchSaid: b.fetchSaid, makeAudio: b.makeAudio,
+    });
+
+  it("plays the second after the first ends, in its own voice, never over it", async () => {
+    const b = box();
+    line(1, b);
+    line(2, b);
+    await settle();
+    expect(b.elements.map((e) => e.url), "only the first is playing").toEqual(["blob:said-1"]);
+    expect(b.elements[0].pause, "and nothing cut it off").not.toHaveBeenCalled();
+
+    b.end(0);
+    await settle();
+    expect(b.elements.map((e) => e.url)).toEqual(["blob:said-1", "blob:said-2"]);
+  });
+
+  it("keeps the order they were said in", async () => {
+    const b = box();
+    [1, 2, 3].forEach((id) => line(id, b));
+    for (let i = 0; i < 3; i += 1) {
+      await settle();
+      b.end(i);
+    }
+    await settle();
+    expect(b.asked).toEqual([1, 2, 3]);
+  });
+
+  it("takes a cancelled line out of the queue without touching the one playing", async () => {
+    const b = box();
+    line(1, b);
+    const second = line(2, b);
+    line(3, b);
+    second.cancel();
+    await settle();
+    b.end(0);
+    await settle();
+    expect(b.asked, "2 was never asked for").toEqual([1, 3]);
+  });
+
+  it("moves on when the line playing is cancelled", async () => {
+    const b = box();
+    const first = line(1, b);
+    line(2, b);
+    await settle();
+    first.cancel();
+    await settle();
+    expect(b.elements[0].pause).toHaveBeenCalled();
+    expect(b.asked).toEqual([1, 2]);
+  });
+
+  it("moves on past a line that failed, without the robot", async () => {
+    const b = box();
+    const failures: string[] = [];
+    queueAloud({
+      utteranceId: 1, say: "line 1", onPhase: () => {}, onFailure: (f) => failures.push(f.code),
+      fetchSaid: async () => null, makeAudio: b.makeAudio,
+    });
+    line(2, b);
+    await settle();
+    await settle();
+    expect(failures).toEqual(["not-voiced"]);
+    expect(b.elements.map((e) => e.url), "the next line still played").toEqual(["blob:said-2"]);
+  });
+
+  it("gives up on a line that never says it finished, rather than silencing the rest", async () => {
+    vi.useFakeTimers();
+    try {
+      const b = box();
+      line(1, b);
+      line(2, b);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(b.asked).toEqual([1]);
+      await vi.advanceTimersByTimeAsync(LONGEST_TURN_MS);
+      expect(b.asked).toEqual([1, 2]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

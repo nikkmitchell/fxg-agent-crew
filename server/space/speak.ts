@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -76,14 +77,33 @@ export function timeoutFor(characters: number): number {
 }
 
 /**
- * One at a time.
+ * One at a time, IN TURN.
  *
  * The server that speaks is the server that draws the room, and this engine
  * peaks at about 540MB on a box with 1.6GB. Two at once would take the frame
- * rate down with them, or the service with it. A queue of one is honest: the
- * second caller is told to ask again rather than quietly making the room stutter.
+ * rate down with them, or the service with it — so still never two at once.
+ *
+ * But a line that arrives while another is being made now WAITS for it, where
+ * it used to be refused. The refusal was a 503, and the listener's page turned
+ * every 503 into the browser's robot. Nikk (2026-09-24): "we definitely want
+ * it to wait, we don't want them to fall back to robot voices ... it's very
+ * fine to have it wait until the previous one's finished before it begins the
+ * next one instead of using the crappy robot voice".
+ *
+ * So `turn` is the tail of a chain: each line starts when the one before it
+ * has finished, in the order they were said. At about two and a half seconds a
+ * line, a busy moment costs a few seconds of delay, and no memory at all.
  */
-let busy = false;
+let turn: Promise<unknown> = Promise.resolve();
+
+/**
+ * How many lines may wait. A bound, not a design: at ~2.5s each this is about
+ * forty seconds of queue, far past any real conversation, and it exists only so
+ * a runaway script posting in a loop cannot queue the box into next week. Past
+ * it a line is refused as before, and its words are still in the room.
+ */
+export const MOST_WAITING = 16;
+let waiting = 0;
 
 export type Speaker = (text: string, voice: string, outPath: string) => Promise<void>;
 
@@ -203,25 +223,34 @@ export function speechCache(deps: {
    * a line the moment it is said, the listener's page asks a beat later, and
    * with a plain one-at-a-time lock that listener was told 503 and fell back to
    * the browser's robot — losing the agent's own voice in exactly the common
-   * case the warming exists for. A DIFFERENT line is still refused, because the
-   * reason for one at a time is 540MB of engine, not the lock itself.
+   * case the warming exists for. A DIFFERENT line now waits its turn too (see
+   * `turn`); this map is what stops the SAME line being made twice.
    */
   const saying = new Map<string, Promise<boolean>>();
 
-  const ensure = async (text: string, voice: string): Promise<boolean> => {
+  /**
+   * NOTHING ASYNC BEFORE A LINE JOINS THE QUEUE. The cache check was an awaited
+   * read, so two lines said a moment apart joined in whichever order their
+   * reads came back — a test saying four lines heard "one, three, two, four".
+   * The existence check is synchronous; the real read happens inside the turn.
+   */
+  const ensure = (text: string, voice: string): Promise<boolean> => {
     const file = path(text, voice);
-    if (await readable(file)) return true;
+    if (existsSync(file)) return Promise.resolve(true);
 
     const key = cacheName(text, voice);
     const already = saying.get(key);
     if (already) return already;
 
     const speak = deps.speaker();
-    if (!speak || busy) return false;
+    if (!speak || waiting >= MOST_WAITING) return Promise.resolve(false);
 
-    busy = true;
-    const attempt = (async () => {
+    waiting += 1;
+    const attempt = turn.then(async () => {
       try {
+        // It may have been made while this waited — by a restart's warm, or a
+        // twin request that raced the `saying` check. Reading is free.
+        if (await readable(file)) return true;
         await mkdir(deps.cacheRoot, { recursive: true });
         await speak(text, voice, file);
         return true;
@@ -229,10 +258,13 @@ export function speechCache(deps: {
         deps.onTrouble?.(error, text, voice);
         return false;
       } finally {
-        busy = false;
+        waiting -= 1;
         saying.delete(key);
       }
-    })();
+    });
+    // The chain carries on past a failure: one bad line must not silence the
+    // ones queued behind it.
+    turn = attempt.catch(() => undefined);
     saying.set(key, attempt);
     return attempt;
   };
@@ -304,7 +336,7 @@ export function registerSpeechRoutes(
       // purpose — or it failed. Both leave the words in the room in writing.
       return reply.code(503).send({
         code: "NOT_SAID_YET",
-        error: "that line is not ready to hear: the engine is busy or it failed. The words are in the room in writing.",
+        error: "that line could not be said: the engine failed, or too many lines were already waiting. The words are in the room in writing.",
       });
     }
 
@@ -361,7 +393,7 @@ export function registerSpeechRoutes(
     if (!ready) {
       return reply.code(503).send({
         code: "NOT_SAID_YET",
-        error: "the engine is busy or it failed. It speaks one line at a time; try this voice again in a moment.",
+        error: "the engine failed, or too many lines were already waiting. Try this voice again in a moment.",
       });
     }
 

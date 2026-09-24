@@ -17,7 +17,7 @@ import {
   useRoomPreferences,
 } from "./room-preferences";
 import { createSteadyRecorder, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
-import { readAloud } from "./said-aloud";
+import { queueAloud } from "./said-aloud";
 import { shouldSpeakUtterance } from "./VoiceControls";
 import { newestId } from "./reply-speech";
 import type { RoomFeed } from "./useRoomFeed";
@@ -294,7 +294,8 @@ export function RoomControls({
    * answer has to go and find one, which is not a conversation.
    */
   const [hearReplies, setHearReplies] = useState(true);
-  const speaking = useRef<SpeechOutput | null>(null);
+  /** Every line this surface has queued and not yet heard end — see queueAloud. */
+  const speaking = useRef(new Set<SpeechOutput>());
   const spokenAlready = useRef<number | null>(null);
   const [listening, setListening] = useState(false);
   // No reload for a new deploy in the middle of a recording.
@@ -699,22 +700,31 @@ export function RoomControls({
     if (!liveUtterance || utteranceSpoken.current === liveUtterance.id) return;
     utteranceSpoken.current = liveUtterance.id;
     if (!hearReplies || listening || !shouldSpeakUtterance(liveUtterance, you)) return;
-    speaking.current?.cancel();
     // A room utterance has audio on the box, in the speaker's chosen voice. The
     // chat reader above does not: those messages are WebHarness's and the box
     // has never heard of them. See said-aloud.ts.
-    speaking.current = readAloud({
+    // IN TURN, NOT OVER THE TOP. This used to cancel whatever was playing, so
+    // a second agent cut the first off mid-sentence. See queueAloud.
+    let line: SpeechOutput | null = null;
+    line = queueAloud({
       utteranceId: liveUtterance.id,
       say: liveUtterance.say ?? "",
       speaker: liveUtterance.actorId,
       volume: volumeAt(distanceTo(liveUtterance.actorId)),
-      onPhase: () => {},
+      // Forgotten once it has been heard, so the set holds only what is pending.
+      onPhase: (phase) => {
+        if (phase === "idle" && line) speaking.current.delete(line);
+      },
       onFailure: (failure) => setNotice(failure.message),
     });
+    speaking.current.add(line);
   }, [liveUtterance, hearReplies, listening, you]);
 
   // Nothing keeps talking after the panel goes away.
-  useEffect(() => () => speaking.current?.cancel(), []);
+  useEffect(() => () => {
+    for (const line of speaking.current) line.cancel();
+    speaking.current.clear();
+  }, []);
 
   const facing = useRef<number | null>(null);
 
