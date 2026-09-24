@@ -963,6 +963,8 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .room-front-error { margin-top: 18px; border-color: var(--vermilion); background: #442b28; color: #fff1ed; }
 .room-front-success { margin-top: 18px; border-color: #6fcfa0; background: #234c3b; color: #e8fff3; }
 .room-front-pending { margin: 18px 0 0; padding: 11px 13px; border-left: 3px solid #a9bbe8; background: #303e50; color: #eef3fc; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.room-front-pending:empty { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .room-front-list-group { padding: 15px 0 4px; border-top: 1px solid var(--line); }
 .room-front-list-group + .room-front-list-group { margin-top: 18px; }
 .room-front-list-group h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; color: #55524d; font-size: 11px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }

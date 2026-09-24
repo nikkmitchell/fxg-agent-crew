@@ -232,7 +232,9 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
             </p>
           </> : <div className="room-front-selected-head"><span className="room-front-status">NO ROOM SELECTED</span><h2>Start somewhere.</h2><p>Join a room by name or create a new one for your group.</p></div>}
           {notice ? <p className={notice.kind === "error" ? "room-front-error" : "room-front-success"} role={notice.kind === "error" ? "alert" : "status"}>{notice.text}</p> : null}
-          {pendingJoinRoom ? <p className="room-front-pending" role="status" aria-live="polite">Joining {pendingJoinRoom}…</p> : null}
+          <p className="room-front-pending" role="status" aria-live="polite" aria-atomic="true">
+            {pendingJoinRoom ? `Joining ${pendingJoinRoom}…` : ""}
+          </p>
           <div className="room-front-other-actions">
             <button type="button" aria-expanded={joinOpen} onClick={() => { setJoinOpen(!joinOpen); setCreateOpen(false); setNotice(null); }}>Join by name</button>
             <button type="button" aria-expanded={createOpen} onClick={() => { setCreateOpen(!createOpen); setJoinOpen(false); setNotice(null); }}>Create a room</button>
