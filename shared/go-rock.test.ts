@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GO_RIM_REACH, goBoardWidth } from "./go-layout.js";
-import { GO_ROCK, goRockHoles, goRockOutline, type Point2 } from "./go-rock.js";
+import { GO_ROCK, GO_ROCK_LIP, goRockHoles, goRockOutline, goRockRings, type Point2 } from "./go-rock.js";
 import { GO_SIZES } from "./room-items.js";
 
 /**
@@ -81,5 +81,39 @@ describe("the scholar's rock", () => {
     expect(goRockOutline(9)).toEqual(goRockOutline(9));
     expect(goRockHoles(19)).toEqual(goRockHoles(19));
     expect(goRockOutline(9)).not.toEqual(goRockOutline(13).map((p) => p));
+  });
+});
+
+describe("the rock as one form", () => {
+  it("rises from the deck to a flat top that IS the outline, at the playing height", () => {
+    for (const size of GO_SIZES) {
+      const rings = goRockRings(size);
+      expect(rings[0].height).toBe(0);
+      expect(rings[rings.length - 1].height).toBe(1);
+      expect(rings[rings.length - 1].points).toEqual(goRockOutline(size));
+      for (const ring of rings) expect(ring.points).toHaveLength(GO_ROCK.points);
+      for (let r = 1; r < rings.length; r++) expect(rings[r].height).toBeGreaterThan(rings[r - 1].height);
+    }
+  });
+
+  it("draws in under its lip, so the top overhangs, and never bulges past the top", () => {
+    for (const size of GO_SIZES) {
+      const rings = goRockRings(size), top = rings[rings.length - 1].points;
+      for (const ring of rings.slice(0, -2)) ring.points.forEach((p, i) => {
+        expect(chebyshev(p), `${size}x${size} ring ${ring.height} point ${i}`).toBeLessThan(chebyshev(top[i]) - 0.02);
+      });
+    }
+  });
+
+  it("opens every hole into the air under the lip: the lip's underside is inside every hole", () => {
+    for (const size of GO_SIZES) {
+      const half = goBoardWidth(size) / 2;
+      const lip = goRockRings(size).find((ring) => ring.height === 1 - GO_ROCK_LIP)!;
+      const lipReach = Math.max(...lip.points.map(chebyshev)) - half;
+      for (const hole of goRockHoles(size)) {
+        const nearest = Math.min(...rim(hole).map(chebyshev)) - half;
+        expect(lipReach, `${size}x${size}: the lip's underside reaches ${lipReach.toFixed(3)} past the edge`).toBeLessThan(nearest);
+      }
+    }
   });
 });

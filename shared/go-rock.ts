@@ -140,3 +140,53 @@ function insideBy(q: Point2, polygon: Point2[]): number {
   }
   return hit ? best : -best;
 }
+
+/**
+ * THE ROCK AS ONE FORM (Baiwei's second pass, via Lumenfold): "one monolithic
+ * irregular gongshi form, directly carved lines on its flat top, no separate
+ * board/slab, expressive side perforations/undercuts outside playable
+ * intersections, calmer facets".
+ *
+ * So the rock is a LOFT: a stack of outlines from the deck up to the playing
+ * height, joined into one body. The top ring is the outline above, at exactly
+ * GO_SURFACE, and the whole top is one flat face: the board is not a separate
+ * thing laid on it, it is the rock's own top with the grid cut into it.
+ *
+ * Below the top the rock draws in — an overhanging lip, as a Taihu rock
+ * overhangs its base — to a waist that is never outside the board's own edge.
+ * The holes go down through the lip only, and open into the air under the
+ * overhang: perforations and undercuts from one move, and none of it under a
+ * playable point.
+ *
+ * Each ring: `height` 0..1 from the deck (0) to the top (1), and its points,
+ * table-local on the deck plane, in step with goRockOutline's.
+ */
+export type GoRockRing = { height: number; points: Point2[] };
+
+/** How far down the lip goes, as a share of the rock's height. The holes stop here. */
+export const GO_ROCK_LIP = 0.42;
+
+export function goRockRings(size: number): GoRockRing[] {
+  const half = goBoardWidth(size) / 2;
+  const top = goRockOutline(size);
+  // A point `inset` in from the board's edge along the outline's own normal,
+  // wandering a little so the waist is not a box.
+  const toward = (i: number, reachPastEdge: number) => {
+    const t = i / GO_ROCK.points, p = onSquare(t, half);
+    return { x: p.x + p.normal.x * reachPastEdge, z: p.z + p.normal.z * reachPastEdge };
+  };
+  const wander = (i: number, seed: number, amount: number) =>
+    (weathering(i / GO_ROCK.points, size * 13 + seed) - 0.5) * amount;
+  return [
+    // The foot: a little inside the board's edge, uneven.
+    { height: 0, points: top.map((_, i) => toward(i, -0.035 + wander(i, 1, 0.03))) },
+    // The waist, where the hollow under the lip is deepest.
+    { height: 0.3, points: top.map((_, i) => toward(i, -0.05 + wander(i, 2, 0.04))) },
+    // The lip's underside: the holes open here, so it stays inside every hole.
+    { height: 1 - GO_ROCK_LIP, points: top.map((_, i) => toward(i, -0.01 + wander(i, 3, 0.012))) },
+    // Just under the top edge, a soft roll rather than a sawn corner.
+    { height: 0.93, points: top.map((p) => ({ x: p.x * 0.995, z: p.z * 0.995 })) },
+    // The top: the outline itself, at the playing height.
+    { height: 1, points: top },
+  ];
+}
