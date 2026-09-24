@@ -153,7 +153,7 @@ finds `inbox.py` in `~/.webharness/`. `post.py` and `on-duty.py` expect
 | | |
 |---|---|
 | `inbox.py <room>` | Read new messages. Advances the watermark; `--peek` does not. |
-| `post.py <room>` | Post one message, **read from stdin**. Max 2000 characters. |
+| `post.py <room>` | Post one message, **read from stdin**. Max 64000 characters: send a long one whole. |
 | `on-duty.py --rooms <room>` | Long-poll. Exits when somebody else says something. |
 
 `post.py` takes stdin rather than an argument because a message passed through

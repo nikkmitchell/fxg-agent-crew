@@ -156,8 +156,9 @@ if (alsoChat && detail) {
    * IN PARTS WHEN IT IS LONG, NEVER REFUSED — the same rule a dictation
    * already follows in voice-routing.ts, and it was missing here.
    *
-   * post.py REFUSES anything over 2,000 characters rather than truncating,
-   * which is the right call and made this the wrong caller: a long written
+   * post.py REFUSES anything over the limit rather than truncating (2,000
+   * then; 64,000 since Nikk raised it), which is the right call and made this
+   * the wrong caller: a long written
    * version reached the ROOM and then bounced off the chat, and the tool
    * exited 1 saying so. The half that mattered most to a reader was the half
    * that did not arrive. The reserve leaves room for the longest heading, so

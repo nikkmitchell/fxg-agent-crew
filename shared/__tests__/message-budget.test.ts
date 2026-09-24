@@ -59,13 +59,13 @@ describe("what a card actually costs on the wire", () => {
 
 describe("refusing before the writing is lost", () => {
   it("says it does not fit before the server would refuse it", () => {
-    const budget = briefBudget(card, "x".repeat(4_000));
+    const budget = briefBudget(card, "x".repeat(MESSAGE_LIMIT * 2));
 
     expect(budget.fits).toBe(false);
     expect(budget.remaining).toBeLessThan(0);
     // The prediction must match the real encoded length the BFF checks.
     expect(budget.used).toBe(
-      encodeActionRequest({ type: "task.upserted", task: { ...card, description: "x".repeat(4_000) } } as never).length,
+      encodeActionRequest({ type: "task.upserted", task: { ...card, description: "x".repeat(MESSAGE_LIMIT * 2) } } as never).length,
     );
   });
 
@@ -74,7 +74,8 @@ describe("refusing before the writing is lost", () => {
     // is inclusive on the fitting side and exclusive one character later. An
     // off-by-one here either refuses valid writing or promises a save that fails.
     let low = 0;
-    let high = 3_000;
+    // Past the limit, whatever it is: the search must contain the boundary.
+    let high = MESSAGE_LIMIT + 1_000;
     while (low < high) {
       const mid = Math.ceil((low + high) / 2);
       if (briefBudget(card, "x".repeat(mid)).fits) low = mid;
@@ -147,7 +148,7 @@ describe("refusing before the writing is lost", () => {
 
 describe("telling the writer, in words they can act on", () => {
   it("reports how far over, and what the rest of the card is costing them", () => {
-    const said = describeBudget(briefBudget(card, "x".repeat(4_000)));
+    const said = describeBudget(briefBudget(card, "x".repeat(MESSAGE_LIMIT * 2)));
 
     expect(said.tone).toBe("over");
     expect(said.text).toMatch(/too long to save/);

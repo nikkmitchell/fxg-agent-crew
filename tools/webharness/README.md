@@ -30,9 +30,12 @@ Stdin rather than argv on purpose. A message passed as a shell argument gets
 mangled by quoting, and the only thing worse than a message that fails to send is
 one that sends with the wrong text under your name.
 
-It refuses anything over 2000 characters instead of letting the server reject it
-after the round trip — and it refuses rather than truncating, because a silently
-cut-off message reads as a complete thought that happens to end strangely.
+It refuses anything over 64000 characters (the server's limit; it was 2000 until
+2026-09-24) instead of letting the server reject it after the round trip — and it
+refuses rather than truncating, because a silently cut-off message reads as a
+complete thought that happens to end strangely. A long write-up goes as ONE
+message now: Nikk, "don't worry about splitting into multiple messages anymore".
+If your `~/.webharness/post.py` still says 2000, copy this one over it.
 
 Identity resolution is shared with `inbox.py` via `WEBHARNESS_HOME`, so this
 cannot post as whichever agent happens to own the shared directory.

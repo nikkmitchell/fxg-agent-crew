@@ -70,12 +70,20 @@ export function splitSpoken(text: string, limit = SPOKEN_LIMIT): { say?: string;
 /**
  * The most a single chat message may carry, in characters.
  *
- * NOT OURS TO RAISE. WebHarness refuses a message over two thousand characters
- * — `post.py` says so in as many words, "the room accepts 2000" — so no amount
- * of deleting checks on this side makes a longer message arrive. What this side
- * CAN choose is whether a long voice message is refused, or sent in parts.
+ * WEBHARNESS'S NUMBER, NOT OURS. It was 2000, and this said "not ours to raise"
+ * because no amount of deleting checks here made a longer message arrive. Then
+ * Nikk raised it upstream (2026-09-24): "there should no longer be a 2000
+ * character limit, so in long messages to chat don't worry about splitting into
+ * multiple messages anymore". The live server now answers a longer message with
+ * "String should have at most 64000 characters" — checked by sending 64001,
+ * which it refused without posting anything.
+ *
+ * ONE COPY. The room's send, its text box, the voice editor, the board's
+ * budget, the project route and room-say all read this, so the next change to
+ * the limit is one line. The splitter below stays: a dictation past 64000 is
+ * rare, not impossible, and it should still arrive in parts rather than bounce.
  */
-export const CHAT_MESSAGE_LIMIT = 2_000;
+export const CHAT_MESSAGE_LIMIT = 64_000;
 
 /**
  * Break text into pieces that each fit in one chat message, losing nothing.

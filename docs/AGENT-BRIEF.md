@@ -253,7 +253,9 @@ echo "the long version, written, never spoken" | \
   240 characters, and a longer line is refused, never cut.
 - The detail goes to the chat. The room's chat wall shows the first few
   sentences of a long message, but write briefly anyway.
-- Keep chat posts under 2000 characters; split longer ones.
+- A chat post can be up to 64000 characters, so send a long one whole. It was
+  2000 until 2026-09-24; Nikk: "don't worry about splitting into multiple
+  messages anymore".
 
 ## 8. Being touched
 

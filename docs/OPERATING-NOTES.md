@@ -420,7 +420,7 @@ is written down.
 | `tools/board-dump.mts` | exhaustive | Same `drainPages`. |
 | `server/webharness/longpoll.ts` | **bounded window** | Most recent 50, then polls forward. No backwards paging. Reports `mayHaveEarlier`. |
 | `server/routes/rooms.ts` | write | POSTs a message; its GET delegates to `longpoll` and has no traversal of its own. |
-| `server/routes/projects.ts` | write | Appends a crew-event, refusing over 2000 characters. |
+| `server/routes/projects.ts` | write | Appends a crew-event, refusing over the chat limit (`MESSAGE_LIMIT`, 64000). |
 
 `server/__tests__/history-readers.test.ts` fails the build when a file appears
 that reads or writes room history and is not on that list. The reason it is a

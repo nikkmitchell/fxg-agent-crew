@@ -4,6 +4,7 @@ import { bff } from "./bff-client";
 import { ApiError } from "./api-request";
 import { initialConnectionState, reduceConnection, type ConnectionPhase } from "./connection-state";
 import { backoff } from "./backoff";
+import { CHAT_MESSAGE_LIMIT } from "../shared/voice";
 
 /**
  * A long poll that has been failing for a minute is rarely fixed by another
@@ -228,7 +229,7 @@ export function useWebharnessRoom(preferredRoom: string | null = null) {
 
   const sendMessage = useCallback((content: string) => {
     const trimmed = content.trim();
-    if (!trimmed || trimmed.length > 2_000 || !selectedRoomRef.current) return;
+    if (!trimmed || trimmed.length > CHAT_MESSAGE_LIMIT || !selectedRoomRef.current) return;
     const clientId = crypto.randomUUID();
     dispatch({ type: "MESSAGE_QUEUED", clientId, content: trimmed });
     if (navigator.onLine) void sendOne(clientId, trimmed);

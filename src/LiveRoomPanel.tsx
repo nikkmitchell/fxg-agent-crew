@@ -3,6 +3,7 @@ import { useWebharnessRoom } from "./use-webharness-room";
 import { summariseCrewEvent } from "./crew-event-summary";
 import { canCompose } from "./connection-state";
 import { collapseTranscript, type TranscriptEntry } from "./collapse-transcript";
+import { CHAT_MESSAGE_LIMIT } from "../shared/voice";
 
 /**
  * One message.
@@ -384,8 +385,8 @@ export function LiveRoomPanel({ onClose, preferredRoom = null }: { onClose?: () 
           {canCompose(state) && (
             <form className="room-composer" onSubmit={submitMessage}>
               <label htmlFor="room-message">Message the room</label>
-              <div><textarea id="room-message" maxLength={2000} rows={3} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write a confirmed room message…" /><button type="submit">Send</button></div>
-              <small>{message.length} / 2000</small>
+              <div><textarea id="room-message" maxLength={CHAT_MESSAGE_LIMIT} rows={3} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write a confirmed room message…" /><button type="submit">Send</button></div>
+              <small>{message.length} / {CHAT_MESSAGE_LIMIT}</small>
             </form>
           )}
 

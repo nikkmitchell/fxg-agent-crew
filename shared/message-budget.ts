@@ -18,16 +18,21 @@
  * that loses writing. So this encodes the real thing and counts it.
  */
 import { encodeActionRequest, type CrewEvent } from "./crew-events.js";
+import { CHAT_MESSAGE_LIMIT } from "./voice.js";
 
 /**
  * The server's cap, in characters.
  *
- * Enforced by WebHarness itself and re-checked in the BFF, so this constant is
- * a third copy and cannot be the authority. It exists so the editor can predict
- * that refusal rather than discover it; if upstream ever lowers the cap, the
- * editor gets optimistic and the save still fails safely.
+ * Enforced by WebHarness itself and re-checked in the BFF, so this cannot be
+ * the authority. It exists so the editor can predict that refusal rather than
+ * discover it; if upstream ever lowers the cap, the editor gets optimistic and
+ * the save still fails safely.
+ *
+ * THE SAME NUMBER AS A CHAT MESSAGE, because a board change IS a chat message.
+ * It was its own copy of 2000, which would have kept the board at the old wall
+ * after WebHarness raised it to 64000 — so it reads the one copy instead.
  */
-export const MESSAGE_LIMIT = 2_000;
+export const MESSAGE_LIMIT = CHAT_MESSAGE_LIMIT;
 
 export type Budget = {
   /** Characters the encoded message occupies right now. */

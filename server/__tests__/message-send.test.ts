@@ -5,6 +5,11 @@ import { registerRoomRoutes } from "../routes/rooms.js";
 import { MemorySessionStore } from "../session.js";
 import { WebharnessClient } from "../webharness/client.js";
 import type { Config } from "../config.js";
+import { CHAT_MESSAGE_LIMIT } from "../../shared/voice.js";
+
+/** Enough numbered sentences to pass `chars` characters. */
+const sentences = (chars: number) =>
+  Array.from({ length: Math.ceil(chars / 40) }, (_, i) => `Sentence ${i + 1} of a long dictated message.`).join(" ");
 
 const config: Config = {
   webharnessUrl: "https://example.test",
@@ -62,8 +67,8 @@ describe("POST /bff/rooms/:room/messages", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const { app, sid } = setup();
-    const long = Array.from({ length: 120 }, (_, i) => `Sentence ${i + 1} of a long dictated message.`).join(" ");
-    expect(long.length).toBeGreaterThan(2_000);
+    const long = sentences(CHAT_MESSAGE_LIMIT * 2.5);
+    expect(long.length).toBeGreaterThan(CHAT_MESSAGE_LIMIT);
 
     const response = await app.inject({
       method: "POST", url: "/bff/rooms/AgentParty/messages", cookies: { fxg_sid: sid }, payload: { content: long },
@@ -72,11 +77,35 @@ describe("POST /bff/rooms/:room/messages", () => {
 
     const sent = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).content as string);
     expect(sent.length).toBeGreaterThan(1);
-    for (const part of sent) expect(part.length).toBeLessThanOrEqual(2_000);
+    for (const part of sent) expect(part.length).toBeLessThanOrEqual(CHAT_MESSAGE_LIMIT);
     expect(sent.join(" "), "every word, in order").toBe(long);
     // The reply is still one Message — the last to arrive — for every caller
     // that already expects exactly that.
     expect(response.json()).toMatchObject({ id: 100 + sent.length });
+  });
+
+  /**
+   * Nikk (2026-09-24): "there should no longer be a 2000 character limit, so in
+   * long messages to chat don't worry about splitting into multiple messages
+   * anymore". A message past the OLD wall arrives as the one message it was.
+   */
+  it("sends a message past the old 2000-character wall as ONE message", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init: { body: string }) =>
+      new Response(JSON.stringify({
+        id: 1, username: "nikk", content: JSON.parse(init.body).content, msgType: "text",
+        createdAt: "2026-09-24T04:00:00Z", updatedAt: "2026-09-24T04:00:00Z", streaming: false,
+      }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { app, sid } = setup();
+    const long = sentences(3_000);
+    expect(long.length).toBeGreaterThan(2_000);
+
+    const response = await app.inject({
+      method: "POST", url: "/bff/rooms/AgentParty/messages", cookies: { fxg_sid: sid }, payload: { content: long },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).content).toBe(long);
   });
 
   it("stops at the first part that fails and says how far it got", async () => {
@@ -92,7 +121,7 @@ describe("POST /bff/rooms/:room/messages", () => {
       }), { status: 200, headers: { "content-type": "application/json" } });
     }));
     const { app, sid } = setup();
-    const long = Array.from({ length: 200 }, (_, i) => `Sentence ${i + 1} of a long dictated message.`).join(" ");
+    const long = sentences(CHAT_MESSAGE_LIMIT * 4);
     const response = await app.inject({
       method: "POST", url: "/bff/rooms/AgentParty/messages", cookies: { fxg_sid: sid }, payload: { content: long },
     });

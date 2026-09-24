@@ -41,7 +41,7 @@ const CLASSIFIED: Record<string, "exhaustive" | "bounded-window" | "write"> = {
   "server/webharness/longpoll.ts": "bounded-window",
   // Terminal equivalent of the board fold. Same drainPages.
   "tools/board-dump.mts": "exhaustive",
-  // Appends a crew-event to the room. Refuses over 2000 characters before
+  // Appends a crew-event to the room. Refuses over the chat limit before
   // sending, so the durable log never receives something upstream will reject.
   "server/routes/projects.ts": "write",
   // The one-time import for ADR-002. Same drainPages, and it compares what it

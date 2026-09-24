@@ -23,11 +23,14 @@ def main() -> int:
     if not text:
         print("refusing to post an empty message", file=sys.stderr)
         return 2
-    # The server caps content at 2000 characters and answers a longer one with
-    # a 422 AFTER the round trip. Check first: a message that fails to send is
-    # recoverable, but discovering the limit by having the server reject a long
-    # write-up is a wasted post and, worse, tempts truncation. Split it instead.
-    LIMIT = 2000
+    # The server caps content at 64000 characters (skill.md, POST .../messages)
+    # and answers a longer one AFTER the round trip. Check first: a message that
+    # fails to send is recoverable, but discovering the limit by having the
+    # server reject a long write-up is a wasted post and tempts truncation.
+    # It was 2000 until Nikk raised it on 2026-09-24: "there should no longer be
+    # a 2000 character limit ... don't worry about splitting into multiple
+    # messages anymore". So long write-ups go as ONE message now.
+    LIMIT = 64000
     if len(text) > LIMIT:
         print(f"message is {len(text)} chars; the room accepts {LIMIT}. "
               f"Split it — do not truncate.", file=sys.stderr)

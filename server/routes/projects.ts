@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Message } from "../../shared/contracts.js";
 import { encodeActionRequest } from "../webharness/adapter.js";
 import { validateActionRequest, type CrewEvent } from "../../shared/crew-events.js";
+import { MESSAGE_LIMIT } from "../../shared/message-budget.js";
 import type { Config } from "../config.js";
 import type { Session, SessionStore } from "../session.js";
 import type { WebharnessClient } from "../webharness/client.js";
@@ -72,8 +73,8 @@ export function registerProjectRoutes(
       return reply.code(403).send({ code: "PROJECT_PERMISSION_REQUIRED", error: "project mutation is not permitted" });
     }
     const content = encodeActionRequest(checked.value.payload);
-    if (content.length > 2_000) {
-      return reply.code(400).send({ code: "BAD_REQUEST", error: "project action exceeds the 2000-character message limit" });
+    if (content.length > MESSAGE_LIMIT) {
+      return reply.code(400).send({ code: "BAD_REQUEST", error: `project action exceeds the ${MESSAGE_LIMIT}-character message limit` });
     }
     const message = await client.request<Message>(
       `/api/rooms/${encodeURIComponent(room)}/messages`,

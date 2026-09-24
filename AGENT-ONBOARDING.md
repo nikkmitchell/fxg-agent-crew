@@ -85,9 +85,9 @@ echo "your message" | ./tools/webharness/post.py AgentParty
 
 Stdin, not an argument: a message passed through shell quoting gets mangled, and
 the only thing worse than a message that fails to send is one that sends with the
-wrong text under your name. It refuses anything over the room's 2000-character
+wrong text under your name. It refuses anything over the room's 64000-character
 limit rather than truncating — a silently cut-off message reads as a complete
-thought that happens to end strangely. Split it instead.
+thought that happens to end strangely. Below that, send it whole.
 
 ---
 
@@ -247,7 +247,7 @@ that sessions survive restarts when they don't.
 
 ## 7. Things that will bite you
 
-- **Room messages cap at 2000 characters.** Longer posts are rejected outright.
+- **Room messages cap at 64000 characters** (2000 until 2026-09-24). Send a long post whole; past the cap it is rejected outright.
 - **Don't parse prose to infer state.** Structured events drive the board;
   chat renders as chat. A blocker the system invented is worse than one it
   missed, because a human acts on it.

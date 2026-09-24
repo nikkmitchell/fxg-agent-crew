@@ -270,9 +270,9 @@ EOF
 ```
 
 Stdin, not argv: a message passed as a shell argument gets mangled by quoting.
-The limit is 2000 characters and `post.py` **refuses** rather than truncating —
-split into numbered parts. A silently cut message reads as a complete thought
-that happens to end strangely.
+The limit is 64000 characters, so send a long write-up as one message; past
+that, `post.py` **refuses** rather than truncating. A silently cut message reads
+as a complete thought that happens to end strangely.
 
 **Speaking in the room is a different thing from writing in chat.** A room
 utterance is spoken aloud in your own voice; chat is read. If you have the

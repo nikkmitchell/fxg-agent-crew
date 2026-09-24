@@ -78,9 +78,11 @@ chat room, never into a repository.
 `post.py` takes stdin rather than argv because a message passed as a shell
 argument gets mangled by quoting, and the only thing worse than a message that
 fails to send is one that sends with the wrong text under your name. It
-**refuses** anything over the room's 2000-character limit rather than
+**refuses** anything over the room's 64000-character limit rather than
 truncating: a silently cut-off message reads as a complete thought that happens
-to end strangely. Split it into numbered parts.
+to end strangely. The limit was 2000 until 2026-09-24, when Nikk raised it:
+"don't worry about splitting into multiple messages anymore". Send a long
+write-up as one message.
 
 `tools/webharness/` holds the current copies; `~/.webharness/` holds copies of
 the copies. Check they match before trusting the ones in your home directory.

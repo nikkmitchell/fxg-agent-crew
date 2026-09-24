@@ -25,7 +25,7 @@ import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
 import type { Showing } from "../../shared/space-wire";
 import type { RoomShowingChoices } from "./useRoomShowing";
-import { DETAIL_LIMIT, type Utterance } from "../../shared/voice";
+import { CHAT_MESSAGE_LIMIT, DETAIL_LIMIT, type Utterance } from "../../shared/voice";
 import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 import { holdDraft, holdReload, reloadNow, updateWaiting, watchUpdate } from "../update-reload";
@@ -1373,7 +1373,8 @@ export function RoomControls({
         <Typing3D
           prompt="What you said: tap a word to fix it"
           initial={written}
-          limit={2000}
+          // The chat's own limit: the draft is a chat message once it is saved.
+          limit={CHAT_MESSAGE_LIMIT}
           // 1.2m ahead at eye height (FIX_AHEAD), about the distance from the
           // eyes of the waist-level spot where Baiwei said the size was right,
           // so about that size. Dropped a little so the keys sit below the eyes

@@ -83,25 +83,36 @@ describe("where a spoken sentence goes", () => {
 });
 
 describe("a long transcript sent to the room and the agents", () => {
-  it("reaches the group chat in labelled parts that each fit, instead of bouncing", () => {
-    // WebHarness refuses a message over 2000 characters, so this used to be
-    // accepted by the room and refused by the chat. Every part now says who
-    // spoke, that it is a transcript, and which part of how many it is.
+  /**
+   * ONE MESSAGE NOW, where it used to be parts. WebHarness refused anything
+   * over 2000 characters, so a long transcript went to the chat in labelled
+   * parts. Nikk raised the limit to 64000 (2026-09-24): "don't worry about
+   * splitting into multiple messages anymore". A transcript that used to be
+   * four parts now arrives as the one message it was.
+   */
+  it("reaches the group chat whole, where it used to arrive in parts", () => {
     const long = Array.from({ length: 150 }, (_, i) => `This is sentence ${i + 1} of what I said.`).join(" ");
+    expect(long.length, "past the old 2000 wall").toBeGreaterThan(2_000);
     const plan = planVoice(long, "room-and-agents", { speaker: "Nikk2" });
     expect(plan.refused).toBeNull();
 
     const chat = plan.posts.filter((post) => post.to === "group-chat");
-    expect(chat.length).toBeGreaterThan(1);
-    chat.forEach((post, index) => {
-      if (post.to !== "group-chat") return;
-      expect(post.content.length).toBeLessThanOrEqual(2_000);
-      expect(post.content).toContain(`Nikk2 said in the room (voice transcript, part ${index + 1} of ${chat.length}): `);
-    });
-    const words = chat
-      .map((post) => (post.to === "group-chat" ? post.content.replace(/^.*?\): /, "") : ""))
-      .join(" ");
-    expect(words, "every word survives, in order").toBe(long);
+    expect(chat).toHaveLength(1);
+    expect(chat[0]).toEqual({ to: "group-chat", content: `Nikk2 said in the room (voice transcript): ${long}` });
+  });
+
+  /**
+   * WHY IT CAN NEVER SPLIT NOW: the room refuses a draft past DETAIL_LIMIT
+   * before the chat is involved, and the longest draft it accepts still fits
+   * in one chat message with the longest heading on it. The splitter is kept,
+   * and tested in shared/voice.test.ts, for the day those two numbers cross.
+   */
+  it("fits the longest draft the room accepts in one chat message", () => {
+    const heading = "A-very-long-name-for-a-speaker said in the room (voice transcript, part 98 of 99): ";
+    expect(DETAIL_LIMIT + heading.length).toBeLessThanOrEqual(CHAT_MESSAGE_LIMIT);
+    const longest = "word ".repeat(DETAIL_LIMIT / 5).trim();
+    expect(planVoice(longest, "room-and-agents", { speaker: "Nikk2" }).posts.filter((post) => post.to === "group-chat"))
+      .toHaveLength(1);
   });
 
   it("keeps a short transcript as a single unnumbered message", () => {
@@ -127,17 +138,13 @@ describe("text entered through a headset system keyboard", () => {
     expect(JSON.stringify(plan.posts)).not.toContain("voice transcript");
   });
 
-  it("keeps long keyboard dictation in ordered chat-sized parts", () => {
-    const words = Array.from({ length: 150 }, (_, index) => `Written sentence ${index + 1}.`).join(" ");
+  it("sends long keyboard dictation to the chat whole, where it used to be parts", () => {
+    const words = Array.from({ length: 300 }, (_, index) => `Written sentence ${index + 1}.`).join(" ");
+    expect(words.length, "past the old 2000 wall").toBeGreaterThan(2_000);
     const chat = planText(words, "room-and-agents", { speaker: "Nikk2" }).posts.filter(
       (post) => post.to === "group-chat",
     );
-    expect(chat.length).toBeGreaterThan(1);
-    expect(chat.every((post) => post.to === "group-chat" && post.content.length <= CHAT_MESSAGE_LIMIT)).toBe(true);
-    const restored = chat
-      .map((post) => (post.to === "group-chat" ? post.content.replace(/^.*?: /, "") : ""))
-      .join(" ");
-    expect(restored).toBe(words);
+    expect(chat).toEqual([{ to: "group-chat", content: `Nikk2 wrote in the room: ${words}` }]);
   });
 
   it("refuses blank and over-limit drafts without making posts", () => {

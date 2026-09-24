@@ -77,15 +77,22 @@ describe("how the words arrived", () => {
 describe("splitting a long voice message for the chat", () => {
   const long = (sentences: number) =>
     Array.from({ length: sentences }, (_, i) => `This is sentence number ${i + 1} of a long voice message.`).join(" ");
+  /**
+   * Sentences enough for about three messages, sized FROM the limit. These used
+   * `long(OVER)` — about 11,000 characters — which was five parts at 2000 and is
+   * one part at 64000, so three of the tests below would have passed while
+   * testing nothing at all.
+   */
+  const OVER = Math.ceil((CHAT_MESSAGE_LIMIT * 3) / 50);
 
   it("leaves a message that already fits as one part", () => {
     expect(splitForChat("short and sweet")).toEqual(["short and sweet"]);
   });
 
   it("never produces a part over the chat limit, however long the input", () => {
-    // The failure this fixes: WebHarness refuses a message over 2000
-    // characters, so a long dictation bounced off the chat.
-    const parts = splitForChat(long(200));
+    // The failure this fixes: WebHarness refuses a message over its limit
+    // (2000 then, 64000 now), so a long dictation bounced off the chat.
+    const parts = splitForChat(long(OVER));
     expect(parts.length).toBeGreaterThan(1);
     for (const part of parts) expect(part.length).toBeLessThanOrEqual(CHAT_MESSAGE_LIMIT);
   });
@@ -93,19 +100,19 @@ describe("splitting a long voice message for the chat", () => {
   it("loses nothing: the parts rejoin into exactly the original words", () => {
     // A splitter that drops the space it cut at, or a word at a seam, is the
     // quiet loss this whole change exists to prevent.
-    const text = long(200);
+    const text = long(OVER);
     expect(splitForChat(text).join(" ")).toBe(text);
   });
 
   it("leaves room for a part number in front of every part", () => {
     const reserve = "(99/99) ".length;
-    for (const part of splitForChat(long(200), CHAT_MESSAGE_LIMIT, reserve)) {
+    for (const part of splitForChat(long(OVER), CHAT_MESSAGE_LIMIT, reserve)) {
       expect(`(99/99) ${part}`.length).toBeLessThanOrEqual(CHAT_MESSAGE_LIMIT);
     }
   });
 
   it("cuts between sentences when it can", () => {
-    for (const part of splitForChat(long(200)).slice(0, -1)) {
+    for (const part of splitForChat(long(OVER)).slice(0, -1)) {
       expect(part.endsWith(".")).toBe(true);
     }
   });
