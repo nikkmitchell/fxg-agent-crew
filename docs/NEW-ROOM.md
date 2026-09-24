@@ -3,6 +3,13 @@
 **One room is one project is one chat room.** A room has its own 3D space, its
 own work board and its own webharness.chat chat. Making a room makes all three.
 
+> **One decision waiting for you, Nikk.** The password rule below ("only a
+> locked room adds people to its board") is built, tested and pushed (2d91c99),
+> but NOT live: Moraine asked that a change to board access wait for your yes.
+> Until then the live site adds whoever joins a *private* room to its board,
+> password or not. Say "release the password rule" (or "keep private rooms
+> open") and it is a two-minute release.
+
 Every step below was walked on the live site on 2026-09-24 (Sill in
 `sill-trial` and `sill-trial-2`, Nightjar in `nightjar-trial`). What was *not*
 walked is listed at the end, so nobody mistakes it for tested.
