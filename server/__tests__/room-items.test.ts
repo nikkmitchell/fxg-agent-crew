@@ -208,6 +208,9 @@ describe("passing, and the end of a game", () => {
     const cookie = `${built.config.cookieName}=${built.sessions.create("Nikk2", "t", "human")}`;
     const items = new RoomItems(built.database);
     const table = items.add("saha.ing", "Nikk2");
+    // A game already under way: passing before the first stone is refused (below).
+    table.stones = [{ id: "opening", x: 0, y: 0, colour: 1 }];
+    items.save("saha.ing", table, "Nikk2");
     const act = (payload: object) =>
       built.app.inject({ method: "POST", url: `/bff/space/items/${table.id}/action`, headers: { cookie }, payload });
     const patch = (payload: object) =>
@@ -220,7 +223,8 @@ describe("passing, and the end of a game", () => {
     const { app, act, now } = boot();
     try {
       expect((await act({ action: "pass" })).statusCode).toBe(200);
-      expect(now()).toMatchObject({ activeColour: 1, passes: 1, ended: false, stones: [] });
+      expect(now()).toMatchObject({ activeColour: 1, passes: 1, ended: false });
+      expect(now().stones, "no stone was played").toHaveLength(1);
     } finally { await app.close(); }
   });
 
@@ -266,7 +270,18 @@ describe("passing, and the end of a game", () => {
         expect(refused.json()).toMatchObject({ code: "GAME_OVER" });
         expect(refused.json().error).toMatch(/Clear the stones/);
       }
-      expect(now().stones).toEqual([]);
+      expect(now().stones).toHaveLength(1);
+    } finally { await app.close(); }
+  });
+
+  /** Baiwei (4555): after CLEAR STONES both sides could pass and "end" a game nobody had played. */
+  it("will not pass before the first stone, so an empty board cannot be ended", async () => {
+    const { app, act, patch } = boot();
+    try {
+      await patch({ reset: true });
+      const refused = await act({ action: "pass" });
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json()).toMatchObject({ code: "NOTHING_PLAYED" });
     } finally { await app.close(); }
   });
 

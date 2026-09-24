@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { legalGoMoves, placeGoStone } from "./go-rules";
 import { defaultGoItem, parseRoomItem, GO_SIZES, type GoStone } from "./room-items";
-import { goBowl, goLocal, goTouchBowl, goTouchIntersection, goWorld, GO_SURFACE, GO_PITCH, goPoint, goRadius, goBoardWidth, goDeckWidth, goTray } from "./go-layout";
+import { goBowl, goLocal, goTouchBowl, goTouchIntersection, goWorld, GO_SURFACE, GO_PITCH, goPoint, goRadius, goBoardWidth, goDeckWidth } from "./go-layout";
 const s = (x: number, y: number, colour = 1): GoStone => ({ x, y, colour });
 describe("Go captures", () => {
   it("captures one surrounded stone and does not mutate the input", () => {
@@ -56,23 +56,12 @@ describe("Go layout", () => {
     expect(goBoardWidth(25)).toBeGreaterThan(goBoardWidth(19));
     expect(goBoardWidth(9)).toBeGreaterThan(goBoardWidth(5));
   });
-  it("keeps capture trays clear of every bowl at all grid sizes and colour counts", () => {
+  it("keeps every bowl outside the playing surface and on the deck", () => {
+    // The capture rings have their own test: go-capture-ring.test.ts.
     for (const size of GO_SIZES) for (let count = 2; count <= 8; count++) for (let i = 0; i < count; i++) {
-      const tray = goTray(i, count, size);
-      for (let j = 0; j < count; j++) {
-        const bowl = goBowl(j, count, size);
-        const dx = Math.max(0, Math.abs(tray.x - bowl.x) - 0.11);
-        const dz = Math.max(0, Math.abs(tray.z - bowl.z) - 0.135);
-        expect(Math.hypot(dx, dz) - 0.18, `${size}x${size}/${count}: tray${i} bowl${j}`).toBeGreaterThan(0.01);
-      }
-    }
-  });
-  it("keeps every bowl outside the playing surface and each tray on the deck", () => {
-    for (const size of GO_SIZES) for (let count = 2; count <= 8; count++) for (let i = 0; i < count; i++) {
-      const bowl = goBowl(i, count, size), tray = goTray(i, count, size);
+      const bowl = goBowl(i, count, size);
       expect(Math.max(Math.abs(bowl.x), Math.abs(bowl.z)) - 0.18).toBeGreaterThan(goBoardWidth(size) / 2);
-      expect(Math.abs(tray.x) + 0.11).toBeLessThan(goDeckWidth(size, count) / 2);
-      expect(Math.abs(tray.z) + 0.135).toBeLessThan(goDeckWidth(size, count) / 2);
+      expect(Math.max(Math.abs(bowl.x), Math.abs(bowl.z)) + 0.18).toBeLessThan(goDeckWidth(size, count) / 2);
     }
   });
   it("upgrades a persisted original table without changing stones", () => {

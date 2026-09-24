@@ -7,9 +7,13 @@ export const goExtent = (size: number) => (size - 1) * GO_PITCH;
 export const goBoardWidth = (size: number) => goExtent(size) + 0.2;
 export function goDeckWidth(size: number, colours: number): number {
   let halfWidth = Math.max(1.7, goBoardWidth(size) + (colours > 2 ? 1.4 : 1.12)) / 2;
+  // Wide enough for every capture ring, whole, with a margin.
+  const edge = goRingStone(size) + 0.04;
   for (let i = 0; i < colours; i++) {
-    const tray = goTray(i, colours, size);
-    halfWidth = Math.max(halfWidth, Math.abs(tray.x) + 0.11 + 0.04, Math.abs(tray.z) + 0.135 + 0.04);
+    for (let n = 0; n < goRingSlots(i, colours, size); n++) {
+      const spot = goRingSpot(i, colours, size, n);
+      halfWidth = Math.max(halfWidth, Math.abs(spot.x) + edge, Math.abs(spot.z) + edge);
+    }
   }
   return halfWidth * 2;
 }
@@ -23,11 +27,6 @@ export function goBowl(index: number, count: number, size = 9): Point3 {
   const stationEdge = Math.max(goBoardWidth(size) / 2 + 0.295, count >= 6 ? 0.76 : 0);
   const radius = stationEdge / Math.max(Math.abs(Math.cos(angle)), Math.abs(Math.sin(angle)));
   return { x: Math.cos(angle) * radius, y: GO_SURFACE - 0.06, z: Math.sin(angle) * radius };
-}
-export function goTray(index: number, count: number, size = 9): Point3 {
-  const bowl = goBowl(index, count, size);
-  const angle = Math.PI + index / count * Math.PI * 2;
-  return { x: bowl.x - Math.sin(angle) * 0.38, y: 0.752, z: bowl.z + Math.cos(angle) * 0.38 };
 }
 export function goLocal(p: Point3, item: GoRoomItem): Point3 {
   const x = (p.x - item.position.x) / item.scale;
@@ -90,4 +89,123 @@ export function goSeat(item: GoRoomItem, colour: number): { at: Point3; facing: 
 export function goBowlScale(size: number): number {
   const full = goBoardWidth(19);
   return Math.min(1, Math.max(0.65, 0.55 + 0.45 * (goBoardWidth(size) / full)));
+}
+
+/**
+ * THE CAPTURE RING: where the stones you have taken are laid out, in place of
+ * the separate brown pad that used to sit beside each bowl.
+ *
+ * Baiwei and Nikk (card saha-ing-aad334f9): "a delicate circular capture ring
+ * just outside the stone bowl; captured stones should collect/read cleanly
+ * along the ring as captures accumulate". So captures are beads on an ARC
+ * round the bowl — first row, then a second row just outside it — turned away
+ * from the board and away from the bowl's name and PASS (see GO_RING.reach).
+ *
+ * In the bowl's scale (goBowlScale), so a small board's smaller bowl gets a
+ * smaller ring and the same number of stones still fit.
+ */
+export const GO_RING = {
+  /** Radii of the two rows, bowl-local. The bowl's rim is at 0.18. */
+  rows: [0.265, 0.34] as const,
+  /** Centre to centre along the arc, bowl-local. A captured stone is ≤0.064 across. */
+  spacing: 0.072,
+  /** Captured stones sit on the deck, whose top is at 0.7425. */
+  y: 0.7425,
+  /** The longest arc, either side of its middle, in radians: about 130° in all. */
+  reach: 1.125,
+  /** Kept between a captured stone and anything else, beyond just not touching. */
+  margin: 0.015,
+};
+
+/** A captured stone's radius: scaled with its bowl, as the stones in the bowl are. */
+export const goRingStone = (size: number) => Math.min(goRadius(), 0.032) * goBowlScale(size);
+
+type RingArc = { centre: Point3; start: number; reach: number; scale: number };
+const arcs = new Map<string, RingArc>();
+
+/**
+ * Each bowl's ring, fitted to the room it actually has.
+ *
+ * A fixed arc worked for two and four players and hit something for the rest:
+ * with three to seven, a bowl sits at a diagonal and its name and PASS (which
+ * stack along z, see goLabelOffset) take one side of it, leaving as little as
+ * 81° free. So this looks round the bowl a degree at a time, keeps every angle
+ * where BOTH rows would clear the board, every bowl and the name and PASS, and
+ * centres the ring in the longest free stretch, up to GO_RING.reach each way.
+ * A tighter bowl gets a shorter ring and shows fewer of its newest captures;
+ * the count under its name is always the whole number.
+ */
+function ringArc(index: number, count: number, size: number): RingArc {
+  const key = `${index}/${count}/${size}`;
+  const known = arcs.get(key);
+  if (known) return known;
+  const centre = goBowl(index, count, size), scale = goBowlScale(size), stone = goRingStone(size);
+  const board = goBoardWidth(size) / 2 + 0.02;
+  const labels = [{ at: 0.24, halfX: 0.2, halfZ: 0.06 }, { at: 0.35, halfX: 0.17, halfZ: 0.05 }]
+    .map((box) => ({ ...box, z: centre.z + goLabelOffset(index, count, box.at).z * scale }));
+  const others = Array.from({ length: count }, (_, j) => goBowl(j, count, size));
+  const clear = (angle: number) => GO_RING.rows.every((row) => {
+    const x = centre.x + Math.cos(angle) * row * scale, z = centre.z + Math.sin(angle) * row * scale;
+    if (Math.max(Math.abs(x), Math.abs(z)) - stone < board) return false;
+    if (others.some((bowl) => Math.hypot(x - bowl.x, z - bowl.z) - stone - 0.18 * scale < GO_RING.margin)) return false;
+    return labels.every((box) => Math.hypot(
+      Math.max(0, Math.abs(x - centre.x) - box.halfX * scale),
+      Math.max(0, Math.abs(z - box.z) - box.halfZ * scale)) > stone + GO_RING.margin);
+  });
+  const step = Math.PI / 180, free = Array.from({ length: 360 }, (_, k) => clear(k * step));
+  let best = { from: 0, length: 0 };
+  for (let k = 0; k < 360; k++) {
+    if (!free[k] || free[(k + 359) % 360]) continue; // the start of a free run
+    let length = 0;
+    while (length < 360 && free[(k + length) % 360]) length++;
+    if (length > best.length) best = { from: k, length };
+  }
+  if (free.every(Boolean)) best = { from: 0, length: 360 };
+  // One degree in from each end, so a stone at the very end still clears.
+  const reach = Math.min(GO_RING.reach, Math.max(0, (best.length - 2) * step / 2));
+  const middle = (best.from + best.length / 2) * step;
+  const arc = { centre, start: middle - reach, reach, scale };
+  arcs.set(key, arc);
+  return arc;
+}
+
+/** How many stones one row of a bowl's ring holds. */
+export function goRingCapacity(index: number, count: number, size: number, row: 0 | 1): number {
+  const { reach } = ringArc(index, count, size);
+  return Math.floor((2 * reach * GO_RING.rows[row]) / GO_RING.spacing) + 1;
+}
+
+/** Every stone a bowl's ring can show: both rows. Older captures are counted, not drawn. */
+export const goRingSlots = (index: number, count: number, size: number) =>
+  goRingCapacity(index, count, size, 0) + goRingCapacity(index, count, size, 1);
+
+/** A bowl's ring as an arc, for drawing its line. */
+export function goRingArc(index: number, count: number, size: number, row: 0 | 1 = 0) {
+  const arc = ringArc(index, count, size);
+  return { centre: arc.centre, radius: GO_RING.rows[row] * arc.scale, start: arc.start, length: 2 * arc.reach };
+}
+
+/** Where the n-th captured stone (0 = the oldest shown) lies on a bowl's ring. */
+export function goRingSpot(index: number, count: number, size: number, n: number): Point3 {
+  const first = goRingCapacity(index, count, size, 0);
+  const row: 0 | 1 = n < first ? 0 : 1;
+  const k = row === 0 ? n : n - first;
+  const arc = goRingArc(index, count, size, row);
+  const angle = arc.start + (k * GO_RING.spacing) / GO_RING.rows[row];
+  return {
+    x: arc.centre.x + Math.cos(angle) * arc.radius,
+    y: GO_RING.y + goRingStone(size) * 0.46,
+    z: arc.centre.z + Math.sin(angle) * arc.radius,
+  };
+}
+
+/**
+ * Where a bowl's name and PASS go, bowl-local: stacked along z, `distance`
+ * from the bowl's centre, on the side the old capture pad did NOT use. Both
+ * are wide and flat, so they stack along one axis rather than going round the
+ * bowl; the capture ring is shaped to stay clear of them (go-capture-ring.test).
+ */
+export function goLabelOffset(index: number, count: number, distance: number): { x: number; z: number } {
+  const outward = Math.PI + (index / count) * Math.PI * 2;
+  return { x: 0, z: Math.cos(outward) * 0.38 > 0 ? -distance : distance };
 }

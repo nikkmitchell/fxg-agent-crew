@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultGoItem, type GoRoomItem } from "../../shared/room-items";
-import { scoreLine, turnLine } from "./go-status";
+import { canPass, lastPassLine, noMoveLine, passLabel, resultRows, scoreLine, turnLine, winners } from "./go-status";
 
 const table = (over: Partial<GoRoomItem> = {}): GoRoomItem => ({ ...defaultGoItem("t"), size: 5, ...over });
 
@@ -9,9 +9,11 @@ describe("the line in front of the board", () => {
     expect(turnLine(table())).toBe("BLACK'S TURN");
   });
 
-  /** So the next player knows one more pass ends a two-player game. */
-  it("says who just passed", () => {
-    expect(turnLine(table({ activeColour: 1, passes: 1 }))).toBe("WHITE'S TURN · BLACK PASSED");
+  /** Short, so it never runs into SETTINGS and MOVE either side of it. */
+  it("stays short after a pass; who passed goes on the line below", () => {
+    expect(turnLine(table({ activeColour: 1, passes: 1 }))).toBe("WHITE'S TURN");
+    expect(lastPassLine(table({ activeColour: 1, passes: 1, colours: ["a", "b", "c"] })))
+      .toBe("BLACK passed (1 in a row; the game ends when all 3 pass)");
   });
 
   it("says the game is over once everybody has passed", () => {
@@ -31,11 +33,62 @@ describe("the count, in words", () => {
     expect(scoreLine(table({ stones, territoryShown: true }))).toBe("LAND SO FAR (provisional): BLACK 15 · WHITE 5");
   });
 
-  it("names the winner and how to start again once it is over", () => {
-    expect(scoreLine(table({ stones, ended: true }))).toBe("BLACK WINS · BLACK 15 · WHITE 5 · clear the stones for a new game");
+  /** Baiwei: "should be arranged more neatly" — rows, not one long line. */
+  it("once it is over, gives the result as rows: winner, each count highest first, how to start again", () => {
+    expect(scoreLine(table({ stones, ended: true })), "the rows say it instead").toBeNull();
+    expect(resultRows(table({ stones: stones.map((s) => ({ ...s, colour: 1 - s.colour })), ended: true }))).toEqual({
+      verdict: "WHITE WINS",
+      scores: [{ colour: 1, text: "WHITE 15" }, { colour: 0, text: "BLACK 5" }],
+      again: "Clear the stones in settings for a new game",
+    });
   });
 
-  it("says a tie is a tie", () => {
-    expect(scoreLine(table({ ended: true }))).toMatch(/^A TIE · BLACK 0 · WHITE 0/);
+  it("says a tie is a tie, and highlights every colour that tied", () => {
+    expect(resultRows(table({ ended: true }))?.verdict).toBe("A TIE");
+    expect(winners(table({ ended: true }))).toEqual([0, 1]);
+    expect(winners(table({ stones, ended: true }))).toEqual([0]);
+    expect(winners(table({ stones })), "nobody has won a game still going").toEqual([]);
+  });
+});
+
+/** Baiwei: "I cannot make a move. Is it assigned to someone?" */
+describe("when the player to move has no legal move", () => {
+  // A 5x5 all White but two separate one-point eyes. Black in either eye has
+  // no liberty and captures nothing (White keeps the other eye), so it is
+  // suicide both times: Black has no legal move. (A ring with ONE eye would not
+  // do: Black in it takes the ring's last liberty and captures it.)
+  const eyes = new Set(["1,1", "3,3"]);
+  const white = Array.from({ length: 25 }, (_, i) => ({ x: i % 5, y: Math.floor(i / 5), colour: 1 }))
+    .filter((stone) => !eyes.has(`${stone.x},${stone.y}`));
+
+  it("tells them to pass", () => {
+    expect(noMoveLine(table())).toBeNull();
+    expect(noMoveLine(table({ stones: white }))).toBe("No legal move for BLACK: press PASS at the glowing bowl");
+  });
+
+  it("says nothing once the game is over", () => {
+    expect(noMoveLine(table({ stones: white, ended: true }))).toBeNull();
+  });
+});
+
+describe("passing, made obvious", () => {
+  const stone = [{ x: 0, y: 0, colour: 0 }];
+
+  it("offers PASS only once a stone has been played, and never with one in the air or after the end", () => {
+    expect(canPass(table()), "an empty board has no game to pass in").toBe(false);
+    expect(canPass(table({ stones: stone }))).toBe(true);
+    expect(canPass(table({ stones: stone, liftedColour: 0 }))).toBe(false);
+    expect(canPass(table({ stones: stone, ended: true }))).toBe(false);
+  });
+
+  it("says on the button when this pass ends the game", () => {
+    expect(passLabel(table({ passes: 0 }))).toBe("PASS");
+    expect(passLabel(table({ passes: 1 }))).toBe("PASS · ENDS GAME");
+    expect(passLabel(table({ passes: 1, colours: ["a", "b", "c"] })), "one of three is not the last").toBe("PASS");
+  });
+
+  it("says on the table that one more pass ends it", () => {
+    expect(lastPassLine(table({ passes: 1, activeColour: 1 }))).toBe("BLACK passed: one more pass ends the game");
+    expect(lastPassLine(table())).toBeNull();
   });
 });
