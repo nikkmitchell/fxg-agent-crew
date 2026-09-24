@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DatabaseSync } from "node:sqlite";
 import { buildServer } from "../index.js";
+import { openDatabase } from "../db/open.js";
+import { BoardStore } from "../db/store.js";
 
 /**
  * ONE ROOM, ONE PROJECT. Nikk (chat 4586): "one room should be one project, as
@@ -156,6 +159,21 @@ describe("one room, one project", () => {
     expect((await call(sill, "GET", "/bff/board/projects/meditation-ar-2")).statusCode).toBe(404);
   });
 
+  it("links a hand-picked board only for its MANAGER, never for a mere member", async () => {
+    const { as, call, members, upstream } = await boot();
+    upstream.rooms.set("studio", "private");
+    upstream.members.set("nikk", new Set(["studio"]));
+    upstream.members.set("guest", new Set(["studio"]));
+    const nikk = as("Nikk2", "nikk");
+    await call(nikk, "POST", "/bff/space/enter", { roomName: "studio" }); // makes and links "studio"
+    await call(nikk, "POST", "/bff/board/projects", { id: "secret", name: "Somebody else's" });
+    await call(nikk, "PUT", "/bff/space/showing", { projectId: "secret" });
+    const guest = as("Guest", "guest");
+    await call(guest, "POST", "/bff/space/enter", { roomName: "studio" });
+    // The room was already linked to "studio", so the hand-picked "secret" is not linked, and guest is not on it.
+    expect(await members(nikk, "secret")).toEqual(["nikk2"]);
+  });
+
   it("a room that already shows a board is left exactly as it is", async () => {
     const { as, call, upstream } = await boot();
     upstream.rooms.set("studio", "private");
@@ -180,5 +198,39 @@ describe("one room, one project", () => {
     await call(nikk, "POST", "/bff/space/enter", { roomName: "garden" });
     expect((await call(nikk, "GET", "/bff/space/showing")).json().showing.projectId).toBe("garden-2");
     expect(await members(other, "garden")).toEqual(["other"]);
+  });
+});
+
+describe("linking a board somebody put up by hand", () => {
+  // What join-room.mts (130f4b8) does on a box without the entry fix: makes the
+  // room's project and puts it on the wall, but links nothing, so nobody who
+  // joins afterwards is on the board. Its manager entering the room links it.
+  const setup = () => {
+    const db = openDatabase(":memory:", DatabaseSync);
+    const store = new BoardStore(db);
+    const nightjar = { id: "Nightjar", kind: "agent" as const };
+    store.createProject(nightjar, { id: "meditation-ar", name: "meditation.AR" });
+    return { store, nightjar };
+  };
+
+  it("links it for the project's manager, and then the next person in belongs", () => {
+    const { store, nightjar } = setup();
+    expect(store.linkRoomByManager(nightjar, "meditation-ar", "meditation.AR")).toBe(true);
+    expect(store.roomProject("meditation.AR")).toBe("meditation-ar");
+    expect(store.enrolFromRoom("Sill", "meditation.AR", "agent")).toEqual(["meditation-ar"]);
+  });
+
+  it("refuses anyone who is not its manager", () => {
+    const { store } = setup();
+    expect(store.linkRoomByManager({ id: "Stranger", kind: "human" }, "meditation-ar", "meditation.AR")).toBe(false);
+    expect(store.roomProject("meditation.AR")).toBeNull();
+  });
+
+  it("never re-links a room that has one, or ties one project to two rooms", () => {
+    const { store, nightjar } = setup();
+    store.linkRoomByManager(nightjar, "meditation-ar", "meditation.AR");
+    store.createProject(nightjar, { id: "other", name: "Other" });
+    expect(store.linkRoomByManager(nightjar, "other", "meditation.AR")).toBe(false);
+    expect(store.linkRoomByManager(nightjar, "meditation-ar", "another.room")).toBe(false);
   });
 });

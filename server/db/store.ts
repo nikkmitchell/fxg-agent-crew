@@ -510,6 +510,29 @@ export class BoardStore {
     }, { actorId: actor.id, action: `${action} ownership`, target: `${agentId}:${ownerId}` });
   }
 
+  /**
+   * Link a room to a project its MANAGER already put on the room's wall, so
+   * the people who join the room belong to it too. For a room that got its
+   * board by hand or by an agent's tool (join-room.mts, 130f4b8) rather than by
+   * the lobby: without this its board shows, but nobody who joins is on it.
+   * Only a manager of that project may, and only for a room with no link yet.
+   * Returns whether it linked.
+   */
+  linkRoomByManager(actor: Actor, projectId: string, room: string): boolean {
+    if (this.roomProject(room)) return false;
+    const row = this.db.prepare("SELECT roles FROM memberships WHERE project_id = ? AND actor_id = ? COLLATE NOCASE AND active = 1")
+      .get(projectId, actor.id) as { roles: string } | undefined;
+    if (!row || !(JSON.parse(row.roles) as string[]).includes("manager")) return false;
+    const already = this.db.prepare("SELECT 1 FROM project_rooms WHERE project_id = ?").get(projectId);
+    if (already) return false; // one project, one room
+    this.tx(() => {
+      this.db.prepare(`INSERT INTO project_rooms (project_id, room, auto_enrol, roles, linked_by, linked_at)
+                       VALUES (?,?,1,'[]',?,?)`).run(projectId, room, actor.id, now());
+      this.audit(actor.id, "link", "project", projectId, undefined, { room, autoEnrol: true });
+    }, { actorId: actor.id, action: "link project to room", target: projectId });
+    return true;
+  }
+
   /** The project linked to a room, if any. */
   roomProject(room: string): string | null {
     const row = this.db.prepare("SELECT project_id FROM project_rooms WHERE room = ?").get(room) as

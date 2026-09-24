@@ -296,8 +296,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
      * however it got there, is left exactly as it is.
      */
     const enterRoom = (session: Session, roomName: string) => {
-      if (!actorBook.roomProject(roomName) && roomShowing.current(roomKey(roomName)).projectId === null) {
-        giveRoomItsProject(session, roomName);
+      const shown = roomShowing.current(roomKey(roomName)).projectId;
+      if (!actorBook.roomProject(roomName)) {
+        if (shown === null) giveRoomItsProject(session, roomName);
+        // A board somebody put up by hand: its manager entering links it.
+        else actorBook.linkRoomByManager({ id: session.username, kind: session.kind }, shown, roomName);
       }
       enrolInRoom(session, roomName);
     };
