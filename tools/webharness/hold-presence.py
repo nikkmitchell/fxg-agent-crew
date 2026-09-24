@@ -257,6 +257,17 @@ def hold(site: str, until: float) -> str:
         # be restarting, or the proxy on this machine may be flapping again.
         print(f"could not get back in: {error}", file=sys.stderr, flush=True)
         return "dropped"
+    except SystemExit as error:
+        # inbox.http() exits on any HTTP error. One of them is not a refusal:
+        # the sign-in challenge it had just fetched expired before the login
+        # used it (seen 2026-09-24, after a drop, while the proxy flapped:
+        # "HTTP 401 /api/agent-auth/login: challenge 不存在或已过期"). Asking for a
+        # fresh challenge is the fix, so that one is a drop; anything else still
+        # stops and says why.
+        if "challenge" in str(error):
+            print(f"sign-in challenge expired, fetching a new one: {error}", file=sys.stderr, flush=True)
+            return "dropped"
+        raise
     except subprocess.CalledProcessError as error:
         # NOT retryable, and the docstring above promised to say so. Signing in
         # runs openssl, and Apple's LibreSSL cannot do Ed25519 at all — so this
