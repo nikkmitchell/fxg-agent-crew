@@ -33,8 +33,10 @@ describe("what a press means", () => {
   it("goes round the board types, both ways, and never refuses or warns", () => {
     // Nikk: "can we allow for changing board types inside the settings".
     expect(goSettingFor(table({ surface: "bamboo" }), "go:surface:more")).toEqual({ kind: "surface", surface: "stone" });
-    expect(goSettingFor(table({ surface: "stone" }), "go:surface:more")).toEqual({ kind: "surface", surface: "bamboo" });
-    expect(goSettingFor(table({ surface: "bamboo" }), "go:surface:less")).toEqual({ kind: "surface", surface: "stone" });
+    // Three since the scholar's rock (card saha-ing-82be26cf): bamboo, stone, rock, round again.
+    expect(goSettingFor(table({ surface: "stone" }), "go:surface:more")).toEqual({ kind: "surface", surface: "rock" });
+    expect(goSettingFor(table({ surface: "rock" }), "go:surface:more")).toEqual({ kind: "surface", surface: "bamboo" });
+    expect(goSettingFor(table({ surface: "bamboo" }), "go:surface:less")).toEqual({ kind: "surface", surface: "rock" });
     const midGame = table({ stones: [{ x: 1, y: 1, colour: 0 }] });
     expect(goSettingCost(midGame, goSettingFor(midGame, "go:surface:more")!)).toBeNull();
     expect(goSettingRequest(table({ surface: "bamboo" }), "go:surface:more")).toEqual({ surface: "stone" });

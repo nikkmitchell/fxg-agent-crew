@@ -110,3 +110,26 @@ export function stonePixels(size = 512, base = "#626668"): Uint8ClampedArray {
   }
   return out;
 }
+
+/**
+ * Scholar's rock: dark blue-black stone, weathered rather than polished. Broad
+ * soft hollows and ridges (deeper than the stone board's mottling, because a
+ * gongshi is worn by water), a fine grain, and faint pale mineral streaks.
+ * Still no pixel-level noise, and nothing near a grid line's brightness.
+ */
+export function rockPixels(size = 512, base = "#454c55"): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(size * size * 4);
+  const [r0, g0, b0] = rgb(base);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const u = x / size, v = y / size;
+    const worn = periodicFbm(u, v, 2, 4, 51) - 0.5;
+    const pits = periodicFbm(u, v, 12, 2, 53) - 0.5;
+    const grain = periodicFbm(u, v, 40, 2, 57) - 0.5;
+    const warp = periodicFbm(u, v, 3, 2, 59);
+    const streak = Math.exp(-(((periodicNoise(u, v + warp * 0.4, 4, 7, 61) - 0.5) / 0.018) ** 2));
+    const shade = 1 + worn * 0.22 + pits * 0.08 + grain * 0.05 + streak * 0.07;
+    const at = (y * size + x) * 4;
+    out[at] = r0 * shade; out[at + 1] = g0 * shade; out[at + 2] = b0 * (shade + worn * 0.03); out[at + 3] = 255;
+  }
+  return out;
+}

@@ -18,6 +18,12 @@ export function goDeckWidth(size: number, colours: number): number {
   return halfWidth * 2;
 }
 export const GO_SURFACE = 0.86;
+/**
+ * How far past the board's own edge the rim may reach. The plain rim reaches
+ * 0.03; the scholar's rock grows into this whole margin (shared/go-rock.ts).
+ * Everything round the board — bowls, capture rings — keeps outside it.
+ */
+export const GO_RIM_REACH = 0.09;
 export const goPoint = (n: number, size: number) => -goExtent(size) / 2 + n * GO_PITCH;
 export const goRadius = (_size?: number) => GO_PITCH * 0.43;
 export function goBowl(index: number, count: number, size = 9): Point3 {
@@ -140,7 +146,7 @@ function ringArc(index: number, count: number, size: number): RingArc {
   const known = arcs.get(key);
   if (known) return known;
   const centre = goBowl(index, count, size), scale = goBowlScale(size), stone = goRingStone(size);
-  const board = goBoardWidth(size) / 2 + 0.02;
+  const board = goBoardWidth(size) / 2 + GO_RIM_REACH + 0.01;
   const labels = [{ at: 0.24, halfX: 0.2, halfZ: 0.06 }, { at: 0.35, halfX: 0.17, halfZ: 0.05 }]
     .map((box) => ({ ...box, z: centre.z + goLabelOffset(index, count, box.at).z * scale }));
   const others = Array.from({ length: count }, (_, j) => goBowl(j, count, size));

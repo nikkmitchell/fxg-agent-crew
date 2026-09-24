@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
-import { bambooPixels, goTextureRepeat, GO_TILE_METRES, stonePixels } from "./go-textures";
+import { bambooPixels, goTextureRepeat, GO_TILE_METRES, rockPixels, stonePixels } from "./go-textures";
 
 /** Card saha-ing-67276601: richer grain, the same at every board size, and calm. */
 const SIZE = 512; // the size RoomItems uses
 const textures = {
   bamboo: bambooPixels(SIZE, GO_SURFACE_LOOKS.bamboo.base),
   stone: stonePixels(SIZE, GO_SURFACE_LOOKS.stone.base),
+  rock: rockPixels(SIZE, GO_SURFACE_LOOKS.rock.base),
 };
 const lum = (p: Uint8ClampedArray, x: number, y: number) => {
   const at = ((y % SIZE) * SIZE + (x % SIZE)) * 4;
@@ -40,7 +41,7 @@ describe("the Go board's grain", () => {
     it(`${name}: averages to the colour the contrast checks use`, () => {
       let sum = 0;
       for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) sum += lum(pixels, x, y);
-      const look = GO_SURFACE_LOOKS[name as "bamboo" | "stone"];
+      const look = GO_SURFACE_LOOKS[name as "bamboo" | "stone" | "rock"];
       expect(Math.abs(sum / SIZE / SIZE - baseLum(look.base))).toBeLessThan(6);
     });
 
