@@ -61,6 +61,13 @@ export class SpaceHub {
   private timer: NodeJS.Timeout | null = null;
 
   /**
+   * Told whose socket was cut off for not reading. BY NAME, because the name
+   * is what lets its owner fix the client; nginx only has an address, and an
+   * address is not something to be passing round the room.
+   */
+  onSlowSocket?: (actorId: string | null, bufferedBytes: number) => void;
+
+  /**
    * Which body each actor has chosen, read fresh on every snapshot.
    *
    * READ, NOT CAPTURED, for the same reason the panel stands are: somebody who
@@ -188,6 +195,7 @@ export class SpaceHub {
     if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
       // terminate, not close: a polite close is one more frame queued behind
       // the megabyte the client is not reading. The close handler detaches it.
+      this.onSlowSocket?.(this.socketActors.get(socket) ?? null, socket.bufferedAmount);
       try {
         socket.terminate();
       } catch {

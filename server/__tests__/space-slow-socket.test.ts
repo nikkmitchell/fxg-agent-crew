@@ -44,6 +44,8 @@ describe("a socket that stops reading is cut off, not buffered for ever", () => 
     while (accepted.length < 2) await new Promise((resolve) => setTimeout(resolve, 5));
     const [stuckEnd, healthyEnd] = accepted;
 
+    const reported: (string | null)[] = [];
+    hub.onSlowSocket = (actorId) => reported.push(actorId);
     const stuckClosed = once(stuckEnd, "close");
     hub.attach("Stuck", "agent", stuckEnd);
     hub.attach("Healthy", "agent", healthyEnd);
@@ -61,6 +63,7 @@ describe("a socket that stops reading is cut off, not buffered for ever", () => 
     await stuckClosed;
     expect(peak, "never more than one message past the limit is held").toBeLessThanOrEqual(MAX_BUFFERED_BYTES + chunk + 64);
     expect(peak, "the test really did back the socket up").toBeGreaterThan(MAX_BUFFERED_BYTES);
+    expect(reported, "the owner is named, so they can fix their client").toEqual(["Stuck"]);
     expect(healthyEnd.readyState).toBe(1);
     expect(healthyGot).toBeGreaterThan(0);
 
