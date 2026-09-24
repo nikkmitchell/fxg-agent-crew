@@ -33,10 +33,10 @@ export const bff = {
       body: JSON.stringify(password ? { password } : {}),
     }),
 
-  createRoom: (roomName: string, visibility: "public" | "private") =>
+  createRoom: (roomName: string, visibility: "public" | "private", password?: string) =>
     requestJson<{ roomName: string; created: true }>(`${bffRoot}/rooms/create`, {
       method: "POST",
-      body: JSON.stringify({ roomName, visibility }),
+      body: JSON.stringify({ roomName, visibility, ...(password ? { password } : {}) }),
     }),
 
   enterSpaceRoom: (roomName: string) =>
