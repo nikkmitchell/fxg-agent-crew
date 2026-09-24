@@ -12,7 +12,7 @@ import { space } from "../space-client";
 import { claimPointer } from "./pointer-claim";
 import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
 import { CONFIRM_DELETE_MS, goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings";
-import { GO_TABLE_POINTERS, goControls, goControlsShown } from "./go-controls";
+import { GO_TABLE_POINTERS, fitFont, goControls, goControlsShown } from "./go-controls";
 import { goSnap, type GoMove } from "./go-snap";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
 import { GO_NAMES as NAMES, goStarPoints } from "../../shared/go-text";
@@ -535,7 +535,7 @@ function TableButton({ label, at, onTap, width = 0.24, depth = 0.105, fontSize =
       ? <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[width, depth]} /><meshBasicMaterial color={outline} transparent opacity={hover ? 0.16 : 0} depthWrite={false} /></mesh>
       : <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[width, depth]} /><meshBasicMaterial color={hover ? "#78654b" : "#483b2e"} /></mesh>}
     {outline && <Outline width={width} depth={depth} colour={outline} />}
-    <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={fontSize} color={outline ?? "#f1dfbd"} raycast={noRaycast}>{label}</Text>
+    <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={fitFont(label, width, fontSize)} color={outline ?? "#f1dfbd"} raycast={noRaycast}>{label}</Text>
   </group>;
 }
 
@@ -1009,7 +1009,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
         <meshBasicMaterial color={carrying ? "#e45338" : "#f1dfbd"} transparent opacity={carrying ? 0.35 : 0} depthWrite={false} />
       </mesh>
       <Outline width={controls.move.width} depth={controls.move.depth} colour={carrying ? "#e45338" : "#f1dfbd"} />
-      <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={controls.line.fontSize * 0.8} color={carrying ? "#ff9582" : "#f1dfbd"} raycast={noRaycast}>
+      <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={fitFont("MOVING", controls.move.width, controls.line.fontSize * 0.8)} color={carrying ? "#ff9582" : "#f1dfbd"} raycast={noRaycast}>
         {carrying ? "MOVING" : "MOVE ✥"}
       </Text>
     </group>}

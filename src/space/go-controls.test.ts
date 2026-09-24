@@ -169,3 +169,29 @@ describe("when the controls are there at all", () => {
     expect(goControlsShown({ liftedColour: 0 })).toBe(false);
   });
 });
+
+/** Baiwei: SETTINGS overflowed its outline at the smallest board. */
+describe("every label fits inside its own outline", () => {
+  const within = (label: string, width: number, font: number) => [...label].length * 0.62 * font <= width - 0.024 + 1e-9;
+
+  it("shrinks a label only as much as it must", async () => {
+    const { fitFont } = await import("./go-controls");
+    expect(fitFont("DONE", 0.4, 0.03)).toBe(0.03);
+    expect(within("PASS · ENDS GAME", 0.34, fitFont("PASS · ENDS GAME", 0.34, 0.04))).toBe(true);
+  });
+
+  it("holds for SETTINGS, MOVE and every sheet button at every size and seating", async () => {
+    const { fitFont, goControls: controlsOf } = await import("./go-controls");
+    const { defaultGoItem, GO_SIZES } = await import("../../shared/room-items");
+    for (const size of GO_SIZES) for (const players of [2, 3, 8]) for (const armed of [false, true]) {
+      const item = { ...defaultGoItem("t"), size, colours: Array.from({ length: players }, (_, i) => `#${i}${i}${i}`) };
+      const c = controlsOf(item, armed);
+      const top = c.line.fontSize * 0.8;
+      expect(within("⚙ SETTINGS", c.settings.width, fitFont("⚙ SETTINGS", c.settings.width, top)), `${size} ${players}`).toBe(true);
+      expect(within("MOVE ✥", c.move.width, fitFont("MOVE ✥", c.move.width, top))).toBe(true);
+      for (const row of c.sheet.rows) for (const b of row.buttons) {
+        expect(within(b.label, b.width, fitFont(b.label, b.width, c.sheet.fontSize)), `${size} ${b.label}`).toBe(true);
+      }
+    }
+  });
+});

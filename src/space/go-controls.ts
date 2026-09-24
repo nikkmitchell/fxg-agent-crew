@@ -32,6 +32,17 @@ import { GO_SURFACE_LOOKS } from "./go-surfaces";
  * seating rather than by eye at one of them.
  */
 
+/**
+ * The font size at which `label` fits inside a button `width` wide, never
+ * bigger than `wanted`. Baiwei: SETTINGS spilled past its outline on the
+ * smallest board, where the buttons are narrowest. Troika's capitals average a
+ * little under 0.62em; the pad keeps the words off the stroke.
+ */
+export function fitFont(label: string, width: number, wanted: number, pad = 0.012): number {
+  const chars = Math.max(1, [...label].length);
+  return Math.min(wanted, Math.max(0.004, (width - pad * 2) / (chars * 0.62)));
+}
+
 export type FlatRect = { x: number; y: number; z: number; width: number; depth: number };
 
 export type SheetButton = { id: string; label: string; x: number; width: number };
