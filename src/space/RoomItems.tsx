@@ -4,7 +4,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { GoRoomItem, RoomItem } from "../../shared/room-items";
 import { legalGoMoves } from "../../shared/go-rules";
-import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goBowlScale, goDeckWidth, goBowl, goPoint, goRadius, goRingArc, goRingCapacity, goRingSlots, goRingSpot, goRingStone, goLabelOffset, GO_RING, goLocal, goTouchBowl, type Point3 } from "../../shared/go-layout";
+import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goBowlScale, goDeckWidth, goBowl, goPoint, goRadius, goRimReach, goRingArc, goRingCapacity, goRingSlots, goRingSpot, goRingStone, goLabelOffset, GO_RING, goLocal, goTouchBowl, type Point3 } from "../../shared/go-layout";
 import { heldStoneWorld, idleGoTouch, restOnBoard, stepGoTouch } from "../../shared/go-touch";
 import type { WirePerson } from "../../shared/space-wire";
 import { goHandInput } from "./go-hand-input";
@@ -424,7 +424,7 @@ function Stones({ targets, reducedMotion }: { targets: StoneTarget[]; reducedMot
  */
 function CaptureRing({ index, item, rows, colour }: { index: number; item: GoRoomItem; rows: 1 | 2; colour: string }) {
   return <>{([0, 1] as const).slice(0, rows).map((row) => {
-    const arc = goRingArc(index, item.colours.length, item.size, row);
+    const arc = goRingArc(index, item.colours.length, item.size, row, goRimReach(item.surface));
     return <group key={row} position={[arc.centre.x, GO_RING.y + 0.001, arc.centre.z]} rotation-y={-arc.start}>
       <mesh rotation-x={Math.PI / 2} raycast={noRaycast}>
         <torusGeometry args={[arc.radius, 0.0028, 6, 72, arc.length]} />
@@ -450,7 +450,7 @@ function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: Go
   const relief = useMemo(() => look.bowl.paint ? bowlPaint(look.bowl.body, look.bowl.paint) : bowlRelief(look.bowl.relief as "lotus" | "fret"), [look.bowl.relief, look.bowl.paint, look.bowl.body]);
   useEffect(() => () => relief.dispose(), [relief]);
   const colour = item.colours[index], accent = ACCENTS[index];
-  const position = goBowl(index, item.colours.length, item.size);
+  const position = goBowl(index, item.colours.length, item.size, goRimReach(item.surface));
   const nameAt = goLabelOffset(index, item.colours.length, 0.24), passAt = goLabelOffset(index, item.colours.length, 0.35);
   const texture = useMemo(glowTexture, []);
   useEffect(() => () => texture.dispose(), [texture]);
@@ -501,7 +501,7 @@ function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: Go
       {active && canPass(item) && <TableButton label={passLabel(item)} onTap={onPass} outline={accent}
         width={0.34} depth={0.1} fontSize={0.04} at={[passAt.x, -0.04, passAt.z]} />}
     </group>
-    <CaptureRing index={index} item={item} rows={captures > goRingCapacity(index, item.colours.length, item.size, 0) ? 2 : 1} colour={look.bowl.rim} />
+    <CaptureRing index={index} item={item} rows={captures > goRingCapacity(index, item.colours.length, item.size, 0, goRimReach(item.surface)) ? 2 : 1} colour={look.bowl.rim} />
   </>;
 }
 
@@ -627,14 +627,14 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     const result: StoneTarget[] = item.stones.map((stone) => {
       const id = stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`;
       const at = { x: goPoint(stone.x, item.size), y: GO_SURFACE + radius * 0.46, z: goPoint(stone.y, item.size) };
-      const bowl = goBowl(stone.colour, item.colours.length, item.size);
+      const bowl = goBowl(stone.colour, item.colours.length, item.size, goRimReach(item.surface));
       return { id, at, from: previous.current.has(id) ? at : lastHeld.current ?? { ...bowl, y: bowl.y + 0.3 }, colour: item.colours[stone.colour], radius };
     });
     item.colours.forEach((_, index) => {
       // Along the bowl's capture ring, first taken first. More than the ring
       // shows are still counted by the bowl's name; only the newest are drawn.
-      item.captures.filter((stone) => stone.by === index).slice(-goRingSlots(index, item.colours.length, item.size)).forEach((stone, n) => {
-        const at = goRingSpot(index, item.colours.length, item.size, n);
+      item.captures.filter((stone) => stone.by === index).slice(-goRingSlots(index, item.colours.length, item.size, goRimReach(item.surface))).forEach((stone, n) => {
+        const at = goRingSpot(index, item.colours.length, item.size, n, goRimReach(item.surface));
         result.push({ id: stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`, at,
           from: at, colour: item.colours[stone.colour], radius: goRingStone(item.size) });
       });
@@ -714,7 +714,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       }
       // Lost tracking freezes the stone in flight; it never places a remembered hand.
     } else {
-      const bowl = goBowl(item.liftedColour, item.colours.length, item.size);
+      const bowl = goBowl(item.liftedColour, item.colours.length, item.size, goRimReach(item.surface));
       const height = bowl.y + 0.29 + (reducedMotion ? 0 : Math.sin(clock.elapsedTime * 2.2) * 0.012);
       held.current.position.y = reducedMotion ? height : THREE.MathUtils.damp(held.current.position.y, height, 7, delta);
     }
@@ -934,8 +934,8 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   // lying on, so the sheet closes rather than waiting underneath them.
   useEffect(() => { if (!showControls) setSettingsOpen(false); }, [showControls]);
   const stars = goStarPoints(item.size);
-  const lifted = item.liftedColour === null ? null : goBowl(item.liftedColour, item.colours.length, item.size);
-  const wide = item.colours.length > 2, deck = goDeckWidth(item.size, item.colours.length);
+  const lifted = item.liftedColour === null ? null : goBowl(item.liftedColour, item.colours.length, item.size, goRimReach(item.surface));
+  const wide = item.colours.length > 2, deck = goDeckWidth(item.size, item.colours.length, goRimReach(item.surface));
   const extent = goExtent(item.size), boardWidth = goBoardWidth(item.size), edge = deck / 2;
   return <group ref={body} position={[item.position.x, item.position.y, item.position.z]} rotation-y={item.position.rotationY} scale={item.scale} pointerEventsType={GO_TABLE_POINTERS}>
     {/*

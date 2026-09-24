@@ -1,4 +1,4 @@
-import { GO_RIM_REACH, goBoardWidth } from "./go-layout.js";
+import { GO_ROCK_REACH, goBoardWidth } from "./go-layout.js";
 
 /**
  * The SCHOLAR'S ROCK table's slab: its outline and the holes worn through it.
@@ -19,10 +19,10 @@ import { GO_RIM_REACH, goBoardWidth } from "./go-layout.js";
  */
 export const GO_ROCK = {
   margin: {
-    /** The slab always shows at least this much beyond the board's edge. */
-    min: 0.03,
+    /** The rock always shows at least this much beyond the board's edge. */
+    min: 0.07,
     /** And never more: the bowls and capture rings start outside this. */
-    max: GO_RIM_REACH,
+    max: GO_ROCK_REACH,
   },
   /** Points round the outline: low-poly by request. */
   points: 56,
@@ -99,7 +99,7 @@ export function goRockHoles(size: number): GoRockHole[] {
     // stays off the board: checked against the actual outline, because the
     // outline wanders and turns corners, and a hole sized by its middle alone
     // can run out of stone at its ends and become a notch.
-    for (let across = 0.022; across >= 0.012; across -= 0.001) {
+    for (let across = 0.036; across >= 0.012; across -= 0.001) {
       const depth = Math.max(0.012 + across, 0.009 + (marginAt(t, size) - 0.018) / 2);
       const hole = {
         centre: { x: p.x + p.normal.x * depth, z: p.z + p.normal.z * depth },

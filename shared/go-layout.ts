@@ -5,13 +5,13 @@ export type Point3 = { x: number; y: number; z: number };
 export const GO_PITCH = 0.075;
 export const goExtent = (size: number) => (size - 1) * GO_PITCH;
 export const goBoardWidth = (size: number) => goExtent(size) + 0.2;
-export function goDeckWidth(size: number, colours: number): number {
+export function goDeckWidth(size: number, colours: number, rim = GO_RIM_REACH): number {
   let halfWidth = Math.max(1.7, goBoardWidth(size) + (colours > 2 ? 1.4 : 1.12)) / 2;
   // Wide enough for every capture ring, whole, with a margin.
   const edge = goRingStone(size) + 0.04;
   for (let i = 0; i < colours; i++) {
-    for (let n = 0; n < goRingSlots(i, colours, size); n++) {
-      const spot = goRingSpot(i, colours, size, n);
+    for (let n = 0; n < goRingSlots(i, colours, size, rim); n++) {
+      const spot = goRingSpot(i, colours, size, n, rim);
       halfWidth = Math.max(halfWidth, Math.abs(spot.x) + edge, Math.abs(spot.z) + edge);
     }
   }
@@ -24,13 +24,23 @@ export const GO_SURFACE = 0.86;
  * Everything round the board — bowls, capture rings — keeps outside it.
  */
 export const GO_RIM_REACH = 0.09;
+/**
+ * The SCHOLAR'S ROCK reaches further: its lip is the rock, and at 19x19 a
+ * 9 cm lip read as a slate board, not a rock (Lumenfold 4682: "deepen the
+ * irregular lip and move the bowls outward"). Only the rock's stations move;
+ * bamboo and stone keep every position, seat and reach they had.
+ */
+export const GO_ROCK_REACH = 0.18;
+/** How far the rim reaches for a board surface. */
+export const goRimReach = (surface?: string) => (surface === "rock" ? GO_ROCK_REACH : GO_RIM_REACH);
 export const goPoint = (n: number, size: number) => -goExtent(size) / 2 + n * GO_PITCH;
 export const goRadius = (_size?: number) => GO_PITCH * 0.43;
-export function goBowl(index: number, count: number, size = 9): Point3 {
+export function goBowl(index: number, count: number, size = 9, rim = GO_RIM_REACH): Point3 {
   const angle = Math.PI + index / count * Math.PI * 2;
   // A square perimeter keeps diagonal bowls outside the square playing surface.
   // Small boards still need enough perimeter for eight bowl-and-tray stations.
-  const stationEdge = Math.max(goBoardWidth(size) / 2 + 0.295, count >= 6 ? 0.76 : 0);
+  // A rim that reaches further moves every station out by the same amount.
+  const stationEdge = Math.max(goBoardWidth(size) / 2 + 0.295 + (rim - GO_RIM_REACH), count >= 6 ? 0.76 + (rim - GO_RIM_REACH) : 0);
   const radius = stationEdge / Math.max(Math.abs(Math.cos(angle)), Math.abs(Math.sin(angle)));
   return { x: Math.cos(angle) * radius, y: GO_SURFACE - 0.06, z: Math.sin(angle) * radius };
 }
@@ -46,7 +56,7 @@ export function goWorld(p: Point3, item: GoRoomItem): Point3 {
     y: item.position.y + p.y * item.scale, z: item.position.z + (-s * p.x + c * p.z) * item.scale };
 }
 export function goTouchBowl(p: Point3, item: GoRoomItem): boolean {
-  const b = goBowl(item.activeColour, item.colours.length, item.size);
+  const b = goBowl(item.activeColour, item.colours.length, item.size, goRimReach(item.surface));
   return Math.hypot(p.x - b.x, p.z - b.z) < 0.19 && p.y > b.y - 0.06 && p.y < b.y + 0.15;
 }
 export function goTouchIntersection(p: Point3, size: number): { x: number; y: number } | null {
@@ -71,13 +81,13 @@ export function goTouchIntersection(p: Point3, size: number): { x: number; y: nu
  * two agents face each other across it.
  */
 export function goSeat(item: GoRoomItem, colour: number): { at: Point3; facing: number } {
-  const bowl = goBowl(colour, item.colours.length, item.size);
+  const bowl = goBowl(colour, item.colours.length, item.size, goRimReach(item.surface));
   const length = Math.hypot(bowl.x, bowl.z) || 1;
   const out = { x: bowl.x / length, z: bowl.z / length };
   // The desk is square, so both the edge and the 0.4 m clearance are measured
   // square to it: a diagonal seat would otherwise stand only 0.28 m off a corner.
   const along = Math.max(Math.abs(out.x), Math.abs(out.z));
-  const reach = (goDeckWidth(item.size, item.colours.length) / 2 + 0.4) / along;
+  const reach = (goDeckWidth(item.size, item.colours.length, goRimReach(item.surface)) / 2 + 0.4) / along;
   const at = goWorld({ x: out.x * reach, y: 0, z: out.z * reach }, item);
   const centre = goWorld({ x: 0, y: 0, z: 0 }, item);
   return { at: { x: at.x, y: 0, z: at.z }, facing: Math.atan2(at.x - centre.x, at.z - centre.z) };
@@ -141,15 +151,15 @@ const arcs = new Map<string, RingArc>();
  * A tighter bowl gets a shorter ring and shows fewer of its newest captures;
  * the count under its name is always the whole number.
  */
-function ringArc(index: number, count: number, size: number): RingArc {
-  const key = `${index}/${count}/${size}`;
+function ringArc(index: number, count: number, size: number, rim = GO_RIM_REACH): RingArc {
+  const key = `${index}/${count}/${size}/${rim}`;
   const known = arcs.get(key);
   if (known) return known;
-  const centre = goBowl(index, count, size), scale = goBowlScale(size), stone = goRingStone(size);
-  const board = goBoardWidth(size) / 2 + GO_RIM_REACH + 0.01;
+  const centre = goBowl(index, count, size, rim), scale = goBowlScale(size), stone = goRingStone(size);
+  const board = goBoardWidth(size) / 2 + rim + 0.01;
   const labels = [{ at: 0.24, halfX: 0.2, halfZ: 0.06 }, { at: 0.35, halfX: 0.17, halfZ: 0.05 }]
     .map((box) => ({ ...box, z: centre.z + goLabelOffset(index, count, box.at).z * scale }));
-  const others = Array.from({ length: count }, (_, j) => goBowl(j, count, size));
+  const others = Array.from({ length: count }, (_, j) => goBowl(j, count, size, rim));
   const clear = (angle: number) => GO_RING.rows.every((row) => {
     const x = centre.x + Math.cos(angle) * row * scale, z = centre.z + Math.sin(angle) * row * scale;
     if (Math.max(Math.abs(x), Math.abs(z)) - stone < board) return false;
@@ -176,27 +186,27 @@ function ringArc(index: number, count: number, size: number): RingArc {
 }
 
 /** How many stones one row of a bowl's ring holds. */
-export function goRingCapacity(index: number, count: number, size: number, row: 0 | 1): number {
-  const { reach } = ringArc(index, count, size);
+export function goRingCapacity(index: number, count: number, size: number, row: 0 | 1, rim = GO_RIM_REACH): number {
+  const { reach } = ringArc(index, count, size, rim);
   return Math.floor((2 * reach * GO_RING.rows[row]) / GO_RING.spacing) + 1;
 }
 
 /** Every stone a bowl's ring can show: both rows. Older captures are counted, not drawn. */
-export const goRingSlots = (index: number, count: number, size: number) =>
-  goRingCapacity(index, count, size, 0) + goRingCapacity(index, count, size, 1);
+export const goRingSlots = (index: number, count: number, size: number, rim = GO_RIM_REACH) =>
+  goRingCapacity(index, count, size, 0, rim) + goRingCapacity(index, count, size, 1, rim);
 
 /** A bowl's ring as an arc, for drawing its line. */
-export function goRingArc(index: number, count: number, size: number, row: 0 | 1 = 0) {
-  const arc = ringArc(index, count, size);
+export function goRingArc(index: number, count: number, size: number, row: 0 | 1 = 0, rim = GO_RIM_REACH) {
+  const arc = ringArc(index, count, size, rim);
   return { centre: arc.centre, radius: GO_RING.rows[row] * arc.scale, start: arc.start, length: 2 * arc.reach };
 }
 
 /** Where the n-th captured stone (0 = the oldest shown) lies on a bowl's ring. */
-export function goRingSpot(index: number, count: number, size: number, n: number): Point3 {
-  const first = goRingCapacity(index, count, size, 0);
+export function goRingSpot(index: number, count: number, size: number, n: number, rim = GO_RIM_REACH): Point3 {
+  const first = goRingCapacity(index, count, size, 0, rim);
   const row: 0 | 1 = n < first ? 0 : 1;
   const k = row === 0 ? n : n - first;
-  const arc = goRingArc(index, count, size, row);
+  const arc = goRingArc(index, count, size, row, rim);
   const angle = arc.start + (k * GO_RING.spacing) / GO_RING.rows[row];
   return {
     x: arc.centre.x + Math.cos(angle) * arc.radius,

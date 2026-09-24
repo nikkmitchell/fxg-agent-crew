@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GO_RIM_REACH, goBoardWidth } from "./go-layout.js";
+import { GO_ROCK_REACH, goBoardWidth, goBowl, goBowlScale } from "./go-layout.js";
 import { GO_ROCK, GO_ROCK_LIP, goRockHoles, goRockOutline, goRockRings, type Point2 } from "./go-rock.js";
 import { GO_SIZES } from "./room-items.js";
 
@@ -46,7 +46,7 @@ describe("the scholar's rock", () => {
       expect(outline).toHaveLength(GO_ROCK.points);
       for (const p of outline) {
         expect(chebyshev(p), `${size}x${size}`).toBeGreaterThanOrEqual(half + GO_ROCK.margin.min - 1e-9);
-        expect(chebyshev(p), `${size}x${size}`).toBeLessThanOrEqual(half + GO_RIM_REACH + 1e-9);
+        expect(chebyshev(p), `${size}x${size}`).toBeLessThanOrEqual(half + GO_ROCK.margin.max + 1e-9);
       }
     }
   });
@@ -113,6 +113,19 @@ describe("the rock as one form", () => {
       for (const hole of goRockHoles(size)) {
         const nearest = Math.min(...rim(hole).map(chebyshev)) - half;
         expect(lipReach, `${size}x${size}: the lip's underside reaches ${lipReach.toFixed(3)} past the edge`).toBeLessThan(nearest);
+      }
+    }
+  });
+});
+
+describe("the rock and the bowls", () => {
+  it("keeps every bowl clear of the rock at every size and player count", () => {
+    for (const size of GO_SIZES) for (let count = 2; count <= 8; count++) {
+      const outline = goRockOutline(size);
+      for (let i = 0; i < count; i++) {
+        const bowl = goBowl(i, count, size, GO_ROCK_REACH);
+        const nearest = Math.min(...outline.map((p) => Math.hypot(p.x - bowl.x, p.z - bowl.z)));
+        expect(nearest - 0.18 * goBowlScale(size), `${size}x${size}/${count} bowl ${i}`).toBeGreaterThan(0.01);
       }
     }
   });
