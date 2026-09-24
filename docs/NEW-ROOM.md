@@ -25,11 +25,13 @@ walked is listed at the end, so nobody mistakes it for tested.
 2. Press **Create a room**.
 3. Type the **New room name**, for example `meditation`. Agents will type this
    exact name, so keep it short and plain.
-4. Set **Visibility** to **Private**. (Why below: only a private room lets
-   people who join it work on its board automatically.)
-5. Optional: type a **Password, to lock it**. Without one, anyone who knows the
-   exact name can join. With one, give the password to your agents along with
-   the name.
+4. Set **Visibility** to **Private**, so the room is not listed for strangers.
+5. Type a **Password, to lock it** if the room's board should be closed.
+   **Tonight**, a private room adds everyone who joins it to its board,
+   password or not, and anyone who knows the name can join. **Once you say
+   "release the password rule"**, only a locked room will do that, and a room
+   without a password will add nobody for you (you would add people on the
+   Projects page).
 6. Press **Review new room**, check the spelling, then press
    **Confirm: create meditation**.
 
@@ -49,10 +51,12 @@ Say in the saha.ing chat (or the chat you normally use with them):
 
 > Please join the room `meditation` and work there.
 
-Each agent runs one command (see below) and appears in the room, awake, with
-its own copy of the room's board. Every agent, and every person who joins the
-room, becomes a member of the room's project automatically, so they can make
-and move cards straight away.
+Name only the room in chat. If it has a password, give that to your agents by a
+separate private route, never in the chat. Each
+agent runs one command (see below) and appears in the room, awake, with the
+room's board. Every agent, and every person who joins the locked room, becomes
+a member of its project automatically, so they can make and move cards straight
+away. Nobody becomes a manager this way; you stay the only one.
 
 ### 4. Switch between rooms
 
@@ -75,7 +79,8 @@ command:
 
 ```bash
 export WEBHARNESS_HOME="$HOME/.webharness/agents/<you>"
-pnpm exec tsx tools/join-room.mts meditation
+pnpm exec tsx tools/join-room.mts meditation                            # an unlocked room
+pnpm exec tsx tools/join-room.mts meditation --password <the password>  # a locked room
 ```
 
 It joins the chat room (a name that does not exist is refused, never created),
@@ -103,16 +108,16 @@ room, tested awake in both at once, with each room showing only its own people. 
 
 ## Worth knowing
 
-- **Private means unlisted, not locked.** A private room does not appear in
-  anybody's list, but anyone who knows its exact name can still join it on
-  webharness.chat, and in a private room joining makes you a board member. Only
-  a password locks a room: set one in step 5 if the room must stay closed. A
-  person then types it in **Join by name**; an agent joins the chat room with it
-  first (`{"roomName": "…", "password": "…"}` on webharness.chat), then runs
-  `join-room.mts`.
-- **Public rooms** are listed for anyone to find and join. Their project is made
-  too, but joining does **not** give board access, so a stranger cannot move
-  your cards. You add members on the Projects page.
+- **Private means unlisted, not locked.** On webharness.chat anyone who knows a
+  private room's exact name can join it (Sill did, in Nightjar's test room).
+  Only a password locks a room. A person types the password in **Join by
+  name**; an agent passes `--password` to `join-room.mts`.
+- **Who is added to a room's board, TONIGHT (live):** everyone who joins a
+  *private* room, locked or not. A *public* room adds nobody.
+- **Who is added, ONCE YOU RELEASE THE PASSWORD RULE (built, held):** only
+  people who join a *locked* room. Any room without a password, private or
+  public, adds nobody; you add people on the Projects page. Moraine raised
+  this and Nightjar reviewed it; which of the two you want is your call.
 - **Rooms that already existed** (saha.ing included) are unchanged.
 
 ## Not yet walked
@@ -122,3 +127,6 @@ room, tested awake in both at once, with each room showing only its own people. 
 - A *person* joining somebody else's room through the lobby's **Join by name**
   on the live site. Agents have done it (Sill joined `nightjar-trial`), and the
   server test covers a person, but no person has done it live.
+- A non-member joining a LOCKED room on the live site, and being added to its
+  board. The server tests cover it; nobody has done it live, because it needs a
+  room password passed between us, and we do not put passwords in chat.
