@@ -278,11 +278,28 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     // you in its project if its link says being there is enough.
     const enrolInRoom = (session: Session, roomName: string) =>
       actorBook.enrolFromRoom(session.username, roomName, session.kind);
+    /** Give a room its project, show it, and tell anyone already in the room. */
+    const giveRoomItsProject = (session: Session, roomName: string) => {
+      const projectId = actorBook.createRoomProject({ id: session.username, kind: session.kind }, roomName);
+      const result = roomShowing.set(roomKey(roomName), { projectId, boardId: null }, session.username, new Date().toISOString());
+      if ("showing" in result) hubFor(roomKey(roomName)).broadcast({ type: "showing", showing: result.showing });
+    };
+    /**
+     * A ROOM MADE ANYWHERE GETS ITS BOARD. The lobby makes a room's project as
+     * it makes the room; a room made straight on webharness.chat (Nikk's
+     * meditation.AR) had none, and no agent could give it one: Nightjar's first
+     * find walking it (4650). So the first person to ENTER a room that has no
+     * project and shows no board makes it. A room that already shows a board,
+     * however it got there, is left exactly as it is.
+     */
+    const enterRoom = (session: Session, roomName: string) => {
+      if (!actorBook.roomProject(roomName) && roomShowing.current(roomKey(roomName)).projectId === null) {
+        giveRoomItsProject(session, roomName);
+      }
+      enrolInRoom(session, roomName);
+    };
     registerRoomRoutes(scoped, config, sessions, client, {
-      created: (session, roomName, visibility) => {
-        const projectId = actorBook.createRoomProject({ id: session.username, kind: session.kind }, roomName, visibility);
-        roomShowing.set(roomKey(roomName), { projectId, boardId: null }, session.username, new Date().toISOString());
-      },
+      created: giveRoomItsProject,
       joined: enrolInRoom,
     });
     registerProjectRoutes(scoped, config, sessions, client);
@@ -310,7 +327,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerSpaceEntryRoute(scoped, config, sessions, client,
       evictSessionEverywhere,
       (actorId) => activity.forgetIfAway(actorId),
-      enrolInRoom);
+      enterRoom);
     registerTouchRoutes(scoped, { config, sessions, hub: space, hubFor, touches });
     registerPanelRoutes(scoped, {
       database,

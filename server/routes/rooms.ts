@@ -71,7 +71,7 @@ function confirmedRoom(raw: unknown, requested: string): string | null {
  */
 export type RoomHooks = {
   /** A room was just created by this person: one room, one project. */
-  created?: (session: Session, roomName: string, visibility: "public" | "private") => void;
+  created?: (session: Session, roomName: string) => void;
   /** This person is now confirmed a member of this room. */
   joined?: (session: Session, roomName: string) => void;
 };
@@ -248,7 +248,7 @@ export function registerRoomRoutes(
       if (!created) {
         return reply.code(409).send({ code: "ROOM_ALREADY_EXISTS", error: "another room took that name during creation; check before continuing" });
       }
-      quietly("create", () => hooks.created?.(session, confirmed, visibility));
+      quietly("create", () => hooks.created?.(session, confirmed));
       return reply.code(201).send({ roomName: confirmed, created: true });
     } catch (error) {
       return fail(reply, error);

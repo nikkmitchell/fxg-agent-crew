@@ -510,6 +510,13 @@ export class BoardStore {
     }, { actorId: actor.id, action: `${action} ownership`, target: `${agentId}:${ownerId}` });
   }
 
+  /** The project linked to a room, if any. */
+  roomProject(room: string): string | null {
+    const row = this.db.prepare("SELECT project_id FROM project_rooms WHERE room = ?").get(room) as
+      | { project_id: string } | undefined;
+    return row?.project_id ?? null;
+  }
+
   /**
    * ONE ROOM, ONE PROJECT. Nikk (chat 4586): "one room should be one project,
    * as well as one webharness.chat chat room". So a room made from the lobby
@@ -523,13 +530,16 @@ export class BoardStore {
    * has a linked project gets that project back, so a retried create never
    * makes two.
    *
-   * AUTO-ENROL ONLY FOR A PRIVATE ROOM, for the reason migration 23 gives: a
-   * public room can be joined by anyone who registers at webharness.chat, and
-   * that must not quietly put its board in a stranger's hands. A public room's
-   * project is still made and linked, with enrolment off; its manager adds
-   * people, or turns it on.
+   * BEING IN THE ROOM IS ENOUGH TO BELONG, public or private, locked or not.
+   * Nikk decided it (chat 4643, 4649): passwords are optional and never needed,
+   * and nothing on his side should block people working in a room. So the
+   * room is the boundary: on WebHarness a public room is open to anyone, and a
+   * private one to anyone who knows its name; a password is the one lock, and
+   * a room that wants its board closed sets one. The protections that matter
+   * stay: nobody is ever enrolled as manager, and a revoked member stays out.
+   * (A stricter version, locked rooms only, was built and reverted: 2d91c99.)
    */
-  createRoomProject(actor: Actor, room: string, visibility: "public" | "private"): string {
+  createRoomProject(actor: Actor, room: string): string {
     const linked = this.db.prepare("SELECT project_id FROM project_rooms WHERE room = ?").get(room) as
       | { project_id: string } | undefined;
     if (linked) return linked.project_id;
@@ -541,8 +551,8 @@ export class BoardStore {
     this.tx(() => {
       this.db.prepare(`INSERT INTO project_rooms (project_id, room, auto_enrol, roles, linked_by, linked_at)
                        VALUES (?,?,?,'[]',?,?)`)
-        .run(id, room, visibility === "private" ? 1 : 0, actor.id, now());
-      this.audit(actor.id, "link", "project", id, undefined, { room, autoEnrol: visibility === "private" });
+        .run(id, room, 1, actor.id, now());
+      this.audit(actor.id, "link", "project", id, undefined, { room, autoEnrol: true });
     }, { actorId: actor.id, action: "link project to room", target: id });
     return id;
   }

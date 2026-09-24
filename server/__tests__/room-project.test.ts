@@ -5,9 +5,10 @@ import { buildServer } from "../index.js";
  * ONE ROOM, ONE PROJECT. Nikk (chat 4586): "one room should be one project, as
  * well as one webharness.chat chat room". So making a room from the lobby makes
  * its project, shows that project's board in the room from the start, and
- * being in the room (a private one) is enough to belong to it — for a person
- * who joins through the lobby and for an agent that joined its chat room
- * directly and then enters.
+ * being in the room is enough to belong to it — for a person who joins
+ * through the lobby and for an agent that joined its chat room directly and
+ * then enters. Public or private, password or not: Nikk (4643, 4649) wants no
+ * blocks, and a password is the one lock a room can choose.
  *
  * Through the whole server, with WebHarness faked: who is in which room is the
  * one thing the real check asks upstream.
@@ -128,14 +129,46 @@ describe("one room, one project", () => {
     expect(await members(nikk, "garden")).toEqual(["baiwei2", "nikk2"]);
   });
 
-  it("a PUBLIC room's project is made, but joining it does not hand a stranger the board", async () => {
+  it("a PUBLIC room works the same: whoever joins it is on its board", async () => {
     const { as, call, members } = await boot();
     const nikk = as("Nikk2", "nikk");
     await call(nikk, "POST", "/bff/rooms/create", { roomName: "open house", visibility: "public" });
-    const stranger = as("Stranger", "stranger");
-    expect((await call(stranger, "POST", "/bff/rooms/open%20house/join", {})).statusCode).toBe(200);
-    expect((await call(stranger, "POST", "/bff/space/enter", { roomName: "open house" })).statusCode).toBe(200);
-    expect(await members(nikk, "open-house")).toEqual(["nikk2"]);
+    const lumenfold = as("Lumenfold", "lumenfold", "agent");
+    expect((await call(lumenfold, "POST", "/bff/rooms/open%20house/join", {})).statusCode).toBe(200);
+    expect(await members(nikk, "open-house")).toEqual(["lumenfold", "nikk2"]);
+  });
+
+  it("a room made straight on webharness.chat gets its board the first time somebody enters it", async () => {
+    // Nikk made meditation.AR on webharness.chat, not in the lobby: it had no
+    // project and no agent could give it one (Nightjar, 4650).
+    const { as, call, members, upstream } = await boot();
+    upstream.rooms.set("meditation.AR", "public");
+    upstream.members.set("nightjar", new Set(["meditation.AR"]));
+    upstream.members.set("sill", new Set(["meditation.AR"]));
+    const nightjar = as("Nightjar", "nightjar", "agent");
+    expect((await call(nightjar, "POST", "/bff/space/enter", { roomName: "meditation.AR" })).statusCode).toBe(200);
+    expect((await call(nightjar, "GET", "/bff/space/showing")).json().showing.projectId).toBe("meditation-ar");
+    // The next one in belongs too, and does not make a second project.
+    const sill = as("Sill", "sill", "agent");
+    await call(sill, "POST", "/bff/space/enter", { roomName: "meditation.AR" });
+    expect((await call(sill, "GET", "/bff/space/showing")).json().showing.projectId).toBe("meditation-ar");
+    expect(await members(nightjar, "meditation-ar")).toEqual(["nightjar", "sill"]);
+    expect((await call(sill, "GET", "/bff/board/projects/meditation-ar-2")).statusCode).toBe(404);
+  });
+
+  it("a room that already shows a board is left exactly as it is", async () => {
+    const { as, call, upstream } = await boot();
+    upstream.rooms.set("studio", "private");
+    upstream.members.set("nikk", new Set(["studio"]));
+    const nikk = as("Nikk2", "nikk");
+    await call(nikk, "POST", "/bff/board/projects", { id: "chosen", name: "Chosen by hand" });
+    await call(nikk, "POST", "/bff/space/enter", { roomName: "studio" });
+    // Entering made it a project, since it had none and showed none...
+    expect((await call(nikk, "GET", "/bff/space/showing")).json().showing.projectId).toBe("studio");
+    // ...and once a person picks a different board, entering again never overrides it.
+    await call(nikk, "PUT", "/bff/space/showing", { projectId: "chosen" });
+    await call(nikk, "POST", "/bff/space/enter", { roomName: "studio" });
+    expect((await call(nikk, "GET", "/bff/space/showing")).json().showing.projectId).toBe("chosen");
   });
 
   it("a room named like an existing project gets its own project, never someone else's", async () => {
