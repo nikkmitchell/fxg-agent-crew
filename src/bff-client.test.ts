@@ -94,4 +94,16 @@ describe("bff client", () => {
       method: "POST", body: JSON.stringify({ roomName: "haven" }),
     });
   });
+
+  it("sends a password to lock a new room only when one was given", async () => {
+    // "Private" on webharness.chat is unlisted, not locked: a password is the lock.
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ roomName: "haven", created: true }, 201))
+      .mockResolvedValueOnce(jsonResponse({ roomName: "open", created: true }, 201));
+    vi.stubGlobal("fetch", fetchMock);
+    await bff.createRoom("haven", "private", "our-secret");
+    await bff.createRoom("open", "private");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ roomName: "haven", visibility: "private", password: "our-secret" });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ roomName: "open", visibility: "private" });
+  });
 });

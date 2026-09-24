@@ -51,6 +51,13 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
   const [createName, setCreateName] = useState("");
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [reviewed, setReviewed] = useState(false);
+  /**
+   * A password is what LOCKS a room. On webharness.chat "private" only means
+   * unlisted: anyone who knows the exact name can join, and in a private room
+   * joining makes you a member of its project (docs/NEW-ROOM.md). Optional,
+   * because most rooms here are among people who trust each other.
+   */
+  const [createPassword, setCreatePassword] = useState("");
   const detailsRef = useRef<HTMLDivElement>(null);
   const primaryActionRef = useRef<HTMLButtonElement>(null);
   const joinNameRef = useRef<HTMLInputElement>(null);
@@ -164,10 +171,11 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
     setNotice(null);
     setAction("create");
     try {
-      const result = await bff.createRoom(roomName, visibility);
+      const result = await bff.createRoom(roomName, visibility, createPassword || undefined);
       setSelected(result.roomName);
       setCreateOpen(false);
       setReviewed(false);
+      setCreatePassword("");
       const listed = await refresh();
       const visible = listed?.some((room) => sameRoom(room.roomName, result.roomName));
       setNotice(visible
@@ -249,7 +257,8 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
             <h3>Create a new room</h3><p>A new room starts with only you in it. This is not joining someone else.</p>
             <label>New room name<input autoComplete="off" maxLength={64} required value={createName} onChange={(event) => { setCreateName(event.target.value); setReviewed(false); }} /></label>
             <label>Visibility<select value={visibility} onChange={(event) => { setVisibility(event.target.value as "public" | "private"); setReviewed(false); }}><option value="public">Public — listed for discovery</option><option value="private">Private — invite by name</option></select></label>
-            {reviewed ? <p className="room-front-review" role="status">You are about to create <strong>{createName.trim()}</strong> as a <strong>{visibility}</strong> room. Check the spelling.</p> : null}
+            <label>Password, to lock it (optional)<input type="password" autoComplete="new-password" value={createPassword} onChange={(event) => { setCreatePassword(event.target.value); setReviewed(false); }} /></label>
+            {reviewed ? <p className="room-front-review" role="status">You are about to create <strong>{createName.trim()}</strong> as a <strong>{visibility}</strong> room{createPassword ? ", locked with a password" : ""}. Check the spelling.</p> : null}
             <button type="submit" disabled={action !== null || !createName.trim()}>{action === "create" ? "Creating…" : reviewed ? "Confirm: create " + createName.trim() : "Review new room"}</button>
           </form> : null}
         </div>
