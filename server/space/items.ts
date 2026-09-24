@@ -238,6 +238,12 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       const { colour } = request.body;
       if (item.liftedColour !== null) return reply.code(409).send({ error: `${item.carrier?.by ?? "Somebody"} is holding a stone. Put it down or return it before passing.` });
       if (colour !== undefined && colour !== item.activeColour) return reply.code(409).send({ code: "NOT_YOUR_TURN", error: "It is not that colour's turn." });
+      // NOT BEFORE THE FIRST STONE. Baiwei (4555): after CLEAR STONES both
+      // sides could pass at once and "end" a game nobody had played. The
+      // rules allow it; nobody at this table means it.
+      if (item.stones.length === 0 && item.captures.length === 0) {
+        return reply.code(409).send({ code: "NOTHING_PLAYED", error: "Play a stone first: there is no game to pass in yet." });
+      }
       item.passes += 1;
       item.activeColour = (item.activeColour + 1) % item.colours.length;
       if (item.passes >= item.colours.length) item.ended = true;

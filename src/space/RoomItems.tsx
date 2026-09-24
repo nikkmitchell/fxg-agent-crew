@@ -17,7 +17,7 @@ import { goSnap, type GoMove } from "./go-snap";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
 import { GO_NAMES as NAMES, goStarPoints } from "../../shared/go-text";
 import { countGo } from "../../shared/go-score";
-import { noMoveLine, scoreLine, turnLine } from "./go-status";
+import { canPass, lastPassLine, noMoveLine, passLabel, resultRows, scoreLine, turnLine, winners } from "./go-status";
 import { goTableWriter } from "./go-table-writer";
 import { grabHold } from "./grab-hold";
 
@@ -274,7 +274,7 @@ function Stones({ targets, reducedMotion }: { targets: StoneTarget[]; reducedMot
   </instancedMesh>;
 }
 
-function Bowl({ item, index, reducedMotion, onLift, onPass }: { item: GoRoomItem; index: number; reducedMotion: boolean; onLift: () => void; onPass: () => void }) {
+function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: GoRoomItem; index: number; reducedMotion: boolean; onLift: () => void; onPass: () => void; winner: boolean }) {
   const pulse = useRef<THREE.MeshBasicMaterial>(null), rim = useRef<THREE.MeshStandardMaterial>(null);
   const active = index === item.activeColour;
   /**
@@ -303,8 +303,11 @@ function Bowl({ item, index, reducedMotion, onLift, onPass }: { item: GoRoomItem
     const wave = reducedMotion ? 0.7 : 0.65 + Math.sin(clock.elapsedTime * 2.8) * 0.25;
     // "Increase the existing under-bowl turn glow just a little, still soft
     // and comfortable in VR" — a little stronger and a little wider.
-    if (pulse.current) pulse.current.opacity = glowing ? wave * 0.7 : 0;
-    if (rim.current) rim.current.emissiveIntensity = glowing ? wave * 0.7 : 0;
+    // THE WINNER'S BOWL GLOWS once the game is over, steadily rather than
+    // pulsing: Baiwei, "can we have the winner shown by highlight under the
+    // bowl with stones". Both bowls on a tie.
+    if (pulse.current) pulse.current.opacity = winner ? 0.85 : glowing ? wave * 0.7 : 0;
+    if (rim.current) rim.current.emissiveIntensity = winner ? 0.85 : glowing ? wave * 0.7 : 0;
   });
   const captures = item.captures.filter((stone) => stone.by === index).length;
   return <>
@@ -321,15 +324,18 @@ function Bowl({ item, index, reducedMotion, onLift, onPass }: { item: GoRoomItem
       {/* Invisible contact cap also makes the stones in the bowl clickable. */}
       <mesh position={[0, 0.045, 0]}><sphereGeometry args={[0.17, 16, 8]} /><meshBasicMaterial visible={false} /></mesh>
       <Text position={[0, -0.042, tray.z > position.z ? -0.24 : 0.24]} rotation-x={-Math.PI / 2} fontSize={0.039} color={active ? accent : "#c8b49a"} raycast={noRaycast}>
-        {`${NAMES[index].toUpperCase()}${active && !item.ended ? " · TO PLAY" : ""}`}
+        {`${NAMES[index].toUpperCase()}${winner ? " · WINS" : active && !item.ended ? " · TO PLAY" : ""}`}
       </Text>
       {/*
         PASS, at the bowl whose turn it is — the one place a player already
         looks, for two players or eight. Nikk (4504): "the game ends when both
         players pass". Not while a stone is in the air: pass OR play, not both.
       */}
-      {glowing && !item.ended && <TableButton label="PASS" onTap={onPass} width={0.2} depth={0.08} fontSize={0.036}
-        at={[0, -0.04, tray.z > position.z ? -0.34 : 0.34]} />}
+      {/* Outlined in the bowl's own colour, and it says when it ends the game
+          (Baiwei: "not very clear ... that you have to pass and the game is
+          done"). Not before the first stone: see canPass. */}
+      {active && canPass(item) && <TableButton label={passLabel(item)} onTap={onPass} outline={accent}
+        width={0.34} depth={0.1} fontSize={0.04} at={[0, -0.04, tray.z > position.z ? -0.35 : 0.35]} />}
     </group>
     <RoundedBox args={[0.22, 0.025, 0.27]} radius={0.011} smoothness={3} position={xyz(tray)} raycast={noRaycast}>
       <meshStandardMaterial color="#352920" roughness={0.46} />
@@ -392,11 +398,37 @@ function Territory({ item }: { item: GoRoomItem }) {
   </group>;
 }
 
-function TableButton({ label, at, onTap, width = 0.24, depth = 0.105, fontSize = 0.029 }: { label: string; at: [number, number, number]; onTap: () => void; width?: number; depth?: number; fontSize?: number }) {
+/**
+ * A thin rectangle, drawn flat — the stroke of an outline button. Baiwei asked
+ * for SETTINGS and MOVE as "outline buttons (thin stroke, no filled
+ * background)"; PASS takes the same look in its bowl's colour, so the front row
+ * reads as one set.
+ */
+function Outline({ width, depth, colour, stroke = 0.0035 }: { width: number; depth: number; colour: string; stroke?: number }) {
+  const edges: [number, number, number, number][] = [
+    [0, depth / 2 - stroke / 2, width, stroke], [0, -depth / 2 + stroke / 2, width, stroke],
+    [width / 2 - stroke / 2, 0, stroke, depth], [-width / 2 + stroke / 2, 0, stroke, depth],
+  ];
+  return <group rotation-x={-Math.PI / 2} position-y={0.0008}>
+    {edges.map(([x, y, w, h], index) => <mesh key={index} position={[x, y, 0]} raycast={noRaycast}>
+      <planeGeometry args={[w, h]} /><meshBasicMaterial color={colour} toneMapped={false} />
+    </mesh>)}
+  </group>;
+}
+
+function TableButton({ label, at, onTap, width = 0.24, depth = 0.105, fontSize = 0.029, outline }: {
+  label: string; at: [number, number, number]; onTap: () => void; width?: number; depth?: number; fontSize?: number;
+  /** Draw it as an outline in this colour instead of a filled pad. */
+  outline?: string;
+}) {
   const [hover, setHover] = useState(false);
   return <group position={at} onClick={(event) => { event.stopPropagation(); onTap(); }} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
-    <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[width, depth]} /><meshBasicMaterial color={hover ? "#78654b" : "#483b2e"} /></mesh>
-    <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={fontSize} color="#f1dfbd" raycast={noRaycast}>{label}</Text>
+    {outline
+      // Still a full-size plane, so the whole button is a target; only a hint of fill on hover.
+      ? <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[width, depth]} /><meshBasicMaterial color={outline} transparent opacity={hover ? 0.16 : 0} depthWrite={false} /></mesh>
+      : <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[width, depth]} /><meshBasicMaterial color={hover ? "#78654b" : "#483b2e"} /></mesh>}
+    {outline && <Outline width={width} depth={depth} colour={outline} />}
+    <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={fontSize} color={outline ?? "#f1dfbd"} raycast={noRaycast}>{label}</Text>
   </group>;
 }
 
@@ -733,6 +765,8 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   };
 
   const controls = useMemo(() => goControls(item, deleteArmedAt !== null), [item, deleteArmedAt]);
+  const won = useMemo(() => winners(item), [item]);
+  const result = useMemo(() => resultRows(item), [item]);
   const showControls = goControlsShown(item);
   // Lifting a stone puts the glowing intersections on the board the sheet was
   // lying on, so the sheet closes rather than waiting underneath them.
@@ -784,6 +818,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     <Stones targets={targets} reducedMotion={reducedMotion} />
     {item.colours.map((_, index) => <Bowl key={index} item={item} index={index} reducedMotion={reducedMotion}
       onPass={() => void act({ action: "pass", colour: index })}
+      winner={won.includes(index)}
       onLift={() => {
         if (index !== item.activeColour || item.liftedColour !== null) return;
         // A poke click and the physical-contact adapter can arrive in either order.
@@ -804,8 +839,26 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.035 : boardWidth / 2 + 0.16]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.025 : 0.043} color={wide ? look.ink : ACCENTS[item.activeColour]} raycast={noRaycast}>
       {turnLine(item)}
     </Text>}
-    {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? look.inkSoft : "#d8c8ac"} raycast={noRaycast}>
-      {notice || scoreLine(item) || noMoveLine(item) || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone, or PASS at it")}
+    {/*
+      THE RESULT, IN ROWS. Baiwei: "the letters below game over that count the
+      moves should be arranged more neatly". It was one long line; now: who
+      won, then each colour's count in its own colour, then how to start again.
+    */}
+    {!settingsOpen && result && (() => {
+      const base = wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.25, step = wide ? 0.03 : 0.058, y = wide ? GO_SURFACE + 0.002 : 0.752;
+      const span = Math.min(wide ? boardWidth * 0.9 : Math.max(0.8, boardWidth), result.scores.length * (wide ? 0.16 : 0.26));
+      const at = (index: number) => result.scores.length === 1 ? 0 : -span / 2 + (span / (result.scores.length - 1)) * index;
+      return <group>
+        <Text position={[0, y, base]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.022 : 0.038}
+          color={won.length === 1 ? ACCENTS[won[0]] : "#f1dfbd"} raycast={noRaycast}>{result.verdict}</Text>
+        {result.scores.map((score, index) => <Text key={score.colour} position={[at(index), y, base + step]} rotation-x={-Math.PI / 2}
+          fontSize={wide ? 0.017 : 0.03} color={ACCENTS[score.colour]} raycast={noRaycast}>{score.text}</Text>)}
+        <Text position={[0, y, base + step * 1.85]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.012 : 0.02}
+          color={wide ? look.inkSoft : "#c8b49a"} raycast={noRaycast}>{result.again}</Text>
+      </group>;
+    })()}
+    {!settingsOpen && !result && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? look.inkSoft : "#d8c8ac"} raycast={noRaycast}>
+      {notice || scoreLine(item) || noMoveLine(item) || lastPassLine(item) || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone, or PASS at it")}
     </Text>}
     {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
       <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[0.46, 0.1]} /><meshBasicMaterial color="#493d30" /></mesh>
@@ -840,16 +893,18 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
         delivers no window pointer events at all, so a handle that relied on the
         window could be picked up in a headset and never moved or put down.
       */}
+      {/* The whole plane stays the handle; it is only drawn as an outline now. */}
       <mesh rotation-x={-Math.PI / 2}>
         <planeGeometry args={[controls.move.width, controls.move.depth]} />
-        <meshBasicMaterial color={carrying ? "#e45338" : "#483b2e"} transparent opacity={carrying ? 0.9 : 0.72} />
+        <meshBasicMaterial color={carrying ? "#e45338" : "#f1dfbd"} transparent opacity={carrying ? 0.35 : 0} depthWrite={false} />
       </mesh>
-      <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={controls.line.fontSize * 0.8} color="#f1dfbd" raycast={noRaycast}>
+      <Outline width={controls.move.width} depth={controls.move.depth} colour={carrying ? "#e45338" : "#f1dfbd"} />
+      <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={controls.line.fontSize * 0.8} color={carrying ? "#ff9582" : "#f1dfbd"} raycast={noRaycast}>
         {carrying ? "MOVING" : "MOVE ✥"}
       </Text>
     </group>}
     {showControls && !settingsOpen && <TableButton label="⚙ SETTINGS" at={[controls.settings.x, controls.settings.y, controls.settings.z]}
-      width={controls.settings.width} depth={controls.settings.depth} fontSize={controls.line.fontSize * 0.8}
+      width={controls.settings.width} depth={controls.settings.depth} fontSize={controls.line.fontSize * 0.8} outline="#f1dfbd"
       onTap={() => { setNotice(""); setSettingsOpen(true); }} />}
     <Veil open={showControls && settingsOpen} y={controls.veil.y} width={controls.veil.width} opacity={controls.veil.opacity} reducedMotion={reducedMotion} />
     {showControls && settingsOpen && <group>
