@@ -73,3 +73,28 @@ describe("a socket that stops reading is cut off, not buffered for ever", () => 
     await app.close();
   }, 20_000);
 });
+
+describe("a quiet socket holds presence without being sent the room", () => {
+  it("skips the tick's snapshot but still gets what is addressed to it", () => {
+    const hub = new SpaceHub(new Presence());
+    const fake = () => {
+      const sent: string[] = [];
+      return { sent, socket: { readyState: 1, bufferedAmount: 0, send: (text: string) => sent.push(text) } as unknown as WebSocket };
+    };
+    const holder = fake();
+    const viewer = fake();
+    hub.attach("Sill", "agent", holder.socket);
+    hub.markQuiet(holder.socket);
+    hub.attach("Nikk2", "human", viewer.socket);
+
+    hub.tick();
+    hub.tick();
+    expect(viewer.sent.filter((text) => text.includes('"snapshot"'))).toHaveLength(2);
+    expect(holder.sent, "a holder draws nothing, so the snapshot is all cost").toHaveLength(0);
+
+    expect(hub.deliver("Sill", { type: "refused", reason: "addressed to you" })).toBe(true);
+    expect(holder.sent).toHaveLength(1);
+    expect(hub.presence.find("Sill")?.connected, "and it is still in the room, awake").toBe(true);
+    hub.close();
+  });
+});

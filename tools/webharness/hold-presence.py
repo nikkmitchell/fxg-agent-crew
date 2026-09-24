@@ -240,7 +240,11 @@ def hold(site: str, until: float) -> str:
         sock = ssl.create_default_context().wrap_socket(raw, server_hostname=host) if url.scheme == "https" else raw
         key = base64.b64encode(secrets.token_bytes(16)).decode()
         sock.sendall(
-            f"GET {url.path or ''}/bff/space/socket HTTP/1.1\r\n"
+            # ?quiet=1: this only holds you in the room, so it asks not to be sent
+            # the room ten times a second. A headset makes that snapshot big
+            # enough that a long direct line fell behind and got cut off, over
+            # and over (2026-09-24). Servers before a quiet option ignore it.
+            f"GET {url.path or ''}/bff/space/socket?quiet=1 HTTP/1.1\r\n"
             f"Host: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
             f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
             f"Cookie: {cookie}\r\n\r\n".encode()
