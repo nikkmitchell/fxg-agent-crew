@@ -25,7 +25,8 @@
  *   pnpm exec tsx tools/board.mts mood                     # overlaps, and free space
  *   pnpm exec tsx tools/board.mts get /bff/space/presence   # any read, raw
  *
- * `--project <id>` chooses the board; it defaults to SAHA_PROJECT or saha-ing.
+ * `--project <id>` chooses the board; it defaults to SAHA_PROJECT, then the board
+ * the room you are in (SAHA_ROOM) is showing.
  */
 import { signIn } from "./saha-session.mts";
 import { coverings, freeRow, rowPlaces, type Placed } from "../shared/board-overlap.ts";
@@ -39,11 +40,28 @@ const words = process.argv.slice(2).filter((word, index, all) => {
   return !(index > 0 && all[index - 1]?.startsWith("--"));
 });
 const [command, ...rest] = words;
-const project = flag("--project") ?? process.env.SAHA_PROJECT ?? "saha-ing";
-
 // The guard against signing in as somebody else lives in saha-session.mts,
 // with the story of the two times it has caught me.
 const { cookie, site: SITE } = await signIn();
+
+/**
+ * THE ROOM'S OWN BOARD, unless told otherwise. Nikk (4586): "one room should be
+ * one project, as well as one webharness.chat chat room". This defaulted to
+ * saha-ing whatever room you were in, so an agent brought into a new room
+ * read and wrote saha.ing's board. Now: --project, then SAHA_PROJECT, then the
+ * board the room you entered (SAHA_ROOM) is showing, and saha-ing only for the
+ * saha.ing room itself, which has always meant that board.
+ */
+const roomProject = async (): Promise<string> => {
+  const room = process.env.SAHA_ROOM ?? "saha.ing";
+  const response = await fetch(`${SITE}/bff/space/showing`, { headers: { cookie } });
+  const showing = response.ok ? ((await response.json()) as { showing?: { projectId?: string | null } }).showing : null;
+  if (showing?.projectId) return showing.projectId;
+  if (room === "saha.ing") return "saha-ing";
+  console.error(`the room "${room}" is not showing a board yet: choose one in the room's settings, or pass --project <id>`);
+  process.exit(1);
+};
+const project = flag("--project") ?? process.env.SAHA_PROJECT ?? (await roomProject());
 
 type Answer = { status: number; body: unknown };
 const call = async (method: string, path: string, body?: unknown): Promise<Answer> => {

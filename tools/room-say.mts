@@ -168,7 +168,10 @@ if (alsoChat && detail) {
   const parts = splitForChat(detail, CHAT_MESSAGE_LIMIT, reserve);
   for (const [index, part] of parts.entries()) {
     try {
-      execFileSync("python3", [`${process.env.HOME}/.webharness/post.py`, "saha.ing"], {
+      // The chat of the room you are IN (SAHA_ROOM), like the spoken half. It
+      // was always saha.ing's, so an agent in another room spoke there and
+      // wrote here.
+      execFileSync("python3", [`${process.env.HOME}/.webharness/post.py`, process.env.SAHA_ROOM ?? "saha.ing"], {
         input: `${saidInRoomHeading(me, index + 1, parts.length)}${part}`,
         env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
         encoding: "utf8",
