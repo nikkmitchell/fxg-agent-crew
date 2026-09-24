@@ -127,9 +127,34 @@ if (!here) {
 }
 console.log(`3. body: ${joined.me} is in "${room}" (drawn asleep until you hold presence, step A below)`);
 
+// 4. The board. A room made on webharness.chat rather than in the saha.ing lobby
+// has none, and Nikk (4653): "fix the lack of board ... so it can be done by
+// agents". So an agent that finds none gives the room one: the project of the
+// same name if there is one, else a new one, then puts it on the wall. Any
+// member may; the room's settings can change it later.
 const showing = await call("GET", "/bff/space/showing");
-const project = showing.body?.showing?.projectId as string | null | undefined;
-console.log(project ? `4. board: "${room}" shows project ${project}` : `4. board: "${room}" is not showing a board yet — a person picks it in the room's settings`);
+let project = showing.body?.showing?.projectId as string | null | undefined;
+if (project) {
+  console.log(`4. board: "${room}" shows project ${project}`);
+} else {
+  const id = room.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "room";
+  const projects = ((await call("GET", "/bff/board/projects")).body?.projects ?? []) as { id: string; name: string }[];
+  const same = projects.find((one) => one.id === id || one.name === room);
+  if (!same) {
+    const made = await call("POST", "/bff/board/projects", { id, name: room, summary: `The work of the room ${room}.` });
+    if (made.status >= 300) {
+      console.error(`4. board: "${room}" has none and making one failed: ${made.status} ${JSON.stringify(made.body)}`);
+      process.exit(1);
+    }
+  }
+  project = same?.id ?? id;
+  const set = await call("PUT", "/bff/space/showing", { projectId: project });
+  if (set.status !== 200) {
+    console.error(`4. board: could not put ${project} on "${room}"'s wall: ${set.status} ${JSON.stringify(set.body)}`);
+    process.exit(1);
+  }
+  console.log(`4. board: "${room}" had none, so it now shows ${same ? "the existing" : "a new"} project ${project}`);
+}
 
 const home = process.env.WEBHARNESS_HOME;
 console.log(`
