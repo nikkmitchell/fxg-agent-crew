@@ -90,6 +90,7 @@ function TabContent({
   embedded,
   onOpenChat,
   onEnterRoom,
+  onReturnToLobby,
   roomStartsEntered,
 }: {
   tab: Tab;
@@ -100,6 +101,8 @@ function TabContent({
   /** Home's button: go to the room AND start loading it, rather than landing
       on a second "Enter the room" button. One click from the door to the 3D. */
   onEnterRoom: (roomName: string) => Promise<void>;
+  /** Leave the active room view and return to the room directory. */
+  onReturnToLobby: () => void;
   /** True when we arrived here by pressing Enter on the front door. */
   roomStartsEntered: boolean;
 }) {
@@ -129,7 +132,7 @@ function TabContent({
         embedded ? (
           <p className="muted-note">The room cannot be shown inside itself.</p>
         ) : (
-          <SpacePanel startEntered={roomStartsEntered} />
+          <SpacePanel startEntered={roomStartsEntered} onReturnToLobby={onReturnToLobby} />
         )
       ) : null}
 
@@ -213,9 +216,11 @@ export default function App() {
   };
 
   const go = (next: Tab) => {
+    if (next === "home") setRoomStartsEntered(false);
     setTab(next);
     window.history.pushState({}, "", pathForTab(next));
   };
+  const returnToLobby = () => go("home");
 
   useEffect(() => {
     document.title = `${TAB_META[tab].label} — Mission Control`;
@@ -325,6 +330,7 @@ export default function App() {
           embedded
           onOpenChat={openChat}
           onEnterRoom={enterRoom}
+          onReturnToLobby={returnToLobby}
           roomStartsEntered={roomStartsEntered}
         />
         {liveRoomOpen ? <LiveRoomPanel preferredRoom={roomControlsRoom} onClose={() => setLiveRoomOpen(false)} /> : null}
@@ -416,6 +422,7 @@ export default function App() {
           embedded={false}
           onOpenChat={openChat}
           onEnterRoom={enterRoom}
+          onReturnToLobby={returnToLobby}
           roomStartsEntered={roomStartsEntered}
         />
 

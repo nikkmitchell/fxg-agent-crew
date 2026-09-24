@@ -455,6 +455,7 @@ export default function Scene({
   reducedMotion,
   comfort,
   onImmersiveChange,
+  onReturnToLobby,
   inHeadset,
   panels,
   arrange,
@@ -467,6 +468,7 @@ export default function Scene({
   reducedMotion: boolean;
   comfort: Comfort;
   onImmersiveChange: (inSession: boolean) => void;
+  onReturnToLobby: () => void;
   /** True once a headset session is live. */
   inHeadset: boolean;
   /**
@@ -780,6 +782,7 @@ export default function Scene({
           comfort={comfort}
           send={connection.send}
           onChange={onImmersiveChange}
+          onReturnToLobby={onReturnToLobby}
           openPanels={openPanels}
           you={you}
           groupRoom={feed.room}

@@ -819,12 +819,13 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-panel-frame { display: grid; grid-template-rows: 34px 1fr; border-radius: 10px; overflow: hidden; background: #1c1f26; box-shadow: 0 18px 60px rgba(0,0,0,.55); }
 .space-panel-title { display: flex; align-items: center; padding: 0 14px; font: 600 15px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .02em; color: #e8e4d9; background: #1c1f26; }
 .space-intro { display: grid; gap: 14px; max-width: 62ch; }
-.space-intro .primary-action { justify-self: start; }
+.space-intro .primary-action, .space-intro .text-button { justify-self: start; }
 
 .space-panel { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: start; }
 .space-room-label, .space-room-trouble { grid-column: 1 / -1; margin: 0; }
 .space-room-label { color: var(--muted); font-size: 13px; }
 .space-room-label strong { color: var(--ink); }
+.room-return-lobby { margin-left: 12px; min-height: 30px; padding: 0 10px; }
 .space-room-trouble { padding: 10px 14px; border-left: 3px solid var(--amber); background: #f8efda; color: #62400c; font-size: 13px; }
 .space-room-trouble button { margin-left: 8px; border: 0; background: transparent; color: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
 .space-canvas { position: relative; aspect-ratio: 16 / 10; min-height: 320px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #0b0d12; }

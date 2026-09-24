@@ -63,6 +63,49 @@ describe("what the room is showing", () => {
     await app.close();
   });
 
+  it("keeps project selection per room while agreeing with other occupants of each room", async () => {
+    const { app, config, sessions, store } = boot();
+    const enterAs = (username: string, room: string) => {
+      const sid = sessions.create(username, `${username}-token`, "human");
+      sessions.enterRoom(sid, room);
+      return `${config.cookieName}=${sid}`;
+    };
+    const alphaSetter = enterAs("nikk", "alpha");
+    const alphaPeer = enterAs("baiwei", "alpha");
+    const betaSetter = enterAs("lumen", "beta");
+    const alphaProject = store.createProject(
+      { id: "nikk", kind: "human" },
+      { id: "meditation", name: "Meditation Experience" },
+    );
+    const betaProject = store.createProject(
+      { id: "lumen", kind: "human" },
+      { id: "multiplayer-go", name: "Multiplayer Go" },
+    );
+
+    const choose = (cookie: string, projectId: string) => app.inject({
+      method: "PUT",
+      url: "/bff/space/showing",
+      headers: { cookie },
+      payload: { projectId },
+    });
+    expect((await choose(alphaSetter, alphaProject)).statusCode).toBe(200);
+    expect((await showingOf(app, alphaPeer)).showing.projectId).toBe(alphaProject);
+    expect((await showingOf(app, betaSetter)).showing.projectId).toBeNull();
+
+    expect((await choose(betaSetter, betaProject)).statusCode).toBe(200);
+    expect((await showingOf(app, alphaPeer)).showing.projectId).toBe(alphaProject);
+    expect((await showingOf(app, betaSetter)).showing.projectId).toBe(betaProject);
+    // The route has no room selector: asking from beta cannot read alpha's selection.
+    const crossRoomRead = await app.inject({
+      method: "GET",
+      url: "/bff/space/showing?room=alpha",
+      headers: { cookie: betaSetter },
+    });
+    expect(crossRoomRead.statusCode).toBe(200);
+    expect(JSON.parse(crossRoomRead.body).showing.projectId).toBe(betaProject);
+    await app.close();
+  });
+
   it("refuses a project that does not exist, and says which", async () => {
     const { app, as } = boot();
     const response = await app.inject({

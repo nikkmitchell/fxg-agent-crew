@@ -97,7 +97,7 @@ function useReducedMotion(): boolean {
  * point of capping what gets said aloud.
  */
 
-export function SpacePanel({ startEntered = false }: { startEntered?: boolean } = {}) {
+export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEntered?: boolean; onReturnToLobby: () => void }) {
   /**
    * `startEntered` comes from the front door: pressing Enter there should land
    * you in the 3D view, not on a second Enter button.
@@ -240,6 +240,7 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
         <button type="button" className="primary-action" disabled={checkingDirectEntry} onClick={() => void enterFromDirectLink()}>
           {checkingDirectEntry ? "Checking the room…" : "Enter the room"}
         </button>
+        <button type="button" className="text-button" onClick={onReturnToLobby}>Back to lobby · choose a room</button>
         {directEntryTrouble ? <p className="space-room-trouble" role="alert">{directEntryTrouble} <a href={pathForTab("home")}>Choose a room</a></p> : null}
 
         <ShareScreenLink />
@@ -269,7 +270,12 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
 
   return (
     <section className="space-panel">
-      {spaceRoomName ? <p className="space-room-label">In <strong>{spaceRoomName}</strong></p> : null}
+      <p className="space-room-label">
+        {spaceRoomName ? <>In <strong>{spaceRoomName}</strong></> : "In the selected room"}
+        <button type="button" className="text-button room-return-lobby" onClick={onReturnToLobby}>
+          Back to lobby · switch rooms
+        </button>
+      </p>
       {spaceRoomTrouble ? <p className="space-room-trouble" role="alert">{spaceRoomTrouble} <button type="button" onClick={() => setSpaceRoomRevision((n) => n + 1)}>Retry</button></p> : null}
       {/* HEADSET, ABOVE THE VIEW AND CENTRED — see EnterHeadsetButton.
           Offered only when the browser says immersive-vr is actually
@@ -294,6 +300,7 @@ export function SpacePanel({ startEntered = false }: { startEntered?: boolean } 
             reducedMotion={reducedMotion}
             comfort={comfort}
             onImmersiveChange={setInHeadset}
+            onReturnToLobby={onReturnToLobby}
             inHeadset={inHeadset}
             panels={panels}
             arrange={arrange}
