@@ -1009,4 +1009,23 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX space_items_by_room ON space_items(room, added_at);
     `,
   },
+  {
+    id: 30,
+    name: "private voluntary Go play cards",
+    sql: `
+      -- A seat is visible because the bowl says whose turn it is. The way a
+      -- person chooses to play is theirs: do not put it in the shared room
+      -- item or broadcast it to opponents without their say-so.
+      CREATE TABLE go_player_cards (
+        room       TEXT NOT NULL,
+        item_id    TEXT NOT NULL,
+        actor_id   TEXT NOT NULL,
+        style      TEXT NOT NULL CHECK (style IN ('patient', 'tactical', 'experimental', 'casual', 'observer')),
+        risk       TEXT NOT NULL CHECK (risk IN ('cautious', 'balanced', 'bold')),
+        signature  TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (room, item_id, actor_id)
+      );
+    `,
+  },
 ];

@@ -4,7 +4,7 @@ import type { Placement, Showing } from "../shared/space-wire";
 import type { Utterance, UtteranceInput } from "../shared/voice";
 import type { AvatarControl, AvatarState } from "../shared/avatar-motion";
 import type { AgentHome } from "../shared/agent-home";
-import type { GoSize, RoomItem } from "../shared/room-items";
+import type { GoPlayCard, GoSize, RoomItem } from "../shared/room-items";
 
 /**
  * The browser's side of the room's own API.
@@ -120,8 +120,19 @@ export const space = {
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}`, {
       method: "PATCH", body: JSON.stringify(change),
     }),
-  actOnGo: (id: string, action: { action: "lift" } | { action: "place"; x: number; y: number }) =>
+  actOnGo: (id: string, action: { action: "lift"; expectedMoveNumber: number } | { action: "place"; x: number; y: number; expectedMoveNumber: number }) =>
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}/action`, {
       method: "POST", body: JSON.stringify(action),
     }),
+  goPlayer: (id: string) => requestJson<{ mode: "open" | "seated"; seat: number; card: GoPlayCard | null }>(`${root}/items/${encodeURIComponent(id)}/player`),
+  setGoPlayer: (id: string, change: { action: "mode"; mode: "open" | "seated" } | { action: "sit"; colour: number } | { action: "stand" } | { action: "card"; card: GoPlayCard }) =>
+    requestJson<{ seat?: number | null; card?: GoPlayCard; item?: RoomItem }>(`${root}/items/${encodeURIComponent(id)}/player`, {
+      method: "PUT",
+      body: JSON.stringify(change.action === "card" ? { action: "card", ...change.card } : change),
+    }),
+  playGo: (id: string, expectedMoveNumber: number, action: { action: "suggest" | "pass" } | { action: "move"; x: number; y: number }) =>
+    requestJson<{ item: RoomItem; suggestion?: { x: number; y: number; reason: string; style: GoPlayCard["style"] } }>(
+      `${root}/items/${encodeURIComponent(id)}/play`,
+      { method: "POST", body: JSON.stringify({ ...action, expectedMoveNumber }) },
+    ),
 };

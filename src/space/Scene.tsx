@@ -574,7 +574,7 @@ export default function Scene({
 
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
-        <RoomItems items={connection.roomItems} />
+        <RoomItems items={connection.roomItems} actorId={roomIdentity} />
         <Immersive
           comfort={comfort}
           send={connection.send}
