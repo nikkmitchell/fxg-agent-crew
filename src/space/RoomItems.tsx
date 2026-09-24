@@ -17,7 +17,7 @@ import { goSnap, type GoMove } from "./go-snap";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
 import { GO_NAMES as NAMES, goStarPoints } from "../../shared/go-text";
 import { countGo } from "../../shared/go-score";
-import { scoreLine, turnLine } from "./go-status";
+import { noMoveLine, scoreLine, turnLine } from "./go-status";
 import { goTableWriter } from "./go-table-writer";
 import { grabHold } from "./grab-hold";
 
@@ -805,7 +805,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       {turnLine(item)}
     </Text>}
     {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? look.inkSoft : "#d8c8ac"} raycast={noRaycast}>
-      {notice || scoreLine(item) || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone, or PASS at it")}
+      {notice || scoreLine(item) || noMoveLine(item) || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone, or PASS at it")}
     </Text>}
     {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
       <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[0.46, 0.1]} /><meshBasicMaterial color="#493d30" /></mesh>

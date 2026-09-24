@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultGoItem, type GoRoomItem } from "../../shared/room-items";
-import { scoreLine, turnLine } from "./go-status";
+import { noMoveLine, scoreLine, turnLine } from "./go-status";
 
 const table = (over: Partial<GoRoomItem> = {}): GoRoomItem => ({ ...defaultGoItem("t"), size: 5, ...over });
 
@@ -37,5 +37,25 @@ describe("the count, in words", () => {
 
   it("says a tie is a tie", () => {
     expect(scoreLine(table({ ended: true }))).toMatch(/^A TIE · BLACK 0 · WHITE 0/);
+  });
+});
+
+/** Baiwei: "I cannot make a move. Is it assigned to someone?" */
+describe("when the player to move has no legal move", () => {
+  // A 5x5 all White but two separate one-point eyes. Black in either eye has
+  // no liberty and captures nothing (White keeps the other eye), so it is
+  // suicide both times: Black has no legal move. (A ring with ONE eye would not
+  // do: Black in it takes the ring's last liberty and captures it.)
+  const eyes = new Set(["1,1", "3,3"]);
+  const white = Array.from({ length: 25 }, (_, i) => ({ x: i % 5, y: Math.floor(i / 5), colour: 1 }))
+    .filter((stone) => !eyes.has(`${stone.x},${stone.y}`));
+
+  it("tells them to pass", () => {
+    expect(noMoveLine(table())).toBeNull();
+    expect(noMoveLine(table({ stones: white }))).toBe("No legal move for BLACK: press PASS at the glowing bowl");
+  });
+
+  it("says nothing once the game is over", () => {
+    expect(noMoveLine(table({ stones: white, ended: true }))).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import type { GoRoomItem } from "../../shared/room-items";
 import { countGo, goLeaders } from "../../shared/go-score";
+import { legalGoMoves } from "../../shared/go-rules";
 import { GO_NAMES as NAMES } from "../../shared/go-text";
 
 /**
@@ -33,3 +34,15 @@ export function scoreLine(item: GoRoomItem): string | null {
   return `${verdict} · ${each} · clear the stones for a new game`;
 }
 
+
+/**
+ * NO LEGAL MOVE: SAY SO. Baiwei, at a nearly full 5×5 with Black to play: "I
+ * cannot make a move. Is it assigned to someone?" Every empty point was
+ * suicide or a ko retake, so the stone would not go down anywhere and nothing
+ * on the table said why. The answer is to pass, and the table now says that.
+ */
+export function noMoveLine(item: GoRoomItem): string | null {
+  if (item.ended || item.liftedColour !== null) return null;
+  if (legalGoMoves(item.stones, item.size, item.activeColour).length > 0) return null;
+  return `No legal move for ${NAMES[item.activeColour].toUpperCase()}: press PASS at the glowing bowl`;
+}
