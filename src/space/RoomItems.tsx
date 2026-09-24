@@ -4,7 +4,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { GoRoomItem, RoomItem } from "../../shared/room-items";
 import { legalGoMoves } from "../../shared/go-rules";
-import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goBowlScale, goDeckWidth, goBowl, goPoint, goRadius, goTray, goLocal, goTouchBowl, type Point3 } from "../../shared/go-layout";
+import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goBowlScale, goDeckWidth, goBowl, goPoint, goRadius, goRingArc, goRingCapacity, goRingSlots, goRingSpot, goRingStone, goLabelOffset, GO_RING, goLocal, goTouchBowl, type Point3 } from "../../shared/go-layout";
 import { heldStoneWorld, idleGoTouch, restOnBoard, stepGoTouch } from "../../shared/go-touch";
 import type { WirePerson } from "../../shared/space-wire";
 import { goHandInput } from "./go-hand-input";
@@ -238,7 +238,7 @@ function Veil({ open, y, width, opacity, reducedMotion }: { open: boolean; y: nu
 }
 
 type StoneTarget = { id: string; at: Point3; colour: string; radius: number; from: Point3 };
-/** Stable IDs let a captured stone fly to its tray instead of disappearing. */
+/** Stable IDs let a captured stone fly to its capture ring instead of disappearing. */
 function Stones({ targets, reducedMotion }: { targets: StoneTarget[]; reducedMotion: boolean }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const motions = useRef(new Map<string, { p: THREE.Vector3; from: THREE.Vector3; to: THREE.Vector3; t: number }>());
@@ -274,6 +274,25 @@ function Stones({ targets, reducedMotion }: { targets: StoneTarget[]; reducedMot
   </instancedMesh>;
 }
 
+
+/**
+ * The capture ring's line: a thin arc round the outside of a bowl, that the
+ * captured stones sit on like beads. Delicate by request, the same colour as the
+ * bowl's rim, and never a target: it is a place, not a control. A second arc
+ * only once the first row is full. See GO_RING in shared/go-layout.
+ */
+function CaptureRing({ index, item, rows, colour }: { index: number; item: GoRoomItem; rows: 1 | 2; colour: string }) {
+  return <>{([0, 1] as const).slice(0, rows).map((row) => {
+    const arc = goRingArc(index, item.colours.length, item.size, row);
+    return <group key={row} position={[arc.centre.x, GO_RING.y + 0.001, arc.centre.z]} rotation-y={-arc.start}>
+      <mesh rotation-x={Math.PI / 2} raycast={noRaycast}>
+        <torusGeometry args={[arc.radius, 0.0028, 6, 72, arc.length]} />
+        <meshStandardMaterial color={colour} roughness={0.5} transparent opacity={0.75} />
+      </mesh>
+    </group>;
+  })}</>;
+}
+
 function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: GoRoomItem; index: number; reducedMotion: boolean; onLift: () => void; onPass: () => void; winner: boolean }) {
   const pulse = useRef<THREE.MeshBasicMaterial>(null), rim = useRef<THREE.MeshStandardMaterial>(null);
   const active = index === item.activeColour;
@@ -290,7 +309,8 @@ function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: Go
   const relief = useMemo(() => bowlRelief(look.bowl.relief), [look.bowl.relief]);
   useEffect(() => () => relief.dispose(), [relief]);
   const colour = item.colours[index], accent = ACCENTS[index];
-  const position = goBowl(index, item.colours.length, item.size), tray = goTray(index, item.colours.length, item.size);
+  const position = goBowl(index, item.colours.length, item.size);
+  const nameAt = goLabelOffset(index, item.colours.length, 0.24), passAt = goLabelOffset(index, item.colours.length, 0.35);
   const texture = useMemo(glowTexture, []);
   useEffect(() => () => texture.dispose(), [texture]);
   const profile = useMemo(() => [[0.055, -0.064], [0.09, -0.057], [0.139, -0.026], [0.17, 0.025], [0.18, 0.063], [0.173, 0.072], [0.163, 0.062], [0.155, 0.028], [0.125, -0.009], [0.078, -0.038], [0, -0.041]].map(([r, y]) => new THREE.Vector2(r, y)), []);
@@ -323,8 +343,9 @@ function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: Go
       <Stones targets={stock} reducedMotion />
       {/* Invisible contact cap also makes the stones in the bowl clickable. */}
       <mesh position={[0, 0.045, 0]}><sphereGeometry args={[0.17, 16, 8]} /><meshBasicMaterial visible={false} /></mesh>
-      <Text position={[0, -0.042, tray.z > position.z ? -0.24 : 0.24]} rotation-x={-Math.PI / 2} fontSize={0.039} color={active ? accent : "#c8b49a"} raycast={noRaycast}>
-        {`${NAMES[index].toUpperCase()}${winner ? " · WINS" : active && !item.ended ? " · TO PLAY" : ""}`}
+      {/* Clear of the capture ring (goLabelOffset), with the count under the name. */}
+      <Text position={[nameAt.x, -0.042, nameAt.z]} rotation-x={-Math.PI / 2} fontSize={0.039} lineHeight={1.25} textAlign="center" color={active ? accent : "#c8b49a"} raycast={noRaycast}>
+        {`${NAMES[index].toUpperCase()}${winner ? " · WINS" : active && !item.ended ? " · TO PLAY" : ""}${captures ? `\n${captures} CAPTURED` : ""}`}
       </Text>
       {/*
         PASS, at the bowl whose turn it is — the one place a player already
@@ -335,12 +356,9 @@ function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: Go
           (Baiwei: "not very clear ... that you have to pass and the game is
           done"). Not before the first stone: see canPass. */}
       {active && canPass(item) && <TableButton label={passLabel(item)} onTap={onPass} outline={accent}
-        width={0.34} depth={0.1} fontSize={0.04} at={[0, -0.04, tray.z > position.z ? -0.35 : 0.35]} />}
+        width={0.34} depth={0.1} fontSize={0.04} at={[passAt.x, -0.04, passAt.z]} />}
     </group>
-    <RoundedBox args={[0.22, 0.025, 0.27]} radius={0.011} smoothness={3} position={xyz(tray)} raycast={noRaycast}>
-      <meshStandardMaterial color="#352920" roughness={0.46} />
-    </RoundedBox>
-    <Text position={[tray.x, tray.y + 0.017, tray.z + 0.18]} rotation-x={-Math.PI / 2} fontSize={0.028} color="#c8b49a" raycast={noRaycast}>{`${captures} CAPTURED`}</Text>
+    <CaptureRing index={index} item={item} rows={captures > goRingCapacity(index, item.colours.length, item.size, 0) ? 2 : 1} colour={look.bowl.rim} />
   </>;
 }
 
@@ -470,11 +488,12 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       return { id, at, from: previous.current.has(id) ? at : lastHeld.current ?? { ...bowl, y: bowl.y + 0.3 }, colour: item.colours[stone.colour], radius };
     });
     item.colours.forEach((_, index) => {
-      const tray = goTray(index, item.colours.length, item.size);
-      item.captures.filter((stone) => stone.by === index).slice(-24).forEach((stone, n) => {
-        const at = { x: tray.x + (n % 3 - 1) * 0.065, y: tray.y + 0.026 + Math.floor(n / 9) * 0.028, z: tray.z + (Math.floor(n / 3) % 3 - 1) * 0.073 };
+      // Along the bowl's capture ring, first taken first. More than the ring
+      // shows are still counted by the bowl's name; only the newest are drawn.
+      item.captures.filter((stone) => stone.by === index).slice(-goRingSlots(index, item.colours.length, item.size)).forEach((stone, n) => {
+        const at = goRingSpot(index, item.colours.length, item.size, n);
         result.push({ id: stone.id ?? `${stone.colour}-${stone.x}-${stone.y}`, at,
-          from: at, colour: item.colours[stone.colour], radius: Math.min(radius, 0.032) });
+          from: at, colour: item.colours[stone.colour], radius: goRingStone(item.size) });
       });
     });
     return result;
