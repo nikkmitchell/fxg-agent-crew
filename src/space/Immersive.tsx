@@ -132,6 +132,7 @@ export function ImmersivePlayer({
   passthroughAvailable,
   blendMode,
   onTogglePassthrough,
+  onReturnToLobby,
   openPanels,
   you,
   groupRoom,
@@ -153,6 +154,7 @@ export function ImmersivePlayer({
   /** What the session says it can do, shown on the button when it cannot. */
   blendMode: string | null;
   onTogglePassthrough: () => void;
+  onReturnToLobby: () => void;
   openPanels: string[];
   /** Who the room says you are, for the line the group chat sees. */
   you: string | null;
@@ -852,6 +854,7 @@ export function ImmersivePlayer({
         body level, not on a hand — see the note at the top of RoomControls. */}
       <RoomControls
         onResetStanding={resetStanding}
+        onReturnToLobby={onReturnToLobby}
         onNote={tell}
         anchor={bodyAnchor}
         you={you}
@@ -929,6 +932,7 @@ export function Immersive({
   comfort,
   send,
   onChange,
+  onReturnToLobby,
   openPanels,
   you,
   groupRoom,
@@ -946,6 +950,7 @@ export function Immersive({
   comfort: Comfort;
   send: (message: ClientMessage) => void;
   onChange: (inSession: boolean) => void;
+  onReturnToLobby: () => void;
   openPanels: string[];
   you: string | null;
   groupRoom: string | null;
@@ -1010,6 +1015,7 @@ export function Immersive({
       passthroughAvailable={available}
       blendMode={blend}
       onTogglePassthrough={togglePassthrough}
+      onReturnToLobby={onReturnToLobby}
       openPanels={openPanels}
       you={you}
       groupRoom={groupRoom}

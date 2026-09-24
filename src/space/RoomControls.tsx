@@ -37,6 +37,7 @@ import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
 import type { RoomItem } from "../../shared/room-items";
 import { Typing3D } from "./Typing3D";
+import { endSessionThenReturn } from "./end-session-to-lobby";
 
 /**
  * The room's controls, in front of you at body level.
@@ -186,6 +187,7 @@ export function RoomControls({
   hiddenAsStill,
   positionOf,
   onResetStanding,
+  onReturnToLobby,
   onNote,
 }: {
   anchor: () => { at: { x: number; z: number }; yaw: number } | null;
@@ -224,6 +226,8 @@ export function RoomControls({
    * draws you sitting rather than as a standing person squatting.
    */
   onResetStanding: () => void;
+  /** End immersive mode, then return to the room directory. */
+  onReturnToLobby: () => void;
   /**
    * Put one short line in the server log about something only the headset can
    * see. See the `note` frame in shared/space-wire.ts.
@@ -342,6 +346,7 @@ export function RoomControls({
   const writtenNow = useRef("");
   writtenNow.current = written;
   const session = useXR((state) => state.session);
+  const returnToLobby = () => { void endSessionThenReturn(session, onReturnToLobby); };
   const confidence = useRef<number | undefined>(undefined);
   const capabilities = useMemo(() => speechCapabilities(), []);
 
@@ -1158,6 +1163,7 @@ export function RoomControls({
     boxes.push({
       title: "Room",
       rows: [
+        { label: "Back to lobby · switch rooms", tone: "live", onTap: returnToLobby },
         { label: "Room items…", onTap: () => setView("items") },
         { label: "Panels…", onTap: () => setView("panels") },
         { label: "Place agents…", onTap: () => setView("agents") },
