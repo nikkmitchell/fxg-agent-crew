@@ -65,7 +65,7 @@ const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 
  * fine fibres running along it and, now and then, the faint band of a node.
  * Warm, calm, low contrast; the grid lines stay the loudest thing on it.
  */
-export function bambooPixels(size = 512, base = "#d9ad6f"): Uint8ClampedArray {
+export function bambooPixels(size = 512, base = "#cb9f62"): Uint8ClampedArray {
   const out = new Uint8ClampedArray(size * size * 4);
   const [r0, g0, b0] = rgb(base);
   const strips = 16; // ~3 cm each at GO_TILE_METRES

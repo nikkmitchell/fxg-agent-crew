@@ -63,7 +63,9 @@ export const GO_SURFACE_LOOKS: Record<GoSurface, GoSurfaceLook> = {
   bamboo: {
     label: "BAMBOO",
     grain: "wood",
-    base: "#d9ad6f",
+    // A step darker than the first #d9ad6f (Baiwei via Lumenfold 4692: "the
+    // bamboo looks great; darken it slightly so SETTINGS stands out more").
+    base: "#cb9f62",
     roughness: 0.43,
     clearcoat: 0.22,
     rim: "#975d32",

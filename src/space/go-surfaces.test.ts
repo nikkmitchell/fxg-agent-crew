@@ -70,7 +70,9 @@ describe("every board type can still be read", () => {
   });
 
   it("black and white stones both show on every surface — at least as well as white shows on bamboo today", () => {
-    const today = contrast(GO_COLOURS[1], GO_SURFACE_LOOKS.bamboo.base);
+    // The bar is the FIRST bamboo (#d9ad6f), fixed, so darkening the bamboo
+    // (4692) does not quietly raise the bar for every other surface.
+    const today = contrast(GO_COLOURS[1], "#d9ad6f");
     for (const surface of GO_SURFACES) {
       for (const stone of [GO_COLOURS[0], GO_COLOURS[1]]) {
         expect(contrast(stone, GO_SURFACE_LOOKS[surface].base), `${stone} on ${surface}`).toBeGreaterThanOrEqual(today);
