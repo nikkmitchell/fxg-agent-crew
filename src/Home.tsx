@@ -8,6 +8,7 @@ import { useHeadsetAvailable } from "./space/useHeadsetAvailable";
 
 type ListedRoom = { room: RoomSummary; joined: boolean };
 type Action = "enter" | "join" | "create" | null;
+type JoinFocusTarget = "enter" | "name" | "password" | "primary" | "refresh";
 const sameRoom = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 export function roomActionError(error: unknown): string {
@@ -40,6 +41,8 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [action, setAction] = useState<Action>(null);
+  const [pendingJoinRoom, setPendingJoinRoom] = useState<string | null>(null);
+  const [joinFocusTarget, setJoinFocusTarget] = useState<JoinFocusTarget | null>(null);
   const [notice, setNotice] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [joinOpen, setJoinOpen] = useState(false);
   const [joinName, setJoinName] = useState("");
@@ -49,6 +52,10 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [reviewed, setReviewed] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
+  const primaryActionRef = useRef<HTMLButtonElement>(null);
+  const joinNameRef = useRef<HTMLInputElement>(null);
+  const joinPasswordRef = useRef<HTMLInputElement>(null);
+  const refreshRef = useRef<HTMLButtonElement>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -83,6 +90,15 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
     ?? all.find((item) => item.joined)
     ?? all.find((item) => sameRoom(item.room.roomName, "lobby"))
     ?? all[0] ?? null;
+  useEffect(() => {
+    if (action !== null || !joinFocusTarget || !notice) return;
+    const target = joinFocusTarget === "name" ? joinNameRef.current
+      : joinFocusTarget === "password" ? joinPasswordRef.current
+        : joinFocusTarget === "refresh" ? refreshRef.current
+          : primaryActionRef.current;
+    target?.focus();
+    setJoinFocusTarget(null);
+  }, [action, joinFocusTarget, notice]);
   const choose = (roomName: string) => {
     setSelected(roomName);
     setNotice(null);
@@ -96,11 +112,12 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
     }
   };
 
-  const join = async (name: string, password?: string) => {
+  const join = async (name: string, password?: string, fromNameForm = false) => {
     const roomName = name.trim();
     if (!roomName || action) return;
     setNotice(null);
     setAction("join");
+    setPendingJoinRoom(roomName);
     try {
       const result = await bff.joinRoom(roomName, password);
       setSelected(result.roomName);
@@ -111,14 +128,18 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
       setNotice(visible
         ? { kind: "success", text: (result.joined ? "Joined " : "Already a member of ") + result.roomName + ". Choose Enter to step inside." }
         : { kind: "error", text: "The join was accepted, but your room list has not confirmed it yet. Refresh rooms before entering." });
+      setJoinFocusTarget(visible ? "enter" : "refresh");
     } catch (error) {
       setNotice({ kind: "error", text: roomActionError(error) });
-      if (error instanceof ApiError && (error.code === "ROOM_PASSWORD_REQUIRED" || error.code === "ROOM_PASSWORD_INCORRECT")) {
+      const needsPassword = error instanceof ApiError && (error.code === "ROOM_PASSWORD_REQUIRED" || error.code === "ROOM_PASSWORD_INCORRECT");
+      if (needsPassword) {
         setJoinName(roomName);
         setJoinOpen(true);
       }
+      setJoinFocusTarget(needsPassword ? "password" : fromNameForm ? "name" : "primary");
     } finally {
       setAction(null);
+      setPendingJoinRoom(null);
     }
   };
 
@@ -171,7 +192,7 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
         <div className="room-front-directory" id="room-directory">
           <div className="room-front-directory-head">
             <div><h2>Rooms</h2><p>Membership and public discovery are shown separately.</p></div>
-            <button type="button" onClick={() => void refresh()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
+            <button ref={refreshRef} type="button" onClick={() => void refresh()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
           </div>
           {offline ? <p className="room-front-warning" role="status">This device reports that it is offline. The lists may be out of date.</p> : null}
           {loading && all.length === 0 ? <p className="room-front-empty" role="status">Finding your rooms…</p> : null}
@@ -202,8 +223,8 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
               <div><dt>Visibility</dt><dd>{chosen.room.visibility === "private" ? "Private" : "Public"}</dd></div>
             </dl>
             {chosen.joined
-              ? <button type="button" className="primary-action room-front-primary" disabled={action !== null} onClick={() => void enter()}>{action === "enter" ? "Opening the room…" : "Enter " + chosen.room.roomName}</button>
-              : <button type="button" className="primary-action room-front-primary" disabled={action !== null} onClick={() => void join(chosen.room.roomName)}>{action === "join" ? "Joining…" : "Join " + chosen.room.roomName}</button>}
+              ? <button ref={primaryActionRef} type="button" className="primary-action room-front-primary" disabled={action !== null} onClick={() => void enter()}>{action === "enter" ? "Opening the room…" : "Enter " + chosen.room.roomName}</button>
+              : <button ref={primaryActionRef} type="button" className="primary-action room-front-primary" disabled={action !== null} onClick={() => void join(chosen.room.roomName)}>{action === "join" ? "Joining…" : "Join " + chosen.room.roomName}</button>}
             <p className="room-front-capability">
               {headset === true ? "The 3D room opens first. Then choose Enter in your headset above the view."
                 : headset === false ? "No headset detected here. You can enter in a browser with a mouse, keyboard or touch."
@@ -211,14 +232,15 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
             </p>
           </> : <div className="room-front-selected-head"><span className="room-front-status">NO ROOM SELECTED</span><h2>Start somewhere.</h2><p>Join a room by name or create a new one for your group.</p></div>}
           {notice ? <p className={notice.kind === "error" ? "room-front-error" : "room-front-success"} role={notice.kind === "error" ? "alert" : "status"}>{notice.text}</p> : null}
+          {pendingJoinRoom ? <p className="room-front-pending" role="status" aria-live="polite">Joining {pendingJoinRoom}…</p> : null}
           <div className="room-front-other-actions">
             <button type="button" aria-expanded={joinOpen} onClick={() => { setJoinOpen(!joinOpen); setCreateOpen(false); setNotice(null); }}>Join by name</button>
             <button type="button" aria-expanded={createOpen} onClick={() => { setCreateOpen(!createOpen); setJoinOpen(false); setNotice(null); }}>Create a room</button>
           </div>
-          {joinOpen ? <form className="room-front-form" onSubmit={(event) => { event.preventDefault(); void join(joinName, joinPassword || undefined); }}>
+          {joinOpen ? <form className="room-front-form" onSubmit={(event) => { event.preventDefault(); void join(joinName, joinPassword || undefined, true); }}>
             <h3>Join an existing room</h3><p>Use its exact name. If it does not exist, we tell you; this never creates a room.</p>
-            <label>Room name<input autoComplete="off" maxLength={64} required value={joinName} onChange={(event) => setJoinName(event.target.value)} /></label>
-            <label>Password, if the owner gave you one<input type="password" autoComplete="off" value={joinPassword} onChange={(event) => setJoinPassword(event.target.value)} /></label>
+            <label>Room name<input ref={joinNameRef} autoComplete="off" maxLength={64} required value={joinName} onChange={(event) => setJoinName(event.target.value)} /></label>
+            <label>Password, if the owner gave you one<input ref={joinPasswordRef} type="password" autoComplete="off" value={joinPassword} onChange={(event) => setJoinPassword(event.target.value)} /></label>
             <button type="submit" disabled={action !== null || !joinName.trim()}>{action === "join" ? "Joining…" : "Join existing room"}</button>
           </form> : null}
           {createOpen ? <form className="room-front-form" onSubmit={(event) => void create(event)}>
