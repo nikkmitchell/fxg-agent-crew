@@ -4,12 +4,23 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { GO_RISKS, GO_STYLES, type GoPlayCard, type GoRoomItem, type GoRisk, type GoStyle, type RoomItem } from "../../shared/room-items";
 import { space } from "../space-client";
+import { hasSeenGoGuide, rememberGoGuide, type GoGuideStorage } from "./go-guide";
 
-function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }) {
+function goGuideStorage(): GoGuideStorage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function GoTable({ item, actorId, autoGuide }: { item: GoRoomItem; actorId: string | null; autoGuide: boolean }) {
   const glow = useRef<THREE.MeshStandardMaterial>(null);
   const [seat, setSeat] = useState(-1);
   const [card, setCard] = useState<GoPlayCard | null>(null);
   const [notice, setNotice] = useState("");
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [rulesSeen, setRulesSeen] = useState(() => hasSeenGoGuide(actorId, goGuideStorage()));
   const extent = 1.22;
   const step = extent / (item.size - 1);
   const lines = useMemo(() => Array.from({ length: item.size }, (_, index) => -extent / 2 + index * step), [item.size, step]);
@@ -26,6 +37,10 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
     else { setSeat(-1); setCard(null); }
     return () => { live = false; };
   }, [actorId, item.id, item.mode, item.seats]);
+  useEffect(() => {
+    setRulesSeen(hasSeenGoGuide(actorId, goGuideStorage()));
+    setRulesOpen(false);
+  }, [actorId]);
   const chooseStyle = async (style: GoStyle) => {
     if (!actorId) return;
     const next = { style, risk: card?.risk ?? "balanced", signature: card?.signature ?? "" } satisfies GoPlayCard;
@@ -84,6 +99,11 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
       setSeat(-1); setNotice("");
     } catch (error) { setNotice(messageOf(error)); }
   };
+  const dismissRules = () => {
+    rememberGoGuide(actorId, goGuideStorage());
+    setRulesSeen(true);
+    setRulesOpen(false);
+  };
   const point = (n: number) => -extent / 2 + n * step;
   const sameActor = (left: string | null, right: string | null) => Boolean(left && right && left.toLocaleLowerCase("en-US") === right.toLocaleLowerCase("en-US"));
   const canTakeTurn = item.mode === "open"
@@ -93,6 +113,7 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
     (item.mode === "open" ? sameActor(item.turnActor, actorId) : seat === item.activeColour));
   const canChooseSetup = item.moveNumber === 0 && !item.turnActor && item.liftedColour === null;
   const canUseCard = Boolean(actorId && canTakeTurn && card && card.style !== "observer" && !item.gameOver);
+  const showRules = Boolean(actorId && (rulesOpen || (autoGuide && !rulesSeen)));
   const bowlPosition = (index: number): [number, number, number] => {
     const angle = (index / item.colours.length) * Math.PI * 2 + Math.PI / 2;
     return [Math.cos(angle) * 0.94, 0.86, Math.sin(angle) * 0.94];
@@ -155,6 +176,10 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
         </group>;
       })}
       {actorId && <group>
+        <group position={[-0.48, 0.74, -0.6]} onClick={(event) => { event.stopPropagation(); setRulesOpen(true); }}>
+          <mesh><planeGeometry args={[0.24, 0.065]} /><meshBasicMaterial color="#302b27" transparent opacity={0.94} /></mesh>
+          <Text position={[0, 0, 0.006]} fontSize={0.032} color="#fff4df" anchorX="center" anchorY="middle">RULES</Text>
+        </group>
         {(["open", "roles"] as const).map((mode, index) => {
           const selected = item.mode === mode;
           return <group key={mode} position={[(index - 1) * 0.33, 1.31, -0.6]} onClick={(event) => { event.stopPropagation(); if (!selected && canChooseSetup) void chooseMode(mode); }}>
@@ -202,6 +227,31 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
         {seat >= 0 && <Text position={[0.55, 0.74, -0.6]} fontSize={0.032} color="#f1d8aa" anchorX="center" anchorY="middle" onClick={(event) => { event.stopPropagation(); void stand(); }}>LEAVE ROLE</Text>}
         {notice && <Text position={[0, 0.68, -0.6]} fontSize={0.035} color="#ffb39c" anchorX="center" anchorY="middle">{notice.slice(0, 90)}</Text>}
       </group>}
+      {showRules && <group position={[0, 1.68, -0.42]} onClick={(event) => event.stopPropagation()}>
+        <mesh>
+          <planeGeometry args={[1.46, 1.08]} />
+          <meshBasicMaterial color="#211f1a" transparent opacity={0.98} depthWrite={false} />
+        </mesh>
+        <Text position={[-0.64, 0.43, 0.008]} fontSize={0.056} color="#f1d8aa" anchorX="left" anchorY="middle">
+          FIRST GAME · GO BASICS
+        </Text>
+        <Text position={[-0.64, 0.27, 0.008]} fontSize={0.036} maxWidth={1.28} lineHeight={1.18} color="#fff4df" anchorX="left" anchorY="top">
+          {"1  Place on an empty crossing. Black starts; take turns."}
+        </Text>
+        <Text position={[-0.64, 0.08, 0.008]} fontSize={0.036} maxWidth={1.28} lineHeight={1.18} color="#fff4df" anchorX="left" anchorY="top">
+          {"2  Keep each group at least one open neighbor (a liberty). Surround all its liberties to capture."}
+        </Text>
+        <Text position={[-0.64, -0.17, 0.008]} fontSize={0.036} maxWidth={1.28} lineHeight={1.18} color="#fff4df" anchorX="left" anchorY="top">
+          {"3  When every color passes, the game ends. Score stones + surrounded empty points; White gets 6.5 extra in two-color games."}
+        </Text>
+        <Text position={[-0.64, -0.35, 0.008]} fontSize={0.027} maxWidth={1.28} lineHeight={1.12} color="#d6c5a7" anchorX="left" anchorY="top">
+          {"OPEN: lift for one turn · ROLES: keep a color · move freely. Put Back saves your turn.\nScore is an estimate; dead stones aren't disputed."}
+        </Text>
+        <group position={[0.49, 0.43, 0.012]} onClick={(event) => { event.stopPropagation(); dismissRules(); }}>
+          <mesh><planeGeometry args={[0.32, 0.09]} /><meshBasicMaterial color="#476b58" /></mesh>
+          <Text position={[0, 0, 0.006]} fontSize={0.031} color="white" anchorX="center" anchorY="middle">GOT IT</Text>
+        </group>
+      </group>}
       <Text position={[0, 0.48, -0.91]} rotation={[0, 0, 0]} fontSize={0.09} color="#f1d8aa" anchorX="center" anchorY="middle">
         {`GO  ${item.size}×${item.size}${item.gameOver ? " · COMPLETE" : ` · MOVE ${item.moveNumber + 1}`}`}
       </Text>
@@ -211,7 +261,10 @@ function GoTable({ item, actorId }: { item: GoRoomItem; actorId: string | null }
 }
 
 export function RoomItems({ items, actorId = null }: { items: RoomItem[]; actorId?: string | null }) {
-  return <>{items.map((item) => item.kind === "go" ? <GoTable key={item.id} item={item} actorId={actorId} /> : null)}</>;
+  const firstGoItemId = items.find((item) => item.kind === "go")?.id;
+  return <>{items.map((item) => item.kind === "go"
+    ? <GoTable key={item.id} item={item} actorId={actorId} autoGuide={item.id === firstGoItemId} />
+    : null)}</>;
 }
 
 function messageOf(error: unknown): string {
