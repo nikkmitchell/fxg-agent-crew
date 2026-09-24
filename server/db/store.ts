@@ -523,13 +523,18 @@ export class BoardStore {
    * has a linked project gets that project back, so a retried create never
    * makes two.
    *
-   * AUTO-ENROL ONLY FOR A PRIVATE ROOM, for the reason migration 23 gives: a
-   * public room can be joined by anyone who registers at webharness.chat, and
-   * that must not quietly put its board in a stranger's hands. A public room's
-   * project is still made and linked, with enrolment off; its manager adds
-   * people, or turns it on.
+   * AUTO-ENROL ONLY FOR A ROOM WITH A PASSWORD. Migration 23 kept enrolment
+   * off for public rooms because anyone can join one; the first version of
+   * this turned it on for private rooms on the same reasoning, and that was
+   * wrong: on WebHarness "private" only means UNLISTED. Sill joined Nightjar's
+   * private trial room with nothing but its name (2026-09-24), so a guessed
+   * name would have been a way onto the board. A password is the one thing
+   * that keeps people out of the chat room, so it is the one thing that may
+   * let the room vouch for them here. Moraine held the release on exactly this
+   * and Nightjar's review agreed. A room without one still gets its project,
+   * its creator as manager, and its board shown; its manager adds people.
    */
-  createRoomProject(actor: Actor, room: string, visibility: "public" | "private"): string {
+  createRoomProject(actor: Actor, room: string, locked: boolean): string {
     const linked = this.db.prepare("SELECT project_id FROM project_rooms WHERE room = ?").get(room) as
       | { project_id: string } | undefined;
     if (linked) return linked.project_id;
@@ -541,8 +546,8 @@ export class BoardStore {
     this.tx(() => {
       this.db.prepare(`INSERT INTO project_rooms (project_id, room, auto_enrol, roles, linked_by, linked_at)
                        VALUES (?,?,?,'[]',?,?)`)
-        .run(id, room, visibility === "private" ? 1 : 0, actor.id, now());
-      this.audit(actor.id, "link", "project", id, undefined, { room, autoEnrol: visibility === "private" });
+        .run(id, room, locked ? 1 : 0, actor.id, now());
+      this.audit(actor.id, "link", "project", id, undefined, { room, autoEnrol: locked });
     }, { actorId: actor.id, action: "link project to room", target: id });
     return id;
   }

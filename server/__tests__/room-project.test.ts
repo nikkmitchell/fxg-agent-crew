@@ -5,9 +5,10 @@ import { buildServer } from "../index.js";
  * ONE ROOM, ONE PROJECT. Nikk (chat 4586): "one room should be one project, as
  * well as one webharness.chat chat room". So making a room from the lobby makes
  * its project, shows that project's board in the room from the start, and
- * being in the room (a private one) is enough to belong to it — for a person
- * who joins through the lobby and for an agent that joined its chat room
- * directly and then enters.
+ * being in the room is enough to belong to it when the room is LOCKED with a
+ * password — for a person who joins through the lobby and for an agent that
+ * joined its chat room directly and then enters. "Private" alone is not
+ * enough: on WebHarness it means unlisted, and anyone with the name can join.
  *
  * Through the whole server, with WebHarness faked: who is in which room is the
  * one thing the real check asks upstream.
@@ -105,10 +106,10 @@ describe("one room, one project", () => {
     expect((await call(nikk, "GET", "/bff/space/showing")).json().showing.projectId).toBe("garden");
   });
 
-  it("an agent that joined the chat room itself belongs to the project once it enters", async () => {
+  it("an agent that joined a LOCKED room's chat itself belongs to the project once it enters", async () => {
     const { as, call, members, upstream } = await boot();
     const nikk = as("Nikk2", "nikk");
-    await call(nikk, "POST", "/bff/rooms/create", { roomName: "garden", visibility: "private" });
+    await call(nikk, "POST", "/bff/rooms/create", { roomName: "garden", visibility: "private", password: "p" });
     // The agent joins the WebHarness room directly, as agents do, not through the lobby.
     upstream.members.set("vint", new Set(["garden"]));
     const vint = as("Vint", "vint", "agent");
@@ -119,13 +120,27 @@ describe("one room, one project", () => {
     expect(await members(nikk, "garden")).toEqual(["nikk2", "vint"]);
   });
 
-  it("a person who joins through the lobby belongs too", async () => {
+  it("a person who joins a locked room through the lobby belongs too", async () => {
     const { as, call, members } = await boot();
     const nikk = as("Nikk2", "nikk");
-    await call(nikk, "POST", "/bff/rooms/create", { roomName: "garden", visibility: "private" });
+    await call(nikk, "POST", "/bff/rooms/create", { roomName: "garden", visibility: "private", password: "p" });
     const baiwei = as("baiwei2", "baiwei");
-    expect((await call(baiwei, "POST", "/bff/rooms/garden/join", {})).statusCode).toBe(200);
+    expect((await call(baiwei, "POST", "/bff/rooms/garden/join", { password: "p" })).statusCode).toBe(200);
     expect(await members(nikk, "garden")).toEqual(["baiwei2", "nikk2"]);
+  });
+
+  it("an UNLOCKED private room's project is made, but guessing its name does not hand anyone the board", async () => {
+    // Sill joined Nightjar's private room with nothing but its name: private is unlisted, not locked.
+    const { as, call, members, upstream } = await boot();
+    const nikk = as("Nikk2", "nikk");
+    await call(nikk, "POST", "/bff/rooms/create", { roomName: "studio night", visibility: "private" });
+    upstream.members.set("guesser", new Set(["studio night"]));
+    const guesser = as("Guesser", "guesser");
+    expect((await call(guesser, "POST", "/bff/space/enter", { roomName: "studio night" })).statusCode).toBe(200);
+    expect(await members(nikk, "studio-night")).toEqual(["nikk2"]);
+    // Its maker still has it, and the room still shows it.
+    await call(nikk, "POST", "/bff/space/enter", { roomName: "studio night" });
+    expect((await call(nikk, "GET", "/bff/space/showing")).json().showing.projectId).toBe("studio-night");
   });
 
   it("a PUBLIC room's project is made, but joining it does not hand a stranger the board", async () => {
