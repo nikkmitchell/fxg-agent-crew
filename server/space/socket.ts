@@ -61,6 +61,29 @@ export class SpaceHub {
   private timer: NodeJS.Timeout | null = null;
 
   /**
+   * Told whose socket was cut off for not reading. BY NAME, because the name
+   * is what lets its owner fix the client; nginx only has an address, and an
+   * address is not something to be passing round the room.
+   */
+  onSlowSocket?: (actorId: string | null, bufferedBytes: number) => void;
+
+  /**
+   * Sockets that asked not to be sent the room ten times a second.
+   *
+   * A presence holder only has to be CONNECTED: it draws nothing, so the
+   * snapshot is all cost. On 2026-09-24 every holder on Nikk's Mac — Moraine,
+   * Nightjar and Sill — was cut off for not reading two or three times in
+   * twenty minutes, because a headset's snapshot at 10/s is more than that
+   * long, direct line keeps up with. A quiet socket still gets everything
+   * addressed to it (a refusal, a call, a welcome); only the tick skips it.
+   */
+  private readonly quiet = new WeakSet<WebSocket>();
+
+  markQuiet(socket: WebSocket): void {
+    this.quiet.add(socket);
+  }
+
+  /**
    * Which body each actor has chosen, read fresh on every snapshot.
    *
    * READ, NOT CAPTURED, for the same reason the panel stands are: somebody who
@@ -188,6 +211,7 @@ export class SpaceHub {
     if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
       // terminate, not close: a polite close is one more frame queued behind
       // the megabyte the client is not reading. The close handler detaches it.
+      this.onSlowSocket?.(this.socketActors.get(socket) ?? null, socket.bufferedAmount);
       try {
         socket.terminate();
       } catch {
@@ -289,7 +313,10 @@ export class SpaceHub {
       this.stop();
       return;
     }
-    this.broadcast({ type: "snapshot", now: Date.now(), people: this.snapshot() });
+    const snapshot: ServerMessage = { type: "snapshot", now: Date.now(), people: this.snapshot() };
+    for (const sockets of this.sockets.values()) {
+      for (const socket of sockets) if (!this.quiet.has(socket)) this.send(socket, snapshot);
+    }
   }
 
   close(): void {
@@ -395,6 +422,8 @@ export function registerSpaceRoutes(
     const room = spaceRoomOf(session);
     const liveHub = hubFor(room);
     liveHub.attach(actorId, session.kind, socket, room, request.cookies[config.cookieName]);
+    // ?quiet=1: connected, but not sent the room every tick. See SpaceHub.quiet.
+    if ((request.query as { quiet?: string } | undefined)?.quiet === "1") liveHub.markQuiet(socket);
     liveHub.send(socket, {
       type: "welcome",
       you: actorId,

@@ -170,6 +170,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // The default hub is the existing room, unchanged. Other rooms get their own
   // live presence, tick, socket and voice sets; sharing a single hub is enough
   // to leak people and calls even when all durable furniture is room-keyed.
+  const logSlowSocket = (room: string) => (actorId: string | null, bufferedBytes: number) =>
+    app.log.warn({ actorId, room, bufferedBytes }, "space socket cut off: its client stopped reading");
+  space.onSlowSocket = logSlowSocket(DEFAULT_SPACE_ROOM);
   const spaceHubs = new Map<string, SpaceHub>([[DEFAULT_SPACE_ROOM, space]]);
   const hubFor = (room: string): SpaceHub => {
     const key = roomKey(room);
@@ -181,6 +184,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
         (actorId) => screenFrames.get(actorId, key) !== undefined),
       (actorId) => agentBodies.get(actorId),
     );
+    created.onSlowSocket = logSlowSocket(key);
     spaceHubs.set(key, created);
     return created;
   };
