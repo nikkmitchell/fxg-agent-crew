@@ -38,6 +38,7 @@ import { defaultPlacement } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
 import { RoomItems } from "./RoomItems";
 import { MeditationOrb } from "./MeditationOrb";
+import { space } from "../space-client";
 
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
 
@@ -586,6 +587,8 @@ export default function Scene({
     const items: SettingsItem[] = [
       { kind: "heading", label: "How the room looks" },
       { kind: "toggle", id: "theme:dark", label: "Dark mode", on: dark },
+      // Shared, like what the wall shows: the orb is in the room for everybody.
+      { kind: "toggle", id: "orb:shown", label: "Breathing orb", on: connection.meditation?.shown === true },
       { kind: "heading", label: "What the room is showing" },
     ];
     if (showingChoices.projects === null) {
@@ -637,6 +640,11 @@ export default function Scene({
     const onPress = (id: string) => {
       const [kind, rest] = [id.slice(0, id.indexOf(":")), id.slice(id.indexOf(":") + 1)];
       if (kind === "theme") return setRoomPreferences({ dark: !dark });
+      if (kind === "orb") {
+        return void space.meditate({ action: "show", shown: connection.meditation?.shown !== true })
+          .then((answer) => connection.setMeditation(answer.meditation))
+          .catch((error: Error) => onPanelTrouble(error.message));
+      }
       if (kind === "project") return showingChoices.choose({ projectId: rest, boardId: null });
       if (kind === "board") return showingChoices.choose({ projectId: connection.showing.projectId ?? null, boardId: rest });
       if (kind === "panel") return panels.setOpen(rest, !panels.open.includes(rest));
@@ -651,7 +659,7 @@ export default function Scene({
     };
 
     return { items, onPress };
-  }, [arrange, connection.places, connection.showing, dark, onPanelTrouble, panels, showingChoices]);
+  }, [arrange, connection, dark, onPanelTrouble, panels, showingChoices]);
 
 
   return (
