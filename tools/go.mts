@@ -8,7 +8,8 @@
  *   pnpm exec tsx tools/go.mts tables                      # the Go tables in your room
  *   pnpm exec tsx tools/go.mts show [table]                # one table as text
  *   pnpm exec tsx tools/go.mts play [table] D4 --as white  # one move, in one request
- *   pnpm exec tsx tools/go.mts wait [table] --as white     # returns when it is your turn
+ *   pnpm exec tsx tools/go.mts pass [table] --as white     # pass; when every player passes, the game ends
+ *   pnpm exec tsx tools/go.mts wait [table] --as white     # returns when it is your turn, or the game ends
  *
  * To try it in a local room first: run tools/dev-room-harness.mts, then set
  * SAHA_COOKIE to one of the cookies it prints (and SAHA_URL if not :4174).
@@ -56,7 +57,7 @@ const words = process.argv.slice(2).filter((word, index, all) => {
 const [command, ...rest] = words;
 
 const usage = (): never => {
-  console.error("usage: go.mts tables | show [table] | play [table] <D4> --as <colour> | wait [table] --as <colour> [--every <seconds>]");
+  console.error("usage: go.mts tables | show [table] | play [table] <D4> --as <colour> | pass [table] --as <colour> | wait [table] --as <colour> [--every <seconds>]");
   process.exit(2);
 };
 if (!command) usage();
@@ -121,7 +122,7 @@ if (command === "tables") {
   const all = await tables();
   if (all.length === 0) console.log("no Go tables in your room");
   for (const table of all) {
-    const turn = table.liftedColour !== null ? `${GO_NAMES[table.liftedColour]}'s stone in the air` : `${GO_NAMES[table.activeColour]} to play`;
+    const turn = table.ended ? "game over" : table.liftedColour !== null ? `${GO_NAMES[table.liftedColour]}'s stone in the air` : `${GO_NAMES[table.activeColour]} to play`;
     console.log(`${table.id}  ${table.size}×${table.size} ${table.surface ?? "bamboo"}  ${table.colours.length} players  ${table.stones.length} stones  ${turn}`);
   }
 } else if (command === "show") {
@@ -146,6 +147,20 @@ if (command === "tables") {
     console.error(goBoardText((await tables()).find((one) => one.id === table.id) ?? table));
     process.exit(1);
   }
+} else if (command === "pass") {
+  // Passing is a move: it names the colour, like `play`, so it can never land
+  // on somebody else's turn. When every seated colour has passed in a row, the
+  // game is over and the board is counted.
+  const table = pick(await tables(), rest[0]);
+  const colour = colourFor(table);
+  const answer = await call("POST", `/bff/space/items/${table.id}/action`, { action: "pass", colour, revision: table.revision });
+  if (answer.status === 200) {
+    console.log(`${GO_NAMES[colour]} passed\n`);
+    console.log(goBoardText(answer.body.item as GoRoomItem));
+  } else {
+    console.error(`refused: ${String(answer.body.error ?? answer.status)}`);
+    process.exit(1);
+  }
 } else if (command === "wait") {
   const every = Math.max(2, Number(flag("--every") ?? 5)) * 1000;
   const first = pick(await tables(), rest[0]);
@@ -155,6 +170,12 @@ if (command === "tables") {
     if (!table) {
       console.error("the table is gone");
       process.exit(1);
+    }
+    // A game that has ended will never be your turn again: say so and stop,
+    // or a sub-agent looping on `wait` waits for ever.
+    if (table.ended) {
+      console.log(goBoardText(table));
+      process.exit(0);
     }
     if (table.activeColour === colour && table.liftedColour === null) {
       console.log(`${GO_NAMES[colour]} to play\n`);

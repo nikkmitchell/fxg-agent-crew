@@ -197,3 +197,105 @@ describe("deleting a table", () => {
     } finally { await app.close(); }
   });
 });
+
+/**
+ * Nikk (4504): "we need to have a way to finish the game ... the game ends when
+ * both players pass". And for more than two: when EVERY seated colour has.
+ */
+describe("passing, and the end of a game", () => {
+  const boot = () => {
+    const built = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    const cookie = `${built.config.cookieName}=${built.sessions.create("Nikk2", "t", "human")}`;
+    const items = new RoomItems(built.database);
+    const table = items.add("saha.ing", "Nikk2");
+    const act = (payload: object) =>
+      built.app.inject({ method: "POST", url: `/bff/space/items/${table.id}/action`, headers: { cookie }, payload });
+    const patch = (payload: object) =>
+      built.app.inject({ method: "PATCH", url: `/bff/space/items/${table.id}`, headers: { cookie }, payload });
+    const now = () => items.one("saha.ing", table.id)!;
+    return { app: built.app, act, patch, now, items, table };
+  };
+
+  it("hands the turn on without a stone", async () => {
+    const { app, act, now } = boot();
+    try {
+      expect((await act({ action: "pass" })).statusCode).toBe(200);
+      expect(now()).toMatchObject({ activeColour: 1, passes: 1, ended: false, stones: [] });
+    } finally { await app.close(); }
+  });
+
+  it("ends the game when both players pass in a row", async () => {
+    const { app, act, now } = boot();
+    try {
+      await act({ action: "pass" });
+      await act({ action: "pass" });
+      expect(now()).toMatchObject({ passes: 2, ended: true });
+    } finally { await app.close(); }
+  });
+
+  it("does NOT end it when a stone is played between the passes", async () => {
+    const { app, act, now } = boot();
+    try {
+      await act({ action: "pass" });                                 // black passes
+      await act({ action: "play", colour: 1, x: 4, y: 4 });          // white plays
+      await act({ action: "pass" });                                 // black passes again
+      expect(now()).toMatchObject({ passes: 1, ended: false });
+    } finally { await app.close(); }
+  });
+
+  it("with three players, needs all three to pass", async () => {
+    const { app, act, patch, now } = boot();
+    try {
+      await patch({ players: 3 });
+      await act({ action: "pass" });
+      await act({ action: "pass" });
+      expect(now().ended, "two of three is not everybody").toBe(false);
+      await act({ action: "pass" });
+      expect(now().ended).toBe(true);
+    } finally { await app.close(); }
+  });
+
+  it("refuses stones and passes once it is over, and says how to start again", async () => {
+    const { app, act, now } = boot();
+    try {
+      await act({ action: "pass" });
+      await act({ action: "pass" });
+      for (const payload of [{ action: "play", colour: 0, x: 1, y: 1 }, { action: "lift" }, { action: "pass" }]) {
+        const refused = await act(payload);
+        expect(refused.statusCode, JSON.stringify(payload)).toBe(409);
+        expect(refused.json()).toMatchObject({ code: "GAME_OVER" });
+        expect(refused.json().error).toMatch(/Clear the stones/);
+      }
+      expect(now().stones).toEqual([]);
+    } finally { await app.close(); }
+  });
+
+  it("starts a fresh game when the stones are cleared", async () => {
+    const { app, act, patch, now } = boot();
+    try {
+      await act({ action: "pass" });
+      await act({ action: "pass" });
+      expect((await patch({ reset: true })).statusCode).toBe(200);
+      expect(now()).toMatchObject({ passes: 0, ended: false, activeColour: 0 });
+      expect((await act({ action: "play", colour: 0, x: 2, y: 2 })).statusCode).toBe(200);
+    } finally { await app.close(); }
+  });
+
+  it("will not pass for a colour whose turn it is not, or while a stone is in the air", async () => {
+    const { app, act } = boot();
+    try {
+      expect((await act({ action: "pass", colour: 1 })).json()).toMatchObject({ code: "NOT_YOUR_TURN" });
+      await act({ action: "lift" });
+      expect((await act({ action: "pass" })).statusCode).toBe(409);
+    } finally { await app.close(); }
+  });
+
+  it("lets the territory be shown at all times, and only takes true or false", async () => {
+    const { app, patch, now } = boot();
+    try {
+      expect((await patch({ territoryShown: "yes" })).statusCode).toBe(400);
+      expect((await patch({ territoryShown: true })).statusCode).toBe(200);
+      expect(now().territoryShown).toBe(true);
+    } finally { await app.close(); }
+  });
+});

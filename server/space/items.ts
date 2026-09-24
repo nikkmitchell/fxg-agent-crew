@@ -82,7 +82,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     options.items.remove(room, item.id);
     return reply.send({ items: publish(room, session.username) });
   });
-  app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; players?: unknown; reset?: unknown; position?: unknown; scale?: unknown; revision?: unknown; deskVisible?: unknown; surface?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
+  app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; players?: unknown; reset?: unknown; position?: unknown; scale?: unknown; revision?: unknown; deskVisible?: unknown; surface?: unknown; territoryShown?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
     const change = request.body;
@@ -90,6 +90,11 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (change?.deskVisible !== undefined) {
       if (typeof change.deskVisible !== "boolean") return reply.code(400).send({ error: "Desk visibility must be true or false." });
       item.deskVisible = change.deskVisible;
+    }
+    if (change?.territoryShown !== undefined) {
+      // Only what is drawn: allowed mid-game, with a stone in the air, after the end.
+      if (typeof change.territoryShown !== "boolean") return reply.code(400).send({ error: "Showing territory must be true or false." });
+      item.territoryShown = change.territoryShown;
     }
     if (change?.surface !== undefined) {
       // Only how the board looks — allowed mid-game and with a stone in the air.
@@ -120,11 +125,13 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       if (item.size !== request.body.size) {
         item.size = request.body.size; item.stones = []; item.captures = [];
         item.liftedColour = null; item.carrier = null; item.activeColour = 0;
+        item.passes = 0; item.ended = false;
       }
     }
     if (request.body?.addBowl === true) {
       if (item.colours.length >= GO_COLOURS.length) return reply.code(422).send({ error: "every available bowl colour is already here" });
       item.colours.push(GO_COLOURS[item.colours.length]);
+      item.passes = 0;
     }
     /**
      * HOW MANY ARE PLAYING, settable both ways.
@@ -150,11 +157,14 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       item.captures = item.captures.filter((taken) => taken.colour < wanted && taken.by < wanted);
       if (item.activeColour >= wanted) item.activeColour = 0;
       item.carrier = null;
+      // A new turn order: passes counted against the old one no longer mean "everybody".
+      item.passes = 0;
     }
     /** Take the stones off and give the turn back to the first player. */
     if (request.body?.reset === true) {
       item.stones = []; item.captures = [];
       item.liftedColour = null; item.carrier = null; item.activeColour = 0;
+      item.passes = 0; item.ended = false;
     }
     item.revision++;
     options.items.save(room, item, session.username); publish(room, session.username); return reply.send({ item });
@@ -166,6 +176,16 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     // Recorded only AFTER the table is saved: the room walks an agent to its
     // seat on this row, and must never do that for a move that did not happen.
     let played: { colour: number; x: number; y: number } | null = null;
+    /**
+     * THE GAME IS OVER once every seated colour has passed in turn (Nikk 4504).
+     * No stone may be lifted, placed or played and nobody may pass again until
+     * the board is cleared; the count stays on the table for everybody to read.
+     * `return` is still allowed, so a stone somebody was holding can go home.
+     */
+    const over = "The game is over: everybody passed. Clear the stones in the table's settings to start a new one.";
+    if (item.ended && ["lift", "place", "play", "pass"].includes(request.body?.action as string)) {
+      return reply.code(409).send({ code: "GAME_OVER", error: over });
+    }
     if (request.body?.action === "lift") {
       if (item.liftedColour !== null) return reply.code(409).send({ error: "A stone is already in flight. Place it or return it first." });
       if (request.body.colour !== undefined && request.body.colour !== item.activeColour) return reply.code(409).send({ error: "It is the glowing bowl's turn." });
@@ -185,6 +205,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       item.stones = move.stones;
       item.captures.push(...move.captured.map((stone) => ({ ...stone, by: item.activeColour })));
       item.liftedColour = null; item.carrier = null; item.activeColour = (item.activeColour + 1) % item.colours.length;
+      item.passes = 0;
     } else if (request.body?.action === "play") {
       // A whole move in one request, for agents and their programs playing
       // through code (tools/go.mts). Lift-then-place is two requests with a
@@ -203,11 +224,27 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       item.stones = move.stones;
       item.captures.push(...move.captured.map((stone) => ({ ...stone, by: item.activeColour })));
       item.activeColour = (item.activeColour + 1) % item.colours.length;
+      item.passes = 0;
       played = { colour: colour as number, x: x as number, y: y as number };
+    } else if (request.body?.action === "pass") {
+      /**
+       * PASS: the turn goes on without a stone. When every seated colour has
+       * passed one after another, the game ends and the board is counted.
+       *
+       * Named by colour, like `play`, so a pass cannot land on somebody else's
+       * turn by arriving late; a person at the table, whose only pass button is
+       * at the bowl whose turn it is, may leave it out.
+       */
+      const { colour } = request.body;
+      if (item.liftedColour !== null) return reply.code(409).send({ error: `${item.carrier?.by ?? "Somebody"} is holding a stone. Put it down or return it before passing.` });
+      if (colour !== undefined && colour !== item.activeColour) return reply.code(409).send({ code: "NOT_YOUR_TURN", error: "It is not that colour's turn." });
+      item.passes += 1;
+      item.activeColour = (item.activeColour + 1) % item.colours.length;
+      if (item.passes >= item.colours.length) item.ended = true;
     } else if (request.body?.action === "return") {
       // Deliberate recovery for a disconnected carrier; never steals on incidental contact.
       item.liftedColour = null; item.carrier = null;
-    } else return reply.code(400).send({ error: "action must be lift, place, play or return" });
+    } else return reply.code(400).send({ error: "action must be lift, place, play, pass or return" });
     item.revision++;
     options.items.save(room, item, session.username);
     if (played) options.items.recordPlay(session.username, item.id, played.colour, played);

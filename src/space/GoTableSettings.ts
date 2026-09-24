@@ -29,6 +29,8 @@ export type GoSettingChange =
   | { kind: "players"; players: number }
   | { kind: "scale"; scale: number }
   | { kind: "desk"; shown: boolean }
+  /** Whose territory is whose, drawn during play too. Nikk (4504). */
+  | { kind: "land"; shown: boolean }
   | { kind: "surface"; surface: GoSurface }
   | { kind: "reset" }
   /** The first press asks; only a second press, soon after, deletes. See CONFIRM_DELETE_MS. */
@@ -74,6 +76,7 @@ export function goSettingFor(
   }
 
   if (id === "go:desk") return { kind: "desk", shown: !item.deskVisible };
+  if (id === "go:land") return { kind: "land", shown: !item.territoryShown };
 
   // Board types go round: past the last is the first. Only the look changes,
   // so it never costs anything and is never refused.
@@ -125,6 +128,7 @@ export type GoSettingRequest =
   | { players: number }
   | { scale: number }
   | { deskVisible: boolean }
+  | { territoryShown: boolean }
   | { surface: GoSurface }
   | { reset: true };
 
@@ -150,6 +154,8 @@ export function goSettingRequest(item: GoRoomItem, id: string): GoSettingRequest
       return { scale: change.scale };
     case "desk":
       return { deskVisible: change.shown };
+    case "land":
+      return { territoryShown: change.shown };
     case "surface":
       return { surface: change.surface };
     case "reset":

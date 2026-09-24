@@ -73,7 +73,7 @@ function turnTextHalf(fontSize: number): number {
 }
 
 export function goControls(
-  item: Pick<GoRoomItem, "size" | "colours" | "scale" | "deskVisible" | "surface">,
+  item: Pick<GoRoomItem, "size" | "colours" | "scale" | "deskVisible" | "surface" | "territoryShown">,
   /** DELETE has been pressed once and is waiting for the second press. */
   deleteArmed = false,
 ): GoControls {
@@ -128,9 +128,23 @@ export function goControls(
     stepper("go:size", "SIZE", `${size}×${size}`),
     stepper("go:players", "PLAYERS", `${item.colours.length}`),
     stepper("go:scale", "TABLE", `${Math.round(item.scale * 100)}%`),
+    /**
+     * SHOW: the desk, and whose land is whose. Nikk (4504): "in settings we can
+     * turn on land being shown at all times". One row for both, because seven
+     * rows is what fits a 5×5 at a size you can hit.
+     */
     {
-      label: "DESK",
-      buttons: [{ id: "go:desk", label: item.deskVisible ? "ON" : "OFF", x: right - (button + value) / 2, width: button + value }],
+      label: "SHOW",
+      // Two equal buttons across the stepper's span, so the right edge lines
+      // up with every other row.
+      buttons: [
+        { id: "go:desk", label: item.deskVisible ? "DESK ON" : "DESK OFF" },
+        { id: "go:land", label: item.territoryShown ? "LAND ON" : "LAND OFF" },
+      ].map((b, i) => {
+        const span = button * 2 + value;
+        const each = (span - gap) / 2;
+        return { ...b, width: each, x: right - span + each / 2 + i * (each + gap) };
+      }),
     },
     /**
      * CLEAR and DELETE share a row. Nikk (4452): "in settings there should also

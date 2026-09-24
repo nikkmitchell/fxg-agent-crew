@@ -123,3 +123,12 @@ describe("deleting the board", () => {
     expect(goSettingRequest(table(), "go:delete")).toBeNull();
   });
 });
+
+/** Nikk (4504): "in settings we can turn on land being shown at all times". */
+describe("showing territory", () => {
+  it("turns it on and off, and sends only that", () => {
+    expect(goSettingFor(table(), "go:land")).toEqual({ kind: "land", shown: true });
+    expect(goSettingRequest(table({ territoryShown: true }), "go:land")).toEqual({ territoryShown: false });
+    expect(goSettingCost(table({ stones: [{ x: 1, y: 1, colour: 0 }] }), { kind: "land", shown: true }), "costs nothing").toBeNull();
+  });
+});

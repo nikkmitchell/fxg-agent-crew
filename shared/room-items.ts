@@ -42,6 +42,16 @@ export type GoRoomItem = {
   scale: number;
   deskVisible: boolean;
   surface: GoSurface;
+  /**
+   * Passes in a row. Nikk (4504): "the game ends when both players pass". Any
+   * stone played puts it back to 0; when every seated colour has passed in turn,
+   * the game is over. See shared/go-score.ts for how it is then counted.
+   */
+  passes: number;
+  /** Everybody passed: no more stones until the board is cleared. */
+  ended: boolean;
+  /** Show whose territory is whose during play, not only once the game ends. */
+  territoryShown: boolean;
 };
 export type RoomItem = GoRoomItem;
 
@@ -77,6 +87,7 @@ export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
     liftedColour: null,
     stones: [],
     captures: [], revision: 0, carrier: null, scale: 1, deskVisible: true, surface: GO_SURFACES[0],
+    passes: 0, ended: false, territoryShown: false,
     position: { x: ordinal * 2.65 - 1.15, y: 0, z: 1.8, rotationY: 0 },
   };
 }
@@ -102,6 +113,8 @@ export function parseRoomItem(value: unknown): RoomItem | null {
   return { ...item, captures: item.captures ?? [], revision: item.revision ?? 0,
     carrier: item.carrier ?? null, scale: item.scale ?? 1, deskVisible: item.deskVisible ?? true,
     surface: isGoSurface(item.surface) ? item.surface : GO_SURFACES[0],
+    passes: Number.isInteger(item.passes) && item.passes! >= 0 ? item.passes : 0,
+    ended: item.ended === true, territoryShown: item.territoryShown === true,
     position: { ...item.position, y: item.position.y ?? 0 } } as GoRoomItem;
 }
 

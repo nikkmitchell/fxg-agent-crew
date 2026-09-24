@@ -16,6 +16,8 @@ import { GO_TABLE_POINTERS, goControls, goControlsShown } from "./go-controls";
 import { goSnap, type GoMove } from "./go-snap";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
 import { GO_NAMES as NAMES, goStarPoints } from "../../shared/go-text";
+import { countGo } from "../../shared/go-score";
+import { scoreLine, turnLine } from "./go-status";
 import { goTableWriter } from "./go-table-writer";
 import { grabHold } from "./grab-hold";
 
@@ -272,7 +274,7 @@ function Stones({ targets, reducedMotion }: { targets: StoneTarget[]; reducedMot
   </instancedMesh>;
 }
 
-function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index: number; reducedMotion: boolean; onLift: () => void }) {
+function Bowl({ item, index, reducedMotion, onLift, onPass }: { item: GoRoomItem; index: number; reducedMotion: boolean; onLift: () => void; onPass: () => void }) {
   const pulse = useRef<THREE.MeshBasicMaterial>(null), rim = useRef<THREE.MeshStandardMaterial>(null);
   const active = index === item.activeColour;
   /**
@@ -282,7 +284,8 @@ function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index:
    * turn off." It used to be a bright 72cm pool that stayed on all turn,
    * competing with the board just when the board was what mattered.
    */
-  const glowing = active && item.liftedColour === null;
+  // And not once the game is over: nobody's turn any more.
+  const glowing = active && item.liftedColour === null && !item.ended;
   const look = GO_SURFACE_LOOKS[item.surface] ?? GO_SURFACE_LOOKS.bamboo;
   const relief = useMemo(() => bowlRelief(look.bowl.relief), [look.bowl.relief]);
   useEffect(() => () => relief.dispose(), [relief]);
@@ -318,14 +321,75 @@ function Bowl({ item, index, reducedMotion, onLift }: { item: GoRoomItem; index:
       {/* Invisible contact cap also makes the stones in the bowl clickable. */}
       <mesh position={[0, 0.045, 0]}><sphereGeometry args={[0.17, 16, 8]} /><meshBasicMaterial visible={false} /></mesh>
       <Text position={[0, -0.042, tray.z > position.z ? -0.24 : 0.24]} rotation-x={-Math.PI / 2} fontSize={0.039} color={active ? accent : "#c8b49a"} raycast={noRaycast}>
-        {`${NAMES[index].toUpperCase()}${active ? " · TO PLAY" : ""}`}
+        {`${NAMES[index].toUpperCase()}${active && !item.ended ? " · TO PLAY" : ""}`}
       </Text>
+      {/*
+        PASS, at the bowl whose turn it is — the one place a player already
+        looks, for two players or eight. Nikk (4504): "the game ends when both
+        players pass". Not while a stone is in the air: pass OR play, not both.
+      */}
+      {glowing && !item.ended && <TableButton label="PASS" onTap={onPass} width={0.2} depth={0.08} fontSize={0.036}
+        at={[0, -0.04, tray.z > position.z ? -0.34 : 0.34]} />}
     </group>
     <RoundedBox args={[0.22, 0.025, 0.27]} radius={0.011} smoothness={3} position={xyz(tray)} raycast={noRaycast}>
       <meshStandardMaterial color="#352920" roughness={0.46} />
     </RoundedBox>
     <Text position={[tray.x, tray.y + 0.017, tray.z + 0.18]} rotation-x={-Math.PI / 2} fontSize={0.028} color="#c8b49a" raycast={noRaycast}>{`${captures} CAPTURED`}</Text>
   </>;
+}
+
+/**
+ * WHOSE LAND IS WHOSE: on every empty point only one colour surrounds
+ * (shared/go-score.ts), a square in that colour's OWN stone colour on a
+ * slightly larger one in its accent — the way Go programs mark territory.
+ *
+ * WHY TWO SQUARES. The first version was one small accent square, and in the
+ * harness it was drawn and could not be seen: a 5cm gold square on a beige
+ * board, a few pixels tall from a seat. Proven by blowing one up twenty times
+ * (it appeared, red, exactly where it should). The stone colour reads on the
+ * light board, the accent edge on the dark stone one, and together they read
+ * on both. Fainter while the count is only provisional.
+ */
+function Territory({ item }: { item: GoRoomItem }) {
+  const shown = item.ended || item.territoryShown;
+  const points = useMemo(
+    () => (shown ? countGo(item.stones, item.size, item.colours.length).territory : []),
+    [shown, item.stones, item.size, item.colours.length],
+  );
+  const edge = useRef<THREE.InstancedMesh>(null), fill = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const place = new THREE.Object3D(), colour = new THREE.Color();
+    const lay = (target: THREE.InstancedMesh | null, lift: number, paint: (owner: number) => string) => {
+      if (!target) return;
+      points.forEach((point, index) => {
+        place.position.set(goPoint(point.x, item.size), GO_SURFACE + lift, goPoint(point.y, item.size));
+        place.rotation.set(-Math.PI / 2, 0, 0);
+        place.updateMatrix();
+        target.setMatrixAt(index, place.matrix);
+        target.setColorAt(index, colour.set(paint(point.colour)));
+      });
+      target.count = points.length;
+      target.instanceMatrix.needsUpdate = true;
+      if (target.instanceColor) target.instanceColor.needsUpdate = true;
+    };
+    lay(edge.current, 0.0022, (owner) => ACCENTS[owner]);
+    lay(fill.current, 0.0026, (owner) => item.colours[owner]);
+  }, [points, item.size, item.colours]);
+  if (!points.length) return null;
+  const opacity = item.ended ? 1 : 0.6;
+  // frustumCulled off, like the move lights: an instanced mesh is culled by its
+  // one small square at the table's origin, under the table, not by where its
+  // instances are.
+  return <group key={points.length}>
+    <instancedMesh ref={edge} args={[undefined, undefined, points.length]} raycast={noRaycast} renderOrder={1} frustumCulled={false}>
+      <planeGeometry args={[GO_PITCH * 0.5, GO_PITCH * 0.5]} />
+      <meshBasicMaterial transparent opacity={opacity} depthWrite={false} toneMapped={false} />
+    </instancedMesh>
+    <instancedMesh ref={fill} args={[undefined, undefined, points.length]} raycast={noRaycast} renderOrder={2} frustumCulled={false}>
+      <planeGeometry args={[GO_PITCH * 0.36, GO_PITCH * 0.36]} />
+      <meshBasicMaterial transparent opacity={opacity} depthWrite={false} toneMapped={false} />
+    </instancedMesh>
+  </group>;
 }
 
 function TableButton({ label, at, onTap, width = 0.24, depth = 0.105, fontSize = 0.029 }: { label: string; at: [number, number, number]; onTap: () => void; width?: number; depth?: number; fontSize?: number }) {
@@ -420,7 +484,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       const holding = item.liftedColour !== null && item.carrier?.by === context.you && item.carrier.hand === side;
       const reservation = context.reservations.current.get(side);
       const otherTable = context.items.some((table) => table.id !== item.id && table.carrier?.by === context.you && table.carrier.hand === side);
-      const canLift = item.liftedColour === null && !pending.current && !otherTable && (!reservation || reservation.until < now || reservation.id === item.id);
+      const canLift = item.liftedColour === null && !item.ended && !pending.current && !otherTable && (!reservation || reservation.until < now || reservation.id === item.id);
       const next = stepGoTouch(contacts.current[side], { point, item, holding, canLift, now, pending: pending.current });
       contacts.current[side] = next.state;
       if (next.action && !pending.current) {
@@ -716,8 +780,10 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       <circleGeometry args={[0.0045, 16]} /><meshBasicMaterial color={look.lines} />
     </mesh>))}
     <MoveLights item={item} reducedMotion={reducedMotion} onPlace={(x, y) => void act({ action: "place", x, y })} />
+    <Territory item={item} />
     <Stones targets={targets} reducedMotion={reducedMotion} />
     {item.colours.map((_, index) => <Bowl key={index} item={item} index={index} reducedMotion={reducedMotion}
+      onPass={() => void act({ action: "pass", colour: index })}
       onLift={() => {
         if (index !== item.activeColour || item.liftedColour !== null) return;
         // A poke click and the physical-contact adapter can arrive in either order.
@@ -736,10 +802,10 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       <sphereGeometry args={[1, 32, 20]} /><meshPhysicalMaterial color={item.colours[item.activeColour]} roughness={0.18} clearcoat={1} emissive={ACCENTS[item.activeColour]} emissiveIntensity={0.025} />
     </mesh>}
     {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.035 : boardWidth / 2 + 0.16]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.025 : 0.043} color={wide ? look.ink : ACCENTS[item.activeColour]} raycast={noRaycast}>
-      {`${NAMES[item.activeColour].toUpperCase()}'S TURN`}
+      {turnLine(item)}
     </Text>}
     {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? look.inkSoft : "#d8c8ac"} raycast={noRaycast}>
-      {notice || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone")}
+      {notice || scoreLine(item) || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone, or PASS at it")}
     </Text>}
     {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
       <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[0.46, 0.1]} /><meshBasicMaterial color="#493d30" /></mesh>

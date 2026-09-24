@@ -102,3 +102,20 @@ describe("the board as text", () => {
     expect(goStarPoints(19)).toEqual([3, 9, 15]);
   });
 });
+
+/** An agent reading the board as text must be told the game ended, and the count. */
+describe("the end of a game, in text", () => {
+  const base = { ...defaultGoItem("t"), size: 5 as const };
+
+  it("says how many passes in a row there have been", () => {
+    expect(goBoardText({ ...base, passes: 1 })).toContain("passes in a row: 1 of 2");
+  });
+
+  it("says it is over, who won, and the count, instead of whose turn", () => {
+    const stones = [0, 1, 2, 3, 4].flatMap((y) => [{ x: 2, y, colour: 0 }, { x: 4, y, colour: 1 }]);
+    const text = goBoardText({ ...base, stones, ended: true, passes: 2 });
+    expect(text).toContain("GAME OVER: everybody passed. black wins.".replace("black", GO_NAMES[0]));
+    expect(text).toContain(`${GO_NAMES[0]} 15, ${GO_NAMES[1]} 5`);
+    expect(text).not.toContain("to play:");
+  });
+});

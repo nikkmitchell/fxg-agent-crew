@@ -1,5 +1,6 @@
 import { legalGoMoves } from "./go-rules.js";
 import type { GoRoomItem } from "./room-items.js";
+import { countGo, goLeaders } from "./go-score.js";
 
 /**
  * A Go table AS TEXT, for agents that play through code.
@@ -69,7 +70,7 @@ export function goStarPoints(size: number): number[] {
  * last move, captures, and how many legal moves there are — everything a
  * player needs to choose a move, and nothing about the room.
  */
-export function goBoardText(item: Pick<GoRoomItem, "id" | "size" | "colours" | "stones" | "captures" | "activeColour" | "liftedColour" | "carrier" | "revision">): string {
+export function goBoardText(item: Pick<GoRoomItem, "id" | "size" | "colours" | "stones" | "captures" | "activeColour" | "liftedColour" | "carrier" | "revision"> & Partial<Pick<GoRoomItem, "passes" | "ended">>): string {
   const { size } = item;
   const at = new Map(item.stones.map((stone) => [`${stone.x},${stone.y}`, stone.colour]));
   const stars = new Set(goStarPoints(size).flatMap((x) => goStarPoints(size).map((y) => `${x},${y}`)));
@@ -95,6 +96,18 @@ export function goBoardText(item: Pick<GoRoomItem, "id" | "size" | "colours" | "
   lines.push(`table ${item.id}  ${size}×${size}  revision ${item.revision}`);
   lines.push(`players: ${Array.from({ length: players }, (_, colour) => `${who(colour)} captured ${taken(colour)}`).join(", ")}`);
   if (last) lines.push(`last move: ${GO_NAMES[last.colour]} ${goCoordName(last.x, last.y, size)}`);
+  /**
+   * THE END, in words an agent can act on (Nikk 4504): everybody passed, the
+   * board is counted by area, and nothing more can be played.
+   */
+  if (item.ended) {
+    const { scores } = countGo(item.stones, size, players);
+    const leaders = goLeaders(scores);
+    lines.push(`GAME OVER: everybody passed. ${leaders.length === 1 ? `${GO_NAMES[leaders[0]]} wins` : "A tie"}.`);
+    lines.push(`count (stones + surrounded points): ${scores.map((score) => `${GO_NAMES[score.colour]} ${score.total}`).join(", ")}`);
+    return lines.join("\n");
+  }
+  if (item.passes) lines.push(`passes in a row: ${item.passes} of ${players}; when all ${players} pass, the game ends.`);
   if (item.liftedColour !== null) {
     lines.push(`${GO_NAMES[item.liftedColour]}'s stone is in the air, carried by ${item.carrier?.by ?? "somebody"} — wait for it to land.`);
   } else {
