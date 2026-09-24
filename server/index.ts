@@ -8,7 +8,7 @@ import cookie from "@fastify/cookie";
 import websocket from "@fastify/websocket";
 import staticPlugin from "@fastify/static";
 import { loadConfig, type Config } from "./config.js";
-import { MemorySessionStore, SqliteSessionStore, type SessionStore } from "./session.js";
+import { MemorySessionStore, SqliteSessionStore, type Session, type SessionStore } from "./session.js";
 import { spaceRoomOf } from "./require-session.js";
 import { WebharnessClient } from "./webharness/client.js";
 import { registerAuthRoutes } from "./routes/auth.js";
@@ -273,7 +273,18 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (actorId) => activity.forgetIfAway(actorId),
       evictSessionEverywhere,
     );
-    registerRoomRoutes(scoped, config, sessions, client);
+    // ONE ROOM, ONE PROJECT (Nikk 4586): a new room gets its project, linked,
+    // and the room shows it from the start; joining or entering a room enrols
+    // you in its project if its link says being there is enough.
+    const enrolInRoom = (session: Session, roomName: string) =>
+      actorBook.enrolFromRoom(session.username, roomName, session.kind);
+    registerRoomRoutes(scoped, config, sessions, client, {
+      created: (session, roomName, visibility) => {
+        const projectId = actorBook.createRoomProject({ id: session.username, kind: session.kind }, roomName, visibility);
+        roomShowing.set(roomKey(roomName), { projectId, boardId: null }, session.username, new Date().toISOString());
+      },
+      joined: enrolInRoom,
+    });
     registerProjectRoutes(scoped, config, sessions, client);
     registerBuildRoutes(scoped, config, sessions);
     registerBoardRoutes(
@@ -298,7 +309,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     );
     registerSpaceEntryRoute(scoped, config, sessions, client,
       evictSessionEverywhere,
-      (actorId) => activity.forgetIfAway(actorId));
+      (actorId) => activity.forgetIfAway(actorId),
+      enrolInRoom);
     registerTouchRoutes(scoped, { config, sessions, hub: space, hubFor, touches });
     registerPanelRoutes(scoped, {
       database,

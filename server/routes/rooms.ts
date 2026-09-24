@@ -63,13 +63,34 @@ function confirmedRoom(raw: unknown, requested: string): string | null {
     : null;
 }
 
+/**
+ * What the rest of the app does when a room is made or joined here. Kept out
+ * of this file so it stays about WebHarness; see index.ts for the wiring.
+ * Both run only AFTER WebHarness has confirmed the room with this person's own
+ * token, and a failure in either never fails the room action itself.
+ */
+export type RoomHooks = {
+  /** A room was just created by this person: one room, one project. */
+  created?: (session: Session, roomName: string, visibility: "public" | "private") => void;
+  /** This person is now confirmed a member of this room. */
+  joined?: (session: Session, roomName: string) => void;
+};
+
 export function registerRoomRoutes(
   app: FastifyInstance,
   config: Config,
   sessions: SessionStore,
   client: WebharnessClient,
+  hooks: RoomHooks = {},
 ): void {
   const requireSession = makeRequireSession(config, sessions);
+  const quietly = (what: string, run: () => void) => {
+    try {
+      run();
+    } catch (error) {
+      app.log.warn({ err: error }, `room ${what}: the room action succeeded, its follow-up did not`);
+    }
+  };
 
   /**
    * Upstream failures are translated into stable codes rather than forwarded
@@ -153,6 +174,7 @@ export function registerRoomRoutes(
         if (!confirmed) {
           return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "the room service answered for a different room" });
         }
+        quietly("join", () => hooks.joined?.(session, confirmed));
         return reply.send({ roomName: confirmed, joined: false });
       } catch (error) {
         if (!(error instanceof WebharnessError) || error.status !== 403) return fail(reply, error);
@@ -178,6 +200,7 @@ export function registerRoomRoutes(
           error: "the room disappeared during joining and a new room was created; verify its name before continuing",
         });
       }
+      quietly("join", () => hooks.joined?.(session, confirmed));
       return reply.send({ roomName: confirmed, joined: true });
     } catch (error) {
       return fail(reply, error);
@@ -225,6 +248,7 @@ export function registerRoomRoutes(
       if (!created) {
         return reply.code(409).send({ code: "ROOM_ALREADY_EXISTS", error: "another room took that name during creation; check before continuing" });
       }
+      quietly("create", () => hooks.created?.(session, confirmed, visibility));
       return reply.code(201).send({ roomName: confirmed, created: true });
     } catch (error) {
       return fail(reply, error);

@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 // past pnpm's isolation into a package we never declared.
 import type { WebSocket } from "@fastify/websocket";
 import type { Config } from "../config.js";
-import type { SessionStore } from "../session.js";
+import type { Session, SessionStore } from "../session.js";
 import { spaceRoomOf } from "../require-session.js";
 import { NOT_A_PERSON, actorKey } from "../../shared/space-layout.js";
 import { isRoomName, roomKey } from "../../shared/space-room.js";
@@ -552,6 +552,13 @@ export function registerSpaceEntryRoute(
   client: WebharnessClient,
   evictSessionEverywhere: (sid: string) => void,
   afterSwitch: (actorId: string) => void = () => {},
+  /**
+   * Told once WebHarness has confirmed, with this person's own token, that
+   * they are in the room: how an agent that joined its chat room directly
+   * (not through the lobby) becomes a member of the room's project. See
+   * BoardStore.enrolFromRoom, which decides what that is worth.
+   */
+  entered: (session: Session, roomName: string) => void = () => {},
 ): void {
   app.post<{ Body: { roomName?: unknown } }>("/bff/space/enter", async (request, reply) => {
     const sid = request.cookies[config.cookieName];
@@ -568,8 +575,14 @@ export function registerSpaceEntryRoute(
       // A public listing is not membership. Ask upstream for THIS token's joined
       // rooms on every entry, so a room one merely discovered cannot be entered.
       const joined = await client.rooms(session.token);
-      if (!joined.some((room) => roomKey(room) === wanted)) {
+      const confirmed = joined.find((room) => roomKey(room) === wanted);
+      if (!confirmed) {
         return reply.code(403).send({ code: "NOT_A_MEMBER", error: "join this room before entering its space" });
+      }
+      try {
+        entered(session, confirmed);
+      } catch (error) {
+        request.log.warn({ err: error }, "entered the room, but joining its project failed");
       }
     } catch (error) {
       const failure = classify(error);

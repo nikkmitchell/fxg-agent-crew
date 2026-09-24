@@ -511,6 +511,43 @@ export class BoardStore {
   }
 
   /**
+   * ONE ROOM, ONE PROJECT. Nikk (chat 4586): "one room should be one project,
+   * as well as one webharness.chat chat room". So a room made from the lobby
+   * gets its own project the moment it exists, and the link that says being in
+   * the room is enough to belong — the same link saha.ing has had since
+   * migration 23, written here by the person who just became the project's
+   * manager rather than by hand.
+   *
+   * Named after the room (id is the room made URL-safe, as 'saha.ing' is
+   * 'saha-ing'; a clash gets '-2', '-3'), and idempotent: a room that already
+   * has a linked project gets that project back, so a retried create never
+   * makes two.
+   *
+   * AUTO-ENROL ONLY FOR A PRIVATE ROOM, for the reason migration 23 gives: a
+   * public room can be joined by anyone who registers at webharness.chat, and
+   * that must not quietly put its board in a stranger's hands. A public room's
+   * project is still made and linked, with enrolment off; its manager adds
+   * people, or turns it on.
+   */
+  createRoomProject(actor: Actor, room: string, visibility: "public" | "private"): string {
+    const linked = this.db.prepare("SELECT project_id FROM project_rooms WHERE room = ?").get(room) as
+      | { project_id: string } | undefined;
+    if (linked) return linked.project_id;
+    const base = slug(room) || "room";
+    const taken = (id: string) => this.db.prepare("SELECT 1 FROM projects WHERE id = ?").get(id) !== undefined;
+    let id = base;
+    for (let n = 2; taken(id); n++) id = `${base}-${n}`;
+    this.createProject(actor, { id, name: room, summary: `The work for the ${room} room.` });
+    this.tx(() => {
+      this.db.prepare(`INSERT INTO project_rooms (project_id, room, auto_enrol, roles, linked_by, linked_at)
+                       VALUES (?,?,?,'[]',?,?)`)
+        .run(id, room, visibility === "private" ? 1 : 0, actor.id, now());
+      this.audit(actor.id, "link", "project", id, undefined, { room, autoEnrol: visibility === "private" });
+    }, { actorId: actor.id, action: "link project to room", target: id });
+    return id;
+  }
+
+  /**
    * Which projects say that being in a given room is enough to belong.
    *
    * Empty for a room nobody linked, which is the normal case: a link is
