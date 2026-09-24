@@ -558,7 +558,7 @@ export function registerSpaceEntryRoute(
    * (not through the lobby) becomes a member of the room's project. See
    * BoardStore.enrolFromRoom, which decides what that is worth.
    */
-  entered: (session: Session, roomName: string) => void = () => {},
+  entered: (session: Session, roomName: string) => void | Promise<void> = () => {},
 ): void {
   app.post<{ Body: { roomName?: unknown } }>("/bff/space/enter", async (request, reply) => {
     const sid = request.cookies[config.cookieName];
@@ -580,7 +580,7 @@ export function registerSpaceEntryRoute(
         return reply.code(403).send({ code: "NOT_A_MEMBER", error: "join this room before entering its space" });
       }
       try {
-        entered(session, confirmed);
+        await entered(session, confirmed);
       } catch (error) {
         request.log.warn({ err: error }, "entered the room, but joining its project failed");
       }

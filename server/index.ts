@@ -281,9 +281,13 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     // you in its project if its link says being there is enough.
     const enrolInRoom = (session: Session, roomName: string) =>
       actorBook.enrolFromRoom(session.username, roomName, session.kind);
-    /** Give a room its project, show it, and tell anyone already in the room. */
-    const giveRoomItsProject = (session: Session, roomName: string) => {
-      const projectId = actorBook.createRoomProject({ id: session.username, kind: session.kind }, roomName);
+    /**
+     * Give a room its project, show it, and tell anyone already in the room.
+     * `manager` is who manages the new project: the room's creator in the lobby,
+     * and the room's OWNER on webharness.chat when it gets one on entry.
+     */
+    const giveRoomItsProject = (session: Session, roomName: string, manager = { id: session.username, kind: session.kind as Session["kind"] | null }) => {
+      const projectId = actorBook.createRoomProject(manager, roomName);
       const result = roomShowing.set(roomKey(roomName), { projectId, boardId: null }, session.username, new Date().toISOString());
       if ("showing" in result) hubFor(roomKey(roomName)).broadcast({ type: "showing", showing: result.showing });
     };
@@ -291,14 +295,34 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
      * A ROOM MADE ANYWHERE GETS ITS BOARD. The lobby makes a room's project as
      * it makes the room; a room made straight on webharness.chat (Nikk's
      * meditation.AR) had none, and no agent could give it one: Nightjar's first
-     * find walking it (4650). So the first person to ENTER a room that has no
-     * project and shows no board makes it. A room that already shows a board,
-     * however it got there, is left exactly as it is.
+     * find walking it (4650). So entering a room that has no project and shows
+     * no board makes one.
+     *
+     * ITS MANAGER IS THE ROOM'S OWNER, NOT WHOEVER ARRIVES FIRST. Moraine and
+     * Lumenfold (4663, 4666) caught the first version handing manager to the
+     * first person through the door: in Nikk's meditation.AR that would have
+     * been an agent, not Nikk. WebHarness knows who owns the room, so it is
+     * asked, with the entering person's own token; the owner manages, and the
+     * person entering is enrolled as a plain member like everyone after. If
+     * the owner cannot be read, nothing is made: better no board than the
+     * wrong manager. A room that already shows a board is left as it is.
      */
-    const enterRoom = (session: Session, roomName: string) => {
+    const ownerOf = async (session: Session, roomName: string): Promise<string | null> => {
+      try {
+        const room = await client.request<{ ownerName?: unknown }>(
+          `/api/rooms/${encodeURIComponent(roomName)}`, { token: session.token });
+        return typeof room?.ownerName === "string" && room.ownerName.trim() ? room.ownerName.trim() : null;
+      } catch {
+        return null;
+      }
+    };
+    const enterRoom = async (session: Session, roomName: string) => {
       const shown = roomShowing.current(roomKey(roomName)).projectId;
       if (!actorBook.roomProject(roomName)) {
-        if (shown === null) giveRoomItsProject(session, roomName);
+        if (shown === null) {
+          const owner = await ownerOf(session, roomName);
+          if (owner) giveRoomItsProject(session, roomName, { id: owner, kind: null });
+        }
         // A board somebody put up by hand: its manager entering links it.
         else actorBook.linkRoomByManager({ id: session.username, kind: session.kind }, shown, roomName);
       }

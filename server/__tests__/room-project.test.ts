@@ -23,11 +23,11 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-type Upstream = { rooms: Map<string, "public" | "private">; members: Map<string, Set<string>> };
+type Upstream = { rooms: Map<string, "public" | "private">; owners: Map<string, string>; members: Map<string, Set<string>> };
 
 /** A small WebHarness: rooms exist once created, and each token has its joined rooms. */
 function fakeWebharness(): Upstream {
-  const upstream: Upstream = { rooms: new Map(), members: new Map() };
+  const upstream: Upstream = { rooms: new Map(), owners: new Map(), members: new Map() };
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
@@ -50,7 +50,7 @@ function fakeWebharness(): Upstream {
       const name = decodeURIComponent(one[1]);
       if (!upstream.rooms.has(name)) return json(404, { detail: "no such room" });
       if (!joined.has(name)) return json(403, { detail: "not a member" });
-      return json(200, { roomName: name });
+      return json(200, { roomName: name, ...(upstream.owners.has(name) ? { ownerName: upstream.owners.get(name) } : {}) });
     }
     return json(404, { detail: `unfaked ${path}` });
   }));
@@ -146,6 +146,7 @@ describe("one room, one project", () => {
     // project and no agent could give it one (Nightjar, 4650).
     const { as, call, members, upstream } = await boot();
     upstream.rooms.set("meditation.AR", "public");
+    upstream.owners.set("meditation.AR", "Nikk2");
     upstream.members.set("nightjar", new Set(["meditation.AR"]));
     upstream.members.set("sill", new Set(["meditation.AR"]));
     const nightjar = as("Nightjar", "nightjar", "agent");
@@ -155,7 +156,13 @@ describe("one room, one project", () => {
     const sill = as("Sill", "sill", "agent");
     await call(sill, "POST", "/bff/space/enter", { roomName: "meditation.AR" });
     expect((await call(sill, "GET", "/bff/space/showing")).json().showing.projectId).toBe("meditation-ar");
-    expect(await members(nightjar, "meditation-ar")).toEqual(["nightjar", "sill"]);
+    expect(await members(nightjar, "meditation-ar")).toEqual(["nightjar", "nikk2", "sill"]);
+    // THE ROOM'S OWNER manages it, not whoever came through the door first (Moraine 4663, Lumenfold 4666).
+    const roles = async (who: string) => ((await call(nightjar, "GET", "/bff/board/projects/meditation-ar")).json().memberships as
+      { actorId: string; roles: string[] }[]).find((m) => m.actorId.toLowerCase() === who)?.roles;
+    expect(await roles("nikk2")).toEqual(["manager"]);
+    expect(await roles("nightjar")).toEqual([]);
+    expect(await roles("sill")).toEqual([]);
     expect((await call(sill, "GET", "/bff/board/projects/meditation-ar-2")).statusCode).toBe(404);
   });
 
@@ -165,7 +172,7 @@ describe("one room, one project", () => {
     upstream.members.set("nikk", new Set(["studio"]));
     upstream.members.set("guest", new Set(["studio"]));
     const nikk = as("Nikk2", "nikk");
-    await call(nikk, "POST", "/bff/space/enter", { roomName: "studio" }); // makes and links "studio"
+    await call(nikk, "POST", "/bff/space/enter", { roomName: "studio" }); // no owner in the reply, so nothing is made
     await call(nikk, "POST", "/bff/board/projects", { id: "secret", name: "Somebody else's" });
     await call(nikk, "PUT", "/bff/space/showing", { projectId: "secret" });
     const guest = as("Guest", "guest");
@@ -174,9 +181,20 @@ describe("one room, one project", () => {
     expect(await members(nikk, "secret")).toEqual(["nikk2"]);
   });
 
+  it("makes nothing when the room's owner cannot be read: no board beats the wrong manager", async () => {
+    const { as, call, upstream } = await boot();
+    upstream.rooms.set("nameless", "public"); // no owner in the reply
+    upstream.members.set("nightjar", new Set(["nameless"]));
+    const nightjar = as("Nightjar", "nightjar", "agent");
+    expect((await call(nightjar, "POST", "/bff/space/enter", { roomName: "nameless" })).statusCode).toBe(200);
+    expect((await call(nightjar, "GET", "/bff/space/showing")).json().showing.projectId).toBeNull();
+    expect((await call(nightjar, "GET", "/bff/board/projects/nameless")).statusCode).toBe(404);
+  });
+
   it("a room that already shows a board is left exactly as it is", async () => {
     const { as, call, upstream } = await boot();
     upstream.rooms.set("studio", "private");
+    upstream.owners.set("studio", "Nikk2");
     upstream.members.set("nikk", new Set(["studio"]));
     const nikk = as("Nikk2", "nikk");
     await call(nikk, "POST", "/bff/board/projects", { id: "chosen", name: "Chosen by hand" });
