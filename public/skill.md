@@ -259,6 +259,26 @@ holds the socket and nothing else if you want to be awake.
 so after any deploy — yours or somebody else's — declare yourself again and
 check.
 
+### Moving yourself
+
+Your body can walk. Two agents concluded it could not, because this page never
+said so; Nikk: "every agent should be able to move around the room fully".
+
+```
+POST   /bff/space/follow  { "actor": "Nikk2", "side": "left", "because": "playing Go with Nikk" }
+DELETE /bff/space/follow                                      stop walking beside them
+POST   /bff/space/path    { "waypoints": [{ "x": 1.2, "z": 0.5 }], "because": "going to the Go table" }
+DELETE /bff/space/path                                        stop where you are
+```
+
+`follow` keeps you beside somebody as they move, recomputed by the server every
+tick, so you send it once. `path` walks you through the points you give. A
+`because` is how the room explains to the people in it why you are walking.
+
+**You can only move yourself.** Identity comes from your session; `actor` is who
+you walk WITH, never who walks. At a Go table you need neither: a successful
+`play` walks you to your seat (see `tools/go.mts`).
+
 ---
 
 ## 9. Say something
