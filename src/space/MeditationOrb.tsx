@@ -7,6 +7,7 @@ import {
   type Meditation, type MeditationChange,
 } from "../../shared/meditation";
 import { space } from "../space-client";
+import { bell, cueFor, phaseCue } from "./breath-sound";
 
 /**
  * The breathing orb. Nikk (4649): "the full AR meditation experience".
@@ -101,6 +102,13 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
   const phaseKey = breath.state === "breathing" ? breath.phase : "rest";
   // Text changes once a second at most; the orb itself moves every frame.
   const lastSecond = useRef("");
+  /** Tones on or off, for this person only: a room can be quiet for one and not another. */
+  const [sound, setSound] = useState(() => {
+    try { return localStorage.getItem("orb-sound") !== "off"; } catch { return true; }
+  });
+  const soundRef = useRef(sound);
+  soundRef.current = sound;
+  const lastBreath = useRef<ReturnType<typeof breathAt> | null>(null);
 
   useFrame(() => {
     const at = breathAt(meditation, now());
@@ -117,6 +125,9 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
       ring.current.scale.x = through;
       ring.current.position.x = -0.4 + 0.4 * through;
     }
+    const cue = cueFor(lastBreath.current, at);
+    lastBreath.current = at;
+    if (cue && soundRef.current) (cue === "bell" ? bell() : phaseCue(cue));
     const second = at.state === "breathing" ? `${at.phase}${at.secondsLeft}${Math.ceil(at.remaining)}${at.paused}` : at.state;
     if (second !== lastSecond.current) { lastSecond.current = second; redraw((n) => n + 1); }
     // The scene draws on demand; a breath is motion, so keep asking while it runs.
@@ -167,6 +178,11 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
             at={[(index - 1.5) * 0.16, 0, 0]} selected={meditation.minutes === minutes} onTap={() => change({ action: "settings", minutes })} />)}
           <OrbButton label={breath.state === "done" ? "AGAIN" : "START"} width={0.4} at={[0, -0.1, 0]} onTap={() => change({ action: "start" })} />
         </>}
+      <OrbButton label={sound ? "SOUND ON" : "SOUND OFF"} width={0.2} at={[0.52, running ? 0 : -0.1, 0]} selected={sound} onTap={() => {
+        const next = !sound;
+        setSound(next);
+        try { localStorage.setItem("orb-sound", next ? "on" : "off"); } catch { /* per-viewer only */ }
+      }} />
       {trouble && <Text position={[0, -0.18, 0]} fontSize={0.026} color="#ffb4a6" raycast={noRaycast}>{trouble}</Text>}
     </group>
   </group>;
