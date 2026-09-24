@@ -186,12 +186,25 @@ describe("every label fits inside its own outline", () => {
     for (const size of GO_SIZES) for (const players of [2, 3, 8]) for (const armed of [false, true]) {
       const item = { ...defaultGoItem("t"), size, colours: Array.from({ length: players }, (_, i) => `#${i}${i}${i}`) };
       const c = controlsOf(item, armed);
-      const top = c.line.fontSize * 0.8;
-      expect(within("⚙ SETTINGS", c.settings.width, fitFont("⚙ SETTINGS", c.settings.width, top)), `${size} ${players}`).toBe(true);
-      expect(within("MOVE ✥", c.move.width, fitFont("MOVE ✥", c.move.width, top))).toBe(true);
+      const top = c.labels.fontSize;
+      for (const label of [c.labels.settings, c.labels.move, c.labels.moving]) {
+        const box = label === c.labels.settings ? c.settings.width : c.move.width;
+        expect(within(label, box, fitFont(label, box, top)), `${size} ${players} ${label}`).toBe(true);
+      }
       for (const row of c.sheet.rows) for (const b of row.buttons) {
         expect(within(b.label, b.width, fitFont(b.label, b.width, c.sheet.fontSize)), `${size} ${b.label}`).toBe(true);
       }
     }
+  });
+});
+
+/** Lumenfold (4692): icons only on the smallest board, words everywhere else. */
+describe("SETTINGS and MOVE as icons on the smallest board", () => {
+  it("drops the words at 5x5 only", async () => {
+    const { goControls: controlsOf } = await import("./go-controls");
+    const { defaultGoItem } = await import("../../shared/room-items");
+    const at = (size: 5 | 9) => controlsOf({ ...defaultGoItem("t"), size }).labels;
+    expect(at(5)).toMatchObject({ settings: "⚙", move: "✥" });
+    expect(at(9)).toMatchObject({ settings: "⚙ SETTINGS", move: "MOVE ✥", moving: "MOVING" });
   });
 });

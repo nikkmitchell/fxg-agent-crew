@@ -1009,12 +1009,12 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
         <meshBasicMaterial color={carrying ? "#e45338" : "#f1dfbd"} transparent opacity={carrying ? 0.35 : 0} depthWrite={false} />
       </mesh>
       <Outline width={controls.move.width} depth={controls.move.depth} colour={carrying ? "#e45338" : "#f1dfbd"} />
-      <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={fitFont("MOVING", controls.move.width, controls.line.fontSize * 0.8)} color={carrying ? "#ff9582" : "#f1dfbd"} raycast={noRaycast}>
-        {carrying ? "MOVING" : "MOVE ✥"}
+      <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={fitFont(controls.labels.moving, controls.move.width, controls.labels.fontSize)} color={carrying ? "#ff9582" : "#f1dfbd"} raycast={noRaycast}>
+        {carrying ? controls.labels.moving : controls.labels.move}
       </Text>
     </group>}
-    {showControls && !settingsOpen && <TableButton label="⚙ SETTINGS" at={[controls.settings.x, controls.settings.y, controls.settings.z]}
-      width={controls.settings.width} depth={controls.settings.depth} fontSize={controls.line.fontSize * 0.8} outline="#f1dfbd"
+    {showControls && !settingsOpen && <TableButton label={controls.labels.settings} at={[controls.settings.x, controls.settings.y, controls.settings.z]}
+      width={controls.settings.width} depth={controls.settings.depth} fontSize={controls.labels.fontSize} outline="#f1dfbd"
       onTap={() => { setNotice(""); setSettingsOpen(true); }} />}
     <Veil open={showControls && settingsOpen} y={controls.veil.y} width={controls.veil.width} opacity={controls.veil.opacity} reducedMotion={reducedMotion} />
     {showControls && settingsOpen && <group>

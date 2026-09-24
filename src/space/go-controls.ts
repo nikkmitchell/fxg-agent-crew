@@ -1,5 +1,5 @@
 import { GO_SURFACE, goBoardWidth, goExtent, goRadius } from "../../shared/go-layout";
-import type { GoRoomItem, GoSize } from "../../shared/room-items";
+import { GO_SIZES, type GoRoomItem, type GoSize } from "../../shared/room-items";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
 
 /**
@@ -53,6 +53,12 @@ export type GoControls = {
   line: { y: number; z: number; fontSize: number };
   move: FlatRect;
   settings: FlatRect;
+  /**
+   * What SETTINGS and MOVE say. Lumenfold (4692): on the smallest board, icons
+   * only, no text — the buttons are narrowest there and the words crowded them.
+   * Every other size keeps its words.
+   */
+  labels: { settings: string; move: string; moving: string; fontSize: number };
   /** What the board fades behind while the sheet is open: a board-sized cover, just above the stones. */
   veil: { y: number; width: number; opacity: number };
   sheet: { y: number; width: number; rowDepth: number; fontSize: number; rows: SheetRow[] };
@@ -181,10 +187,16 @@ export function goControls(
   const total = rows.length * rowDepth + (rows.length - 1) * gap;
   const first = -total / 2 + rowDepth / 2;
 
+  const iconOnly = size === GO_SIZES[0];
+  const labels = iconOnly
+    ? { settings: "⚙", move: "✥", moving: "✥", fontSize: line.fontSize * 1.4 }
+    : { settings: "⚙ SETTINGS", move: "MOVE ✥", moving: "MOVING", fontSize: line.fontSize * 0.8 };
+
   return {
     line,
     move,
     settings,
+    labels,
     veil: { y: GO_STONE_TOP + 0.003, width: boardWidth, opacity: 0.84 },
     sheet: {
       y: GO_STONE_TOP + 0.006,
