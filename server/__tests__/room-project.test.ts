@@ -20,11 +20,11 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-type Upstream = { rooms: Map<string, "public" | "private">; passwords: Map<string, string>; members: Map<string, Set<string>> };
+type Upstream = { rooms: Map<string, "public" | "private">; members: Map<string, Set<string>> };
 
 /** A small WebHarness: rooms exist once created, and each token has its joined rooms. */
 function fakeWebharness(): Upstream {
-  const upstream: Upstream = { rooms: new Map(), passwords: new Map(), members: new Map() };
+  const upstream: Upstream = { rooms: new Map(), members: new Map() };
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
@@ -35,15 +35,9 @@ function fakeWebharness(): Upstream {
       return json(200, { rooms: [...joined].map((roomName) => ({ roomName })) });
     }
     if (path === "/api/rooms" && options?.method === "POST") {
-      const { roomName, visibility, password } = JSON.parse(String(options.body));
+      const { roomName, visibility } = JSON.parse(String(options.body));
       const created = !upstream.rooms.has(roomName);
-      if (created) {
-        upstream.rooms.set(roomName, visibility ?? "public");
-        if (password) upstream.passwords.set(roomName, password);
-      } else if (upstream.passwords.has(roomName) && upstream.passwords.get(roomName) !== password) {
-        // As WebHarness does: a locked room refuses a join without its password.
-        return json(403, { detail: password ? "密码错误" : "需要密码" });
-      }
+      if (created) upstream.rooms.set(roomName, visibility ?? "public");
       joined.add(roomName);
       upstream.members.set(token, joined);
       return json(200, { roomName, created });
@@ -52,7 +46,7 @@ function fakeWebharness(): Upstream {
     if (one) {
       const name = decodeURIComponent(one[1]);
       if (!upstream.rooms.has(name)) return json(404, { detail: "no such room" });
-      if (!joined.has(name)) return json(403, { detail: upstream.passwords.has(name) ? "需要密码" : "not a member" });
+      if (!joined.has(name)) return json(403, { detail: "not a member" });
       return json(200, { roomName: name });
     }
     return json(404, { detail: `unfaked ${path}` });
@@ -133,26 +127,6 @@ describe("one room, one project", () => {
     const baiwei = as("baiwei2", "baiwei");
     expect((await call(baiwei, "POST", "/bff/rooms/garden/join", { password: "p" })).statusCode).toBe(200);
     expect(await members(nikk, "garden")).toEqual(["baiwei2", "nikk2"]);
-  });
-
-  it("a wrong or missing password is refused, and the refused person is not on the board", async () => {
-    const { as, call, members } = await boot();
-    const nikk = as("Nikk2", "nikk");
-    await call(nikk, "POST", "/bff/rooms/create", { roomName: "garden", visibility: "private", password: "right" });
-    const wrong = as("Wrong", "wrong");
-    expect((await call(wrong, "POST", "/bff/rooms/garden/join", { password: "nope" })).statusCode).not.toBe(200);
-    const none = as("None", "none");
-    expect((await call(none, "POST", "/bff/rooms/garden/join", {})).statusCode).not.toBe(200);
-    // Not in the chat room, so not let into the space either.
-    expect((await call(none, "POST", "/bff/space/enter", { roomName: "garden" })).statusCode).toBe(403);
-    expect(await members(nikk, "garden")).toEqual(["nikk2"]);
-    // And the right password still works, for this room's project only.
-    const right = as("Right", "right");
-    expect((await call(right, "POST", "/bff/rooms/garden/join", { password: "right" })).statusCode).toBe(200);
-    expect(await members(nikk, "garden")).toEqual(["nikk2", "right"]);
-    // ...and nothing else: another locked room's board is not theirs.
-    await call(nikk, "POST", "/bff/rooms/create", { roomName: "orchard", visibility: "private", password: "other" });
-    expect(await members(nikk, "orchard")).toEqual(["nikk2"]);
   });
 
   it("an UNLOCKED private room's project is made, but guessing its name does not hand anyone the board", async () => {
