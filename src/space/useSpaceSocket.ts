@@ -280,6 +280,9 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
           setPlaces(message.panels);
           setShowing(message.showing);
           setRoomItems((current) => mergeRoomItems(current, message.items));
+          // Not in the welcome frame (older servers would not send it): asked
+          // for on every (re)connect, so a missed broadcast is caught up here.
+          space.meditation().then((answer) => setMeditation(answer.meditation)).catch(() => undefined);
         }
         onSnapshot.current?.();
       });

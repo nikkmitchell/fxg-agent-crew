@@ -37,6 +37,7 @@ import type { SettingsItem } from "../../shared/settings-3d";
 import { defaultPlacement } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
 import { RoomItems } from "./RoomItems";
+import { MeditationOrb } from "./MeditationOrb";
 
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
 
@@ -777,6 +778,8 @@ export default function Scene({
 
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
+        {/* The breathing orb, in rooms that have been given one: see shared/meditation.ts. */}
+        {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation} reducedMotion={reducedMotion} />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
           comfort={comfort}
