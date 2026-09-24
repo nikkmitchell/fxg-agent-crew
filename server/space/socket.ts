@@ -34,6 +34,23 @@ import { touchAgent, type Touches } from "./touch.js";
 /** How often positions are advanced and sent. 10/s is smooth enough to walk. */
 const TICK_MS = 100;
 
+/**
+ * How far behind a socket may fall before it is cut off.
+ *
+ * WHY THERE IS A LIMIT AT ALL. `ws` queues whatever the kernel will not take,
+ * in this process, with no ceiling. On 2026-09-24 two sockets stopped reading
+ * while still pinging, so the prune never fired; with a headset in the room
+ * the snapshot goes out ten times a second, and each of them grew by ~5 MB a
+ * minute. The app went from 96 MB to 400 MB in forty minutes, and saha.ing —
+ * 1.6 GB, swappiness 0 — hung until Nikk rebooted it from the console.
+ *
+ * A megabyte is several seconds of snapshots for a full room: far past any
+ * honest hiccup, far short of hurting the box. A socket that far behind is
+ * showing a room that is no longer there; closing it makes the client
+ * reconnect and catch up from a fresh snapshot, which is what it needed anyway.
+ */
+export const MAX_BUFFERED_BYTES = 1024 * 1024;
+
 export class SpaceHub {
   readonly presence: Presence;
   /** Sockets per actor. More than one is a second tab, not a second person. */
@@ -168,6 +185,16 @@ export class SpaceHub {
     // OPEN is 1. Writing to a closing socket throws, and one dead client must
     // not take down the broadcast for everyone else.
     if (socket.readyState !== 1) return;
+    if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+      // terminate, not close: a polite close is one more frame queued behind
+      // the megabyte the client is not reading. The close handler detaches it.
+      try {
+        socket.terminate();
+      } catch {
+        // Already gone.
+      }
+      return;
+    }
     try {
       socket.send(JSON.stringify(message));
     } catch {
