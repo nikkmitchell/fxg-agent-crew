@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GO_SIZES } from "./room-items.js";
-import { goBoardWidth, goBowl, goBowlScale, goDeckWidth, goLabelOffset, goRingCapacity, goRingSlots, goRingSpot } from "./go-layout.js";
+import { GO_RIM_REACH, goBoardWidth, goBowl, goBowlScale, goDeckWidth, goLabelOffset, goRingCapacity, goRingSlots, goRingSpot } from "./go-layout.js";
 
 /**
  * The capture ring (card saha-ing-aad334f9): captured stones as beads round
@@ -17,7 +17,10 @@ describe("the capture ring", () => {
     for (const size of GO_SIZES) for (let count = 2; count <= 8; count++) for (let i = 0; i < count; i++) {
       const where = `${size}x${size}, ${count} players, bowl ${i}`;
       expect(goRingCapacity(i, count, size, 1), where).toBeGreaterThan(goRingCapacity(i, count, size, 0));
-      expect(goRingSlots(i, count, size), where).toBeGreaterThanOrEqual(12);
+      // The tightest diagonal bowl (5+ players) keeps clear of the rim's whole
+      // reach, GO_RIM_REACH, where the scholar's rock grows: 9 still reads at a
+      // glance, and the count under the name is always the whole number.
+      expect(goRingSlots(i, count, size), where).toBeGreaterThanOrEqual(9);
       // Two players, the usual game, get the whole ring.
       if (count === 2) expect(goRingSlots(i, count, size), where).toBeGreaterThanOrEqual(20);
     }
@@ -32,7 +35,7 @@ describe("the capture ring", () => {
       for (const spot of all) {
         const where = `${size}x${size}, ${count} players, bowl ${spot.owner}`;
         expect(Math.max(Math.abs(spot.x), Math.abs(spot.z)) + STONE, `${where}: on the deck`).toBeLessThan(half);
-        expect(Math.max(Math.abs(spot.x), Math.abs(spot.z)) - STONE, `${where}: off the board`).toBeGreaterThan(goBoardWidth(size) / 2 + 0.02);
+        expect(Math.max(Math.abs(spot.x), Math.abs(spot.z)) - STONE, `${where}: off the board and the rim`).toBeGreaterThan(goBoardWidth(size) / 2 + GO_RIM_REACH);
         for (let j = 0; j < count; j++) {
           const bowl = goBowl(j, count, size);
           expect(dist(spot, bowl) - STONE - 0.18 * goBowlScale(size), `${where}: clear of bowl ${j}`).toBeGreaterThan(0.015);

@@ -18,7 +18,7 @@ export type GoSurfaceLook = {
   /** What the settings row shows. */
   label: string;
   /** The grain drawn into the surface texture. */
-  grain: "wood" | "stone";
+  grain: "wood" | "stone" | "rock";
   /** The surface's overall colour: the texture's average, for contrast checks. */
   base: string;
   roughness: number;
@@ -49,7 +49,13 @@ export type GoSurfaceLook = {
      * petals are the classic carving on Longquan celadon; a fret (key) band on
      * the red clay.
      */
-    relief: "lotus" | "fret";
+    relief: "lotus" | "fret" | "scroll";
+    /**
+     * Painted decoration, for a glaze that is PAINTED rather than carved:
+     * Jingdezhen blue-and-white is cobalt brushed under a clear glaze. The
+     * colour of the brushwork; the relief then names its pattern.
+     */
+    paint?: string;
   };
 };
 
@@ -91,6 +97,28 @@ export const GO_SURFACE_LOOKS: Record<GoSurface, GoSurfaceLook> = {
     inkSoft: "#1c1f21",
     // Red clay, as Yixing ware: unglazed, warm and matte.
     bowl: { body: "#8f4630", rim: "#a85a40", roughness: 0.78, clearcoat: 0.05, relief: "fret" },
+  },
+  /**
+   * SCHOLAR'S ROCK (card saha-ing-82be26cf, Lumenfold for Baiwei and Nikk): a
+   * dark, weathered gongshi slab, "subdued charcoal/blue-black stone", with
+   * Jingdezhen porcelain bowls. Dark enough to read as rock, light enough that
+   * a black stone still stands out from it as well as white does on bamboo
+   * (go-surfaces.test); so the grid and the writing go light.
+   */
+  rock: {
+    label: "ROCK",
+    grain: "rock",
+    base: "#454c55",
+    roughness: 0.86,
+    clearcoat: 0.03,
+    rim: "#3a4048",
+    rimCarrying: "#6f8196",
+    lines: "#b7bec6",
+    lineLight: null,
+    ink: "#d4d9de",
+    inkSoft: "#a3aab2",
+    // Jingdezhen blue-and-white: white porcelain, cobalt scrolls under a soft glaze.
+    bowl: { body: "#eef1f3", rim: "#2f4f98", roughness: 0.3, clearcoat: 0.55, relief: "scroll", paint: "#2a4a9a" },
   },
 };
 

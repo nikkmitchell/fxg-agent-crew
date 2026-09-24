@@ -19,7 +19,8 @@ import { GO_NAMES as NAMES, goStarPoints } from "../../shared/go-text";
 import { countGo } from "../../shared/go-score";
 import { canPass, lastPassLine, noMoveLine, passLabel, resultRows, scoreLine, turnLine, winners } from "./go-status";
 import { goTableWriter } from "./go-table-writer";
-import { bambooPixels, goTextureRepeat, stonePixels } from "./go-textures";
+import { bambooPixels, goTextureRepeat, rockPixels, stonePixels } from "./go-textures";
+import { goRockHoles, goRockOutline } from "../../shared/go-rock";
 import { grabHold } from "./grab-hold";
 
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
@@ -61,11 +62,11 @@ function glowTexture(): THREE.DataTexture {
  * texture only so it can set its own repeat.
  */
 const surfacePixels = new Map<string, Uint8ClampedArray>();
-function surfaceTexture(grain: "wood" | "stone", base: string, width: number): THREE.DataTexture {
+function surfaceTexture(grain: "wood" | "stone" | "rock", base: string, width: number): THREE.DataTexture {
   const key = `${grain}/${base}`, size = 512;
   let pixels = surfacePixels.get(key);
   if (!pixels) {
-    pixels = grain === "stone" ? stonePixels(size, base) : bambooPixels(size, base);
+    pixels = grain === "stone" ? stonePixels(size, base) : grain === "rock" ? rockPixels(size, base) : bambooPixels(size, base);
     surfacePixels.set(key, pixels);
   }
   const texture = new THREE.DataTexture(pixels, size, size);
@@ -124,6 +125,95 @@ function bowlRelief(style: "lotus" | "fret"): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   return texture;
+}
+
+/**
+ * Jingdezhen blue-and-white, painted: white porcelain with cobalt brushwork
+ * under a soft glaze (card saha-ing-82be26cf, "restrained cobalt-blue classical
+ * underglaze decoration (scroll/cloud/floral linework)"). A colour map, not a
+ * bump: the decoration is in the glaze, not carved. Same band as the carvings:
+ * the lathe's u runs round the bowl, v up its side.
+ */
+function bowlPaint(body: string, cobalt: string): THREE.CanvasTexture {
+  const width = 1024, height = 256;
+  const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = body; ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = cobalt; ctx.fillStyle = cobalt; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.filter = "blur(0.6px)"; // brushed, not printed
+  const top = height * (1 - 0.4), bottom = height * (1 - 0.08), band = bottom - top;
+  // Double lines framing the band, as on a Ming bowl.
+  ctx.lineWidth = 3;
+  for (const y of [top - 6, top - 1, bottom + 1, bottom + 6]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+  // A continuous scroll: waves of cloud curls round the belly.
+  const curls = 10, w = width / curls, mid = top + band / 2;
+  ctx.lineWidth = 2.6;
+  for (let i = 0; i < curls; i++) {
+    const x = i * w;
+    ctx.beginPath();
+    ctx.moveTo(x, mid);
+    ctx.bezierCurveTo(x + w * 0.25, mid - band * 0.42, x + w * 0.5, mid - band * 0.42, x + w * 0.5, mid);
+    ctx.bezierCurveTo(x + w * 0.5, mid + band * 0.42, x + w * 0.75, mid + band * 0.42, x + w, mid);
+    ctx.stroke();
+    // A curl at each crest, and a small leaf.
+    for (const [cx, cy, dir] of [[x + w * 0.3, mid - band * 0.2, 1], [x + w * 0.8, mid + band * 0.2, -1]] as const) {
+      ctx.beginPath(); ctx.arc(cx, cy, band * 0.11, 0, Math.PI * 1.6 * dir, dir < 0); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(cx + w * 0.08, cy - dir * band * 0.16, 5, 2.4, dir * 0.7, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  return texture;
+}
+
+/**
+ * The SCHOLAR'S ROCK slab, in place of the rim: its outline and holes from
+ * shared/go-rock.ts (tested there to stay off the grid and inside the reach
+ * everything else keeps clear of), extruded to the rim's height with a small
+ * bevel so the edges read as worn stone. Low-poly: 56 points round, a handful
+ * of holes. Never a pointer target, like the rim it replaces.
+ */
+function RockSlab({ size, colour }: { size: number; colour: string }) {
+  const geometry = useMemo(() => {
+    // Shape x,y is the table's x,-z: the slab is turned flat below.
+    const shape = new THREE.Shape(goRockOutline(size).map((p) => new THREE.Vector2(p.x, -p.z)));
+    for (const hole of goRockHoles(size)) {
+      const path = new THREE.Path();
+      path.absellipse(hole.centre.x, -hole.centre.z, hole.radiusX, hole.radiusZ, 0, Math.PI * 2, true, -hole.angle);
+      shape.holes.push(path);
+    }
+    const extruded = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.097, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 16,
+    });
+    // WEATHERED, NOT CUT: raise and sink the rock's outer parts a little, so
+    // the edge rolls like worn stone instead of standing as a sawn slab. Only
+    // outside the board's own edge, where the playing surface does not reach:
+    // the grid plane stays exactly level (it is a separate mesh on top anyway).
+    const half = goBoardWidth(size) / 2;
+    const position = extruded.getAttribute("position");
+    for (let v = 0; v < position.count; v++) {
+      const x = position.getX(v), z = -position.getY(v), height = position.getZ(v);
+      const out = Math.max(Math.abs(x), Math.abs(z)) - half;
+      if (out <= 0.004) continue;
+      const a = Math.atan2(z, x), reach = Math.min(1, out / 0.05);
+      const swell = (0.55 + 0.45 * Math.sin(3 * a + size) * Math.sin(7 * a + 1.3)) * reach;
+      if (height > 0.05) position.setZ(v, height + swell * 0.016);   // the top rolls up and down
+      else position.setZ(v, height + swell * 0.02 - 0.01);             // the underside is uneven too
+    }
+    position.needsUpdate = true;
+    extruded.computeVertexNormals();
+    return extruded;
+  }, [size]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  // The same worn stone as the playing surface, in the slab's own darker tone,
+  // tiled by the metre. The colour is IN the pixels: tinting a dark texture
+  // with a dark colour multiplied it to near black.
+  const map = useMemo(() => surfaceTexture("rock", colour, 1), [colour]);
+  useEffect(() => () => map.dispose(), [map]);
+  return <mesh geometry={geometry} rotation-x={-Math.PI / 2} position={[0, 0.7415, 0]} castShadow receiveShadow raycast={noRaycast}>
+    <meshStandardMaterial map={map} roughness={0.92} metalness={0.02} />
+  </mesh>;
 }
 
 /**
@@ -303,7 +393,7 @@ function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: Go
   // And not once the game is over: nobody's turn any more.
   const glowing = active && item.liftedColour === null && !item.ended;
   const look = GO_SURFACE_LOOKS[item.surface] ?? GO_SURFACE_LOOKS.bamboo;
-  const relief = useMemo(() => bowlRelief(look.bowl.relief), [look.bowl.relief]);
+  const relief = useMemo(() => look.bowl.paint ? bowlPaint(look.bowl.body, look.bowl.paint) : bowlRelief(look.bowl.relief as "lotus" | "fret"), [look.bowl.relief, look.bowl.paint, look.bowl.body]);
   useEffect(() => () => relief.dispose(), [relief]);
   const colour = item.colours[index], accent = ACCENTS[index];
   const position = goBowl(index, item.colours.length, item.size);
@@ -333,7 +423,9 @@ function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: Go
       <mesh position={[0, -0.055, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}>
         <planeGeometry args={[0.56, 0.56]} /><meshBasicMaterial ref={pulse} map={texture} color={accent} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
       </mesh>
-      <mesh castShadow><latheGeometry args={[profile, 48]} /><meshPhysicalMaterial color={look.bowl.body} roughness={look.bowl.roughness} clearcoat={look.bowl.clearcoat} bumpMap={relief} bumpScale={look.bowl.relief === "lotus" ? 1.2 : 1.6} side={THREE.DoubleSide} /></mesh>
+      <mesh castShadow><latheGeometry args={[profile, 48]} />{look.bowl.paint
+        ? <meshPhysicalMaterial color="#ffffff" map={relief} roughness={look.bowl.roughness} clearcoat={look.bowl.clearcoat} clearcoatRoughness={0.35} side={THREE.DoubleSide} />
+        : <meshPhysicalMaterial color={look.bowl.body} roughness={look.bowl.roughness} clearcoat={look.bowl.clearcoat} bumpMap={relief} bumpScale={look.bowl.relief === "lotus" ? 1.2 : 1.6} side={THREE.DoubleSide} />}</mesh>
       <mesh position={[0, 0.066, 0]} rotation-x={Math.PI / 2}>
         <torusGeometry args={[0.172, 0.007, 8, 64]} /><meshStandardMaterial ref={rim} color={active ? accent : look.bowl.rim} emissive={accent} roughness={0.3} metalness={0.4} />
       </mesh>
@@ -806,9 +898,11 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     {item.deskVisible && <RoundedBox args={[deck, 0.075, deck]} radius={0.035} smoothness={4} position={[0, 0.705, 0]} receiveShadow raycast={noRaycast}>
       <meshStandardMaterial map={wood} color="#765b49" roughness={0.42} metalness={0.06} />
     </RoundedBox>}
-    <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow raycast={noRaycast}>
-      <meshPhysicalMaterial color={carrying ? look.rimCarrying : look.rim} roughness={look.grain === "stone" ? 0.7 : 0.38} clearcoat={look.grain === "stone" ? 0.05 : 0.4} />
-    </RoundedBox>
+    {look.grain === "rock"
+      ? <RockSlab size={item.size} colour={carrying ? look.rimCarrying : look.rim} />
+      : <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow raycast={noRaycast}>
+        <meshPhysicalMaterial color={carrying ? look.rimCarrying : look.rim} roughness={look.grain === "stone" ? 0.7 : 0.38} clearcoat={look.grain === "stone" ? 0.05 : 0.4} />
+      </RoundedBox>}
     <RoundedBox args={[boardWidth, 0.025, boardWidth]} radius={0.01} smoothness={3} position={[0, GO_SURFACE - 0.0125, 0]} receiveShadow raycast={noRaycast}>
       <meshPhysicalMaterial map={surface} roughness={look.roughness} clearcoat={look.clearcoat} />
     </RoundedBox>
