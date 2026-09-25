@@ -1,3 +1,4 @@
+import { CLOCK_PRESETS, presetOf } from "../../shared/go-clock";
 import { GO_PLAYERS, GO_SIZES, stepGoSize, stepGoSurface, type GoRoomItem, type GoSize, type GoSurface } from "../../shared/room-items";
 
 /**
@@ -33,6 +34,8 @@ export type GoSettingChange =
   | { kind: "land"; shown: boolean }
   | { kind: "surface"; surface: GoSurface }
   | { kind: "reset" }
+  /** The game clock: a preset, 0 for off. Nikk (4826). */
+  | { kind: "clock"; preset: number }
   /** The first press asks; only a second press, soon after, deletes. See CONFIRM_DELETE_MS. */
   | { kind: "delete"; confirmed: boolean }
   | { kind: "close" }
@@ -91,6 +94,14 @@ export function goSettingFor(
     return { kind: "scale", scale: wanted };
   }
 
+  if (id === "go:clock:less" || id === "go:clock:more") {
+    const now = presetOf(item.clock);
+    const next = now + (id.endsWith(":more") ? 1 : -1);
+    if (next < 0) return { kind: "refused", why: "the timer is already off" };
+    if (next >= CLOCK_PRESETS.length) return { kind: "refused", why: "that is the slowest timer" };
+    return { kind: "clock", preset: next };
+  }
+
   if (id === "go:players:less" || id === "go:players:more") {
     const players = item.colours.length + (id.endsWith(":more") ? 1 : -1);
     if (players > GO_PLAYERS.max) return { kind: "refused", why: `${GO_PLAYERS.max} is as many bowl colours as there are` };
@@ -130,6 +141,7 @@ export type GoSettingRequest =
   | { deskVisible: boolean }
   | { territoryShown: boolean }
   | { surface: GoSurface }
+  | { clock: number }
   | { reset: true };
 
 /**
@@ -158,6 +170,8 @@ export function goSettingRequest(item: GoRoomItem, id: string): GoSettingRequest
       return { territoryShown: change.shown };
     case "surface":
       return { surface: change.surface };
+    case "clock":
+      return { clock: change.preset };
     case "reset":
       return { reset: true };
     default:

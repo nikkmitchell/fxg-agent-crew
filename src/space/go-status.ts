@@ -1,3 +1,4 @@
+import { clockNow, clockText } from "../../shared/go-clock";
 import type { GoRoomItem } from "../../shared/room-items";
 import { countGo, goLeaders } from "../../shared/go-score";
 import { legalGoMoves } from "../../shared/go-rules";
@@ -8,6 +9,18 @@ import { GO_NAMES as NAMES } from "../../shared/go-text";
  * over. "WHITE'S TURN · BLACK PASSED" tells the next player that one more pass
  * ends a two-player game.
  */
+/**
+ * The clock line under the turn (Nikk 4826): the free seconds left on this
+ * move, then what is left in this player's bank. Null when untimed or over.
+ */
+export function clockLine(item: GoRoomItem, now: number): string | null {
+  if (!item.clock || item.ended) return null;
+  const { moveLeft, bankLeft, flagged } = clockNow(item.clock, item.activeColour, now);
+  const name = NAMES[item.activeColour].toUpperCase();
+  if (flagged) return `${name} IS OUT OF TIME`;
+  return moveLeft > 0 ? `⏱ ${clockText(moveLeft)} this move · extra ${clockText(bankLeft)}` : `⏱ extra time ${clockText(bankLeft)}`;
+}
+
 export function turnLine(item: GoRoomItem): string {
   // SHORT, ALWAYS. SETTINGS and MOVE sit either side of this line with room
   // for "WHITE'S TURN" and no more: "WHITE'S TURN · BLACK PASSED" ran into
@@ -45,6 +58,8 @@ export function passLabel(item: GoRoomItem): string {
 /** The colours ahead once the game is over (more than one on a tie); none before. */
 export function winners(item: GoRoomItem): number[] {
   if (!item.ended) return [];
+  // Out of time loses, whatever the count: everyone else still seated wins.
+  if (item.timedOut !== null) return item.colours.map((_, i) => i).filter((i) => i !== item.timedOut);
   return goLeaders(countGo(item.stones, item.size, item.colours.length).scores);
 }
 
@@ -56,9 +71,10 @@ export function winners(item: GoRoomItem): number[] {
 export function resultRows(item: GoRoomItem): { verdict: string; scores: { colour: number; text: string }[]; again: string } | null {
   if (!item.ended) return null;
   const { scores } = countGo(item.stones, item.size, item.colours.length);
-  const leaders = goLeaders(scores);
+  const leaders = item.timedOut !== null ? winners(item) : goLeaders(scores);
+  const lost = item.timedOut !== null ? `${NAMES[item.timedOut].toUpperCase()} OUT OF TIME · ` : "";
   return {
-    verdict: leaders.length === 1 ? `${NAMES[leaders[0]].toUpperCase()} WINS` : "A TIE",
+    verdict: lost + (leaders.length === 1 ? `${NAMES[leaders[0]].toUpperCase()} WINS` : item.timedOut !== null ? `${leaders.map((i) => NAMES[i].toUpperCase()).join(" & ")} WIN` : "A TIE"),
     scores: [...scores].sort((a, b) => b.total - a.total || a.colour - b.colour)
       .map((score) => ({ colour: score.colour, text: `${NAMES[score.colour].toUpperCase()} ${score.total}` })),
     again: "Clear the stones in settings for a new game",

@@ -117,7 +117,7 @@ describe("the settings sheet, flat on the board", () => {
   it("says what the second press on DELETE will do, once it has been pressed", () => {
     const label = (armed: boolean) =>
       goControls(table(9, 2), armed).sheet.rows.flatMap((row) => row.buttons).find((b) => b.id === "go:delete")!.label;
-    expect(label(false)).toBe("DELETE BOARD");
+    expect(label(false)).toBe("DELETE");
     expect(label(true)).toBe("SURE? DELETE");
   });
 
