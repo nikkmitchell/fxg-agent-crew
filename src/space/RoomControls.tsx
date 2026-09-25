@@ -1136,7 +1136,8 @@ export function RoomControls({
         .finally(() => setSwitching(null));
     };
     const rows: Row[] = [];
-    for (const row of roomMenuRows(myRooms, openRooms, currentRoom)) {
+    // The board this room shows, for Sill's THIS ROOM block (32cbe6a).
+    for (const row of roomMenuRows(myRooms, openRooms, currentRoom, { project: projectName ?? showing.projectId })) {
       if (row.kind === "heading" || row.kind === "note") rows.push({ label: row.label, tone: "muted", onTap: () => {} });
       else if (row.kind === "here") rows.push({ label: row.label, tone: "live", onTap: () => {} });
       else rows.push({ label: switching === row.room ? `${row.label} …` : row.label, onTap: go(row.room, row.kind === "join") });
