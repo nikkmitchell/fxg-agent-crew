@@ -3,7 +3,7 @@ import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  MINUTES, PATTERNS, PATTERN_IDS, PHASE_WORDS, breathAt, clockText, doneLine,
+  MINUTES, PATTERNS, PATTERN_IDS, PHASE_WORDS, breathAt, clockOffset, clockText, doneLine,
   type Meditation, type MeditationChange,
 } from "../../shared/meditation";
 import { space } from "../space-client";
@@ -77,9 +77,10 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
 
   useEffect(() => {
     let alive = true;
+    const sent = Date.now();
     space.meditation().then((answer) => {
       if (!alive) return;
-      offset.current = answer.now - Date.now();
+      offset.current = clockOffset(answer.now, sent, Date.now());
       onMeditation(answer.meditation);
     }).catch(() => undefined);
     return () => { alive = false; };
@@ -87,13 +88,18 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
 
   const change = (body: MeditationChange) => {
     setTrouble(null);
+    const sent = Date.now();
     space.meditate({ ...body, revision: meditation.revision }).then((answer) => {
-      offset.current = answer.now - Date.now();
+      offset.current = clockOffset(answer.now, sent, Date.now());
       onMeditation(answer.meditation);
     }).catch((error: { message?: string }) => {
       // Say why, then catch up: a refusal usually means the session moved on.
       setTrouble(error?.message ?? "That did not work. Try again.");
-      space.meditation().then((answer) => onMeditation(answer.meditation)).catch(() => undefined);
+      const again = Date.now();
+      space.meditation().then((answer) => {
+        offset.current = clockOffset(answer.now, again, Date.now());
+        onMeditation(answer.meditation);
+      }).catch(() => undefined);
     });
   };
 

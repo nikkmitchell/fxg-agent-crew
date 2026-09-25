@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyMeditation, breathAt, clockText, doneLine, idleMeditation, type Meditation } from "./meditation";
+import { applyMeditation, breathAt, clockOffset, clockText, doneLine, idleMeditation, type Meditation } from "./meditation";
 
 const T = 1_000_000;
 const started = (over: Partial<Meditation> = {}): Meditation => ({ ...idleMeditation(), startedAt: T, startedBy: "a", together: ["a"], ...over });
@@ -80,5 +80,19 @@ describe("words", () => {
   it("says who did it together", () => {
     expect(doneLine(started({ minutes: 1 }))).toBe("1 MINUTE OF BREATHING");
     expect(doneLine(started({ together: ["a", "b", "c"] }))).toBe("5 MINUTES OF BREATHING · together with 3 people");
+  });
+});
+
+/** Inkstone: the return trip must not be counted as clock skew. */
+describe("lining our clock up with the server's", () => {
+  it("measures against the middle of the round trip", () => {
+    // Clocks agree; the server answered 200 ms into a 400 ms round trip.
+    expect(clockOffset(1_200, 1_000, 1_400)).toBe(0);
+    // Server 5 s ahead, same trip.
+    expect(clockOffset(6_200, 1_000, 1_400)).toBe(5_000);
+  });
+
+  it("gives devices on a fast and a slow link the same answer when their clocks agree", () => {
+    expect(clockOffset(10_025, 10_000, 10_050)).toBe(clockOffset(10_400, 10_000, 10_800));
   });
 });

@@ -217,3 +217,17 @@ export function parseMeditation(value: unknown): Meditation | null {
     revision: Number.isInteger(v.revision) ? (v.revision as number) : 0,
   };
 }
+
+/**
+ * How far the server's clock is ahead of ours, from one request.
+ *
+ * Inkstone's review: taking `serverNow - arrivedAt` counts the whole return
+ * trip as skew, so two devices on different links read the same session some
+ * hundreds of milliseconds apart and their tones land out of step. The server
+ * stamped `now` somewhere between sending and arriving; the midpoint is the
+ * best single guess (the estimate NTP makes), and its error is at most half the
+ * round trip rather than all of it.
+ */
+export function clockOffset(serverNow: number, sentAt: number, arrivedAt: number): number {
+  return serverNow - (sentAt + arrivedAt) / 2;
+}
