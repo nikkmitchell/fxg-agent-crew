@@ -64,6 +64,70 @@ describe("laying out the work board", () => {
 
   it("does not report overflow when everything fits", () => {
     expect(layOutBoard([card("a", "done")]).overflow).toEqual([]);
+    expect(layOutBoard([card("a", "done")]).scrollers).toEqual([]);
+  });
+});
+
+/** Baiwei (saha-ing-7e74aa11): only five showed, and no way to reach the rest. */
+describe("scrolling a column that holds more than fits", () => {
+  const many = Array.from({ length: 40 }, (_, i) => card(`t${i}`, "review"));
+  const ids = (layout: ReturnType<typeof layOutBoard>) =>
+    layout.cards.filter((p) => p.card.status === "review").map((p) => p.card.id);
+
+  it("offers a way down at the top of the list, and none up", () => {
+    const layout = layOutBoard(many);
+    const arrows = layout.scrollers.filter((s) => s.status === "review");
+    expect(arrows.map((s) => s.direction)).toEqual(["down"]);
+    expect(ids(layout)[0]).toBe("t0");
+  });
+
+  it("reaches EVERY card by pressing down, and back to the top by pressing up", () => {
+    const seen = new Set<string>();
+    let offset = 0;
+    for (let presses = 0; presses < 60; presses += 1) {
+      const layout = layOutBoard(many, undefined, { review: offset });
+      ids(layout).forEach((id) => seen.add(id));
+      const down = layout.scrollers.find((s) => s.status === "review" && s.direction === "down");
+      if (!down) break;
+      expect(down.to).toBeGreaterThan(offset);
+      offset = down.to;
+    }
+    expect(seen.size).toBe(40);
+    const bottom = layOutBoard(many, undefined, { review: offset });
+    expect(ids(bottom)).toContain("t39");
+    expect(bottom.scrollers.some((s) => s.direction === "down" && s.status === "review")).toBe(false);
+    let back = offset;
+    for (let presses = 0; presses < 60 && back > 0; presses += 1) {
+      const up = layOutBoard(many, undefined, { review: back }).scrollers.find((s) => s.status === "review" && s.direction === "up")!;
+      expect(up.to).toBeLessThan(back);
+      back = up.to;
+    }
+    expect(ids(layOutBoard(many, undefined, { review: back }))[0]).toBe("t0");
+  });
+
+  it("says how many are each way, and the counts add up", () => {
+    const layout = layOutBoard(many, undefined, { review: 10 });
+    const up = layout.scrollers.find((s) => s.direction === "up")!;
+    const down = layout.scrollers.find((s) => s.direction === "down")!;
+    expect(up.count + ids(layout).length + down.count).toBe(40);
+  });
+
+  it("never overlaps a card, and is found under the pointer", () => {
+    const layout = layOutBoard(many, undefined, { review: 10 });
+    for (const arrow of layout.scrollers) {
+      for (const place of layout.cards) {
+        const apart = Math.abs(arrow.x - place.x) >= (arrow.width + place.width) / 2 - 1e-9 ||
+          Math.abs(arrow.y - place.y) >= (arrow.height + place.height) / 2 - 1e-9;
+        expect(apart).toBe(true);
+      }
+      expect(Math.abs(arrow.y) + arrow.height / 2).toBeLessThanOrEqual(layout.height / 2 + 1e-9);
+    }
+  });
+
+  it("clamps an offset past the end to the last full page", () => {
+    const layout = layOutBoard(many, undefined, { review: 999 });
+    expect(ids(layout)).toContain("t39");
+    expect(ids(layout).length).toBeGreaterThan(1);
   });
 });
 

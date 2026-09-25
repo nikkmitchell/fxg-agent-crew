@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { BOARD, addAt, addControlOf, cardAt, columnAt, columnPlateOf, layOutBoard, uvFromPanelPoint, type BoardCard, type BoardColumn, type CardPlace } from "../../shared/board-3d";
+import { BOARD, addAt, addControlOf, cardAt, columnAt, columnPlateOf, layOutBoard, scrollerAt, uvFromPanelPoint, type BoardCard, type BoardColumn, type BoardScroller, type CardPlace } from "../../shared/board-3d";
 import { Text } from "@react-three/drei";
 import { CARD_INK, CARD_PX, paintCard } from "../../shared/card-paint";
 import { applyPending, intentOf, settlePending, type BoardIntent, type PendingMove } from "../../shared/board-actions";
@@ -139,6 +139,14 @@ export function BoardPanel3D({
    * you did not mean to make has to be noticed before it can be removed.
    */
   const pressedAdd = useRef<string | null>(null);
+  /** A "▲ / ▼ more" strip pressed and not yet released: `status:direction`. */
+  const pressedScroll = useRef<string | null>(null);
+  /**
+   * How far each column is scrolled. Baiwei (saha-ing-7e74aa11): only the cards
+   * that fitted were ever shown, with no way to reach the rest. Per viewer:
+   * scrolling your view of the board changes nobody else's.
+   */
+  const [scroll, setScroll] = useState<Partial<Record<BoardCard["status"], number>>>({});
 
   // The server's cards with any un-acknowledged move laid on top, and guesses
   // retired as soon as the server catches up. See board-actions.
@@ -166,7 +174,7 @@ export function BoardPanel3D({
     () => ({ ...BOARD, width: surface.width, height: surface.height }),
     [surface.width, surface.height],
   );
-  const layout = useMemo(() => layOutBoard(shown, size), [shown, size]);
+  const layout = useMemo(() => layOutBoard(shown, size, scroll), [shown, size, scroll]);
 
   const held = carrying(gesture);
   const heldCardId = held ? grabbed.current : null;
@@ -260,6 +268,26 @@ export function BoardPanel3D({
       // ONE SOURCE NAME FOR EVERYTHING. Nothing below may branch on it; it
       // exists so two hands do not fight over one card.
       const source: PointerSource = event.pointerType === "mouse" ? "mouse" : "hand";
+
+      // THE SCROLL STRIPS FIRST, like the add strips: a press on one scrolls its
+      // column on release and is never the start of a drag. Not while carrying
+      // a card, so dragging over one does not jump the column under the card.
+      if (gesture.kind !== "dragging") {
+        const onScroll = scrollerAt(layout, { x: hit.u, y: hit.v });
+        const key = onScroll ? `${onScroll.status}:${onScroll.direction}` : null;
+        if (type === "down" && onScroll) {
+          pressedScroll.current = key;
+          return;
+        }
+        if (pressedScroll.current !== null) {
+          if (type === "up") {
+            const started = pressedScroll.current;
+            pressedScroll.current = null;
+            if (onScroll && key === started) setScroll((current) => ({ ...current, [onScroll.status]: onScroll.to }));
+          }
+          return;
+        }
+      }
 
       // THE ADD CONTROLS ARE ASKED FIRST, and they swallow the press entirely:
       // a press on one is not the start of a drag, and letting the gesture
@@ -358,6 +386,20 @@ export function BoardPanel3D({
         onPointerMove={(event) => onPointer("move", event)}
         onPointerUp={(event) => onPointer("up", event)}
         onPointerLeave={onLeave}
+        onWheel={(event) => {
+          // A mouse wheel or trackpad over a column moves it a page, the same
+          // as pressing its strip.
+          const surface = board.current;
+          if (!surface) return;
+          const uv = uvFromPanelPoint(layout, surface.worldToLocal(event.point.clone()));
+          const column = columnAt(layout, uv);
+          if (!column) return;
+          const direction = event.deltaY > 0 ? "down" : "up";
+          const strip = layout.scrollers.find((one) => one.status === column.status && one.direction === direction);
+          if (!strip) return;
+          event.stopPropagation();
+          setScroll((current) => ({ ...current, [strip.status]: strip.to }));
+        }}
       >
         <planeGeometry args={[layout.width, layout.height]} />
         <meshBasicMaterial color={CARD_INK.paper} toneMapped={false} />
@@ -437,6 +479,10 @@ export function BoardPanel3D({
         <AddControl key={`add-${column.status}`} box={addControlOf(layout, column, size)} column={column} />
       ))}
 
+      {layout.scrollers.map((strip) => (
+        <ScrollStrip key={`${strip.status}-${strip.direction}`} strip={strip} />
+      ))}
+
       {layout.cards.map((place) => (
         <Card
           key={place.card.id}
@@ -482,6 +528,32 @@ function ColumnHeading({
       <planeGeometry args={[width, width * 0.25]} />
       <meshBasicMaterial map={texture} transparent toneMapped={false} />
     </mesh>
+  );
+}
+
+/**
+ * "▲ 4 more" / "▼ 9 more": the way to the cards a column cannot show at once.
+ * Drawn here, pressed through the panel's own handler, like AddControl.
+ */
+function ScrollStrip({ strip }: { strip: BoardScroller }) {
+  return (
+    <group position={[strip.x, strip.y, 0.006]}>
+      <mesh>
+        <planeGeometry args={[strip.width - 0.01, strip.height - 0.01]} />
+        <meshBasicMaterial color={CARD_INK.accent} transparent opacity={0.22} toneMapped={false} />
+      </mesh>
+      <Text
+        position={[0, 0, 0.002]}
+        fontSize={strip.height * 0.24}
+        color={CARD_INK.ink}
+        anchorX="center"
+        anchorY="middle"
+        maxWidth={strip.width * 0.86}
+        textAlign="center"
+      >
+        {`${strip.direction === "up" ? "▲" : "▼"}  ${strip.count} more`}
+      </Text>
+    </group>
   );
 }
 

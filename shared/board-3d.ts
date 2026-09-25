@@ -59,6 +59,25 @@ export type BoardLayout = {
   cards: CardPlace[];
   /** Columns that hold more than fits; the surplus is not drawn. */
   overflow: { status: Status; hidden: number }[];
+  /**
+   * The "▲ N more" / "▼ N more" strips of a column that holds more than fits,
+   * each the size of a card and in a card's slot, so they are as easy to hit as
+   * a card. See `layOutBoard`'s `scroll`.
+   */
+  scrollers: BoardScroller[];
+};
+
+export type BoardScroller = {
+  status: Status;
+  direction: "up" | "down";
+  /** How many cards are that way. */
+  count: number;
+  /** The column's scroll offset a press moves to. */
+  to: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
 
 /**
@@ -139,7 +158,16 @@ const columnLabel = (status: Status): string =>
  * Cards keep the order they are given. The caller sorts — `board-order.ts`
  * already decides what "first" means, and a second opinion here would fight it.
  */
-export function layOutBoard(cards: readonly BoardCard[], size: BoardSize = BOARD): BoardLayout {
+export function layOutBoard(
+  cards: readonly BoardCard[],
+  size: BoardSize = BOARD,
+  /**
+   * How far each column is scrolled: how many of its cards are above the first
+   * one drawn. Baiwei (saha-ing-7e74aa11): "the task board currently shows
+   * only five tasks and offers no way to reach the remaining review items".
+   */
+  scroll: Partial<Record<Status, number>> = {},
+): BoardLayout {
   const columnCount = BOARD_COLUMNS.length;
   const usableWidth = size.width - size.padding * 2;
   const columnWidth = (usableWidth - size.columnGap * (columnCount - 1)) / columnCount;
@@ -173,30 +201,65 @@ export function layOutBoard(cards: readonly BoardCard[], size: BoardSize = BOARD
   const columns: BoardColumn[] = [];
   const places: CardPlace[] = [];
   const overflow: { status: Status; hidden: number }[] = [];
+  const scrollers: BoardScroller[] = [];
 
   BOARD_COLUMNS.forEach((column, index) => {
     const x = -usableWidth / 2 + columnWidth / 2 + index * (columnWidth + size.columnGap);
     const mine = cards.filter((card) => card.status === column.status);
     columns.push({ status: column.status, label: column.label, x, width: columnWidth, count: mine.length });
 
-    mine.slice(0, perColumn).forEach((card, row) => {
-      places.push({
-        card,
-        x,
-        y: top - cardHeight / 2 - row * (cardHeight + size.cardGap),
-        width: columnWidth,
-        height: cardHeight,
-        column: index,
-        row,
-      });
-    });
+    const slotY = (row: number) => top - cardHeight / 2 - row * (cardHeight + size.cardGap);
+    const place = (card: BoardCard, row: number) =>
+      places.push({ card, x, y: slotY(row), width: columnWidth, height: cardHeight, column: index, row });
+
+    if (mine.length <= perColumn) {
+      mine.forEach(place);
+      return;
+    }
+
+    /**
+     * MORE THAN FITS: IT SCROLLS. The first slot says how many are above and
+     * the last how many are below, each a strip the size of a card, pressed to
+     * move a page. A column never shows only arrows: at least one card is drawn.
+     */
+    const page = (up: boolean, down: boolean) => Math.max(1, perColumn - (up ? 1 : 0) - (down ? 1 : 0));
+    const want = Math.max(0, Math.floor(scroll[column.status] ?? 0));
+    // The furthest offset that still fills the last page.
+    const last = Math.max(0, mine.length - page(true, false));
+    const offset = Math.min(want, last);
+    const up = offset > 0;
+    // More below only if the rest will not fit WITHOUT a down strip: the last
+    // page needs no arrow, and judging it with one left a strip that went nowhere.
+    const down = offset + page(up, false) < mine.length;
+    const shown = page(up, down);
+    const firstRow = up ? 1 : 0;
+    mine.slice(offset, offset + shown).forEach((card, i) => place(card, firstRow + i));
+    if (up) {
+      scrollers.push({ status: column.status, direction: "up", count: offset, to: Math.max(0, offset - page(offset - shown > 0, true)),
+        x, y: slotY(0), width: columnWidth, height: cardHeight });
+    }
+    if (down) {
+      const below = mine.length - (offset + shown);
+      scrollers.push({ status: column.status, direction: "down", count: below, to: Math.min(last, offset + shown),
+        x, y: slotY(firstRow + shown), width: columnWidth, height: cardHeight });
+    }
 
     // SAID, NOT SWALLOWED. A column that silently stops drawing at the tenth
     // card is a board that lies about how much work there is.
-    if (mine.length > perColumn) overflow.push({ status: column.status, hidden: mine.length - perColumn });
+    overflow.push({ status: column.status, hidden: mine.length - shown });
   });
 
-  return { width: size.width, height: size.height, columns, cards: places, overflow };
+  return { width: size.width, height: size.height, columns, cards: places, overflow, scrollers };
+}
+
+/** The scroll strip under a point, or null. Exact, like a card. */
+export function scrollerAt(layout: BoardLayout, uv: { x: number; y: number }): BoardScroller | null {
+  const point = pointFromUv(layout, uv);
+  return (
+    layout.scrollers.find(
+      (s) => Math.abs(point.x - s.x) <= s.width / 2 && Math.abs(point.y - s.y) <= s.height / 2,
+    ) ?? null
+  );
 }
 
 /**
