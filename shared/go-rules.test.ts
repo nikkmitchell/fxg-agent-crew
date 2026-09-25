@@ -6,7 +6,7 @@ const s = (x: number, y: number, colour = 1): GoStone => ({ x, y, colour });
 describe("Go captures", () => {
   it("captures one surrounded stone and does not mutate the input", () => {
     const board = [s(2, 2), s(1, 2, 0), s(3, 2, 0), s(2, 1, 0)];
-    expect(placeGoStone(board, 5, s(2, 3, 0))).toEqual({ stones: [...board.slice(1), s(2, 3, 0)], captured: [s(2, 2)] });
+    expect(placeGoStone(board, 5, s(2, 3, 0))).toEqual({ stones: [...board.slice(1), s(2, 3, 0)], captured: [s(2, 2)], ko: null });
     expect(board).toHaveLength(4);
   });
   it("removes an entire orthogonally connected group", () => {
@@ -81,5 +81,47 @@ describe("Go layout", () => {
     expect(goTouchIntersection({ x: 0, y: GO_SURFACE + 0.03, z: 0 }, 9)).toEqual({ x: 4, y: 4 });
     expect(goTouchIntersection({ x: 0, y: 1.2, z: 0 }, 9)).toBeNull();
     expect(goTouchIntersection({ x: 0.7, y: GO_SURFACE, z: 0 }, 9)).toBeNull();
+  });
+});
+
+/** Nikk (4826): the other player could capture straight back. Simple ko. */
+describe("ko", () => {
+  // A classic ko on a 5x5, around (2,2):
+  //   . B W .
+  //   B W . W     black to play at (2,1) captures the white stone at (1,1)?
+  // Built explicitly: black stones surround (1,1) on three sides, white surrounds (2,1) on three.
+  const B = 0, W = 1;
+  const at = (x: number, y: number, colour: number) => ({ x, y, colour });
+  const start = [
+    at(1, 0, B), at(0, 1, B), at(1, 2, B),      // black round (1,1)
+    at(2, 0, W), at(3, 1, W), at(2, 2, W),      // white round (2,1)
+    at(1, 1, W),                                 // the white stone in the ko
+  ];
+
+  it("closes the point for one move after a single-stone capture", () => {
+    const take = placeGoStone(start, 5, at(2, 1, B));
+    if ("error" in take) throw new Error(take.error);
+    expect(take.captured.map((s) => [s.x, s.y])).toEqual([[1, 1]]);
+    expect(take.ko).toEqual({ x: 1, y: 1 });
+    const retake = placeGoStone(take.stones, 5, at(1, 1, W), take.ko);
+    expect(retake).toHaveProperty("error");
+    expect((retake as { error: string }).error).toMatch(/Ko/);
+    expect(legalGoMoves(take.stones, 5, W, take.ko)).not.toContainEqual({ x: 1, y: 1 });
+  });
+
+  it("opens again once another move has been played", () => {
+    const take = placeGoStone(start, 5, at(2, 1, B)) as { stones: never[]; ko: { x: number; y: number } };
+    const elsewhere = placeGoStone(take.stones, 5, at(4, 4, W), take.ko) as { stones: never[]; ko: null };
+    expect(elsewhere.ko).toBeNull();
+    const black = placeGoStone(elsewhere.stones, 5, at(4, 0, B), elsewhere.ko) as { stones: never[]; ko: null };
+    expect(placeGoStone(black.stones, 5, at(1, 1, W), black.ko)).not.toHaveProperty("error");
+  });
+
+  it("is not ko when a capture takes more than one stone", () => {
+    const two = [at(0, 0, W), at(1, 0, W), at(0, 1, B), at(1, 1, B)];
+    const take = placeGoStone(two, 5, at(2, 0, B));
+    if ("error" in take) throw new Error(take.error);
+    expect(take.captured).toHaveLength(2);
+    expect(take.ko).toBeNull();
   });
 });

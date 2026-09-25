@@ -70,7 +70,7 @@ export function goStarPoints(size: number): number[] {
  * last move, captures, and how many legal moves there are — everything a
  * player needs to choose a move, and nothing about the room.
  */
-export function goBoardText(item: Pick<GoRoomItem, "id" | "size" | "colours" | "stones" | "captures" | "activeColour" | "liftedColour" | "carrier" | "revision"> & Partial<Pick<GoRoomItem, "passes" | "ended">>): string {
+export function goBoardText(item: Pick<GoRoomItem, "id" | "size" | "colours" | "stones" | "captures" | "activeColour" | "liftedColour" | "carrier" | "revision"> & Partial<Pick<GoRoomItem, "passes" | "ended" | "ko">>): string {
   const { size } = item;
   const at = new Map(item.stones.map((stone) => [`${stone.x},${stone.y}`, stone.colour]));
   const stars = new Set(goStarPoints(size).flatMap((x) => goStarPoints(size).map((y) => `${x},${y}`)));
@@ -111,8 +111,9 @@ export function goBoardText(item: Pick<GoRoomItem, "id" | "size" | "colours" | "
   if (item.liftedColour !== null) {
     lines.push(`${GO_NAMES[item.liftedColour]}'s stone is in the air, carried by ${item.carrier?.by ?? "somebody"} — wait for it to land.`);
   } else {
-    const legal = legalGoMoves(item.stones, size, item.activeColour).length;
+    const legal = legalGoMoves(item.stones, size, item.activeColour, item.ko ?? null).length;
     lines.push(`to play: ${who(item.activeColour)}, ${legal} legal move${legal === 1 ? "" : "s"}`);
+    if (item.ko) lines.push(`ko: (${item.ko.x}, ${item.ko.y}) may not be retaken this move`);
   }
   return lines.join("\n");
 }

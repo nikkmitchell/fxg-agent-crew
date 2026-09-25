@@ -90,6 +90,6 @@ export function scoreLine(item: GoRoomItem): string | null {
  */
 export function noMoveLine(item: GoRoomItem): string | null {
   if (item.ended || item.liftedColour !== null) return null;
-  if (legalGoMoves(item.stones, item.size, item.activeColour).length > 0) return null;
+  if (legalGoMoves(item.stones, item.size, item.activeColour, item.ko).length > 0) return null;
   return `No legal move for ${NAMES[item.activeColour].toUpperCase()}: press PASS at the glowing bowl`;
 }

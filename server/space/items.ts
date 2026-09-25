@@ -123,7 +123,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (request.body?.size !== undefined) {
       if (!isGoSize(request.body.size)) return reply.code(400).send({ error: "size must be 5, 9, 13, 19, or 25" });
       if (item.size !== request.body.size) {
-        item.size = request.body.size; item.stones = []; item.captures = [];
+        item.size = request.body.size; item.stones = []; item.captures = []; item.ko = null;
         item.liftedColour = null; item.carrier = null; item.activeColour = 0;
         item.passes = 0; item.ended = false;
       }
@@ -162,7 +162,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     }
     /** Take the stones off and give the turn back to the first player. */
     if (request.body?.reset === true) {
-      item.stones = []; item.captures = [];
+      item.stones = []; item.captures = []; item.ko = null;
       item.liftedColour = null; item.carrier = null; item.activeColour = 0;
       item.passes = 0; item.ended = false;
     }
@@ -200,10 +200,11 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       if (item.carrier && item.carrier.by !== session.username) return reply.code(409).send({ error: `${item.carrier.by} is carrying this stone.` });
       if (!Number.isInteger(x) || !Number.isInteger(y) || (x as number) < 0 || (y as number) < 0 || (x as number) >= item.size || (y as number) >= item.size)
         return reply.code(400).send({ error: "that intersection is not on the board" });
-      const move = placeGoStone(item.stones, item.size, { id: randomUUID(), x: x as number, y: y as number, colour: item.activeColour });
+      const move = placeGoStone(item.stones, item.size, { id: randomUUID(), x: x as number, y: y as number, colour: item.activeColour }, item.ko);
       if ("error" in move) return reply.code(409).send({ error: move.error });
       item.stones = move.stones;
       item.captures.push(...move.captured.map((stone) => ({ ...stone, by: item.activeColour })));
+      item.ko = move.ko;
       item.liftedColour = null; item.carrier = null; item.activeColour = (item.activeColour + 1) % item.colours.length;
       item.passes = 0;
     } else if (request.body?.action === "play") {
@@ -219,10 +220,11 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       if (colour !== item.activeColour) return reply.code(409).send({ code: "NOT_YOUR_TURN", error: "It is not that colour's turn." });
       if (!Number.isInteger(x) || !Number.isInteger(y) || (x as number) < 0 || (y as number) < 0 || (x as number) >= item.size || (y as number) >= item.size)
         return reply.code(400).send({ error: "that intersection is not on the board" });
-      const move = placeGoStone(item.stones, item.size, { id: randomUUID(), x: x as number, y: y as number, colour: item.activeColour });
+      const move = placeGoStone(item.stones, item.size, { id: randomUUID(), x: x as number, y: y as number, colour: item.activeColour }, item.ko);
       if ("error" in move) return reply.code(409).send({ error: move.error });
       item.stones = move.stones;
       item.captures.push(...move.captured.map((stone) => ({ ...stone, by: item.activeColour })));
+      item.ko = move.ko;
       item.activeColour = (item.activeColour + 1) % item.colours.length;
       item.passes = 0;
       played = { colour: colour as number, x: x as number, y: y as number };
@@ -245,6 +247,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
         return reply.code(409).send({ code: "NOTHING_PLAYED", error: "Play a stone first: there is no game to pass in yet." });
       }
       item.passes += 1;
+      item.ko = null; // a pass opens a ko point
       item.activeColour = (item.activeColour + 1) % item.colours.length;
       if (item.passes >= item.colours.length) item.ended = true;
     } else if (request.body?.action === "return") {

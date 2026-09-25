@@ -304,7 +304,7 @@ function MoveLights({ item, reducedMotion, onPlace }: { item: GoRoomItem; reduce
   const pressed = useRef<GoMove | null>(null);
   const texture = useMemo(glowTexture, []);
   useEffect(() => () => texture.dispose(), [texture]);
-  const moves = useMemo(() => item.liftedColour === null ? [] : legalGoMoves(item.stones, item.size, item.activeColour), [item.stones, item.size, item.activeColour, item.liftedColour]);
+  const moves = useMemo(() => item.liftedColour === null ? [] : legalGoMoves(item.stones, item.size, item.activeColour, item.ko), [item.stones, item.size, item.activeColour, item.liftedColour, item.ko]);
   useEffect(() => { setAim(null); pressed.current = null; }, [moves]);
   const hover = aim ? moves.findIndex((move) => move.x === aim.x && move.y === aim.y) : -1;
   useLayoutEffect(() => {

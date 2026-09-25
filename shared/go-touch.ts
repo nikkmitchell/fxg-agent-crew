@@ -20,7 +20,7 @@ export function stepGoTouch(state: GoTouchState, input: {
   if (!holding) return { state: { inside, armed: false, target: null, since: now }, action: canLift && inside && !state.inside ? { action: "lift" } : null };
   const next = { ...state, inside, armed: state.armed || !inside };
   const pointOnBoard = next.armed ? goTouchIntersection(point, item.size) : null;
-  if (!pointOnBoard || "error" in placeGoStone(item.stones, item.size, { ...pointOnBoard, colour: item.activeColour })) return { state: { ...next, target: null }, action: null };
+  if (!pointOnBoard || "error" in placeGoStone(item.stones, item.size, { ...pointOnBoard, colour: item.activeColour }, item.ko)) return { state: { ...next, target: null }, action: null };
   const key = `${pointOnBoard.x},${pointOnBoard.y}`;
   if (next.target !== key) return { state: { ...next, target: key, since: now }, action: null };
   if (now - next.since < 180) return { state: next, action: null };

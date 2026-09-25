@@ -52,6 +52,8 @@ export type GoRoomItem = {
   ended: boolean;
   /** Show whose territory is whose during play, not only once the game ends. */
   territoryShown: boolean;
+  /** The point closed by ko for the next move only; null when none. See go-rules. */
+  ko: { x: number; y: number } | null;
 };
 export type RoomItem = GoRoomItem;
 
@@ -87,7 +89,7 @@ export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
     liftedColour: null,
     stones: [],
     captures: [], revision: 0, carrier: null, scale: 1, deskVisible: true, surface: GO_SURFACES[0],
-    passes: 0, ended: false, territoryShown: false,
+    passes: 0, ended: false, territoryShown: false, ko: null,
     position: { x: ordinal * 2.65 - 1.15, y: 0, z: 1.8, rotationY: 0 },
   };
 }
@@ -115,6 +117,7 @@ export function parseRoomItem(value: unknown): RoomItem | null {
     surface: isGoSurface(item.surface) ? item.surface : GO_SURFACES[0],
     passes: Number.isInteger(item.passes) && item.passes! >= 0 ? item.passes : 0,
     ended: item.ended === true, territoryShown: item.territoryShown === true,
+    ko: item.ko && Number.isInteger(item.ko.x) && Number.isInteger(item.ko.y) ? { x: item.ko.x, y: item.ko.y } : null,
     position: { ...item.position, y: item.position.y ?? 0 } } as GoRoomItem;
 }
 
