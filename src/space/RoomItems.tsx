@@ -17,11 +17,12 @@ import { goSnap, type GoMove } from "./go-snap";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
 import { GO_NAMES as NAMES, goStarPoints } from "../../shared/go-text";
 import { countGo } from "../../shared/go-score";
-import { canPass, lastPassLine, noMoveLine, passLabel, resultRows, scoreLine, turnLine, winners } from "./go-status";
+import { canPass, clockLine, lastPassLine, noMoveLine, passLabel, resultRows, scoreLine, turnLine, winners } from "./go-status";
 import { goTableWriter } from "./go-table-writer";
 import { bambooPixels, goTextureRepeat, rockPixels, stonePixels } from "./go-textures";
 import { GO_ROCK, GO_ROCK_LIP, goRockHoles, goRockRings } from "../../shared/go-rock";
 import { grabHold } from "./grab-hold";
+import { clockNow } from "../../shared/go-clock";
 
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
 const xyz = (p: Point3): [number, number, number] => [p.x, p.y, p.z];
@@ -676,6 +677,29 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     pending,
   }), []);
   const act = (action: Parameters<typeof space.actOnGo>[1]) => writer.act(action);
+  /**
+   * THE CLOCK, SHOWN (Nikk 4826). A timed game redraws its countdown once a
+   * second; the server keeps no ticking clock, so when this table sees the
+   * player to move run out, it asks the server to settle it (the `clock`
+   * action), once, and the game ends for everybody.
+   */
+  const [clockTick, setClockTick] = useState(0);
+  const flagSent = useRef<string | null>(null);
+  useEffect(() => {
+    if (!item.clock || item.ended) return;
+    const timer = window.setInterval(() => setClockTick((n) => n + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [item.clock, item.ended]);
+  useEffect(() => {
+    if (!item.clock || item.ended) return;
+    const turn = `${item.revision}:${item.activeColour}`;
+    if (flagSent.current === turn) return;
+    if (clockNow(item.clock, item.activeColour, Date.now()).flagged) {
+      flagSent.current = turn;
+      void space.actOnGo(item.id, { action: "clock" }).catch(() => undefined);
+    }
+  }, [clockTick, item]);
+  const clockSays = clockLine(item, Date.now() + clockTick * 0);
   const configure = (
     change: Parameters<typeof space.configureGo>[1],
     again?: (fresh: GoRoomItem) => Parameters<typeof space.configureGo>[1] | null,
@@ -1034,7 +1058,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       </group>;
     })()}
     {!settingsOpen && !result && <Text position={[0, controls.line.y, controls.line.z + 0.085 * controls.line.fontSize / 0.043]} rotation-x={-Math.PI / 2} fontSize={0.025 * controls.line.fontSize / 0.043} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : "#d8c8ac"} raycast={noRaycast}>
-      {notice || scoreLine(item) || noMoveLine(item) || lastPassLine(item) || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone, or PASS at it")}
+      {notice || clockSays || scoreLine(item) || noMoveLine(item) || lastPassLine(item) || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone, or PASS at it")}
     </Text>}
     {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
       <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[0.46, 0.1]} /><meshBasicMaterial color="#493d30" /></mesh>
