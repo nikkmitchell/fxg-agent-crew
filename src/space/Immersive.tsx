@@ -33,6 +33,7 @@ import { pinchTeleportEnabled, teleportNeeded, teleportOn, watchTeleport } from 
 import { holdSession } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
+import type { Meditation } from "../../shared/meditation";
 import type { RoomItem } from "../../shared/room-items";
 import { useHiddenAsStill } from "./useHiddenAsStill";
 import type { RoomFeed } from "./useRoomFeed";
@@ -147,6 +148,8 @@ export function ImmersivePlayer({
   showingChoices,
   agents,
   roomItems,
+  meditation,
+  onMeditation,
   peopleRef,
 }: {
   comfort: Comfort;
@@ -180,6 +183,9 @@ export function ImmersivePlayer({
   /** Agents in the room, for placing them from the menu. */
   agents: string[];
   roomItems: RoomItem[];
+  /** The room's breathing orb, for the Items tab. */
+  meditation: Meditation | null;
+  onMeditation: (session: Meditation) => void;
   /** Everyone in the room, live, for noticing when a hand touches an agent. */
   peopleRef: RefObject<WirePerson[]>;
 }) {
@@ -878,6 +884,8 @@ export function ImmersivePlayer({
         showingChoices={showingChoices}
         agents={agents}
         roomItems={roomItems}
+        meditation={meditation}
+        onMeditation={onMeditation}
         hiddenAsStill={stillNow}
         positionOf={(actorId) =>
           (peopleRef.current ?? []).find((person) => person.actorId.toLowerCase() === actorId.toLowerCase())?.at ?? null
@@ -953,6 +961,8 @@ export function Immersive({
   showingChoices,
   agents,
   roomItems,
+  meditation,
+  onMeditation,
   peopleRef,
 }: {
   comfort: Comfort;
@@ -974,6 +984,8 @@ export function Immersive({
   showingChoices: RoomShowingChoices;
   agents: string[];
   roomItems: RoomItem[];
+  meditation: Meditation | null;
+  onMeditation: (session: Meditation) => void;
   peopleRef: RefObject<WirePerson[]>;
 }) {
   const session = useXR((state) => state.session);
@@ -1040,6 +1052,8 @@ export function Immersive({
       showingChoices={showingChoices}
       agents={agents}
       roomItems={roomItems}
+      meditation={meditation}
+      onMeditation={onMeditation}
       peopleRef={peopleRef}
     />
   ) : null;

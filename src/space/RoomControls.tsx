@@ -1,3 +1,4 @@
+import type { Meditation } from "../../shared/meditation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
@@ -5,6 +6,7 @@ import * as THREE from "three";
 import { bff } from "../bff-client";
 import { space } from "../space-client";
 import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
+import { SCOPES, TABS, scopeOf, screenOf, type SettingsTab } from "./settings-tabs";
 import { handNear, IDLE_OPACITY, touchPresses, type TouchButton } from "./touch-press";
 import { goHandInput } from "./go-hand-input";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
@@ -118,6 +120,10 @@ const FIX_HEIGHT = 1.38;
 
 /** One button in the open grid. Wider and taller than the waist buttons. */
 const BOX_BUTTON = { width: 0.56, height: 0.11, gap: 0.018 } as const;
+/** A tab, and a scope above the tabs. */
+const TAB_BUTTON = { width: 0.3, height: 0.1, gap: 0.03 } as const;
+/** How far above the first box's top the tab row sits. */
+const TAB_ROW_ABOVE = 0.26;
 /** How many buttons a box holds before it spills into another column. */
 const BOX_ROWS = 7;
 const BOX_GAP = 0.08;
@@ -210,6 +216,8 @@ export function RoomControls({
   showingChoices,
   agents,
   roomItems,
+  meditation,
+  onMeditation,
   hiddenAsStill,
   positionOf,
   onResetStanding,
@@ -243,6 +251,9 @@ export function RoomControls({
   agents: string[];
   /** Furniture and play objects shared by everybody. */
   roomItems: RoomItem[];
+  /** The room's breathing orb, for the Items tab. */
+  meditation: Meditation | null;
+  onMeditation: (session: Meditation) => void;
   /** Who the hide-still setting is hiding from you now, named on its row. See useHiddenAsStill. */
   hiddenAsStill: string[];
   /** Where somebody is standing, for reading them aloud as loud as they are near. */
@@ -291,6 +302,15 @@ export function RoomControls({
    * looking at deserves its own screen rather than a row among twenty.
    */
   const [view, setView] = useState<"root" | "work" | "mood" | "panels" | "agents" | "items" | "rooms">("root");
+  /**
+   * THE TABS (Nikk 4785, Moraine v0.2 and its addendum). First a scope, ME or
+   * THIS ROOM, then that scope's short row of tabs, so a headset never shows
+   * eight across. ME follows the person between rooms; THIS ROOM changes what
+   * everybody here sees and says so.
+   */
+  const [tab, setTab] = useState<SettingsTab>("me");
+  const tabRef = useRef<SettingsTab>("me");
+  tabRef.current = tab;
   /**
    * The Rooms page's lists, read each time it opens: which rooms you belong to
    * and which public ones you could join. Null while loading. Read fresh
@@ -830,7 +850,8 @@ export function RoomControls({
 
   const closeMenu = useCallback(() => {
     pinned.current = null;
-    setView("root");
+    // Back to the screen of the tab you were on, so it opens where you left it.
+    setView(screenOf(tabRef.current));
     setOpen(false);
   }, []);
 
@@ -942,6 +963,28 @@ export function RoomControls({
 
   const boxes: Box[] = [];
 
+  const projectName =
+    showingChoices.projects?.find((project) => project.id === showing.projectId)?.name ?? null;
+  const boardName =
+    showingChoices.boards?.find((moodBoard) => moodBoard.id === showing.boardId)?.title ?? null;
+  const showRows: Row[] = [
+      {
+        label: `Work board: ${projectName ?? (showing.projectId ? showing.projectId : "none")}`,
+        tone: showing.projectId ? "live" : "normal",
+        onTap: () => setView("work"),
+      },
+      {
+        label: `Mood board: ${boardName ?? (showing.boardId ? showing.boardId : "none")}`,
+        tone: showing.boardId ? "live" : "normal",
+        onTap: () => setView("mood"),
+      },
+      ...(showingChoices.refusal
+        ? [{ label: showingChoices.refusal, tone: "muted" as const, onTap: () => {} }]
+        : showing.setBy
+          ? [{ label: `Set by ${showing.setBy}`, tone: "muted" as const, onTap: () => {} }]
+          : []),
+    ];
+
   if (open && view === "work") {
     /**
      * EVERY WORK BOARD, as its own screen.
@@ -950,7 +993,7 @@ export function RoomControls({
      * whole room through every other project on the way to the one you want —
      * every step of it a change everybody standing here can see.
      */
-    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    const rows: Row[] = [{ label: "← Back to Show", onTap: () => setView("panels") }];
     if (showingChoices.projects === null) {
       rows.push({ label: "Projects could not be read", tone: "muted", onTap: () => {} });
     } else if (showingChoices.projects.length === 0) {
@@ -968,14 +1011,14 @@ export function RoomControls({
           tone: on ? "live" : "normal",
           onTap: () => {
             showingChoices.choose({ projectId: project.id, boardId: null });
-            setView("root");
+            setView("panels");
           },
         });
       }
     }
     boxes.push({ title: "Work board — for everyone", rows });
   } else if (open && view === "mood") {
-    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    const rows: Row[] = [{ label: "← Back to Show", onTap: () => setView("panels") }];
     if (!showing.projectId) {
       // The server refuses a mood board with no project, and offering a list
       // here would be inviting that refusal.
@@ -997,14 +1040,14 @@ export function RoomControls({
           tone: on ? "live" : "normal",
           onTap: () => {
             showingChoices.choose({ projectId: showing.projectId, boardId: moodBoard.id });
-            setView("root");
+            setView("panels");
           },
         });
       }
     }
     boxes.push({ title: "Mood board — for everyone", rows });
   } else if (open && view === "panels") {
-    const panelRows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    const panelRows: Row[] = [];
     for (const panel of panels.catalogue) {
       const shown = panels.open.includes(panel.id);
       panelRows.push({
@@ -1031,10 +1074,25 @@ export function RoomControls({
     if (panels.refusal) {
       panelRows.push({ label: panels.refusal, tone: "muted", onTap: () => {} });
     }
-    boxes.push({ title: "Panels", rows: panelRows });
+    boxes.push({ title: "The room shows — for everyone", rows: showRows });
+    boxes.push({ title: "Panels — for everyone", rows: panelRows });
   } else if (open && view === "items") {
-    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    const rows: Row[] = [];
     rows.push({ label: "+ Add Go table", tone: "live", onTap: () => void space.addRoomItem().catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add the table.")) });
+    /**
+     * THE BREATHING ORB, AS AN ITEM (Nikk 4757; v0.2). Whether it is here is
+     * per room and for everyone; its sound stays personal, on the orb itself.
+     */
+    const orbHere = meditation?.shown === true;
+    rows.push({
+      label: orbHere ? "Breathing orb: in this room — tap to remove" : "+ Add breathing orb",
+      tone: orbHere ? "normal" : "live",
+      onTap: () =>
+        void space
+          .meditate({ action: "show", shown: !orbHere })
+          .then((answer) => onMeditation(answer.meditation))
+          .catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not change the orb.")),
+    });
     /**
      * THE TABLE'S OWN SETTINGS ARE ON THE TABLE NOW.
      *
@@ -1073,11 +1131,11 @@ export function RoomControls({
       setSwitching(room);
       flash(join ? `Joining ${room}…` : `Going to ${room}…`);
       (join ? bff.joinRoom(room).then(() => onSwitchRoom(room)) : onSwitchRoom(room))
-        .then(() => { flash(`You are in ${room}`); setView("root"); })
+        .then(() => flash(`You are in ${room}`))
         .catch((error: unknown) => setNotice(error instanceof Error ? error.message : `Could not go to ${room}.`))
         .finally(() => setSwitching(null));
     };
-    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    const rows: Row[] = [];
     for (const row of roomMenuRows(myRooms, openRooms, currentRoom)) {
       if (row.kind === "heading" || row.kind === "note") rows.push({ label: row.label, tone: "muted", onTap: () => {} });
       else if (row.kind === "here") rows.push({ label: row.label, tone: "live", onTap: () => {} });
@@ -1094,7 +1152,7 @@ export function RoomControls({
      * choice is worked out from your own position and heading at the moment you
      * tap, saved on the server as that agent's home, and the agent walks there.
      */
-    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    const rows: Row[] = [];
     if (agents.length === 0) rows.push({ label: "No agents in the room", tone: "muted", onTap: () => {} });
     const placeWith = (agent: string, choose: (me: { at: { x: number; z: number }; facing: number }) => AgentHome, done: string) => () => {
       const me = anchor();
@@ -1125,7 +1183,7 @@ export function RoomControls({
     }
     boxes.push({ title: "Where agents live", rows });
   } else if (open && view === "root") {
-    boxes.push({
+    if (tab === "voice") boxes.push({
       title: "Talking",
       rows: [
         {
@@ -1253,39 +1311,7 @@ export function RoomControls({
      * says "for everyone" and names who set it last. A wall that is showing
      * something else should be answerable without asking around.
      */
-    const projectName =
-      showingChoices.projects?.find((project) => project.id === showing.projectId)?.name ?? null;
-    const boardName =
-      showingChoices.boards?.find((moodBoard) => moodBoard.id === showing.boardId)?.title ?? null;
-    boxes.push({
-      title: "The room shows — for everyone",
-      rows: [
-        {
-          label: `Work board: ${projectName ?? (showing.projectId ? showing.projectId : "none")}`,
-          tone: showing.projectId ? "live" : "normal",
-          onTap: () => setView("work"),
-        },
-        {
-          label: `Mood board: ${boardName ?? (showing.boardId ? showing.boardId : "none")}`,
-          tone: showing.boardId ? "live" : "normal",
-          onTap: () => setView("mood"),
-        },
-        ...(showingChoices.refusal
-          ? [{ label: showingChoices.refusal, tone: "muted" as const, onTap: () => {} }]
-          : showing.setBy
-            ? [{ label: `Set by ${showing.setBy}`, tone: "muted" as const, onTap: () => {} }]
-            : []),
-      ],
-    });
-
-    boxes.push({
-      title: "Room",
-      rows: [
-        { label: `Rooms…${currentRoom ? ` (in ${currentRoom})` : ""}`, tone: "live", onTap: () => setView("rooms") },
-        { label: "Back to lobby", onTap: returnToLobby },
-        { label: "Room items…", onTap: () => setView("items") },
-        { label: "Panels…", onTap: () => setView("panels") },
-        { label: "Place agents…", onTap: () => setView("agents") },
+    const meRows: Row[] = [
         {
           label: handsShown ? "Hand models: shown" : "Hand models: hidden",
           tone: handsShown ? "normal" : "live",
@@ -1306,33 +1332,8 @@ export function RoomControls({
               onTap: () => reloadNow(),
             }]
           : []),
-        ...(micRisky
-          ? [{
-              label: "Use the microphone anyway — the headset may ask",
-              tone: "muted" as const,
-              onTap: () => {
-                setMicRisky(false);
-                void startSaying(true);
-              },
-            }]
-          : []),
-        ...(keyboardRisky
-          ? [{
-              label: "Open the keyboard anyway — may exit the headset",
-              tone: "muted" as const,
-              onTap: () => {
-                setKeyboardRisky(false);
-                openTextEntry(true);
-              },
-            }]
-          : []),
-        {
-          label: "Reset head position",
-          onTap: () => {
-            onResetStanding();
-            flash("Measuring your height from where your head is now.");
-          },
-        },
+    ];
+    const viewRows: Row[] = [
         /**
          * DARK MODE, ON UNTIL TURNED OFF. Nikk: "a darkmode that is on
          * automatically... also add a setting to turn off dark mode in
@@ -1371,15 +1372,6 @@ export function RoomControls({
         { label: "−  Pointer dimmer", onTap: () => setRoomPreferences({ pointer: stepPointer(preferences.pointer, -1) }) },
         { label: "+  Pointer brighter", onTap: () => setRoomPreferences({ pointer: stepPointer(preferences.pointer, 1) }) },
         {
-          label: pinchTeleport ? "Teleport (hand pinch, controller trigger): on" : "Teleport: off — hands and sticks move you",
-          tone: pinchTeleport ? "live" : "normal",
-          onTap: () => {
-            const next = !pinchTeleport;
-            setPinchTeleportShown(next);
-            setPinchTeleport(next);
-          },
-        },
-        {
           label: !passthroughAvailable
             ? `No passthrough — this headset says: ${blendMode ?? "nothing yet"}`
             : passthrough
@@ -1388,9 +1380,51 @@ export function RoomControls({
           tone: passthroughAvailable ? "normal" : "muted",
           onTap: () => passthroughAvailable && onTogglePassthrough(),
         },
-        { label: "Close settings", onTap: closeMenu },
-      ],
-    });
+    ];
+    const movingRows: Row[] = [
+        {
+          label: "Reset head position",
+          onTap: () => {
+            onResetStanding();
+            flash("Measuring your height from where your head is now.");
+          },
+        },
+        {
+          label: pinchTeleport ? "Teleport (hand pinch, controller trigger): on" : "Teleport: off — hands and sticks move you",
+          tone: pinchTeleport ? "live" : "normal",
+          onTap: () => {
+            const next = !pinchTeleport;
+            setPinchTeleportShown(next);
+            setPinchTeleport(next);
+          },
+        },
+    ];
+    const voiceExtra: Row[] = [
+        ...(micRisky
+          ? [{
+              label: "Use the microphone anyway — the headset may ask",
+              tone: "muted" as const,
+              onTap: () => {
+                setMicRisky(false);
+                void startSaying(true);
+              },
+            }]
+          : []),
+        ...(keyboardRisky
+          ? [{
+              label: "Open the keyboard anyway — may exit the headset",
+              tone: "muted" as const,
+              onTap: () => {
+                setKeyboardRisky(false);
+                openTextEntry(true);
+              },
+            }]
+          : []),
+    ];
+    if (tab === "me") boxes.push({ title: "Me", rows: meRows });
+    else if (tab === "view") boxes.push({ title: "View", rows: viewRows });
+    else if (tab === "moving") boxes.push({ title: "Moving", rows: movingRows });
+    if (tab === "voice" && voiceExtra.length) boxes.push({ title: "Voice: the headset asked", rows: voiceExtra });
   }
 
   /**
@@ -1410,7 +1444,7 @@ export function RoomControls({
   if (open && boxes.length === 0) {
     boxes.push({
       title: "Nothing here",
-      rows: [{ label: `No screen for "${view}" — back`, onTap: () => setView("root") }],
+      rows: [{ label: `No screen for "${view}" — back`, onTap: () => { setTab("me"); setView("root"); } }],
     });
   }
 
@@ -1600,7 +1634,46 @@ export function RoomControls({
           onCancel={stopFixing}
         />
       ) : open ? (
-        columns.map((column, index) => (
+        <>
+        {/*
+          THE SCOPE, THEN ITS TABS, above the boxes. ME or THIS ROOM first, then
+          only that scope's tabs, so there are never eight across (v0.2). The
+          chosen one is lit; close sits at the end of the tab row.
+        */}
+        {SCOPES.map((scope, index) => (
+          <WristButton
+            key={scope.id}
+            label={scope.label}
+            x={(index - 0.5) * (TAB_BUTTON.width * 1.4 + TAB_BUTTON.gap)}
+            y={gridTop + TAB_ROW_ABOVE + TAB_BUTTON.height + TAB_BUTTON.gap}
+            width={TAB_BUTTON.width * 1.4}
+            height={TAB_BUTTON.height}
+            tone={scopeOf(tab) === scope.id ? "live" : "muted"}
+            onTap={() => {
+              if (scopeOf(tab) === scope.id) return;
+              const first = TABS[scope.id][0].id;
+              setTab(first);
+              setView(screenOf(first));
+            }}
+          />
+        ))}
+        {[...TABS[scopeOf(tab)], { id: "close" as const, label: "✕ Close" }].map((entry, index, all) => (
+          <WristButton
+            key={entry.id}
+            label={entry.label}
+            x={(index - (all.length - 1) / 2) * (TAB_BUTTON.width + TAB_BUTTON.gap)}
+            y={gridTop + TAB_ROW_ABOVE}
+            width={TAB_BUTTON.width}
+            height={TAB_BUTTON.height}
+            tone={entry.id === tab ? "live" : "normal"}
+            onTap={() => {
+              if (entry.id === "close") return closeMenu();
+              setTab(entry.id);
+              setView(screenOf(entry.id));
+            }}
+          />
+        ))}
+        {columns.map((column, index) => (
           <ButtonBox
             key={`${index}-${column.title}`}
             title={column.title}
@@ -1621,7 +1694,8 @@ export function RoomControls({
               />
             ))}
           </ButtonBox>
-        ))
+        ))}
+        </>
       ) : (
         <group pointerEventsType={CLOSED_POINTERS}>
           {/*

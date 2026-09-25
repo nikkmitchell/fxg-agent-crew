@@ -811,6 +811,8 @@ export default function Scene({
           showingChoices={showingChoices}
           agents={connection.roster.filter((person) => person.kind === "agent").map((person) => person.actorId)}
           roomItems={connection.roomItems}
+          meditation={connection.meditation}
+          onMeditation={connection.setMeditation}
           peopleRef={connection.peopleRef}
         />
       </XR>
