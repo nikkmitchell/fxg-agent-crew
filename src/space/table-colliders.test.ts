@@ -49,6 +49,7 @@ describe("colliders on the Go table", () => {
   it("has nothing that stops a pointer without doing anything", () => {
     const offenders = blockersIn(readFileSync(SOURCE, "utf8"));
     expect(offenders, offenders.map((o) => `<${o.tag}> at RoomItems.tsx:${o.line}`).join("\n")).toEqual([]);
+    expect(blockersIn(readFileSync(new URL("./RockForm.tsx", import.meta.url), "utf8"))).toEqual([]);
   });
 
   it("actually reads the table — so an empty answer means clean, not blind", () => {

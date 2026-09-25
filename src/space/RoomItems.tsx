@@ -20,7 +20,7 @@ import { countGo } from "../../shared/go-score";
 import { canPass, lastPassLine, noMoveLine, passLabel, resultRows, scoreLine, turnLine, winners } from "./go-status";
 import { goTableWriter } from "./go-table-writer";
 import { bambooPixels, goTextureRepeat, rockPixels, stonePixels } from "./go-textures";
-import { GO_ROCK, GO_ROCK_LIP, goRockHoles, goRockRings } from "../../shared/go-rock";
+import { RockForm } from "./RockForm";
 import { grabHold } from "./grab-hold";
 
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
@@ -167,108 +167,6 @@ function bowlPaint(body: string, cobalt: string): THREE.CanvasTexture {
   return texture;
 }
 
-/**
- * The SCHOLAR'S ROCK as ONE FORM (Baiwei's second pass, card saha-ing-82be26cf):
- * no board laid on a slab — the rock's own flat top is the playing surface,
- * with the grid cut into it, and below that top the rock draws in to a waist so
- * its lip overhangs, as a Taihu rock does. The holes go down through the lip
- * and open into the air under it. Shapes from shared/go-rock.ts, where they are
- * tested to stay off every playable point and inside the reach everything else
- * keeps clear of.
- *
- * Three meshes, all low-poly and none a pointer target: the sides (a loft
- * through the rings, vertices shared so the shading is calm), the flat top
- * (with the holes), and the holes' own walls, each ending exactly where it
- * meets the sloping underside of the lip.
- */
-function RockForm({ size, top, side }: { size: number; top: string; side: string }) {
-  const { walls, cap, tubes } = useMemo(() => {
-    const rings = goRockRings(size), holes = goRockHoles(size), count = GO_ROCK.points;
-    const foot = GO_RING.y, yOf = (height: number) => foot + (GO_SURFACE - foot) * height;
-    const perimeter = goBoardWidth(size) * 4;
-
-    // The sides: ring to ring. UVs in metres, like the surface tiles.
-    const positions: number[] = [], uvs: number[] = [], index: number[] = [];
-    rings.forEach((ring) => ring.points.forEach((p, i) => {
-      positions.push(p.x, yOf(ring.height), p.z);
-      uvs.push((i / count) * perimeter, yOf(ring.height));
-    }));
-    for (let r = 0; r < rings.length - 1; r++) for (let i = 0; i < count; i++) {
-      const a = r * count + i, b = r * count + ((i + 1) % count), c = a + count, d = b + count;
-      index.push(a, c, b, b, c, d);
-    }
-    const walls = new THREE.BufferGeometry();
-    walls.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    walls.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-    walls.setIndex(index);
-    walls.computeVertexNormals();
-
-    // The flat top, the board's own surface, with the holes through it.
-    const outline = rings[rings.length - 1].points;
-    const shape = new THREE.Shape(outline.map((p) => new THREE.Vector2(p.x, -p.z)));
-    for (const hole of holes) {
-      const path = new THREE.Path();
-      path.absellipse(hole.centre.x, -hole.centre.z, hole.radiusX, hole.radiusZ, 0, Math.PI * 2, true, -hole.angle);
-      shape.holes.push(path);
-    }
-    const cap = new THREE.ShapeGeometry(shape, 16);
-    cap.rotateX(-Math.PI / 2);
-    cap.translate(0, GO_SURFACE, 0);
-
-    // The holes' walls, from the top down to where each meets the lip's
-    // sloping underside, found per point from the two rings either side.
-    const lipAt = rings.findIndex((ring) => ring.height === 1 - GO_ROCK_LIP), roll = rings[rings.length - 2];
-    const lip = rings[lipAt], half = goBoardWidth(size) / 2;
-    const reach = (p: { x: number; z: number }) => Math.max(Math.abs(p.x), Math.abs(p.z)) - half;
-    const nearest = (p: { x: number; z: number }) => {
-      const a = Math.atan2(p.z, p.x);
-      let best = 0, gap = Infinity;
-      outline.forEach((q, i) => {
-        const d = Math.abs(Math.atan2(Math.sin(Math.atan2(q.z, q.x) - a), Math.cos(Math.atan2(q.z, q.x) - a)));
-        if (d < gap) { gap = d; best = i; }
-      });
-      return best;
-    };
-    const tubePositions: number[] = [], tubeIndex: number[] = [], around = 20;
-    for (const hole of holes) {
-      const base = tubePositions.length / 3, c = Math.cos(hole.angle), sn = Math.sin(hole.angle);
-      for (let k = 0; k < around; k++) {
-        const t = (k / around) * Math.PI * 2, x = Math.cos(t) * hole.radiusX, z = Math.sin(t) * hole.radiusZ;
-        const p = { x: hole.centre.x + x * c - z * sn, z: hole.centre.z + x * sn + z * c };
-        const i = nearest(p), from = reach(lip.points[i]), to = reach(roll.points[i]);
-        const f = Math.max(0, Math.min(1, (reach(p) - from) / Math.max(1e-6, to - from)));
-        const height = lip.height + f * (roll.height - lip.height);
-        tubePositions.push(p.x, GO_SURFACE, p.z, p.x, yOf(height), p.z);
-      }
-      for (let k = 0; k < around; k++) {
-        const a = base + k * 2, b = base + ((k + 1) % around) * 2;
-        tubeIndex.push(a, a + 1, b, b, a + 1, b + 1);
-      }
-    }
-    const tubes = new THREE.BufferGeometry();
-    tubes.setAttribute("position", new THREE.Float32BufferAttribute(tubePositions, 3));
-    tubes.setIndex(tubeIndex);
-    tubes.computeVertexNormals();
-    return { walls, cap, tubes };
-  }, [size]);
-  useEffect(() => () => { walls.dispose(); cap.dispose(); tubes.dispose(); }, [walls, cap, tubes]);
-  // The stone's colour is IN the pixels: tinting a dark texture with a dark
-  // colour multiplies it to near black. Tiled by the metre, as the UVs are.
-  const topMap = useMemo(() => surfaceTexture("rock", top, 1), [top]);
-  const sideMap = useMemo(() => surfaceTexture("rock", side, 1), [side]);
-  useEffect(() => () => { topMap.dispose(); sideMap.dispose(); }, [topMap, sideMap]);
-  return <>
-    <mesh geometry={walls} castShadow receiveShadow raycast={noRaycast}>
-      <meshStandardMaterial map={sideMap} roughness={0.9} metalness={0.02} side={THREE.DoubleSide} />
-    </mesh>
-    <mesh geometry={cap} receiveShadow raycast={noRaycast}>
-      <meshStandardMaterial map={topMap} roughness={0.86} metalness={0.02} />
-    </mesh>
-    <mesh geometry={tubes} raycast={noRaycast}>
-      <meshStandardMaterial map={sideMap} roughness={0.95} side={THREE.DoubleSide} />
-    </mesh>
-  </>;
-}
 
 /**
  * Where a held stone will land: A GHOST OF THE STONE, half-transparent, with
