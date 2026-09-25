@@ -436,6 +436,7 @@ function CaptureRing({ index, item, rows, colour }: { index: number; item: GoRoo
 
 function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: GoRoomItem; index: number; reducedMotion: boolean; onLift: () => void; onPass: () => void; winner: boolean }) {
   const pulse = useRef<THREE.MeshBasicMaterial>(null), rim = useRef<THREE.MeshStandardMaterial>(null);
+  const shell = useRef<THREE.MeshBasicMaterial>(null);
   const active = index === item.activeColour;
   /**
    * A DELICATE GLOW UNDER THE BOWL WHOSE TURN IT IS — and only until its stone
@@ -469,6 +470,10 @@ function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: Go
     // bowl with stones". Both bowls on a tie.
     if (pulse.current) pulse.current.opacity = winner ? 0.85 : glowing ? wave * 0.7 : 0;
     if (rim.current) rim.current.emissiveIntensity = winner ? 0.85 : glowing ? wave * 0.7 : 0;
+    // THE BOWL ITSELF, not only a light under it. Nikk (4826): "make the
+    // actual board itself glow so it's clear whose turn it is". A soft shell in
+    // the player's colour round the whole bowl, breathing with the glow below.
+    if (shell.current) shell.current.opacity = winner ? 0.6 : glowing ? wave * 0.62 : 0;
   });
   const captures = item.captures.filter((stone) => stone.by === index).length;
   return <>
@@ -480,6 +485,11 @@ function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: Go
       <mesh castShadow><latheGeometry args={[profile, 48]} />{look.bowl.paint
         ? <meshPhysicalMaterial color="#ffffff" map={relief} roughness={look.bowl.roughness} clearcoat={look.bowl.clearcoat} clearcoatRoughness={0.35} side={THREE.DoubleSide} />
         : <meshPhysicalMaterial color={look.bowl.body} roughness={look.bowl.roughness} clearcoat={look.bowl.clearcoat} bumpMap={relief} bumpScale={look.bowl.relief === "lotus" ? 1.2 : 1.6} side={THREE.DoubleSide} />}</mesh>
+      {/* The whose-turn shell: the bowl's own shape, a little larger, glowing. */}
+      <mesh scale={1.15} raycast={noRaycast}>
+        <latheGeometry args={[profile, 48]} />
+        <meshBasicMaterial ref={shell} color={accent} transparent opacity={0} depthWrite={false} side={THREE.BackSide} blending={THREE.AdditiveBlending} toneMapped={false} />
+      </mesh>
       <mesh position={[0, 0.066, 0]} rotation-x={Math.PI / 2}>
         <torusGeometry args={[0.172, 0.007, 8, 64]} /><meshStandardMaterial ref={rim} color={active ? accent : look.bowl.rim} emissive={accent} roughness={0.3} metalness={0.4} />
       </mesh>
