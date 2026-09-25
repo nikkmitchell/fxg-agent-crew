@@ -45,14 +45,16 @@ describe("where the closed controls sit", () => {
   });
 
   /** Nikk (4739): "a meter below your head and a half a meter in front". */
-  it("hangs a metre below the head and half a metre in front, when the head is known", () => {
+  it("hangs just below the head and close in front, when the head is known", () => {
     for (const head of [1.2, 1.6, 1.85]) {
       const { position } = closedControlPose({ x: 0, y: head, z: 0 }, 0);
       expect(position[1]).toBeCloseTo(head - CLOSED_BELOW_HEAD, 10);
       expect(position[2]).toBeCloseTo(-CLOSED_AHEAD, 10);
     }
-    expect(CLOSED_BELOW_HEAD).toBe(1);
-    expect(CLOSED_AHEAD).toBe(0.5);
+    // Nikk, after trying a metre down: "WAY too low ... .25 of a meter below my
+    // head, and .3 meters in front of me" (meditation.AR 4752).
+    expect(CLOSED_BELOW_HEAD).toBe(0.25);
+    expect(CLOSED_AHEAD).toBe(0.3);
   });
 
   it("falls back to the old absolute height when there is no head to go by", () => {

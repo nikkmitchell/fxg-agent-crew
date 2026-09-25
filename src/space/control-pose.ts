@@ -22,7 +22,7 @@
  * need contact — and it keeps the pair away from the near clip plane, which is
  * where a panel starts to clip through itself as you lean.
  */
-export const CLOSED_AHEAD = 0.5;
+export const CLOSED_AHEAD = 0.3;
 
 /**
  * How far off the floor, absolute rather than relative to the head, so it stays
@@ -51,8 +51,11 @@ export const CLOSED_HEIGHT = 0.72;
  * wearer reached into their lap and a tall one stooped; a metre below the eyes
  * is the same reach for everybody. The follow is eased in RoomControls, so
  * leaning does not drag it, which is what the absolute height was guarding.
+ *
+ * RAISED to 0.25 and brought in to 0.3 ahead after the first try: a metre
+ * down was "WAY too low" (Nikk, meditation.AR 4752).
  */
-export const CLOSED_BELOW_HEAD = 1.0;
+export const CLOSED_BELOW_HEAD = 0.25;
 
 /** Where the eyes are, for working out the angle down to the panel. A standing
  * adult in this room measures 1.55-1.65; the middle of that is close enough for
