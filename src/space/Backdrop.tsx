@@ -73,6 +73,8 @@ export function WristButton({
   tone = "normal",
   /** How many lines a sentence may wrap to. */
   lines = 2,
+  /** A multiplier on how visible the button is (1 = as designed). */
+  opacity = 1,
   onTap,
 }: {
   label: string;
@@ -83,6 +85,7 @@ export function WristButton({
   glyph?: boolean;
   tone?: "normal" | "muted" | "live" | "danger";
   lines?: number;
+  opacity?: number;
   onTap: () => void;
 }) {
   /**
@@ -120,12 +123,12 @@ export function WristButton({
         }}
       >
         <shapeGeometry args={[shape, 6]} />
-        <meshBasicMaterial color={colour} transparent opacity={0.92} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={colour} transparent opacity={0.92 * opacity} side={THREE.DoubleSide} />
       </mesh>
       {texture ? (
         <mesh position={[0, 0, 0.001]} raycast={() => null}>
           <planeGeometry args={[width, height]} />
-          <meshBasicMaterial map={texture} transparent depthWrite={false} />
+          <meshBasicMaterial map={texture} transparent opacity={opacity} depthWrite={false} />
         </mesh>
       ) : null}
     </group>

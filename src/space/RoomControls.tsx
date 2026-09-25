@@ -5,6 +5,8 @@ import * as THREE from "three";
 import { bff } from "../bff-client";
 import { space } from "../space-client";
 import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
+import { handNear, IDLE_OPACITY, touchPresses, type TouchButton } from "./touch-press";
+import { goHandInput } from "./go-hand-input";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
 import { closedControlPose } from "./control-pose";
@@ -173,11 +175,13 @@ const FOLLOW = 0.1;
 /**
  * THE CLOSED CONTROLS ARE TOUCHED, NOT POINTED AT. Nikk (4739): "those should
  * be simple colliders so I can just reach out and touch ... they're always
- * getting in the way of me selecting things". Denying the laser means a ray
- * aimed at something past them no longer lands on them; a hand's touch and a
- * controller's grab still press them. The open menu keeps its ray.
+ * getting in the way of me selecting things". NO pointer reaches them: denying
+ * only the laser was not enough, because the hand's grab sphere touched them
+ * at chest height and switched the laser off. A press is a fingertip or a
+ * controller physically touching the button, measured in the frame loop (see
+ * touch-press.ts). The open menu keeps its ray.
  */
-const CLOSED_POINTERS: { deny: string[] } = { deny: ["ray"] };
+const CLOSED_POINTERS: { allow: string[] } = { allow: [] };
 /** Past this much turn it starts following. Below it, stay put. */
 const SLACK = 0.5;
 
@@ -846,6 +850,13 @@ export function RoomControls({
   /** Whether the closed pair has been put in place once; after that it eases. */
   const placed = useRef(false);
   const followTo = useMemo(() => new THREE.Vector3(), []);
+  /** The closed buttons' presses, current each render, for the touch check. */
+  const pressTalkRef = useRef<() => void>(() => {});
+  const openMenuRef = useRef<() => void>(() => {});
+  const cancelRef = useRef<(() => void) | null>(null);
+  const touching = useRef<Set<string>>(new Set());
+  const [handIsNear, setHandIsNear] = useState(false);
+  const buttonOpacity = handIsNear ? 1 : IDLE_OPACITY;
   useFrame(() => {
     const node = group.current;
     const body = anchor();
@@ -898,6 +909,32 @@ export function RoomControls({
      */
     node.rotation.order = "YXZ";
     node.rotation.set(rotation[0], rotation[1], rotation[2]);
+
+    /**
+     * TOUCH, measured. Where each closed button is in the room, against where
+     * each fingertip (a hand) or grip (a controller) is. See touch-press.ts.
+     */
+    if (open) return;
+    node.updateMatrixWorld();
+    const at = (x: number) => {
+      const p = node.localToWorld(new THREE.Vector3(x, 0, 0));
+      return { x: p.x, y: p.y, z: p.z };
+    };
+    const buttons: TouchButton[] = [
+      { id: "gear", at: at(GEAR_X), radius: ICON / 2 },
+      { id: "talk", at: at(TALK_X), radius: ICON / 2 },
+      ...(cancelRef.current ? [{ id: "cancel", at: at(CANCEL_X), radius: ICON / 2 }] : []),
+    ];
+    const contacts = [goHandInput.left?.contact ?? null, goHandInput.right?.contact ?? null];
+    const { pressed, inside } = touchPresses(buttons, contacts, touching.current);
+    touching.current = inside;
+    for (const id of pressed) {
+      if (id === "gear") openMenuRef.current();
+      else if (id === "talk") pressTalkRef.current();
+      else if (id === "cancel") cancelRef.current?.();
+    }
+    const near = handNear(buttons, contacts);
+    if (near !== handIsNear) setHandIsNear(near);
   });
 
   type Row = { label: string; tone?: "normal" | "muted" | "live"; onTap: () => void };
@@ -1458,6 +1495,80 @@ export function RoomControls({
     flash("Cancelled — nothing was sent.");
   };
 
+  /** The talk button's press, shared by a tap and a fingertip touch. */
+  const pressTalk = () => {
+              /**
+               * WITHOUT WEB SPEECH, THE BUTTON STILL SPEAKS. It records, and
+               * the server writes it down — which is what Nikk asked for: the
+               * Aura's press-to-talk, on a Quest. Press, speak, press again.
+               *
+               * It used to open the keyboard here. The keyboard is still on the
+               * settings menu, and its own microphone is still the best voice
+               * on the device — but it is not reachable while focusing a text
+               * field throws people out of the room, and speaking should not
+               * wait on that being solved.
+               */
+              if (!capabilities.recognition) {
+                if (saying === "writing") return;
+                if (saying === "recording") void finishSaying();
+                else if (written.trim() && !keyboardFocused) void sendWritten();
+                // THE SECOND PRESS MEANS IT. `micRisky` is set by the first
+                // press, which only warns; passing it back is what makes
+                // "press again to go ahead" true. Without this the notice
+                // promised something the button could not do, and clem pressed
+                // it five times in a row on their first day in the room.
+                else if (canSpeak) void startSaying(micRisky);
+                else openTextEntry();
+                return;
+              }
+              // THE DECISION LIVES IN `mic-press.ts`, not here. It is the part
+              // that was wrong, and a handler in a component this suite cannot
+              // render is a handler nobody can check.
+              switch (micPress({
+                available: capabilities.recognition,
+                listening,
+                sending,
+                heard,
+                alwaysOn,
+              })) {
+                case "refuse":
+                  setNotice("There is no microphone available to this browser.");
+                  return;
+                case "start":
+                  setNotice(null);
+                  input.current?.start();
+                  return;
+                case "stop":
+                case "stopAndSend":
+                  /**
+                   * WAIT FOR THE LAST WORDS, then send. This used to call
+                   * stop() and post straight away, before the final result of
+                   * the phrase in progress had arrived — so the end of a
+                   * message could be missing. `finish()` resolves only once
+                   * the recogniser has really ended.
+                   */
+                  void (async () => {
+                    const result = await input.current?.finish();
+                    const text = result?.text.trim() ?? "";
+                    if (!text) {
+                      flash("Nothing was heard, so nothing was sent.");
+                      return;
+                    }
+                    if (result?.confidence !== undefined) confidence.current = result.confidence;
+                    void post(text);
+                  })();
+                  return;
+                case "send":
+                  void post(heard);
+                  return;
+                case "ignore":
+                  return;
+              }
+};
+  pressTalkRef.current = pressTalk;
+  openMenuRef.current = openMenu;
+  cancelRef.current = cancellable ? cancel : null;
+
   return (
     <>
       <group ref={group} visible={false}>
@@ -1538,6 +1649,7 @@ export function RoomControls({
             width={ICON}
             height={ICON}
             tone={listening ? "muted" : "normal"}
+            opacity={buttonOpacity}
             onTap={openMenu}
           />
           {/*
@@ -1585,82 +1697,15 @@ export function RoomControls({
             width={ICON}
             height={ICON}
             tone={listening || saying === "recording" ? "live" : "normal"}
-            onTap={() => {
-              /**
-               * WITHOUT WEB SPEECH, THE BUTTON STILL SPEAKS. It records, and
-               * the server writes it down — which is what Nikk asked for: the
-               * Aura's press-to-talk, on a Quest. Press, speak, press again.
-               *
-               * It used to open the keyboard here. The keyboard is still on the
-               * settings menu, and its own microphone is still the best voice
-               * on the device — but it is not reachable while focusing a text
-               * field throws people out of the room, and speaking should not
-               * wait on that being solved.
-               */
-              if (!capabilities.recognition) {
-                if (saying === "writing") return;
-                if (saying === "recording") void finishSaying();
-                else if (written.trim() && !keyboardFocused) void sendWritten();
-                // THE SECOND PRESS MEANS IT. `micRisky` is set by the first
-                // press, which only warns; passing it back is what makes
-                // "press again to go ahead" true. Without this the notice
-                // promised something the button could not do, and clem pressed
-                // it five times in a row on their first day in the room.
-                else if (canSpeak) void startSaying(micRisky);
-                else openTextEntry();
-                return;
-              }
-              // THE DECISION LIVES IN `mic-press.ts`, not here. It is the part
-              // that was wrong, and a handler in a component this suite cannot
-              // render is a handler nobody can check.
-              switch (micPress({
-                available: capabilities.recognition,
-                listening,
-                sending,
-                heard,
-                alwaysOn,
-              })) {
-                case "refuse":
-                  setNotice("There is no microphone available to this browser.");
-                  return;
-                case "start":
-                  setNotice(null);
-                  input.current?.start();
-                  return;
-                case "stop":
-                case "stopAndSend":
-                  /**
-                   * WAIT FOR THE LAST WORDS, then send. This used to call
-                   * stop() and post straight away, before the final result of
-                   * the phrase in progress had arrived — so the end of a
-                   * message could be missing. `finish()` resolves only once
-                   * the recogniser has really ended.
-                   */
-                  void (async () => {
-                    const result = await input.current?.finish();
-                    const text = result?.text.trim() ?? "";
-                    if (!text) {
-                      flash("Nothing was heard, so nothing was sent.");
-                      return;
-                    }
-                    if (result?.confidence !== undefined) confidence.current = result.confidence;
-                    void post(text);
-                  })();
-                  return;
-                case "send":
-                  void post(heard);
-                  return;
-                case "ignore":
-                  return;
-              }
-            }}
+            opacity={buttonOpacity}
+            onTap={pressTalk}
           />
           {/* CANCEL, to the right of talk, only while there is something to
               throw away. Nikk: "add a button to cancel recording so if you've
               begun recording but you want to cancel what you've just recorded,
               have a button that appears to the right of the record button". */}
           {cancellable ? (
-            <WristButton label="✕" glyph x={CANCEL_X} y={0} width={ICON} height={ICON} tone="danger" onTap={cancel} />
+            <WristButton label="✕" glyph x={CANCEL_X} y={0} width={ICON} height={ICON} tone="danger" opacity={buttonOpacity} onTap={cancel} />
           ) : null}
         </group>
       )}
