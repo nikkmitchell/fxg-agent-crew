@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, addAt, addControlOf, columnPlateOf, CARD_SHAPE, type BoardCard } from "./board-3d.js";
+import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, addAt, addControlOf, columnPlateOf, scrollerAt, CARD_SHAPE, type BoardCard } from "./board-3d.js";
 import { canTransition } from "./board-rules.js";
 
 /**
@@ -79,6 +79,24 @@ describe("scrolling a column that holds more than fits", () => {
     const arrows = layout.scrollers.filter((s) => s.status === "review");
     expect(arrows.map((s) => s.direction)).toEqual(["down"]);
     expect(ids(layout)[0]).toBe("t0");
+
+    const down = arrows[0];
+    const column = layout.columns.find((one) => one.status === "review")!;
+    const headerBottom = layout.height / 2 - BOARD.padding - BOARD.titleHeight - BOARD.headerHeight;
+    const headerTop = layout.height / 2 - BOARD.padding - BOARD.titleHeight;
+    expect(down.width).toBeLessThan(column.width * 0.35);
+    expect(down.height).toBeLessThan(BOARD.cardHeight * 0.35);
+    expect(down.y - down.height / 2).toBeGreaterThanOrEqual(headerBottom);
+    expect(down.y + down.height / 2).toBeLessThanOrEqual(headerTop);
+
+    // The compact control lives in the heading band, so overflow no longer
+    // takes a task-sized row away from the column.
+    const cardWidth = column.width;
+    const cardHeight = cardWidth * CARD_SHAPE;
+    const cardsTop = layout.height / 2 - BOARD.padding - BOARD.titleHeight - BOARD.headerHeight;
+    const cardsBottom = -layout.height / 2 + BOARD.padding;
+    const visibleCapacity = Math.max(0, Math.floor((cardsTop - cardsBottom - cardHeight) / (cardHeight + BOARD.cardGap)));
+    expect(ids(layout)).toHaveLength(visibleCapacity);
   });
 
   it("reaches EVERY card by pressing down, and back to the top by pressing up", () => {
@@ -113,14 +131,28 @@ describe("scrolling a column that holds more than fits", () => {
   });
 
   it("never overlaps a card, and is found under the pointer", () => {
-    const layout = layOutBoard(many, undefined, { review: 10 });
-    for (const arrow of layout.scrollers) {
-      for (const place of layout.cards) {
-        const apart = Math.abs(arrow.x - place.x) >= (arrow.width + place.width) / 2 - 1e-9 ||
-          Math.abs(arrow.y - place.y) >= (arrow.height + place.height) / 2 - 1e-9;
-        expect(apart).toBe(true);
+    for (const [width, height] of [[1.6, 1.0], [2.4, 1.5], [4.0, 2.5], [6.0, 3.2]] as const) {
+      const size = { ...BOARD, width, height };
+      const layout = layOutBoard(many, size, { review: 10 });
+      for (const arrow of layout.scrollers) {
+        const column = layout.columns.find((one) => one.status === arrow.status)!;
+        for (const place of layout.cards) {
+          const apart = Math.abs(arrow.x - place.x) >= (arrow.width + place.width) / 2 - 1e-9 ||
+            Math.abs(arrow.y - place.y) >= (arrow.height + place.height) / 2 - 1e-9;
+          expect(apart).toBe(true);
+        }
+        expect(arrow.width).toBeLessThan(column.width * 0.35);
+        const headerBottom = layout.height / 2 - size.padding - size.titleHeight - size.headerHeight;
+        const headerTop = layout.height / 2 - size.padding - size.titleHeight;
+        expect(arrow.y - arrow.height / 2).toBeGreaterThanOrEqual(headerBottom);
+        expect(arrow.y + arrow.height / 2).toBeLessThanOrEqual(headerTop);
+        expect(Math.abs(arrow.x) + arrow.width / 2).toBeLessThanOrEqual(layout.width / 2 + 1e-9);
+        expect(Math.abs(arrow.y) + arrow.height / 2).toBeLessThanOrEqual(layout.height / 2 + 1e-9);
+        expect(scrollerAt(layout, {
+          x: arrow.x / layout.width + 0.5,
+          y: arrow.y / layout.height + 0.5,
+        })).toMatchObject({ status: arrow.status, direction: arrow.direction });
       }
-      expect(Math.abs(arrow.y) + arrow.height / 2).toBeLessThanOrEqual(layout.height / 2 + 1e-9);
     }
   });
 

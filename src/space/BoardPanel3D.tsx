@@ -480,7 +480,7 @@ export function BoardPanel3D({
       ))}
 
       {layout.scrollers.map((strip) => (
-        <ScrollStrip key={`${strip.status}-${strip.direction}`} strip={strip} />
+        <ScrollButton key={`${strip.status}-${strip.direction}`} strip={strip} />
       ))}
 
       {layout.cards.map((place) => (
@@ -531,27 +531,24 @@ function ColumnHeading({
   );
 }
 
-/**
- * "▲ 4 more" / "▼ 9 more": the way to the cards a column cannot show at once.
- * Drawn here, pressed through the panel's own handler, like AddControl.
- */
-function ScrollStrip({ strip }: { strip: BoardScroller }) {
+/** Compact header controls for paging through a long column. */
+function ScrollButton({ strip }: { strip: BoardScroller }) {
   return (
     <group position={[strip.x, strip.y, 0.006]}>
       <mesh>
-        <planeGeometry args={[strip.width - 0.01, strip.height - 0.01]} />
-        <meshBasicMaterial color={CARD_INK.accent} transparent opacity={0.22} toneMapped={false} />
+        <planeGeometry args={[strip.width, strip.height]} />
+        <meshBasicMaterial color={CARD_INK.accent} transparent opacity={0.12} toneMapped={false} />
       </mesh>
       <Text
         position={[0, 0, 0.002]}
-        fontSize={strip.height * 0.24}
+        fontSize={Math.min(strip.height * 0.5, strip.width * 0.17)}
         color={CARD_INK.ink}
         anchorX="center"
         anchorY="middle"
-        maxWidth={strip.width * 0.86}
+        maxWidth={strip.width * 0.9}
         textAlign="center"
       >
-        {`${strip.direction === "up" ? "▲" : "▼"}  ${strip.count} more`}
+        {`${strip.direction === "up" ? "▲" : "▼"} ${strip.count}`}
       </Text>
     </group>
   );

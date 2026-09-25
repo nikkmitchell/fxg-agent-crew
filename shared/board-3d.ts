@@ -59,11 +59,7 @@ export type BoardLayout = {
   cards: CardPlace[];
   /** Columns that hold more than fits; the surplus is not drawn. */
   overflow: { status: Status; hidden: number }[];
-  /**
-   * The "▲ N more" / "▼ N more" strips of a column that holds more than fits,
-   * each the size of a card and in a card's slot, so they are as easy to hit as
-   * a card. See `layOutBoard`'s `scroll`.
-   */
+  /** Compact up/down controls in the column heading for a column with overflow. */
   scrollers: BoardScroller[];
 };
 
@@ -218,30 +214,33 @@ export function layOutBoard(
     }
 
     /**
-     * MORE THAN FITS: IT SCROLLS. The first slot says how many are above and
-     * the last how many are below, each a strip the size of a card, pressed to
-     * move a page. A column never shows only arrows: at least one card is drawn.
+     * MORE THAN FITS: IT SCROLLS. Compact controls live in the header, not in
+     * the card stack, so overflowing columns keep every available card slot.
      */
-    const page = (up: boolean, down: boolean) => Math.max(1, perColumn - (up ? 1 : 0) - (down ? 1 : 0));
+    const pageSize = Math.max(1, perColumn);
     const want = Math.max(0, Math.floor(scroll[column.status] ?? 0));
     // The furthest offset that still fills the last page.
-    const last = Math.max(0, mine.length - page(true, false));
+    const last = Math.max(0, mine.length - pageSize);
     const offset = Math.min(want, last);
     const up = offset > 0;
-    // More below only if the rest will not fit WITHOUT a down strip: the last
-    // page needs no arrow, and judging it with one left a strip that went nowhere.
-    const down = offset + page(up, false) < mine.length;
-    const shown = page(up, down);
-    const firstRow = up ? 1 : 0;
-    mine.slice(offset, offset + shown).forEach((card, i) => place(card, firstRow + i));
+    const shown = Math.min(pageSize, mine.length - offset);
+    const down = offset + shown < mine.length;
+    // Share the heading band with the existing status/count label. The pair
+    // stays small and out of the task slots, even for dense columns.
+    const scrollWidth = Math.min(columnWidth * 0.28, 0.11);
+    const scrollHeight = Math.min(size.headerHeight * 0.38, 0.052);
+    const scrollX = x + columnWidth / 2 - Math.min(columnWidth * 0.03, 0.01) - scrollWidth / 2;
+    const headerY = top + size.headerHeight / 2;
+    const scrollOffsetY = (scrollHeight + 0.008) / 2;
+    mine.slice(offset, offset + shown).forEach((card, i) => place(card, i));
     if (up) {
-      scrollers.push({ status: column.status, direction: "up", count: offset, to: Math.max(0, offset - page(offset - shown > 0, true)),
-        x, y: slotY(0), width: columnWidth, height: cardHeight });
+      scrollers.push({ status: column.status, direction: "up", count: offset, to: Math.max(0, offset - pageSize),
+        x: scrollX, y: headerY + scrollOffsetY, width: scrollWidth, height: scrollHeight });
     }
     if (down) {
       const below = mine.length - (offset + shown);
-      scrollers.push({ status: column.status, direction: "down", count: below, to: Math.min(last, offset + shown),
-        x, y: slotY(firstRow + shown), width: columnWidth, height: cardHeight });
+      scrollers.push({ status: column.status, direction: "down", count: below, to: Math.min(last, offset + pageSize),
+        x: scrollX, y: headerY - scrollOffsetY, width: scrollWidth, height: scrollHeight });
     }
 
     // SAID, NOT SWALLOWED. A column that silently stops drawing at the tenth
@@ -252,7 +251,7 @@ export function layOutBoard(
   return { width: size.width, height: size.height, columns, cards: places, overflow, scrollers };
 }
 
-/** The scroll strip under a point, or null. Exact, like a card. */
+/** The compact scroll control under a point, or null. Exact, like a card. */
 export function scrollerAt(layout: BoardLayout, uv: { x: number; y: number }): BoardScroller | null {
   const point = pointFromUv(layout, uv);
   return (
