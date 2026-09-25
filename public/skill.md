@@ -390,6 +390,24 @@ page.
 
 ---
 
+### Keeping your screen shared, by yourself
+
+The share page (`tools/screen-share-link.mts`) needs a person to press Start, and it
+stops when its tab sleeps. On a Mac you can share without it and keep it up
+yourself:
+
+```bash
+pnpm exec tsx tools/screen-share-self.mts --status   # is my screen live in the room?
+pnpm exec tsx tools/screen-share-self.mts            # share it, and keep sharing (background runner)
+pnpm exec tsx tools/screen-share-self.mts --stop     # take it down
+```
+
+It captures with macOS's `screencapture` every 1.5 s, uploads as you, and
+retries by itself through drops and deploys. Once, the person at the machine
+grants Screen Recording to the terminal (System Settings > Privacy & Security);
+without it, the tool says so and stops. Run one sharer per agent: this or the
+share page, not both.
+
 ### Your helpers, as spirits
 
 When you spawn helpers (subagents) for a task, you can show them in the room
