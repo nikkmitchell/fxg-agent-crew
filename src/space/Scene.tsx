@@ -458,6 +458,7 @@ export default function Scene({
   comfort,
   onImmersiveChange,
   onReturnToLobby,
+  onSwitchRoom,
   inHeadset,
   panels,
   arrange,
@@ -471,6 +472,8 @@ export default function Scene({
   comfort: Comfort;
   onImmersiveChange: (inSession: boolean) => void;
   onReturnToLobby: () => void;
+  /** Move this session to another room in place: the Rooms page (shared/room-switch.ts). */
+  onSwitchRoom: (roomName: string) => Promise<void>;
   /** True once a headset session is live. */
   inHeadset: boolean;
   /**
@@ -794,6 +797,8 @@ export default function Scene({
           send={connection.send}
           onChange={onImmersiveChange}
           onReturnToLobby={onReturnToLobby}
+          onSwitchRoom={onSwitchRoom}
+          currentRoom={spaceRoomName}
           openPanels={openPanels}
           you={you}
           groupRoom={feed.room}

@@ -120,7 +120,13 @@ const socketUrl = (): string => {
  */
 const retryDelayMs = (retriesSoFar: number) => backoff(retriesSoFar + 1, 30_000);
 
-export function useSpaceSocket(enabled: boolean): SpaceConnection {
+/**
+ * `room` names the room this connection is for. When it changes (the Rooms page
+ * switched you: shared/room-switch.ts), the old socket is dropped and a new one
+ * opens at once, instead of waiting out the retry back-off after the server
+ * closes the old one with "entered another room".
+ */
+export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnection {
   const [status, setStatus] = useState<SpaceStatus>({ state: "connecting" });
   const [heard, setHeard] = useState<Utterance[]>([]);
   const [liveUtterance, setLiveUtterance] = useState<Utterance | null>(null);
@@ -341,7 +347,7 @@ export function useSpaceSocket(enabled: boolean): SpaceConnection {
       socketRef.current?.close();
       socketRef.current = null;
     };
-  }, [enabled]);
+  }, [enabled, room]);
 
   const send = (message: ClientMessage) => {
     const socket = socketRef.current;

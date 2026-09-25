@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { Identity } from "../Identity";
 import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
@@ -154,7 +154,17 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
   const [reducedOverride, setReducedOverride] = useState<boolean | null>(null);
   const reducedMotion = reducedOverride ?? systemPrefersReduced;
   const preferences = useRoomPreferences();
-  const connection = useSpaceSocket(entered);
+  const connection = useSpaceSocket(entered, spaceRoomRevision);
+  /**
+   * Switch rooms WITHOUT LEAVING THE ROOM PAGE, or the headset (Nikk, 4735).
+   * The server moves this session to the other room (and closes its old
+   * socket); bumping the revision re-reads which room this is, which also
+   * points the chat at it, and reopens the socket in the new room.
+   */
+  const switchRoom = useCallback(async (roomName: string) => {
+    await bff.enterSpaceRoom(roomName);
+    setSpaceRoomRevision((revision) => revision + 1);
+  }, []);
   const stillNow = useHiddenAsStill(
     connection.peopleRef,
     connection.status.state === "open" ? connection.status.you : null,
@@ -301,6 +311,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
             comfort={comfort}
             onImmersiveChange={setInHeadset}
             onReturnToLobby={onReturnToLobby}
+            onSwitchRoom={switchRoom}
             inHeadset={inHeadset}
             panels={panels}
             arrange={arrange}

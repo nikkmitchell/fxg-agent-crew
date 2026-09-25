@@ -133,6 +133,8 @@ export function ImmersivePlayer({
   blendMode,
   onTogglePassthrough,
   onReturnToLobby,
+  onSwitchRoom,
+  currentRoom,
   openPanels,
   you,
   groupRoom,
@@ -155,6 +157,8 @@ export function ImmersivePlayer({
   blendMode: string | null;
   onTogglePassthrough: () => void;
   onReturnToLobby: () => void;
+  onSwitchRoom: (roomName: string) => Promise<void>;
+  currentRoom: string | null;
   openPanels: string[];
   /** Who the room says you are, for the line the group chat sees. */
   you: string | null;
@@ -855,6 +859,8 @@ export function ImmersivePlayer({
       <RoomControls
         onResetStanding={resetStanding}
         onReturnToLobby={onReturnToLobby}
+        onSwitchRoom={onSwitchRoom}
+        currentRoom={currentRoom}
         onNote={tell}
         anchor={bodyAnchor}
         you={you}
@@ -933,6 +939,8 @@ export function Immersive({
   send,
   onChange,
   onReturnToLobby,
+  onSwitchRoom,
+  currentRoom,
   openPanels,
   you,
   groupRoom,
@@ -951,6 +959,8 @@ export function Immersive({
   send: (message: ClientMessage) => void;
   onChange: (inSession: boolean) => void;
   onReturnToLobby: () => void;
+  onSwitchRoom: (roomName: string) => Promise<void>;
+  currentRoom: string | null;
   openPanels: string[];
   you: string | null;
   groupRoom: string | null;
@@ -1016,6 +1026,8 @@ export function Immersive({
       blendMode={blend}
       onTogglePassthrough={togglePassthrough}
       onReturnToLobby={onReturnToLobby}
+      onSwitchRoom={onSwitchRoom}
+      currentRoom={currentRoom}
       openPanels={openPanels}
       you={you}
       groupRoom={groupRoom}

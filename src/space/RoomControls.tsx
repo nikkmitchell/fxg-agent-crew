@@ -25,6 +25,8 @@ import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
 import type { Showing } from "../../shared/space-wire";
 import type { RoomShowingChoices } from "./useRoomShowing";
+import { roomMenuRows } from "../../shared/room-switch";
+import type { RoomSummary } from "../../shared/contracts";
 import { CHAT_MESSAGE_LIMIT, DETAIL_LIMIT, type Utterance } from "../../shared/voice";
 import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
@@ -208,6 +210,8 @@ export function RoomControls({
   positionOf,
   onResetStanding,
   onReturnToLobby,
+  onSwitchRoom,
+  currentRoom,
   onNote,
 }: {
   anchor: () => { at: { x: number; y?: number; z: number }; yaw: number } | null;
@@ -248,6 +252,10 @@ export function RoomControls({
   onResetStanding: () => void;
   /** End immersive mode, then return to the room directory. */
   onReturnToLobby: () => void;
+  /** Move to another room without leaving the headset (the Rooms page). */
+  onSwitchRoom: (roomName: string) => Promise<void>;
+  /** The room this session is in, for marking it on the Rooms page. */
+  currentRoom: string | null;
   /**
    * Put one short line in the server log about something only the headset can
    * see. See the `note` frame in shared/space-wire.ts.
@@ -278,7 +286,25 @@ export function RoomControls({
    * one decision, and a decision that changes what everybody in the room is
    * looking at deserves its own screen rather than a row among twenty.
    */
-  const [view, setView] = useState<"root" | "work" | "mood" | "panels" | "agents" | "items">("root");
+  const [view, setView] = useState<"root" | "work" | "mood" | "panels" | "agents" | "items" | "rooms">("root");
+  /**
+   * The Rooms page's lists, read each time it opens: which rooms you belong to
+   * and which public ones you could join. Null while loading. Read fresh
+   * rather than kept, because joining somewhere on another device should show
+   * the next time you look.
+   */
+  const [myRooms, setMyRooms] = useState<RoomSummary[] | null>(null);
+  const [openRooms, setOpenRooms] = useState<RoomSummary[] | null>(null);
+  const [switching, setSwitching] = useState<string | null>(null);
+  useEffect(() => {
+    if (view !== "rooms") return;
+    const controller = new AbortController();
+    setMyRooms(null);
+    setOpenRooms(null);
+    bff.rooms(controller.signal).then((rooms) => setMyRooms(rooms)).catch(() => { if (!controller.signal.aborted) setMyRooms([]); });
+    bff.publicRooms(controller.signal).then((rooms) => setOpenRooms(rooms)).catch(() => { if (!controller.signal.aborted) setOpenRooms([]); });
+    return () => controller.abort();
+  }, [view]);
   /**
    * Whether your own hands are drawn.
    *
@@ -997,6 +1023,31 @@ export function RoomControls({
       onTap: () => {},
     });
     boxes.push({ title: "Room items — for everyone", rows });
+  } else if (open && view === "rooms") {
+    /**
+     * ROOMS, from inside the room (Nikk, 4735): every room you belong to, the
+     * one you are in marked, one tap to go to another, and the public rooms you
+     * could join. Going there keeps the headset on: SpacePanel's switchRoom
+     * moves this session and reopens the room in place. What the rows are is
+     * decided in shared/room-switch.ts, where it is tested.
+     */
+    const go = (room: string, join: boolean) => () => {
+      if (switching) return;
+      setSwitching(room);
+      flash(join ? `Joining ${room}…` : `Going to ${room}…`);
+      (join ? bff.joinRoom(room).then(() => onSwitchRoom(room)) : onSwitchRoom(room))
+        .then(() => { flash(`You are in ${room}`); setView("root"); })
+        .catch((error: unknown) => setNotice(error instanceof Error ? error.message : `Could not go to ${room}.`))
+        .finally(() => setSwitching(null));
+    };
+    const rows: Row[] = [{ label: "← Back", onTap: () => setView("root") }];
+    for (const row of roomMenuRows(myRooms, openRooms, currentRoom)) {
+      if (row.kind === "heading" || row.kind === "note") rows.push({ label: row.label, tone: "muted", onTap: () => {} });
+      else if (row.kind === "here") rows.push({ label: row.label, tone: "live", onTap: () => {} });
+      else rows.push({ label: switching === row.room ? `${row.label} …` : row.label, onTap: go(row.room, row.kind === "join") });
+    }
+    rows.push({ label: "Lobby: make a room, or join one by its name", tone: "muted", onTap: returnToLobby });
+    boxes.push({ title: "Rooms", rows });
   } else if (open && view === "agents") {
     /**
      * WHERE AGENTS LIVE, set from where you stand.
@@ -1193,7 +1244,8 @@ export function RoomControls({
     boxes.push({
       title: "Room",
       rows: [
-        { label: "Back to lobby · switch rooms", tone: "live", onTap: returnToLobby },
+        { label: `Rooms…${currentRoom ? ` (in ${currentRoom})` : ""}`, tone: "live", onTap: () => setView("rooms") },
+        { label: "Back to lobby", onTap: returnToLobby },
         { label: "Room items…", onTap: () => setView("items") },
         { label: "Panels…", onTap: () => setView("panels") },
         { label: "Place agents…", onTap: () => setView("agents") },
