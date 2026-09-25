@@ -16,6 +16,7 @@ import { briefBudget, describeBudget } from "../shared/message-budget";
 import { ApiError } from "./api-request";
 import { bff } from "./bff-client";
 import { DONE_LIMIT, boardIsLively, foldDone, glowAt, shownStatus } from "../shared/board-freshness";
+import { taskAgeStamp } from "./task-age";
 
 
 type ProjectState = {
@@ -26,6 +27,21 @@ type ProjectState = {
   profiles?: ActorProfile[];
 };
 type Me = { username: string; kind?: "human" | "agent" };
+
+function TaskAgeStamp({ createdAt, nowMs, compact = false }: { createdAt?: string; nowMs: number; compact?: boolean }) {
+  const age = taskAgeStamp(createdAt, nowMs);
+  if (!createdAt || !age) return null;
+  return (
+    <time
+      className={compact ? "done-line-age" : "task-age"}
+      dateTime={createdAt}
+      title={`Created ${age.absolute}`}
+      aria-label={`Created ${age.relative} (${age.absolute})`}
+    >
+      {compact ? age.relative : `Created ${age.relative}`}
+    </time>
+  );
+}
 
 
 /**
@@ -530,6 +546,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                     <p className="card-meta">
                       <span className={`kind-chip kind-chip--${kindLabel(task.kind)}`}>{kindLabel(task.kind)}</span>
                       {task.comments?.length ? <span className="card-count">{task.comments.length} 💬</span> : null}
+                      <TaskAgeStamp createdAt={task.createdAt} nowMs={nowMs} />
                     </p>
 
                     <p className="card-owner">
@@ -939,6 +956,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                         >
                           <span aria-hidden="true">✓</span>
                           <span className="done-line-title">{task.title}</span>
+                          <TaskAgeStamp createdAt={task.createdAt} nowMs={nowMs} compact />
                           {task.owners?.length ? <span className="done-line-owner">{task.owners.join(", ")}</span> : null}
                         </button>
                       ) : (

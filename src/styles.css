@@ -500,6 +500,7 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 }
 .done-line:hover { color: var(--ink); background: var(--surface); }
 .done-line-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.done-line-age { flex: none; color: var(--muted); font-size: 11px; }
 .done-line-owner { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .done-older-toggle { align-self: flex-start; padding: 6px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .done-older-toggle:hover { color: var(--ink); }
@@ -508,6 +509,7 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .card-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 6px; }
 .card-meta .kind-chip { margin-left: 0; }
 .card-count { color: var(--muted); font-size: 12px; }
+.task-age { color: var(--muted); font-size: 11px; }
 .card-owner { margin: 0; color: var(--muted); font-size: 12px; }
 .task-card .task-detail { margin-top: 8px; }
 .task-card .task-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }

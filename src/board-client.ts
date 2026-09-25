@@ -87,6 +87,7 @@ export function toCrewTask(row: Record<string, any>) {
     title: row.title,
     status: row.status,
     points: row.points ?? 1,
+    ...(row.created_at ? { createdAt: row.created_at } : {}),
     // Absent stays absent. A `?? "build"` here would invent the answer the
     // schema deliberately refuses to invent.
     ...(row.kind ? { kind: row.kind } : {}),

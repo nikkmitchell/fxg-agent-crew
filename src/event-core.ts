@@ -25,6 +25,8 @@ export type CrewTask = {
   status: TaskStatus;
   assigneeId?: string;
   points: number;
+  /** Persistent creation time, supplied by the board API when available. */
+  createdAt?: string;
   /**
    * What this card actually means, in prose.
    *
