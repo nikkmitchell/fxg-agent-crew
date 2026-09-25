@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { defaultGoItem, type GoRoomItem } from "../../shared/room-items";
-import { canPass, lastPassLine, noMoveLine, passLabel, resultRows, scoreLine, turnLine, winners } from "./go-status";
+import { canPass, clockLine, lastPassLine, noMoveLine, passLabel, resultRows, scoreLine, turnLine, winners } from "./go-status";
 
 const table = (over: Partial<GoRoomItem> = {}): GoRoomItem => ({ ...defaultGoItem("t"), size: 5, ...over });
+const T = 1_000_000;
 
 describe("the line in front of the board", () => {
   it("says whose turn it is", () => {
@@ -90,5 +91,22 @@ describe("passing, made obvious", () => {
   it("says on the table that one more pass ends it", () => {
     expect(lastPassLine(table({ passes: 1, activeColour: 1 }))).toBe("BLACK passed: one more pass ends the game");
     expect(lastPassLine(table())).toBeNull();
+  });
+});
+
+/** Nikk (4826): a timer, shown on the table. */
+describe("the clock line", () => {
+  const clock = { perMove: 10, bank: [60, 60], turnStartedAt: T };
+  it("says nothing on an untimed table", () => {
+    expect(clockLine(table(), T)).toBeNull();
+  });
+  it("counts the free seconds, then the bank", () => {
+    expect(clockLine(table({ clock }), T + 4_000)).toBe("⏱ 0:06 this move · extra 1:00");
+    expect(clockLine(table({ clock }), T + 25_000)).toBe("⏱ extra time 0:45");
+  });
+  it("says who ran out, and a lost-on-time game names the loser and the winner", () => {
+    expect(clockLine(table({ clock: { ...clock, bank: [0, 60] } }), T + 11_000)).toBe("BLACK IS OUT OF TIME");
+    expect(winners(table({ ended: true, timedOut: 0 }))).toEqual([1]);
+    expect(resultRows(table({ ended: true, timedOut: 0 }))?.verdict).toBe("BLACK OUT OF TIME · WHITE WINS");
   });
 });

@@ -7,6 +7,7 @@ import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { SessionStore } from "../session.js";
 import { roomKey } from "../../shared/space-room.js";
 import { placeGoStone } from "../../shared/go-rules.js";
+import { CLOCK_PRESETS, clockNow, presetOf, settleTurn, startClock } from "../../shared/go-clock.js";
 import { goTableEntityId } from "./destinations.js";
 import { heldBySentence, type Holds } from "./holds.js";
 
@@ -82,7 +83,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     options.items.remove(room, item.id);
     return reply.send({ items: publish(room, session.username) });
   });
-  app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; players?: unknown; reset?: unknown; position?: unknown; scale?: unknown; revision?: unknown; deskVisible?: unknown; surface?: unknown; territoryShown?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
+  app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; players?: unknown; reset?: unknown; position?: unknown; scale?: unknown; revision?: unknown; deskVisible?: unknown; surface?: unknown; territoryShown?: unknown; clock?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
     const change = request.body;
@@ -95,6 +96,15 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       // Only what is drawn: allowed mid-game, with a stone in the air, after the end.
       if (typeof change.territoryShown !== "boolean") return reply.code(400).send({ error: "Showing territory must be true or false." });
       item.territoryShown = change.territoryShown;
+    }
+    if (change?.clock !== undefined) {
+      /**
+       * THE TIMER (Nikk 4826): a preset number, 0 for none. Starting one fills
+       * every bank and starts the current turn now; choosing none removes it.
+       */
+      if (!Number.isInteger(change.clock) || (change.clock as number) < 0 || (change.clock as number) >= CLOCK_PRESETS.length)
+        return reply.code(400).send({ error: `clock must be a preset from 0 (off) to ${CLOCK_PRESETS.length - 1}` });
+      item.clock = startClock(change.clock as number, item.colours.length, Date.now());
     }
     if (change?.surface !== undefined) {
       // Only how the board looks — allowed mid-game and with a stone in the air.
@@ -123,7 +133,8 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (request.body?.size !== undefined) {
       if (!isGoSize(request.body.size)) return reply.code(400).send({ error: "size must be 5, 9, 13, 19, or 25" });
       if (item.size !== request.body.size) {
-        item.size = request.body.size; item.stones = []; item.captures = []; item.ko = null;
+        item.size = request.body.size; item.stones = []; item.captures = []; item.ko = null; item.timedOut = null;
+        item.clock = item.clock ? startClock(presetOf(item.clock), item.colours.length, Date.now()) : null;
         item.liftedColour = null; item.carrier = null; item.activeColour = 0;
         item.passes = 0; item.ended = false;
       }
@@ -149,6 +160,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       const wanted = players as number;
       if (item.liftedColour !== null) return reply.code(409).send({ error: "Place or return the flying stone before changing the players." });
       item.colours = GO_COLOURS.slice(0, wanted).map((colour) => colour);
+      item.clock = item.clock ? startClock(presetOf(item.clock), wanted, Date.now()) : null;
       item.stones = item.stones.filter((stone) => stone.colour < wanted);
       // A capture is a STONE that was taken, carrying both whose it was and
       // who took it. Both have to still be at the table for it to mean
@@ -162,7 +174,8 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     }
     /** Take the stones off and give the turn back to the first player. */
     if (request.body?.reset === true) {
-      item.stones = []; item.captures = []; item.ko = null;
+      item.stones = []; item.captures = []; item.ko = null; item.timedOut = null;
+        item.clock = item.clock ? startClock(presetOf(item.clock), item.colours.length, Date.now()) : null;
       item.liftedColour = null; item.carrier = null; item.activeColour = 0;
       item.passes = 0; item.ended = false;
     }
@@ -182,7 +195,22 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
      * the board is cleared; the count stays on the table for everybody to read.
      * `return` is still allowed, so a stone somebody was holding can go home.
      */
-    const over = "The game is over: everybody passed. Clear the stones in the table's settings to start a new one.";
+    /**
+     * OUT OF TIME. The clock does not tick on the server; it is settled here,
+     * when anybody touches the table. A player past their free seconds with an
+     * empty bank has lost on time, and the game ends before anything else.
+     * `clock` is an action that does only this, sent by a table that has seen
+     * the time run out.
+     */
+    const mover = item.activeColour;
+    if (item.clock && !item.ended && clockNow(item.clock, mover, Date.now()).flagged) {
+      item.ended = true; item.timedOut = mover; item.liftedColour = null; item.carrier = null;
+      item.revision++;
+      options.items.save(room, item, session.username); publish(room, session.username);
+      return reply.code(409).send({ code: "OUT_OF_TIME", error: "Out of time: the game is over.", item });
+    }
+    if (request.body?.action === "clock") return reply.send({ item });
+    const over = item.timedOut !== null ? "The game is over: a player ran out of time. Clear the stones in the table's settings to start a new one." : "The game is over: everybody passed. Clear the stones in the table's settings to start a new one.";
     if (item.ended && ["lift", "place", "play", "pass"].includes(request.body?.action as string)) {
       return reply.code(409).send({ code: "GAME_OVER", error: over });
     }
@@ -207,6 +235,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       item.ko = move.ko;
       item.liftedColour = null; item.carrier = null; item.activeColour = (item.activeColour + 1) % item.colours.length;
       item.passes = 0;
+      if (item.clock) item.clock = settleTurn(item.clock, mover, Date.now());
     } else if (request.body?.action === "play") {
       // A whole move in one request, for agents and their programs playing
       // through code (tools/go.mts). Lift-then-place is two requests with a
@@ -227,6 +256,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       item.ko = move.ko;
       item.activeColour = (item.activeColour + 1) % item.colours.length;
       item.passes = 0;
+      if (item.clock) item.clock = settleTurn(item.clock, mover, Date.now());
       played = { colour: colour as number, x: x as number, y: y as number };
     } else if (request.body?.action === "pass") {
       /**
@@ -247,6 +277,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
         return reply.code(409).send({ code: "NOTHING_PLAYED", error: "Play a stone first: there is no game to pass in yet." });
       }
       item.passes += 1;
+      if (item.clock) item.clock = settleTurn(item.clock, mover, Date.now());
       item.ko = null; // a pass opens a ko point
       item.activeColour = (item.activeColour + 1) % item.colours.length;
       if (item.passes >= item.colours.length) item.ended = true;

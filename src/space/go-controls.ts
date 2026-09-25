@@ -1,5 +1,6 @@
 import { GO_SURFACE, goBoardWidth, goBowl, goExtent, goRadius, goRimReach } from "../../shared/go-layout";
 import { GO_SIZES, type GoRoomItem, type GoSize } from "../../shared/room-items";
+import { clockLabel } from "../../shared/go-clock";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
 
 /**
@@ -94,7 +95,7 @@ function turnTextHalf(fontSize: number): number {
 }
 
 export function goControls(
-  item: Pick<GoRoomItem, "size" | "colours" | "scale" | "deskVisible" | "surface" | "territoryShown">,
+  item: Pick<GoRoomItem, "size" | "colours" | "scale" | "deskVisible" | "surface" | "territoryShown"> & Partial<Pick<GoRoomItem, "clock">>,
   /** DELETE has been pressed once and is waiting for the second press. */
   deleteArmed = false,
 ): GoControls {
@@ -176,6 +177,8 @@ export function goControls(
     stepper("go:size", "SIZE", `${size}×${size}`),
     stepper("go:players", "PLAYERS", `${item.colours.length}`),
     stepper("go:scale", "TABLE", `${Math.round(item.scale * 100)}%`),
+    // THE GAME CLOCK (Nikk 4826): off, or free seconds a move plus a bank.
+    stepper("go:clock", "TIMER", clockLabel(item.clock ?? null)),
     /**
      * SHOW: the desk, and whose land is whose. Nikk (4504): "in settings we can
      * turn on land being shown at all times". One row for both, because seven
@@ -200,19 +203,22 @@ export function goControls(
      * at a size you can hit, so it is not an eighth row. DELETE says what the
      * second press will do once it has been pressed once.
      */
-    {
-      label: "",
-      buttons: [
-        { id: "go:reset", label: "CLEAR STONES", x: -(sheetWidth - pad * 2 + gap) / 4, width: (sheetWidth - pad * 2 - gap) / 2 },
-        {
-          id: "go:delete",
-          label: deleteArmed ? "SURE? DELETE" : "DELETE BOARD",
-          x: (sheetWidth - pad * 2 + gap) / 4,
-          width: (sheetWidth - pad * 2 - gap) / 2,
-        },
-      ],
-    },
-    whole("go:close", "DONE"),
+    /**
+     * DONE joins them, so TIMER (Nikk 4826) could have a row without an eighth:
+     * eight rows on a 5×5 board are too short to hit.
+     */
+    (() => {
+      const each = (sheetWidth - pad * 2 - gap * 2) / 3;
+      const at = (i: number) => -sheetWidth / 2 + pad + each / 2 + i * (each + gap);
+      return {
+        label: "",
+        buttons: [
+          { id: "go:reset", label: "CLEAR", x: at(0), width: each },
+          { id: "go:delete", label: deleteArmed ? "SURE? DELETE" : "DELETE", x: at(1), width: each },
+          { id: "go:close", label: "DONE", x: at(2), width: each },
+        ],
+      };
+    })(),
   ];
   if (rows.length !== ROWS) throw new Error(`the sheet is laid out for ${ROWS} rows, not ${rows.length}`);
   const total = rows.length * rowDepth + (rows.length - 1) * gap;
