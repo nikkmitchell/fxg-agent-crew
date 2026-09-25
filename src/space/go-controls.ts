@@ -1,4 +1,4 @@
-import { GO_SURFACE, goBoardWidth, goExtent, goRadius } from "../../shared/go-layout";
+import { GO_SURFACE, goBoardWidth, goBowl, goExtent, goRadius, goRimReach } from "../../shared/go-layout";
 import { GO_SIZES, type GoRoomItem, type GoSize } from "../../shared/room-items";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
 
@@ -12,10 +12,9 @@ import { GO_SURFACE_LOOKS } from "./go-surfaces";
  * [a] text on the ground it doesn't have to actually even be an item".
  *
  * So:
- *   - MOVE and SETTINGS sit on the same line as "BLACK'S TURN", wherever
- *     Moraine's layout already puts that line for this seating — on the deck in
- *     front of the board for two players, on the board's near margin for more.
- *     MOVE is at the end of the line, where Nikk pointed.
+ *   - MOVE and SETTINGS sit on the same line as "BLACK'S TURN", in front of
+ *     the board and never on it, for any number of players (Nikk, 4723). MOVE
+ *     is at the end of the line, where Nikk pointed.
  *   - Opening SETTINGS lays its rows flat ON THE BOARD, as text, on a cover
  *     that fades in just above the stones.
  *
@@ -42,6 +41,11 @@ export function fitFont(label: string, width: number, wanted: number, pad = 0.01
   const chars = Math.max(1, [...label].length);
   return Math.min(wanted, Math.max(0.004, (width - pad * 2) / (chars * 0.62)));
 }
+
+/** How far a button keeps from a bowl's centre: the bowl, plus a hand reaching into it. */
+const BOWL_CLEARANCE = 0.195;
+/** The narrowest a button may get while making room for a bowl; past that the line steps out instead. */
+const MIN_BUTTON = 0.14;
 
 export type FlatRect = { x: number; y: number; z: number; width: number; depth: number };
 
@@ -77,7 +81,7 @@ export type GoControls = {
  */
 export const GO_STONE_TOP = GO_SURFACE + goRadius() * 0.46 * 2;
 
-/** More than two seats moves the turn line onto the board, as Moraine's layout does. */
+/** More than two seats: a slightly smaller turn line, so the longer colour names fit. */
 const isWide = (item: { colours: unknown[] }) => item.colours.length > 2;
 
 /**
@@ -99,18 +103,45 @@ export function goControls(
   const boardWidth = goBoardWidth(size);
   const wide = isWide(item);
 
+  /**
+   * BESIDE THE BOARD, FOR EVERY SEATING. Nikk (4723): "you put the UI stuff
+   * actually on top of the board ... move the UI buttons to still be beside the
+   * board, that looked much better before". With more than two players the
+   * line and its buttons used to move onto the board's near margin, to keep
+   * clear of the bowl that then sits at the front. Now they stay in front of
+   * the board as they do for two, past whatever rim the board has, and the
+   * buttons narrow instead until they clear every bowl.
+   */
+  const rim = goRimReach(item.surface);
   const line = {
-    y: wide ? GO_SURFACE + 0.002 : 0.752,
-    z: wide ? extent / 2 + 0.035 : boardWidth / 2 + 0.16,
-    fontSize: wide ? 0.025 : 0.043,
+    y: 0.752,
+    z: boardWidth / 2 + Math.max(0.16, rim + 0.06),
+    fontSize: wide ? 0.034 : 0.043,
   };
 
-  // How far out along the line there is room: the board's margin when the line
-  // is on the board, a little past the board's edge when it is on the deck.
-  const span = wide ? boardWidth / 2 - 0.015 : boardWidth / 2 + 0.25;
+  const span = boardWidth / 2 + 0.25;
   const inner = turnTextHalf(line.fontSize) + 0.02;
   const depth = Math.max(0.06, line.fontSize * 2.4);
-  const width = Math.min(0.26, span - inner);
+  const bowls = item.colours.map((_, i) => goBowl(i, item.colours.length, size, rim));
+  const clears = (w: number, z: number) => bowls.every((bowl) => {
+    const dx = Math.max(Math.abs(Math.abs(bowl.x) - (inner + w / 2)) - w / 2, 0);
+    const dz = Math.max(Math.abs(bowl.z - z) - depth / 2, 0);
+    return Math.hypot(dx, dz) > BOWL_CLEARANCE;
+  });
+  // Narrow the buttons first; if even the narrowest would touch a bowl (a
+  // small board with a bowl at the front), step the whole line out instead.
+  const widest = Math.min(0.26, span - inner);
+  const fit = (z: number) => {
+    let w = widest;
+    while (w > MIN_BUTTON && !clears(w, z)) w -= 0.005;
+    return clears(w, z) ? w : null;
+  };
+  let width = fit(line.z);
+  while (width === null && line.z < boardWidth / 2 + 1) {
+    line.z += 0.01;
+    width = fit(line.z);
+  }
+  width ??= MIN_BUTTON;
   const centre = inner + width / 2;
   const move: FlatRect = { x: centre, y: line.y + 0.001, z: line.z, width, depth };
   const settings: FlatRect = { x: -centre, y: line.y + 0.001, z: line.z, width, depth };

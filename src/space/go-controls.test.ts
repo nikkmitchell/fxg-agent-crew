@@ -61,11 +61,15 @@ describe("MOVE and SETTINGS, on the turn line", () => {
     }
   });
 
-  it("stays on the board's margin when the line is on the board", () => {
+  /** Nikk (4723): the buttons beside the board, not on top of it, for any number of players. */
+  it("stays OFF the board, in front of it, at every size and seating", () => {
     for (const size of GO_SIZES) {
-      for (const seats of SEATINGS.filter((s) => s > 2)) {
-        const { move } = goControls(table(size, seats));
-        expect(move.x + move.width / 2, `${size}x${size}, ${seats} seats`).toBeLessThanOrEqual(goBoardWidth(size) / 2);
+      for (const seats of SEATINGS) {
+        for (const surface of ["bamboo", "rock"] as const) {
+          const { move, settings, line } = goControls(table(size, seats, { surface }));
+          expect(line.z, `${size}x${size}, ${seats} seats, ${surface}`).toBeGreaterThan(goBoardWidth(size) / 2 + (surface === "rock" ? 0.18 : 0.09));
+          for (const rect of [move, settings]) expect(rect.z - rect.depth / 2).toBeGreaterThan(goBoardWidth(size) / 2);
+        }
       }
     }
   });
@@ -73,11 +77,13 @@ describe("MOVE and SETTINGS, on the turn line", () => {
   it("keeps clear of every bowl, at every size and seating", () => {
     for (const size of GO_SIZES) {
       for (const seats of SEATINGS) {
-        const { move, settings } = goControls(table(size, seats));
+        for (const surface of ["bamboo", "rock"] as const) {
+        const { move, settings } = goControls(table(size, seats, { surface }));
         for (let bowl = 0; bowl < seats; bowl += 1) {
-          const at = goBowl(bowl, seats, size);
+          const at = goBowl(bowl, seats, size, surface === "rock" ? 0.18 : 0.09);
           expect(gapTo(move, at), `MOVE, ${size}x${size}, ${seats} seats, bowl ${bowl}`).toBeGreaterThan(BOWL_REACH);
           expect(gapTo(settings, at), `SETTINGS, ${size}x${size}, ${seats} seats, bowl ${bowl}`).toBeGreaterThan(BOWL_REACH);
+        }
         }
       }
     }

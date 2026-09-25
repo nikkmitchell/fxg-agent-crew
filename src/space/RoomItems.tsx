@@ -1001,7 +1001,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     {lifted && <mesh key={`held-${item.activeColour}`} ref={held} position={[lifted.x, lifted.y + 0.06, lifted.z]} scale={[radius, radius * 0.46, radius]} raycast={noRaycast} castShadow>
       <sphereGeometry args={[1, 32, 20]} /><meshPhysicalMaterial color={item.colours[item.activeColour]} roughness={0.18} clearcoat={1} emissive={ACCENTS[item.activeColour]} emissiveIntensity={0.025} />
     </mesh>}
-    {!settingsOpen && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.035 : boardWidth / 2 + 0.16]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.025 : 0.043} color={wide ? look.ink : ACCENTS[item.activeColour]} raycast={noRaycast}>
+    {!settingsOpen && <Text position={[0, controls.line.y, controls.line.z]} rotation-x={-Math.PI / 2} fontSize={controls.line.fontSize} color={ACCENTS[item.activeColour]} raycast={noRaycast}>
       {turnLine(item)}
     </Text>}
     {/*
@@ -1010,19 +1010,20 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       won, then each colour's count in its own colour, then how to start again.
     */}
     {!settingsOpen && result && (() => {
-      const base = wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.25, step = wide ? 0.03 : 0.058, y = wide ? GO_SURFACE + 0.002 : 0.752;
-      const span = Math.min(wide ? boardWidth * 0.9 : Math.max(0.8, boardWidth), result.scores.length * (wide ? 0.16 : 0.26));
+      // Below the turn line, off the board, scaled with it (see goControls).
+      const k = controls.line.fontSize / 0.043, base = controls.line.z + 0.09 * k, step = 0.058 * k, y = controls.line.y;
+      const span = Math.min(Math.max(0.8, boardWidth), result.scores.length * 0.26 * k);
       const at = (index: number) => result.scores.length === 1 ? 0 : -span / 2 + (span / (result.scores.length - 1)) * index;
       return <group>
-        <Text position={[0, y, base]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.022 : 0.038}
+        <Text position={[0, y, base]} rotation-x={-Math.PI / 2} fontSize={0.038 * k}
           color={won.length === 1 ? ACCENTS[won[0]] : "#f1dfbd"} raycast={noRaycast}>{result.verdict}</Text>
         {result.scores.map((score, index) => <Text key={score.colour} position={[at(index), y, base + step]} rotation-x={-Math.PI / 2}
-          fontSize={wide ? 0.017 : 0.03} color={ACCENTS[score.colour]} raycast={noRaycast}>{score.text}</Text>)}
-        <Text position={[0, y, base + step * 1.85]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.012 : 0.02}
-          color={wide ? look.inkSoft : "#c8b49a"} raycast={noRaycast}>{result.again}</Text>
+          fontSize={0.03 * k} color={ACCENTS[score.colour]} raycast={noRaycast}>{score.text}</Text>)}
+        <Text position={[0, y, base + step * 1.85]} rotation-x={-Math.PI / 2} fontSize={0.02 * k}
+          color="#c8b49a" raycast={noRaycast}>{result.again}</Text>
       </group>;
     })()}
-    {!settingsOpen && !result && <Text position={[0, wide ? GO_SURFACE + 0.002 : 0.752, wide ? extent / 2 + 0.075 : boardWidth / 2 + 0.245]} rotation-x={-Math.PI / 2} fontSize={wide ? 0.014 : 0.025} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : wide ? look.inkSoft : "#d8c8ac"} raycast={noRaycast}>
+    {!settingsOpen && !result && <Text position={[0, controls.line.y, controls.line.z + 0.085 * controls.line.fontSize / 0.043]} rotation-x={-Math.PI / 2} fontSize={0.025 * controls.line.fontSize / 0.043} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : "#d8c8ac"} raycast={noRaycast}>
       {notice || scoreLine(item) || noMoveLine(item) || lastPassLine(item) || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone, or PASS at it")}
     </Text>}
     {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
