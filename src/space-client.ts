@@ -1,3 +1,4 @@
+import type { Helper } from "../shared/helpers";
 import { requestJson } from "./api-request";
 import { base } from "./router";
 import type { Placement, Showing } from "../shared/space-wire";
@@ -135,6 +136,8 @@ export const space = {
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}/action`, {
       method: "POST", body: JSON.stringify(action),
     }),
+  /** Each agent's reported helpers. See shared/helpers.ts. */
+  helpers: () => requestJson<{ helpers: Record<string, Helper[]> }>(`${root}/helpers`),
   /** The room's breathing session, with the server's clock to line ours up to. */
   meditation: () => requestJson<{ meditation: Meditation; now: number }>(`${root}/meditation`),
   meditate: (change: MeditationChange & { revision?: number }) =>

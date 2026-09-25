@@ -32,6 +32,7 @@ import { BoardStore } from "./db/store.js";
 import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
 import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { RoomMeditations, registerMeditationRoutes } from "./space/meditation.js";
+import { RoomHelpers, registerHelperRoutes } from "./space/helpers.js";
 import { Utterances, registerUtteranceRoutes } from "./space/utterances.js";
 import { registerSpeechRoutes, speakWith, speechCache } from "./space/speak.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
@@ -216,6 +217,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const roomShowing = new RoomShowing(database, new BoardReads(database));
   // The breathing session each room shares, in memory: see space/meditation.ts.
   const roomMeditations = new RoomMeditations(database);
+  // Agents' helpers, as the agents report them: see space/helpers.ts.
+  const roomHelpers = new RoomHelpers();
   const roomItems = new RoomItems(database);
   // One for the whole server: a panel's hold and the Go table's must be the
   // same registry the place and move routes consult, or the lock locks nothing.
@@ -350,6 +353,19 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       announce: (room, showing) => hubFor(room).broadcast({ type: "showing", showing }),
     });
+    registerHelperRoutes(scoped, {
+      config,
+      sessions,
+      helpers: roomHelpers,
+      announce: (room, helpers) => hubFor(room).broadcast({ type: "helpers", helpers }),
+    });
+    // Finished helpers fade and stale reports expire without anyone posting,
+    // so the rooms are told when their live set changes on its own.
+    const helperSweep = setInterval(() => {
+      for (const { room, helpers } of roomHelpers.changed(Date.now())) hubFor(room).broadcast({ type: "helpers", helpers });
+    }, 2_000);
+    helperSweep.unref?.();
+    scoped.addHook("onClose", async () => clearInterval(helperSweep));
     registerMeditationRoutes(scoped, {
       config,
       sessions,

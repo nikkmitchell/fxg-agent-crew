@@ -38,6 +38,7 @@ import { defaultPlacement } from "../../shared/panel-place";
 import type { Placement } from "../../shared/space-wire";
 import { RoomItems } from "./RoomItems";
 import { MeditationOrb } from "./MeditationOrb";
+import { SpiritCompanions } from "./SpiritCompanions";
 import { space } from "../space-client";
 
 import { makeMoveSender, type SpaceConnection } from "./useSpaceSocket";
@@ -789,6 +790,8 @@ export default function Scene({
 
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
+        {/* Agents' helpers, as the agents report them: spirits, never people. */}
+        <SpiritCompanions helpers={connection.helpers} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         {/* The breathing orb, in rooms that have been given one: see shared/meditation.ts. */}
         {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation} reducedMotion={reducedMotion} />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />

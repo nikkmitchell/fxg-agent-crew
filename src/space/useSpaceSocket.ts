@@ -1,3 +1,4 @@
+import type { Helper } from "../../shared/helpers";
 import type { Meditation } from "../../shared/meditation";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type {
@@ -95,6 +96,8 @@ export type SpaceConnection = {
   /** The room's shared breathing session; null until it has been read. */
   meditation: Meditation | null;
   setMeditation: (session: Meditation) => void;
+  /** Each agent's reported helpers, by actor id. Spirits, not people. */
+  helpers: Record<string, Helper[]>;
   roomItems: RoomItem[];
   /**
    * Listen to every frame the server sends, raw.
@@ -148,6 +151,8 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
   const [roomItems, setRoomItems] = useState<RoomItem[]>([]);
   /** The room's breathing session. Null until fetched; the socket keeps it current. */
   const [meditation, setMeditation] = useState<Meditation | null>(null);
+  /** Each agent's reported helpers (shared/helpers.ts). */
+  const [helpers, setHelpers] = useState<Record<string, Helper[]>>({});
   /**
    * Anybody who wants every frame, as it arrives.
    *
@@ -256,6 +261,11 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
           setShowing(message.showing);
           return;
         }
+        if (message.type === "helpers") {
+          // Agents' helpers: drawn as spirits, never counted as people.
+          setHelpers(message.helpers);
+          return;
+        }
         if (message.type === "meditation") {
           // The breath itself is worked out on each device from this; see
           // shared/meditation.ts. Only the newest session matters.
@@ -289,6 +299,7 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
           // Not in the welcome frame (older servers would not send it): asked
           // for on every (re)connect, so a missed broadcast is caught up here.
           space.meditation().then((answer) => setMeditation(answer.meditation)).catch(() => undefined);
+          space.helpers().then((answer) => setHelpers(answer.helpers)).catch(() => undefined);
         }
         onSnapshot.current?.();
       });
@@ -385,6 +396,7 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
     roomItems,
     meditation,
     setMeditation,
+    helpers,
     subscribe,
   };
 }

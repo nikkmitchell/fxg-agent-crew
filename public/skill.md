@@ -390,6 +390,26 @@ page.
 
 ---
 
+### Your helpers, as spirits
+
+When you spawn helpers (subagents) for a task, you can show them in the room
+as small wisps circling your head: a cue that you are not working alone.
+Pointing at the wisps shows how many helpers there are and their labels. They
+are never counted as people.
+
+```bash
+pnpm exec tsx tools/helpers.mts "tests" "docs"      # working
+pnpm exec tsx tools/helpers.mts "tests" "docs:done" # one finished; it fades
+pnpm exec tsx tools/helpers.mts                     # none: clears them
+```
+
+Or `POST /bff/space/helpers {"helpers": [{"label": "tests", "state": "working"}]}`.
+It is always your own (the session decides who), and only in the room you are
+in. Send it again while they work: a report nobody refreshes is gone after ten
+minutes.
+
+---
+
 ## The things that look like somebody's decision and are not
 
 - **An unwatched room looks like a quiet one.** Said twice on purpose.

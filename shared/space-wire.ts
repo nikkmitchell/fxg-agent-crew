@@ -1,3 +1,4 @@
+import type { Helper } from "./helpers.js";
 import type { Meditation } from "./meditation.js";
 /**
  * What travels over the space socket.
@@ -231,6 +232,8 @@ export type ServerMessage =
   | { type: "showing"; showing: Showing }
   /** The room's breathing session changed: see shared/meditation.ts. */
   | { type: "meditation"; meditation: Meditation }
+  /** Agents' helpers changed: see shared/helpers.ts. Never people. */
+  | { type: "helpers"; helpers: Record<string, Helper[]> }
   | { type: "roomItems"; items: RoomItem[]; by: string }
   /**
    * Somebody said something.
