@@ -124,6 +124,19 @@ describe("scrolling a column that holds more than fits", () => {
     }
   });
 
+  /** Baiwei: "these scrolling buttons are too big. They take entire space of one task." */
+  it("uses thin bars, not a card's whole slot, and never covers the add strip", () => {
+    const layout = layOutBoard(many, undefined, { review: 10 });
+    const aCard = layout.cards[0];
+    const column = layout.columns.find((c) => c.status === "review")!;
+    const add = addControlOf(layout, column);
+    for (const bar of layout.scrollers) {
+      expect(bar.height).toBeLessThan(aCard.height * 0.5);
+      expect(bar.width).toBe(aCard.width);
+      expect(bar.y - bar.height / 2).toBeGreaterThanOrEqual(add.y + add.height / 2 - 1e-9);
+    }
+  });
+
   it("clamps an offset past the end to the last full page", () => {
     const layout = layOutBoard(many, undefined, { review: 999 });
     expect(ids(layout)).toContain("t39");

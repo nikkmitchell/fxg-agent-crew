@@ -544,7 +544,7 @@ function ScrollStrip({ strip }: { strip: BoardScroller }) {
       </mesh>
       <Text
         position={[0, 0, 0.002]}
-        fontSize={strip.height * 0.24}
+        fontSize={strip.height * 0.55}
         color={CARD_INK.ink}
         anchorX="center"
         anchorY="middle"

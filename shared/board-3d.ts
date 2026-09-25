@@ -106,6 +106,8 @@ export const BOARD_COLUMNS: readonly { status: Status; label: string }[] = [
  * with its texture stretches the text on it.
  */
 export const CARD_SHAPE = 256 / 512;
+/** A scroll bar's height, as a fraction of a card's. */
+export const SCROLL_BAR = 0.34;
 
 /**
  * The proportions a board can be laid out at.
@@ -218,30 +220,40 @@ export function layOutBoard(
     }
 
     /**
-     * MORE THAN FITS: IT SCROLLS. The first slot says how many are above and
-     * the last how many are below, each a strip the size of a card, pressed to
-     * move a page. A column never shows only arrows: at least one card is drawn.
+     * MORE THAN FITS: IT SCROLLS. A thin bar at the top says how many are above
+     * and one at the bottom how many are below, pressed to move a page. A column
+     * never shows only bars: at least one card is drawn.
+     *
+     * THIN, NOT CARD-SIZED. The first version gave each bar a whole card's slot;
+     * Baiwei: "these scrolling buttons are too big. They take entire space of one
+     * task." A bar is a third of a card tall, still the column's full width so
+     * it is easy to hit, and the space it gives back holds cards.
      */
-    const page = (up: boolean, down: boolean) => Math.max(1, perColumn - (up ? 1 : 0) - (down ? 1 : 0));
+    const bar = cardHeight * SCROLL_BAR;
+    const room = top - (bottom + addRoom) + size.cardGap;
+    const page = (up: boolean, down: boolean) =>
+      Math.max(1, Math.floor((room - (up ? bar + size.cardGap : 0) - (down ? bar + size.cardGap : 0)) / (cardHeight + size.cardGap)));
     const want = Math.max(0, Math.floor(scroll[column.status] ?? 0));
     // The furthest offset that still fills the last page.
     const last = Math.max(0, mine.length - page(true, false));
     const offset = Math.min(want, last);
     const up = offset > 0;
-    // More below only if the rest will not fit WITHOUT a down strip: the last
-    // page needs no arrow, and judging it with one left a strip that went nowhere.
+    // More below only if the rest will not fit WITHOUT a down bar: the last
+    // page needs none, and judging it with one left a bar that went nowhere.
     const down = offset + page(up, false) < mine.length;
     const shown = page(up, down);
-    const firstRow = up ? 1 : 0;
-    mine.slice(offset, offset + shown).forEach((card, i) => place(card, firstRow + i));
+    const start = top - (up ? bar + size.cardGap : 0);
+    mine.slice(offset, offset + shown).forEach((card, i) => {
+      places.push({ card, x, y: start - cardHeight / 2 - i * (cardHeight + size.cardGap), width: columnWidth, height: cardHeight, column: index, row: i });
+    });
     if (up) {
       scrollers.push({ status: column.status, direction: "up", count: offset, to: Math.max(0, offset - page(offset - shown > 0, true)),
-        x, y: slotY(0), width: columnWidth, height: cardHeight });
+        x, y: top - bar / 2, width: columnWidth, height: bar });
     }
     if (down) {
       const below = mine.length - (offset + shown);
       scrollers.push({ status: column.status, direction: "down", count: below, to: Math.min(last, offset + shown),
-        x, y: slotY(firstRow + shown), width: columnWidth, height: cardHeight });
+        x, y: start - shown * (cardHeight + size.cardGap) - bar / 2, width: columnWidth, height: bar });
     }
 
     // SAID, NOT SWALLOWED. A column that silently stops drawing at the tenth
