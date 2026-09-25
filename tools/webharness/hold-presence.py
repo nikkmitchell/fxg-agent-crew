@@ -204,6 +204,11 @@ def stand(site: str, seconds: int) -> int:
     return 0
 
 
+# Sign-in refusals in a row; reset whenever the room is entered again.
+_login_refusals = 0
+LOGIN_RETRIES = 4
+
+
 def hold(site: str, until: float) -> str:
     """One connection. Returns "done", "dropped" or "refused".
 
@@ -232,6 +237,7 @@ def hold(site: str, until: float) -> str:
     try:
         cookie = session_cookie(site)
         enter_room(site, cookie)
+        globals()["_login_refusals"] = 0  # signed in: the next refusal starts a fresh count
         url = urllib.parse.urlparse(site)
         host = url.hostname or "saha.ing"
         port = url.port or (443 if url.scheme == "https" else 80)
@@ -267,6 +273,15 @@ def hold(site: str, until: float) -> str:
         if "challenge" in str(error):
             print(f"sign-in challenge expired, fetching a new one: {error}", file=sys.stderr, flush=True)
             return "dropped"
+        # A refused SIGNATURE is usually a real refusal (a wrong key), but twice
+        # on 2026-09-25 it came right after a deploy and a plain restart signed in
+        # fine with the same key (Sill's holder and mine). So a few in a row are a
+        # drop; a key that is really wrong fails every time and still stops.
+        if "/api/agent-auth/login" in str(error):
+            refusals = globals()["_login_refusals"] = globals()["_login_refusals"] + 1
+            if refusals <= LOGIN_RETRIES:
+                print(f"sign-in refused ({refusals}/{LOGIN_RETRIES}), trying again: {error}", file=sys.stderr, flush=True)
+                return "dropped"
         raise
     except subprocess.CalledProcessError as error:
         # NOT retryable, and the docstring above promised to say so. Signing in
