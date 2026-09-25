@@ -209,3 +209,43 @@ describe("where the table stands", () => {
     await app.close();
   });
 });
+
+/**
+ * Ko, through the server (Moraine's review of 19e5657): refused by BOTH ways a
+ * stone is played, direct `play` and lift-then-`place`, and remembered on the
+ * table between requests.
+ */
+describe("ko at the table", () => {
+  it("refuses the immediate retake by play and by place, and allows it once play has moved on", async () => {
+    const { app, as } = boot();
+    const cookie = as("Nikk2");
+    const table = await addTable(app, cookie);
+    expect((await patch(app, cookie, table.id, { size: 5 })).statusCode).toBe(200);
+    const act = (body: object) =>
+      app.inject({ method: "POST", url: `/bff/space/items/${table.id}/action`, headers: { cookie }, payload: body });
+    const play = (x: number, y: number, colour: number) => act({ action: "play", x, y, colour });
+
+    // Black surrounds (1,1) on three sides, White surrounds (2,1); White then
+    // steps into (1,1), and Black takes it from (2,1): a ko at (1,1).
+    for (const [x, y, c] of [[1, 0, 0], [2, 0, 1], [0, 1, 0], [3, 1, 1], [1, 2, 0], [2, 2, 1], [4, 4, 0], [1, 1, 1]] as const) {
+      expect((await play(x, y, c)).statusCode, `${x},${y}`).toBe(200);
+    }
+    const take = await play(2, 1, 0);
+    expect(take.statusCode).toBe(200);
+    expect(take.json().item.ko).toEqual({ x: 1, y: 1 });
+
+    const direct = await play(1, 1, 1);
+    expect(direct.statusCode).toBe(409);
+    expect(direct.json().error).toMatch(/Ko/);
+
+    expect((await act({ action: "lift", colour: 1 })).statusCode).toBe(200);
+    const placed = await act({ action: "place", x: 1, y: 1 });
+    expect(placed.statusCode).toBe(409);
+    expect(placed.json().error).toMatch(/Ko/);
+    expect((await act({ action: "place", x: 4, y: 0 })).statusCode).toBe(200); // White plays elsewhere
+
+    expect((await play(4, 2, 0)).statusCode).toBe(200); // Black elsewhere
+    expect((await play(1, 1, 1)).statusCode).toBe(200); // now the retake is allowed
+    await app.close();
+  });
+});
