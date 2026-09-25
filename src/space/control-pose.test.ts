@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CLOSED_AHEAD,
+  CLOSED_BELOW_HEAD,
   CLOSED_HEIGHT,
   closedControlPose,
   closedTilt,
@@ -43,12 +44,19 @@ describe("where the closed controls sit", () => {
     expect(position[0]).toBeCloseTo(0, 6);
   });
 
-  it("holds its height whatever the wearer is doing", () => {
-    // Absolute, not relative to the head: it must not ride up when somebody
-    // leans forward, which is what made the old one cross the view.
-    for (const yaw of [0, 1, -1, 3]) {
-      expect(closedControlPose({ x: 0, z: 0 }, yaw).position[1]).toBe(CLOSED_HEIGHT);
+  /** Nikk (4739): "a meter below your head and a half a meter in front". */
+  it("hangs a metre below the head and half a metre in front, when the head is known", () => {
+    for (const head of [1.2, 1.6, 1.85]) {
+      const { position } = closedControlPose({ x: 0, y: head, z: 0 }, 0);
+      expect(position[1]).toBeCloseTo(head - CLOSED_BELOW_HEAD, 10);
+      expect(position[2]).toBeCloseTo(-CLOSED_AHEAD, 10);
     }
+    expect(CLOSED_BELOW_HEAD).toBe(1);
+    expect(CLOSED_AHEAD).toBe(0.5);
+  });
+
+  it("falls back to the old absolute height when there is no head to go by", () => {
+    expect(closedControlPose({ x: 0, z: 0 }, 1).position[1]).toBe(CLOSED_HEIGHT);
   });
 });
 

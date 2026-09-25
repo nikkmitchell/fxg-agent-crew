@@ -143,19 +143,39 @@ const BOXES_PER_ROW = 3;
  * The gap is not cosmetic: two targets that touch edge to edge are two targets
  * a controller ray confuses.
  */
-const ICON = 0.18;
-const ICON_GAP = 0.04;
+/**
+ * HALF THE SIZE THEY WERE (0.18). Nikk (4739): "make them 50% smaller". They
+ * are pressed by reaching out and touching now, not aimed at from across the
+ * room, so a small target at arm's length is enough.
+ */
+const ICON = 0.09;
+const ICON_GAP = 0.02;
 /** Centres of the gear, the talk button and cancel, left to right. */
 const GEAR_X = -(ICON + ICON_GAP) / 2;
 const TALK_X = (ICON + ICON_GAP) / 2;
 const CANCEL_X = TALK_X + ICON + ICON_GAP;
 /** The status line under them: wide enough for a short sentence on two lines. */
-const STATUS = { width: 0.62, height: 0.13 } as const;
+const STATUS = { width: 0.42, height: 0.09 } as const;
 
 /** Good news goes by itself; a problem stays until it is tapped away. */
 const NOTICE_FADE_MS = 5_000;
 
 const EASE = 0.12;
+/**
+ * How fast the closed pair catches up with where it should be, per frame.
+ * Nikk (4739): "not one to one lock to your head, have it lerped to where your
+ * head position is so it can be smoother". A fraction of the way each frame.
+ */
+const FOLLOW = 0.1;
+
+/**
+ * THE CLOSED CONTROLS ARE TOUCHED, NOT POINTED AT. Nikk (4739): "those should
+ * be simple colliders so I can just reach out and touch ... they're always
+ * getting in the way of me selecting things". Denying the laser means a ray
+ * aimed at something past them no longer lands on them; a hand's touch and a
+ * controller's grab still press them. The open menu keeps its ray.
+ */
+const CLOSED_POINTERS: { deny: string[] } = { deny: ["ray"] };
 /** Past this much turn it starts following. Below it, stay put. */
 const SLACK = 0.5;
 
@@ -190,7 +210,7 @@ export function RoomControls({
   onReturnToLobby,
   onNote,
 }: {
-  anchor: () => { at: { x: number; z: number }; yaw: number } | null;
+  anchor: () => { at: { x: number; y?: number; z: number }; yaw: number } | null;
   you: string | null;
   groupRoom: string | null;
   passthrough: boolean;
@@ -797,6 +817,9 @@ export function RoomControls({
    *
    * OPEN, it does none of that: it sits where it was pinned. See `pinned`.
    */
+  /** Whether the closed pair has been put in place once; after that it eases. */
+  const placed = useRef(false);
+  const followTo = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
     const node = group.current;
     const body = anchor();
@@ -805,6 +828,7 @@ export function RoomControls({
     if (!body) return;
 
     const held = pinned.current;
+    if (held || fixingNow.current) placed.current = false;
     if (held) {
       node.position.set(held.x, OPEN_HEIGHT, held.z);
       node.rotation.set(0, held.yaw, 0);
@@ -830,7 +854,13 @@ export function RoomControls({
       return;
     }
     const { position, rotation } = closedControlPose(body.at, yaw);
-    node.position.set(position[0], position[1], position[2]);
+    // Eased toward the spot, not welded to it; a fresh panel starts there.
+    if (!placed.current) {
+      node.position.set(position[0], position[1], position[2]);
+      placed.current = true;
+    } else {
+      node.position.lerp(followTo.set(position[0], position[1], position[2]), FOLLOW);
+    }
     /**
      * YXZ, NOT THE DEFAULT XYZ, and the pose carries a pitch now.
      *
@@ -1430,7 +1460,7 @@ export function RoomControls({
           </ButtonBox>
         ))
       ) : (
-        <>
+        <group pointerEventsType={CLOSED_POINTERS}>
           {/*
             CLOSED: A GEAR AND A MICROPHONE, SIDE BY SIDE.
 
@@ -1580,7 +1610,7 @@ export function RoomControls({
           {cancellable ? (
             <WristButton label="✕" glyph x={CANCEL_X} y={0} width={ICON} height={ICON} tone="danger" onTap={cancel} />
           ) : null}
-        </>
+        </group>
       )}
 
       {/* BELOW EVERYTHING, deliberately outside the grid. A notice arrives

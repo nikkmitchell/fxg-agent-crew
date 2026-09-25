@@ -42,6 +42,18 @@ export const CLOSED_AHEAD = 0.5;
  */
 export const CLOSED_HEIGHT = 0.72;
 
+/**
+ * HOW FAR BELOW THE HEAD, which is what decides the height now.
+ *
+ * Nikk (4739): "make it fix y position be relative to your head so have a meter
+ * below your head and a half a meter in front ... have it lerped to where your
+ * head position is so it can be smoother". An absolute height meant a seated
+ * wearer reached into their lap and a tall one stooped; a metre below the eyes
+ * is the same reach for everybody. The follow is eased in RoomControls, so
+ * leaning does not drag it, which is what the absolute height was guarding.
+ */
+export const CLOSED_BELOW_HEAD = 1.0;
+
 /** Where the eyes are, for working out the angle down to the panel. A standing
  * adult in this room measures 1.55-1.65; the middle of that is close enough for
  * an angle, and nothing here is reported by a device. */
@@ -57,7 +69,7 @@ const EYE_HEIGHT = 1.6;
  */
 export function squareOnTilt(
   ahead = CLOSED_AHEAD,
-  height = CLOSED_HEIGHT,
+  height = EYE_HEIGHT - CLOSED_BELOW_HEAD,
   eye = EYE_HEIGHT,
 ): number {
   return Math.atan2(eye - height, ahead);
@@ -114,11 +126,14 @@ export type ControlPose = {
  * panel deliberately lags a turn — a panel welded to your gaze can never be
  * looked away from.
  */
-export function closedControlPose(at: { x: number; z: number }, yaw: number): ControlPose {
+export function closedControlPose(at: { x: number; y?: number; z: number }, yaw: number): ControlPose {
   return {
     position: [
       at.x - Math.sin(yaw) * CLOSED_AHEAD,
-      CLOSED_HEIGHT,
+      // Relative to the HEAD when the headset says where it is (Nikk, 4739):
+      // "a meter below your head and a half a meter in front". Without a head
+      // height (tests, a desktop), the old absolute height stands.
+      at.y === undefined ? CLOSED_HEIGHT : at.y - CLOSED_BELOW_HEAD,
       at.z - Math.cos(yaw) * CLOSED_AHEAD,
     ],
     rotation: [-closedTilt(), yaw, 0],
