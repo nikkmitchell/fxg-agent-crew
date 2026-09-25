@@ -23,12 +23,40 @@ export type RoomMenuRow =
 const describe = (room: RoomSummary) =>
   `${room.roomName}${room.visibility === "private" ? " · private" : ""}${room.ownerName ? ` · ${room.ownerName}'s` : ""}`;
 
+/**
+ * What the Rooms page can say about the room you are in (Nikk, 4785: "we can
+ * have the information about the room that you're in inside of rooms"). Each
+ * part is optional: a caller that does not have it simply leaves its line out.
+ */
+export type RoomInfo = {
+  /** The project whose board the room shows, by name. */
+  project?: string | null;
+  /** Who is in the room right now, by name. */
+  people?: readonly string[];
+};
+
 export function roomMenuRows(
   mine: readonly RoomSummary[] | null,
   publicRooms: readonly RoomSummary[] | null,
   current: string | null,
+  info: RoomInfo = {},
 ): RoomMenuRow[] {
-  const rows: RoomMenuRow[] = [{ kind: "heading", label: "Your rooms" }];
+  const rows: RoomMenuRow[] = [];
+  if (current !== null) {
+    rows.push({ kind: "heading", label: "This room" });
+    const summary = (mine ?? []).find((room) => roomKey(room.roomName) === roomKey(current));
+    rows.push({ kind: "note", label: summary ? describe(summary) : current });
+    if (info.project !== undefined) rows.push({ kind: "note", label: `Board: ${info.project ?? "none yet"}` });
+    if (info.people !== undefined) {
+      const names = [...info.people].sort((a, b) => a.localeCompare(b));
+      rows.push({
+        kind: "note",
+        label: names.length === 0 ? "Nobody else is here"
+          : `Here: ${names.slice(0, 6).join(", ")}${names.length > 6 ? ` and ${names.length - 6} more` : ""}`,
+      });
+    }
+  }
+  rows.push({ kind: "heading", label: "Your rooms" });
   if (mine === null) rows.push({ kind: "note", label: "Finding your rooms…" });
   else if (mine.length === 0) rows.push({ kind: "note", label: "You are not in any room yet" });
   else {
