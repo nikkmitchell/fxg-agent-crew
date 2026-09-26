@@ -40,6 +40,8 @@ function glowTexture(): THREE.CanvasTexture {
 }
 
 /** Calm teal on the in-breath, warm on the hold, soft violet going out. */
+/** Reused every frame: no garbage in the frame loop. */
+const phaseColour = new THREE.Color();
 const PHASE_COLOUR = { in: "#8fe3d6", hold: "#f2d59a", out: "#b9a8ff", rest: "#9fb6c9" } as const;
 
 function OrbButton({ label, at, onTap, width = 0.26, selected = false }: {
@@ -119,7 +121,7 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
   useFrame(() => {
     const at = breathAt(meditation, now());
     const fullness = at.state === "breathing" ? at.fullness : at.state === "idle" ? 0.35 : 0;
-    const colour = new THREE.Color(PHASE_COLOUR[at.state === "breathing" ? at.phase : "rest"]);
+    const colour = phaseColour.set(PHASE_COLOUR[at.state === "breathing" ? at.phase : "rest"]);
     const radius = SMALL + (LARGE - SMALL) * (reducedMotion ? Math.round(fullness) : fullness);
     core.current?.scale.setScalar(radius);
     (core.current?.material as THREE.MeshBasicMaterial | undefined)?.color.copy(colour);

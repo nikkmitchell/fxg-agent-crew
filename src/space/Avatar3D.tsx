@@ -102,12 +102,15 @@ const LABEL_REFERENCE_METRES = 4;
  * put their name across the entire screen. Clamped at both ends: never bigger
  * than it would be at two metres, never smaller than at ten.
  */
+/** Reused every frame, for every label: no garbage in the headset's frame loop. */
+const labelPosition = new THREE.Vector3();
+
 function useConstantApparentSize(base: [number, number]) {
   const ref = useRef<THREE.Sprite>(null);
   useFrame(({ camera }) => {
     const sprite = ref.current;
     if (!sprite) return;
-    const distance = camera.position.distanceTo(sprite.getWorldPosition(new THREE.Vector3()));
+    const distance = camera.position.distanceTo(sprite.getWorldPosition(labelPosition));
     const factor = Math.min(10, Math.max(2, distance)) / LABEL_REFERENCE_METRES;
     sprite.scale.set(base[0] * factor, base[1] * factor, 1);
   });
@@ -144,6 +147,8 @@ const Hand = ({ colour, boxy, groupRef }: {
 
 /** Reused so the frame loop allocates nothing. */
 const scratch = {
+  /** The facing of a person without a tracked head, rebuilt each frame in place. */
+  facing: new THREE.Quaternion(),
   quaternion: new THREE.Quaternion(),
   euler: new THREE.Euler(),
 };
@@ -245,7 +250,7 @@ export function Avatar3D({ actorId, body, kind, connected, live, reducedMotion, 
           ? person.head.q
           : (() => {
               scratch.euler.set(0, person.facing, 0, "YXZ");
-              return new THREE.Quaternion().setFromEuler(scratch.euler);
+              return scratch.facing.setFromEuler(scratch.euler);
             })(),
         delta,
         reducedMotion,

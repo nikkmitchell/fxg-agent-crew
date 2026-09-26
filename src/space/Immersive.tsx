@@ -690,7 +690,7 @@ export function ImmersivePlayer({
      */
     camera.getWorldPosition(scratch.position);
     camera.getWorldQuaternion(scratch.quaternion);
-    const facing = new THREE.Vector3(0, 0, -1).applyQuaternion(scratch.quaternion);
+    const facing = scratchAhead.set(0, 0, -1).applyQuaternion(scratch.quaternion);
     const headNow = {
       x: scratch.position.x,
       z: scratch.position.z,
