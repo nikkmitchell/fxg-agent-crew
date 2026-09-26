@@ -131,9 +131,15 @@ const FIX_HEIGHT = 1.38;
  */
 const BOX_BUTTON = { width: 0.6, height: 0.16, gap: 0.03 } as const;
 /** A tab, and a scope above the tabs. Grown for the same reason. */
-const TAB_BUTTON = { width: 0.32, height: 0.15, gap: 0.04 } as const;
+const TAB_BUTTON = { width: 0.34, height: 0.17, gap: 0.04 } as const;
+/**
+ * THE TOP TWO ROWS' WORDS FILL THEIR BUTTONS. Baiwei (4976): "the first and
+ * second row. Me, the room ... they're tiny ... I barely see the text." Their
+ * text was a fixed size meant for a two-line sentence, a sixth of the button.
+ */
+const TAB_TEXT = 0.4;
 /** How far above the first box's top the tab row sits. */
-const TAB_ROW_ABOVE = 0.34;
+const TAB_ROW_ABOVE = 0.36;
 /**
  * How many buttons a box holds before it spills into another column. Five, not
  * seven, since the buttons grew: seven tall ones stood a box half again as high.
@@ -721,10 +727,21 @@ export function RoomControls({
       return;
     }
     onNote(`written down: ${words.split(/\s+/).length} words`);
+    /**
+     * SENDING AS YOU SPEAK MEANS NO CONFIRM HERE TOO. Baiwei (4973), on a
+     * headset whose words the server writes down: "I've switched in settings,
+     * sending as you speak, but still ask me to confirm by hand." The setting
+     * was only read on the Web Speech path, so this one always stopped at a
+     * draft. Now it sends what was said, as the other path does.
+     */
+    if (live.current.alwaysOn) {
+      void post(words);
+      return;
+    }
     // Added to whatever is already drafted, exactly as the keyboard does, so
     // speaking twice before sending does not throw the first half away.
     setWritten((kept) => mergeKeyboardEdit(kept, words));
-  }, [say, onNote]);
+  }, [say, onNote, post]);
 
   useEffect(() => {
     if (!capabilities.recognition) return;
@@ -1522,7 +1539,9 @@ export function RoomControls({
       ? "● Listening — sending as you speak"
       : "● Recording\n◼ sends   ✕ cancels"
     : saying === "recording"
-      ? "● Recording\n◼ writes it down   ✕ cancels"
+      ? alwaysOn
+        ? "● Recording\n◼ sends   ✕ cancels"
+        : "● Recording\n◼ writes it down   ✕ cancels"
       : saying === "writing"
         ? "Writing down what you said…"
         : heardWaiting
@@ -1706,6 +1725,8 @@ export function RoomControls({
             y={gridTop + TAB_ROW_ABOVE + TAB_BUTTON.height + TAB_BUTTON.gap}
             width={TAB_BUTTON.width * 1.4}
             height={TAB_BUTTON.height}
+            lines={1}
+            textSize={TAB_TEXT}
             tone={scopeOf(tab) === scope.id ? "live" : "muted"}
             onTap={() => {
               if (scopeOf(tab) === scope.id) return;
@@ -1723,6 +1744,8 @@ export function RoomControls({
             y={gridTop + TAB_ROW_ABOVE}
             width={TAB_BUTTON.width}
             height={TAB_BUTTON.height}
+            lines={1}
+            textSize={TAB_TEXT}
             tone={entry.id === tab ? "live" : "normal"}
             onTap={() => {
               if (entry.id === "close") return closeMenu();
