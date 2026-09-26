@@ -489,8 +489,16 @@ export function RoomControls({
 
   // Read by the recognition callbacks, which are created once and would
   // otherwise close over the first value of everything they touch.
-  const live = useRef({ alwaysOn, destination, groupRoom, you });
-  live.current = { alwaysOn, destination, groupRoom, you };
+  /**
+   * THE CHAT OF THE ROOM YOU ARE STANDING IN when the feed has not said. Nikk
+   * (5053): "Not sent to the group chat (no room)". The feed's room goes blank
+   * whenever the list of joined rooms fails to load (a deploy restarting the
+   * server, a dropped request), and a send then had nowhere to go. One room is
+   * one WebHarness room, so the room you are in is the right chat.
+   */
+  const chatRoom = groupRoom ?? currentRoom;
+  const live = useRef({ alwaysOn, destination, groupRoom: chatRoom, you });
+  live.current = { alwaysOn, destination, groupRoom: chatRoom, you };
 
   const post = useCallback(async (words: string, source: "voice" | "text" = "voice") => {
     const { destination: to, groupRoom: room, you: me } = live.current;
@@ -581,7 +589,13 @@ export function RoomControls({
         : to === "room" ? "Sent to the room." : "Sent to the room and the chat.");
       return true;
     } else {
-      setNotice(`Not sent to ${failures.join(" or ")}. ▲ tries again.`);
+      // READY FOR ANOTHER TILT. The gesture sat in "ending" while the words
+      // waited, so a second tilt did nothing; now raising the hand again and
+      // tilting sends them.
+      micGestureState.current = { phase: "recording", side: null, rotation: null, fistSince: null, missingSince: null };
+      sendAfterGesture.current = false;
+      // The retry is what you can reach: with hands there is no ▲ any more.
+      setNotice(`Not sent to ${failures.join(" or ")}. ${handsInViewNow.current ? "Raise your hand and tilt to try again, or close it to drop it." : "▲ tries again."}`);
       return false;
     }
   }, [flash]);
@@ -948,6 +962,8 @@ export function RoomControls({
    * Holding controllers there is no gesture, so they come back.
    */
   const [handsInView, setHandsInView] = useState(false);
+  const handsInViewNow = useRef(false);
+  handsInViewNow.current = handsInView;
   const touching = useRef<Set<string>>(new Set());
   const [handIsNear, setHandIsNear] = useState(false);
   const buttonOpacity = handIsNear ? 1 : IDLE_OPACITY;
