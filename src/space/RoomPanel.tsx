@@ -159,6 +159,12 @@ function TaskBoard({
   const [adding, setAdding] = useState<string | null>(null);
   /** The task a comment is being written on, or null. */
   const [commenting, setCommenting] = useState<string | null>(null);
+  /**
+   * Where a card pulled off the board was let go, in the board's metres, or
+   * null for one opened with a tap (held up in front of the board as before).
+   * Nikk (4903): dragged outside the board it should stand there, full size.
+   */
+  const [pulledTo, setPulledTo] = useState<{ x: number; y: number } | null>(null);
 
   const detail = openCard ? boardFeed.detailOf(openCard) : null;
   const columnLabel = (status: string) =>
@@ -177,8 +183,14 @@ function TaskBoard({
           // necessary. See board-actions: the optimistic move is a guess.
           boardFeed.refresh();
         }}
-        onOpen={onOpenCard}
-        onPullOff={onOpenCard}
+        onOpen={(cardId) => {
+          setPulledTo(null);
+          onOpenCard(cardId);
+        }}
+        onPullOff={(cardId, to) => {
+          setPulledTo(to ?? null);
+          onOpenCard(cardId);
+        }}
         onSay={onSay}
         onAddTask={(status) => {
           if (!projectId) return onSay("the room is not showing a project, so there is nowhere to put a card");
@@ -215,7 +227,7 @@ function TaskBoard({
               .then(() => boardFeed.refresh())
               .catch((error: unknown) => onSay(error instanceof Error ? error.message : "that move was refused"));
           }}
-          at={[0, 0, 0.55]}
+          at={pulledTo ? [pulledTo.x, pulledTo.y, 0.25] : [0, 0, 0.55]}
         />
       ) : null}
 
