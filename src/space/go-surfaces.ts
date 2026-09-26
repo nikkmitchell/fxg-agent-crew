@@ -63,7 +63,11 @@ export const GO_SURFACE_LOOKS: Record<GoSurface, GoSurfaceLook> = {
   bamboo: {
     label: "BAMBOO",
     grain: "wood",
-    base: "#d9ad6f",
+    // Darker and quieter than the first #d9ad6f (Nikk: "slightly darker and
+    // less saturated"; Baiwei: the cream SETTINGS and MOVE outlines washed
+    // out on it, "do not stop at about 7 percent"). Cream on it goes from
+    // 1.58 to 2.26 contrast; the grid and ink still clear 3:1.
+    base: "#b78f57",
     roughness: 0.43,
     clearcoat: 0.22,
     rim: "#975d32",
