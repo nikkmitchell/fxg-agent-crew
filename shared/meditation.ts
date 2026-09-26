@@ -11,7 +11,34 @@
  * put two people out of step: they are reading the same timetable.
  */
 
-export type BreathStep = { phase: "in" | "hold" | "out" | "rest"; seconds: number };
+export type BreathStep = {
+  phase: "in" | "hold" | "out" | "rest";
+  seconds: number;
+  /** What the orb says during this step, when the phase's own word is not enough. */
+  words?: string;
+};
+
+/**
+ * WIM HOF, one round (meditation-ar-fa021ebb, Nikk: "add in Wim Hof ... the way
+ * he does the kind of holding your breath"): thirty full, quick breaths in and
+ * let go, then everything out and hold on empty lungs, then one deep breath in
+ * held full, and let go. The holds are fixed here so the whole room is on one
+ * timetable; the method's own holds are as long as each person likes.
+ */
+const POWER_BREATHS = 30;
+function wimHofRound(): BreathStep[] {
+  const breaths = Array.from({ length: POWER_BREATHS }, (_, i): BreathStep[] => [
+    { phase: "in", seconds: 1.6, words: `BREATH ${i + 1} OF ${POWER_BREATHS}` },
+    { phase: "out", seconds: 1.4, words: `LET GO · ${i + 1} OF ${POWER_BREATHS}` },
+  ]).flat();
+  return [
+    ...breaths,
+    { phase: "rest", seconds: 60, words: "ALL OUT · HOLD EMPTY" },
+    { phase: "in", seconds: 2, words: "DEEP BREATH IN" },
+    { phase: "hold", seconds: 15, words: "HOLD FULL" },
+    { phase: "out", seconds: 3, words: "LET IT GO" },
+  ];
+}
 
 export const PATTERNS = {
   calm: { label: "CALM 4 · 6", steps: [{ phase: "in", seconds: 4 }, { phase: "out", seconds: 6 }] },
@@ -23,7 +50,19 @@ export const PATTERNS = {
     label: "4 · 7 · 8",
     steps: [{ phase: "in", seconds: 4 }, { phase: "hold", seconds: 7 }, { phase: "out", seconds: 8 }],
   },
-} as const satisfies Record<string, { label: string; steps: readonly BreathStep[] }>;
+  "wim-hof": {
+    label: "WIM HOF",
+    // Fast deep breathing and an empty hold can make people light-headed.
+    note: "SIT OR LIE DOWN",
+    steps: wimHofRound(),
+  },
+} as const satisfies Record<string, { label: string; note?: string; steps: readonly BreathStep[] }>;
+
+/** A pattern's caution, if it has one: shown before anyone starts it. */
+export function patternNote(pattern: PatternId): string | null {
+  const one = PATTERNS[pattern];
+  return "note" in one ? one.note : null;
+}
 
 export type PatternId = keyof typeof PATTERNS;
 export const PATTERN_IDS = Object.keys(PATTERNS) as PatternId[];
@@ -61,7 +100,7 @@ export function isMinutes(value: unknown): value is number {
 }
 
 export function cycleSeconds(pattern: PatternId): number {
-  return PATTERNS[pattern].steps.reduce((sum, step) => sum + step.seconds, 0);
+  return (PATTERNS[pattern].steps as readonly BreathStep[]).reduce((sum, step) => sum + step.seconds, 0);
 }
 
 export type BreathNow =
@@ -71,6 +110,12 @@ export type BreathNow =
       state: "breathing";
       paused: boolean;
       phase: BreathStep["phase"];
+      /** What to show: the step's own words, or the phase's. */
+      words: string;
+      /** Whether a countdown helps: not for a breath a second and a half long. */
+      counted: boolean;
+      /** How long this step lasts, so a cue can fit inside it. */
+      stepSeconds: number;
       /** 0..1 through this phase. */
       progress: number;
       /** Whole seconds left in this phase, for the count. */
@@ -91,7 +136,7 @@ export function breathAt(session: Meditation, now: number): BreathNow {
   const elapsed = Math.max(0, ((session.pausedAt ?? now) - session.startedAt) / 1000);
   if (elapsed >= total) return { state: "done", seconds: total };
 
-  const steps = PATTERNS[session.pattern].steps;
+  const steps: readonly BreathStep[] = PATTERNS[session.pattern].steps;
   let t = elapsed % cycleSeconds(session.pattern);
   let fullness = 0;
   for (const step of steps) {
@@ -105,6 +150,9 @@ export function breathAt(session: Meditation, now: number): BreathNow {
         state: "breathing",
         paused: session.pausedAt !== null,
         phase: step.phase,
+        words: step.words ?? PHASE_WORDS[step.phase],
+        counted: step.seconds >= 3,
+        stepSeconds: step.seconds,
         progress,
         secondsLeft: Math.ceil(step.seconds - t),
         fullness,

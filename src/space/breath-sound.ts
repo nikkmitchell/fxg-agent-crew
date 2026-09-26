@@ -38,10 +38,13 @@ function tone(from: number, to: number, seconds: number, peak = 0.06): void {
 }
 
 /** A phase just began: rising going in, falling going out, one low note to hold. */
-export function phaseCue(phase: BreathStep["phase"]): void {
-  if (phase === "in") tone(220, 330, 1.6);
-  else if (phase === "out") tone(330, 196, 1.8);
-  else if (phase === "hold") tone(262, 262, 0.9, 0.03);
+export function phaseCue(phase: BreathStep["phase"], stepSeconds = Infinity): void {
+  // Never longer than the step: Wim Hof breaths are a second and a half, and
+  // the tones for a slow breath would pile on top of each other.
+  const fit = (seconds: number) => Math.min(seconds, stepSeconds * 0.85);
+  if (phase === "in") tone(220, 330, fit(1.6));
+  else if (phase === "out") tone(330, 196, fit(1.8));
+  else if (phase === "hold") tone(262, 262, fit(0.9), 0.03);
 }
 
 /** A bowl-like bell for the start and the end: two partials, a long fade. */

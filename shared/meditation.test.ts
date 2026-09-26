@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyMeditation, breathAt, clockOffset, clockText, doneLine, idleMeditation, type Meditation } from "./meditation";
+import { applyMeditation, breathAt, clockOffset, clockText, cycleSeconds, doneLine, idleMeditation, patternNote, type Meditation } from "./meditation";
 
 const T = 1_000_000;
 const started = (over: Partial<Meditation> = {}): Meditation => ({ ...idleMeditation(), startedAt: T, startedBy: "a", together: ["a"], ...over });
@@ -94,5 +94,43 @@ describe("lining our clock up with the server's", () => {
 
   it("gives devices on a fast and a slow link the same answer when their clocks agree", () => {
     expect(clockOffset(10_025, 10_000, 10_050)).toBe(clockOffset(10_400, 10_000, 10_800));
+  });
+});
+
+describe("Wim Hof breathing (meditation-ar-fa021ebb)", () => {
+  const session = (): Meditation => ({ ...idleMeditation(), pattern: "wim-hof", minutes: 10, startedAt: 0, shown: true });
+  const at = (seconds: number) => breathAt(session(), seconds * 1000);
+
+  it("is thirty quick breaths, a hold on empty lungs, and a recovery breath held full", () => {
+    expect(cycleSeconds("wim-hof")).toBeCloseTo(30 * 3 + 60 + 2 + 15 + 3);
+    const first = at(0.5);
+    expect(first.state === "breathing" && first.words).toBe("BREATH 1 OF 30");
+    const last = at(89.5);
+    expect(last.state === "breathing" && last.words).toBe("LET GO · 30 OF 30");
+    const empty = at(100);
+    expect(empty.state === "breathing" && [empty.words, empty.fullness]).toEqual(["ALL OUT · HOLD EMPTY", 0]);
+    const full = at(160);
+    expect(full.state === "breathing" && [full.words, full.fullness]).toEqual(["HOLD FULL", 1]);
+  });
+
+  it("counts down only the long steps, not a breath a second and a half long", () => {
+    const quick = at(0.5), hold = at(100);
+    expect(quick.state === "breathing" && quick.counted).toBe(false);
+    expect(hold.state === "breathing" && hold.counted).toBe(true);
+  });
+
+  it("starts the next round where the last one ended", () => {
+    const again = at(cycleSeconds("wim-hof") + 0.5);
+    expect(again.state === "breathing" && again.words).toBe("BREATH 1 OF 30");
+  });
+
+  it("says to sit or lie down before anybody starts it, and only for this one", () => {
+    expect(patternNote("wim-hof")).toMatch(/SIT OR LIE DOWN/);
+    expect(patternNote("calm")).toBeNull();
+  });
+
+  it("is a pattern the server accepts", () => {
+    const started = applyMeditation(idleMeditation(), { action: "start", pattern: "wim-hof", minutes: 10 }, "nikk", 0);
+    expect("refused" in started).toBe(false);
   });
 });

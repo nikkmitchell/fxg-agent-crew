@@ -3,7 +3,7 @@ import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  MINUTES, PATTERNS, PATTERN_IDS, PHASE_WORDS, breathAt, clockOffset, clockText, doneLine,
+  MINUTES, PATTERNS, PATTERN_IDS, breathAt, patternNote, clockOffset, clockText, doneLine,
   type Meditation, type MeditationChange,
 } from "../../shared/meditation";
 import { space } from "../space-client";
@@ -133,8 +133,8 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
     }
     const cue = cueFor(lastBreath.current, at);
     lastBreath.current = at;
-    if (cue && soundRef.current) (cue === "bell" ? bell() : phaseCue(cue));
-    const second = at.state === "breathing" ? `${at.phase}${at.secondsLeft}${Math.ceil(at.remaining)}${at.paused}` : at.state;
+    if (cue && soundRef.current) (cue === "bell" ? bell() : phaseCue(cue, at.state === "breathing" ? at.stepSeconds : undefined));
+    const second = at.state === "breathing" ? `${at.words}${at.secondsLeft}${Math.ceil(at.remaining)}${at.paused}` : at.state;
     if (second !== lastSecond.current) { lastSecond.current = second; redraw((n) => n + 1); }
     // The scene draws on demand; a breath is motion, so keep asking while it runs.
     if (at.state === "breathing" && !at.paused) invalidate();
@@ -154,13 +154,13 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
 
     {/* The words sit above; the controls hang below, facing the door. */}
     <Text position={[0, 0.52, 0]} fontSize={0.085} color="#eefaf7" raycast={noRaycast} outlineWidth={0.004} outlineColor="#0b1418">
-      {breath.state === "breathing" ? (breath.paused ? "PAUSED" : `${PHASE_WORDS[breath.phase]}  ${breath.secondsLeft}`)
+      {breath.state === "breathing" ? (breath.paused ? "PAUSED" : breath.counted ? `${breath.words}  ${breath.secondsLeft}` : breath.words)
         : breath.state === "done" ? "WELL DONE" : "BREATHE TOGETHER"}
     </Text>
     <Text position={[0, 0.43, 0]} fontSize={0.038} color="#cfe7e3" raycast={noRaycast} outlineWidth={0.002} outlineColor="#0b1418">
       {breath.state === "breathing" ? `${clockText(breath.remaining)} left · ${PATTERNS[meditation.pattern].label}`
         : breath.state === "done" ? doneLine(meditation)
-        : `${PATTERNS[meditation.pattern].label} · ${meditation.minutes} MIN`}
+        : [PATTERNS[meditation.pattern].label, `${meditation.minutes} MIN`, patternNote(meditation.pattern)].filter(Boolean).join(" · ")}
     </Text>
 
     {/* How far through the session: a thin line that fills left to right. */}
@@ -178,8 +178,8 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
           <OrbButton label="END" at={[0.15, 0, 0]} onTap={() => change({ action: "end" })} />
         </>
         : <>
-          {PATTERN_IDS.map((id, index) => <OrbButton key={id} label={PATTERNS[id].label} width={0.3}
-            at={[(index - 1) * 0.32, 0.1, 0]} selected={meditation.pattern === id} onTap={() => change({ action: "settings", pattern: id })} />)}
+          {PATTERN_IDS.map((id, index) => <OrbButton key={id} label={PATTERNS[id].label} width={0.24}
+            at={[(index - (PATTERN_IDS.length - 1) / 2) * 0.26, 0.1, 0]} selected={meditation.pattern === id} onTap={() => change({ action: "settings", pattern: id })} />)}
           {MINUTES.map((minutes, index) => <OrbButton key={minutes} label={`${minutes} MIN`} width={0.14}
             at={[(index - 1.5) * 0.16, 0, 0]} selected={meditation.minutes === minutes} onTap={() => change({ action: "settings", minutes })} />)}
           <OrbButton label={breath.state === "done" ? "AGAIN" : "START"} width={0.4} at={[0, -0.1, 0]} onTap={() => change({ action: "start" })} />
