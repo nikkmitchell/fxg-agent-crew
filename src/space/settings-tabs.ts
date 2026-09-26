@@ -16,7 +16,7 @@ export type SettingsTab = "me" | "view" | "moving" | "voice" | "rooms" | "show" 
 
 export const SCOPES: { id: SettingsScope; label: string }[] = [
   { id: "me", label: "ME" },
-  { id: "room", label: "THIS ROOM 👥" },
+  { id: "room", label: "THIS ROOM" },
 ];
 
 export const TABS: Record<SettingsScope, { id: SettingsTab; label: string }[]> = {
