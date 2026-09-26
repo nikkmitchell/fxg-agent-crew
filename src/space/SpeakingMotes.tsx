@@ -1,9 +1,10 @@
-import { useMemo, useRef, type RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { WirePerson } from "../../shared/space-wire";
 import type { Utterance } from "../../shared/voice";
 import { MOTE_COUNT, moteField, moteOpacity, pulseFor, stepMotes } from "./speaking-motes";
+import { useDisposableList } from "./use-disposable";
 
 /** At most this many people lit at once; a fourth speaker reuses the oldest. */
 const POOL = 3;
@@ -41,7 +42,9 @@ export function SpeakingMotes({
   const next = useRef(0);
   const seed = useRef(1);
 
-  const pulses = useMemo<Pulse[]>(
+  // Freed on unmount: switching rooms remounts the scene, and each pool
+  // used to stay on the GPU.
+  const pulses = useDisposableList<Pulse>(
     () =>
       Array.from({ length: POOL }, () => {
         const positions = new Float32Array(MOTE_COUNT * 3);
@@ -62,7 +65,10 @@ export function SpeakingMotes({
         points.frustumCulled = false;
         return { points, positions, rise: new Float32Array(MOTE_COUNT), actorId: null, age: 0, seconds: 0 };
       }),
-    [],
+    (one) => {
+      one.points.geometry.dispose();
+      (one.points.material as THREE.Material).dispose();
+    },
   );
 
   useFrame((_, delta) => {

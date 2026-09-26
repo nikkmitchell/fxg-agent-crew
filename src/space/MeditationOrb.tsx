@@ -8,6 +8,7 @@ import {
 } from "../../shared/meditation";
 import { space } from "../space-client";
 import { bell, cueFor, phaseCue } from "./breath-sound";
+import { useDisposable } from "./use-disposable";
 
 /**
  * The breathing orb. Nikk (4649): "the full AR meditation experience".
@@ -68,8 +69,7 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
   const core = useRef<THREE.Mesh>(null);
   const halo = useRef<THREE.Sprite>(null);
   const ring = useRef<THREE.Mesh>(null);
-  const glow = useRef<THREE.CanvasTexture | null>(null);
-  glow.current ??= glowTexture();
+  const glow = useDisposable(glowTexture, []);
   /** Server clock minus ours, so every device reads the same breath. */
   const offset = useRef(0);
   const [trouble, setTrouble] = useState<string | null>(null);
@@ -149,7 +149,7 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
       <meshBasicMaterial color={PHASE_COLOUR[phaseKey]} transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
     </mesh>
     <sprite ref={halo} raycast={noRaycast}>
-      <spriteMaterial map={glow.current} color={PHASE_COLOUR[phaseKey]} transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+      <spriteMaterial map={glow} color={PHASE_COLOUR[phaseKey]} transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
     </sprite>
 
     {/* The words sit above; the controls hang below, facing the door. */}

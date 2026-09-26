@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 import { makeLabelTexture } from "./label-texture";
+import { useDisposable } from "./use-disposable";
 
 /**
  * Black void, or the room you are actually standing in.
@@ -101,7 +102,9 @@ export function WristButton({
    * fixed 4:1 canvas whatever that shape was. The gear is square, so its glyph
    * arrived squeezed to a quarter of its width — the "stretched" settings icon.
    */
-  const texture = useMemo(
+  // Freed when the label changes: the status line changes several times a
+  // send, and each change used to keep its old texture on the GPU.
+  const texture = useDisposable(
     () =>
       makeLabelTexture(label, {
         // A symbol fills about half the button's height, whatever its shape:
@@ -172,7 +175,7 @@ export function ButtonBox({
   height: number;
   children: React.ReactNode;
 }) {
-  const texture = useMemo(() => makeLabelTexture(title, { pixelsPerLine: 34, lines: 1 }), [title]);
+  const texture = useDisposable(() => makeLabelTexture(title, { pixelsPerLine: 34, lines: 1 }), [title]);
   return (
     <group position={[x, y, 0]}>
       <mesh position={[0, -height / 2 + 0.06, -0.01]} raycast={() => null}>

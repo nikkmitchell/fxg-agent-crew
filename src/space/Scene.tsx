@@ -95,6 +95,12 @@ function Void() {
     );
   }, []);
 
+  // A primitive is not R3F's to free: its geometry and material stayed on the
+  // GPU each time the scene remounted, on every room switch.
+  useEffect(() => () => {
+    grid.geometry.dispose();
+    (grid.material as THREE.Material).dispose();
+  }, [grid]);
   return <primitive object={grid} position={[0, -0.01, 0]} />;
 }
 

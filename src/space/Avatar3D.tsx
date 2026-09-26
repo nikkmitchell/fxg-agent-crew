@@ -10,6 +10,7 @@ import { useRoomPreferences } from "./room-preferences";
 import { isStill } from "../../shared/stillness";
 import type { Pose, WirePerson } from "../../shared/space-wire";
 import type { Vec3 } from "../../shared/space-layout";
+import { useDisposable } from "./use-disposable";
 
 /**
  * A person, in three dimensions: head, shoulders, and hands when there are any.
@@ -69,7 +70,7 @@ export type Avatar3DProps = {
 
 /** The name, cached per actor. */
 function useNameTexture(actorId: string): THREE.CanvasTexture | null {
-  return useMemo(() => makeLabelTexture(actorId), [actorId]);
+  return useDisposable(() => makeLabelTexture(actorId), [actorId]);
 }
 
 const HEAD_RADIUS = 0.16;
@@ -179,7 +180,8 @@ export function Avatar3D({ actorId, body, kind, connected, live, reducedMotion, 
    * characters, and 240 characters condensed into a single 512px canvas is a
    * grey smear. The caption bug on the headset stills was exactly this.
    */
-  const speechTexture = useMemo(
+  // Freed when the next line replaces it: every line used to be kept.
+  const speechTexture = useDisposable(
     () => (saying ? makeLabelTexture(saying, { pixelsPerLine: 40, lines: 2 }) : null),
     [saying],
   );
@@ -200,8 +202,8 @@ export function Avatar3D({ actorId, body, kind, connected, live, reducedMotion, 
    * tracked. Short and slightly wider at the top stops at the ribs, where the
    * measurements stop.
    */
-  const torso = useMemo(
-    () =>
+  const torso = useDisposable(
+    (): THREE.BufferGeometry =>
       spec.shape === "boxy"
         ? new THREE.BoxGeometry(spec.width * 1.1, TORSO_HEIGHT, spec.depth)
         : new THREE.CylinderGeometry(

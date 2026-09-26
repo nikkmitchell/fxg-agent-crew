@@ -1,8 +1,9 @@
-import { useMemo, useRef, type RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { WirePerson } from "../../shared/space-wire";
 import { SPARKLE_COUNT, SPARKLE_LIFE_S, arrivals, burstVelocities, sparkleOpacity, stepSparkles } from "./arrival-sparkle";
+import { useDisposableList } from "./use-disposable";
 
 /** At most this many bursts at once; a fifth arrival reuses the oldest. */
 const POOL = 4;
@@ -30,7 +31,9 @@ export function ArrivalSparkles({
   const next = useRef(0);
   const seed = useRef(1);
 
-  const bursts = useMemo<Burst[]>(
+  // Freed on unmount: switching rooms remounts the scene, and each pool
+  // used to stay on the GPU.
+  const bursts = useDisposableList<Burst>(
     () =>
       Array.from({ length: POOL }, () => {
         const positions = new Float32Array(SPARKLE_COUNT * 3);
@@ -49,7 +52,10 @@ export function ArrivalSparkles({
         points.frustumCulled = false;
         return { points, positions, velocities: new Float32Array(SPARKLE_COUNT * 3), age: 0, live: false };
       }),
-    [],
+    (one) => {
+      one.points.geometry.dispose();
+      (one.points.material as THREE.Material).dispose();
+    },
   );
 
   useFrame((_, delta) => {
