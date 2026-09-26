@@ -12,8 +12,18 @@ import { ROOM, WORLD, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
 import { goHandInput, clearGoHands } from "./go-hand-input";
+import {
+  classifyMicHand,
+  clearMicGestureHands,
+  MIC_GESTURE_DRAW_JOINT_INDICES,
+  MIC_GESTURE_JOINT_NAMES,
+  MIC_GESTURE_POSTURE_JOINT_INDICES,
+  micGestureHands,
+  micGestureIndicator,
+} from "./mic-gesture-input";
 import { goCarryPoint } from "../../shared/go-touch";
 import { StandingHeight, gripToWristConvention } from "./tracked-body";
+import { MicGestureOutline } from "./MicGestureOutline";
 import {
   IDLE,
   believableStep,
@@ -192,7 +202,10 @@ export function ImmersivePlayer({
   const origin = useRef<THREE.Group>(null);
   const lastSent = useRef(0);
   const held = useRef<{ left: Held; right: Held }>({ left: NO_HAND, right: NO_HAND });
-  useEffect(() => () => clearGoHands(), []);
+  useEffect(() => () => {
+    clearGoHands();
+    clearMicGestureHands();
+  }, []);
   /** When this person last touched each agent, so a resting hand is one touch. */
   const lastTouch = useRef(new Map<string, number>());
   /** The palm joystick, one per hand — see palm-joystick.ts. */
@@ -772,6 +785,42 @@ export function ImmersivePlayer({
     for (const [side, wrist, input] of [["left", liveLeft, leftHand], ["right", liveRight, rightHand]] as const) {
       const tip = input ? poseOfSpace(input.inputSource.hand.get("index-finger-tip"), frame, group) : null;
       goHandInput[side] = wrist ? { contact: (tip ?? wrist).p, carry: goCarryPoint(wrist), at: performance.now() } : null;
+
+      // The mic gesture is hand-tracking only: controller grip poses are never
+      // interpreted as an open hand, fist, or karate-chop start signal.
+      const gestureWrist = input ? localPose(input.inputSource.hand.get("wrist"), frame) : null;
+      const joints: Array<{ x: number; y: number; z: number } | null> = MIC_GESTURE_JOINT_NAMES.map(() => null);
+      if (input && gestureWrist) {
+        joints[0] = gestureWrist.p;
+        const jointIndices = micGestureIndicator.side === side
+          ? MIC_GESTURE_DRAW_JOINT_INDICES
+          : MIC_GESTURE_POSTURE_JOINT_INDICES;
+        for (const index of jointIndices) {
+          const name = MIC_GESTURE_JOINT_NAMES[index];
+          if (!name) continue;
+          joints[index] = localPose(input.inputSource.hand.get(name), frame)?.p ?? null;
+        }
+      }
+      const indexBase = joints[5];
+      const indexTip = joints[9];
+      if (gestureWrist && indexBase && indexTip) {
+        const dx = indexTip.x - indexBase.x;
+        const dy = indexTip.y - indexBase.y;
+        const dz = indexTip.z - indexBase.z;
+        const length = Math.hypot(dx, dy, dz);
+        const bases = [joints[5], joints[10], joints[15], joints[20]];
+        const tips = [joints[9], joints[14], joints[19], joints[24]];
+        micGestureHands[side] = length > 0.001
+          ? {
+              wrist: gestureWrist,
+              fingerDirection: { x: dx / length, y: dy / length, z: dz / length },
+              shape: classifyMicHand(gestureWrist.p, bases, tips),
+              joints,
+            }
+          : null;
+      } else {
+        micGestureHands[side] = null;
+      }
     }
     if (now - lastSent.current < 100) return;
     lastSent.current = now;
@@ -843,6 +892,7 @@ export function ImmersivePlayer({
         position={[began.x, 0, began.z]}
         rotation={[0, began.yaw, 0]}
       >
+        <MicGestureOutline />
         {/* The palm joystick's balls: the one you move, and its shadow where it
           first appeared. Children of the origin because they live in the
           player's frame. Hidden until a palm has faced up for a second. */}
