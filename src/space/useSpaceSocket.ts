@@ -241,7 +241,14 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
       });
 
       socket.addEventListener("message", (event) => {
-        const message = JSON.parse(String(event.data)) as ServerMessage;
+        // One bad frame is dropped, not thrown: a throw here lost the message
+        // and surfaced as an uncaught error in the headset.
+        let message: ServerMessage;
+        try {
+          message = JSON.parse(String(event.data)) as ServerMessage;
+        } catch {
+          return;
+        }
         // Anything that wants the raw stream gets it first and unfiltered —
         // voice signalling is the only user today and it is deliberately not
         // interpreted here, because this hook's job is who is in the room.
@@ -341,7 +348,12 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
       };
 
       // A move waiting on this socket goes by web at once, not after the wait.
+      // ONLY IF THIS IS STILL THE ROOM'S SOCKET. Switching rooms opens the new
+      // socket while the old one is still closing; its close landed after the
+      // new one had registered and unregistered THAT, so every Go move and
+      // request went the slow web way until the next reconnect.
       socket.addEventListener("close", () => {
+        if (socketRef.current !== socket && socketRef.current !== null) return;
         registerItemSocket(null);
         registerCallSocket(null);
       });
