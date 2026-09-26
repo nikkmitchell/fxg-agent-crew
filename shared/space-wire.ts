@@ -172,6 +172,8 @@ export type WirePerson = {
 
 /** Server → client. */
 export type ServerMessage =
+  /** The answer to one `itemAction`, to the socket that sent it only. */
+  | { type: "itemActionResult"; ref: string; status: number; payload: Record<string, unknown> }
   | {
       type: "welcome";
       /** Who the server decided you are, from the cookie. Never from the client. */
@@ -288,6 +290,16 @@ export type VoiceSignal =
 
 /** Client → server. */
 export type ClientMessage =
+  /**
+   * A move at a Go table, over the socket that is already open.
+   *
+   * Nikk (5026): on a poor connection "go is almost unplayable, but Baiwei can
+   * still see my avatar moving". The avatar rides this socket; a move was a
+   * separate web request that could stall for twenty seconds in a headset
+   * (Sill measured it). Same body as POST /bff/space/items/:id/action, same
+   * checks on the server, and `ref` so the answer finds its way back.
+   */
+  | { type: "itemAction"; ref: string; id: string; body: Record<string, unknown> }
   /**
    * I moved myself. My client owns my position; the server owns everyone
    * else's.
@@ -410,6 +422,12 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     // Trimmed rather than refused: a note is diagnostics, and a long one is
     // still worth its first two hundred characters.
     return { type: "note", note: message.note.slice(0, 200) };
+  }
+  if (message.type === "itemAction") {
+    if (typeof message.ref !== "string" || message.ref.length === 0 || message.ref.length > 64) return null;
+    if (typeof message.id !== "string" || message.id.length === 0 || message.id.length > 100) return null;
+    if (!message.body || typeof message.body !== "object" || Array.isArray(message.body)) return null;
+    return { type: "itemAction", ref: message.ref, id: message.id, body: message.body as Record<string, unknown> };
   }
   if (message.type === "voice") {
     if (typeof message.to !== "string" || message.to.length === 0) return null;

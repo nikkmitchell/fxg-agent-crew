@@ -159,6 +159,30 @@ describe("the space socket", () => {
     fresh.close();
   });
 
+  it("plays a Go move over the socket, with the same checks as the web route (Nikk 5026)", async () => {
+    const { origin, as, database } = await boot();
+    const store = new RoomItems(database), item = store.add("saha.ing", "Moraine");
+    const mover = await connect(origin, as("Moraine", "agent"));
+    const watcher = await connect(origin, as("Sill", "agent"));
+    await mover.where((m) => m.type === "welcome", "mover welcome");
+    await watcher.where((m) => m.type === "welcome", "watcher welcome");
+    mover.send({ type: "itemAction", ref: "a", id: item.id, body: { action: "lift", revision: 0 } });
+    expect(await mover.where((m) => m.type === "itemActionResult" && m.ref === "a", "lift answer"))
+      .toMatchObject({ status: 200, payload: { item: { liftedColour: 0, revision: 1 } } });
+    // A stale revision is refused over the socket exactly as over the web.
+    mover.send({ type: "itemAction", ref: "b", id: item.id, body: { action: "place", x: 2, y: 2, revision: 0 } });
+    expect(await mover.where((m) => m.type === "itemActionResult" && m.ref === "b", "stale answer"))
+      .toMatchObject({ status: 409, payload: { code: "TABLE_CHANGED" } });
+    mover.send({ type: "itemAction", ref: "c", id: item.id, body: { action: "place", x: 2, y: 2, revision: 1 } });
+    expect(await mover.where((m) => m.type === "itemActionResult" && m.ref === "c", "place answer"))
+      .toMatchObject({ status: 200, payload: { item: { revision: 2, activeColour: 1 } } });
+    // Everybody else hears of it the usual way, and only the mover got answers.
+    expect(await watcher.where((m) => m.type === "roomItems" && m.items[0]?.revision === 2, "placed stone"))
+      .toMatchObject({ items: [{ stones: [{ x: 2, y: 2, colour: 0 }] }] });
+    expect(watcher.drain().some((m) => m.type === "itemActionResult")).toBe(false);
+    mover.close(); watcher.close();
+  });
+
   it("refuses a socket with no session, and says why before closing", async () => {
     const { origin } = await boot();
     const nobody = await connect(origin);

@@ -372,6 +372,11 @@ export function registerSpaceRoutes(
   /** Touches and agents' feelings about them. Optional so older tests run unchanged. */
   touches: Touches | null = null,
   hubFor: (room: string) => SpaceHub = () => hub,
+  /**
+   * A move at a room item, sent over this socket instead of a web request.
+   * The same function the web route calls (items.ts), so no check differs.
+   */
+  itemAction: ((room: string, username: string, id: string, body: Record<string, unknown>) => { status: number; payload: Record<string, unknown> }) | null = null,
 ): void {
   app.get("/bff/space/room", async (request, reply) => {
     const session = sessions.get(request.cookies[config.cookieName]);
@@ -501,6 +506,18 @@ export function registerSpaceRoutes(
           // grow this for ever. Oldest first, which is insertion order here.
           if (noteAt.size > 64) noteAt.delete(noteAt.keys().next().value as string);
           request.log.info({ actorId, note: message.note }, "space client note");
+        }
+        return;
+      }
+      if (message.type === "itemAction") {
+        // WHO MOVED IS THE SESSION, never the frame, exactly as on the web
+        // route. The answer goes to this socket only; everybody else learns of
+        // the move from the room's usual `roomItems` broadcast.
+        const result = itemAction
+          ? itemAction(room, actorId, message.id, message.body)
+          : { status: 501, payload: { error: "moves over the socket are not available" } };
+        if (socket.readyState === socket.OPEN) {
+          socket.send(JSON.stringify({ type: "itemActionResult", ref: message.ref, status: result.status, payload: result.payload }));
         }
         return;
       }
