@@ -42,6 +42,10 @@ export const space = {
     requestJson<{ utterances: Utterance[] }>(`${root}/utterances?limit=${limit}`),
 
   /** Say something. The server refuses with a sentence; `ApiError` carries it. */
+  /** Where a send's time went, for the server log only. See server/space/send-timing.ts. */
+  sendTiming: (report: { parts: { to: string; startedAt: number; answeredAt: number | null; outcome: string }[]; inXr: boolean; visible: string }) =>
+    requestJson<void>(`${root}/send-timing`, { method: "POST", body: JSON.stringify(report) }),
+
   say: (utterance: UtteranceInput, signal?: AbortSignal) =>
     requestJson<{ ok: true; utterance: Utterance }>(`${root}/utterances`, {
       method: "POST",

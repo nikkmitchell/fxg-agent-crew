@@ -431,6 +431,9 @@ export function RoomControls({
   const writtenNow = useRef("");
   writtenNow.current = written;
   const session = useXR((state) => state.session);
+  /** In a headset right now, for the send timing report. */
+  const inXrNow = useRef(false);
+  inXrNow.current = Boolean(session);
   const returnToLobby = () => { void endSessionThenReturn(session, onReturnToLobby); };
   const confidence = useRef<number | undefined>(undefined);
   const capabilities = useMemo(() => speechCapabilities(), []);
@@ -508,7 +511,10 @@ export function RoomControls({
     // does not invite a resend. The server posts repeated words once anyway
     // (server/routes/repeat-guard.ts).
     const unanswered: string[] = [];
+    const timings: { to: string; startedAt: number; answeredAt: number | null; outcome: string }[] = [];
     for (const item of plan.posts) {
+      const timing = { to: item.to, startedAt: Date.now(), answeredAt: null as number | null, outcome: "sent" };
+      timings.push(timing);
       if (item.to === "group-chat" && chatStopped) continue;
       try {
         if (item.to === "room") {
@@ -524,13 +530,16 @@ export function RoomControls({
             source,
             ...(item.confidence !== undefined ? { confidence: item.confidence } : {}),
           }, signal), stop.signal);
+          timing.answeredAt = Date.now();
         } else if (!room) {
           failures.push("the group chat (no room)");
         } else {
           await withDeadline((signal) => bff.sendMessage(room, item.content, signal), stop.signal);
+          timing.answeredAt = Date.now();
         }
       } catch (error) {
         // ✕ while sending: nothing more goes, and nobody is told it failed.
+        timing.outcome = error instanceof SendTimedOut ? "timed out" : error instanceof SendStopped ? "stopped" : "refused";
         if (error instanceof SendStopped) break;
         if (error instanceof SendTimedOut) {
           const where = item.to === "room" ? "the room" : "the chat";
@@ -551,6 +560,8 @@ export function RoomControls({
     }
     setSending(false);
     sendStop.current = null;
+    // Where the time went, for the server log. Never waited for, never shown.
+    void space.sendTiming({ parts: timings, inXr: inXrNow.current, visible: document.visibilityState }).catch(() => {});
     if (stop.signal.aborted) return false;
     // NAMED INDIVIDUALLY. Being told your words reached the agents when they
     // did not is the quiet failure this product exists not to have.

@@ -33,6 +33,7 @@ import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
 import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { RoomMeditations, registerMeditationRoutes } from "./space/meditation.js";
 import { RoomHelpers, registerHelperRoutes } from "./space/helpers.js";
+import { registerSendTimingRoutes } from "./space/send-timing.js";
 import { Utterances, registerUtteranceRoutes } from "./space/utterances.js";
 import { registerSpeechRoutes, speakWith, speechCache } from "./space/speak.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
@@ -353,6 +354,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       announce: (room, showing) => hubFor(room).broadcast({ type: "showing", showing }),
     });
+    // Where a voice send's time goes in a headset: see space/send-timing.ts.
+    registerSendTimingRoutes(scoped, { config, sessions });
     registerHelperRoutes(scoped, {
       config,
       sessions,
