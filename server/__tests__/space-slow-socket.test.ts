@@ -98,3 +98,16 @@ describe("a quiet socket holds presence without being sent the room", () => {
     hub.close();
   });
 });
+
+describe("a socket that is behind skips snapshots rather than queueing them", () => {
+  // Nikk (5066): answers waited behind a queue of stale snapshots.
+  it("queues a snapshot only while the socket has caught up", async () => {
+    const { SNAPSHOT_SKIP_BYTES, MAX_BUFFERED_BYTES, wantsSnapshot } = await import("../space/socket.js");
+    expect(wantsSnapshot(0)).toBe(true);
+    expect(wantsSnapshot(SNAPSHOT_SKIP_BYTES)).toBe(true);
+    expect(wantsSnapshot(SNAPSHOT_SKIP_BYTES + 1)).toBe(false);
+    // Far below the point where the socket is cut off, so a slow link keeps
+    // its connection and only loses frames that were stale anyway.
+    expect(SNAPSHOT_SKIP_BYTES * 8).toBeLessThan(MAX_BUFFERED_BYTES);
+  });
+});

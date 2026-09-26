@@ -51,6 +51,22 @@ const TICK_MS = 100;
  */
 export const MAX_BUFFERED_BYTES = 1024 * 1024;
 
+/**
+ * A TICK IS SKIPPED FOR A SOCKET STILL BEHIND ON THE LAST ONES.
+ *
+ * Nikk (5066): a send sat on "Sending… please wait", was called not sent, and
+ * then arrived anyway, while his avatar still looked smooth to everybody
+ * else. On a slow link this socket was queueing up to a megabyte of room
+ * snapshots — ten a second, every head and hand — and an answer to his send,
+ * or a table move, or a chat line, waited behind all of it. A snapshot is
+ * superseded by the next one, so one the socket has no room for is simply not
+ * sent; the queue stays short and what matters gets through.
+ */
+export const SNAPSHOT_SKIP_BYTES = 32 * 1024;
+
+/** Whether this tick's snapshot should be queued for a socket this far behind. */
+export const wantsSnapshot = (bufferedAmount: number): boolean => bufferedAmount <= SNAPSHOT_SKIP_BYTES;
+
 export class SpaceHub {
   readonly presence: Presence;
   /** Sockets per actor. More than one is a second tab, not a second person. */
@@ -315,7 +331,10 @@ export class SpaceHub {
     }
     const snapshot: ServerMessage = { type: "snapshot", now: Date.now(), people: this.snapshot() };
     for (const sockets of this.sockets.values()) {
-      for (const socket of sockets) if (!this.quiet.has(socket)) this.send(socket, snapshot);
+      for (const socket of sockets) {
+        if (this.quiet.has(socket) || !wantsSnapshot(socket.bufferedAmount)) continue;
+        this.send(socket, snapshot);
+      }
     }
   }
 
