@@ -76,7 +76,8 @@ describe("room-history readers", () => {
   it("are all classified", () => {
     const found = SEARCH_DIRS.flatMap((dir) => sourceFiles(resolve(root, dir)))
       .filter((file) => READS_HISTORY.test(readFileSync(file, "utf8")))
-      .map((file) => relative(root, file))
+      // "/" whatever the platform: CLASSIFIED is written that way.
+      .map((file) => relative(root, file).replaceAll("\\", "/"))
       .sort();
 
     // An unclassified reader is not a style problem. It is the specific defect

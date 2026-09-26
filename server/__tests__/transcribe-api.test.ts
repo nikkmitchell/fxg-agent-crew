@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
 import { registerTranscribeRoutes, MAX_AUDIO_BYTES } from "../space/transcribe.js";
 import { encodeWav } from "../../src/space/wav.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * The seam between a headset holding a recording and a transcriber holding a
@@ -25,7 +26,7 @@ const boot = (transcriber?: (path: string) => Promise<string>) => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
   });
   // A second registration on its own prefix, so one server can be asked both
   // "what if nothing is configured" and "what if something is".

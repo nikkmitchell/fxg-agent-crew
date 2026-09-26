@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { buildServer } from "../index.js";
 import { AgentBodies, registerBodyRoutes, type CatalogueLookup } from "../space/bodies.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * Choosing your own body, without a commit.
@@ -15,7 +16,7 @@ const boot = () => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
     LOG_LEVEL: "silent",
   });
   const as = (username: string, kind: "human" | "agent" = "human") =>

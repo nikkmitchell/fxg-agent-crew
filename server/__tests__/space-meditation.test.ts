@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { join } from "node:path";
 import { buildServer } from "../index.js";
+import { tempDir } from "./test-config.js";
 
 /** The breathing orb: shared per room, kept across a restart, refused when stale. */
 const boot = (path = ":memory:") => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: path,
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
     LOG_LEVEL: "silent",
   });
   const enterAs = (username: string, room: string) => {
@@ -57,7 +59,7 @@ describe("the room's breathing orb", () => {
   });
 
   it("is still there after a restart", async () => {
-    const path = `/tmp/meditation-${Math.random().toString(36).slice(2)}.db`;
+    const path = join(tempDir("meditation-"), "saha.db");
     const first = boot(path);
     await post(first.app, first.enterAs("nikk", "calm"), { action: "show", shown: true });
     // Closing the app closes its database, as a real stop does.

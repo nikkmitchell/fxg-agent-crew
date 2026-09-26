@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
 import { MOST_WAITING, VOICE_SAMPLE, cacheName, registerSpeechRoutes, speakWith, speechCache, timeoutFor, type Speaker } from "../space/speak.js";
 import type { Utterance } from "../../shared/voice.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * Reading a line back aloud.
@@ -37,7 +38,7 @@ const boot = async (options: {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
     LOG_LEVEL: "silent",
   });
   const app = Fastify({ logger: false });
@@ -289,7 +290,9 @@ describe("reading a line aloud", () => {
 });
 
 describe("running the engine", () => {
-  it("passes a path with spaces in it as ONE argument", async () => {
+  // The engine here is a .sh script, which native Windows cannot run
+  // directly; the speech engine only ever runs on the Linux box.
+  it.skipIf(process.platform === "win32")("passes a path with spaces in it as ONE argument", async () => {
     // This worktree lives under "Python Stuff/My Projects", and filling the
     // command before splitting it handed the engine three arguments where one
     // was meant. The box's own path has no spaces, so only a browser found it.

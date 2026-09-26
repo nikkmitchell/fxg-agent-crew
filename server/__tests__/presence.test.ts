@@ -4,6 +4,7 @@ import { ROOM, WALK_SPEED, deskFor } from "../../shared/space-layout.js";
 import { CONVERSATION_FAR } from "../space/social-motion.js";
 import { PERSONAL_SPACE } from "../../shared/standing-room.js";
 import { buildServer } from "../index.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * Who is in the room.
@@ -686,7 +687,7 @@ describe("GET /bff/space/presence", () => {
     buildServer({
       WEBHARNESS_URL: "https://example.test",
       DATABASE_PATH: ":memory:",
-      BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+      BLOB_ROOT: tempDir("blobs-"),
       LOG_LEVEL: "silent",
     });
 

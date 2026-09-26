@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
+import { tempDir } from "./test-config.js";
 
 const boot = () => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
     LOG_LEVEL: "silent",
   });
   const as = (username: string) =>

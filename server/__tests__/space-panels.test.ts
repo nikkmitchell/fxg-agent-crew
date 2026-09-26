@@ -3,6 +3,7 @@ import { buildServer } from "../index.js";
 import { DEFAULT_OPEN_PANELS, STATIONS } from "../../shared/space-layout.js";
 import { destinationFor } from "../space/destinations.js";
 import { standFor } from "../../shared/panel-place.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * Which panels you have open.
@@ -17,7 +18,7 @@ const boot = () => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
     LOG_LEVEL: "silent",
   });
   const as = (username: string) =>

@@ -8,6 +8,7 @@ import { Activity, ATTENTION_MS } from "../space/activity.js";
 import { AgentHomes } from "../space/homes.js";
 import { BoardStore } from "../db/store.js";
 import { ROOM, WORLD, deskFor } from "../../shared/space-layout.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * Nikk: "agents should choose a position where they stay and they should
@@ -19,7 +20,7 @@ const boot = () => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
     LOG_LEVEL: "silent",
   });
   const as = (username: string, kind: "human" | "agent" = "human") =>

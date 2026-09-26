@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { openDatabase } from "../db/open.js";
 import { RoomItems } from "../space/items.js";
 import { buildServer } from "../index.js";
+import { tempDir } from "./test-config.js";
 
 describe("room items", () => {
   it("keeps tables, turns, and stones inside their own room", () => {
@@ -25,7 +26,7 @@ describe("room items", () => {
 
 describe("Go actions", () => {
   it("hides only the desk, preserving the game, transform and flying stone", async () => {
-    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: tempDir("go-blobs-"), LOG_LEVEL: "silent" });
     try {
       const items = new RoomItems(database), item = items.add("saha.ing", "Moraine");
       item.stones = [{ id: "played", x: 4, y: 4, colour: 0 }];
@@ -47,7 +48,7 @@ describe("Go actions", () => {
   it("changes the board type mid-game, with a stone in the air, keeping everything else", async () => {
     // Nikk: "can we allow for changing board types inside the settings".
     // Only the look changes, so nothing about the game is refused or lost.
-    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: tempDir("go-blobs-"), LOG_LEVEL: "silent" });
     try {
       const items = new RoomItems(database), item = items.add("saha.ing", "Moraine");
       expect(item.surface).toBe("bamboo");
@@ -71,7 +72,7 @@ describe("Go actions", () => {
     // Nikk: "a way for agents to read the board through code and place their
     // pieces through code". Lift-then-place leaves a stone hanging if a
     // program dies between them; `play` cannot.
-    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: tempDir("go-blobs-"), LOG_LEVEL: "silent" });
     try {
       const items = new RoomItems(database), item = items.add("saha.ing", "Moraine");
       const agent = `${config.cookieName}=${sessions.create("Sill", "t", "agent")}`;
@@ -104,7 +105,7 @@ describe("Go actions", () => {
   });
 
   it("serializes turns, protects a carrier, stores captures and retains an unchanged size", async () => {
-    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: tempDir("go-blobs-"), LOG_LEVEL: "silent" });
     try {
       const items = new RoomItems(database), item = items.add("saha.ing", "Moraine");
       item.stones = [{ x: 0, y: 0, colour: 1, id: "captured" }, { x: 1, y: 0, colour: 0 }];
@@ -149,7 +150,7 @@ describe("Go actions", () => {
  */
 describe("deleting a table", () => {
   const boot = () => {
-    const built = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    const built = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: tempDir("go-blobs-"), LOG_LEVEL: "silent" });
     const cookie = (name: string) => `${built.config.cookieName}=${built.sessions.create(name, "t", "human")}`;
     const remove = (who: string, id: string) =>
       built.app.inject({ method: "DELETE", url: `/bff/space/items/${id}`, headers: { cookie: cookie(who) } });
@@ -204,7 +205,7 @@ describe("deleting a table", () => {
  */
 describe("passing, and the end of a game", () => {
   const boot = () => {
-    const built = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    const built = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: tempDir("go-blobs-"), LOG_LEVEL: "silent" });
     const cookie = `${built.config.cookieName}=${built.sessions.create("Nikk2", "t", "human")}`;
     const items = new RoomItems(built.database);
     const table = items.add("saha.ing", "Nikk2");

@@ -10,7 +10,10 @@ import { describe, expect, it } from "vitest";
  * exactly the situation in which nobody is thinking about it, so it runs with
  * everything else, including the suite release.sh runs before it ships.
  */
-describe("a deploy that would roll back what is live", () => {
+// A shell script, run by bash: there is no bash on native Windows, where this
+// is skipped rather than failed (saha-ing-ce918b95). The deploy target is Linux.
+const unixOnly = process.platform === "win32";
+describe.skipIf(unixOnly)("a deploy that would roll back what is live", () => {
   it("is refused, by the checks in deploy/live-guard.test.sh", () => {
     const script = fileURLToPath(new URL("../../deploy/live-guard.test.sh", import.meta.url));
     // Throws with the script's output if any check fails, which is the report.

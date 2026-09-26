@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Presence } from "../space/presence.js";
 import { buildServer } from "../index.js";
 import { WALK_SPEED } from "../../shared/space-layout.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * Walking a route.
@@ -146,7 +147,7 @@ describe("the route endpoint", () => {
     const built = buildServer({
       WEBHARNESS_URL: "https://example.test",
       DATABASE_PATH: ":memory:",
-      BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+      BLOB_ROOT: tempDir("blobs-"),
       LOG_LEVEL: "silent",
     });
     const as = (username: string) =>

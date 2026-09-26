@@ -10,7 +10,10 @@ import { describe, expect, it } from "vitest";
  * in one night a shipped, restarted, healthy deploy was reported FAILED
  * because a curl on the deploying laptop timed out.
  */
-describe("asking the public URL from a machine with a flaky connection", () => {
+// A shell script, run by bash: there is no bash on native Windows, where this
+// is skipped rather than failed (saha-ing-ce918b95). The deploy target is Linux.
+const unixOnly = process.platform === "win32";
+describe.skipIf(unixOnly)("asking the public URL from a machine with a flaky connection", () => {
   it("passes the checks in deploy/public-check.test.sh", () => {
     const script = fileURLToPath(new URL("../../deploy/public-check.test.sh", import.meta.url));
     const output = execFileSync("bash", [script], { encoding: "utf8" });

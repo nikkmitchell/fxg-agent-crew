@@ -4,12 +4,13 @@ import { buildServer } from "../index.js";
 import { openDatabase } from "../db/open.js";
 import { ScreenFrames, ShareKeys } from "../space/screens.js";
 import { SCREEN_LIMITS, sniffImage } from "../../shared/screens.js";
+import { tempDir } from "./test-config.js";
 
 const boot = () => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
     LOG_LEVEL: "silent",
   });
   const as = (username: string, kind: "human" | "agent" = "human") =>

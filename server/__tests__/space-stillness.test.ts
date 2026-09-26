@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
 import { Presence } from "../space/presence.js";
 import { SpaceHub } from "../space/socket.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * Nikk: "an option to hide avatars that have not moved in more than 5 minutes
@@ -47,7 +48,7 @@ describe("the snapshot says how long each person has been still", () => {
     const built = buildServer({
       WEBHARNESS_URL: "https://example.test",
       DATABASE_PATH: ":memory:",
-      BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+      BLOB_ROOT: tempDir("blobs-"),
       LOG_LEVEL: "silent",
     });
     built.space.presence.join("Corvid", "agent", false);

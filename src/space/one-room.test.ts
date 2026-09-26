@@ -52,7 +52,9 @@ describe("one room, not two", () => {
   it("has no branch on where you are standing outside the listed places", () => {
     const offenders: string[] = [];
     for (const path of readAll(ROOT)) {
-      const relative = path.slice(ROOT.length + 1);
+      // Always "/": ALLOWED is written that way, and on Windows the path
+      // arrived with backslashes and every listed file looked unlisted.
+      const relative = path.slice(ROOT.length + 1).replaceAll("\\", "/");
       if (ALLOWED[relative]) continue;
       const source = readFileSync(path, "utf8");
       // Code only: a comment explaining the history is the opposite of the

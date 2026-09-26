@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { buildServer } from "../index.js";
 import { openDatabase } from "../db/open.js";
 import { BoardStore } from "../db/store.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * ONE ROOM, ONE PROJECT. Nikk (chat 4586): "one room should be one project, as
@@ -62,7 +63,7 @@ async function boot() {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
     LOG_LEVEL: "silent",
   });
   await built.app.ready();

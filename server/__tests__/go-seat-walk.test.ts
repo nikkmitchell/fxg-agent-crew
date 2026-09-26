@@ -7,6 +7,7 @@ import { RoomItems } from "../space/items.js";
 import { Presence } from "../space/presence.js";
 import { goSeat } from "../../shared/go-layout.js";
 import { buildServer } from "../index.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * AN AGENT PLAYING GO THROUGH CODE WALKS TO ITS SEAT.
@@ -121,7 +122,7 @@ describe("staying for the game, not for a move", () => {
 
 describe("the play route writes the row the walker reads", () => {
   it("one row for an accepted move, none for a refused one", async () => {
-    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: "/tmp/go-test-blobs", LOG_LEVEL: "silent" });
+    const { app, sessions, config, database } = buildServer({ WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: tempDir("go-blobs-"), LOG_LEVEL: "silent" });
     try {
       const items = new RoomItems(database), item = items.add(ROOM, "Moraine");
       const cookie = `${config.cookieName}=${sessions.create("Inkstone", "t", "agent")}`;

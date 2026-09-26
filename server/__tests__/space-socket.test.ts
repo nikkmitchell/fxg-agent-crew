@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
 import type { ServerMessage } from "../../shared/space-wire.js";
 import { RoomItems } from "../space/items.js";
+import { tempDir } from "./test-config.js";
 
 /**
  * The socket the room is drawn from.
@@ -28,7 +29,7 @@ const boot = async () => {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
     // Fastify's own request logging drowns the test output and none of it is
     // what these tests are about.
     LOG_LEVEL: "silent",

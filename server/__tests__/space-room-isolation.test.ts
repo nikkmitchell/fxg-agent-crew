@@ -4,6 +4,7 @@ import type { ServerMessage } from "../../shared/space-wire.js";
 import { DatabaseSync } from "node:sqlite";
 import { MIGRATIONS } from "../db/schema.js";
 import { BoardStore } from "../db/store.js";
+import { tempDir } from "./test-config.js";
 
 const running: Array<() => Promise<void>> = [];
 
@@ -26,7 +27,7 @@ async function boot() {
   const built = buildServer({
     WEBHARNESS_URL: "https://example.test",
     DATABASE_PATH: ":memory:",
-    BLOB_ROOT: `/tmp/blobs-${Math.random().toString(36).slice(2)}`,
+    BLOB_ROOT: tempDir("blobs-"),
     LOG_LEVEL: "silent",
   });
   await built.app.listen({ host: "127.0.0.1", port: 0 });
