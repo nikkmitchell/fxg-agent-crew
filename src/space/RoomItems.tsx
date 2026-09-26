@@ -25,6 +25,30 @@ import { grabHold } from "./grab-hold";
 import { clockNow } from "../../shared/go-clock";
 
 /** Under the desk top (0.705 − half its 0.075), facing down: MOVE from below. */
+/**
+ * PRESS AND RELEASE ON THE SAME THING, HOWEVER LONG IT TOOK.
+ *
+ * Nikk (5020): "when I try to play something on the go board it often doesn't
+ * let me place at all". The server refused 2 moves in 180 (Sill); the rest
+ * never left the headset. Every control on this table used `onClick`, and in a
+ * headset @pmndrs/pointer-events only calls a press a click when the trigger
+ * comes up within 300 ms (clickThresholdMs). A deliberate squeeze is longer, so
+ * the press did nothing at all. This fires on the release instead, for the
+ * pointer that pressed here, with no clock on it.
+ */
+function usePress(onPress: (event: ThreeEvent<PointerEvent>) => void) {
+  const down = useRef<number | null>(null);
+  return {
+    onPointerDown: (event: ThreeEvent<PointerEvent>) => { event.stopPropagation(); down.current = event.pointerId; },
+    onPointerUp: (event: ThreeEvent<PointerEvent>) => {
+      if (down.current !== event.pointerId) return;
+      event.stopPropagation();
+      down.current = null;
+      onPress(event);
+    },
+    onPointerLeave: () => { down.current = null; },
+  };
+}
 const UNDERSIDE_Y = 0.66;
 /** Big, because it is aimed at from underneath, often at arm's length up. */
 const UNDERSIDE_HANDLE = 0.4;
@@ -247,11 +271,14 @@ function MoveLights({ item, reducedMotion, onPlace }: { item: GoRoomItem; reduce
       onPointerMove={(event) => { event.stopPropagation(); setAim(aimAt(event)); }}
       onPointerOut={() => { setAim(null); pressed.current = null; }}
       onPointerDown={(event) => { event.stopPropagation(); pressed.current = aimAt(event); }}
-      onClick={(event) => {
+      onPointerUp={(event) => {
+        // ON RELEASE, not onClick: see usePress. The point pressed wins, so a
+        // hand that drifts while letting go still places where it aimed.
+        if (!pressed.current) return;
         event.stopPropagation();
-        const at = pressed.current ?? aimAt(event);
+        const at = pressed.current;
         pressed.current = null;
-        if (at) onPlace(at.x, at.y);
+        onPlace(at.x, at.y);
       }}>
       <planeGeometry args={[catcher, catcher]} />
       <meshBasicMaterial transparent opacity={0} depthWrite={false} />
@@ -419,9 +446,10 @@ function Bowl({ item, index, reducedMotion, onLift, onPass, winner }: { item: Go
     shell.uniforms.colour.value.set(accent);
   });
   const captures = item.captures.filter((stone) => stone.by === index).length;
+  const lift = usePress(() => onLift());
   return <>
     {/* In proportion to the board: see goBowlScale. */}
-    <group position={xyz(position)} scale={goBowlScale(item.size)} onClick={(event) => { event.stopPropagation(); onLift(); }}>
+    <group position={xyz(position)} scale={goBowlScale(item.size)} onPointerDown={lift.onPointerDown} onPointerUp={lift.onPointerUp} onPointerLeave={lift.onPointerLeave}>
       <mesh position={[0, -0.055, 0]} rotation-x={-Math.PI / 2} raycast={noRaycast}>
         <planeGeometry args={[0.56, 0.56]} /><meshBasicMaterial ref={pulse} map={texture} color={accent} transparent depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
       </mesh>
@@ -535,7 +563,8 @@ function TableButton({ label, at, onTap, width = 0.24, depth = 0.105, fontSize =
   outline?: string;
 }) {
   const [hover, setHover] = useState(false);
-  return <group position={at} onClick={(event) => { event.stopPropagation(); onTap(); }} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
+  const press = usePress(() => onTap());
+  return <group position={at} onPointerDown={press.onPointerDown} onPointerUp={press.onPointerUp} onPointerLeave={press.onPointerLeave} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
     {outline
       // Still a full-size plane, so the whole button is a target; only a hint of fill on hover.
       ? <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[width, depth]} /><meshBasicMaterial color={outline} transparent opacity={hover ? 0.16 : 0} depthWrite={false} /></mesh>
@@ -840,6 +869,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     node.position.set(at.x, at.y, at.z);
   });
 
+  const returnStone = usePress(() => void act({ action: "return" }));
   const takeTable = (event: ThreeEvent<PointerEvent>) => {
     if (item.liftedColour !== null) {
       setNotice("Place or return the flying stone before moving the table.");
@@ -1015,7 +1045,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     {!settingsOpen && !result && <Text position={[0, controls.line.y, controls.line.z + 0.085 * controls.line.fontSize / 0.043]} rotation-x={-Math.PI / 2} fontSize={0.025 * controls.line.fontSize / 0.043} maxWidth={Math.max(0.8, boardWidth)} color={notice ? "#ff9f8d" : "#d8c8ac"} raycast={noRaycast}>
       {notice || clockSays || scoreLine(item) || noMoveLine(item) || lastPassLine(item) || (item.carrier?.hand ? `${item.carrier.by} · ${item.carrier.hand} hand · touch a point on the board` : item.liftedColour !== null ? "Point at the board: a ghost stone shows where it lands" : "Touch the glowing bowl to lift a stone, or PASS at it")}
     </Text>}
-    {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onClick={(event) => { event.stopPropagation(); void act({ action: "return" }); }}>
+    {item.liftedColour !== null && <group position={[0, 0.754, edge - 0.095]} onPointerDown={returnStone.onPointerDown} onPointerUp={returnStone.onPointerUp} onPointerLeave={returnStone.onPointerLeave}>
       <mesh rotation-x={-Math.PI / 2}><planeGeometry args={[0.46, 0.1]} /><meshBasicMaterial color="#493d30" /></mesh>
       <Text rotation-x={-Math.PI / 2} position-y={0.001} fontSize={0.025} color="#eee0c6">RETURN STONE</Text>
     </group>}
