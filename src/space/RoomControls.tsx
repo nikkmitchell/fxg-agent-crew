@@ -121,14 +121,24 @@ const OPEN_HEIGHT = 1.42;
 const FIX_AHEAD = 1.2;
 const FIX_HEIGHT = 1.38;
 
-/** One button in the open grid. Wider and taller than the waist buttons. */
-const BOX_BUTTON = { width: 0.56, height: 0.11, gap: 0.018 } as const;
-/** A tab, and a scope above the tabs. */
-const TAB_BUTTON = { width: 0.3, height: 0.1, gap: 0.03 } as const;
+/**
+ * One button in the open grid. Wider and taller than the waist buttons.
+ *
+ * BIGGER, WITH ROOM BETWEEN. Baiwei (4968): "The settings are too small ... When
+ * I try to press any of them, I mostly miss". At two metres an 11 cm button
+ * with under 2 cm between it and the next is a target a ray slides off; these
+ * are half as tall again with three centimetres of gap.
+ */
+const BOX_BUTTON = { width: 0.6, height: 0.16, gap: 0.03 } as const;
+/** A tab, and a scope above the tabs. Grown for the same reason. */
+const TAB_BUTTON = { width: 0.32, height: 0.15, gap: 0.04 } as const;
 /** How far above the first box's top the tab row sits. */
-const TAB_ROW_ABOVE = 0.26;
-/** How many buttons a box holds before it spills into another column. */
-const BOX_ROWS = 7;
+const TAB_ROW_ABOVE = 0.34;
+/**
+ * How many buttons a box holds before it spills into another column. Five, not
+ * seven, since the buttons grew: seven tall ones stood a box half again as high.
+ */
+const BOX_ROWS = 5;
 const BOX_GAP = 0.08;
 /**
  * How many boxes stand side by side before the grid wraps onto another row.
