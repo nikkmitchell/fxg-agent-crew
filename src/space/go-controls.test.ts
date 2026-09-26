@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GO_SIZES, defaultGoItem, type GoRoomItem, type GoSize } from "../../shared/room-items.js";
-import { GO_SURFACE, goBoardWidth, goBowl, goRadius } from "../../shared/go-layout.js";
+import { GO_SURFACE, goBoardWidth, goBowl, goRadius, goRimReach } from "../../shared/go-layout.js";
 import { GO_STONE_TOP, goControls, goControlsShown, type FlatRect } from "./go-controls.js";
 
 /**
@@ -67,7 +67,7 @@ describe("MOVE and SETTINGS, on the turn line", () => {
       for (const seats of SEATINGS) {
         for (const surface of ["bamboo", "rock"] as const) {
           const { move, settings, line } = goControls(table(size, seats, { surface }));
-          expect(line.z, `${size}x${size}, ${seats} seats, ${surface}`).toBeGreaterThan(goBoardWidth(size) / 2 + (surface === "rock" ? 0.18 : 0.09));
+          expect(line.z, `${size}x${size}, ${seats} seats, ${surface}`).toBeGreaterThan(goBoardWidth(size) / 2 + goRimReach(surface));
           for (const rect of [move, settings]) expect(rect.z - rect.depth / 2).toBeGreaterThan(goBoardWidth(size) / 2);
         }
       }
@@ -80,7 +80,7 @@ describe("MOVE and SETTINGS, on the turn line", () => {
         for (const surface of ["bamboo", "rock"] as const) {
         const { move, settings } = goControls(table(size, seats, { surface }));
         for (let bowl = 0; bowl < seats; bowl += 1) {
-          const at = goBowl(bowl, seats, size, surface === "rock" ? 0.18 : 0.09);
+          const at = goBowl(bowl, seats, size, goRimReach(surface));
           expect(gapTo(move, at), `MOVE, ${size}x${size}, ${seats} seats, bowl ${bowl}`).toBeGreaterThan(BOWL_REACH);
           expect(gapTo(settings, at), `SETTINGS, ${size}x${size}, ${seats} seats, bowl ${bowl}`).toBeGreaterThan(BOWL_REACH);
         }

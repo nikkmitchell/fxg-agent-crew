@@ -26,11 +26,11 @@ export const GO_SURFACE = 0.86;
 export const GO_RIM_REACH = 0.09;
 /**
  * The SCHOLAR'S ROCK reaches further: its lip is the rock, and at 19x19 a
- * 9 cm lip read as a slate board, not a rock (Lumenfold 4682: "deepen the
- * irregular lip and move the bowls outward"). Only the rock's stations move;
+ * 9 cm lip read as a slate board, not a rock. The sculpted form needs up to
+ * 28 cm for its lobes, grottoes and rounded shoulders. Only the rock's stations move;
  * bamboo and stone keep every position, seat and reach they had.
  */
-export const GO_ROCK_REACH = 0.18;
+export const GO_ROCK_REACH = 0.28;
 /** How far the rim reaches for a board surface. */
 export const goRimReach = (surface?: string) => (surface === "rock" ? GO_ROCK_REACH : GO_RIM_REACH);
 export const goPoint = (n: number, size: number) => -goExtent(size) / 2 + n * GO_PITCH;

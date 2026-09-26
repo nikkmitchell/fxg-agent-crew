@@ -127,7 +127,7 @@ export function rockPixels(size = 512, base = "#454c55"): Uint8ClampedArray {
     const grain = periodicFbm(u, v, 40, 2, 57) - 0.5;
     const warp = periodicFbm(u, v, 3, 2, 59);
     const streak = Math.exp(-(((periodicNoise(u, v + warp * 0.4, 4, 7, 61) - 0.5) / 0.018) ** 2));
-    const shade = 1 + worn * 0.22 + pits * 0.08 + grain * 0.05 + streak * 0.07;
+    const shade = 1 + worn * 0.15 + pits * 0.05 + grain * 0.035 + streak * 0.065;
     const at = (y * size + x) * 4;
     out[at] = r0 * shade; out[at + 1] = g0 * shade; out[at + 2] = b0 * (shade + worn * 0.03); out[at + 3] = 255;
   }
