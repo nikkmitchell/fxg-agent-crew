@@ -36,6 +36,8 @@ export type MicGestureHand = {
   head: Pose | null;
   /** Mostly closed, about 80% of a fist: see mostlyClosed. Cancels a recording. */
   closed: boolean;
+  /** How far toward closed, 0..1: see closedness. The bar fades with it. */
+  closedness: number;
 };
 
 export const micGestureHands: Record<MicGestureSide, MicGestureHand | null> = {
@@ -43,13 +45,22 @@ export const micGestureHands: Record<MicGestureSide, MicGestureHand | null> = {
   right: null,
 };
 
-/** The hand whose outline is currently shown while gesture recording is active. */
-export const micGestureIndicator: { side: MicGestureSide | null } = { side: null };
+/**
+ * What the bar beside the hand shows (MicGestureBar): which hand is recording,
+ * how far it is toward finishing or cancelling (0..1, green fading to white),
+ * and when it last ended, for the pop.
+ */
+export const micGestureIndicator: {
+  side: MicGestureSide | null;
+  progress: number;
+  popAt: number | null;
+} = { side: null, progress: 0, popAt: null };
 
 export function clearMicGestureHands() {
   micGestureHands.left = null;
   micGestureHands.right = null;
   micGestureIndicator.side = null;
+  micGestureIndicator.progress = 0;
 }
 
 function distance(a: Point3, b: Point3) {
@@ -131,13 +142,32 @@ export function palmNormalOf(joints: ReadonlyArray<Point3 | null>): Point3 | nul
  */
 export const CURLED_PAST_KNUCKLE_METRES = 0.025;
 export function mostlyClosed(joints: ReadonlyArray<Point3 | null>): boolean {
-  const wrist = joints[0];
-  if (!wrist) return false;
-  let curled = 0;
+  return closedness(joints) >= 1;
+}
+
+/**
+ * HOW CLOSED, 0 (open) to 1 (closed enough to cancel), for the bar beside the
+ * hand to fade as you close it. The third most curled finger decides, which is
+ * the same "three curled" rule mostlyClosed uses.
+ *
+ * NOT A REAL HAND, NOT CLOSED. A hand losing tracking can report every joint
+ * piled on the wrist, which is "curled" by any measure; Nikk (5070): "if my hand
+ * loses tracking the message gets cancelled". A middle knuckle nearer than 5 cm
+ * or further than 15 cm from the wrist is not a hand, and counts as open.
+ */
+const OPEN_PAST_KNUCKLE_METRES = 0.08;
+export function closedness(joints: ReadonlyArray<Point3 | null>): number {
+  const wrist = joints[0], middle = joints[11];
+  if (!wrist || !middle) return 0;
+  const palm = length(sub(middle, wrist));
+  if (palm < 0.05 || palm > 0.15) return 0;
+  const curls: number[] = [];
   for (const [knuckle, tip] of [[6, 9], [11, 14], [16, 19], [21, 24]] as const) {
     const k = joints[knuckle], t = joints[tip];
     if (!k || !t) continue;
-    if (length(sub(t, wrist)) - length(sub(k, wrist)) < CURLED_PAST_KNUCKLE_METRES) curled += 1;
+    const past = length(sub(t, wrist)) - length(sub(k, wrist));
+    curls.push(Math.max(0, Math.min(1, (OPEN_PAST_KNUCKLE_METRES - past) / (OPEN_PAST_KNUCKLE_METRES - CURLED_PAST_KNUCKLE_METRES))));
   }
-  return curled >= 3;
+  if (curls.length < 3) return 0;
+  return curls.sort((a, b) => b - a)[2];
 }

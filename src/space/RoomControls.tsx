@@ -588,7 +588,7 @@ export function RoomControls({
         confidence.current = undefined;
       }
       flash(unanswered.length > 0
-        ? `Probably sent: ${unanswered.join(" and ")} answered slowly. Check the chat.`
+        ? "Probably sent (slow reply). Check the chat."
         : to === "room" ? "Sent to the room." : "Sent to the room and the chat.");
       return true;
     } else {
@@ -598,7 +598,12 @@ export function RoomControls({
       micGestureState.current = { phase: "recording", side: null, rotation: null, fistSince: null, missingSince: null };
       sendAfterGesture.current = false;
       // The retry is what you can reach: with hands there is no ▲ any more.
-      setNotice(`Not sent to ${failures.join(" or ")}. ${handsInViewNow.current ? "Raise your hand and tilt to try again, or close it to drop it." : "▲ tries again."}`);
+      // SHORT ENOUGH TO READ WHOLE. Nikk (5066): "we need to format this UI so
+      // all the text fits in the box and it stops giving ... and not sharing it
+      // all". Two lines of the status box hold about forty characters.
+      const where = failures.some((f) => f.startsWith("the room")) && failures.some((f) => f.startsWith("the group chat"))
+        ? "room + chat" : failures.some((f) => f.startsWith("the room")) ? "room" : "chat";
+      setNotice(`Not sent to ${where}. ${handsInViewNow.current ? "Tilt: retry · fist: drop" : "▲ retries"}`);
       return false;
     }
   }, [flash]);
@@ -1586,7 +1591,7 @@ export function RoomControls({
   // currently sending please wait". It said "Ready to send" all the way
   // through a send, so a slow one looked like a press that did nothing.
   const recordingStatus = sending
-    ? "Sending… please wait\n✕ stops it"
+    ? handsInView ? "Sending… please wait" : "Sending… please wait\n✕ stops it"
     : listening
     ? alwaysOn
       ? "● Listening — sending as you speak"
@@ -1598,7 +1603,7 @@ export function RoomControls({
       : saying === "writing"
         ? "Writing down what you said…"
         : heardWaiting
-          ? "Ready to send\n▲ sends   ✕ throws away"
+          ? handsInView ? "Ready to send\ntilt sends · fist drops" : "Ready to send\n▲ sends   ✕ throws away"
           : null;
   const said =
     notice ??
@@ -1618,7 +1623,7 @@ export function RoomControls({
     // A SEND IN FLIGHT STOPS, and what was said stays ready to send again.
     if (sending) {
       sendStop.current?.abort();
-      flash("Stopped — press send to try again.");
+      flash(handsInViewNow.current ? "Stopped. Tilt to send again." : "Stopped. ▲ sends again.");
       return;
     }
     if (capabilities.recognition) {
@@ -1707,7 +1712,10 @@ export function RoomControls({
 };
   pressTalkRef.current = pressTalk;
   openMenuRef.current = openMenu;
-  cancelRef.current = cancellable ? cancel : null;
+  // THE GESTURE NEVER STOPS A SEND ON ITS WAY. Only the ✕ button does. A
+  // tracking blink read as a fist was aborting Nikk's sends mid-flight (the
+  // headset reported them "stopped"), then saying so, while they had arrived.
+  cancelRef.current = cancellable ? () => { if (!sendStop.current) cancel(); } : null;
 
   useEffect(() => {
     if (!sendAfterGesture.current || sending) return;
@@ -1751,6 +1759,8 @@ export function RoomControls({
     );
     micGestureState.current = result.state;
     micGestureIndicator.side = result.outlineSide;
+    micGestureIndicator.progress = result.progress ?? 0;
+    if (result.action === "finish" || result.action === "cancel") micGestureIndicator.popAt = performance.now();
     if (result.action === "start") {
       sendAfterGesture.current = false;
       pressTalkRef.current();
