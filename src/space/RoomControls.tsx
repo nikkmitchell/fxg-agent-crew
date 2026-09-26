@@ -46,7 +46,7 @@ import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-h
 import type { RoomItem } from "../../shared/room-items";
 import { Typing3D } from "./Typing3D";
 import { endSessionThenReturn } from "./end-session-to-lobby";
-import { SendStopped, withDeadline } from "./send-timeout";
+import { SendStopped, SendTimedOut, withDeadline } from "./send-timeout";
 
 /**
  * The room's controls, in front of you at body level.
@@ -502,6 +502,12 @@ export function RoomControls({
     // part three with part two missing — a gap in the middle of somebody's
     // sentence that nobody is told about.
     let chatStopped = false;
+    // NO ANSWER IS NOT A REFUSAL. Nikk (4967): after "did not reach", his
+    // words had arrived every time; the headset simply never heard back. A
+    // part that times out is PROBABLY SENT, so it is not reported as lost and
+    // does not invite a resend. The server posts repeated words once anyway
+    // (server/routes/repeat-guard.ts).
+    const unanswered: string[] = [];
     for (const item of plan.posts) {
       if (item.to === "group-chat" && chatStopped) continue;
       try {
@@ -526,6 +532,11 @@ export function RoomControls({
       } catch (error) {
         // ✕ while sending: nothing more goes, and nobody is told it failed.
         if (error instanceof SendStopped) break;
+        if (error instanceof SendTimedOut) {
+          const where = item.to === "room" ? "the room" : "the chat";
+          if (!unanswered.includes(where)) unanswered.push(where);
+          continue;
+        }
         if (item.to === "room") failures.push("the room");
         else {
           chatStopped = true;
@@ -548,10 +559,12 @@ export function RoomControls({
         setHeard("");
         confidence.current = undefined;
       }
-      flash(to === "room" ? "Sent to the room." : "Sent to the room and the chat.");
+      flash(unanswered.length > 0
+        ? `Probably sent: ${unanswered.join(" and ")} answered slowly. Check the chat.`
+        : to === "room" ? "Sent to the room." : "Sent to the room and the chat.");
       return true;
     } else {
-      setNotice(`Did not reach ${failures.join(" or ")}. Your words are still here.`);
+      setNotice(`Not sent to ${failures.join(" or ")}. ▲ tries again.`);
       return false;
     }
   }, [flash]);
