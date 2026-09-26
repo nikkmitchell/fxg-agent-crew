@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyMicHand, fingersStraight, palmNormalOf, type MicGestureHand } from "./mic-gesture-input";
+import { classifyMicHand, fingersStraight, mostlyClosed, palmNormalOf, type MicGestureHand } from "./mic-gesture-input";
 import {
   IDLE_MIC_GESTURE,
   MIC_GESTURE_FIST_HOLD_MS,
@@ -21,8 +21,9 @@ const openHand = (rotation = identity, x = 0): MicGestureHand => ({
   straight: true,
   palmNormal: { x: 1, y: 0, z: 0 },
   head: { p: { x: 0, y: 1.3, z: 0.4 }, q: identity },
+  closed: false,
 });
-const fistHand = (rotation = identity): MicGestureHand => ({ ...openHand(rotation), shape: "fist" });
+const fistHand = (rotation = identity): MicGestureHand => ({ ...openHand(rotation), shape: "fist", closed: true });
 const hands = (right: MicGestureHand | null, left: MicGestureHand | null = null): MicGestureHands => ({ left, right });
 const rotationBy = (radians: number) => ({ x: Math.sin(radians / 2), y: 0, z: 0, w: Math.cos(radians / 2) });
 
@@ -161,6 +162,30 @@ describe("mic hand gesture", () => {
       joints[21] = { x: 0, y: 0.08, z: 0.04 };
       const n = palmNormalOf(joints)!;
       expect(Math.abs(n.x)).toBeCloseTo(1, 1);
+    });
+  });
+
+  describe("a mostly closed hand cancels (Nikk, 5044: '80% of the way to a closed fist')", () => {
+    // Wrist at the origin, knuckles 9 cm up; each finger's tip at `reach` from the wrist.
+    const hand = (reach: number) => {
+      const joints: ({ x: number; y: number; z: number } | null)[] = Array.from({ length: 25 }, () => null);
+      joints[0] = { x: 0, y: 0, z: 0 };
+      [6, 11, 16, 21].forEach((knuckle, i) => {
+        joints[knuckle] = { x: i * 0.02, y: 0.09, z: 0 };
+        joints[knuckle + 3] = { x: i * 0.02, y: reach, z: 0.02 };
+      });
+      return joints;
+    };
+    it("an open hand is not closed", () => expect(mostlyClosed(hand(0.18))).toBe(false));
+    it("four fifths of a fist is closed: tips barely past the knuckles", () => expect(mostlyClosed(hand(0.1))).toBe(true));
+    it("a tracking dropout is never closed", () => expect(mostlyClosed([])).toBe(false));
+
+    it("cancels a recording once held briefly, even when the tracker calls it open", () => {
+      const recording = startGesture();
+      const half = { ...openHand(), closed: true };
+      const first = stepMicGesture(recording, hands(half), true, 2_000);
+      expect(first.action).toBeUndefined();
+      expect(stepMicGesture(first.state, hands(half), true, 2_000 + MIC_GESTURE_FIST_HOLD_MS).action).toBe("cancel");
     });
   });
 });

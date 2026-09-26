@@ -21,11 +21,12 @@ import {
   micGestureHands,
   fingersStraight,
   palmNormalOf,
+  mostlyClosed,
   micGestureIndicator,
 } from "./mic-gesture-input";
 import { goCarryPoint } from "../../shared/go-touch";
 import { StandingHeight, gripToWristConvention } from "./tracked-body";
-import { MicGestureOutline } from "./MicGestureOutline";
+import { MicGestureBar } from "./MicGestureBar";
 import {
   IDLE,
   believableStep,
@@ -829,6 +830,7 @@ export function ImmersivePlayer({
               straight: fingersStraight(joints),
               palmNormal: palmNormalOf(joints),
               head: gestureHead,
+              closed: mostlyClosed(joints),
             }
           : null;
       } else {
@@ -905,7 +907,7 @@ export function ImmersivePlayer({
         position={[began.x, 0, began.z]}
         rotation={[0, began.yaw, 0]}
       >
-        <MicGestureOutline />
+        <MicGestureBar />
         {/* The palm joystick's balls: the one you move, and its shadow where it
           first appeared. Children of the origin because they live in the
           player's frame. Hidden until a palm has faced up for a second. */}

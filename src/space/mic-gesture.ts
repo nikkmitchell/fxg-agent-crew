@@ -2,7 +2,8 @@ import type { MicGestureHand, MicGestureSide } from "./mic-gesture-input";
 
 export const MIC_GESTURE_HOLD_MS = 500;
 export const MIC_GESTURE_TILT_RADIANS = (30 * Math.PI) / 180;
-export const MIC_GESTURE_FIST_HOLD_MS = 180;
+/** Held this long, a mostly closed hand cancels: quick, but not a twitch. */
+export const MIC_GESTURE_FIST_HOLD_MS = 120;
 export const MIC_GESTURE_TRACKING_GRACE_MS = 900;
 const MIC_GESTURE_START_TIMEOUT_MS = 8_000;
 /** Fingers within this of straight up. Was 40°, which let a hand at rest count. */
@@ -183,7 +184,7 @@ export function stepMicGesture(
       };
     }
 
-    if (hand.shape === "fist") {
+    if (hand.closed || hand.shape === "fist") {
       const fistSince = previous.fistSince ?? now;
       if (now - fistSince >= MIC_GESTURE_FIST_HOLD_MS) {
         return { state: { phase: "ending", side: previous.side }, action: "cancel", outlineSide: previous.side };
