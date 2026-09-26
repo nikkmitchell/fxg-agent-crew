@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<
     if (!this.state.failed) return this.props.children;
     if (this.props.fallback) return this.props.fallback(this.retry);
     return (
-      <section className="empty-state" role="alert">
+      <section className="crash-notice" role="alert">
         <h2>Something here stopped working.</h2>
         <p>It has been reported. Try again, or reload the page if it keeps happening.</p>
         <p>

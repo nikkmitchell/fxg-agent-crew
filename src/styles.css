@@ -1244,3 +1244,21 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 /* Muting somebody in the room, for yourself. */
 .voice-mutes { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
 .voice-mutes li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+
+/*
+ * A part of the page that crashed (ErrorBoundary). Its own colours, because it
+ * can appear on the dark room as well as on the light pages, and the page's
+ * ink on the room's black was unreadable.
+ */
+.crash-notice {
+  margin: 1rem;
+  padding: 1rem 1.25rem;
+  max-width: 34rem;
+  border-radius: 10px;
+  background: #f4efe2;
+  color: #1c1a17;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+.crash-notice h2 { margin: 0 0 0.4rem; font-size: 1.1rem; }
+.crash-notice p { margin: 0.4rem 0; }
+.crash-notice button { margin-right: 0.5rem; }

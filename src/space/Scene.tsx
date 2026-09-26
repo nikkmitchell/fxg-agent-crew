@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { reportClientError } from "../client-errors";
 import * as THREE from "three";
 import { LOOK_SENSITIVITY, tiltBy } from "./look-pitch";
 import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
@@ -498,6 +499,27 @@ export default function Scene({
   voice: VoiceChat;
 }) {
   /**
+   * THE GRAPHICS CONTEXT, IF THE HEADSET TAKES IT AWAY. A Quest under memory
+   * pressure can drop the page's WebGL context; the view goes black and, with
+   * nothing listening, stays black. three.js asks for it back (it cancels the
+   * loss), and most of the time it returns in a moment. Both are reported
+   * (client-errors.ts); if it has not come back in five seconds, the scene
+   * gives way to its error boundary, which offers Reload instead of darkness.
+   */
+  const [contextGone, setContextGone] = useState(false);
+  if (contextGone) throw new Error("the 3D view lost its graphics context and it did not come back");
+  const watchContext = (canvas: HTMLCanvasElement) => {
+    let giveUp: number | undefined;
+    canvas.addEventListener("webglcontextlost", () => {
+      reportClientError(new Error("WebGL context lost"), "webgl");
+      giveUp = window.setTimeout(() => setContextGone(true), 5_000);
+    });
+    canvas.addEventListener("webglcontextrestored", () => {
+      window.clearTimeout(giveUp);
+      reportClientError(new Error("WebGL context restored"), "webgl");
+    });
+  };
+  /**
    * THE ROOM'S THEME, read FIRST. Reading the preferences is what applies the
    * palette (see room-preferences.ts), and a parent renders before its
    * children — so by the time any board below paints, CARD_INK is already the
@@ -691,6 +713,7 @@ export default function Scene({
         position: [ROOM.spawn.x, EYE_HEIGHT, ROOM.spawn.z],
       }}
       gl={{ antialias: true }}
+      onCreated={({ gl }) => watchContext(gl.domElement)}
       tabIndex={0}
       style={{ outline: "none", touchAction: "none" }}
     >
