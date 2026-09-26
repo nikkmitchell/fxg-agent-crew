@@ -59,7 +59,9 @@ describe("colliders on the Go table", () => {
     // The glowing points are light only; the board-wide catcher under them
     // takes the press and snaps it (go-snap.ts).
     expect(tags.some((t) => t.name === "instancedMesh" && /raycast=\{noRaycast\}/.test(t.attrs) && !HANDLER.test(t.attrs))).toBe(true);
-    expect(tags.some((t) => t.name === "mesh" && /onClick=/.test(t.attrs) && /onPointerMove=/.test(t.attrs))).toBe(true);
+    // It places on RELEASE, not onClick: a headset only calls a trigger held
+    // under 300 ms a click, so a deliberate press placed nothing (Nikk 5020).
+    expect(tags.some((t) => t.name === "mesh" && /onPointerUp=/.test(t.attrs) && /onPointerMove=/.test(t.attrs))).toBe(true);
     expect(tags.some((t) => /onPointerDown=\{takeTable\}/.test(t.attrs))).toBe(true);
   });
 
@@ -106,5 +108,17 @@ describe("colliders on the Go table", () => {
         function GoTable() { return <group><RoundedBox args={[1, 1, 1]} /></group>; }`;
       expect(blockersIn(two)).toHaveLength(1);
     });
+  });
+});
+
+describe("presses on the Go table", () => {
+  /**
+   * NO `onClick` ANYWHERE ON THE TABLE. In a headset @pmndrs/pointer-events
+   * only reports a click when the trigger comes back up within 300 ms, so a
+   * control that waited for one ignored every unhurried press (Nikk 5020).
+   */
+  it("acts on press-and-release, never on a timed click", () => {
+    const tags = scanJsx(readFileSync(SOURCE, "utf8"));
+    expect(tags.filter((t) => /\bonClick\s*=/.test(t.attrs)).map((t) => `<${t.name}> line ${t.line}`)).toEqual([]);
   });
 });
