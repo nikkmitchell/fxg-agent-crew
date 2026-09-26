@@ -112,6 +112,24 @@ export function wrap(
  * time somebody says something is how a scene ends up stuttering — but the
  * texture is marked dirty so three uploads the new pixels.
  */
+/**
+ * EACH MESSAGE WRAPPED ONCE. Dragging the wall repaints it on every pointer
+ * move, and wrapping all eighty kept messages again each time measured every
+ * word of them: thousands of measureText calls a frame, in a headset. A
+ * message's words never change, so its lines are kept by its id, its length
+ * and the width they were wrapped to; scrolling now only draws.
+ */
+const wrapped = new Map<string, string[]>();
+function wrappedLines(context: CanvasRenderingContext2D, message: RoomMessage, width: number): string[] {
+  const key = `${message.id}\u0000${message.content.length}\u0000${width}`;
+  const known = wrapped.get(key);
+  if (known) return known;
+  const lines = wrap(context, message.content.trim(), width);
+  if (wrapped.size > 400) wrapped.clear();
+  wrapped.set(key, lines);
+  return lines;
+}
+
 export function paintChat(
   canvas: HTMLCanvasElement,
   texture: THREE.CanvasTexture,
@@ -144,7 +162,7 @@ export function paintChat(
   const blocks: Block[] = [];
   context.font = `400 ${BODY_SIZE}px ui-sans-serif, system-ui, sans-serif`;
   for (const message of paint.messages) {
-    const lines = wrap(context, message.content.trim(), innerWidth - 28);
+    const lines = wrappedLines(context, message, innerWidth - 28);
     blocks.push({
       name: message.username,
       // Time only: the date is today in every case that matters, and a full
