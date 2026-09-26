@@ -2,8 +2,8 @@ import type { MicGestureHand, MicGestureSide } from "./mic-gesture-input";
 
 export const MIC_GESTURE_HOLD_MS = 500;
 export const MIC_GESTURE_TILT_RADIANS = (30 * Math.PI) / 180;
-/** Held this long, a mostly closed hand cancels: quick, but not a twitch. */
-export const MIC_GESTURE_FIST_HOLD_MS = 120;
+/** Held this long, a mostly closed hand cancels: quick, but not a tracking blink (5070). */
+export const MIC_GESTURE_FIST_HOLD_MS = 250;
 export const MIC_GESTURE_TRACKING_GRACE_MS = 900;
 const MIC_GESTURE_START_TIMEOUT_MS = 8_000;
 /** Fingers within this of straight up. Was 40°, which let a hand at rest count. */
@@ -121,7 +121,7 @@ export function stepMicGesture(
   recording: boolean,
   now: number,
   enabled = true,
-): { state: MicGestureState; action?: MicGestureAction; outlineSide: MicGestureSide | null } {
+): { state: MicGestureState; action?: MicGestureAction; outlineSide: MicGestureSide | null; progress?: number } {
   if (!enabled) return { state: IDLE_MIC_GESTURE, outlineSide: null };
 
   if (previous.phase === "starting") {
@@ -192,12 +192,15 @@ export function stepMicGesture(
       return { state: { ...previous, fistSince, missingSince: null }, outlineSide: previous.side };
     }
 
-    if (rotationDistance(previous.rotation, hand.wrist.q) >= MIC_GESTURE_TILT_RADIANS - 1e-6) {
-      return { state: { phase: "ending", side: previous.side }, action: "finish", outlineSide: previous.side };
+    const tilt = rotationDistance(previous.rotation, hand.wrist.q);
+    if (tilt >= MIC_GESTURE_TILT_RADIANS - 1e-6) {
+      return { state: { phase: "ending", side: previous.side }, action: "finish", outlineSide: previous.side, progress: 1 };
     }
     return {
       state: { ...previous, fistSince: null, missingSince: null },
       outlineSide: previous.side,
+      // Toward whichever ending is nearer: the tilt that sends, the fist that drops.
+      progress: Math.max(tilt / MIC_GESTURE_TILT_RADIANS, hand.closedness ?? 0),
     };
   }
 

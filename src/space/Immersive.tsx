@@ -22,6 +22,7 @@ import {
   fingersStraight,
   palmNormalOf,
   mostlyClosed,
+  closedness,
   micGestureIndicator,
 } from "./mic-gesture-input";
 import { goCarryPoint } from "../../shared/go-touch";
@@ -799,7 +800,13 @@ export function ImmersivePlayer({
 
       // The mic gesture is hand-tracking only: controller grip poses are never
       // interpreted as an open hand, fist, or karate-chop start signal.
-      const gestureWrist = input ? localPose(input.inputSource.hand.get("wrist"), frame) : null;
+      // A GUESSED HAND IS NO HAND. As tracking fades the runtime keeps
+      // reporting a pose it made up (emulatedPosition), often with the fingers
+      // folded, and that read as a fist and cancelled Nikk's recording (5070).
+      // Treat it as lost, which the gesture already rides out.
+      const wristSpace = input?.inputSource.hand.get("wrist");
+      const guessed = wristSpace && frame && originSpace ? frame.getPose(wristSpace, originSpace)?.emulatedPosition === true : false;
+      const gestureWrist = input && !guessed ? localPose(wristSpace, frame) : null;
       const joints: Array<{ x: number; y: number; z: number } | null> = MIC_GESTURE_JOINT_NAMES.map(() => null);
       if (input && gestureWrist) {
         joints[0] = gestureWrist.p;
@@ -831,6 +838,7 @@ export function ImmersivePlayer({
               palmNormal: palmNormalOf(joints),
               head: gestureHead,
               closed: mostlyClosed(joints),
+              closedness: closedness(joints),
             }
           : null;
       } else {
