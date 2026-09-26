@@ -12,7 +12,7 @@ export const GO_COLOURS = [
  * table, so everyone round it sees the same board. The first is the default,
  * and what every table made before this was.
  */
-export const GO_SURFACES = ["bamboo", "stone", "rock"] as const;
+export const GO_SURFACES = ["bamboo", "stone", "rock", "rootwood"] as const;
 export type GoSurface = (typeof GO_SURFACES)[number];
 
 export function isGoSurface(value: unknown): value is GoSurface {

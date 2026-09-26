@@ -9,6 +9,8 @@ import { heldStoneWorld, idleGoTouch, restOnBoard, stepGoTouch } from "../../sha
 import type { WirePerson } from "../../shared/space-wire";
 import { goHandInput } from "./go-hand-input";
 import { hasSeenGoGuide, rememberGoGuide, type GoGuideStorage } from "./go-guide";
+import { RootwoodForm } from "./RootwoodForm";
+import { useDisposable } from "./use-disposable";
 import { space } from "../space-client";
 import { claimPointer } from "./pointer-claim";
 import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
@@ -92,11 +94,13 @@ function glowTexture(): THREE.DataTexture {
  * texture only so it can set its own repeat.
  */
 const surfacePixels = new Map<string, Uint8ClampedArray>();
-function surfaceTexture(grain: "wood" | "stone" | "rock", base: string, width: number): THREE.DataTexture {
+function surfaceTexture(grain: "wood" | "stone" | "rock" | "burl", base: string, width: number): THREE.DataTexture {
   const key = `${grain}/${base}`, size = 512;
   let pixels = surfacePixels.get(key);
   if (!pixels) {
-    pixels = grain === "stone" ? stonePixels(size, base) : grain === "rock" ? rockPixels(size, base) : bambooPixels(size, base);
+    // Burl is the stone's soft mottling in wood colours: polished root-wood,
+    // calm, with no strips or stripes to fight the grid.
+    pixels = grain === "stone" || grain === "burl" ? stonePixels(size, base) : grain === "rock" ? rockPixels(size, base) : bambooPixels(size, base);
     surfacePixels.set(key, pixels);
   }
   const texture = new THREE.DataTexture(pixels, size, size);
@@ -654,6 +658,9 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   const look = GO_SURFACE_LOOKS[item.surface] ?? GO_SURFACE_LOOKS.bamboo;
   const surface = useMemo(() => surfaceTexture(look.grain, look.base, goBoardWidth(item.size)), [look.grain, look.base, item.size]);
   useEffect(() => () => surface.dispose(), [surface]);
+  // The rootwood's bark: the burl mottling, darker, for its roots and trunk.
+  const rootwood = item.surface === "rootwood";
+  const bark = useDisposable(() => (rootwood ? surfaceTexture("burl", look.rim, 1) : null), [rootwood, look.rim]);
   const radius = goRadius(item.size);
   const targets = useMemo(() => {
     const result: StoneTarget[] = item.stones.map((stone) => {
@@ -1020,9 +1027,11 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       nothing but stop the ray. They take no rays now. table-colliders.test.ts
       fails if anything new is added here without saying which it is.
     */}
-    {item.deskVisible && <RoundedBox args={[deck, 0.075, deck]} radius={0.035} smoothness={4} position={[0, 0.705, 0]} receiveShadow raycast={noRaycast}>
+    {/* The rootwood throne stands on the floor: it IS the table, so no desk. */}
+    {item.deskVisible && !rootwood && <RoundedBox args={[deck, 0.075, deck]} radius={0.035} smoothness={4} position={[0, 0.705, 0]} receiveShadow raycast={noRaycast}>
       <meshStandardMaterial map={wood} color="#765b49" roughness={0.42} metalness={0.06} />
     </RoundedBox>}
+    {rootwood && bark && <RootwoodForm size={item.size} bark={bark} />}
     {look.grain === "rock"
       ? <RockForm size={item.size} top={look.base} side={carrying ? look.rimCarrying : look.rim} />
       : <RoundedBox args={[boardWidth + 0.06, 0.105, boardWidth + 0.06]} radius={0.035} smoothness={4} position={[0, 0.79, 0]} castShadow receiveShadow raycast={noRaycast}>
@@ -1032,7 +1041,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     {look.grain !== "rock" && <RoundedBox args={[boardWidth, 0.025, boardWidth]} radius={0.01} smoothness={3} position={[0, GO_SURFACE - 0.0125, 0]} receiveShadow raycast={noRaycast}>
       <meshPhysicalMaterial map={surface} roughness={look.roughness} clearcoat={look.clearcoat} />
     </RoundedBox>}
-    {item.deskVisible && [-1, 1].flatMap((x) => [-1, 1].map((z) => <mesh key={`${x}-${z}`} position={[x * edge * 0.6, 0.34, z * edge * 0.6]} castShadow raycast={noRaycast}>
+    {item.deskVisible && !rootwood && [-1, 1].flatMap((x) => [-1, 1].map((z) => <mesh key={`${x}-${z}`} position={[x * edge * 0.6, 0.34, z * edge * 0.6]} castShadow raycast={noRaycast}>
       <cylinderGeometry args={[0.07, 0.045, 0.68, 12]} /><meshStandardMaterial color="#382720" roughness={0.4} />
     </mesh>))}
     {offsets.map((offset, index) => {

@@ -18,7 +18,7 @@ export type GoSurfaceLook = {
   /** What the settings row shows. */
   label: string;
   /** The grain drawn into the surface texture. */
-  grain: "wood" | "stone" | "rock";
+  grain: "wood" | "stone" | "rock" | "burl";
   /** The surface's overall colour: the texture's average, for contrast checks. */
   base: string;
   roughness: number;
@@ -122,6 +122,29 @@ export const GO_SURFACE_LOOKS: Record<GoSurface, GoSurfaceLook> = {
     ink: "#d4d9de",
     inkSoft: "#a3aab2",
     // Jingdezhen blue-and-white: white porcelain, cobalt scrolls under a soft glaze.
+    bowl: { body: "#eef1f3", rim: "#2f4f98", roughness: 0.3, clearcoat: 0.55, relief: "scroll", paint: "#2a4a9a" },
+  },
+  /**
+   * ROOTWOOD (saha-ing-c1fd1ba9): a tree turned over, its roots holding a
+   * flat polished slab (shared/go-rootwood.ts). The slab is honey walnut with
+   * soft burl mottling rather than a busy grain; the body is darker bark.
+   * The card asked for the blue-and-white porcelain here; Baiwei has since
+   * asked to keep every table's bowls as they are, so ROCK keeps its pair and
+   * this table has the same porcelain.
+   */
+  rootwood: {
+    // Seven letters is what the settings row fits.
+    label: "ROOTS",
+    grain: "burl",
+    base: "#a87750",
+    roughness: 0.5,
+    clearcoat: 0.3,
+    rim: "#5e3d25",
+    rimCarrying: "#9a6238",
+    lines: "#2e1a0c",
+    lineLight: null,
+    ink: "#2a170a",
+    inkSoft: "#4a2d17",
     bowl: { body: "#eef1f3", rim: "#2f4f98", roughness: 0.3, clearcoat: 0.55, relief: "scroll", paint: "#2a4a9a" },
   },
 };
