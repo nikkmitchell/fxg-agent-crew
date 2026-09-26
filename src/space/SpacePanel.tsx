@@ -1,4 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { ErrorBoundary } from "../ErrorBoundary";
+import { markInXr } from "../client-errors";
 import { Identity } from "../Identity";
 import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
@@ -170,6 +172,8 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
   );
   const [comfort, setComfort] = useState<Comfort>(DEFAULT_COMFORT);
   const [inHeadset, setInHeadset] = useState(false);
+  // So an error report says whether it happened in the headset.
+  useEffect(() => markInXr(inHeadset), [inHeadset]);
   // The room's open set is fed in from the socket, so a panel somebody else
   // closes closes here too rather than on the next reload.
   const panels = usePanelChoices(entered, connection.openPanels);
@@ -298,6 +302,9 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
         </div>
       ) : null}
       <div className="space-canvas">
+        {/* A crash in the 3D scene is reported and offers a way back, rather
+            than blanking the whole page (and ending a headset session). */}
+        <ErrorBoundary where="scene">
         <Suspense
           fallback={
             <RoomLoading what="Downloading the 3D code — about a megabyte, once per visit." />
@@ -318,6 +325,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
             voice={voice}
           />
         </Suspense>
+        </ErrorBoundary>
 
         {/* Connecting gets the big treatment too: until the socket is open the
             room has nobody in it, including you, and a small grey line in the

@@ -35,6 +35,7 @@ import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { RoomMeditations, registerMeditationRoutes } from "./space/meditation.js";
 import { RoomHelpers, registerHelperRoutes } from "./space/helpers.js";
 import { registerSendTimingRoutes } from "./space/send-timing.js";
+import { registerClientErrorRoutes } from "./space/client-errors.js";
 import { Utterances, registerUtteranceRoutes } from "./space/utterances.js";
 import { registerSpeechRoutes, speakWith, speechCache } from "./space/speak.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
@@ -369,6 +370,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     });
     // Where a voice send's time goes in a headset: see space/send-timing.ts.
     registerSendTimingRoutes(scoped, { config, sessions });
+    // What broke on somebody's screen: see space/client-errors.ts.
+    registerClientErrorRoutes(scoped, { config, sessions });
     registerHelperRoutes(scoped, {
       config,
       sessions,

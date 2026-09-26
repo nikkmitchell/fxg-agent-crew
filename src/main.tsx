@@ -5,10 +5,16 @@ import "@fontsource/manrope/600.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { installErrorReporting } from "./client-errors";
 import "./styles.css";
+
+installErrorReporting();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary where="app">
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );
