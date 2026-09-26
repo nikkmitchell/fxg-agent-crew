@@ -24,9 +24,6 @@ const overColumn = (status: string): SurfaceHit => {
   return { panelId: "board", u: column.x / layout.width + 0.5, v: 0.5 };
 };
 
-const cardOf = (hit: SurfaceHit): BoardCard | null =>
-  hit.panelId === "board" ? cards.find((c) => c.id === (hit as SurfaceHit & { id?: string }).id) ?? null : null;
-
 /** A cardOf that just returns a fixed card, for drop tests. */
 const always = (c: BoardCard | null) => () => c;
 

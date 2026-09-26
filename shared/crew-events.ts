@@ -212,11 +212,6 @@ function nonNegativeInt(value: unknown, label: string, max: number): Checked<num
   return { ok: true, value };
 }
 
-function bool(value: unknown, label: string): Checked<boolean> {
-  if (typeof value !== "boolean") return bad(`${label} is not a boolean`);
-  return { ok: true, value };
-}
-
 /**
  * An ISO-8601 timestamp that actually parses. Deliberately no default: an event
  * whose time we do not know must be refused, not silently stamped with the

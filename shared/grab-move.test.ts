@@ -51,7 +51,8 @@ describe("taking hold of something", () => {
     const ray = looking(0);
     const corner = { x: 1.9, y: 2.4, z: -4 };
     const grab = beginGrab(ray, corner);
-    expect(grab.offset.x).not.toBeCloseTo(0);
+    // Held by its side: the grab keeps a real sideways offset, not zero.
+    expect(Math.abs(grab.offset.right)).toBeGreaterThan(1);
     expect(grabbedTo(looking(0), grab)).toEqual(expect.objectContaining({ x: expect.any(Number) }));
     expect(apart(grabbedTo(ray, grab), corner)).toBeLessThan(1e-9);
   });

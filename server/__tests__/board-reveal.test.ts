@@ -21,7 +21,7 @@ const boot = () => {
   const reads = new BoardReads(db);
   const nikk = { id: "nikk", kind: "human" as const };
   const projectId = store.createProject(nikk, { name: "p" });
-  store.actOnMembership(nikk, projectId, "Plumbline", "grant", ["maker"]);
+  store.actOnMembership(nikk, projectId, "Plumbline", "grant", ["engineering"]);
   const lastChange = (taskId: string) => reads.project(projectId)!.tasks.find((t) => t.id === taskId)!.lastChange!;
   return { db, store, presence, activity, projectId, nikk, lastChange, tick: (ms: number) => { clock += ms; } };
 };

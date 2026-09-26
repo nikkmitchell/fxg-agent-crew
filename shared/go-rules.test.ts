@@ -110,10 +110,13 @@ describe("ko", () => {
   });
 
   it("opens again once another move has been played", () => {
-    const take = placeGoStone(start, 5, at(2, 1, B)) as { stones: never[]; ko: { x: number; y: number } };
-    const elsewhere = placeGoStone(take.stones, 5, at(4, 4, W), take.ko) as { stones: never[]; ko: null };
+    const take = placeGoStone(start, 5, at(2, 1, B));
+    if ("error" in take) throw new Error(take.error);
+    const elsewhere = placeGoStone(take.stones, 5, at(4, 4, W), take.ko);
+    if ("error" in elsewhere) throw new Error(elsewhere.error);
     expect(elsewhere.ko).toBeNull();
-    const black = placeGoStone(elsewhere.stones, 5, at(4, 0, B), elsewhere.ko) as { stones: never[]; ko: null };
+    const black = placeGoStone(elsewhere.stones, 5, at(4, 0, B), elsewhere.ko);
+    if ("error" in black) throw new Error(black.error);
     expect(placeGoStone(black.stones, 5, at(1, 1, W), black.ko)).not.toHaveProperty("error");
   });
 

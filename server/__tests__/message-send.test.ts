@@ -4,20 +4,14 @@ import cookie from "@fastify/cookie";
 import { registerRoomRoutes } from "../routes/rooms.js";
 import { MemorySessionStore } from "../session.js";
 import { WebharnessClient } from "../webharness/client.js";
-import type { Config } from "../config.js";
+import { testConfig } from "./test-config.js";
 import { CHAT_MESSAGE_LIMIT } from "../../shared/voice.js";
 
 /** Enough numbered sentences to pass `chars` characters. */
 const sentences = (chars: number) =>
   Array.from({ length: Math.ceil(chars / 40) }, (_, i) => `Sentence ${i + 1} of a long dictated message.`).join(" ");
 
-const config: Config = {
-  webharnessUrl: "https://example.test",
-  port: 0,
-  cookieName: "fxg_sid",
-  sessionTtlMs: 60_000,
-  secureCookies: false,
-};
+const config = testConfig();
 
 function setup() {
   const sessions = new MemorySessionStore(60_000);

@@ -479,26 +479,6 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
    * one field changed. Sending only the description would silently drop owners,
    * comments and status — an edit that looks like a small one and is not.
    */
-  /**
-   * Strip the discussion off a card before sending it.
-   *
-   * task.upserted replaces the stored card, so this used to re-send every
-   * comment on every edit — and a card's comments outgrow a 2000-character
-   * durable message after about the third one. Eleven cards had already passed
-   * that point: claiming them, accepting them, renaming them or writing a brief
-   * all failed with a 400, because the discussion was riding along in a payload
-   * that had nothing to do with it. Sending the card without comments instead
-   * silently deleted them. There was no third option until the reducer learned
-   * that an omitted `comments` means unchanged.
-   *
-   * So: never send them. Comments travel as task.commented, one at a time,
-   * which is also the only shape where two people commenting at once do not
-   * erase each other.
-   */
-  const withoutDiscussion = (task: CrewTask): Omit<CrewTask, "comments"> => {
-    const { comments: _discussion, ...card } = task;
-    return card;
-  };
 
   const saveDescription = async (task: CrewTask, description: string) => {
     const trimmed = description.trim();

@@ -1,5 +1,3 @@
-import { FRESH_FADE_MS } from "../../shared/board-freshness.js";
-
 type Db = import("node:sqlite").DatabaseSync;
 
 /**
@@ -42,7 +40,7 @@ export class BoardReads {
              (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id) AS comment_count
       FROM tasks t WHERE t.project_id = ?
       ORDER BY CASE WHEN t.priority IS NULL THEN 1 ELSE 0 END, t.priority, t.created_at
-    `).all(projectId) as Array<Record<string, unknown>>;
+    `).all(projectId) as Array<{ id: string; status: string } & Record<string, unknown>>;
 
     const owners = this.db.prepare(`
       SELECT o.task_id, o.actor_id, o.accepted FROM task_owners o

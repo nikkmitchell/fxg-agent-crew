@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { RepeatGuard, repeatKey } from "./repeat-guard.js";
 import type { Message, RoomDetail, RoomSummary } from "../../shared/contracts.js";
 import type { Config } from "../config.js";

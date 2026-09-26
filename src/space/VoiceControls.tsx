@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DETAIL_LIMIT, SPOKEN_LIMIT, splitSpoken, type Utterance, type UtteranceInput } from "../../shared/voice";
+import { DETAIL_LIMIT, splitSpoken, type Utterance, type UtteranceInput } from "../../shared/voice";
 import type { SpaceConnection } from "./useSpaceSocket";
 import { createSteadyRecorder, speechCapabilities, type SpeechOutput, type SteadyRecorder } from "./speech";
 import { queueAloud } from "./said-aloud";

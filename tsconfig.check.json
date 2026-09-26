@@ -1,0 +1,28 @@
+{
+  // Typecheck ONLY: everything the two build configs leave out.
+  //
+  // tsconfig.json checks the browser bundle (src) and tsconfig.server.json the
+  // server, and the server's excludes every test. So the server and shared
+  // tests and every tool ran through tsx and vitest, which strip types and
+  // never check them: a test could call a function with the wrong arguments
+  // and still "pass". `pnpm typecheck` runs all three.
+  "extends": "./tsconfig.server.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Tests and tools run through vitest and tsx, which resolve like a bundler:
+    // an import without ".js" works there, so it is not an error here.
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"]
+  },
+  "include": [
+    "server/**/*.ts",
+    "shared/**/*.ts",
+    "tools/**/*.ts",
+    "tools/**/*.mts",
+    "src/event-core.ts"
+  ],
+  "exclude": []
+}

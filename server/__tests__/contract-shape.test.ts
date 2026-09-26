@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
-import { MemorySessionStore } from "../session.js";
+import { MemorySessionStore, type SessionStore } from "../session.js";
 import { WebharnessClient } from "../webharness/client.js";
 import { registerRoomRoutes } from "../routes/rooms.js";
-import type { Config } from "../config.js";
+import { testConfig } from "./test-config.js";
 
 /**
  * These test the SHAPE the BFF actually sends, against the shape
@@ -22,13 +22,7 @@ import type { Config } from "../config.js";
  * real shape, or the contract is decorative.
  */
 
-const config: Config = {
-  webharnessUrl: "https://x.test",
-  port: 0,
-  cookieName: "fxg_sid",
-  sessionTtlMs: 60_000,
-  secureCookies: false,
-};
+const config = testConfig({ webharnessUrl: "https://x.test" });
 
 const json = (body: unknown) => () =>
   new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });

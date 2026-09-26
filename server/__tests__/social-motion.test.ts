@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ROOM, deskFor } from "../../shared/space-layout.js";
+import { ROOM } from "../../shared/space-layout.js";
 import { CONVERSATION_DISTANCE, conversationPlace } from "../space/social-motion.js";
 
 const gap = (a: { x: number; z: number }, b: { x: number; z: number }) =>

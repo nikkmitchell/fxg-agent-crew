@@ -138,7 +138,7 @@ describe("moving", () => {
 
 describe("walking", () => {
   it("computes yaw for the avatar's -Z forward axis", () => {
-    const yaw = facingToward({ x: 0, y: 0, z: 0 }, { x: 2, y: 0, z: 0 });
+    const yaw = facingToward({ x: 0, z: 0 }, { x: 2, z: 0 });
     const forward = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
     expect(forward.x).toBeCloseTo(1, 6);
     expect(forward.z).toBeCloseTo(0, 6);
@@ -194,11 +194,11 @@ describe("walking", () => {
     presence.tick(0.1);
 
     const inkstone = presence.find("Inkstone")!;
-    expect(inkstone.facing).toBeCloseTo(facingToward(inkstone.at, { x: 2, y: 0, z: 2 }), 6);
+    expect(inkstone.facing).toBeCloseTo(facingToward(inkstone.at, { x: 2, z: 2 }), 6);
 
     presence.moveSelf("Nikk", { x: -2, y: 0, z: 1 }, 0);
     presence.tick(0.1);
-    expect(inkstone.facing).toBeCloseTo(facingToward(inkstone.at, { x: -2, y: 0, z: 1 }), 6);
+    expect(inkstone.facing).toBeCloseTo(facingToward(inkstone.at, { x: -2, z: 1 }), 6);
 
     clock.now += 6_001;
     presence.tick(0.1);

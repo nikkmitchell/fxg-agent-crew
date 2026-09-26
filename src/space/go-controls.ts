@@ -1,4 +1,4 @@
-import { GO_SURFACE, goBoardWidth, goBowl, goExtent, goRadius, goRimReach } from "../../shared/go-layout";
+import { GO_SURFACE, goBoardWidth, goBowl, goRadius, goRimReach } from "../../shared/go-layout";
 import { GO_SIZES, type GoRoomItem, type GoSize } from "../../shared/room-items";
 import { clockLabel } from "../../shared/go-clock";
 import { GO_SURFACE_LOOKS } from "./go-surfaces";
@@ -100,7 +100,6 @@ export function goControls(
   deleteArmed = false,
 ): GoControls {
   const size = item.size as GoSize;
-  const extent = goExtent(size);
   const boardWidth = goBoardWidth(size);
   const wide = isWide(item);
 
@@ -166,10 +165,6 @@ export function goControls(
       { id: `${id}:less`, label: "−", x: right - button - value - button / 2, width: button },
       { id: `${id}:more`, label: "+", x: right - button / 2, width: button },
     ],
-  });
-  const whole = (id: string, label: string): Omit<SheetRow, "z"> => ({
-    label: "",
-    buttons: [{ id, label, x: 0, width: sheetWidth - pad * 2 }],
   });
 
   const rows: Omit<SheetRow, "z">[] = [

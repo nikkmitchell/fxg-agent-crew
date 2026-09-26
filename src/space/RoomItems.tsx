@@ -954,7 +954,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   useEffect(() => { if (!showControls) setSettingsOpen(false); }, [showControls]);
   const stars = goStarPoints(item.size);
   const lifted = item.liftedColour === null ? null : goBowl(item.liftedColour, item.colours.length, item.size, goRimReach(item.surface));
-  const wide = item.colours.length > 2, deck = goDeckWidth(item.size, item.colours.length, goRimReach(item.surface));
+  const deck = goDeckWidth(item.size, item.colours.length, goRimReach(item.surface));
   const extent = goExtent(item.size), boardWidth = goBoardWidth(item.size), edge = deck / 2;
   return <group ref={body} position={[item.position.x, item.position.y, item.position.z]} rotation-y={item.position.rotationY} scale={item.scale} pointerEventsType={GO_TABLE_POINTERS}>
     {/*

@@ -32,7 +32,7 @@ const human = (id: string) => ({ id, kind: "human" as const });
 /** A project nikk manages, with `also` able to work in it. */
 const project = (store: BoardStore, also?: string) => {
   const id = store.createProject(human("nikk"), { name: "p" });
-  if (also) store.actOnMembership(human("nikk"), id, also, "grant", ["maker"]);
+  if (also) store.actOnMembership(human("nikk"), id, also, "grant", ["engineering"]);
   return id;
 };
 

@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebharnessClient, WebharnessError } from "../webharness/client.js";
 
+/** The error a request fails with. A request that succeeds fails the test. */
+const failure = (pending: Promise<unknown>): Promise<WebharnessError> =>
+  pending.then(
+    () => { throw new Error("expected the request to fail"); },
+    (error: unknown) => error as WebharnessError,
+  );
+
 /**
  * These cover the retry behaviour.
  *
@@ -42,7 +49,7 @@ describe("WebharnessClient", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new WebharnessClient("https://example.test");
-    const error = await client.request("/api/rooms").catch((e) => e);
+    const error = await failure(client.request("/api/rooms"));
 
     expect(error).toBeInstanceOf(WebharnessError);
     expect(error.status).toBe(401);
@@ -55,7 +62,7 @@ describe("WebharnessClient", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new WebharnessClient("https://example.test");
-    const error = await client.request("/api/rooms/x").catch((e) => e);
+    const error = await failure(client.request("/api/rooms/x"));
 
     expect(error.status).toBe(403);
     expect(error.reauth).toBe(false);
@@ -66,7 +73,7 @@ describe("WebharnessClient", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json(500, { detail: "boom" })));
 
     const client = new WebharnessClient("https://example.test");
-    const error = await client.request("/api/rooms", { token: "super-secret-token" }).catch((e) => e);
+    const error = await failure(client.request("/api/rooms", { token: "super-secret-token" }));
 
     // An error that carries the token would leak it into any log line.
     expect(JSON.stringify({ message: error.message, detail: error.detail })).not.toContain(
@@ -81,7 +88,7 @@ describe("WebharnessClient", () => {
     );
 
     const client = new WebharnessClient("https://example.test");
-    const error = await client.request("/api/rooms").catch((e) => e);
+    const error = await failure(client.request("/api/rooms"));
 
     expect(error).toBeInstanceOf(WebharnessError);
     expect(error.status).toBe(502);
@@ -104,9 +111,9 @@ describe("only requests that can safely repeat are retried", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new WebharnessClient("https://example.test");
-    const error = await client
+    const error = await failure(client
       .request("/api/rooms/x/messages", { method: "POST", body: { content: "hi" } })
-      .catch((e) => e);
+      );
 
     // A 401 says the response was rejected, not that the server did no work.
     // Repeating a create could duplicate it, and a duplicated write is worse

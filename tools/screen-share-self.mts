@@ -43,7 +43,7 @@ const call = (method: string, path: string, body?: Buffer, type?: string) =>
   fetch(`${session.site}${path}`, {
     method,
     headers: { cookie: session.cookie, ...(type ? { "content-type": type } : {}) },
-    body,
+    body: body ? new Uint8Array(body) : undefined,
   });
 const me = ((await (await call("GET", "/bff/me")).json()) as { username: string }).username;
 

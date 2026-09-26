@@ -3,7 +3,6 @@ import { Identity } from "../Identity";
 import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
 import { RoomLoading } from "./RoomLoading";
-import type { Utterance } from "../../shared/voice";
 import { VoiceControls } from "./VoiceControls";
 import { Transcript } from "./Transcript";
 import { usePanelChoices } from "./usePanelChoices";

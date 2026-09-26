@@ -36,8 +36,8 @@ function boot() {
   const db = openDatabase(":memory:", DatabaseSync);
   const store = new BoardStore(db);
   const projectId = store.createProject(human("nikk"), { name: "p" });
-  store.actOnMembership(human("nikk"), projectId, "claude-nikk2mbp", "grant", ["maker"]);
-  store.actOnMembership(human("nikk"), projectId, "plumbline", "grant", ["maker"]);
+  store.actOnMembership(human("nikk"), projectId, "claude-nikk2mbp", "grant", ["engineering"]);
+  store.actOnMembership(human("nikk"), projectId, "plumbline", "grant", ["engineering"]);
   return { db, store, projectId };
 }
 

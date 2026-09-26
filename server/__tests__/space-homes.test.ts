@@ -246,7 +246,7 @@ describe("a home is remembered", () => {
     const store = new BoardStore(database);
     const nikk = { id: "nikk", kind: "human" as const };
     const projectId = store.createProject(nikk, { name: "p" });
-    store.actOnMembership(nikk, projectId, "Plumbline", "grant", ["maker"]);
+    store.actOnMembership(nikk, projectId, "Plumbline", "grant", ["engineering"]);
     store.createTask({ id: "Plumbline", kind: "agent" }, { projectId, title: "a card" });
     activity.step();
     clock += ATTENTION_MS + 1;

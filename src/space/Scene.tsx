@@ -34,8 +34,6 @@ import { Movable } from "./Movable";
 import { placeOf, savePlacement } from "./panel-placement";
 import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
 import type { SettingsItem } from "../../shared/settings-3d";
-import { defaultPlacement } from "../../shared/panel-place";
-import type { Placement } from "../../shared/space-wire";
 import { RoomItems } from "./RoomItems";
 import { MeditationOrb } from "./MeditationOrb";
 import { SpiritCompanions } from "./SpiritCompanions";

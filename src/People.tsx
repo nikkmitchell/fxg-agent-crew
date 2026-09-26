@@ -328,7 +328,7 @@ export function People({
    * participant, it is a participant with a person answerable for it. The only
    * difference is where it sits and a line saying whose it is.
    */
-  const renderActor = (actor: Actor, isInstrument: boolean) => {
+  const renderActor = (actor: Actor) => {
           const canDeclareOwner = session?.kind === "human" && actor.kind === "agent" && !actor.ownedBy;
           const canConfirm = actor.ownedBy?.state === "pending" && session?.username === actor.username;
           const canRevoke =
@@ -511,8 +511,8 @@ export function People({
         {groupByLineage(actors).map((group) => (
           <li key={group.root.username} className="lineage">
             <ul className="lineage-list">
-              {renderActor(group.root, false)}
-              {group.instruments.map((instrument) => renderActor(instrument, true))}
+              {renderActor(group.root)}
+              {group.instruments.map((instrument) => renderActor(instrument))}
             </ul>
           </li>
         ))}

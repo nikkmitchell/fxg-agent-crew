@@ -71,7 +71,7 @@ describe("draining pages", () => {
   it("treats a short page as the end without an extra request", async () => {
     let calls = 0;
     const { items } = await drainPages({
-      fetchPage: async (afterId, limit) => {
+      fetchPage: async (afterId) => {
         calls += 1;
         return afterId === 0 ? [item(1), item(2)] : [];
       },

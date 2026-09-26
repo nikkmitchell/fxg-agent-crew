@@ -1,4 +1,4 @@
-import { WORLD, clampToWorld, deskFor, type Vec3 } from "../../shared/space-layout.js";
+import { WORLD, clampToWorld, type Vec3 } from "../../shared/space-layout.js";
 
 /** Comfortable face-to-face spacing: close enough to talk, not body overlap. */
 export const CONVERSATION_DISTANCE = 1.35;

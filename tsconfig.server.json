@@ -21,7 +21,9 @@
     "resolveJsonModule": true,
     "sourceMap": true,
     "noEmit": false,
-    "types": ["node"]
+    "types": ["node"],
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   },
   // src/event-core.ts is pulled in by the adapter tests and the reducer seam,
   // so it compiles alongside the server rather than with the browser bundle.

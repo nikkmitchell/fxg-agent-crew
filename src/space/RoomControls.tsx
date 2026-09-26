@@ -34,7 +34,7 @@ import type { Showing } from "../../shared/space-wire";
 import type { RoomShowingChoices } from "./useRoomShowing";
 import { roomMenuRows } from "../../shared/room-switch";
 import type { RoomSummary } from "../../shared/contracts";
-import { CHAT_MESSAGE_LIMIT, DETAIL_LIMIT, type Utterance } from "../../shared/voice";
+import { CHAT_MESSAGE_LIMIT, type Utterance } from "../../shared/voice";
 import { planText, planVoice, type VoiceDestination } from "./voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 import { holdDraft, holdReload, reloadNow, updateWaiting, watchUpdate } from "../update-reload";

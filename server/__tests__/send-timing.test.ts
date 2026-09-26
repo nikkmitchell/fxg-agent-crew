@@ -3,10 +3,10 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { registerSendTimingRoutes } from "../space/send-timing.js";
 import { MemorySessionStore } from "../session.js";
-import type { Config } from "../config.js";
+import { testConfig } from "./test-config.js";
 
 /** Where a headset's voice send spends its time: logged, never stored. */
-const config: Config = { webharnessUrl: "https://example.test", port: 0, cookieName: "fxg_sid", sessionTtlMs: 60_000, secureCookies: false };
+const config = testConfig();
 
 function setup() {
   const sessions = new MemorySessionStore(60_000);

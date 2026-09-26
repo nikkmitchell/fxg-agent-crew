@@ -49,9 +49,9 @@ describe("project replay", () => {
     const state = await replay(request);
 
     expect(state.projects).toHaveLength(1);
-    expect(state.projects[0].name).toBe("Multiplayer Go");
+    expect((state.projects[0] as { name: string }).name).toBe("Multiplayer Go");
     expect(state.tasks).toHaveLength(1);
-    expect(state.tasks[0].projectId).toBe("many-player-go");
+    expect((state.tasks[0] as { projectId: string }).projectId).toBe("many-player-go");
     expect(state.rejected).toEqual([]);
   });
 

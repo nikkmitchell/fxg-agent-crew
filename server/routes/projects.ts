@@ -1,10 +1,10 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import type { Message } from "../../shared/contracts.js";
 import { encodeActionRequest } from "../webharness/adapter.js";
 import { validateActionRequest, type CrewEvent } from "../../shared/crew-events.js";
 import { MESSAGE_LIMIT } from "../../shared/message-budget.js";
 import type { Config } from "../config.js";
-import type { Session, SessionStore } from "../session.js";
+import type { SessionStore } from "../session.js";
 import type { WebharnessClient } from "../webharness/client.js";
 import { dirname } from "node:path";
 import { ProjectStateCache } from "../webharness/project-cache.js";

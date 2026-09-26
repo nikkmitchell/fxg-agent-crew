@@ -194,11 +194,12 @@ if (process.env.HARNESS_PEOPLE) {
   const left = -((people.length - 1) * gap) / 2;
   people.forEach(([username], index) => {
     const at = { x: left + index * gap, y: 0, z: 3.6 };
-    space.presence.sendTo(username, "agent", at, "standing for a look");
     // Turned toward the spawn point by NAME, through the same resolver the
     // room gives agents, so the row faces you when you arrive.
     space.presence.sendTo(username, "agent", at, "standing for a look", facingToward(at, spawn));
-    space.presence.animate(username, { posture: "standing" }, "agent");
+    // "relaxed" is the standing idle; "standing" is not a posture, so the
+    // room refused it and the row kept whatever it had.
+    space.presence.animate(username, { posture: "relaxed" }, "agent");
   });
   console.log(`\n  standing for a look: ${people.map(([n]) => n).join(", ")}`);
   console.log("  they are in a row at z=3.6 facing the spawn point; walk forward to see them.\n");
@@ -257,7 +258,7 @@ const store = new BoardStore(database);
 const projectId = store.createProject({ id: "nikk", kind: "human" }, { id: "room", name: "Room demo" });
 for (const [username, kind] of people) {
   if (username !== "nikk") {
-    store.actOnMembership({ id: "nikk", kind: "human" }, projectId, username, "grant", ["maker"]);
+    store.actOnMembership({ id: "nikk", kind: "human" }, projectId, username, "grant", ["engineering"]);
   }
   void kind;
 }

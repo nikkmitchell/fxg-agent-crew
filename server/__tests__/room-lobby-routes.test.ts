@@ -1,18 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
-import type { Config } from "../config.js";
+import { testConfig } from "./test-config.js";
 import { registerRoomRoutes, normalisePublicRooms } from "../routes/rooms.js";
 import { MemorySessionStore } from "../session.js";
 import { WebharnessClient } from "../webharness/client.js";
 
-const config: Config = {
-  webharnessUrl: "https://example.test",
-  port: 0,
-  cookieName: "fxg_sid",
-  sessionTtlMs: 60_000,
-  secureCookies: false,
-};
+const config = testConfig();
 
 const apps: ReturnType<typeof Fastify>[] = [];
 afterEach(async () => {

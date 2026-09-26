@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MESSAGE_LIMIT, briefBudget, describeBudget, wireSize } from "../message-budget.js";
-import { encodeActionRequest } from "../crew-events.js";
+import { encodeActionRequest, type CrewTask } from "../crew-events.js";
 
 /**
  * The editor has to know where the wall is while you type.
@@ -11,7 +11,7 @@ import { encodeActionRequest } from "../crew-events.js";
  * 300-character brief unsendable. The textarea invited 4000 either way.
  */
 
-const card = {
+const card: CrewTask = {
   id: "saha-brief-budget",
   projectId: "saha-ing",
   title: "A card brief can be longer than the transport can carry",

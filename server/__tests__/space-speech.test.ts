@@ -158,9 +158,11 @@ describe("reading a line aloud", () => {
    */
   it("asking for the line that is already being said waits for it", async () => {
     const cacheRoot = await mkdtemp(join(tmpdir(), "speech-inflight-"));
-    let finish: (() => void) | null = null;
+    // Assigned inside the speaker; declared loose so TypeScript does not
+    // conclude from the initialiser that it is always null.
+    let finish = null as (() => void) | null;
     let calls = 0;
-    const slow: Speaker = async (text, voice, outPath) => {
+    const slow: Speaker = async (_text, _voice, outPath) => {
       calls += 1;
       await new Promise<void>((done) => {
         finish = () => done();

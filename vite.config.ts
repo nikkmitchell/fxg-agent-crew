@@ -33,5 +33,8 @@ export default defineConfig({
   test: {
     maxWorkers: 4,
     testTimeout: 15_000,
+    // node:sqlite prints an ExperimentalWarning from every worker: forty-odd
+    // identical lines a run, which buried any warning that meant something.
+    execArgv: ["--disable-warning=ExperimentalWarning"],
   },
 });

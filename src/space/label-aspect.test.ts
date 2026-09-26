@@ -7,16 +7,7 @@ import { describe, expect, it } from "vitest";
  * plane of a different aspect does not crop or letterbox it, it STRETCHES it,
  * and the failure looks like blurring rather than like a mistake. A caption at
  * nearly 13:1 reached a headset as unreadable smudging.
- *
- * The numbers are read out of the components so this cannot pass while the
- * scene says something else.
  */
-const LABEL_CANVAS_ASPECT = 512 / 128;
-
-const planesIn = (source: string): [number, number][] =>
-  [...source.matchAll(/planeGeometry args=\{\[([\d.]+), ([\d.]+)\]\}/g)].map(
-    (match) => [Number(match[1]), Number(match[2])] as [number, number],
-  );
 
 describe("text planes", () => {
   it("shapes a button's label canvas like the button, rather than assuming 4:1", async () => {
@@ -34,6 +25,4 @@ describe("text planes", () => {
     expect(source, "WristButton must tell makeLabelTexture the plane's aspect")
       .toMatch(/makeLabelTexture\([\s\S]*?aspect:\s*width\s*\/\s*height/);
   });
-
-
 });

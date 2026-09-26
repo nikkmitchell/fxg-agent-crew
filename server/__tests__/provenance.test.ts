@@ -84,7 +84,7 @@ describe("self-reports cannot masquerade as transport facts", () => {
     // Transport proves who SENT it. Nothing verifies the content. An agent
     // claiming its own model, runtime or location is unverifiable by
     // construction, however fresh the claim is.
-    expect(claim.freshness.kind).toBe("live");
+    expect(claim.state === "known" && claim.freshness.kind).toBe("live");
     expect(isVerifiedFact(claim)).toBe(false);
   });
 
@@ -98,7 +98,7 @@ describe("self-reports cannot masquerade as transport facts", () => {
     // delivered it reliably.
     const claim = known("the deploy is green", participantClaim, production, at);
 
-    expect(claim.freshness.kind).toBe("live");
+    expect(claim.state === "known" && claim.freshness.kind).toBe("live");
     expect(isVerifiedFact(claim)).toBe(false);
     expect(provenanceLabel(claim)).toBe("CLAIMED · LIVE");
   });

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { adaptMessages, encodeActionRequest } from "../webharness/adapter.js";
 import { initialCrewState, reduceCrewEvent } from "../../src/event-core.js";
-import type { CrewEvent } from "../../shared/crew-events.js";
 import type { Message } from "../../shared/contracts.js";
 
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { LiveRoomPanel } from "./LiveRoomPanel";
 import { Home } from "./Home";
-import { DEFAULT_TAB, RAIL, TABS, type Tab, pathForTab, tabFromPath } from "./router";
+import { DEFAULT_TAB, RAIL, type Tab, pathForTab, tabFromPath } from "./router";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import { BuildPanel } from "./BuildPanel";
 import { Identity } from "./Identity";
@@ -148,23 +148,6 @@ function TabContent({
           The overlay still exists for the button in the rail elsewhere. */}
       {tab === "chat" ? <ChatFeed username={session?.username ?? ""} onOpenRoomControls={embedded ? undefined : onOpenChat} /> : null}
     </>
-  );
-}
-
-/**
- * An empty state that explains itself.
- *
- * Every one of these says what is missing and what will fill it, so a blank
- * screen is information rather than an apparent bug. "Nothing here yet" with
- * no reason is indistinguishable from a failed fetch.
- */
-function Empty({ title, because, next }: { title: string; because: string; next?: string }) {
-  return (
-    <section className="empty-state">
-      <h2>{title}</h2>
-      <p>{because}</p>
-      {next ? <p className="empty-next">{next}</p> : null}
-    </section>
   );
 }
 

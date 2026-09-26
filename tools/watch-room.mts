@@ -15,10 +15,10 @@
  *   pnpm exec tsx tools/watch-room.mts [https://saha.ing]
  */
 import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
-const WebSocket = require("ws") as typeof import("ws").WebSocket;
+// NODE'S OWN WebSocket. This required "ws", which is not a dependency of this
+// project; it resolved only while something else happened to pull it in, and
+// under pnpm it does not, so the tool died on its first line. Node 22+ has a
+// WebSocket built in, and it sends the cookie header this needs.
 
 const SITE = process.argv[2] ?? "https://saha.ing";
 
@@ -117,9 +117,11 @@ const connect = async (): Promise<void> => {
   } catch {
     // Keep the cookie we have and let the socket decide.
   }
+  // `headers` is Node's (undici's) extension to the browser API: the DOM
+  // typings do not know it, and a browser could not send a cookie this way.
   attach(new WebSocket(`${SITE.replace(/^http/, "ws")}/bff/space/socket`, {
     headers: { cookie: sessionCookie },
-  }));
+  } as unknown as string[]));
 };
 
 const again = () => {
@@ -154,8 +156,8 @@ const last = new Map<string, string>();
 const PING_MS = 20_000;
 let heartbeat: NodeJS.Timeout | null = null;
 
-function attach(socket: InstanceType<typeof WebSocket>): void {
-  socket.on("open", () => {
+function attach(socket: WebSocket): void {
+  socket.addEventListener("open", () => {
     console.log(`${stamp()} watching`);
     // A successful connection earns a fresh budget; otherwise a long uptime
     // followed by one blip would wait half a minute to come back.
@@ -165,21 +167,21 @@ function attach(socket: InstanceType<typeof WebSocket>): void {
     }, PING_MS);
     heartbeat.unref?.();
   });
-  socket.on("close", () => {
+  socket.addEventListener("close", () => {
     if (heartbeat) clearInterval(heartbeat);
     console.log(`${stamp()} closed`);
     again();
   });
-  socket.on("error", (error: Error) => {
+  socket.addEventListener("error", () => {
     // Logged, not fatal. A refused connection during a restart is the ordinary
     // case, and exiting on it is how presence was lost in the first place.
-    console.error(`${stamp()} ${error.message}`);
+    console.error(`${stamp()} socket error`);
   });
-  socket.on("message", onMessage);
+  socket.addEventListener("message", (event) => onMessage(String(event.data)));
 }
 
-function onMessage(raw: Buffer): void {
-  const message = JSON.parse(String(raw));
+function onMessage(raw: string): void {
+  const message = JSON.parse(raw);
   if (message.type === "welcome") {
     console.log(`${stamp()} welcome: you=${message.you}`);
     return;

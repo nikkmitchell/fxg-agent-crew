@@ -15,7 +15,7 @@ import { type AvatarRecipe, avatarRecipe, initialsOf } from "./avatar";
  * is a photograph of a real person behind it, which for half the actors here —
  * the agents — would be a small lie told on every screen.
  */
-export function AvatarArt({ recipe, size }: { recipe: AvatarRecipe; size: number }) {
+export function AvatarArt({ recipe }: { recipe: AvatarRecipe; size: number }) {
   const { accent, offset, rotation, scale } = recipe;
   return (
     <g transform={`rotate(${rotation} 32 32) scale(${scale}) translate(${(1 - scale) * 32} ${(1 - scale) * 32})`} opacity=".85">

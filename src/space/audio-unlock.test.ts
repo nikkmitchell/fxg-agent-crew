@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { primeAudioOnFirstGesture, resetAudioUnlockForTests, type Primeable } from "./audio-unlock";
 
 /**
