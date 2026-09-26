@@ -426,6 +426,16 @@ export function registerSpaceRoutes(
 
     const room = spaceRoomOf(session);
     const liveHub = hubFor(room);
+    /** Opened by this site's own page (or by a tool, which sends no Origin). */
+    const sameSite = (() => {
+      const origin = request.headers.origin;
+      if (!origin) return true;
+      try {
+        return new URL(origin).host === request.headers.host;
+      } catch {
+        return false;
+      }
+    })();
     liveHub.attach(actorId, session.kind, socket, room, request.cookies[config.cookieName]);
     // ?quiet=1: connected, but not sent the room every tick. See SpaceHub.quiet.
     if ((request.query as { quiet?: string } | undefined)?.quiet === "1") liveHub.markQuiet(socket);
@@ -507,6 +517,39 @@ export function registerSpaceRoutes(
           if (noteAt.size > 64) noteAt.delete(noteAt.keys().next().value as string);
           request.log.info({ actorId, note: message.note }, "space client note");
         }
+        return;
+      }
+      if (message.type === "call") {
+        /**
+         * A /bff REQUEST DOWN THE SOCKET (Nikk 5047). Run through the real
+         * route with `inject`, in-process, so every check, limit and refusal is
+         * the route's own. WHO IS ASKING IS THIS SOCKET'S SESSION: the cookie
+         * is the one it connected with, never anything in the frame. And only
+         * for a socket this site's own page opened, so no other page can use a
+         * signed-in socket to reach the API.
+         */
+        const answer = (status: number, body: string) => {
+          if (socket.readyState === socket.OPEN) socket.send(JSON.stringify({ type: "callResult", ref: message.ref, status, body }));
+        };
+        if (!sameSite) return answer(403, JSON.stringify({ code: "CROSS_SITE", error: "calls only from this site's own page" }));
+        void app
+          .inject({
+            method: message.method,
+            url: message.path,
+            headers: {
+              cookie: request.headers.cookie ?? "",
+              ...(message.body !== undefined ? { "content-type": "application/json" } : {}),
+              ...(request.headers["user-agent"] ? { "user-agent": request.headers["user-agent"] } : {}),
+            },
+            ...(message.body !== undefined ? { payload: message.body } : {}),
+          })
+          .then((response) =>
+            // A cookie cannot reach the browser this way. No route that sets
+            // one is tunnelled (isCallPath), and this makes sure of it.
+            response.headers["set-cookie"]
+              ? answer(409, JSON.stringify({ code: "NEEDS_WEB", error: "this request must be made directly" }))
+              : answer(response.statusCode, response.body))
+          .catch(() => answer(502, JSON.stringify({ code: "CALL_FAILED", error: "the request could not be run" })));
         return;
       }
       if (message.type === "itemAction") {

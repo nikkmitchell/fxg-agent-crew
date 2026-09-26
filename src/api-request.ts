@@ -26,6 +26,7 @@
  * do next, which "something went wrong" does not. The code is what UI branches
  * on, because an HTTP status cannot tell "not a member" from "muted".
  */
+import { callOverSocket } from "./call-socket";
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -54,6 +55,10 @@ export class ApiError extends Error {
 type Refusal = { code?: string; error?: string; reauth?: boolean };
 
 export async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // DOWN THE ROOM'S OPEN SOCKET when there is one (call-socket.ts), with the
+  // same answer a web request would give; the web request otherwise.
+  const tunnelled = await callOverSocket(path, init);
+  if (tunnelled) return readAnswer<T>(tunnelled.status, () => Promise.resolve(parseOrUndefined(tunnelled.body)));
   const response = await fetch(path, {
     ...init,
     // Explicit rather than relying on the default, so that moving the API to
@@ -65,10 +70,24 @@ export async function requestJson<T>(path: string, init: RequestInit = {}): Prom
     },
   });
 
-  // 204 has no body to parse. The board API uses it for deletes.
-  if (response.status === 204) return undefined as T;
+  return readAnswer<T>(response.status, () => response.json().catch(() => undefined));
+}
 
-  const body = (await response.json().catch(() => undefined)) as T | Refusal | undefined;
+function parseOrUndefined(text: string): unknown {
+  try {
+    return text ? JSON.parse(text) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** One status and body, from the web or the socket, into a value or an ApiError. */
+async function readAnswer<T>(status: number, read: () => Promise<unknown>): Promise<T> {
+  // 204 has no body to parse. The board API uses it for deletes.
+  if (status === 204) return undefined as T;
+
+  const body = (await read()) as T | Refusal | undefined;
+  const response = { ok: status >= 200 && status < 300, status };
   if (!response.ok) {
     const refusal = body as Refusal | undefined;
     throw new ApiError(

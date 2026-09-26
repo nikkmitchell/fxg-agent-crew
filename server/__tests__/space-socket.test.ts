@@ -183,6 +183,41 @@ describe("the space socket", () => {
     mover.close(); watcher.close();
   });
 
+  it("runs a /bff request down the socket as the socket's own session (Nikk 5047)", async () => {
+    const { origin, as, database } = await boot();
+    const table = new RoomItems(database).add("saha.ing", "Moraine");
+    const client = await connect(origin, as("Moraine", "agent"));
+    await client.where((m) => m.type === "welcome", "welcome");
+    client.send({ type: "call", ref: "r1", method: "GET", path: "/bff/space/items" });
+    const got = await client.where((m) => m.type === "callResult" && m.ref === "r1", "items answer");
+    expect(got).toMatchObject({ status: 200 });
+    expect(JSON.parse((got as { body: string }).body).items).toHaveLength(1);
+    // A path that is not a local route is not even read.
+    client.send({ type: "call", ref: "r2", method: "GET", path: "/bff/../etc/passwd" });
+    client.send({ type: "call", ref: "r3", method: "POST", path: `/bff/space/items/${table.id}/action`, body: JSON.stringify({ action: "lift", revision: 0 }) });
+    const lifted = await client.where((m) => m.type === "callResult" && m.ref === "r3", "move answer");
+    expect(lifted).toMatchObject({ status: 200 });
+    expect(JSON.parse((lifted as { body: string }).body).item).toMatchObject({ liftedColour: 0, carrier: { by: "Moraine" } });
+    expect(client.drain().some((m) => m.type === "callResult" && m.ref === "r2")).toBe(false);
+    client.close();
+  });
+
+  it("refuses calls on a socket another site's page opened", async () => {
+    const { origin, as } = await boot();
+    const socket = new WebSocket(`${origin}/bff/space/socket`, { headers: { cookie: as("Moraine", "agent"), origin: "https://evil.test" } } as never);
+    const answer = await new Promise<ServerMessage>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("no answer")), 4_000);
+      socket.addEventListener("open", () => socket.send(JSON.stringify({ type: "call", ref: "x", method: "GET", path: "/bff/space/items" })));
+      socket.addEventListener("message", (event: MessageEvent) => {
+        const message = JSON.parse(String(event.data)) as ServerMessage;
+        if (message.type === "callResult") { clearTimeout(timer); resolve(message); }
+      });
+    });
+    expect(answer).toMatchObject({ status: 403 });
+    expect((answer as { body: string }).body).toContain("CROSS_SITE");
+    socket.close();
+  });
+
   it("refuses a socket with no session, and says why before closing", async () => {
     const { origin } = await boot();
     const nobody = await connect(origin);

@@ -172,6 +172,8 @@ export type WirePerson = {
 
 /** Server → client. */
 export type ServerMessage =
+  /** The answer to one `call`: its status and its body, as the web would give it. */
+  | { type: "callResult"; ref: string; status: number; body: string }
   /** The answer to one `itemAction`, to the socket that sent it only. */
   | { type: "itemActionResult"; ref: string; status: number; payload: Record<string, unknown> }
   | {
@@ -291,6 +293,13 @@ export type VoiceSignal =
 /** Client → server. */
 export type ClientMessage =
   /**
+   * ANY SMALL /bff REQUEST, down the open socket. Nikk (5047): "add as many
+   * things as you can to socket". The server runs the same route in-process,
+   * signed in as this socket's own session, and answers with `callResult`.
+   * The web request is the fallback whenever the socket is not open.
+   */
+  | { type: "call"; ref: string; method: CallMethod; path: string; body?: string }
+  /**
    * A move at a Go table, over the socket that is already open.
    *
    * Nikk (5026): on a poor connection "go is almost unplayable, but Baiwei can
@@ -368,6 +377,28 @@ export type ClientMessage =
  * thing to ignore and count, not a reason to tear down a socket that may be
  * fine.
  */
+export const CALL_METHODS = ["GET", "POST", "PATCH", "PUT", "DELETE"] as const;
+export type CallMethod = (typeof CALL_METHODS)[number];
+/** Small JSON only: files and pictures keep their own web requests. */
+export const CALL_BODY_LIMIT = 64 * 1024;
+/**
+ * Only this site's own API, and never the socket itself. No scheme, host,
+ * "..", backslash or whitespace, so a call can only ever name a local route.
+ */
+export function isCallPath(path: unknown): path is string {
+  return (
+    typeof path === "string" &&
+    path.length <= 2048 &&
+    path.startsWith("/bff/") &&
+    !path.startsWith("/bff/space/socket") &&
+    // Signing in and out set the browser's cookie, which only a real web
+    // request can do.
+    !/^\/bff\/(login|logout|agent-session)(\?|$)/.test(path) &&
+    !/[\\\s]|\.\.|\/\//.test(path) &&
+    !/%(2e|2f|5c)/i.test(path)
+  );
+}
+
 export function parseClientMessage(raw: string): ClientMessage | null {
   let value: unknown;
   try {
@@ -422,6 +453,13 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     // Trimmed rather than refused: a note is diagnostics, and a long one is
     // still worth its first two hundred characters.
     return { type: "note", note: message.note.slice(0, 200) };
+  }
+  if (message.type === "call") {
+    if (typeof message.ref !== "string" || message.ref.length === 0 || message.ref.length > 64) return null;
+    if (!CALL_METHODS.includes(message.method as CallMethod)) return null;
+    if (!isCallPath(message.path)) return null;
+    if (message.body !== undefined && (typeof message.body !== "string" || message.body.length > CALL_BODY_LIMIT)) return null;
+    return { type: "call", ref: message.ref, method: message.method as CallMethod, path: message.path, ...(message.body !== undefined ? { body: message.body } : {}) };
   }
   if (message.type === "itemAction") {
     if (typeof message.ref !== "string" || message.ref.length === 0 || message.ref.length > 64) return null;
