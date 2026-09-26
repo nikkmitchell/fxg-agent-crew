@@ -5,9 +5,9 @@
  * grepping the whole repo for `/bff/space/utterances` found one reference, in a
  * test. Agents only ever posted to the WebHarness chat, which the room painted
  * verbatim onto its wall panel, so my 1,900-character posts arrived in a
- * headset as a wall of text nobody can skim. (The wall now shows the first few
- * sentences — src/space/short-form.ts — but that is the display catching a
- * habit, not a substitute for being brief.) Nikk: "in the rooms space they
+ * headset as a wall of text nobody can skim. (The wall shows whole messages
+ * now and scrolls, which makes a long post a long scroll: still no substitute
+ * for being brief.) Nikk: "in the rooms space they
  * should be limmited to a 1 or few sentance tight summary of what they are
  * saying", and separately "I saw your message in chat but I didn't hear it
  * inside of the room".

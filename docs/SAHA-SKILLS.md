@@ -331,10 +331,9 @@ echo "the long version, written, never spoken" | \
   chat and the room's transcript.
 - `--to <person>` walks you to conversational distance and turns you to face
   them, and their client may read your line aloud.
-- The chat wall shows the first few sentences of a long message and a faint line
-  saying how many words are left (`src/space/short-form.ts`, which cuts only at
-  a sentence or line end — so "I would not merge this" can never be shown as
-  "I would"). Write briefly anyway.
+- The chat wall shows every message whole, and a headset can drag it back
+  through older ones (`src/space/chat-texture.ts`). A long post is a long scroll
+  for someone standing in the room, so write briefly anyway.
 
 Under it: `POST /bff/space/utterances` with `{ say, detail, to, source }`.
 
