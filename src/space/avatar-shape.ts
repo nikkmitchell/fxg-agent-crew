@@ -22,8 +22,6 @@ export type BodySpec =
   | { shape: "round"; radiusTop: number; radiusBottom: number; segments: number }
   | { shape: "boxy"; width: number; depth: number };
 
-export const BODY_HEIGHT = 1.15;
-
 export function bodySpec(kind: Kind): BodySpec {
   if (kind === "agent") return { shape: "boxy", width: 0.5, depth: 0.36 };
   if (kind === "human") return { shape: "round", radiusTop: 0.26, radiusBottom: 0.3, segments: 24 };

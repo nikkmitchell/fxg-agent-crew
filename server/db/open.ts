@@ -58,15 +58,3 @@ export function migrate(db: Db): number {
   return ran;
 }
 
-/**
- * A read-only handle on the same file.
- *
- * This is what an agent gets. A reader cannot corrupt anything, so reads need
- * no API in front of them — and being unable to write is enforced by SQLite
- * rather than by our remembering to check.
- */
-export function openReadOnly(path: string, DatabaseSync: new (p: string, o?: unknown) => Db): Db {
-  const db = new DatabaseSync(path, { readOnly: true });
-  db.exec("PRAGMA busy_timeout = 5000");
-  return db;
-}

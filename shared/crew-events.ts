@@ -745,33 +745,6 @@ export function validateTransportMessage(raw: unknown): Checked<Message> {
   };
 }
 
-export function validateReadableMessage(raw: unknown): Checked<ReadableMessage> {
-  const object = plainObject(raw, "message");
-  if (!object.ok) return object;
-  const o = object.value;
-
-  const content = str(o.content, "message.content", { max: 100_000, allowEmpty: true });
-  if (!content.ok) return content;
-
-  // Absent is treated as not-streaming; present-but-wrong is refused rather
-  // than coerced, since coercion is how a half-written message gets applied.
-  if (o.streaming !== undefined && typeof o.streaming !== "boolean") {
-    return bad("message.streaming is not a boolean");
-  }
-  if (o.msgType !== undefined && typeof o.msgType !== "string") {
-    return bad("message.msgType is not a string");
-  }
-
-  return {
-    ok: true,
-    value: {
-      content: content.value,
-      streaming: o.streaming === true,
-      ...(typeof o.msgType === "string" ? { msgType: o.msgType } : {}),
-    },
-  };
-}
-
 export function validateAuthority(raw: unknown): Checked<TransportAuthority> {
   const object = plainObject(raw, "authority");
   if (!object.ok) return object;
@@ -932,53 +905,6 @@ export function authorizeEvent(
 }
 
 /* --------------------------------------------------------------- envelope -- */
-
-
-/**
- * Validate a parsed envelope completely. Returns the reconstructed value rather
- * than the input, so nothing unvalidated survives into state — an attacker
- * cannot smuggle extra keys through by attaching them to an otherwise valid
- * event.
- */
-export function validateEnvelope(raw: unknown): Checked<EventEnvelope> {
-  const object = plainObject(raw, "envelope");
-  if (!object.ok) return object;
-  const o = object.value;
-
-  // Fail closed on versions we do not understand rather than applying the
-  // fields we happen to recognise. A partially-understood event is a lie.
-  if (o.version !== 1) return bad(`unsupported envelope version: ${String(o.version)}`);
-
-  const eventId = str(o.eventId, "eventId", { max: 128 });
-  if (!eventId.ok) return eventId;
-  const stream = str(o.stream, "stream", { max: 200 });
-  if (!stream.ok) return stream;
-  const source = str(o.source, "source", { max: 128 });
-  if (!source.ok) return source;
-  const sourceCursor = nonNegativeInt(o.sourceCursor, "sourceCursor", LIMITS.maxCursor);
-  if (!sourceCursor.ok) return sourceCursor;
-  const occurredAt = timestamp(o.occurredAt, "occurredAt");
-  if (!occurredAt.ok) return occurredAt;
-
-  const payload = crewEvent(o.payload);
-  if (!payload.ok) return payload;
-
-  return {
-    ok: true,
-    value: {
-      version: 1,
-      eventId: eventId.value,
-      // Ordering is per stream; see EventEnvelope. Validating an envelope that
-      // arrived without one would leave the reducer keying cursors on
-      // undefined, so it is required here rather than defaulted.
-      stream: stream.value,
-      source: source.value,
-      sourceCursor: sourceCursor.value,
-      occurredAt: occurredAt.value,
-      payload: payload.value,
-    },
-  };
-}
 
 /**
  * Build a fenced action request for sending.

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import { CARD_INK } from "../../shared/card-paint";
-import { KEY, buildKeyboard, emptyTyping, press, type Key, type Typing } from "../../shared/keyboard-3d";
+import { KEY, buildKeyboard, press, type Key, type Typing } from "../../shared/keyboard-3d";
 import { claimPointer } from "./pointer-claim";
 
 /**
@@ -94,4 +94,3 @@ export function Keyboard3D({
   );
 }
 
-export const startTyping = emptyTyping;

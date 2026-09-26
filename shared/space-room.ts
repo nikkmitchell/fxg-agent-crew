@@ -30,9 +30,6 @@
  */
 export const DEFAULT_SPACE_ROOM = "saha.ing";
 
-/** The public room everybody starts in. Named here so nothing spells it twice. */
-export const LOBBY_ROOM = "lobby";
-
 /**
  * The key a room name is stored and compared under.
  *
