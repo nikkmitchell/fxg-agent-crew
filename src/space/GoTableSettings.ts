@@ -39,6 +39,8 @@ export type GoSettingChange =
   /** The first press asks; only a second press, soon after, deletes. See CONFIRM_DELETE_MS. */
   | { kind: "delete"; confirmed: boolean }
   | { kind: "close" }
+  /** Open the first-game rules card (Baiwei, 432b699). */
+  | { kind: "rules" }
   /** Pressed a limit — say so rather than doing nothing silently. */
   | { kind: "refused"; why: string };
 
@@ -60,6 +62,7 @@ export function goSettingFor(
   deleteArmedAt: number | null = null,
 ): GoSettingChange | null {
   if (id === "go:close") return { kind: "close" };
+  if (id === "go:rules") return { kind: "rules" };
   if (id === "go:reset") return { kind: "reset" };
   if (id === "go:delete") {
     return { kind: "delete", confirmed: deleteArmedAt !== null && now - deleteArmedAt <= CONFIRM_DELETE_MS };

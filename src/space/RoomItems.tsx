@@ -8,6 +8,7 @@ import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goBowlScale, goDeckWidth,
 import { heldStoneWorld, idleGoTouch, restOnBoard, stepGoTouch } from "../../shared/go-touch";
 import type { WirePerson } from "../../shared/space-wire";
 import { goHandInput } from "./go-hand-input";
+import { hasSeenGoGuide, rememberGoGuide, type GoGuideStorage } from "./go-guide";
 import { space } from "../space-client";
 import { claimPointer } from "./pointer-claim";
 import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
@@ -580,7 +581,57 @@ type TableContext = { you: string | null; peopleRef: RefObject<WirePerson[]>;
   onItem: (item: RoomItem) => void;
   /** Take a table out of the room here, now: it was deleted. */
   onRemoved: (id: string) => void };
+/** This browser's storage for the rules card, or none (private windows, previews). */
+function goGuideStorage(): GoGuideStorage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * GO BASICS, FOR A FIRST GAME (Baiwei, 432b699): the rules in three lines,
+ * shown once to each player at the first table, and from SETTINGS → RULES any
+ * time after. Ported onto today's table with the rules as this room plays
+ * them: area scoring, no komi, simple ko, and the game ends when everyone
+ * passes. The original text promised a 6.5 komi and OPEN/ROLES modes the game
+ * does not have.
+ */
+function GoRulesCard({ onDone }: { onDone: () => void }) {
+  const press = usePress(onDone);
+  const line = (y: number, text: string, size = 0.036) => (
+    <Text position={[-0.64, y, 0.008]} fontSize={size} maxWidth={1.28} lineHeight={1.18} color="#fff4df" anchorX="left" anchorY="top" raycast={noRaycast}>{text}</Text>
+  );
+  return <group position={[0, 1.68, -0.42]}>
+    <mesh raycast={noRaycast}>
+      <planeGeometry args={[1.46, 1.08]} />
+      <meshBasicMaterial color="#211f1a" transparent opacity={0.98} depthWrite={false} />
+    </mesh>
+    <Text position={[-0.64, 0.43, 0.008]} fontSize={0.056} color="#f1d8aa" anchorX="left" anchorY="middle" raycast={noRaycast}>FIRST GAME · GO BASICS</Text>
+    {line(0.3, "1  Touch the glowing bowl to lift a stone, and put it on an empty crossing. Black goes first; colours take turns.")}
+    {line(0.08, "2  A group needs an empty crossing beside it. Fill every one and it is captured. You cannot take a single stone straight back (ko).")}
+    {line(-0.16, "3  PASS when nothing is worth playing. When everyone passes, the game ends: your stones plus the empty land only you surround.")}
+    {line(-0.37, "No extra points for White. Stones left on the board count as alive, so capture dead ones before you pass.", 0.027)}
+    <group position={[0.49, 0.43, 0.012]} onPointerDown={press.onPointerDown} onPointerUp={press.onPointerUp} onPointerLeave={press.onPointerLeave}>
+      <mesh><planeGeometry args={[0.32, 0.09]} /><meshBasicMaterial color="#476b58" /></mesh>
+      <Text position={[0, 0, 0.006]} fontSize={0.031} color="white" anchorX="center" anchorY="middle" raycast={noRaycast}>GOT IT</Text>
+    </group>
+  </group>;
+}
+
 function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMotion: boolean; context: TableContext }) {
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [rulesSeen, setRulesSeen] = useState(() => hasSeenGoGuide(context.you, goGuideStorage()));
+  useEffect(() => setRulesSeen(hasSeenGoGuide(context.you, goGuideStorage())), [context.you]);
+  // Shown by itself once, at the first table only, so two tables do not both open it.
+  const firstTable = context.items.find((one) => one.kind === "go")?.id === item.id;
+  const showRules = Boolean(context.you) && (rulesOpen || (firstTable && !rulesSeen));
+  const dismissRules = () => {
+    rememberGoGuide(context.you, goGuideStorage());
+    setRulesSeen(true);
+    setRulesOpen(false);
+  };
   const [notice, setNotice] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [carrying, setCarrying] = useState(false);
@@ -929,6 +980,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     if (!change) return;
     if (change.kind !== "delete") setDeleteArmedAt(null);
     if (change.kind === "close") { setSettingsOpen(false); return; }
+    if (change.kind === "rules") { setSettingsOpen(false); setRulesOpen(true); return; }
     if (change.kind === "refused") { setNotice(change.why); return; }
     if (change.kind === "delete") {
       if (!change.confirmed) {
@@ -1097,6 +1149,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
         {carrying ? controls.labels.moving : "MOVE ✥"}
       </Text>
     </group>}
+    {showRules && <GoRulesCard onDone={dismissRules} />}
     {showControls && !settingsOpen && <TableButton label={controls.labels.settings} at={[controls.settings.x, controls.settings.y, controls.settings.z]}
       width={controls.settings.width} depth={controls.settings.depth} fontSize={controls.labels.fontSize} outline="#f1dfbd"
       onTap={() => { setNotice(""); setSettingsOpen(true); }} />}

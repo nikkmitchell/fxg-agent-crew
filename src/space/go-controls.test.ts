@@ -162,7 +162,7 @@ describe("the settings sheet, flat on the board", () => {
     expect(rows.find((r) => r.label === "PLAYERS")?.value).toBe("3");
     expect(rows.find((r) => r.label === "TABLE")?.value).toBe("120%");
     const show = rows.find((r) => r.label === "SHOW")!.buttons;
-    expect(show.map((b) => [b.id, b.label])).toEqual([["go:desk", "DESK OFF"], ["go:land", "LAND ON"]]);
+    expect(show.map((b) => [b.id, b.label])).toEqual([["go:desk", "DESK OFF"], ["go:land", "LAND ON"], ["go:rules", "RULES"]]);
   });
 });
 

@@ -183,12 +183,14 @@ export function goControls(
       label: "SHOW",
       // Two equal buttons across the stepper's span, so the right edge lines
       // up with every other row.
+      // RULES joins them (Baiwei's first-game guide), again not an eighth row.
       buttons: [
         { id: "go:desk", label: item.deskVisible ? "DESK ON" : "DESK OFF" },
         { id: "go:land", label: item.territoryShown ? "LAND ON" : "LAND OFF" },
+        { id: "go:rules", label: "RULES" },
       ].map((b, i) => {
         const span = button * 2 + value;
-        const each = (span - gap) / 2;
+        const each = (span - gap * 2) / 3;
         return { ...b, width: each, x: right - span + each / 2 + i * (each + gap) };
       }),
     },
