@@ -572,6 +572,13 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     clearInterval(sessionSweep);
     activity.stop();
     for (const hub of spaceHubs.values()) hub.close();
+    // Last, once nothing above can write: flushes the WAL into the database
+    // file, so a restart never begins by replaying one.
+    try {
+      database.close();
+    } catch {
+      // Already closed.
+    }
   });
 
   // `sessions` is returned so a test can sign somebody in without a real
@@ -587,4 +594,35 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     app.log.error(error);
     process.exit(1);
   });
+
+  /**
+   * STOP GRACEFULLY. systemd stops the service with SIGTERM on every deploy,
+   * and Node's default for SIGTERM is to exit on the spot: requests in the
+   * middle of a write were cut off, every socket dropped without a close frame
+   * (so headsets waited out a timeout before reconnecting), and the database
+   * was never closed. Now the server stops taking requests, closes the sockets
+   * with "going away" (1001) so clients reconnect at once, lets in-flight
+   * requests finish, and closes the database — or gives up after eight
+   * seconds, inside systemd's own stop timeout.
+   */
+  let stopping = false;
+  const stop = (signal: NodeJS.Signals) => {
+    if (stopping) return;
+    stopping = true;
+    app.log.info({ signal }, "stopping");
+    const force = setTimeout(() => {
+      app.log.warn("stopping took too long; exiting anyway");
+      process.exit(1);
+    }, 8_000);
+    force.unref();
+    app.close().then(
+      () => process.exit(0),
+      (error) => {
+        app.log.error(error, "stopping failed");
+        process.exit(1);
+      },
+    );
+  };
+  process.once("SIGTERM", stop);
+  process.once("SIGINT", stop);
 }

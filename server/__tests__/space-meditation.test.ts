@@ -60,8 +60,8 @@ describe("the room's breathing orb", () => {
     const path = `/tmp/meditation-${Math.random().toString(36).slice(2)}.db`;
     const first = boot(path);
     await post(first.app, first.enterAs("nikk", "calm"), { action: "show", shown: true });
+    // Closing the app closes its database, as a real stop does.
     await first.app.close();
-    first.database.close();
 
     const second = boot(path);
     expect((await read(second.app, second.enterAs("nikk", "calm"))).shown).toBe(true);
