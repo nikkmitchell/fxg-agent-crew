@@ -59,10 +59,12 @@ export const bff = {
     return requestJson<MessagePage>(`${bffRoot}/rooms/${encodeURIComponent(roomName)}/messages${suffix}`, { signal: options.signal });
   },
 
-  sendMessage: (roomName: string, content: string, signal?: AbortSignal) =>
+  /** `key`: a retry of the same message is posted once (server/idempotency.ts). */
+  sendMessage: (roomName: string, content: string, signal?: AbortSignal, key?: string) =>
     requestJson<import("../shared/contracts").Message>(`${bffRoot}/rooms/${encodeURIComponent(roomName)}/messages`, {
       method: "POST",
       body: JSON.stringify({ content }),
       signal,
+      ...(key ? { headers: { "idempotency-key": key } } : {}),
     }),
 };

@@ -61,3 +61,19 @@ describe("site requests down the room socket", () => {
     expect(isCallPath("/bff/space/items/abc/action")).toBe(true);
   });
 });
+
+describe("the key a send carries", () => {
+  it("is the same for the same words and different for different ones, and rides the socket", async () => {
+    const { sendKey } = await import("./call-socket");
+    expect(sendKey("chat", "saha.ing", "hello")).toBe(sendKey("chat", "saha.ing", "hello"));
+    expect(sendKey("chat", "saha.ing", "hello")).not.toBe(sendKey("chat", "saha.ing", "hello!"));
+    const frames: { key?: string }[] = [];
+    registerCallSocket((frame) => {
+      frames.push(frame);
+      queueMicrotask(() => settleCall(frame.ref, 201, "{}"));
+      return true;
+    });
+    await callOverSocket("/bff/rooms/x/messages", { method: "POST", body: "{}", headers: { "idempotency-key": "k" } });
+    expect(frames[0]?.key).toBe("k");
+  });
+});

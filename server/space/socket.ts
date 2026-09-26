@@ -559,6 +559,8 @@ export function registerSpaceRoutes(
               cookie: request.headers.cookie ?? "",
               ...(message.body !== undefined ? { "content-type": "application/json" } : {}),
               ...(request.headers["user-agent"] ? { "user-agent": request.headers["user-agent"] } : {}),
+              // The caller's idempotency key, so a retry is answered once (idempotency.ts).
+              ...(message.key !== undefined ? { "idempotency-key": message.key } : {}),
             },
             ...(message.body !== undefined ? { payload: message.body } : {}),
           })

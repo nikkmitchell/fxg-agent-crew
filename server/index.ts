@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { registerIdempotency } from "./idempotency.js";
 import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, resolve } from "node:path";
@@ -118,6 +119,14 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const client = new WebharnessClient(config.webharnessUrl);
 
   app.register(cookie);
+  // A write sent twice with the same idempotency key is answered once (idempotency.ts).
+  // Scoped to the session that sent it.
+  // Read from the raw header: this hook may run before the cookie plugin's.
+  registerIdempotency(app, (request) => {
+    const header = request.headers.cookie ?? "";
+    const found = header.split(/;\s*/).find((part) => part.startsWith(`${config.cookieName}=`));
+    return found ? found.slice(config.cookieName.length + 1) : null;
+  });
   // Registered at the root so the upgrade handler sees every request. The route
   // itself is declared inside the prefixed block below, so it moves with the
   // base path like everything else.

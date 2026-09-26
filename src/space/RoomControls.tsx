@@ -1,4 +1,5 @@
 import type { Meditation } from "../../shared/meditation";
+import { sendKey } from "../call-socket";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
@@ -543,12 +544,14 @@ export function RoomControls({
             ...(item.detail ? { detail: item.detail } : {}),
             source,
             ...(item.confidence !== undefined ? { confidence: item.confidence } : {}),
-          }, signal), stop.signal);
+          }, signal, sendKey("room", item.say ?? "", item.detail ?? "")), stop.signal);
           timing.answeredAt = Date.now();
         } else if (!room) {
           failures.push("the group chat (no room)");
         } else {
-          await withDeadline((signal) => bff.sendMessage(room, item.content, signal), stop.signal);
+          // THE SAME KEY FOR THE SAME WORDS, so a resend after a false "not
+          // sent" is answered once, never posted twice (server/idempotency.ts).
+          await withDeadline((signal) => bff.sendMessage(room, item.content, signal, sendKey("chat", room, item.content)), stop.signal);
           timing.answeredAt = Date.now();
         }
       } catch (error) {

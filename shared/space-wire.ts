@@ -298,7 +298,7 @@ export type ClientMessage =
    * signed in as this socket's own session, and answers with `callResult`.
    * The web request is the fallback whenever the socket is not open.
    */
-  | { type: "call"; ref: string; method: CallMethod; path: string; body?: string }
+  | { type: "call"; ref: string; method: CallMethod; path: string; body?: string; key?: string }
   /**
    * A move at a Go table, over the socket that is already open.
    *
@@ -459,7 +459,12 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     if (!CALL_METHODS.includes(message.method as CallMethod)) return null;
     if (!isCallPath(message.path)) return null;
     if (message.body !== undefined && (typeof message.body !== "string" || message.body.length > CALL_BODY_LIMIT)) return null;
-    return { type: "call", ref: message.ref, method: message.method as CallMethod, path: message.path, ...(message.body !== undefined ? { body: message.body } : {}) };
+    if (message.key !== undefined && (typeof message.key !== "string" || message.key.length === 0 || message.key.length > 200)) return null;
+    return {
+      type: "call", ref: message.ref, method: message.method as CallMethod, path: message.path,
+      ...(message.body !== undefined ? { body: message.body } : {}),
+      ...(message.key !== undefined ? { key: message.key } : {}),
+    };
   }
   if (message.type === "itemAction") {
     if (typeof message.ref !== "string" || message.ref.length === 0 || message.ref.length > 64) return null;

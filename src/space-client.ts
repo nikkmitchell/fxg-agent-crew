@@ -47,11 +47,13 @@ export const space = {
   sendTiming: (report: { parts: { to: string; startedAt: number; answeredAt: number | null; outcome: string }[]; inXr: boolean; visible: string }) =>
     requestJson<void>(`${root}/send-timing`, { method: "POST", body: JSON.stringify(report) }),
 
-  say: (utterance: UtteranceInput, signal?: AbortSignal) =>
+  /** `key`: the same words sent again within two minutes are said once (server/idempotency.ts). */
+  say: (utterance: UtteranceInput, signal?: AbortSignal, key?: string) =>
     requestJson<{ ok: true; utterance: Utterance }>(`${root}/utterances`, {
       method: "POST",
       body: JSON.stringify(utterance),
       signal,
+      ...(key ? { headers: { "idempotency-key": key } } : {}),
     }),
 
   /**

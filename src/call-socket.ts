@@ -17,7 +17,7 @@
 import { isCallPath, type CallMethod, CALL_BODY_LIMIT, CALL_METHODS } from "../shared/space-wire";
 
 type Answer = { status: number; body: string };
-type CallFrame = { type: "call"; ref: string; method: CallMethod; path: string; body?: string };
+type CallFrame = { type: "call"; ref: string; method: CallMethod; path: string; body?: string; key?: string };
 type Sender = (frame: CallFrame) => boolean;
 
 let sender: Sender | null = null;
@@ -85,7 +85,12 @@ export function callOverSocket(path: string, init: RequestInit): Promise<Answer 
         finish(answer);
       },
     });
-    const frame: CallFrame = { type: "call", ref, method, path, ...(typeof init.body === "string" ? { body: init.body } : {}) };
+    const key = new Headers(init.headers).get("idempotency-key") ?? undefined;
+    const frame: CallFrame = {
+      type: "call", ref, method, path,
+      ...(typeof init.body === "string" ? { body: init.body } : {}),
+      ...(key ? { key } : {}),
+    };
     if (!sender?.(frame)) finish(null);
   });
 }
@@ -95,4 +100,20 @@ export function resetCallSocket(): void {
   sender = null;
   refused = false;
   for (const one of [...waiting.values()]) one.settle(null);
+}
+
+/**
+ * An idempotency key for one message: the same parts always give the same
+ * key, so sending the same words again within two minutes is answered with
+ * the first answer instead of being posted twice (server/idempotency.ts).
+ */
+export function sendKey(...parts: string[]): string {
+  // FNV-1a over the joined parts: short, stable, and not a secret.
+  let hash = 0x811c9dc5;
+  const text = parts.join("\u0000");
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `send-${hash.toString(36)}-${text.length}`;
 }
