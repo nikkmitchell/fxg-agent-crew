@@ -47,7 +47,7 @@ import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-h
 import type { RoomItem } from "../../shared/room-items";
 import { Typing3D } from "./Typing3D";
 import { endSessionThenReturn } from "./end-session-to-lobby";
-import { SendStopped, SendTimedOut, withDeadline } from "./send-timeout";
+import { sendOutcome, withDeadline } from "./send-timeout";
 
 /**
  * The room's controls, in front of you at body level.
@@ -555,10 +555,15 @@ export function RoomControls({
           timing.answeredAt = Date.now();
         }
       } catch (error) {
+        const outcome = sendOutcome(error);
+        timing.outcome = outcome === "unanswered" ? "timed out" : outcome;
         // ✕ while sending: nothing more goes, and nobody is told it failed.
-        timing.outcome = error instanceof SendTimedOut ? "timed out" : error instanceof SendStopped ? "stopped" : "refused";
-        if (error instanceof SendStopped) break;
-        if (error instanceof SendTimedOut) {
+        if (outcome === "stopped") break;
+        // NO ANSWER IS NOT A REFUSAL, from either clock: this send's own
+        // deadline, or the socket tunnel's (it gives up first, at 20 s, with
+        // NO_ANSWER: "it may still arrive"). Counting the tunnel's as a refusal
+        // told Nikk "Not sent" for words that had arrived.
+        if (outcome === "unanswered") {
           const where = item.to === "room" ? "the room" : "the chat";
           if (!unanswered.includes(where)) unanswered.push(where);
           continue;

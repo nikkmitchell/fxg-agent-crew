@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SendStopped, SendTimedOut, withDeadline } from "./send-timeout";
+import { SendStopped, SendTimedOut, sendOutcome, withDeadline } from "./send-timeout";
 
 /** Nikk: "I am stuck on ... ready to send". A send must always end. */
 describe("a send that cannot hang", () => {
@@ -35,5 +35,14 @@ describe("a send that cannot hang", () => {
 
   it("passes a failure through as it was", async () => {
     await expect(withDeadline(async () => { throw new Error("502"); }, new AbortController().signal)).rejects.toThrow("502");
+  });
+
+  it("counts no answer from either clock as probably sent, never as not sent", () => {
+    expect(sendOutcome(new SendTimedOut())).toBe("unanswered");
+    // The socket tunnel's own timeout, as requestJson throws it.
+    expect(sendOutcome({ status: 504, code: "NO_ANSWER" })).toBe("unanswered");
+    expect(sendOutcome(new SendStopped())).toBe("stopped");
+    expect(sendOutcome({ status: 403, code: "NOT_A_MEMBER" })).toBe("refused");
+    expect(sendOutcome(new Error("502"))).toBe("refused");
   });
 });

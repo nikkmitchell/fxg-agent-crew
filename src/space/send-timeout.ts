@@ -57,3 +57,20 @@ export function withDeadline<T>(
     );
   });
 }
+
+/**
+ * WHAT HAPPENED TO ONE PART OF A SEND, from how it failed.
+ *
+ * "unanswered" is PROBABLY SENT: this send's own deadline ran out, or the socket
+ * tunnel gave up waiting (NO_ANSWER, "it may still arrive"). The words usually
+ * did arrive; Nikk saw "Not sent" on messages already in the chat when either
+ * was counted as a refusal. "stopped" is the ✕. Anything else the server said
+ * no to.
+ */
+export type SendOutcome = "unanswered" | "stopped" | "refused";
+export function sendOutcome(error: unknown): SendOutcome {
+  if (error instanceof SendStopped) return "stopped";
+  if (error instanceof SendTimedOut) return "unanswered";
+  if (typeof error === "object" && error !== null && (error as { code?: unknown }).code === "NO_ANSWER") return "unanswered";
+  return "refused";
+}
