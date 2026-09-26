@@ -1755,7 +1755,12 @@ export function RoomControls({
       // FINISHING MEANS SEND. Nikk: the tilt ended the recording and then it
       // sat on "Ready to send ▲" until he pressed the button, and the button is
       // gone for hands now. If the words are not in yet, they go when they are.
-      sendAfterGesture.current = true;
+      // ONCE. With speech recognition the press already waits for the final
+      // words and sends them; also sending "when the words arrive" raced it
+      // and posted the partial first (Nightjar, 5059: "Testing again your",
+      // then the whole sentence). Only the server-transcribed path needs the
+      // second step: there the press writes the words down and stops.
+      sendAfterGesture.current = !capabilities.recognition;
       pressTalkRef.current();
     } else if (result.action === "cancel") {
       sendAfterGesture.current = false;
