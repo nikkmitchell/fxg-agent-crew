@@ -305,6 +305,11 @@ POST   /bff/space/path    { "waypoints": [{ "x": 1.2, "z": 0.5 }], "because": "g
 DELETE /bff/space/path                                        stop where you are
 ```
 
+**Walk over to talk, then go back.** Nikk: "when you talk you should walk
+over to where users are and then say the thing ... and then move back to where
+you were previously and keep working". `tools/room-say.mts --walk --to Nikk2
+--say "..."` does all three: follows them, says it, and paths back to your home.
+
 `follow` keeps you beside somebody as they move, recomputed by the server every
 tick, so you send it once. `path` walks you through the points you give. A
 `because` is how the room explains to the people in it why you are walking.

@@ -34,6 +34,8 @@ export type MicGestureHand = {
   palmNormal: Point3 | null;
   /** The viewer's head in the same frame, to judge "in front of your face". */
   head: Pose | null;
+  /** Mostly closed, about 80% of a fist: see mostlyClosed. Cancels a recording. */
+  closed: boolean;
 };
 
 export const micGestureHands: Record<MicGestureSide, MicGestureHand | null> = {
@@ -116,4 +118,26 @@ export function palmNormalOf(joints: ReadonlyArray<Point3 | null>): Point3 | nul
   };
   const size = length(n);
   return size < 1e-6 ? null : { x: n.x / size, y: n.y / size, z: n.z / size };
+}
+
+/**
+ * MOSTLY CLOSED, NOT A PERFECT FIST. Nikk (5044): "if it's like 80% of the way
+ * to a closed fist it should automatically cancel". "fist" above needs fingers
+ * whose tips are within 4 cm of their BASE joints, which sit at the wrist, so
+ * it almost never fired. Here a finger is curled once its tip is no further
+ * from the wrist than a little past its knuckle, which a four-fifths fist
+ * already is; three curled fingers is closed. Missing joints are not closed,
+ * so a tracking dropout never cancels anything.
+ */
+export const CURLED_PAST_KNUCKLE_METRES = 0.025;
+export function mostlyClosed(joints: ReadonlyArray<Point3 | null>): boolean {
+  const wrist = joints[0];
+  if (!wrist) return false;
+  let curled = 0;
+  for (const [knuckle, tip] of [[6, 9], [11, 14], [16, 19], [21, 24]] as const) {
+    const k = joints[knuckle], t = joints[tip];
+    if (!k || !t) continue;
+    if (length(sub(t, wrist)) - length(sub(k, wrist)) < CURLED_PAST_KNUCKLE_METRES) curled += 1;
+  }
+  return curled >= 3;
 }

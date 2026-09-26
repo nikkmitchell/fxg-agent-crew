@@ -938,6 +938,16 @@ export function RoomControls({
   const openMenuRef = useRef<() => void>(() => {});
   const cancelRef = useRef<(() => void) | null>(null);
   const micGestureState = useRef<MicGestureState>(IDLE_MIC_GESTURE);
+  /** The gesture finished before the words were in: send them when they are. */
+  const sendAfterGesture = useRef(false);
+  const lastHandSeen = useRef(-Infinity);
+  /**
+   * TRACKED HANDS IN VIEW: the touch talk and cancel buttons hide. Nikk
+   * (5044): "remove the touch for starting recording as well as cancelling
+   * recording ... so that we cannot touch to do that", now the gesture works.
+   * Holding controllers there is no gesture, so they come back.
+   */
+  const [handsInView, setHandsInView] = useState(false);
   const touching = useRef<Set<string>>(new Set());
   const [handIsNear, setHandIsNear] = useState(false);
   const buttonOpacity = handIsNear ? 1 : IDLE_OPACITY;
@@ -1680,6 +1690,16 @@ export function RoomControls({
   openMenuRef.current = openMenu;
   cancelRef.current = cancellable ? cancel : null;
 
+  useEffect(() => {
+    if (!sendAfterGesture.current || sending) return;
+    const ready = capabilities.recognition
+      ? !listening && heard.trim() !== ""
+      : saying === "idle" && written.trim() !== "" && !keyboardFocused;
+    if (!ready) return;
+    sendAfterGesture.current = false;
+    pressTalkRef.current();
+  }, [heard, listening, sending, saying, written, keyboardFocused, capabilities.recognition]);
+
   /**
    * OPTIONAL HAND GESTURE, in parallel with the touch mic. The mic remains the
    * simple fallback; the gesture only runs while its action would start a real
@@ -1687,7 +1707,19 @@ export function RoomControls({
    * hand from accidentally sending a draft or opening the keyboard.
    */
   useFrame(() => {
-    const recording = listening || saying === "recording";
+    // WORDS WAITING COUNT AS STILL RECORDING, for the gesture. With the touch
+    // buttons gone for hands (see handsInView), the tilt must be able to send
+    // words that recognition finished on its own, and a fist to throw them away.
+    const waiting = !alwaysOn && (capabilities.recognition
+      ? !listening && heard.trim() !== ""
+      : saying === "idle" && written.trim() !== "" && !keyboardFocused);
+    const recording = listening || saying === "recording" || waiting;
+    // Seen hands, for hiding the touch buttons; lost for a few seconds before
+    // they come back, so a blink in tracking does not flash them.
+    const now = performance.now();
+    if (micGestureHands.left || micGestureHands.right) lastHandSeen.current = now;
+    const seen = now - lastHandSeen.current < 3_000;
+    if (seen !== handsInView) setHandsInView(seen);
     const startAction = capabilities.recognition
       ? micPress({ available: true, listening, sending, heard, alwaysOn }) === "start"
       : saying === "idle" && canSpeak && written.trim() === "" && !keyboardFocused;
@@ -1700,8 +1732,19 @@ export function RoomControls({
     );
     micGestureState.current = result.state;
     micGestureIndicator.side = result.outlineSide;
-    if (result.action === "start" || result.action === "finish") pressTalkRef.current();
-    else if (result.action === "cancel") cancelRef.current?.();
+    if (result.action === "start") {
+      sendAfterGesture.current = false;
+      pressTalkRef.current();
+    } else if (result.action === "finish") {
+      // FINISHING MEANS SEND. Nikk: the tilt ended the recording and then it
+      // sat on "Ready to send ▲" until he pressed the button, and the button is
+      // gone for hands now. If the words are not in yet, they go when they are.
+      sendAfterGesture.current = true;
+      pressTalkRef.current();
+    } else if (result.action === "cancel") {
+      sendAfterGesture.current = false;
+      cancelRef.current?.();
+    }
   });
 
   return (
@@ -1856,7 +1899,7 @@ export function RoomControls({
             * still carried by the notice line, which says what happened in
             * words.
             */}
-          <WristButton
+          {handsInView ? null : <WristButton
             label={
               capabilities.recognition
                 ? micGlyph({ sending, listening, heard, alwaysOn })
@@ -1878,12 +1921,12 @@ export function RoomControls({
             tone={listening || saying === "recording" ? "live" : "normal"}
             opacity={buttonOpacity}
             onTap={pressTalk}
-          />
+          />}
           {/* CANCEL, to the right of talk, only while there is something to
               throw away. Nikk: "add a button to cancel recording so if you've
               begun recording but you want to cancel what you've just recorded,
               have a button that appears to the right of the record button". */}
-          {cancellable ? (
+          {cancellable && !handsInView ? (
             <WristButton label="✕" glyph x={CANCEL_X} y={0} width={ICON} height={ICON} tone="danger" opacity={buttonOpacity} onTap={cancel} />
           ) : null}
         </group>

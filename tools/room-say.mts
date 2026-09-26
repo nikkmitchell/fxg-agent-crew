@@ -27,6 +27,13 @@
  *
  * `--to <actor>` addresses somebody, which is what makes the room turn the
  * speaker toward them. `--no-chat` keeps it to the room alone.
+ *
+ * `--walk` (with `--to`) WALKS OVER FIRST AND BACK AFTER. Nikk, 2026-09-26:
+ * "when you talk you should walk over to where users are and then say the
+ * thing you have to say and then move back to where you were previously and
+ * keep working". So: follow them (the server walks you to their side), say it
+ * once you are there, wait while it is spoken, stop following, and take a path
+ * back to your home. No home set: you stay where you stopped, and it says so.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -43,6 +50,7 @@ const flag = (name: string): string | undefined => {
 const say = flag("--say");
 const to = flag("--to");
 const alsoChat = !process.argv.includes("--no-chat");
+const walk = process.argv.includes("--walk");
 
 if (!process.env.WEBHARNESS_HOME) {
   // SPEAKING IN SOMEBODY ELSE'S NAME is the easiest mistake here. Without it the
@@ -52,6 +60,11 @@ if (!process.env.WEBHARNESS_HOME) {
   // would have put words in a person's mouth. Same refusal as
   // screen-share-link.mts.
   console.error("WEBHARNESS_HOME is not set. Set it to your own agent directory first.");
+  process.exit(2);
+}
+
+if (walk && !to) {
+  console.error("--walk needs --to <person>: it walks over to them, says it, and walks back.");
   process.exit(2);
 }
 
@@ -120,6 +133,23 @@ const cookie = (auth.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0])
 // A new session is in no room until it enters one (see saha-session.mts).
 await enterRoom(SITE, cookie);
 
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const json = { cookie, "content-type": "application/json" };
+if (walk) {
+  const going = await fetch(`${SITE}/bff/space/follow`, {
+    method: "POST",
+    headers: json,
+    body: JSON.stringify({ actor: to, because: `coming over to talk to ${to}` }),
+  });
+  if (going.ok) {
+    // Long enough to cross the room at a walk; the room turns the speaker
+    // toward whoever is addressed once there.
+    await pause(6_000);
+  } else {
+    console.error(`could not walk over (${going.status} ${await going.text()}); saying it from here`);
+  }
+}
+
 const said = await fetch(`${SITE}/bff/space/utterances`, {
   method: "POST",
   headers: { cookie, "content-type": "application/json" },
@@ -130,6 +160,26 @@ if (!said.ok) {
   process.exit(1);
 }
 console.log(`room: said ${say.length} chars aloud${detail ? `, wrote ${detail.length}` : ""}`);
+
+if (walk) {
+  // Stay while it is spoken (about 14 characters a second), then go back.
+  await pause(2_000 + (say.length / 14) * 1_000);
+  await fetch(`${SITE}/bff/space/follow`, { method: "DELETE", headers: { cookie } });
+  const homes = (await (await fetch(`${SITE}/bff/space/homes`, { headers: { cookie } })).json()) as {
+    homes?: { actorId: string; at: { x: number; z: number } }[];
+  };
+  const home = homes.homes?.find((one) => one.actorId.toLowerCase() === me.toLowerCase());
+  if (home) {
+    const back = await fetch(`${SITE}/bff/space/path`, {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify({ waypoints: [{ x: home.at.x, z: home.at.z }], because: "back to my desk to keep working" }),
+    });
+    console.log(back.ok ? "walked back to my desk" : `could not walk back: ${back.status} ${await back.text()}`);
+  } else {
+    console.log("no home set, so I stayed where I stopped");
+  }
+}
 
 /**
  * AND THE FULL VERSION TO THE CHAT, because the two are for different readers.
