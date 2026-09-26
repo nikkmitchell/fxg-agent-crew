@@ -73,6 +73,11 @@ export function WristButton({
   tone = "normal",
   /** How many lines a sentence may wrap to. */
   lines = 2,
+  /**
+   * Text height as a fraction of the button's, for a one-word label that
+   * should fill its button. Unset, text is a fixed size for a sentence.
+   */
+  textSize,
   /** A multiplier on how visible the button is (1 = as designed). */
   opacity = 1,
   onTap,
@@ -85,6 +90,7 @@ export function WristButton({
   glyph?: boolean;
   tone?: "normal" | "muted" | "live" | "danger";
   lines?: number;
+  textSize?: number;
   opacity?: number;
   onTap: () => void;
 }) {
@@ -101,7 +107,11 @@ export function WristButton({
         // A symbol fills about half the button's height, whatever its shape:
         // 84 pixels was sized for the old wide talk bar, and on a square icon
         // it left a small glyph lost in the middle of the button.
-        pixelsPerLine: glyph ? Math.round(Math.min(512, 512 / (width / height)) * 0.48) : 38,
+        pixelsPerLine: glyph
+          ? Math.round(Math.min(512, 512 / (width / height)) * 0.48)
+          : textSize
+            ? Math.round(Math.min(512, 512 / (width / height)) * textSize)
+            : 38,
         lines: glyph ? 1 : lines,
         aspect: width / height,
         // Light text straight onto the dark button, with room between lines.
@@ -109,7 +119,7 @@ export function WristButton({
         halo: false,
         lineSpacing: 1.22,
       }),
-    [label, glyph, width, height, tone, lines],
+    [label, glyph, width, height, tone, lines, textSize],
   );
   const shape = useMemo(() => roundedRect(width, height), [width, height]);
   const colour =
