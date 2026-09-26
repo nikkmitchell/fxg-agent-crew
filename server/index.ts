@@ -628,4 +628,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   };
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);
+
+  /**
+   * A PROMISE NOBODY CAUGHT IS LOGGED, NOT FATAL. Node's default ends the
+   * process, and with it every socket in every room, over one forgotten
+   * .catch in a best-effort side task. The work that failed is already lost
+   * either way; the room should not be. A thrown exception still ends the
+   * process (systemd restarts it), because state after one cannot be trusted.
+   */
+  process.on("unhandledRejection", (reason) => {
+    app.log.error({ err: reason }, "a promise failed and nothing caught it");
+  });
 }
