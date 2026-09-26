@@ -400,7 +400,10 @@ function VoicePreview({ voice, canSpeak }: { voice: Voice; canSpeak: boolean }) 
       element.onended = () => { URL.revokeObjectURL(url); setState("idle"); };
       // A browser may refuse to start audio without a gesture. This IS one, but
       // say so rather than going quiet if it refuses anyway.
-      await element.play().catch(() => setState("your browser would not play it — tap the page first"));
+      await element.play().catch(() => {
+        URL.revokeObjectURL(url);
+        setState("your browser would not play it — tap the page first");
+      });
       setState("playing");
     } catch {
       setState("that voice could not be fetched");

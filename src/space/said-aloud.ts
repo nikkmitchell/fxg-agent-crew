@@ -114,6 +114,7 @@ export function readAloud(options: ReadAloudOptions): SpeechOutput {
   let cancelled = false;
   let spoken: SpeechOutput | null = null;
   let playing: Playable | null = null;
+  let playingUrl: string | null = null;
 
   /**
    * THE FALLBACK CAN ITSELF FAIL, AND IT USED TO DO SO IN SILENCE.
@@ -165,11 +166,17 @@ export function readAloud(options: ReadAloudOptions): SpeechOutput {
   } else {
     void fetchSaid(utteranceId)
       .then((url) => {
-        if (cancelled) return;
+        // Stopped while it was fetched: the sound is not played, and its URL
+        // is let go rather than held for the life of the page.
+        if (cancelled) {
+          if (url && url !== NO_ENGINE) URL.revokeObjectURL(url);
+          return;
+        }
         if (url === NO_ENGINE) return browser("no-audio");
         if (!url) return unvoiced();
         const audio = makeAudio(url);
         playing = audio;
+        playingUrl = url;
         if (volume !== undefined) audio.volume = Math.max(0, Math.min(1, volume));
         audio.onended = () => {
           URL.revokeObjectURL(url);
@@ -206,6 +213,8 @@ export function readAloud(options: ReadAloudOptions): SpeechOutput {
         playing.onended = null;
         playing.onerror = null;
         playing.pause();
+        // Its onended will not run now, so the URL is let go here.
+        if (playingUrl) URL.revokeObjectURL(playingUrl);
         playing = null;
       }
       onPhase("idle");
