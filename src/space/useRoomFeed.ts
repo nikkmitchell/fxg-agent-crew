@@ -45,8 +45,12 @@ export type RoomFeed = {
   mayHaveEarlier: boolean;
 };
 
-/** Keep the tail. A headset panel cannot scroll, so older is wasted texture. */
-const KEEP = 40;
+/**
+ * Keep the tail: enough to read back through on the wall, which scrolls now
+ * (ChatPanel3D). The wall lays out every kept message on each paint, so this
+ * is not unbounded.
+ */
+const KEEP = 80;
 const EVERY_MS = 5_000;
 
 /** Resolve against confirmed membership, never against a remembered name alone. */
