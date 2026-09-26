@@ -70,10 +70,17 @@ describe("what a gesture means", () => {
     // the server will ask. A copy here would drift and then welcome a card the
     // server rejects.
     const outcome = drop({ panelId: "board", u: 0.1, v: 0.5 }, overColumn("done"));
-    const intent = intentOf(outcome, layout, always(card("a", "backlog")), canTransition);
+    const strict = (from: string, to: string) => !(from === "backlog" && to === "done");
+    const intent = intentOf(outcome, layout, always(card("a", "backlog")), strict);
     expect(intent.kind).toBe("refused");
     expect(intent.kind === "refused" && intent.why).toContain("Backlog");
-    expect(canTransition("backlog", "done")).toBe(false);
+  });
+
+  it("moves a card freely from any column to any other (Nikk 4936)", () => {
+    const outcome = drop({ panelId: "board", u: 0.1, v: 0.5 }, overColumn("review"));
+    expect(intentOf(outcome, layout, always(card("a", "blocked")), canTransition))
+      .toEqual({ kind: "move", cardId: "a", from: "blocked", to: "review" });
+    expect(canTransition("backlog", "done")).toBe(true);
   });
 
   it("a cancelled gesture does nothing at all", () => {

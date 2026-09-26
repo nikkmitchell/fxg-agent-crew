@@ -128,7 +128,7 @@ describe("a card, end to end", () => {
     await app.close();
   });
 
-  it("returns an illegal move as 409 with the reason intact", async () => {
+  it("moves a card from any column to any other, backlog straight to done included", async () => {
     const { app, as } = boot();
     const h = { cookie: as("nikk") };
     await app.inject({ method: "POST", url: "/bff/board/projects", headers: h, payload: { id: "saha", name: "Saha" } });
@@ -138,10 +138,8 @@ describe("a card, end to end", () => {
     const response = await app.inject({ method: "POST", url: `/bff/board/tasks/${id}/status`, headers: h,
       payload: { to: "done" } });
 
-    expect(response.statusCode).toBe(409);
-    // The refusal is a sentence written for a person; a bare 409 would throw
-    // away the only part that says what to do next.
-    expect(response.json().error).toMatch(/backlog → done is not a legal move/);
+    // Nikk (4936): "allow cards to be moved freely from any tab to any tab".
+    expect(response.statusCode).toBeLessThan(300);
     await app.close();
   });
 

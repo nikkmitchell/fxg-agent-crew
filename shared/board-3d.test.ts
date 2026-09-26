@@ -221,13 +221,11 @@ describe("refusing a move before the card lands", () => {
   it("asks the SAME rule the server will", () => {
     // Not a second table of legal moves. One would drift, and then the board
     // would welcome a card the server then rejects.
-    const legal = moveRefusal("backlog", "assigned", canTransition);
-    const illegal = moveRefusal("backlog", "done", canTransition);
-    expect(legal).toBeNull();
-    expect(illegal).not.toBeNull();
-    // And it agrees with the rule it consulted.
-    expect(canTransition("backlog", "assigned")).toBe(true);
-    expect(canTransition("backlog", "done")).toBe(false);
+    const strict = (from: string, to: string) => !(from === "backlog" && to === "done");
+    expect(moveRefusal("backlog", "assigned", strict)).toBeNull();
+    expect(moveRefusal("backlog", "done", strict)).not.toBeNull();
+    // The board's own rule now lets any column reach any other (Nikk 4936).
+    expect(moveRefusal("backlog", "done", canTransition)).toBeNull();
   });
 
   it("allows a drop back where it came from", () => {
@@ -237,7 +235,7 @@ describe("refusing a move before the card lands", () => {
   it("names both ends in the refusal, in the words on the columns", () => {
     // "a card cannot go from Backlog to Done" — the labels the person is
     // looking at, not the database's spelling.
-    const refusal = moveRefusal("backlog", "done", canTransition) ?? "";
+    const refusal = moveRefusal("backlog", "done", () => false) ?? "";
     expect(refusal).toContain("Backlog");
     expect(refusal).toContain("Done");
   });
