@@ -16,6 +16,7 @@ export type SettingsTab = "me" | "view" | "moving" | "voice" | "rooms" | "show" 
 
 export const SCOPES: { id: SettingsScope; label: string }[] = [
   { id: "me", label: "ME" },
+  // Pure text: Baiwei (5028), the icon squeezed it and no other tab has one.
   { id: "room", label: "THIS ROOM" },
 ];
 
