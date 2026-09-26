@@ -323,6 +323,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (actorId, kind, view) => activity.observeRead(actorId, kind, view),
       (auditId, at, actorId) => activity.revealAt(auditId, at, actorId),
     );
+    let itemRoutes: ReturnType<typeof registerRoomItemRoutes> | null = null;
     registerSpaceRoutes(
       scoped,
       config,
@@ -333,6 +334,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (room) => roomItems.all(room),
       touches,
       hubFor,
+      // Late-bound: the item routes are registered below.
+      (room, username, id, body) =>
+        itemRoutes ? itemRoutes.act(room, username, id, body) : { status: 503, payload: { error: "not ready" } },
     );
     registerSpaceEntryRoute(scoped, config, sessions, client,
       evictSessionEverywhere,
@@ -376,7 +380,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       present: (room) => hubFor(room).presence.everyone().filter((one) => one.connected).map((one) => one.actorId),
       announce: (room, meditation) => hubFor(room).broadcast({ type: "meditation", meditation }),
     });
-    registerRoomItemRoutes(scoped, {
+    itemRoutes = registerRoomItemRoutes(scoped, {
       config,
       sessions,
       items: roomItems,

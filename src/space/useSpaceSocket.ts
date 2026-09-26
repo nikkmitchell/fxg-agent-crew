@@ -1,4 +1,5 @@
 import type { Helper } from "../../shared/helpers";
+import { registerItemSocket, settleItemAction } from "./item-socket";
 import type { Meditation } from "../../shared/meditation";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type {
@@ -219,6 +220,12 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
 
       socket.addEventListener("open", () => {
         attemptRef.current = 0;
+        // Go moves ride this socket while it is open (item-socket.ts).
+        registerItemSocket((message) => {
+          if (socket.readyState !== WebSocket.OPEN) return false;
+          socket.send(JSON.stringify(message));
+          return true;
+        });
         // A heartbeat well inside the server's 45s silence limit. Standing
         // still is not the same as being gone.
         pingTimer = window.setInterval(() => {
@@ -232,6 +239,10 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
         // voice signalling is the only user today and it is deliberately not
         // interpreted here, because this hook's job is who is in the room.
         for (const listener of listeners.current) listener(message);
+        if (message.type === "itemActionResult") {
+          settleItemAction(message.ref, { status: message.status, payload: message.payload });
+          return;
+        }
         if (message.type === "voice" || message.type === "voicePresence" || message.type === "touched") return;
         if (message.type === "refused") {
           setStatus({ state: "refused", reason: message.reason });
@@ -318,6 +329,8 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
         attemptRef.current += 1;
       };
 
+      // A move waiting on this socket goes by web at once, not after the wait.
+      socket.addEventListener("close", () => registerItemSocket(null));
       socket.addEventListener("close", giveUp);
       socket.addEventListener("error", () => socket.close());
     };
@@ -353,6 +366,7 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
     connect();
     return () => {
       disposed = true;
+      registerItemSocket(null);
       window.clearTimeout(retryTimer);
       window.clearInterval(pingTimer);
       socketRef.current?.close();

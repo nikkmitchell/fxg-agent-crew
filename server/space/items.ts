@@ -49,6 +49,9 @@ export class RoomItems {
   }
 }
 
+export type ItemActionBody = { action?: unknown; x?: unknown; y?: unknown; hand?: unknown; colour?: unknown; revision?: unknown };
+export type ItemActionAnswer = { status: number; payload: Record<string, unknown> };
+
 export function registerRoomItemRoutes(app: FastifyInstance, options: {
   config: Config; sessions: SessionStore; items: RoomItems; announce: (room: string, items: RoomItem[], by: string) => void;
   /** Who is carrying which item; moving or resizing one somebody else holds is refused. */
@@ -182,10 +185,16 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     item.revision++;
     options.items.save(room, item, session.username); publish(room, session.username); return reply.send({ item });
   });
-  app.post<{ Params: { id: string }; Body: { action?: unknown; x?: unknown; y?: unknown; hand?: unknown; colour?: unknown; revision?: unknown } }>("/bff/space/items/:id/action", async (request, reply) => {
-    const session = requireSession(request, reply); if (!session) return reply;
-    const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
-    if (request.body?.revision !== undefined && request.body.revision !== item.revision) return reply.code(409).send({ code: "TABLE_CHANGED", error: "The table changed. Try again." });
+  /**
+   * ONE MOVE AT A TABLE, whichever way it arrived. The web route and the room
+   * socket (Nikk 5026: moves stalled on a bad connection while the socket kept
+   * flowing) both call this, so the checks, the revision and the save are
+   * the same code and cannot drift apart.
+   */
+  const act = (room: string, username: string, id: string, body: ItemActionBody): ItemActionAnswer => {
+    const answer = (status: number, payload: Record<string, unknown>): ItemActionAnswer => ({ status, payload });
+    const item = options.items.one(room, id); if (!item) return answer(404, { error: "room item not found" });
+    if (body.revision !== undefined && body.revision !== item.revision) return answer(409, { code: "TABLE_CHANGED", error: "The table changed. Try again." });
     // Recorded only AFTER the table is saved: the room walks an agent to its
     // seat on this row, and must never do that for a move that did not happen.
     let played: { colour: number; x: number; y: number } | null = null;
@@ -206,51 +215,51 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (item.clock && !item.ended && clockNow(item.clock, mover, Date.now()).flagged) {
       item.ended = true; item.timedOut = mover; item.liftedColour = null; item.carrier = null;
       item.revision++;
-      options.items.save(room, item, session.username); publish(room, session.username);
-      return reply.code(409).send({ code: "OUT_OF_TIME", error: "Out of time: the game is over.", item });
+      options.items.save(room, item, username); publish(room, username);
+      return answer(409, { code: "OUT_OF_TIME", error: "Out of time: the game is over.", item });
     }
-    if (request.body?.action === "clock") return reply.send({ item });
+    if (body.action === "clock") return answer(200, { item });
     const over = item.timedOut !== null ? "The game is over: a player ran out of time. Clear the stones in the table's settings to start a new one." : "The game is over: everybody passed. Clear the stones in the table's settings to start a new one.";
-    if (item.ended && ["lift", "place", "play", "pass"].includes(request.body?.action as string)) {
-      return reply.code(409).send({ code: "GAME_OVER", error: over });
+    if (item.ended && ["lift", "place", "play", "pass"].includes(body.action as string)) {
+      return answer(409, { code: "GAME_OVER", error: over });
     }
-    if (request.body?.action === "lift") {
-      if (item.liftedColour !== null) return reply.code(409).send({ error: "A stone is already in flight. Place it or return it first." });
-      if (request.body.colour !== undefined && request.body.colour !== item.activeColour) return reply.code(409).send({ error: "It is the glowing bowl's turn." });
-      if (request.body.hand !== undefined && request.body.hand !== null && request.body.hand !== "left" && request.body.hand !== "right") return reply.code(400).send({ error: "Unknown hand." });
-      if (request.body.hand && options.items.all(room).some((table) => table.carrier?.by === session.username && table.carrier.hand === request.body.hand)) return reply.code(409).send({ error: "That hand is already carrying a stone at another table." });
+    if (body.action === "lift") {
+      if (item.liftedColour !== null) return answer(409, { error: "A stone is already in flight. Place it or return it first." });
+      if (body.colour !== undefined && body.colour !== item.activeColour) return answer(409, { error: "It is the glowing bowl's turn." });
+      if (body.hand !== undefined && body.hand !== null && body.hand !== "left" && body.hand !== "right") return answer(400, { error: "Unknown hand." });
+      if (body.hand && options.items.all(room).some((table) => table.carrier?.by === username && table.carrier.hand === body.hand)) return answer(409, { error: "That hand is already carrying a stone at another table." });
       item.liftedColour = item.activeColour;
-      item.carrier = { by: session.username, hand: (request.body.hand as "left" | "right" | null) ?? null };
+      item.carrier = { by: username, hand: (body.hand as "left" | "right" | null) ?? null };
     }
-    else if (request.body?.action === "place") {
-      const { x, y } = request.body;
-      if (item.liftedColour !== item.activeColour) return reply.code(409).send({ error: "lift the glowing stone first" });
-      if (item.carrier && item.carrier.by !== session.username) return reply.code(409).send({ error: `${item.carrier.by} is carrying this stone.` });
+    else if (body.action === "place") {
+      const { x, y } = body;
+      if (item.liftedColour !== item.activeColour) return answer(409, { error: "lift the glowing stone first" });
+      if (item.carrier && item.carrier.by !== username) return answer(409, { error: `${item.carrier.by} is carrying this stone.` });
       if (!Number.isInteger(x) || !Number.isInteger(y) || (x as number) < 0 || (y as number) < 0 || (x as number) >= item.size || (y as number) >= item.size)
-        return reply.code(400).send({ error: "that intersection is not on the board" });
+        return answer(400, { error: "that intersection is not on the board" });
       const move = placeGoStone(item.stones, item.size, { id: randomUUID(), x: x as number, y: y as number, colour: item.activeColour }, item.ko);
-      if ("error" in move) return reply.code(409).send({ error: move.error });
+      if ("error" in move) return answer(409, { error: move.error });
       item.stones = move.stones;
       item.captures.push(...move.captured.map((stone) => ({ ...stone, by: item.activeColour })));
       item.ko = move.ko;
       item.liftedColour = null; item.carrier = null; item.activeColour = (item.activeColour + 1) % item.colours.length;
       item.passes = 0;
       if (item.clock) item.clock = settleTurn(item.clock, mover, Date.now());
-    } else if (request.body?.action === "play") {
+    } else if (body.action === "play") {
       // A whole move in one request, for agents and their programs playing
       // through code (tools/go.mts). Lift-then-place is two requests with a
       // stone in the air between them, and a program that dies in between
       // leaves it hanging over everybody's game. This names the colour it is
       // playing, so it can never play somebody else's turn by being quick.
-      const { x, y, colour } = request.body;
-      if (item.liftedColour !== null) return reply.code(409).send({ error: `${item.carrier?.by ?? "Somebody"} is carrying a stone. Wait for it to land.` });
+      const { x, y, colour } = body;
+      if (item.liftedColour !== null) return answer(409, { error: `${item.carrier?.by ?? "Somebody"} is carrying a stone. Wait for it to land.` });
       if (!Number.isInteger(colour) || (colour as number) < 0 || (colour as number) >= item.colours.length)
-        return reply.code(400).send({ error: "Say which colour you are playing: colour is the bowl's number, 0 for the first." });
-      if (colour !== item.activeColour) return reply.code(409).send({ code: "NOT_YOUR_TURN", error: "It is not that colour's turn." });
+        return answer(400, { error: "Say which colour you are playing: colour is the bowl's number, 0 for the first." });
+      if (colour !== item.activeColour) return answer(409, { code: "NOT_YOUR_TURN", error: "It is not that colour's turn." });
       if (!Number.isInteger(x) || !Number.isInteger(y) || (x as number) < 0 || (y as number) < 0 || (x as number) >= item.size || (y as number) >= item.size)
-        return reply.code(400).send({ error: "that intersection is not on the board" });
+        return answer(400, { error: "that intersection is not on the board" });
       const move = placeGoStone(item.stones, item.size, { id: randomUUID(), x: x as number, y: y as number, colour: item.activeColour }, item.ko);
-      if ("error" in move) return reply.code(409).send({ error: move.error });
+      if ("error" in move) return answer(409, { error: move.error });
       item.stones = move.stones;
       item.captures.push(...move.captured.map((stone) => ({ ...stone, by: item.activeColour })));
       item.ko = move.ko;
@@ -258,7 +267,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       item.passes = 0;
       if (item.clock) item.clock = settleTurn(item.clock, mover, Date.now());
       played = { colour: colour as number, x: x as number, y: y as number };
-    } else if (request.body?.action === "pass") {
+    } else if (body.action === "pass") {
       /**
        * PASS: the turn goes on without a stone. When every seated colour has
        * passed one after another, the game ends and the board is counted.
@@ -267,27 +276,33 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
        * turn by arriving late; a person at the table, whose only pass button is
        * at the bowl whose turn it is, may leave it out.
        */
-      const { colour } = request.body;
-      if (item.liftedColour !== null) return reply.code(409).send({ error: `${item.carrier?.by ?? "Somebody"} is holding a stone. Put it down or return it before passing.` });
-      if (colour !== undefined && colour !== item.activeColour) return reply.code(409).send({ code: "NOT_YOUR_TURN", error: "It is not that colour's turn." });
+      const { colour } = body;
+      if (item.liftedColour !== null) return answer(409, { error: `${item.carrier?.by ?? "Somebody"} is holding a stone. Put it down or return it before passing.` });
+      if (colour !== undefined && colour !== item.activeColour) return answer(409, { code: "NOT_YOUR_TURN", error: "It is not that colour's turn." });
       // NOT BEFORE THE FIRST STONE. Baiwei (4555): after CLEAR STONES both
       // sides could pass at once and "end" a game nobody had played. The
       // rules allow it; nobody at this table means it.
       if (item.stones.length === 0 && item.captures.length === 0) {
-        return reply.code(409).send({ code: "NOTHING_PLAYED", error: "Play a stone first: there is no game to pass in yet." });
+        return answer(409, { code: "NOTHING_PLAYED", error: "Play a stone first: there is no game to pass in yet." });
       }
       item.passes += 1;
       if (item.clock) item.clock = settleTurn(item.clock, mover, Date.now());
       item.ko = null; // a pass opens a ko point
       item.activeColour = (item.activeColour + 1) % item.colours.length;
       if (item.passes >= item.colours.length) item.ended = true;
-    } else if (request.body?.action === "return") {
+    } else if (body.action === "return") {
       // Deliberate recovery for a disconnected carrier; never steals on incidental contact.
       item.liftedColour = null; item.carrier = null;
-    } else return reply.code(400).send({ error: "action must be lift, place, play, pass or return" });
+    } else return answer(400, { error: "action must be lift, place, play, pass or return" });
     item.revision++;
-    options.items.save(room, item, session.username);
-    if (played) options.items.recordPlay(session.username, item.id, played.colour, played);
-    publish(room, session.username); return reply.send({ item });
+    options.items.save(room, item, username);
+    if (played) options.items.recordPlay(username, item.id, played.colour, played);
+    publish(room, username); return answer(200, { item });
+  };
+  app.post<{ Params: { id: string }; Body: ItemActionBody }>("/bff/space/items/:id/action", async (request, reply) => {
+    const session = requireSession(request, reply); if (!session) return reply;
+    const { status, payload } = act(spaceRoomOf(session), session.username, request.params.id, request.body ?? {});
+    return reply.code(status).send(payload);
   });
+  return { act };
 }
