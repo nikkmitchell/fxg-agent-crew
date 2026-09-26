@@ -52,6 +52,8 @@ export type RoomFeed = {
  */
 const KEEP = 80;
 const EVERY_MS = 5_000;
+/** How soon a room list that could not be loaded is asked for again. */
+const ROOM_LIST_RETRY_MS = 5_000;
 
 /** Resolve against confirmed membership, never against a remembered name alone. */
 export function resolveJoinedRoom(
@@ -90,6 +92,7 @@ export function useRoomFeed(
     if (!enabled) return;
     let stopped = false;
     const controller = new AbortController();
+    let retry: number | undefined;
     setLoadingRooms(true);
     setRoomListTrouble(null);
     void bff.rooms(controller.signal).then((joined) => {
@@ -97,12 +100,21 @@ export function useRoomFeed(
       setRooms(joined);
       setRoomListTrouble(null);
     }).catch(() => {
-      if (!stopped) setRoomListTrouble("Your joined rooms could not be loaded. You may need to sign in again.");
+      if (stopped) return;
+      setRoomListTrouble("Your joined rooms could not be loaded. You may need to sign in again.");
+      /*
+       * AND ASKED AGAIN. The list was read once, when the page opened; if that
+       * one request failed — a deploy restarting the server is enough — the
+       * page had no chat room until it was reloaded, and every send said
+       * "Not sent to the group chat (no room)" (Nikk 5053).
+       */
+      retry = window.setTimeout(() => setRoomListRevision((n) => n + 1), ROOM_LIST_RETRY_MS);
     }).finally(() => {
       if (!stopped) setLoadingRooms(false);
     });
     return () => {
       stopped = true;
+      window.clearTimeout(retry);
       controller.abort();
     };
   }, [enabled, roomListRevision]);
