@@ -10,8 +10,8 @@
  * knows how to report, part by part.
  */
 
-/** Long enough for a slow network and a long transcript, short enough to wait for. */
-export const SEND_DEADLINE_MS = 20_000;
+/** Long enough for a slow network and a long transcript, short enough to wait for. A headset held chat posts ~22 s before sending them (2026-09-26), so 20 s reported arrivals as failures. */
+export const SEND_DEADLINE_MS = 30_000;
 
 export class SendTimedOut extends Error {
   constructor() {

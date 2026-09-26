@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { RepeatGuard, repeatKey } from "./repeat-guard.js";
 import type { Message, RoomDetail, RoomSummary } from "../../shared/contracts.js";
 import type { Config } from "../config.js";
 import type { Session, SessionStore } from "../session.js";
@@ -84,6 +85,8 @@ export function registerRoomRoutes(
   hooks: RoomHooks = {},
 ): void {
   const requireSession = makeRequireSession(config, sessions);
+  // The same words from the same person, posted once: see repeat-guard.ts.
+  const repeats = new RepeatGuard<Message>();
   const quietly = (what: string, run: () => void) => {
     try {
       run();
@@ -448,32 +451,48 @@ export function registerRoomRoutes(
        * single Message it has always been for every existing caller.
        */
       const parts = splitForChat(content, CHAT_MESSAGE_LIMIT);
-      let last: Message | null = null;
-      for (let index = 0; index < parts.length; index += 1) {
-        try {
-          const rawMessage = await client.request<Message>(
-            `/api/rooms/${encodeURIComponent(request.params.room)}/messages`,
-            { method: "POST", token: session.token, body: { content: parts[index] } },
-          );
-          const checked = validateTransportMessage(rawMessage);
-          if (!checked.ok) {
-            return reply.code(502).send({
-              code: "UPSTREAM_UNAVAILABLE",
-              error: parts.length > 1
-                ? `invalid message response at part ${index + 1} of ${parts.length}`
-                : "invalid message response",
-            });
-          }
-          last = checked.value;
-        } catch (error) {
-          if (index === 0) return fail(reply, error);
-          return reply.code(502).send({
-            code: "PARTIAL",
-            error: `sent ${index} of ${parts.length} parts; the rest did not arrive`,
-          });
+      // A refusal to hand back, from inside the guard: not posted, so a repeat
+      // of the same words is a real retry (see repeat-guard.ts).
+      class Refused extends Error {
+        constructor(readonly status: number, readonly body: unknown, readonly upstream?: unknown) {
+          super("refused");
         }
       }
-      return reply.send(last);
+      try {
+        const { result } = await repeats.once(repeatKey(session.username, request.params.room, content), async () => {
+          let last: Message | null = null;
+          for (let index = 0; index < parts.length; index += 1) {
+            try {
+              const rawMessage = await client.request<Message>(
+                `/api/rooms/${encodeURIComponent(request.params.room)}/messages`,
+                { method: "POST", token: session.token, body: { content: parts[index] } },
+              );
+              const checked = validateTransportMessage(rawMessage);
+              if (!checked.ok) {
+                throw new Refused(502, {
+                  code: "UPSTREAM_UNAVAILABLE",
+                  error: parts.length > 1
+                    ? `invalid message response at part ${index + 1} of ${parts.length}`
+                    : "invalid message response",
+                });
+              }
+              last = checked.value;
+            } catch (error) {
+              if (error instanceof Refused) throw error;
+              if (index === 0) throw new Refused(0, null, error);
+              throw new Refused(502, {
+                code: "PARTIAL",
+                error: `sent ${index} of ${parts.length} parts; the rest did not arrive`,
+              });
+            }
+          }
+          return last;
+        });
+        return reply.send(result);
+      } catch (error) {
+        if (error instanceof Refused) return error.status === 0 ? fail(reply, error.upstream) : reply.code(error.status).send(error.body);
+        return fail(reply, error);
+      }
     },
   );
 }

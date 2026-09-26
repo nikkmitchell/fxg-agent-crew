@@ -31,6 +31,20 @@ function setup() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("POST /bff/rooms/:room/messages", () => {
+  it("posts the same words from the same person once, even when the headset sends them twice (4962/4965)", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
+      id: 9, username: "nikk", content: "HIO!", msgType: "text",
+      createdAt: "2026-09-26T12:52:02Z", updatedAt: "2026-09-26T12:52:02Z", streaming: false,
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { app, sid } = setup();
+    const post = () => app.inject({ method: "POST", url: "/bff/rooms/saha.ing/messages", cookies: { fxg_sid: sid }, payload: { content: "HIO!" } });
+    const [first, second] = await Promise.all([post(), post()]);
+    const third = await post();
+    for (const response of [first, second, third]) expect(response.json()).toMatchObject({ id: 9, content: "HIO!" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("sends through the server-side token and returns the confirmed message", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       id: 8, username: "nikk", content: "hello", msgType: "text",
