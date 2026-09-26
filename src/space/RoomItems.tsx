@@ -24,6 +24,10 @@ import { RockForm } from "./RockForm";
 import { grabHold } from "./grab-hold";
 import { clockNow } from "../../shared/go-clock";
 
+/** Under the desk top (0.705 − half its 0.075), facing down: MOVE from below. */
+const UNDERSIDE_Y = 0.66;
+/** Big, because it is aimed at from underneath, often at arm's length up. */
+const UNDERSIDE_HANDLE = 0.4;
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
 const xyz = (p: Point3): [number, number, number] => [p.x, p.y, p.z];
 const noRaycast = () => {};
@@ -815,6 +819,20 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
     setCarrying(true);
     listenWhileCarrying();
   };
+  // STEERED AND RELEASED FROM R3F TOO, not only from the window: a headset
+  // delivers no window pointer events, so a handle relying on the window could
+  // be picked up in a headset and never moved or put down. Shared by MOVE on
+  // top and MOVE underneath.
+  const steerByRay = (event: ThreeEvent<PointerEvent>) => {
+    if (grabbedPointer.current !== event.pointerId) return;
+    event.stopPropagation();
+    steerTable({ origin: asVec(event.ray.origin), direction: asVec(event.ray.direction) });
+  };
+  const dropByRay = (event: ThreeEvent<PointerEvent>) => {
+    if (grabbedPointer.current !== event.pointerId) return;
+    letGoOfTable.current?.();
+    dropTable();
+  };
 
   /**
    * DELETE THIS BOARD, in two presses. The first arms it and says what the
@@ -975,17 +993,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       while one is, so the two can never be under the same pointer.
     */}
     {showControls && !settingsOpen && <group position={[controls.move.x, controls.move.y, controls.move.z]}
-      onPointerDown={takeTable}
-      onPointerMove={(event) => {
-        if (grabbedPointer.current !== event.pointerId) return;
-        event.stopPropagation();
-        steerTable({ origin: asVec(event.ray.origin), direction: asVec(event.ray.direction) });
-      }}
-      onPointerUp={(event) => {
-        if (grabbedPointer.current !== event.pointerId) return;
-        letGoOfTable.current?.();
-        dropTable();
-      }}>
+      onPointerDown={takeTable} onPointerMove={steerByRay} onPointerUp={dropByRay}>
       {/*
         STEERED AND RELEASED FROM R3F TOO, not only from the window: a headset
         delivers no window pointer events at all, so a handle that relied on the
@@ -994,11 +1002,30 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       {/* The whole plane stays the handle; it is only drawn as an outline now. */}
       <mesh rotation-x={-Math.PI / 2}>
         <planeGeometry args={[controls.move.width, controls.move.depth]} />
-        <meshBasicMaterial color={carrying ? "#e45338" : "#f1dfbd"} transparent opacity={carrying ? 0.35 : 0} depthWrite={false} />
+        {/* BOTH SIDES, so a ray from under the table reaches it too (Nikk). */}
+        <meshBasicMaterial color={carrying ? "#e45338" : "#f1dfbd"} transparent opacity={carrying ? 0.35 : 0} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       <Outline width={controls.move.width} depth={controls.move.depth} colour={carrying ? "#e45338" : "#f1dfbd"} />
       <Text position-y={0.001} rotation-x={-Math.PI / 2} fontSize={fitFont(controls.labels.moving, controls.move.width, controls.labels.fontSize)} color={carrying ? "#ff9582" : "#f1dfbd"} raycast={noRaycast}>
         {carrying ? controls.labels.moving : controls.labels.move}
+      </Text>
+    </group>}
+    {/*
+      MOVE FROM UNDERNEATH. Nikk: "allow for the move selector to be selected
+      from below, then users can grab it from underneath and bring it back
+      down". A table raised out of reach (saha-ing-79308c6e) could only be
+      moved by its MOVE, which lies face up on top where nobody below can see
+      or aim at it. This one faces down under the table, does exactly what MOVE
+      does, and nobody at a table of normal height ever sees it.
+    */}
+    {showControls && !settingsOpen && <group position={[0, UNDERSIDE_Y, 0]}
+      onPointerDown={takeTable} onPointerMove={steerByRay} onPointerUp={dropByRay}>
+      <mesh rotation-x={Math.PI / 2}>
+        <planeGeometry args={[UNDERSIDE_HANDLE, UNDERSIDE_HANDLE]} />
+        <meshBasicMaterial color={carrying ? "#e45338" : "#f1dfbd"} transparent opacity={carrying ? 0.45 : 0.22} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <Text position-y={-0.001} rotation-x={Math.PI / 2} fontSize={0.06} color={carrying ? "#ff9582" : "#f1dfbd"} raycast={noRaycast}>
+        {carrying ? controls.labels.moving : "MOVE ✥"}
       </Text>
     </group>}
     {showControls && !settingsOpen && <TableButton label={controls.labels.settings} at={[controls.settings.x, controls.settings.y, controls.settings.z]}
