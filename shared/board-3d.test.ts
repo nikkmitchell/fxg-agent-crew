@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOARD, BOARD_COLUMNS, cardAt, columnAt, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, addAt, addControlOf, columnPlateOf, CARD_SHAPE, type BoardCard } from "./board-3d.js";
+import { BOARD, BOARD_COLUMNS, cardAt, columnAt, columnOffset, dragIsScroll, dragScroll, layOutBoard, moveRefusal, pointFromUv, uvFromPanelPoint, addAt, addControlOf, columnPlateOf, CARD_SHAPE, type BoardCard } from "./board-3d.js";
 import { canTransition } from "./board-rules.js";
 
 /**
@@ -466,5 +466,34 @@ describe("adding a card from the room", () => {
     for (const place of crowded.cards) {
       expect(addAt(crowded, uvFromPanelPoint(crowded, { x: place.x, y: place.y }), size), place.card.id).toBeNull();
     }
+  });
+});
+
+/** Nikk (4903): "it should be a click and drag so we can just drag up and down to scroll". */
+describe("dragging a column up and down to scroll it", () => {
+  const many = Array.from({ length: 40 }, (_, i) => card(`t${i}`, "review"));
+  const layout = layOutBoard(many);
+  const pitch = layout.cards[0]!.height / layout.height;
+
+  it("pulling up by one card's height shows one card further down", () => {
+    expect(dragScroll(layout, 0, 0.5, 0.5 + pitch)).toBe(1);
+    expect(dragScroll(layout, 3, 0.5, 0.5 + 2 * pitch)).toBe(5);
+  });
+
+  it("pulling down scrolls back, and never above the top", () => {
+    expect(dragScroll(layout, 3, 0.5, 0.5 - pitch)).toBe(2);
+    expect(dragScroll(layout, 1, 0.5, 0.5 - 5 * pitch)).toBe(0);
+  });
+
+  it("knows how far a column is scrolled from what is drawn", () => {
+    expect(columnOffset(layout, "review")).toBe(0);
+    expect(columnOffset(layOutBoard(many, undefined, { review: 4 }), "review")).toBe(4);
+  });
+
+  it("up or down is a scroll, sideways is a card being carried, and a twitch is neither yet", () => {
+    const from = { x: 0.5, y: 0.5 };
+    expect(dragIsScroll(layout, from, { x: 0.5, y: 0.5005 }, 0.03)).toBeNull();
+    expect(dragIsScroll(layout, from, { x: 0.51, y: 0.6 }, 0.03)).toBe(true);
+    expect(dragIsScroll(layout, from, { x: 0.6, y: 0.51 }, 0.03)).toBe(false);
   });
 });

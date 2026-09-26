@@ -38,14 +38,21 @@ const columnLabel = (status: string): string =>
 export const DETAIL_PX = { width: 768, height: 1024 } as const;
 
 /**
- * How many comments are drawn before it stops.
+ * How far to drag, as a fraction of the panel's height, to move one comment.
  *
- * A panel that scrolls is a panel that needs a scrollbar, a drag that competes
- * with moving the panel, and a second thing to test. The most recent few are
- * what a person wants when they pull a card off a wall; the rest are on the
- * site. The count says how many were not shown, so it is not pretending.
+ * It used to stop at six and say the rest were "on the board", which in a
+ * headset meant nowhere. Nikk (4903) asked to drag through them all instead.
  */
-export const COMMENTS_SHOWN = 6;
+export const COMMENT_DRAG_STEP = 0.08;
+
+/**
+ * Which comment the list starts at after a drag. Like a phone: pulling UP
+ * moves on to older comments, pulling down comes back to the newest.
+ */
+export function commentScroll(start: number, fromV: number, toV: number, count: number): number {
+  const moved = Math.round((toV - fromV) / COMMENT_DRAG_STEP);
+  return Math.max(0, Math.min(Math.max(0, count - 1), start + moved));
+}
 
 /**
  * Where "close" is, as a fraction of the panel.
@@ -107,6 +114,8 @@ export const isDetailClose = (uv: { x: number; y: number }): boolean =>
 export function paintDetail(
   task: TaskDetail,
   measure: (text: string, size: number) => number,
+  /** How many of the newest comments are scrolled past. */
+  commentsFrom = 0,
 ): Ink[] {
   const { width, height } = DETAIL_PX;
   const pad = 40;
@@ -185,24 +194,40 @@ export function paintDetail(
 
     // NEWEST FIRST. Pulling a card off a wall to read the oldest remark on it
     // is not what anybody wants.
-    for (const comment of comments.slice(-COMMENTS_SHOWN).reverse()) {
-      if (y > height - pad - 40) break;
+    //
+    // AND AS MANY AS FIT, THEN DRAG FOR THE REST. Nikk (4903): "I'm not able to
+    // scroll through all the comments on that task". This stopped at six and
+    // sent you to the site for the others; now `commentsFrom` skips that many
+    // of the newest, and dragging the panel up moves it on (`CardDetail3D`).
+    const newestFirst = comments.slice().reverse();
+    const from = Math.max(0, Math.min(commentsFrom, comments.length - 1));
+    if (from > 0) {
+      ink.push({ kind: "text", x: pad, y, text: `\u25B2 ${from} newer \u2014 drag down`, size: 22, fill: CARD_INK.muted });
+      y += 34;
+    }
+    // Stop above the band of controls at the foot of the panel.
+    const floor = height * (1 - DETAIL_MOVES.v1) - 34;
+    let drawn = 0;
+    for (const comment of newestFirst.slice(from)) {
+      const lines = fitLines(measure, comment.body, 24, inner - 16, 3);
+      if (y + 30 + lines.length * 30 > floor) break;
       ink.push({ kind: "text", x: pad, y, text: comment.author, size: 22, fill: CARD_INK.accent, weight: "bold" });
       y += 30;
-      for (const line of fitLines(measure, comment.body, 24, inner - 16, 3)) {
-        if (y > height - pad - 10) break;
+      for (const line of lines) {
         ink.push({ kind: "text", x: pad, y, text: line, size: 24, fill: CARD_INK.ink });
         y += 30;
       }
       y += 12;
+      drawn += 1;
     }
 
-    if (comments.length > COMMENTS_SHOWN) {
+    const older = comments.length - from - drawn;
+    if (older > 0) {
       ink.push({
         kind: "text",
         x: pad,
-        y: Math.min(y, height - pad),
-        text: `${comments.length - COMMENTS_SHOWN} older, on the board`,
+        y: Math.min(y, floor + 20),
+        text: `\u25BC ${older} older \u2014 drag up`,
         size: 22,
         fill: CARD_INK.muted,
       });

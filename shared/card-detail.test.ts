@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMENTS_SHOWN, DETAIL_CLOSE, DETAIL_MOVES, DETAIL_PX, detailMoveAt, isDetailClose, isDetailComment, paintDetail, type TaskDetail } from "./card-detail.js";
+import { COMMENT_DRAG_STEP, DETAIL_CLOSE, commentScroll, DETAIL_MOVES, DETAIL_PX, detailMoveAt, isDetailClose, isDetailComment, paintDetail, type TaskDetail } from "./card-detail.js";
 import type { Ink } from "./card-paint.js";
 
 const measure = (text: string, size: number) => text.length * size * 0.55;
@@ -60,10 +60,28 @@ describe("the card you pull off the board", () => {
     expect(words.indexOf("newest")).toBeLessThan(words.indexOf("oldest"));
   });
 
-  it("says how many it did not show rather than pretending", () => {
-    const comments = Array.from({ length: COMMENTS_SHOWN + 4 }, (_, i) => ({ author: `p${i}`, body: `c${i}` }));
-    const words = said(paintDetail(task({ comments }), measure));
-    expect(words).toContain("4 older");
+  /** Nikk (4903): "I'm not able to scroll through all the comments on that task". */
+  it("draws as many as fit, says how many are older, and reaches every one by scrolling", () => {
+    const comments = Array.from({ length: 30 }, (_, i) => ({ author: `p${i}`, body: `c${i}` }));
+    const first = said(paintDetail(task({ comments }), measure));
+    expect(first).toContain("c29");
+    expect(first).toMatch(/\d+ older/);
+    expect(first).not.toContain("newer");
+    const seen = new Set<string>();
+    for (let from = 0; from < 30; from += 1) {
+      const words = said(paintDetail(task({ comments }), measure, from));
+      for (let i = 0; i < 30; i += 1) if (words.includes(`p${i}`)) seen.add(`p${i}`);
+      if (from > 0) expect(words).toContain(`${from} newer`);
+    }
+    expect(seen.size).toBe(30);
+  });
+
+  it("drags like a phone: up for older, down back to the newest, and never past either end", () => {
+    expect(commentScroll(0, 0.5, 0.5 + 2 * COMMENT_DRAG_STEP, 10)).toBe(2);
+    expect(commentScroll(4, 0.5, 0.5 - COMMENT_DRAG_STEP, 10)).toBe(3);
+    expect(commentScroll(1, 0.5, 0.1, 10)).toBe(0);
+    expect(commentScroll(0, 0.1, 0.99, 10)).toBe(9);
+    expect(commentScroll(0, 0.1, 0.99, 0)).toBe(0);
   });
 
   it("counts one comment as a comment", () => {

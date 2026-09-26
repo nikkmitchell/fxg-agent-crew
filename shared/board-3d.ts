@@ -264,6 +264,43 @@ export function layOutBoard(
   return { width: size.width, height: size.height, columns, cards: places, overflow, scrollers };
 }
 
+/** How far a column is scrolled as drawn: the cards above its first one. */
+export function columnOffset(layout: BoardLayout, status: Status): number {
+  return layout.scrollers.find((s) => s.status === status && s.direction === "up")?.count ?? 0;
+}
+
+/**
+ * The offset a column is dragged to.
+ *
+ * Nikk (4903): "it should be a click and drag so we can just drag up and down
+ * to scroll". Like a phone: pulling UP brings the cards below into view, one
+ * card for every card's height the pointer travels. `layOutBoard` clamps it, so
+ * dragging past either end just stops there.
+ */
+export function dragScroll(layout: BoardLayout, start: number, fromV: number, toV: number): number {
+  const pitch = layout.cards[0]?.height ?? 0;
+  if (pitch <= 0) return start;
+  return Math.max(0, start + Math.round(((toV - fromV) * layout.height) / pitch));
+}
+
+/**
+ * Whether a press that has moved is a scroll (mostly up/down) rather than a
+ * card being carried (mostly sideways). Nikk: "if you go to the left or the
+ * right it moves left or right but if you move up or down it should drag that
+ * column up and down". Undecided (null) until it has moved `slop` metres.
+ */
+export function dragIsScroll(
+  layout: BoardLayout,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  slop: number,
+): boolean | null {
+  const dx = Math.abs(to.x - from.x) * layout.width;
+  const dy = Math.abs(to.y - from.y) * layout.height;
+  if (Math.hypot(dx, dy) < slop) return null;
+  return dy > dx;
+}
+
 /** The scroll strip under a point, or null. Exact, like a card. */
 export function scrollerAt(layout: BoardLayout, uv: { x: number; y: number }): BoardScroller | null {
   const point = pointFromUv(layout, uv);

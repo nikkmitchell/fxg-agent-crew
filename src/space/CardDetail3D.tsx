@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { DETAIL_PX, detailMoveAt, isDetailClose, isDetailComment, paintDetail, type TaskDetail } from "../../shared/card-detail";
+import { DETAIL_PX, commentScroll, detailMoveAt, isDetailClose, isDetailComment, paintDetail, type TaskDetail } from "../../shared/card-detail";
 import { drawInk, makeInkCanvas, measureWith } from "./ink-canvas";
 import { claimPointer } from "./pointer-claim";
 
@@ -53,14 +53,19 @@ export function CardDetail3D({
   const { canvas, texture } = useMemo(() => makeInkCanvas(DETAIL_PX.width, DETAIL_PX.height), []);
   const invalidate = useThree((state) => state.invalidate);
   const surface = useRef<THREE.Mesh>(null);
+  /** How many of the newest comments are scrolled past. Back to the newest for each task. */
+  const [commentsFrom, setCommentsFrom] = useState(0);
+  useEffect(() => setCommentsFrom(0), [task.id]);
+  /** A press on the reading part of the panel, which drags the comments. */
+  const drag = useRef<{ v: number; start: number } | null>(null);
 
   useEffect(() => {
     const context = canvas.getContext("2d");
     if (!context) return;
-    drawInk(canvas, paintDetail(task, measureWith(context)));
+    drawInk(canvas, paintDetail(task, measureWith(context), commentsFrom));
     texture.needsUpdate = true;
     invalidate();
-  }, [canvas, texture, invalidate, task]);
+  }, [canvas, texture, invalidate, task, commentsFrom]);
 
   useEffect(() => () => texture.dispose(), [texture]);
 
@@ -77,6 +82,20 @@ export function CardDetail3D({
     if (isDetailComment(uv)) return onComment();
     const to = detailMoveAt(uv, task.moves ?? []);
     if (to) return onMove(to);
+    // ANYWHERE ELSE, A DRAG THROUGH THE COMMENTS. Nikk (4903): "you should be
+    // able to drag through" them.
+    drag.current = { v: uv.y, start: commentsFrom };
+  };
+
+  const slide = (event: ThreeEvent<PointerEvent>) => {
+    if (!drag.current || !event.uv) return;
+    event.stopPropagation();
+    const { v, start } = drag.current;
+    setCommentsFrom(commentScroll(start, v, event.uv.y, task.comments?.length ?? 0));
+  };
+
+  const release = () => {
+    drag.current = null;
   };
 
   return (
@@ -98,7 +117,7 @@ export function CardDetail3D({
         <planeGeometry args={[DETAIL.width + 0.04, DETAIL.height + 0.04]} />
         <meshBasicMaterial color="#2b3245" transparent opacity={0.92} toneMapped={false} />
       </mesh>
-      <mesh ref={surface} onPointerDown={press}>
+      <mesh ref={surface} onPointerDown={press} onPointerMove={slide} onPointerUp={release} onPointerLeave={release}>
         <planeGeometry args={[DETAIL.width, DETAIL.height]} />
         <meshBasicMaterial map={texture} transparent toneMapped={false} />
       </mesh>

@@ -58,6 +58,13 @@ describe("what a gesture means", () => {
       .toEqual({ kind: "pullOff", cardId: "b" });
   });
 
+  it("a drop past the board's edge pulls the card out, and says where", () => {
+    // Nikk (4903): dragged "outside of the mood board" it should float there.
+    const outcome = drop({ panelId: "board", u: 0.1, v: 0.5 }, { panelId: "board", u: 1.3, v: 0.6 });
+    expect(intentOf(outcome, layout, always(card("b", "review")), canTransition))
+      .toEqual({ kind: "pullOff", cardId: "b", at: { u: 1.3, v: 0.6 } });
+  });
+
   it("REFUSES an illegal move by name, using the server's own rule", () => {
     // Not a second table of legal moves: this asks canTransition, which is what
     // the server will ask. A copy here would drift and then welcome a card the

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { BOARD, addAt, addControlOf, cardAt, columnAt, columnPlateOf, layOutBoard, scrollerAt, uvFromPanelPoint, type BoardCard, type BoardColumn, type BoardScroller, type CardPlace } from "../../shared/board-3d";
+import { BOARD, addAt, addControlOf, cardAt, columnAt, columnOffset, columnPlateOf, dragIsScroll, dragScroll, layOutBoard, scrollerAt, uvFromPanelPoint, type BoardCard, type BoardColumn, type BoardScroller, type CardPlace } from "../../shared/board-3d";
 import { Text } from "@react-three/drei";
 import { CARD_INK, CARD_PX, paintCard } from "../../shared/card-paint";
 import { applyPending, intentOf, settlePending, type BoardIntent, type PendingMove } from "../../shared/board-actions";
 import { canTransition } from "../../shared/board-rules";
-import { carrying, stepGesture, type Gesture, type PointerSource, type SurfaceEvent, type SurfaceHit } from "../../shared/surface-input";
+import { TAP_SLOP, carrying, stepGesture, type Gesture, type PointerSource, type SurfaceEvent, type SurfaceHit } from "../../shared/surface-input";
 import { drawInk, makeInkCanvas, measureWith } from "./ink-canvas";
 import { claimPointer, pointerWasClaimed } from "./pointer-claim";
 
@@ -90,7 +90,7 @@ export type BoardPanel3DProps = {
   /** Open a card's own panel — the copy with more in it than the card shows. */
   onOpen: (cardId: string) => void;
   /** A card released off every panel: pull it out into the room. */
-  onPullOff: (cardId: string) => void;
+  onPullOff: (cardId: string, at?: { x: number; y: number }) => void;
   /** Say something the person needs to read, like a refusal. */
   onSay: (message: string) => void;
   /** The panel this board is drawn on, in metres. The board fills it. */
@@ -147,6 +147,12 @@ export function BoardPanel3D({
    * scrolling your view of the board changes nobody else's.
    */
   const [scroll, setScroll] = useState<Partial<Record<BoardCard["status"], number>>>({});
+  /**
+   * A press in a column that scrolls, until it is known whether it is a scroll
+   * (up/down) or a card being carried (sideways). `decided` true: every move
+   * scrolls the column and nothing is carried.
+   */
+  const pan = useRef<{ status: BoardCard["status"]; from: { x: number; y: number }; start: number; decided: boolean | null } | null>(null);
 
   // The server's cards with any un-acknowledged move laid on top, and guesses
   // retired as soon as the server catches up. See board-actions.
@@ -207,7 +213,11 @@ export function BoardPanel3D({
   const act = useCallback(
     (intent: BoardIntent) => {
       if (intent.kind === "open") return onOpen(intent.cardId);
-      if (intent.kind === "pullOff") return onPullOff(intent.cardId);
+      if (intent.kind === "pullOff") {
+        // Where it was let go, in the board's own metres, so it floats THERE.
+        const at = intent.at ? { x: (intent.at.u - 0.5) * layout.width, y: (intent.at.v - 0.5) * layout.height } : undefined;
+        return onPullOff(intent.cardId, at);
+      }
       if (intent.kind === "refused") {
         // SAID BEFORE IT SNAPS BACK. A card that returns with no explanation
         // reads as a broken drag rather than a rule.
@@ -234,7 +244,7 @@ export function BoardPanel3D({
         window.setTimeout(() => setNotice(null), 4200);
       });
     },
-    [now, onMove, onOpen, onPullOff, onSay],
+    [layout, now, onMove, onOpen, onPullOff, onSay],
   );
 
   const onPointer = useCallback(
@@ -262,7 +272,23 @@ export function BoardPanel3D({
        * The intersection POINT is the same world position whichever mesh the
        * ray struck first. Put it in the board's own frame and ask once.
        */
-      const local = surface.worldToLocal(event.point.clone());
+      /*
+       * AND FROM THE RAY WHEN THE POINTER IS OFF THE BOARD. A card carried past
+       * the edge has nothing under the ray, so there is no point; the ray still
+       * crosses the board's plane, and where it does is where the card is.
+       * With the pointer captured on the press, a controller keeps reporting
+       * here after it leaves the board, which is how a drop out in the room is
+       * heard at all.
+       */
+      let local = surface.worldToLocal(event.point.clone());
+      if (type !== "down" && gesture.kind === "dragging" && event.ray) {
+        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
+          new THREE.Vector3(0, 0, 1).transformDirection(surface.matrixWorld),
+          surface.getWorldPosition(new THREE.Vector3()),
+        );
+        const crossing = event.ray.intersectPlane(plane, new THREE.Vector3());
+        if (crossing) local = surface.worldToLocal(crossing);
+      }
       const uv = uvFromPanelPoint(layout, local);
       const hit: SurfaceHit = { panelId, u: uv.x, v: uv.y };
       // ONE SOURCE NAME FOR EVERYTHING. Nothing below may branch on it; it
@@ -306,7 +332,37 @@ export function BoardPanel3D({
         return;
       }
 
-      if (type === "down") grabbed.current = cardAt(layout, { x: hit.u, y: hit.v })?.card.id ?? null;
+      // DRAG UP OR DOWN TO SCROLL. A press in a column with more cards than fit
+      // may become a scroll; the first real movement decides, and sideways
+      // still carries the card exactly as before.
+      const at = { x: hit.u, y: hit.v };
+      if (type === "down") {
+        const column = columnAt(layout, at);
+        const scrolls = column && layout.scrollers.some((s) => s.status === column.status);
+        pan.current = scrolls ? { status: column.status, from: at, start: columnOffset(layout, column.status), decided: null } : null;
+      } else if (pan.current) {
+        const p = pan.current;
+        if (p.decided === null && type === "move") p.decided = dragIsScroll(layout, p.from, at, TAP_SLOP * layout.height);
+        if (p.decided === true) {
+          if (type === "move") {
+            setScroll((current) => ({ ...current, [p.status]: dragScroll(layout, p.start, p.from.y, at.y) }));
+          } else {
+            pan.current = null;
+          }
+          // Whatever the gesture machine had armed is not a carry any more.
+          if (gesture.kind !== "idle") setGesture({ kind: "idle" });
+          grabbed.current = null;
+          return;
+        }
+        if (p.decided === false || type !== "move") pan.current = null;
+      }
+
+      if (type === "down") {
+        grabbed.current = cardAt(layout, { x: hit.u, y: hit.v })?.card.id ?? null;
+        // Keep hearing this pointer after it leaves the board, so a card can be
+        // carried off it. Guarded because it is not there on every pointer.
+        if (grabbed.current) (event.target as { setPointerCapture?: (id: number) => void } | null)?.setPointerCapture?.(event.pointerId);
+      }
       const stepped = stepGesture(gesture, { type, source, hit, at: now() } as SurfaceEvent);
       setGesture(stepped.state);
       if (stepped.outcome) {

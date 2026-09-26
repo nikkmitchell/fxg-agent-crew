@@ -25,7 +25,7 @@ export type BoardIntent =
   /** Open this card's own panel, a copy with more in it than the card shows. */
   | { kind: "open"; cardId: string }
   /** The card was released off every panel: pull it out into its own panel. */
-  | { kind: "pullOff"; cardId: string }
+  | { kind: "pullOff"; cardId: string; at?: { u: number; v: number } }
   /** Nothing happened worth telling anybody about. */
   | { kind: "none" }
   /** The move was refused before it was sent. Say so; put the card back. */
@@ -55,6 +55,11 @@ export function intentOf(
 
   // Released off every panel: out into the room as its own panel.
   if (!outcome.over) return { kind: "pullOff", cardId: card.id };
+  // Released on the board's own plane but PAST ITS EDGE. Nikk (4903): "if I
+  // drag it outside of the mood board I should be able to drag a task to be
+  // the increased size version of it". It floats where it was let go.
+  const { u, v } = outcome.over;
+  if (u < 0 || u > 1 || v < 0 || v > 1) return { kind: "pullOff", cardId: card.id, at: { u, v } };
 
   const column = columnAt(layout, { x: outcome.over.u, y: outcome.over.v });
   if (!column) return { kind: "pullOff", cardId: card.id };
