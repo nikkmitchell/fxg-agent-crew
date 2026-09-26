@@ -19,6 +19,8 @@ import {
   MIC_GESTURE_JOINT_NAMES,
   MIC_GESTURE_POSTURE_JOINT_INDICES,
   micGestureHands,
+  fingersStraight,
+  palmNormalOf,
   micGestureIndicator,
 } from "./mic-gesture-input";
 import { goCarryPoint } from "../../shared/go-touch";
@@ -782,6 +784,14 @@ export function ImmersivePlayer({
       gripAsWrist(poseOfSpace(rightController?.inputSource.gripSpace, frame, group), "right");
     // Fingertip contact on hands; grip contact on controllers. Carrying always
     // follows the palm convention that the room already shares over the socket.
+    // The head in the same frame as the hands, for "in front of your face".
+    const viewer = frame && originSpace ? frame.getViewerPose(originSpace) : null;
+    const gestureHead = viewer
+      ? {
+          p: { x: viewer.transform.position.x, y: viewer.transform.position.y, z: viewer.transform.position.z },
+          q: { x: viewer.transform.orientation.x, y: viewer.transform.orientation.y, z: viewer.transform.orientation.z, w: viewer.transform.orientation.w },
+        }
+      : null;
     for (const [side, wrist, input] of [["left", liveLeft, leftHand], ["right", liveRight, rightHand]] as const) {
       const tip = input ? poseOfSpace(input.inputSource.hand.get("index-finger-tip"), frame, group) : null;
       goHandInput[side] = wrist ? { contact: (tip ?? wrist).p, carry: goCarryPoint(wrist), at: performance.now() } : null;
@@ -816,6 +826,9 @@ export function ImmersivePlayer({
               fingerDirection: { x: dx / length, y: dy / length, z: dz / length },
               shape: classifyMicHand(gestureWrist.p, bases, tips),
               joints,
+              straight: fingersStraight(joints),
+              palmNormal: palmNormalOf(joints),
+              head: gestureHead,
             }
           : null;
       } else {
