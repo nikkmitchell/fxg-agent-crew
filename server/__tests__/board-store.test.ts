@@ -63,9 +63,10 @@ describe("project authority", () => {
 });
 
 describe("moving cards", () => {
-  it("refuses backlog straight to done", () => {
+  it("moves a card from any column straight to any other (Nikk 4936)", () => {
     const id = aTask();
-    expect(() => store.transitionTask(nikk, id, "done")).toThrow(/not a legal move/);
+    store.transitionTask(nikk, id, "done");
+    expect((db.prepare("SELECT status FROM tasks WHERE id=?").get(id) as { status: string }).status).toBe("done");
   });
 
   it("allows the legal path", () => {
@@ -191,7 +192,7 @@ describe("the audit trail", () => {
     // record of a change that did not happen. That part was right.
     const id = aTask();
     const before = db.prepare("SELECT COUNT(*) c FROM audit").get() as { c: number };
-    expect(() => store.transitionTask(nikk, id, "done")).toThrow();
+    expect(() => store.transitionTask(stranger, id, "done")).toThrow();
 
     expect(db.prepare("SELECT COUNT(*) c FROM audit").get()).toEqual(before);
   });
@@ -203,11 +204,11 @@ describe("the audit trail", () => {
     // how you see someone probing, or a permission that has broken. Making them
     // invisible inverts validated-is-not-authorized.
     const id = aTask();
-    expect(() => store.transitionTask(nikk, id, "done")).toThrow();
+    expect(() => store.transitionTask(stranger, id, "done")).toThrow();
 
     const denials = db.prepare("SELECT actor_id, action, target, code FROM security_audit").all();
     expect(denials).toEqual([
-      { actor_id: "nikk", action: "transition task", target: id, code: "ILLEGAL_TRANSITION" },
+      { actor_id: "stranger", action: "transition task", target: id, code: "PROJECT_PERMISSION_REQUIRED" },
     ]);
   });
 
@@ -288,11 +289,11 @@ describe("the denial log holds metadata, never payloads", () => {
     // Structural rather than conventional: reasonFor() has no access to a
     // payload, so it cannot pass one on however a refusal is phrased.
     const id = aTask();
-    expect(() => store.transitionTask(nikk, id, "done")).toThrow(/backlog → done/);
+    expect(() => store.transitionTask(stranger, id, "done")).toThrow();
 
     const row = db.prepare("SELECT code, reason FROM security_audit").get() as { code: string; reason: string };
-    expect(row.code).toBe("ILLEGAL_TRANSITION");
-    expect(row.reason).toBe("status change is not a legal move");
+    expect(row.code).toBe("PROJECT_PERMISSION_REQUIRED");
+    expect(row.reason).toBe("actor is not a member of the project");
   });
 
   it("surfaces a denial it could not write, rather than losing it quietly", () => {

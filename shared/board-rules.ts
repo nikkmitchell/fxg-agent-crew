@@ -14,21 +14,19 @@ export const ROLES = ["manager", "ui", "testing", "engineering", "research"] as 
 export type Role = (typeof ROLES)[number];
 
 /**
- * Legal moves.
+ * Legal moves: ANY COLUMN TO ANY OTHER.
  *
- * backlog → done is deliberately illegal: closing a card should pass through
- * the states that record who took it and who reviewed it. It is also why
- * closing one card costs four writes, which is worth remembering before anyone
- * proposes "simplifying" this.
+ * This was a ladder (backlog → assigned → in progress → review → done, with a
+ * few ways back), kept so closing a card passed through the states that
+ * record who took it and who reviewed it. Nikk (4903, 4936) asked for cards
+ * to "be moved freely from any tab to any tab": dragging a card from Blocked
+ * to Review and having it refused was the board being in the way. The table
+ * stays, and everything still asks it, so a narrower rule can come back in one
+ * place.
  */
-const ALLOWED: Record<Status, readonly Status[]> = {
-  backlog: ["assigned"],
-  assigned: ["in_progress", "backlog"],
-  in_progress: ["blocked", "review"],
-  blocked: ["in_progress", "backlog"],
-  review: ["in_progress", "blocked", "done"],
-  done: ["review"],
-};
+const ALLOWED: Record<Status, readonly Status[]> = Object.fromEntries(
+  STATUSES.map((from) => [from, STATUSES.filter((to) => to !== from)]),
+) as unknown as Record<Status, readonly Status[]>;
 
 export function canTransition(from: Status, to: Status): boolean {
   return ALLOWED[from].includes(to);

@@ -11,6 +11,8 @@ import { handNear, IDLE_OPACITY, touchPresses, type TouchButton } from "./touch-
 import { goHandInput } from "./go-hand-input";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
+import { IDLE_MIC_GESTURE, stepMicGesture, type MicGestureState } from "./mic-gesture";
+import { micGestureHands, micGestureIndicator } from "./mic-gesture-input";
 import { closedControlPose } from "./control-pose";
 import { handModelsShown, pinchTeleportEnabled, setPinchTeleport, showHandModels } from "./xr-store";
 import {
@@ -875,6 +877,7 @@ export function RoomControls({
   const pressTalkRef = useRef<() => void>(() => {});
   const openMenuRef = useRef<() => void>(() => {});
   const cancelRef = useRef<(() => void) | null>(null);
+  const micGestureState = useRef<MicGestureState>(IDLE_MIC_GESTURE);
   const touching = useRef<Set<string>>(new Set());
   const [handIsNear, setHandIsNear] = useState(false);
   const buttonOpacity = handIsNear ? 1 : IDLE_OPACITY;
@@ -1603,6 +1606,30 @@ export function RoomControls({
   pressTalkRef.current = pressTalk;
   openMenuRef.current = openMenu;
   cancelRef.current = cancellable ? cancel : null;
+
+  /**
+   * OPTIONAL HAND GESTURE, in parallel with the touch mic. The mic remains the
+   * simple fallback; the gesture only runs while its action would start a real
+   * recording or while a recording is already active. That keeps an upright
+   * hand from accidentally sending a draft or opening the keyboard.
+   */
+  useFrame(() => {
+    const recording = listening || saying === "recording";
+    const startAction = capabilities.recognition
+      ? micPress({ available: true, listening, sending, heard, alwaysOn }) === "start"
+      : saying === "idle" && canSpeak && written.trim() === "" && !keyboardFocused;
+    const result = stepMicGesture(
+      micGestureState.current,
+      micGestureHands,
+      recording,
+      performance.now(),
+      anchor() !== null && !sending && saying !== "writing" && (recording || startAction),
+    );
+    micGestureState.current = result.state;
+    micGestureIndicator.side = result.outlineSide;
+    if (result.action === "start" || result.action === "finish") pressTalkRef.current();
+    else if (result.action === "cancel") cancelRef.current?.();
+  });
 
   return (
     <>
