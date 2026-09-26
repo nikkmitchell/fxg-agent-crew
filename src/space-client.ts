@@ -42,10 +42,11 @@ export const space = {
     requestJson<{ utterances: Utterance[] }>(`${root}/utterances?limit=${limit}`),
 
   /** Say something. The server refuses with a sentence; `ApiError` carries it. */
-  say: (utterance: UtteranceInput) =>
+  say: (utterance: UtteranceInput, signal?: AbortSignal) =>
     requestJson<{ ok: true; utterance: Utterance }>(`${root}/utterances`, {
       method: "POST",
       body: JSON.stringify(utterance),
+      signal,
     }),
 
   /**

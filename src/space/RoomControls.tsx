@@ -46,6 +46,7 @@ import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-h
 import type { RoomItem } from "../../shared/room-items";
 import { Typing3D } from "./Typing3D";
 import { endSessionThenReturn } from "./end-session-to-lobby";
+import { SendStopped, withDeadline } from "./send-timeout";
 
 /**
  * The room's controls, in front of you at body level.
@@ -412,6 +413,8 @@ export function RoomControls({
     if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
   }, []);
   const [sending, setSending] = useState(false);
+  /** Pressing ✕ while a send is in flight: see send-timeout.ts. */
+  const sendStop = useRef<AbortController | null>(null);
   const input = useRef<SteadyRecorder | null>(null);
   const keyboard = useRef<SystemKeyboard | null>(null);
   /** The draft as of this render, for a tap handler that must not wait for one. */
@@ -481,6 +484,8 @@ export function RoomControls({
       return false;
     }
     setSending(true);
+    const stop = new AbortController();
+    sendStop.current = stop;
     const failures: string[] = [];
     // STOP THE CHAT AT THE FIRST PART THAT FAILS. A long transcript is now
     // several messages in order, and carrying on past a failure would post
@@ -497,18 +502,20 @@ export function RoomControls({
           // telling them it was sent, which is the exact failure the split
           // exists to avoid. `say` is omitted when a single sentence was too
           // long to speak at all — better silent than misquoted.
-          await space.say({
+          await withDeadline((signal) => space.say({
             ...(item.say ? { say: item.say } : {}),
             ...(item.detail ? { detail: item.detail } : {}),
             source,
             ...(item.confidence !== undefined ? { confidence: item.confidence } : {}),
-          });
+          }, signal), stop.signal);
         } else if (!room) {
           failures.push("the group chat (no room)");
         } else {
-          await bff.sendMessage(room, item.content);
+          await withDeadline((signal) => bff.sendMessage(room, item.content, signal), stop.signal);
         }
-      } catch {
+      } catch (error) {
+        // ✕ while sending: nothing more goes, and nobody is told it failed.
+        if (error instanceof SendStopped) break;
         if (item.to === "room") failures.push("the room");
         else {
           chatStopped = true;
@@ -522,6 +529,8 @@ export function RoomControls({
       }
     }
     setSending(false);
+    sendStop.current = null;
+    if (stop.signal.aborted) return false;
     // NAMED INDIVIDUALLY. Being told your words reached the agents when they
     // did not is the quiet failure this product exists not to have.
     if (failures.length === 0) {
@@ -1493,7 +1502,12 @@ export function RoomControls({
    * true. A notice about something that happened still takes precedence.
    */
   const heardWaiting = capabilities.recognition && !alwaysOn && !listening && heard.trim() !== "";
-  const recordingStatus = listening
+  // SAY IT IS SENDING. Nikk (4905): "the text below should be message is
+  // currently sending please wait". It said "Ready to send" all the way
+  // through a send, so a slow one looked like a press that did nothing.
+  const recordingStatus = sending
+    ? "Sending… please wait\n✕ stops it"
+    : listening
     ? alwaysOn
       ? "● Listening — sending as you speak"
       : "● Recording\n◼ sends   ✕ cancels"
@@ -1512,13 +1526,19 @@ export function RoomControls({
     (newVersion ? "A new version is ready — settings ⚙ to load it" : null);
   /** Something a cancel button can throw away: a recording, words waiting, or a written draft. */
   const cancellable =
-    !sending &&
-    saying !== "writing" &&
+    sending ||
+    (saying !== "writing" &&
     (listening ||
       heardWaiting ||
       saying === "recording" ||
-      (!capabilities.recognition && written.trim() !== "" && !keyboardFocused));
+      (!capabilities.recognition && written.trim() !== "" && !keyboardFocused)));
   const cancel = () => {
+    // A SEND IN FLIGHT STOPS, and what was said stays ready to send again.
+    if (sending) {
+      sendStop.current?.abort();
+      flash("Stopped — press send to try again.");
+      return;
+    }
     if (capabilities.recognition) {
       input.current?.cancel();
       setHeard("");
