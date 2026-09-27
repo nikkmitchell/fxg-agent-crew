@@ -25,6 +25,7 @@ import { AgentBodies, registerBodyRoutes } from "./space/bodies.js";
 import { AgentVoices, registerVoiceRoutes } from "./space/voices.js";
 import { registerIceRoutes } from "./space/ice.js";
 import { registerGuideRoutes, voiceAllGuides } from "./space/guides.js";
+import { registerBowlRoutes } from "./space/bowl.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
 import { BodyFiles, registerBodyFileRoutes } from "./space/body-files.js";
@@ -416,6 +417,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       meditations: roomMeditations,
       present: (room) => hubFor(room).presence.everyone().filter((one) => one.connected).map((one) => one.actorId),
       announce: (room, meditation) => hubFor(room).broadcast({ type: "meditation", meditation }),
+    });
+    registerBowlRoutes(scoped, {
+      config,
+      sessions,
+      announce: (room, strike) => hubFor(room).broadcast({ type: "bowl", strike }),
     });
     itemRoutes = registerRoomItemRoutes(scoped, {
       config,
