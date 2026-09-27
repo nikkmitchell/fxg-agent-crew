@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { ROOM, WORLD, facingFor, type Vec3 } from "../../shared/space-layout";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
+import { clearSelfPose, selfPose } from "./self-pose";
 import { goHandInput, clearGoHands } from "./go-hand-input";
 import {
   classifyMicHand,
@@ -210,6 +211,7 @@ export function ImmersivePlayer({
   useEffect(() => () => {
     clearGoHands();
     clearMicGestureHands();
+    clearSelfPose();
   }, []);
   /** When this person last touched each agent, so a resting hand is one touch. */
   const lastTouch = useRef(new Map<string, number>());
@@ -878,6 +880,13 @@ export function ImmersivePlayer({
         micGestureHands[side] = null;
       }
     }
+    // Every frame, for the lobby's mirror (self-pose.ts): the room only hears
+    // the tenth-of-a-second version below.
+    selfPose.head = head;
+    selfPose.hands.left = liveLeft;
+    selfPose.hands.right = liveRight;
+    selfPose.fingers.left = held.current.left.pose?.f;
+    selfPose.fingers.right = held.current.right.pose?.f;
     if (now - lastSent.current < 100) return;
     lastSent.current = now;
     held.current.left = heldHand(held.current.left, withFingers(liveLeft, leftHand, held.current.left, frame), now, undefined, head);

@@ -1,6 +1,6 @@
 import type { RoomSummary } from "./contracts.js";
 import { roomKey } from "./space-room.js";
-import { bodyKey } from "./avatar-choice.js";
+import { WITHDRAWN_BODIES, bodyKey } from "./avatar-choice.js";
 
 /**
  * THE LOBBY IS A FRONT HALL, NOT A WORKROOM.
@@ -84,7 +84,7 @@ export function wearables(
   catalogue: readonly { name: string; thumbnail?: string }[],
   onHand: readonly { slug: string; catalogue: string | null }[] = [],
 ): Wearable[] {
-  const canServe = new Set(ready.map(bodyKey));
+  const canServe = new Set(ready.map(bodyKey).filter((key) => !WITHDRAWN_BODIES.has(key)));
   const found = new Map<string, Wearable>();
   for (const body of catalogue) {
     const key = bodyKey(body.name);

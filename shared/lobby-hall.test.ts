@@ -47,6 +47,10 @@ describe("pages", () => {
 });
 
 describe("the wardrobe stand", () => {
+  it("never offers a body taken off the list, even when the server has it (Nikk, 5244)", () => {
+    expect(wearables(["coolpoo", "abissaldude"], [{ name: "CoolPoo" }, { name: "AbissalDude" }]).map((one) => one.key)).toEqual(["abissaldude"]);
+  });
+
   it("offers only what this server can serve, by catalogue name, in name order", () => {
     const catalogue = [
       { name: "Zebra Man", thumbnail: "x" },

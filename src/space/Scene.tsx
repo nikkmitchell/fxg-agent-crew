@@ -749,7 +749,6 @@ export default function Scene({
             currentRoom={spaceRoomName}
             roster={connection.roster}
             peopleRef={connection.peopleRef}
-            reducedMotion={reducedMotion}
             onSwitchRoom={onSwitchRoom}
           />
         ) : null}

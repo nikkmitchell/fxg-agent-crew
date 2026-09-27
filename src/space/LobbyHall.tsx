@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
+import { useFrame, useThree } from "@react-three/fiber";
+import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import type { RoomSummary } from "../../shared/contracts";
 import type { WirePerson } from "../../shared/space-wire";
 import { ROOM } from "../../shared/space-layout";
@@ -12,6 +14,7 @@ import { base } from "../router";
 import { avatarRecipe } from "../avatar";
 import { WristButton } from "./Backdrop";
 import { VrmBody } from "./VrmBody";
+import { selfPose } from "./self-pose";
 
 /**
  * THE LOBBY AS A FRONT HALL (shared/lobby-hall.ts has Nikk's words and the
@@ -21,25 +24,35 @@ import { VrmBody } from "./VrmBody";
  *   ahead      a big panel of doors, one per room: yours (private ones too)
  *              and every public room on webharness.chat. A tap takes you
  *              there without leaving the headset, joining first if needed.
- *   left       you, as everybody else sees you, idling on the spot.
+ *   left       a MIRROR on the wall, like VRChat's (Nikk, 5238: "an actual
+ *              like mirror on the wall that shows a mirror image of you as
+ *              well as any other humans or agents who are in the room ...
+ *              with their movements reversed"). It draws the room again from
+ *              the reflected viewpoint, so everybody in it is there, live.
  *   right      the wardrobe: every body this server can serve, with its
- *              picture. A tap puts it on, and the figure on the left changes.
+ *              picture. A tap puts it on, and your reflection changes.
  *
  * Buttons are the room's own WristButton, so a ray, a hand and a mouse all
  * press them the way they press the settings menu.
  */
 /**
- * AN ARC 2.5 m FROM WHERE PEOPLE ARRIVE: the doors straight ahead, you 32
- * degrees to the left, the wardrobe 32 to the right, so a window's view and
- * a headset's glance both take in all three.
+ * AN ARC FROM WHERE PEOPLE ARRIVE: the doors straight ahead, the mirror 52
+ * degrees to the left and the wardrobe 52 to the right. At 32 degrees the
+ * wardrobe overlapped the doors (Nikk, 5238); a headset turns its head.
  */
 const around = (degrees: number, metres = 2.5) => ({
   x: ROOM.spawn.x + Math.sin((degrees * Math.PI) / 180) * metres,
   z: ROOM.spawn.z - Math.cos((degrees * Math.PI) / 180) * metres,
 });
 const DOORS = { at: [ROOM.spawn.x, 0, ROOM.spawn.z - 2.5] as const, columns: 4, rows: 2, width: 0.52, height: 0.56, gap: 0.08, top: 1.72 };
-const FIGURE_AT = around(-32);
-const WARDROBE = { at: around(32), columns: 4, rows: 3, thumb: { width: 0.16, height: 0.24 }, top: 1.86 };
+const MIRROR = { at: around(-52, 2.7), width: 2.2, height: 2.3, bottom: 0.05 };
+/**
+ * The layer only the mirror sees: your own body. Your eyes must not see it (in
+ * a headset it would sit round your head), and the mirror must. 1 and 2 are
+ * three.js's left and right eye; this is well clear of them.
+ */
+const MIRROR_ONLY = 10;
+const WARDROBE = { at: around(52), columns: 4, rows: 3, thumb: { width: 0.16, height: 0.24 }, top: 1.86 };
 
 /** Turned to face where people arrive, like everything else in the hall. */
 const facingSpawn = (x: number, z: number) => Math.atan2(ROOM.spawn.x - x, ROOM.spawn.z - z);
@@ -51,7 +64,6 @@ export function LobbyHall({
   currentRoom,
   roster,
   peopleRef,
-  reducedMotion,
   onSwitchRoom,
 }: {
   you: string | null;
@@ -60,7 +72,6 @@ export function LobbyHall({
   roster: readonly { actorId: string; body?: string | null }[];
   /** Everybody in full, as of the last snapshot. */
   peopleRef: RefObject<WirePerson[]>;
-  reducedMotion: boolean;
   onSwitchRoom: (roomName: string) => Promise<void>;
 }) {
   const [mine, setMine] = useState<RoomSummary[] | null>(null);
@@ -155,11 +166,11 @@ export function LobbyHall({
         {notice ? <WristButton label={notice} y={0.28} width={2.2} height={0.1} tone="muted" onTap={() => setNotice(null)} /> : null}
       </group>
 
-      {/* YOU, as everybody else sees you. */}
-      <group position={[FIGURE_AT.x, 0, FIGURE_AT.z]} rotation={[0, facingSpawn(FIGURE_AT.x, FIGURE_AT.z), 0]}>
-        {me ? <Figure actorId={me.actorId} body={me.body ?? null} peopleRef={peopleRef} reducedMotion={reducedMotion} /> : null}
-        <WristButton label={me ? `You${me.body ? ` · ${me.body}` : ""}` : "You"} y={2.05} width={0.8} height={0.1} tone="muted" onTap={() => {}} />
+      {/* THE MIRROR, and you, drawn for it alone. */}
+      <group position={[MIRROR.at.x, 0, MIRROR.at.z]} rotation={[0, facingSpawn(MIRROR.at.x, MIRROR.at.z), 0]}>
+        <Mirror />
       </group>
+      {me ? <SelfForMirror actorId={me.actorId} body={me.body ?? null} peopleRef={peopleRef} /> : null}
 
       {/* THE WARDROBE: every body this server can serve. */}
       <group position={[WARDROBE.at.x, 0, WARDROBE.at.z]} rotation={[0, facingSpawn(WARDROBE.at.x, WARDROBE.at.z), 0]}>
@@ -296,50 +307,125 @@ function useThumb(url: string | null): THREE.Texture | null {
 }
 
 /**
- * You, standing still: the body you wear, idling, with no head or hands
- * reported, so it moves the way an untracked person does rather than copying
- * your headset from two metres away.
+ * A mirror on the wall: a frame, and three.js's Reflector, which draws the room
+ * again from the viewpoint reflected in the glass, once per eye in a headset.
+ * Its cameras also see MIRROR_ONLY, which is how you appear in it.
+ *
+ * NOT FREE: it draws the room a second time whenever you face it, which is why
+ * only the lobby has one, and why its picture is 1024 pixels wide with no
+ * multisampling rather than the default.
  */
-function Figure({
+function Mirror() {
+  const reflector = useMemo(() => {
+    const glass = new Reflector(new THREE.PlaneGeometry(MIRROR.width, MIRROR.height), {
+      textureWidth: 1024,
+      textureHeight: Math.round((1024 * MIRROR.height) / MIRROR.width),
+      color: 0xc4c8d0,
+      multisample: 0,
+      clipBias: 0.003,
+    });
+    const cameraFor = glass.getReflectionCamera.bind(glass);
+    glass.getReflectionCamera = (camera) => {
+      const reflected = cameraFor(camera);
+      reflected.layers.enable(MIRROR_ONLY);
+      return reflected;
+    };
+    return glass;
+  }, []);
+  useEffect(() => () => {
+    reflector.geometry.dispose();
+    reflector.dispose();
+  }, [reflector]);
+  const middle = MIRROR.bottom + MIRROR.height / 2;
+  return (
+    <group>
+      <mesh position={[0, middle, -0.02]} raycast={() => null}>
+        <boxGeometry args={[MIRROR.width + 0.1, MIRROR.height + 0.1, 0.03]} />
+        <meshStandardMaterial color="#2b2f38" roughness={0.6} metalness={0.3} />
+      </mesh>
+      <primitive object={reflector} position={[0, middle, 0]} />
+    </group>
+  );
+}
+
+/**
+ * YOU, AS THE MIRROR SEES YOU: your body, where you are, moving as you move.
+ *
+ * In a headset it follows what the headset measured THIS frame (self-pose.ts),
+ * head and both hands, fingers as last read; in a window, where you are and
+ * which way you face, idling. Drawn only on MIRROR_ONLY, so nobody sees it
+ * but the mirror, and it never snaps behind or eases: it is you.
+ */
+function SelfForMirror({
   actorId,
   body,
   peopleRef,
-  reducedMotion,
 }: {
   actorId: string;
   body: string | null;
   peopleRef: RefObject<WirePerson[]>;
-  reducedMotion: boolean;
 }) {
   const recipe = useMemo(() => avatarRecipe(actorId), [actorId]);
+  const camera = useThree((state) => state.camera);
+  const holder = useRef<THREE.Group>(null);
+  const scratch = useMemo(() => ({ p: new THREE.Vector3(), q: new THREE.Quaternion(), e: new THREE.Euler(0, 0, 0, "YXZ") }), []);
   const live = useCallback((): WirePerson | null => {
     const person = peopleRef.current?.find((one) => one.actorId === actorId);
     if (!person) return null;
+    const head = selfPose.head;
+    if (head) {
+      scratch.q.set(head.q.x, head.q.y, head.q.z, head.q.w);
+      scratch.e.setFromQuaternion(scratch.q, "YXZ");
+      const hand = (side: "left" | "right") => {
+        const pose = selfPose.hands[side];
+        const f = selfPose.fingers[side];
+        return pose ? (f ? { ...pose, f: [...f] } : pose) : null;
+      };
+      return {
+        ...person,
+        at: { x: head.p.x, y: 0, z: head.p.z },
+        facing: scratch.e.y,
+        head,
+        hands: { left: hand("left"), right: hand("right") },
+        moving: false,
+      };
+    }
+    camera.getWorldPosition(scratch.p);
+    camera.getWorldQuaternion(scratch.q);
+    scratch.e.setFromQuaternion(scratch.q, "YXZ");
     return {
       ...person,
-      at: { x: 0, y: 0, z: 0 },
-      // The body faces its own -Z; the group turns it to face arrivals.
-      facing: Math.PI,
+      at: { x: scratch.p.x, y: 0, z: scratch.p.z },
+      facing: scratch.e.y,
       head: null,
       hands: { left: null, right: null },
       moving: false,
-      attending: null,
     };
-  }, [actorId, peopleRef]);
+  }, [actorId, camera, peopleRef, scratch]);
+  // For the mirror alone. Set every frame because the model loads, and is
+  // replaced, after this mounts; setting a mask that is already set is free.
+  useFrame(() => {
+    holder.current?.traverse((part) => {
+      if (part.layers.mask !== 1 << MIRROR_ONLY) part.layers.set(MIRROR_ONLY);
+    });
+  });
   const [failed, setFailed] = useState(false);
   const onFailed = useCallback(() => setFailed(true), []);
   useEffect(() => setFailed(false), [body]);
   if (failed) return null;
   return (
-    <VrmBody
-      actorId={actorId}
-      body={body}
-      live={live}
-      recipe={recipe}
-      reducedMotion={reducedMotion}
-      onFailed={onFailed}
-      speaking={false}
-      agent={false}
-    />
+    <group ref={holder}>
+      <VrmBody
+        actorId={actorId}
+        body={body}
+        live={live}
+        recipe={recipe}
+        // Snapped, never eased: a reflection that trails you is not one.
+        reducedMotion
+        onFailed={onFailed}
+        speaking={false}
+        agent={false}
+      />
+    </group>
   );
 }
