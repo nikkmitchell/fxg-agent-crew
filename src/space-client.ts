@@ -1,6 +1,7 @@
 import type { Helper } from "../shared/helpers";
 import type { Garden, GardenChange, GardenEvent } from "../shared/garden";
 import type { Mandala, MandalaChange, MandalaEvent } from "../shared/mandala";
+import type { Lantern } from "../shared/lantern";
 import { actOnItem } from "./space/item-socket";
 import { requestJson } from "./api-request";
 import { base } from "./router";
@@ -166,6 +167,10 @@ export const space = {
   mandala: () => requestJson<{ mandala: Mandala }>(`${root}/mandala`),
   changeMandala: (change: MandalaChange) =>
     requestJson<{ event: MandalaEvent }>(`${root}/mandala`, { method: "POST", body: JSON.stringify(change) }),
+  /** The lanterns in this room's sky, and releasing one: see shared/lantern.ts. */
+  lanterns: () => requestJson<{ lanterns: Lantern[]; now: number }>(`${root}/lanterns`),
+  releaseLantern: (word: string) =>
+    requestJson<{ lantern: Lantern; now: number }>(`${root}/lanterns`, { method: "POST", body: JSON.stringify({ word }) }),
   /** The prayer wheel's count, and a push of it for everyone: see shared/wheel.ts. */
   wheel: () => requestJson<{ turns: number }>(`${root}/wheel`),
   pushWheel: (strength: number) => requestJson<{ push: unknown }>(`${root}/wheel`, { method: "POST", body: JSON.stringify({ strength }) }),

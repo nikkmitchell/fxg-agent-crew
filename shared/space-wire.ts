@@ -4,6 +4,7 @@ import type { GardenEvent } from "./garden.js";
 import type { Offering } from "./fire.js";
 import type { MandalaEvent } from "./mandala.js";
 import type { WheelPush } from "./wheel.js";
+import type { Lantern } from "./lantern.js";
 import type { Meditation } from "./meditation.js";
 /**
  * What travels over the space socket.
@@ -270,6 +271,8 @@ export type ServerMessage =
   | { type: "mandala"; event: MandalaEvent }
   /** Somebody pushed the prayer wheel: see shared/wheel.ts. */
   | { type: "wheel"; push: WheelPush }
+  /** Somebody released a lantern: see shared/lantern.ts. */
+  | { type: "lantern"; lantern: Lantern }
   /** Agents' helpers changed: see shared/helpers.ts. Never people. */
   | { type: "helpers"; helpers: Record<string, Helper[]> }
   | { type: "roomItems"; items: RoomItem[]; by: string }
