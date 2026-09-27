@@ -38,6 +38,7 @@ export const ROOM_GUIDE: readonly GuideEntry[] = [
   { name: "Prayer wheel", x: -3.6, z: 4.5, what: "push it round" },
   { name: "Wind chimes", x: 0.9, z: 7.2, what: "walk under them" },
   { name: "Fireflies", x: -2.9, z: 6.3, what: "hold a hand still" },
+  { name: "Mala", x: -1.6, z: 0.3, what: "count 108 breaths" },
 ];
 
 /**

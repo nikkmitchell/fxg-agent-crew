@@ -60,6 +60,7 @@ import { IncenseBowl } from "./IncenseBowl";
 import { HoldTheLight } from "./HoldTheLight";
 import { IkebanaVase } from "./IkebanaVase";
 import { Fireflies } from "./Fireflies";
+import { MalaStand } from "./MalaStand";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
@@ -920,6 +921,8 @@ export default function Scene({
         {connection.meditation?.shown && <IkebanaVase />}
         {/* And fireflies that land on a still hand: see Fireflies.tsx. */}
         {connection.meditation?.shown && <Fireflies peopleRef={connection.peopleRef} you={you} />}
+        {/* And a mala for counting: see MalaStand.tsx. */}
+        {connection.meditation?.shown && <MalaStand />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
