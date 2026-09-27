@@ -268,6 +268,8 @@ export type ServerMessage =
   | { type: "bowl"; strike: BowlStrike }
   /** The room's sand garden changed: see shared/garden.ts. */
   | { type: "garden"; event: GardenEvent }
+  /** A shared mindfulness card changed; clients refetch with their own delete rights. */
+  | { type: "mindfulnessPageChanged" }
   /** Somebody gave the ember fire a word: see shared/fire.ts. Not kept. */
   | { type: "fire"; offering: Offering }
   /** The sand mandala changed: see shared/mandala.ts. */
