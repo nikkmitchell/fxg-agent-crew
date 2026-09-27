@@ -517,3 +517,13 @@ export function leafColour(index: number, fed: readonly TreeColour[]): string | 
   const after = fed.filter((one) => index >= one.fromLeaf);
   return after.length === 0 ? null : after[index % after.length].colour;
 }
+
+/**
+ * THE ORB BREATHES WHEN NOBODY HAS STARTED IT. Somebody arriving can breathe
+ * along without pressing anything: CALM, on the clock from a fixed origin, so
+ * every idle orb in every headset breathes in step. Only how full it is.
+ */
+export function idleBreath(now: number): { phase: BreathStep["phase"]; fullness: number } {
+  const at = breathAt({ ...idleMeditation(), pattern: "calm", minutes: 10, startedAt: now - (now % 600_000) }, now);
+  return at.state === "breathing" ? { phase: at.phase, fullness: at.fullness } : { phase: "rest", fullness: 0.35 };
+}

@@ -226,3 +226,13 @@ describe("feeding the tree", () => {
     expect(parseMeditation(fed)?.treeColours).toHaveLength(2);
   });
 });
+
+describe("the idle orb", () => {
+  it("breathes CALM on its own, the same for everyone at the same moment", async () => {
+    const { idleBreath } = await import("./meditation.js");
+    const t = 1_790_000_000_000;
+    expect(idleBreath(t)).toEqual(idleBreath(t));
+    const seen = new Set([0, 2_000, 5_000, 8_000].map((dt) => idleBreath(t + dt).phase));
+    expect(seen.has("in") && seen.has("out")).toBe(true);
+  });
+});

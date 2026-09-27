@@ -3,7 +3,7 @@ import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  MINUTES, PATTERNS, PATTERN_IDS, breathAt, rippleAt, patternNote, clockOffset, clockText, doneLine,
+  MINUTES, PATTERNS, PATTERN_IDS, breathAt, idleBreath, rippleAt, patternNote, clockOffset, clockText, doneLine,
   type Meditation, type MeditationChange,
 } from "../../shared/meditation";
 import { space } from "../space-client";
@@ -194,9 +194,11 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
 
   useFrame(() => {
     const at = breathAt(meditation, now());
-    const fullness = at.state === "breathing" ? at.fullness : at.state === "idle" ? 0.35 : 0;
+    // Idle, the orb still breathes gently (idleBreath), a little smaller than a session.
+    const idle = at.state === "idle" && !reducedMotion ? idleBreath(now()) : null;
+    const fullness = at.state === "breathing" ? at.fullness : idle ? 0.15 + 0.4 * idle.fullness : at.state === "idle" ? 0.35 : 0;
     fullnessNow.current = fullness;
-    const colour = phaseColour.set(PHASE_COLOUR[at.state === "breathing" ? at.phase : "rest"]);
+    const colour = phaseColour.set(PHASE_COLOUR[at.state === "breathing" ? at.phase : idle ? idle.phase : "rest"]);
     const radius = SMALL + (LARGE - SMALL) * (reducedMotion ? Math.round(fullness) : fullness);
     core.current?.scale.setScalar(radius);
     (core.current?.material as THREE.MeshBasicMaterial | undefined)?.color.copy(colour);
@@ -258,7 +260,7 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
     const second = at.state === "breathing" ? `${at.words}${at.secondsLeft}${Math.ceil(at.remaining)}${at.paused}` : at.state;
     if (second !== lastSecond.current) { lastSecond.current = second; redraw((n) => n + 1); }
     // The scene draws on demand; a breath is motion, so keep asking while it runs.
-    if (at.state === "breathing" && !at.paused) invalidate();
+    if ((at.state === "breathing" && !at.paused) || idle) invalidate();
   });
 
   const running = breath.state === "breathing";
