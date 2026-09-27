@@ -243,6 +243,26 @@ export const READINGS = {
       "yet, never, in extremity, it asked a crumb of me.",
     ],
   },
+  retreat: {
+    title: "A retreat into yourself",
+    by: "Marcus Aurelius, Meditations 4.3 (tr. George Long, 1862)",
+    lines: [
+      "Men seek retreats for themselves, houses in the country, sea-shores, and mountains;",
+      "and thou too art wont to desire such things very much.",
+      "But this is altogether a mark of the most common sort of men,",
+      "for it is in thy power whenever thou shalt choose to retire into thyself.",
+    ],
+  },
+  woods: {
+    title: "To live deliberately",
+    by: "Henry David Thoreau, Walden (1854)",
+    lines: [
+      "I went to the woods because I wished to live deliberately,",
+      "to front only the essential facts of life,",
+      "and see if I could not learn what it had to teach,",
+      "and not, when I came to die, discover that I had not lived.",
+    ],
+  },
   "summer-grass": {
     title: "A spear of summer grass",
     by: "Walt Whitman, Song of Myself (1855)",
