@@ -177,3 +177,27 @@ describe("the candle shelf", () => {
     expect(parseMeditation({ candles: [{ by: "a", for: "", litAt: 5 }, { by: "b" }] })?.candles).toEqual([{ by: "a", for: "", litAt: 5 }]);
   });
 });
+
+describe("the room's book", () => {
+  it("writes a line when a session ends, with what it was, for how long and how many, but no names", async () => {
+    const { sessionRecord } = await import("./meditation.js");
+    const running = { ...idleMeditation(), startedAt: 0, minutes: 5, guide: "arrive" as const, together: ["a", "b"] };
+    expect(sessionRecord(running, 120_000)).toEqual({ at: 0, what: "ARRIVE", minutes: 2, people: 2 });
+    const ended = applyMeditation(running, { action: "end" }, "a", 180_000) as Meditation;
+    expect(ended.history).toEqual([{ at: 0, what: "ARRIVE", minutes: 3, people: 2 }]);
+    expect(JSON.stringify(ended.history)).not.toContain("\"a\"");
+  });
+
+  it("skips a session that barely began, and keeps only the latest ten", async () => {
+    const { BOOK_LENGTH } = await import("./meditation.js");
+    const brief = applyMeditation({ ...idleMeditation(), startedAt: 0, minutes: 5 }, { action: "end" }, "a", 10_000) as Meditation;
+    expect(brief.history).toEqual([]);
+    let book = idleMeditation();
+    for (let n = 0; n < BOOK_LENGTH + 3; n += 1) {
+      book = applyMeditation(book, { action: "start" }, "a", n * 600_000) as Meditation;
+      book = applyMeditation(book, { action: "end" }, "a", n * 600_000 + 120_000) as Meditation;
+    }
+    expect(book.history).toHaveLength(BOOK_LENGTH);
+    expect(book.history.at(-1)?.at).toBe((BOOK_LENGTH + 2) * 600_000);
+  });
+});
