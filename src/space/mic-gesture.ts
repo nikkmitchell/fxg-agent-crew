@@ -31,6 +31,10 @@ export type MicGestureState =
       phase: "recording";
       side: MicGestureSide | null;
       rotation: MicGestureHand["wrist"]["q"] | null;
+      /** The hand's own directions when recording began: see chopOf. */
+      frame?: HandFrame | null;
+      /** Turned or tipped the wrong way long enough to cancel: see MIC_GESTURE_WRONG_WAY. */
+      wrongSince?: number | null;
       fistSince: number | null;
       missingSince: number | null;
     }
@@ -48,6 +52,53 @@ function rotationDistance(a: MicGestureHand["wrist"]["q"], b: MicGestureHand["wr
   const dot = Math.abs((a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w) / (aLength * bLength));
   return 2 * Math.acos(Math.min(1, dot));
 }
+
+/** Where the fingers point and which way the palm faces, both unit vectors. */
+export type HandFrame = { fingers: Point; palm: Point };
+type Point = { x: number; y: number; z: number };
+const dot = (a: Point, b: Point) => a.x * b.x + a.y * b.y + a.z * b.z;
+const minus = (a: Point, b: Point, k: number): Point => ({ x: a.x - b.x * k, y: a.y - b.y * k, z: a.z - b.z * k });
+const unit = (a: Point): Point | null => {
+  const length = Math.hypot(a.x, a.y, a.z);
+  return length > 1e-6 ? { x: a.x / length, y: a.y / length, z: a.z / length } : null;
+};
+const angleBetween = (a: Point, b: Point) => Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
+
+export function handFrame(hand: MicGestureHand): HandFrame | null {
+  const fingers = unit(hand.fingerDirection);
+  const palm = hand.palmNormal ? unit(hand.palmNormal) : null;
+  return fingers && palm ? { fingers, palm } : null;
+}
+
+/**
+ * HOW THE HAND HAS MOVED SINCE RECORDING BEGAN, in three parts, radians.
+ *
+ * Nikk (5135): "the message sent ... should only happen when you make a
+ * downward karate chop motion ... if you rotate your hand to either side it
+ * should cancel". Any 30° of wrist rotation used to send. Measured from the
+ * hand itself — where the fingers point, which way the palm faces:
+ *
+ *   chop   the flat hand swinging within its own plane, fingertips tipping
+ *          forward and down: fingers move, the palm keeps facing the same way.
+ *   turn   the hand turning left or right about the fingers (for an upright
+ *          hand, about the vertical): the fingers stay, the palm swings round.
+ *   tip    the fingers leaning over toward the palm side or the back.
+ */
+export function chopOf(start: HandFrame, now: HandFrame): { chop: number; turn: number; tip: number } {
+  const tip = Math.asin(Math.min(1, Math.abs(dot(now.fingers, start.palm))));
+  const inPlane = unit(minus(now.fingers, start.palm, dot(now.fingers, start.palm)));
+  const chop = inPlane ? angleBetween(start.fingers, inPlane) : 0;
+  const palmThen = unit(minus(start.palm, start.fingers, dot(start.palm, start.fingers)));
+  const palmNow = unit(minus(now.palm, start.fingers, dot(now.palm, start.fingers)));
+  const turn = palmThen && palmNow ? angleBetween(palmThen, palmNow) : 0;
+  return { chop, turn, tip };
+}
+
+/** A chop must clearly outweigh any turn or tip to send. */
+const CHOP_DOMINANCE = 1.5;
+/** Turned or tipped this far the wrong way, for this long, cancels. */
+export const MIC_GESTURE_WRONG_WAY_RADIANS = (30 * Math.PI) / 180;
+export const MIC_GESTURE_WRONG_WAY_MS = 150;
 
 /**
  * What the start pose is judged on, measured, so a start that should not have
@@ -159,6 +210,8 @@ function activeRecording(
     phase: "recording",
     side,
     rotation: hand.wrist.q,
+    frame: handFrame(hand),
+    wrongSince: null,
     fistSince,
     missingSince: null,
   };
@@ -195,6 +248,8 @@ export function stepMicGesture(
           phase: "recording",
           side: previous.side,
           rotation: previous.rotation,
+          frame: hand ? handFrame(hand) : null,
+          wrongSince: null,
           fistSince: null,
           missingSince: hand ? null : now,
         },
@@ -255,12 +310,30 @@ export function stepMicGesture(
       return { state: { ...previous, fistSince, missingSince: null }, outlineSide: previous.side, closing: 1 };
     }
 
-    const tilt = rotationDistance(previous.rotation, hand.wrist.q);
-    if (tilt >= MIC_GESTURE_TILT_RADIANS - 1e-6) {
+    // The reference pose, taken on the first frame the hand is seen if it was
+    // not seen when recording began.
+    const frame = previous.frame ?? handFrame(hand);
+    const current = handFrame(hand);
+    if (!frame || !current) {
+      return { state: { ...previous, frame, fistSince: null, missingSince: null }, outlineSide: previous.side, tilt: 0, closing: hand.closedness ?? 0 };
+    }
+    const { chop, turn, tip } = chopOf(frame, current);
+    const wrongWay = Math.max(turn, tip);
+    if (chop >= MIC_GESTURE_TILT_RADIANS - 1e-6 && chop >= wrongWay * CHOP_DOMINANCE) {
       return { state: { phase: "ending", side: previous.side }, action: "finish", outlineSide: previous.side, tilt: 1 };
     }
+    // TURNED OR TIPPED, NOT CHOPPED: the words are thrown away (Nikk 5135).
+    // Held briefly, so one bad tracking frame cannot cancel a recording.
+    if (wrongWay >= MIC_GESTURE_WRONG_WAY_RADIANS) {
+      const wrongSince = previous.wrongSince ?? now;
+      if (now - wrongSince >= MIC_GESTURE_WRONG_WAY_MS) {
+        return { state: { phase: "ending", side: previous.side }, action: "cancel", outlineSide: previous.side, closing: 1 };
+      }
+      return { state: { ...previous, frame, wrongSince, fistSince: null, missingSince: null }, outlineSide: previous.side, tilt: 0, closing: wrongWay / (MIC_GESTURE_WRONG_WAY_RADIANS * 2) };
+    }
+    const tilt = chop;
     return {
-      state: { ...previous, fistSince: null, missingSince: null },
+      state: { ...previous, frame, wrongSince: null, fistSince: null, missingSince: null },
       outlineSide: previous.side,
       // Both, separately: the bar brightens toward the tilt that sends and
       // fades toward the fist that drops (MicGestureBar).

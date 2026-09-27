@@ -16,20 +16,34 @@ const identity = { x: 0, y: 0, z: 0, w: 1 };
 // The head 0.4 m behind and 0.3 m above the hand, facing -z: the hand is in
 // front of the face. The palm normal is +x: edge-on and facing in, like a
 // praying hand (see palmIn).
-const openHand = (rotation = identity, x = 0): MicGestureHand => ({
+type Q = { x: number; y: number; z: number; w: number };
+type V = { x: number; y: number; z: number };
+/** v turned by the unit quaternion q. */
+const turn = (q: Q, v: V): V => {
+  const tx = 2 * (q.y * v.z - q.z * v.y), ty = 2 * (q.z * v.x - q.x * v.z), tz = 2 * (q.x * v.y - q.y * v.x);
+  return { x: v.x + q.w * tx + (q.y * tz - q.z * ty), y: v.y + q.w * ty + (q.z * tx - q.x * tz), z: v.z + q.w * tz + (q.x * ty - q.y * tx) };
+};
+// The fingers and the palm turn WITH the wrist, as a real hand's do.
+const openHand = (rotation: Q = identity, x = 0): MicGestureHand => ({
   wrist: { p: { x, y: 1, z: 0 }, q: rotation },
-  fingerDirection: { x: 0, y: 1, z: 0 },
+  fingerDirection: turn(rotation, { x: 0, y: 1, z: 0 }),
   shape: "open",
   joints: [],
   straight: true,
-  palmNormal: { x: 1, y: 0, z: 0 },
+  palmNormal: turn(rotation, { x: 1, y: 0, z: 0 }),
   head: { p: { x: 0, y: 1.3, z: 0.4 }, q: identity },
   closed: false,
   closedness: 0,
 });
 const fistHand = (rotation = identity): MicGestureHand => ({ ...openHand(rotation), shape: "fist", closed: true, closedness: 1 });
 const hands = (right: MicGestureHand | null, left: MicGestureHand | null = null): MicGestureHands => ({ left, right });
+// About x, the palm normal: the flat hand swings in its own plane, fingertips
+// tipping forward and down. A chop.
 const rotationBy = (radians: number) => ({ x: Math.sin(radians / 2), y: 0, z: 0, w: Math.cos(radians / 2) });
+// About y, the fingers of an upright hand: turning left or right.
+const turnBy = (radians: number) => ({ x: 0, y: Math.sin(radians / 2), z: 0, w: Math.cos(radians / 2) });
+// About z: the fingers leaning over toward the palm side.
+const tipBy = (radians: number) => ({ x: 0, y: 0, z: Math.sin(radians / 2), w: Math.cos(radians / 2) });
 
 function startGesture(hand: MicGestureHand = openHand()) {
   const first = stepMicGesture(IDLE_MIC_GESTURE, hands(hand), false, 1_000);
@@ -70,6 +84,31 @@ describe("mic hand gesture", () => {
     expect(finished.action).toBe("finish");
     expect(finished.state.phase).toBe("ending");
     expect(stepMicGesture(finished.state, hands(openHand()), true, 2_100).action).toBeUndefined();
+  });
+
+  /** Nikk (5135): only a downward chop sends; turning to either side cancels. */
+  it("sends only on a chop, and cancels when the hand turns left or right or tips over instead", () => {
+    const deg = (d: number) => (d * Math.PI) / 180;
+    // Turning 40° either way does not send: it throws the words away, once held.
+    for (const way of [1, -1]) {
+      const state = startGesture();
+      const turned = stepMicGesture(state, hands(openHand(turnBy(way * deg(40)))), true, 2_000);
+      expect(turned.action).toBeUndefined();
+      expect(stepMicGesture(turned.state, hands(openHand(turnBy(way * deg(40)))), true, 2_200).action).toBe("cancel");
+    }
+    // Tipping sideways cancels too.
+    const tipped = stepMicGesture(startGesture(), hands(openHand(tipBy(deg(40)))), true, 2_000);
+    expect(stepMicGesture(tipped.state, hands(openHand(tipBy(deg(40)))), true, 2_200).action).toBe("cancel");
+    // A single wrong-way frame is not enough: tracking blinks.
+    const blink = stepMicGesture(startGesture(), hands(openHand(turnBy(deg(40)))), true, 2_000);
+    const back = stepMicGesture(blink.state, hands(openHand()), true, 2_050);
+    expect(back.action).toBeUndefined();
+    expect(stepMicGesture(back.state, hands(openHand(rotationBy(deg(35)))), true, 2_300).action).toBe("finish");
+    // A small turn while chopping still sends.
+    const wobble = { ...rotationBy(deg(35)) };
+    const mixed = openHand(wobble);
+    const sent = stepMicGesture(startGesture(), hands({ ...mixed, palmNormal: turn(turnBy(deg(8)), mixed.palmNormal!) }), true, 2_000);
+    expect(sent.action).toBe("finish");
   });
 
   it("cancels with a held fist, not on a short fist-like tracking sample", () => {
