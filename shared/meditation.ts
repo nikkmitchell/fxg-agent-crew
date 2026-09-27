@@ -109,8 +109,35 @@ export type Meditation = {
    * the oldest drift away, and a writer can take back their latest.
    */
   intentions: Intention[];
+  /**
+   * THE STILLNESS TREE's soil: every minute anybody has breathed here with
+   * the orb, times how many breathed together. Added when a session ends or
+   * the next one starts; it only ever grows (see treeOf).
+   */
+  breathedMinutes: number;
   revision: number;
 };
+
+/** Minutes this session has been breathed, times the people who breathed it. */
+export function minutesBreathed(session: Meditation, now: number): number {
+  if (session.startedAt === null) return 0;
+  const seconds = Math.min(session.minutes * 60, Math.max(0, ((session.pausedAt ?? now) - session.startedAt) / 1000));
+  return (seconds / 60) * Math.max(1, session.together.length);
+}
+
+/** What the tree looks like after this many minutes breathed together. */
+export function treeOf(minutes: number): { branches: number; leaves: number; blossoms: number; height: number } {
+  const m = Math.max(0, minutes);
+  return {
+    // A sapling to begin with; a ring of branches every 30 minutes, up to six.
+    branches: Math.min(6, Math.floor(m / 30)),
+    // A leaf for every 5 minutes, up to 120.
+    leaves: Math.min(120, Math.floor(m / 5)),
+    // Blossoms after 10 hours, one more per hour after that, up to 40.
+    blossoms: m < 600 ? 0 : Math.min(40, Math.floor((m - 600) / 60) + 1),
+    height: 0.35 + Math.min(1.15, m / 400),
+  };
+}
 
 export type Intention = { by: string; word: string };
 export const INTENTION_LONGEST = 24;
@@ -125,7 +152,7 @@ export function intentionWord(value: unknown): string | { refused: string } {
 }
 
 export function idleMeditation(): Meditation {
-  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, intentions: [], revision: 0 };
+  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, intentions: [], breathedMinutes: 0, revision: 0 };
 }
 
 export function isPattern(value: unknown): value is PatternId {
@@ -267,7 +294,7 @@ export function applyMeditation(
     case "start": {
       const refused = pick(change);
       if (refused) return { refused };
-      return { ...next, startedAt: now, pausedAt: null, startedBy: by, together: unique([by, ...present]) };
+      return { ...next, breathedMinutes: session.breathedMinutes + minutesBreathed(session, now), startedAt: now, pausedAt: null, startedBy: by, together: unique([by, ...present]) };
     }
     case "settings": {
       if (running) return { refused: "end the session before changing it" };
@@ -285,9 +312,14 @@ export function applyMeditation(
     case "show":
       if (typeof change.shown !== "boolean") return { refused: "shown must be true or false" };
       // Hiding it ends any session: an orb nobody can see is not breathing with anybody.
-      return change.shown ? { ...next, shown: true } : { ...idleMeditation(), pattern: session.pattern, minutes: session.minutes, revision: next.revision };
+      return change.shown ? { ...next, shown: true } : {
+        ...idleMeditation(), pattern: session.pattern, minutes: session.minutes, revision: next.revision,
+        // What the room has built up stays, even with the orb put away.
+        intentions: session.intentions,
+        breathedMinutes: session.breathedMinutes + minutesBreathed(session, now),
+      };
     case "end":
-      return { ...next, startedAt: null, pausedAt: null, startedBy: null, together: [] };
+      return { ...next, breathedMinutes: session.breathedMinutes + minutesBreathed(session, now), startedAt: null, pausedAt: null, startedBy: null, together: [] };
     case "intend": {
       const word = intentionWord(change.word);
       if (typeof word !== "string") return word;
@@ -321,6 +353,7 @@ export function parseMeditation(value: unknown): Meditation | null {
     together: Array.isArray(v.together) ? v.together.filter((n): n is string => typeof n === "string") : [],
     shown: v.shown === true,
     guide: isGuide(v.guide) ? v.guide : null,
+    breathedMinutes: typeof v.breathedMinutes === "number" && Number.isFinite(v.breathedMinutes) && v.breathedMinutes > 0 ? v.breathedMinutes : 0,
     intentions: Array.isArray(v.intentions)
       ? v.intentions.filter((one): one is Intention =>
           !!one && typeof one === "object" && typeof (one as Intention).by === "string" && typeof (one as Intention).word === "string")

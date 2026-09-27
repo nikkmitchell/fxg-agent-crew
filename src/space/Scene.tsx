@@ -44,6 +44,7 @@ import { RoomItems } from "./RoomItems";
 import { MeditationOrb } from "./MeditationOrb";
 import { SingingBowls } from "./SingingBowls";
 import { GardenTray } from "./GardenTray";
+import { StillnessTree } from "./StillnessTree";
 import { SpiritCompanions } from "./SpiritCompanions";
 import { space } from "../space-client";
 
@@ -863,6 +864,7 @@ export default function Scene({
         {connection.meditation?.shown && <SingingBowls you={you} />}
         {/* And the zen sand garden, on the orb's other side: see shared/garden.ts. */}
         {connection.meditation?.shown && <GardenTray />}
+        {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
           avatarRecorder={avatarRecorder}
