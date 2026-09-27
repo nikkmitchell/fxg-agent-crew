@@ -329,6 +329,10 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
         });
         if (message.type === "welcome") {
           setStatus({ state: "open", you: message.you });
+          // THIS ROOM'S OWN CHOICES (Nikk 5389): a room switch opens a new
+          // socket, and its welcome says what this room shows.
+          if (message.open) setOpenPanels(message.open);
+          if (message.agentsHidden !== undefined) setAgentsHiddenForEveryone(message.agentsHidden);
           setPlaces(message.panels);
           setShowing(message.showing);
           setRoomItems((current) => mergeRoomItems(current, message.items));

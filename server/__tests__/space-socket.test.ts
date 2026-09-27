@@ -265,6 +265,18 @@ describe("the space socket", () => {
     socket.close();
   });
 
+  it("welcomes you with THIS room's panels and agent visibility (Nikk 5389)", async () => {
+    const { app, origin, as } = await boot();
+    const cookie = as("baiwei2");
+    await app.inject({ method: "PUT", url: "/bff/space/agents-hidden", headers: { cookie }, payload: { hidden: true } });
+    await app.inject({ method: "PUT", url: "/bff/space/panels/chat", headers: { cookie }, payload: { open: false } });
+    const client = await connect(origin, cookie);
+    const welcome = await client.where((m) => m.type === "welcome", "welcome");
+    expect(welcome).toMatchObject({ agentsHidden: true });
+    expect((welcome as { open?: string[] }).open).not.toContain("chat");
+    client.close();
+  });
+
   it("refuses a socket with no session, and says why before closing", async () => {
     const { origin } = await boot();
     const nobody = await connect(origin);

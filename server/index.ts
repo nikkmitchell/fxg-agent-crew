@@ -30,7 +30,7 @@ import { Touches, registerTouchRoutes } from "./space/touch.js";
 import { Activity } from "./space/activity.js";
 import { BoardReads } from "./db/reads.js";
 import { BoardStore } from "./db/store.js";
-import { PanelPlaces, registerPanelRoutes } from "./space/panels.js";
+import { PanelChoices, PanelPlaces, registerPanelRoutes } from "./space/panels.js";
 import { RoomShowing, registerShowingRoutes } from "./space/showing.js";
 import { RoomMeditations, registerMeditationRoutes } from "./space/meditation.js";
 import { RoomHelpers, registerHelperRoutes } from "./space/helpers.js";
@@ -347,6 +347,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (auditId, at, actorId) => activity.revealAt(auditId, at, actorId),
     );
     let itemRoutes: ReturnType<typeof registerRoomItemRoutes> | null = null;
+    // This room's own panels and agent visibility, for every socket's welcome.
+    const roomPanelChoices = new PanelChoices(database);
     registerSpaceRoutes(
       scoped,
       config,
@@ -360,6 +362,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       // Late-bound: the item routes are registered below.
       (room, username, id, body) =>
         itemRoutes ? itemRoutes.act(room, username, id, body) : { status: 503, payload: { error: "not ready" } },
+      (room) => ({ open: roomPanelChoices.open(room), agentsHidden: roomPanelChoices.agentsHidden(room) }),
     );
     registerSpaceEntryRoute(scoped, config, sessions, client,
       evictSessionEverywhere,

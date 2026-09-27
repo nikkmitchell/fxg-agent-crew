@@ -396,6 +396,8 @@ export function registerSpaceRoutes(
    * The same function the web route calls (items.ts), so no check differs.
    */
   itemAction: ((room: string, username: string, id: string, body: Record<string, unknown>) => { status: number; payload: Record<string, unknown> }) | null = null,
+  /** Which panels this room has open, and whether it hides its agents, for the welcome. */
+  roomChoicesNow: ((room: string) => { open: string[]; agentsHidden: boolean }) | null = null,
 ): void {
   app.get("/bff/space/room", async (request, reply) => {
     const session = sessions.get(request.cookies[config.cookieName]);
@@ -474,6 +476,8 @@ export function registerSpaceRoutes(
       voice: [...liveHub.voices]
         .filter((key) => key !== actorKey(actorId))
         .map((key) => liveHub.presence.find(key)?.actorId ?? key),
+      // This room's own panels and agent visibility (Nikk 5389).
+      ...(roomChoicesNow ? roomChoicesNow(room) : {}),
     });
 
     /** When each distinct note was last logged. See the "note" frame below. */

@@ -213,6 +213,15 @@ export type ServerMessage =
        * arrived afterwards, which is most people.
        */
       voice: string[];
+      /**
+       * THIS ROOM'S OWN CHOICES, on arrival. Nikk (5389): "the settings carry
+       * over from room to room; they should all be room independent". Which
+       * panels are open, and whether the agents are hidden for everyone, were
+       * read once when the page opened, so a room switch kept the last room's.
+       * Optional: an older server sends neither and the page keeps what it had.
+       */
+      open?: string[];
+      agentsHidden?: boolean;
     }
   | { type: "snapshot"; now: number; people: WirePerson[] }
   /**
