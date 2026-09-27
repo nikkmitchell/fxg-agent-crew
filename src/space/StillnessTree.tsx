@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { Text } from "@react-three/drei";
 import * as THREE from "three";
 import { leafColour, treeOf, type TreeColour } from "../../shared/meditation";
@@ -32,6 +32,34 @@ function seeded(seed: number) {
 
 type Twig = { from: THREE.Vector3; to: THREE.Vector3 };
 
+/**
+ * ONE DRAW FOR ALL THE LEAVES. A grown tree has 120 leaves and 40 blossoms;
+ * as separate meshes that was 160 draw calls, in a room already near 280 a
+ * frame and drawn twice in a headset. An InstancedMesh draws them all at once,
+ * each leaf keeping its own place and colour.
+ */
+function Instances({ at, radius, colours, basic }: { at: THREE.Vector3[]; radius: number; colours: string[]; basic?: boolean }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const instances = mesh.current;
+    if (!instances) return;
+    const place = new THREE.Matrix4();
+    const colour = new THREE.Color();
+    at.forEach((point, index) => {
+      instances.setMatrixAt(index, place.makeTranslation(point.x, point.y, point.z));
+      instances.setColorAt(index, colour.set(colours[index] ?? "#5e9e52"));
+    });
+    instances.count = at.length;
+    instances.instanceMatrix.needsUpdate = true;
+    if (instances.instanceColor) instances.instanceColor.needsUpdate = true;
+  }, [at, colours]);
+  if (at.length === 0) return null;
+  return <instancedMesh ref={mesh} args={[undefined, undefined, Math.max(1, at.length)]} raycast={noRaycast} key={at.length}>
+    <sphereGeometry args={[radius, 6, 5]} />
+    {basic ? <meshBasicMaterial toneMapped={false} /> : <meshStandardMaterial roughness={0.8} />}
+  </instancedMesh>;
+}
+
 export function StillnessTree({ minutes, fed = [] }: { minutes: number; fed?: TreeColour[] }) {
   const shape = treeOf(minutes);
   const { twigs, leaves, blossoms } = useMemo(() => {
@@ -56,6 +84,11 @@ export function StillnessTree({ minutes, fed = [] }: { minutes: number; fed?: Tr
     return { twigs, leaves: around(shape.leaves, 0.2), blossoms: around(shape.blossoms, 0.16) };
   }, [shape.branches, shape.leaves, shape.blossoms, shape.height]);
 
+  const leafColours = useMemo(
+    () => leaves.map((_, index) => leafColour(index, fed) ?? (index % 3 === 0 ? "#7fbf6a" : "#5e9e52")),
+    [leaves, fed],
+  );
+  const blossomColours = useMemo(() => blossoms.map(() => "#ffd1e3"), [blossoms]);
   const whole = Math.floor(minutes);
   return <group position={TREE_AT}>
     {/* The trunk. */}
@@ -72,14 +105,8 @@ export function StillnessTree({ minutes, fed = [] }: { minutes: number; fed?: Tr
         <meshStandardMaterial color="#6b4a33" roughness={0.9} />
       </mesh>;
     })}
-    {leaves.map((at, index) => <mesh key={`l${index}`} position={at} raycast={noRaycast}>
-      <sphereGeometry args={[0.022, 6, 5]} />
-      <meshStandardMaterial color={leafColour(index, fed) ?? (index % 3 === 0 ? "#7fbf6a" : "#5e9e52")} roughness={0.8} />
-    </mesh>)}
-    {blossoms.map((at, index) => <mesh key={`f${index}`} position={at} raycast={noRaycast}>
-      <sphereGeometry args={[0.018, 6, 5]} />
-      <meshBasicMaterial color="#ffd1e3" toneMapped={false} />
-    </mesh>)}
+    <Instances at={leaves} radius={0.022} colours={leafColours} />
+    <Instances at={blossoms} radius={0.018} colours={blossomColours} basic />
     {/* A pot, so a sapling in someone's real room looks planted, not dropped. */}
     <mesh position={[0, 0.07, 0]} raycast={noRaycast}>
       <cylinderGeometry args={[0.1, 0.08, 0.14, 16]} />
