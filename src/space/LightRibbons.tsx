@@ -16,7 +16,8 @@ import { selfPose } from "./self-pose";
  * every time. Nothing new is sent or stored.
  */
 
-export const RIBBONS_AT = { x: 2.7, z: 2.3, radius: 1.3 } as const;
+// Clear of Sill's candle shelf (1.5, 3.5) and the rain curtain (4.6, 0.6).
+export const RIBBONS_AT = { x: 2.9, z: 2.0, radius: 1.2 } as const;
 /** How long a ribbon lasts. */
 const FADE_SECONDS = 6;
 /** How often a point is added: often enough to be smooth at a slow pace. */
