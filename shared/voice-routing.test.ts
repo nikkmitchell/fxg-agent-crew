@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { planText, planVoice } from "./voice-routing";
-import { CHAT_MESSAGE_LIMIT, DETAIL_LIMIT, SPOKEN_LIMIT } from "../../shared/voice";
+import { planText, planVoice } from "./voice-routing.js";
+import { CHAT_MESSAGE_LIMIT, DETAIL_LIMIT, SPOKEN_LIMIT } from "./voice.js";
 
 describe("where a spoken sentence goes", () => {
   it("sends to the room and nowhere else by default", () => {

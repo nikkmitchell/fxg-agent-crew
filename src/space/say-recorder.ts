@@ -27,11 +27,22 @@ import { TRANSCRIBE_RATE, encodeWav, loudness, resampleTo, toMono } from "./wav"
 /** Below this, the microphone heard nothing worth sending to be transcribed. */
 export const QUIET = 0.004;
 
+/** Ask the server to send the words on as well: where, and which chat. */
+export type SendRequest = { send: "room" | "room-and-agents"; chat: string | null };
+/** What the server sent on (server/space/transcribe.ts `SentOn`). */
+export type SentOn = { room: boolean; chat: boolean | null; refused?: string };
+type Transcribed = string | { text: string; sent?: SentOn };
+
 export type SayRecorder = {
   /** Begin recording. Rejects if there is no microphone or permission is refused. */
   start(): Promise<void>;
-  /** Stop, convert, and ask for the words. Returns "" when nothing was heard. */
-  finish(): Promise<string>;
+  /**
+   * Stop, convert, and ask for the words. Returns "" when nothing was heard.
+   * With `send`, the server also sends the words on itself (see `sent`).
+   */
+  finish(send?: SendRequest): Promise<string>;
+  /** What the server sent on for the last `finish(send)`, or null if it did not. */
+  sent(): SentOn | null;
   /** Stop and throw the recording away without transcribing it. */
   cancel(): void;
   recording(): boolean;
@@ -58,7 +69,7 @@ function bestFormat(): string | undefined {
 
 export function createSayRecorder(options: {
   /** Ask the server to write the recording down. Replaced in tests. */
-  transcribe?: (wav: Blob) => Promise<string>;
+  transcribe?: (wav: Blob, send?: SendRequest) => Promise<Transcribed>;
   /** Told what is happening, for the status line in the room. */
   onPhase?: (phase: "idle" | "recording" | "writing") => void;
   /** Builds the recorder. Replaced in tests, where there is no MediaRecorder. */
@@ -71,6 +82,7 @@ export function createSayRecorder(options: {
   const makeRecorder = options.makeRecorder ?? ((stream, mimeType) => new MediaRecorder(stream, { mimeType }));
   const phase = (next: "idle" | "recording" | "writing") => options.onPhase?.(next);
 
+  let lastSent: SentOn | null = null;
   let recorder: MediaRecorder | null = null;
   let stream: MediaStream | null = null;
   let chunks: Blob[] = [];
@@ -124,7 +136,10 @@ export function createSayRecorder(options: {
       phase("recording");
     },
 
-    finish: async () => {
+    sent: () => lastSent,
+
+    finish: async (send?: SendRequest) => {
+      lastSent = null;
       const active = recorder;
       if (!active) return "";
       // `stop` is asynchronous and the last chunk arrives after it, so the whole
@@ -151,9 +166,11 @@ export function createSayRecorder(options: {
           options.onTrouble?.("I did not hear anything. Nothing was sent.");
           return "";
         }
-        const words = await transcribe(wav);
+        const answer = await transcribe(wav, send);
         phase("idle");
-        return words;
+        if (typeof answer === "string") return answer;
+        lastSent = answer.sent ?? null;
+        return answer.text;
       } catch (error) {
         phase("idle");
         options.onTrouble?.(error instanceof Error ? error.message : "The recording could not be written down.");
@@ -216,8 +233,12 @@ export async function canTranscribe(): Promise<boolean> {
 }
 
 /** Ask the server for the words. Its answer is text, never audio. */
-async function postForWords(wav: Blob): Promise<string> {
+async function postForWords(wav: Blob, send?: SendRequest): Promise<Transcribed> {
   const { base } = await import("../router");
+  // ASKED TO SEND IT ON: the server posts the words itself (transcribe.ts).
+  const query = send
+    ? `?${new URLSearchParams({ send: send.send, ...(send.chat ? { chat: send.chat } : {}) })}`
+    : "";
   const { blobToBase64, callOverSocket } = await import("../call-socket");
   /*
    * DOWN THE ROOM SOCKET FIRST. Baiwei (5167): every recording reached the
@@ -226,7 +247,7 @@ async function postForWords(wav: Blob): Promise<string> {
    * upload is still used when the socket cannot take it.
    */
   const tunnelled = await callOverSocket(
-    `${base}/bff/space/transcribe`,
+    `${base}/bff/space/transcribe${query}`,
     { method: "POST" },
     { base64: await blobToBase64(wav), contentType: "audio/wav", deadlineMs: 120_000 },
   );
@@ -238,9 +259,10 @@ async function postForWords(wav: Blob): Promise<string> {
       body = null;
     }
     if (tunnelled.status < 200 || tunnelled.status >= 300) throw new Error(body?.error ?? "The words could not be written down. Nothing was sent.");
-    return (body?.text ?? "").trim();
+    const sent = (body as { sent?: SentOn } | null)?.sent;
+    return sent ? { text: (body?.text ?? "").trim(), sent } : (body?.text ?? "").trim();
   }
-  const response = await fetch(`${base}/bff/space/transcribe`, {
+  const response = await fetch(`${base}/bff/space/transcribe${query}`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "audio/wav" },
@@ -250,6 +272,6 @@ async function postForWords(wav: Blob): Promise<string> {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error ?? "The words could not be written down. Nothing was sent.");
   }
-  const body = (await response.json()) as { text?: string };
-  return (body.text ?? "").trim();
+  const body = (await response.json()) as { text?: string; sent?: SentOn };
+  return body.sent ? { text: (body.text ?? "").trim(), sent: body.sent } : (body.text ?? "").trim();
 }

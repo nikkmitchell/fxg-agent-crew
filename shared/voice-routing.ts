@@ -1,4 +1,4 @@
-import { CHAT_MESSAGE_LIMIT, refusalFor, splitForChat, splitSpoken, type UtteranceInput } from "../../shared/voice";
+import { CHAT_MESSAGE_LIMIT, refusalFor, splitForChat, splitSpoken, type UtteranceInput } from "./voice.js";
 
 /**
  * Where a spoken sentence goes.

@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import type { FastifyRequest } from "fastify";
+import { planVoice, type VoiceDestination } from "../../shared/voice-routing.js";
+import { sendKey } from "../../shared/send-key.js";
 import { statSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -180,6 +183,52 @@ function runCommand(command: string, wavPath: string, prompt: string): Promise<s
   });
 }
 
+/** What the server managed to send on, for a headset that asked it to. */
+export type SentOn = { room: boolean; chat: boolean | null; refused?: string };
+
+/**
+ * Post a transcript as its speaker would: the room line, then the chat post,
+ * through the site's own routes (so every check is the route's own), signed in
+ * with the request's own cookie.
+ */
+async function sendOn(
+  request: FastifyRequest,
+  text: string,
+  destination: VoiceDestination,
+  chat: string | null,
+  speaker: string,
+): Promise<SentOn> {
+  const plan = planVoice(text, destination, { speaker });
+  if (plan.refused) return { room: false, chat: null, refused: plan.refused };
+  // The mount the request came in on, so this works under a base path too.
+  const prefix = request.url.split("/bff/", 1)[0];
+  const post = async (path: string, body: object, key: string) => {
+    const response = await request.server.inject({
+      method: "POST",
+      url: `${prefix}${path}`,
+      headers: { cookie: request.headers.cookie ?? "", "content-type": "application/json", "idempotency-key": key },
+      payload: JSON.stringify(body),
+    });
+    return response.statusCode >= 200 && response.statusCode < 300;
+  };
+  let room = true;
+  let chatSent: boolean | null = null;
+  for (const item of plan.posts) {
+    if (item.to === "room") {
+      room = await post(
+        "/bff/space/utterances",
+        { ...(item.say ? { say: item.say } : {}), ...(item.detail ? { detail: item.detail } : {}), source: "voice" },
+        sendKey("room", item.say ?? "", item.detail ?? ""),
+      ) && room;
+    } else if (chat && chatSent !== false) {
+      chatSent = await post(`/bff/rooms/${encodeURIComponent(chat)}/messages`, { content: item.content }, sendKey("chat", chat, item.content));
+    } else if (!chat) {
+      chatSent = false;
+    }
+  }
+  return { room, chat: chatSent };
+}
+
 export function registerTranscribeRoutes(
   app: FastifyInstance,
   config: Config,
@@ -268,6 +317,22 @@ export function registerTranscribeRoutes(
       }
       if (answer.heard) {
         request.log.info({ actorId: session.username, words: answer.text.split(" ").length }, "space transcribed");
+      }
+      /*
+       * AND SEND IT ON, WHEN ASKED. Nikk (5187): "can't we just have the text
+       * go directly from the server doing the transcribing". Baiwei, in
+       * Poland, waited for four crossings of a slow link to Shanghai: the
+       * recording up, the words down, the room line up, the chat post up.
+       * When the headset would have sent these words straight away anyway
+       * (the chop gesture, or "send as you speak") it asks here, and the
+       * server posts them through its own routes, as the same person, with the
+       * keys the headset would use — so a fallback send from the headset is
+       * answered once, never posted twice. Only the upload crosses.
+       */
+      const query = request.query as { send?: string; chat?: string };
+      if (answer.heard && (query.send === "room" || query.send === "room-and-agents")) {
+        const sent = await sendOn(request, answer.text, query.send, query.chat ?? null, session.username);
+        return reply.send({ ...answer, sent });
       }
       return reply.send(answer);
     },

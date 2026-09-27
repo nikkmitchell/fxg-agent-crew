@@ -36,7 +36,7 @@ import type { RoomShowingChoices } from "./useRoomShowing";
 import { roomMenuRows } from "../../shared/room-switch";
 import type { RoomSummary } from "../../shared/contracts";
 import { CHAT_MESSAGE_LIMIT, type Utterance } from "../../shared/voice";
-import { planText, planVoice, type VoiceDestination } from "./voice-routing";
+import { planText, planVoice, type VoiceDestination } from "../../shared/voice-routing";
 import type { VoiceChat } from "./useVoiceChat";
 import { holdDraft, holdReload, reloadNow, updateWaiting, watchUpdate } from "../update-reload";
 import { createSystemKeyboard, mergeKeyboardEdit, type SystemKeyboard } from "./system-keyboard";
@@ -773,12 +773,29 @@ export function RoomControls({
     setMicRisky(false);
   }, [say, onNote]);
   const finishSaying = useCallback(async () => {
-    const words = await say().finish();
+    /*
+     * SENT ON BY THE SERVER when these words would go straight out anyway: the
+     * chop gesture, or "send as you speak". Nikk (5187): only the recording
+     * then crosses a slow link, not the words back and two sends up again.
+     */
+    const autoSend = live.current.alwaysOn || sendAfterGesture.current;
+    const { destination: to, groupRoom: room } = live.current;
+    const words = await say().finish(autoSend ? { send: to, chat: room ?? null } : undefined);
     if (!words) {
       onNote("nothing was heard, so nothing was written down");
       return;
     }
     onNote(`written down: ${words.split(/\s+/).length} words`);
+    const sent = autoSend ? say().sent() : null;
+    if (sent && sent.room && (to === "room" || sent.chat === true)) {
+      // Everything went: nothing is left for this headset to send.
+      sendAfterGesture.current = false;
+      onNote("sent on by the server");
+      flash(to === "room" ? "Sent to the room." : "Sent to the room and the chat.");
+      return;
+    }
+    // Anything the server could not send, the headset sends as before. The
+    // parts that did go carry the same keys, so they are answered, not doubled.
     /**
      * SENDING AS YOU SPEAK MEANS NO CONFIRM HERE TOO. Baiwei (4973), on a
      * headset whose words the server writes down: "I've switched in settings,
@@ -793,7 +810,7 @@ export function RoomControls({
     // Added to whatever is already drafted, exactly as the keyboard does, so
     // speaking twice before sending does not throw the first half away.
     setWritten((kept) => mergeKeyboardEdit(kept, words));
-  }, [say, onNote, post]);
+  }, [say, onNote, post, flash]);
 
   useEffect(() => {
     if (!capabilities.recognition) return;

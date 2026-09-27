@@ -221,6 +221,34 @@ describe("the space socket", () => {
     }
   });
 
+  it("writes a recording down AND sends it on when asked, once however often it is retried (Nikk 5187)", async () => {
+    // The same words for the same clip, as a real transcriber gives.
+    process.env.TRANSCRIBE_CMD = "echo testing the chop";
+    try {
+      const { app, as } = await boot();
+      const cookie = as("baiwei2");
+      const upload = () => app.inject({
+        method: "POST", url: "/bff/space/transcribe?send=room",
+        headers: { cookie, "content-type": "audio/wav" }, payload: Buffer.alloc(4_000, 3),
+      });
+      const first = await upload();
+      expect(first.statusCode).toBe(200);
+      expect(first.json()).toMatchObject({ heard: true, sent: { room: true } });
+      expect(first.json().text).toContain("testing the chop");
+      // The link dropped the answer and the headset sent the clip again.
+      expect((await upload()).json()).toMatchObject({ sent: { room: true } });
+      const said = await app.inject({ method: "GET", url: "/bff/space/utterances?limit=10", headers: { cookie } });
+      const mine = (said.json().utterances as { actorId: string; say: string | null }[]).filter((u) => u.actorId === "baiwei2");
+      expect(mine).toHaveLength(1);
+      expect(mine[0]!.say).toContain("testing the chop");
+      // Without `send`, only the words come back, as before.
+      const plain = await app.inject({ method: "POST", url: "/bff/space/transcribe", headers: { cookie, "content-type": "audio/wav" }, payload: Buffer.alloc(4_000, 3) });
+      expect(plain.json().sent).toBeUndefined();
+    } finally {
+      delete process.env.TRANSCRIBE_CMD;
+    }
+  });
+
   it("refuses calls on a socket another site's page opened", async () => {
     const { origin, as } = await boot();
     const socket = new WebSocket(`${origin}/bff/space/socket`, { headers: { cookie: as("Moraine", "agent"), origin: "https://evil.test" } } as never);
