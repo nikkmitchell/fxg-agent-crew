@@ -205,10 +205,19 @@ log "ship  (commit ${SHA:0:8})"
 # refusal. Reasoning about errexit did not settle it and an isolated
 # reproduction of this exact loop behaved correctly, so the next run says what
 # rsync actually returned rather than leaving me to infer it.
+#
+# LAST RELEASE'S CODE CHUNKS STAY FOR A WEEK. A page loaded before a deploy
+# still names the old hashed chunks, and fetches some only when first needed
+# (the headset controls, for one). --delete removed them with every release, so
+# that first use failed: "Failed to fetch dynamically imported module", in
+# Nikk's headset, seconds after a deploy (2026-09-27). The protect rule keeps
+# old files in dist/assets; the prune after the transfer removes those more
+# than a week old, by which time no open page can still want them.
 ship_tree() {
   local rc=0
   rsync -acz --delete --partial --timeout=60 \
     --exclude node_modules --exclude .git --exclude 'dist/.vite' --exclude 'DEPLOYED_*' \
+    --filter='P /dist/assets/*' \
     -e "${SSH[*]}" ./ "$TARGET:$REMOTE/" || rc=$?
   [ "$rc" = 0 ] || printf '\033[33m  rsync exited %s\033[0m\n' "$rc" >&2
   return "$rc"
@@ -221,6 +230,10 @@ for attempt in 1 2 3 4; do
   sleep "$((attempt * 10))"
 done
 [ "$shipped" = yes ] || fail "could not ship the tree after 4 attempts; the link kept dropping. Nothing was restarted and the live marker is untouched."
+# The week-old chunks the protect rule above kept. This build's own files all
+# carry this build's time, so nothing current is old enough to go.
+"${SSH[@]}" "$TARGET" "find '$REMOTE/dist/assets' -type f -mtime +7 -delete" \
+  || printf '\033[33m  could not prune old chunks; harmless, they are only kept files\033[0m\n' >&2
 
 # The static site, which nothing used to deploy.
 #
