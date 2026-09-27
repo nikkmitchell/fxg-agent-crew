@@ -950,8 +950,6 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .room-front-intro::after { content: ""; position: absolute; width: 350px; height: 350px; right: -100px; top: -170px; border: 1px solid rgba(49,86,216,.19); border-radius: 50%; box-shadow: 0 0 0 44px rgba(49,86,216,.035), 0 0 0 90px rgba(49,86,216,.025); pointer-events: none; }
 .room-front-intro h1 { position: relative; z-index: 1; margin: 0 0 10px; font-size: clamp(50px, 6.2vw, 80px); }
 .room-front-intro > p:not(.eyebrow) { position: relative; z-index: 1; max-width: 60ch; margin: 0; color: #504e49; font-size: clamp(14px, 1.25vw, 17px); line-height: 1.65; }
-.room-front-avatar-link { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 10px; margin-top: 19px; min-height: 44px; padding: 0 14px; border: 1px solid #aaa79e; border-radius: 6px; color: #27365d; font-size: 12px; font-weight: 800; text-decoration: none; }
-.room-front-avatar-link:hover, .room-front-avatar-link:focus-visible { border-color: #27365d; background: #e8ebf1; }
 .room-front-layout { display: grid; grid-template-columns: minmax(280px, .9fr) minmax(340px, 1.1fr); min-height: 580px; border: 1px solid var(--line); background: var(--surface); }
 .room-front-directory { min-width: 0; padding: clamp(18px, 2.5vw, 32px); border-right: 1px solid var(--line); }
 .room-front-directory-head { display: flex; justify-content: space-between; align-items: start; gap: 14px; padding-bottom: 18px; }
