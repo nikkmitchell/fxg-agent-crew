@@ -1,4 +1,5 @@
 import type { Meditation } from "../../shared/meditation";
+import { setAgentsHidden, setCurrentRoomForAgents, useAgentsHidden } from "./agents-hidden";
 import { holdAloud } from "./said-aloud";
 import { sendKey } from "../call-socket";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1004,6 +1005,9 @@ export function RoomControls({
   const upGear = useRef<THREE.Group>(null);
   const upShown = useRef(false);
   const [upVisible, setUpVisible] = useState(false);
+  // Which room the scene should hide agents in, if you asked it to.
+  useEffect(() => setCurrentRoomForAgents(currentRoom), [currentRoom]);
+  const agentsHidden = useAgentsHidden();
   const [handIsNear, setHandIsNear] = useState(false);
   const buttonOpacity = handIsNear ? 1 : IDLE_OPACITY;
   useFrame((state) => {
@@ -1135,6 +1139,14 @@ export function RoomControls({
         tone: showing.boardId ? "live" : "normal",
         onTap: () => setView("mood"),
       },
+      // HIDE THE AGENTS, for you alone, in this room (Nikk 5299): see agents-hidden.ts.
+      ...(currentRoom
+        ? [{
+            label: agentsHidden ? "Agents: hidden (just for you)" : "Agents: shown",
+            tone: agentsHidden ? ("live" as const) : ("normal" as const),
+            onTap: () => setAgentsHidden(currentRoom, !agentsHidden),
+          }]
+        : []),
       ...(showingChoices.refusal
         ? [{ label: showingChoices.refusal, tone: "muted" as const, onTap: () => {} }]
         : showing.setBy

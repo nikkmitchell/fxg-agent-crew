@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useAgentsHidden } from "./agents-hidden";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { reportClientError } from "../client-errors";
 import * as THREE from "three";
@@ -168,7 +169,9 @@ function Crowd({
     return latest;
   }, [heard]);
 
-  const cast = roster.filter((person) => person.actorId !== you);
+  // Agents left out when you have hidden them in this room (agents-hidden.ts).
+  const agentsHidden = useAgentsHidden();
+  const cast = roster.filter((person) => person.actorId !== you && !(agentsHidden && person.kind === "agent"));
 
   return (
     <group>
