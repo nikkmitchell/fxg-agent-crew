@@ -863,18 +863,28 @@ export function ImmersivePlayer({
         }
       : null;
     /**
-     * NO HAND GESTURE WHILE A CONTROLLER IS IN HAND. Nikk (5363): holding the
-     * controllers, the voice gesture "sometimes randomly starts". The gesture
-     * already reads only hand-tracking inputs, but a Quest can report tracked
-     * hands alongside controllers (and while swapping between them), and a
-     * hand wrapped round a controller can pass for a raised palm. So while
-     * either controller is really being tracked, neither hand counts.
+     * NO HAND GESTURE FROM A HAND HOLDING A CONTROLLER. Nikk (5363): holding
+     * the controllers, the voice gesture "sometimes randomly starts". A Quest
+     * can report tracked hands alongside controllers, and a hand wrapped round
+     * one can pass for a raised palm.
+     *
+     * IN THE HAND, NOT MERELY TRACKED. The first version ignored both hands
+     * whenever any controller was tracked, and a controller put down on a
+     * table is still tracked: Nikk, using bare hands (5375), lost the gesture
+     * and got the touch buttons in front of him instead. So a hand is ignored
+     * only while a tracked controller is within a hand's width of its wrist.
      */
-    const controllerInHand = [leftController, rightController].some((controller) => {
+    const controllerGrips = [leftController, rightController].flatMap((controller) => {
       const grip = controller?.inputSource.gripSpace;
       const pose = grip && frame && originSpace ? frame.getPose(grip, originSpace) : null;
-      return Boolean(pose && !pose.emulatedPosition);
+      return pose && !pose.emulatedPosition ? [pose.transform.position] : [];
     });
+    const holdsController = (wristSpace: XRSpace | undefined): boolean => {
+      const wristPose = wristSpace && frame && originSpace ? frame.getPose(wristSpace, originSpace) : null;
+      if (!wristPose) return false;
+      const w = wristPose.transform.position;
+      return controllerGrips.some((g) => Math.hypot(g.x - w.x, g.y - w.y, g.z - w.z) < 0.2);
+    };
     for (const [side, wrist, input] of [["left", liveLeft, leftHand], ["right", liveRight, rightHand]] as const) {
       const tip = input ? poseOfSpace(input.inputSource.hand.get("index-finger-tip"), frame, group) : null;
       goHandInput[side] = wrist ? { contact: (tip ?? wrist).p, carry: goCarryPoint(wrist), at: performance.now() } : null;
@@ -887,7 +897,7 @@ export function ImmersivePlayer({
       // Treat it as lost, which the gesture already rides out.
       const wristSpace = input?.inputSource.hand.get("wrist");
       const guessed = wristSpace && frame && originSpace ? frame.getPose(wristSpace, originSpace)?.emulatedPosition === true : false;
-      const gestureWrist = input && !guessed && !controllerInHand ? localPose(wristSpace, frame) : null;
+      const gestureWrist = input && !guessed && !holdsController(wristSpace) ? localPose(wristSpace, frame) : null;
       const joints: Array<{ x: number; y: number; z: number } | null> = MIC_GESTURE_JOINT_NAMES.map(() => null);
       if (input && gestureWrist) {
         joints[0] = gestureWrist.p;
