@@ -24,6 +24,7 @@ import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
 import { AgentBodies, registerBodyRoutes } from "./space/bodies.js";
 import { AgentVoices, registerVoiceRoutes } from "./space/voices.js";
 import { registerIceRoutes } from "./space/ice.js";
+import { registerGuideRoutes, voiceAllGuides } from "./space/guides.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
 import { BodyFiles, registerBodyFileRoutes } from "./space/body-files.js";
@@ -161,6 +162,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     onTrouble: (error, text, voice) =>
       app.log.warn({ err: error, voice, line: text.slice(0, 60) }, "could not say a line aloud"),
   });
+  // The guided meditations' lines, voiced once in the background so the first
+  // session after a release does not wait for them. See server/space/guides.ts.
+  if (process.env.NODE_ENV === "production") {
+    void voiceAllGuides(speech, (message) => app.log.info(message)).catch((error) =>
+      app.log.warn({ err: error }, "could not voice the guided meditations"));
+  }
   // Names the 300 catalogue bodies and, for each, the one address its file may
   // be fetched from. Read lazily; see server/space/catalogue.ts.
   const inTheCatalogue = knownToTheCatalogue();
@@ -497,6 +504,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     });
     registerMemoryRoutes(scoped, { config, sessions, memories });
     registerIceRoutes(scoped, { config, sessions });
+    registerGuideRoutes(scoped, { config, sessions, speech });
     registerVoiceRoutes(scoped, {
       config,
       sessions,

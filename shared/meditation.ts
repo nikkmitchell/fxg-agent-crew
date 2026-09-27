@@ -11,6 +11,8 @@
  * put two people out of step: they are reading the same timetable.
  */
 
+import { GUIDES, isGuide, type GuideId } from "./guided.js";
+
 export type BreathStep = {
   phase: "in" | "hold" | "out" | "rest";
   seconds: number;
@@ -84,11 +86,16 @@ export type Meditation = {
    * room can have one.
    */
   shown: boolean;
+  /**
+   * A guided meditation spoken over the breath, or null for breathing alone.
+   * See shared/guided.ts: a guide fixes the length and breathes CALM.
+   */
+  guide: GuideId | null;
   revision: number;
 };
 
 export function idleMeditation(): Meditation {
-  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, revision: 0 };
+  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, revision: 0 };
 }
 
 export function isPattern(value: unknown): value is PatternId {
@@ -182,16 +189,17 @@ export function clockText(seconds: number): string {
 export function doneLine(session: Meditation): string {
   const others = session.together.length;
   const who = others <= 1 ? "" : ` · together with ${others} people`;
-  return `${session.minutes} MINUTE${session.minutes === 1 ? "" : "S"} OF BREATHING${who}`;
+  const what = session.guide ? "GUIDED MEDITATION" : "BREATHING";
+  return `${session.minutes} MINUTE${session.minutes === 1 ? "" : "S"} OF ${what}${who}`;
 }
 
 export type MeditationChange =
-  | { action: "start"; pattern?: unknown; minutes?: unknown }
+  | { action: "start"; pattern?: unknown; minutes?: unknown; guide?: unknown }
   | { action: "pause" }
   | { action: "resume" }
   | { action: "end" }
   | { action: "show"; shown?: unknown }
-  | { action: "settings"; pattern?: unknown; minutes?: unknown };
+  | { action: "settings"; pattern?: unknown; minutes?: unknown; guide?: unknown };
 
 /**
  * One change, applied. Returns the new session or a sentence saying why not.
@@ -205,11 +213,20 @@ export function applyMeditation(
   present: string[] = [],
 ): Meditation | { refused: string } {
   const next = { ...session, revision: session.revision + 1 };
-  const pick = (c: { pattern?: unknown; minutes?: unknown }) => {
+  const pick = (c: { pattern?: unknown; minutes?: unknown; guide?: unknown }) => {
     if (c.pattern !== undefined && !isPattern(c.pattern)) return "unknown breathing pattern";
     if (c.minutes !== undefined && !isMinutes(c.minutes)) return `minutes must be one of ${MINUTES.join(", ")}`;
+    if (c.guide !== undefined && c.guide !== null && !isGuide(c.guide)) return "unknown guided meditation";
+    if (c.guide !== undefined) next.guide = (c.guide as GuideId | null) ?? null;
+    // Choosing a breathing pattern or a length yourself means breathing without a guide.
+    if (c.guide === undefined && (c.pattern !== undefined || c.minutes !== undefined)) next.guide = null;
     if (c.pattern !== undefined) next.pattern = c.pattern as PatternId;
     if (c.minutes !== undefined) next.minutes = c.minutes as number;
+    // A guide's script is timed to its own length, over CALM breathing.
+    if (next.guide) {
+      next.minutes = GUIDES[next.guide].minutes;
+      next.pattern = "calm";
+    }
     return null;
   };
   const running = breathAt(session, now).state === "breathing";
@@ -262,6 +279,7 @@ export function parseMeditation(value: unknown): Meditation | null {
     startedBy: typeof v.startedBy === "string" ? v.startedBy : null,
     together: Array.isArray(v.together) ? v.together.filter((n): n is string => typeof n === "string") : [],
     shown: v.shown === true,
+    guide: isGuide(v.guide) ? v.guide : null,
     revision: Number.isInteger(v.revision) ? (v.revision as number) : 0,
   };
 }
