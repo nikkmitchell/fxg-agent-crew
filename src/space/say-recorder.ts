@@ -76,6 +76,15 @@ export function createSayRecorder(options: {
   makeRecorder?: (stream: MediaStream, mimeType: string) => MediaRecorder;
   onTrouble?: (message: string) => void;
   scope?: Media;
+  /**
+   * A microphone that is already open, to record a COPY of instead of opening
+   * another. Nikk (5416): speaking a message to the agents during a call cut
+   * him out of the call and the message never sent. A headset gives one
+   * microphone to one taker; a second request for it can end the call's. A
+   * cloned track hears the same thing, and stopping the clone leaves the call's
+   * microphone open.
+   */
+  borrow?: () => MediaStream | null;
 }): SayRecorder {
   const scope = options.scope ?? (navigator as Media);
   const transcribe = options.transcribe ?? postForWords;
@@ -108,7 +117,8 @@ export function createSayRecorder(options: {
       }
       const format = bestFormat();
       if (!format) throw new Error("This browser cannot record audio.");
-      stream = await scope.mediaDevices.getUserMedia({ audio: true });
+      const lent = options.borrow?.()?.getAudioTracks().find((track) => track.readyState === "live");
+      stream = lent ? new MediaStream([lent.clone()]) : await scope.mediaDevices.getUserMedia({ audio: true });
       /**
        * A MICROPHONE OPENED AND NEVER CLOSED is the bug this guards.
        *

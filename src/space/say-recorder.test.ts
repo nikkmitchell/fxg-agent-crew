@@ -92,3 +92,32 @@ describe("letting go of the microphone", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("recording during a call (Nikk, 5416)", () => {
+  it("records a copy of the call's microphone and never stops the call's own", async () => {
+    withMediaRecorder();
+    const callStop = vi.fn();
+    const copyStop = vi.fn();
+    const copy = { readyState: "live", stop: copyStop, kind: "audio" };
+    const callTrack = { readyState: "live", stop: callStop, clone: () => copy, kind: "audio" };
+    const call = { getAudioTracks: () => [callTrack], getTracks: () => [callTrack] } as unknown as MediaStream;
+    vi.stubGlobal("MediaStream", class {
+      constructor(readonly tracks: unknown[]) {}
+      getTracks() { return this.tracks; }
+    });
+    const getUserMedia = vi.fn();
+    const recorder = createSayRecorder({
+      borrow: () => call,
+      scope: { mediaDevices: { getUserMedia } },
+      makeRecorder: () => {
+        throw new Error("NotSupportedError");
+      },
+    });
+
+    await expect(recorder.start()).rejects.toThrow("NotSupportedError");
+    expect(getUserMedia, "no second microphone was asked for").not.toHaveBeenCalled();
+    expect(copyStop, "the copy was let go of").toHaveBeenCalled();
+    expect(callStop, "the call's microphone stayed open").not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+});
