@@ -8,6 +8,9 @@ import {
   squareOnTilt,
   TILT_FRACTION,
   UP_GEAR_AHEAD,
+  UP_CONTROL_GAP,
+  UP_CONTROL_SIZE,
+  UP_CALL_CENTRE_X,
   lookingUp,
   upGearAt,
   walkedAway,
@@ -132,6 +135,12 @@ describe("the settings gear, up where you look (Nikk 5245)", () => {
     const at = upGearAt({ x: 0, y: 1.6, z: 0 }, { x: 0, y: Math.sin(deg(45)), z: -Math.cos(deg(45)) });
     expect(Math.hypot(at.x, at.y - 1.6, at.z)).toBeCloseTo(UP_GEAR_AHEAD, 5);
     expect(at.y).toBeGreaterThan(1.6);
+  });
+
+  it("places the distinct call toggle beside the gear with a real gap", () => {
+    const gearRight = UP_CONTROL_SIZE / 2;
+    const callLeft = UP_CALL_CENTRE_X - UP_CONTROL_SIZE / 2;
+    expect(callLeft - gearRight).toBeCloseTo(UP_CONTROL_GAP, 10);
   });
 });
 

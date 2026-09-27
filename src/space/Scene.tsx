@@ -32,7 +32,7 @@ import { useRoomShowing } from "./useRoomShowing";
 import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
 import type { VoiceChat } from "./useVoiceChat";
-import { SpatialVoices } from "./SpatialVoices";
+import { RoomVoices } from "./RoomVoices";
 import { Movable } from "./Movable";
 import { placeOf, savePlacement } from "./panel-placement";
 import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
@@ -824,9 +824,9 @@ export default function Scene({
           active={!inHeadset}
           openPanels={openPanels}
         />
-        {/* Each voice placed where its speaker is standing. Nothing at all
-          until somebody opens a microphone. */}
-        <SpatialVoices streams={voice.streams} muted={voice.muted} peopleRef={connection.peopleRef} />
+        {/* Room voice chat is a normal room-wide call in v1: every participant
+          hears equal-level audio, regardless of where someone is standing. */}
+        <RoomVoices streams={voice.streams} muted={voice.muted} />
 
         <OnDemand connection={connection} />
         {/* Renders nothing at all until a headset session exists — see Immersive.tsx. */}
