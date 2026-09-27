@@ -379,15 +379,19 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
           <h2>Talk out loud</h2>
           <button
             type="button"
-            className={voice.on ? "primary-action" : "text-button"}
-            onClick={() => voice.setOn(!voice.on)}
+            className={voice.on || voice.starting ? "primary-action" : "text-button"}
+            onClick={() => voice.setOn(voice.on || voice.starting ? false : true)}
           >
-            {voice.on ? "Microphone is open — click to close it" : "Open your microphone"}
+            {voice.starting
+              ? "Opening microphone… click to cancel"
+              : voice.on
+                ? "Microphone is open — click to close it"
+                : "Open your microphone"}
           </button>
           <p className="muted-note">
             {voice.others.length === 0
-              ? "Nobody else is talking right now. You will hear anyone who opens their microphone, whether or not yours is open."
-              : `Talking now: ${voice.others.join(", ")}.`}
+              ? "Nobody else has a microphone open right now. You will hear anyone who opens theirs, whether or not yours is open."
+              : `Microphones open: ${voice.others.join(", ")}.`}
           </p>
           {voice.others.length > 0 ? (
             <ul className="voice-mutes">

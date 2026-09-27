@@ -5,8 +5,9 @@
  * are, and users talk also comes from where they are, if possible using
  * current system text to speech allow for agents to have different voices".
  *
- * PEOPLE already come from where they stand: their microphones arrive as
- * streams and are played positioned in the room (SpatialVoices).
+ * HUMAN ROOM CALLS ARE A SEPARATE THING. V1 is a room-wide call at the same
+ * level everywhere; it is not mixed into this agent speech-distance rule.
+ * Positional/proximity human audio is a later mode, not the default call.
  *
  * AGENTS SPEAK THROUGH THE SYSTEM'S TEXT TO SPEECH, as asked, and that voice
  * cannot be placed in space: a browser gives a page no access to its audio,

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { closedButtons, handNear, IDLE_OPACITY, NEAR, touchPresses, type TouchButton } from "./touch-press";
+import {
+  closedButtons,
+  DUPLICATE_ACTIVATION_MS,
+  handNear,
+  IDLE_OPACITY,
+  isDuplicateActivation,
+  NEAR,
+  touchPresses,
+  type TouchButton,
+} from "./touch-press";
 
 const gear: TouchButton = { id: "gear", at: { x: 0, y: 1.3, z: -0.3 }, radius: 0.045 };
 const mic: TouchButton = { id: "mic", at: { x: 0.11, y: 1.3, z: -0.3 }, radius: 0.045 };
@@ -47,5 +56,12 @@ describe("which closed buttons exist", () => {
   it("with controllers, talk, and cancel while there is something to throw away; the gear is up", () => {
     expect(closedButtons(false, false)).toEqual(["talk"]);
     expect(closedButtons(false, true)).toEqual(["talk", "cancel"]);
+  });
+});
+
+describe("pointer and contact deduplication", () => {
+  it("coalesces the same press arriving through two input paths, but permits a later press", () => {
+    expect(isDuplicateActivation(10_000, 10_100)).toBe(true);
+    expect(isDuplicateActivation(10_000, 10_000 + DUPLICATE_ACTIVATION_MS)).toBe(false);
   });
 });

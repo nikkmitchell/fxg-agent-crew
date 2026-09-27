@@ -10,13 +10,27 @@ import { bff } from "../bff-client";
 import { space } from "../space-client";
 import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
 import { SCOPES, TABS, scopeOf, screenOf, type SettingsTab } from "./settings-tabs";
-import { closedButtons, handNear, IDLE_OPACITY, touchPresses, type TouchButton } from "./touch-press";
+import {
+  closedButtons,
+  handNear,
+  IDLE_OPACITY,
+  isDuplicateActivation,
+  touchPresses,
+  type TouchButton,
+} from "./touch-press";
 import { goHandInput } from "./go-hand-input";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
 import { micGestureHands, micGestureIndicator } from "./mic-gesture-input";
-import { closedControlPose, lookingUp, upGearAt, walkedAway } from "./control-pose";
+import {
+  closedControlPose,
+  lookingUp,
+  UP_CALL_CENTRE_X,
+  UP_CONTROL_SIZE,
+  upGearAt,
+  walkedAway,
+} from "./control-pose";
 import { handModelsShown, pinchTeleportEnabled, setPinchTeleport, showHandModels } from "./xr-store";
 import {
   DEFAULT_ROOM_PREFERENCES,
@@ -185,8 +199,9 @@ const ICON_GAP = 0.02;
 /** Talk in the middle now the gear has gone up (Nikk, 5245); cancel to its right. */
 const TALK_X = 0;
 const CANCEL_X = TALK_X + ICON + ICON_GAP;
-/** The look-up gear: bigger than the pair was, being pointed at from a glance. */
-const UP_GEAR_SIZE = 0.12;
+/** The look-up gear and separate room-call control share one tested size. */
+const UP_GEAR_SIZE = UP_CONTROL_SIZE;
+const UP_CALL_SIZE = UP_CONTROL_SIZE;
 /** The status line under them: wide enough for a short sentence on two lines. */
 const STATUS = { width: 0.42, height: 0.09 } as const;
 
@@ -1007,6 +1022,8 @@ export function RoomControls({
   const handsInViewNow = useRef(false);
   handsInViewNow.current = handsInView;
   const touching = useRef<Set<string>>(new Set());
+  /** Pointer click and fingertip contact can describe the same physical press. */
+  const lastRoomCallPress = useRef(-Infinity);
   /** The settings gear that appears when you look up (Nikk, 5245). */
   const upGear = useRef<THREE.Group>(null);
   const upShown = useRef(false);
@@ -1016,6 +1033,12 @@ export function RoomControls({
   const agentsHidden = useAgentsHidden();
   const [handIsNear, setHandIsNear] = useState(false);
   const buttonOpacity = handIsNear ? 1 : IDLE_OPACITY;
+  const toggleRoomCall = useCallback(() => {
+    const now = performance.now();
+    if (isDuplicateActivation(lastRoomCallPress.current, now)) return;
+    lastRoomCallPress.current = now;
+    voice.setOn(voice.on || voice.starting ? false : true);
+  }, [voice.on, voice.setOn, voice.starting]);
   useFrame((state) => {
     const node = group.current;
     const body = anchor();
@@ -1110,14 +1133,17 @@ export function RoomControls({
     }));
     // The gear, while it is up, is pressed by a fingertip the same way.
     if (upShown.current && upGear.current) {
-      const p = upGear.current.getWorldPosition(new THREE.Vector3());
-      buttons.push({ id: "gear", at: { x: p.x, y: p.y, z: p.z }, radius: UP_GEAR_SIZE / 2 });
+      const gearAt = upGear.current.getWorldPosition(new THREE.Vector3());
+      buttons.push({ id: "gear", at: { x: gearAt.x, y: gearAt.y, z: gearAt.z }, radius: UP_GEAR_SIZE / 2 });
+      const callAt = upGear.current.localToWorld(new THREE.Vector3(UP_CALL_CENTRE_X, 0, 0));
+      buttons.push({ id: "room-call", at: { x: callAt.x, y: callAt.y, z: callAt.z }, radius: UP_CALL_SIZE / 2 });
     }
     const contacts = [goHandInput.left?.contact ?? null, goHandInput.right?.contact ?? null];
     const { pressed, inside } = touchPresses(buttons, contacts, touching.current);
     touching.current = inside;
     for (const id of pressed) {
       if (id === "gear") openMenuRef.current();
+      else if (id === "room-call") toggleRoomCall();
       else if (id === "talk") pressTalkRef.current();
       else if (id === "cancel") cancelRef.current?.();
     }
@@ -1363,13 +1389,15 @@ export function RoomControls({
       title: "Talking",
       rows: [
         {
-          label: voice.on
-            ? voice.others.length > 0
-              ? `Mic open — talking with ${voice.others.join(", ")}`
-              : "Mic open — tap to close"
+          label: voice.starting
+            ? "Opening your microphone…"
+            : voice.on
+              ? voice.others.length > 0
+                ? `Mic open — ${voice.others.join(", ")} also have mics open`
+                : "Mic open — tap to close"
             : "Talk out loud",
-          tone: voice.on ? "live" : "normal",
-          onTap: () => voice.setOn(!voice.on),
+          tone: voice.on || voice.starting ? "live" : "normal",
+          onTap: () => voice.setOn(voice.on || voice.starting ? false : true),
         },
         // Mute anyone, for yourself. Nobody else's hearing changes.
         ...voice.others.map((name) => {
@@ -1889,7 +1917,19 @@ export function RoomControls({
           opens the settings. Placed every frame in the loop above. */}
       <group ref={upGear} visible={false}>
         {upVisible && !open ? (
-          <WristButton label="⚙" glyph x={0} y={0} width={UP_GEAR_SIZE} height={UP_GEAR_SIZE} onTap={openMenu} />
+          <>
+            <WristButton label="⚙" glyph x={0} y={0} width={UP_GEAR_SIZE} height={UP_GEAR_SIZE} onTap={openMenu} />
+            <WristButton
+              label={voice.starting ? "…" : "☎"}
+              glyph
+              x={UP_CALL_CENTRE_X}
+              y={0}
+              width={UP_CALL_SIZE}
+              height={UP_CALL_SIZE}
+              tone={voice.on ? "live" : "normal"}
+              onTap={toggleRoomCall}
+            />
+          </>
         ) : null}
       </group>
       <group ref={group} visible={false}>

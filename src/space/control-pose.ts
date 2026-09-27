@@ -158,6 +158,10 @@ export const LOOK_UP_SHOW = (40 * Math.PI) / 180;
 export const LOOK_UP_HIDE = (30 * Math.PI) / 180;
 /** How far along your gaze it floats: in arm's reach, so it can be touched. */
 export const UP_GEAR_AHEAD = 0.45;
+/** The call toggle is a distinct, equally easy target beside the settings gear. */
+export const UP_CONTROL_SIZE = 0.12;
+export const UP_CONTROL_GAP = 0.02;
+export const UP_CALL_CENTRE_X = UP_CONTROL_SIZE + UP_CONTROL_GAP;
 
 /** Whether the gear is up, given whether it was and the head's pitch (up is positive). */
 export function lookingUp(shown: boolean, pitch: number): boolean {

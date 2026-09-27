@@ -24,6 +24,12 @@ export type TouchButton = { id: string; at: Point; radius: number };
 export const TOUCH_MARGIN = 0.015;
 /** Within this, a hand is "near" and the buttons light up to full strength. */
 export const NEAR = 0.2;
+/** A single physical press can also produce a pointer click in the same beat. */
+export const DUPLICATE_ACTIVATION_MS = 250;
+
+export function isDuplicateActivation(previousAt: number, now: number): boolean {
+  return now - previousAt < DUPLICATE_ACTIVATION_MS;
+}
 
 /**
  * Which buttons were pressed this frame.
