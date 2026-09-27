@@ -90,7 +90,10 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
     const change = request.body;
-    if (change?.revision !== undefined && change.revision !== item.revision) return reply.code(409).send({ code: "TABLE_CHANGED", error: "The table changed. Try again." });
+    if (change?.revision !== undefined && change.revision !== item.revision) {
+      request.log.info({ tableChangeRefused: { who: session.username, table: item.id, sent: change.revision, now: item.revision } }, "table change refused: stale revision");
+      return reply.code(409).send({ code: "TABLE_CHANGED", error: "The table changed. Try again." });
+    }
     if (change?.deskVisible !== undefined) {
       if (typeof change.deskVisible !== "boolean") return reply.code(400).send({ error: "Desk visibility must be true or false." });
       item.deskVisible = change.deskVisible;
@@ -115,11 +118,18 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       item.surface = change.surface;
     }
     if (change?.position !== undefined || change?.scale !== undefined) {
-      if (item.liftedColour !== null) return reply.code(409).send({ error: "Place or return the flying stone before moving the table." });
+      // A REFUSED MOVE IS LOGGED, with why: from inside a headset a refusal is
+      // just the table jumping back, and Nikk (5126) could only ask whether
+      // somebody else was moving it.
+      const refuse = (why: string, body: Record<string, unknown>) => {
+        request.log.info({ tableMoveRefused: { who: session.username, table: item.id, why } }, "table move refused");
+        return reply.code(409).send(body);
+      };
+      if (item.liftedColour !== null) return refuse("stone in flight", { error: "Place or return the flying stone before moving the table." });
       // Only the MOVE is guarded: the game, the board type and the players are
       // not what a person carrying the table has in their hands.
       const heldBy = options.holds?.heldByOther(room, `item:${item.id}`, session.username);
-      if (heldBy) return reply.code(409).send({ code: "HELD", heldBy, error: heldBySentence(heldBy) });
+      if (heldBy) return refuse(`held by ${heldBy}`, { code: "HELD", heldBy, error: heldBySentence(heldBy) });
       if (change.position !== undefined) {
         if (!change.position || typeof change.position !== "object") return reply.code(400).send({ error: "Position needs x, y, z and rotationY." });
         const p = change.position as Record<string, unknown>;
