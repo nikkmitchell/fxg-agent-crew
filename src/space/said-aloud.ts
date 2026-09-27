@@ -243,6 +243,8 @@ type Turn = {
   output: SpeechOutput | null;
   cancelled: boolean;
   finish: () => void;
+  /** Where this line went when it was stopped to be played again (holdAloud). */
+  retry?: Turn;
 };
 
 const waitingLines: Turn[] = [];
@@ -255,8 +257,33 @@ let playingLine: Turn | null = null;
  */
 export const LONGEST_TURN_MS = 90_000;
 
+/**
+ * HELD WHILE YOU ARE SPEAKING. Nikk (5158): "If agent is talking and I talk
+ * then I can't hear the agent ... have incoming messages be put on a delay so
+ * they will arrive after I finish sending my message". While held nothing
+ * starts, and a line that was playing when you began is stopped and put back
+ * at the front of the line, so it is heard whole afterwards.
+ */
+let held = false;
+
+export function holdAloud(hold: boolean): void {
+  if (hold === held) return;
+  held = hold;
+  if (hold && playingLine) {
+    const interrupted = playingLine;
+    const again: Turn = { options: interrupted.options, output: null, cancelled: false, finish: () => {} };
+    waitingLines.unshift(again);
+    // Its own handle now reaches the copy, so cancelling it still works.
+    interrupted.retry = again;
+    interrupted.output?.cancel();
+    interrupted.finish();
+    return;
+  }
+  if (!hold) nextLine();
+}
+
 const nextLine = () => {
-  if (playingLine) return;
+  if (playingLine || held) return;
   const turn = waitingLines.shift();
   if (!turn) return;
   playingLine = turn;
@@ -291,6 +318,19 @@ export function queueAloud(options: ReadAloudOptions): SpeechOutput {
     cancel: () => {
       if (turn.cancelled) return;
       turn.cancelled = true;
+      // Stopped and queued again while somebody spoke: cancel the copy.
+      let target = turn;
+      while (target.retry) target = target.retry;
+      if (target !== turn) {
+        target.cancelled = true;
+        const at = waitingLines.indexOf(target);
+        if (at >= 0) waitingLines.splice(at, 1);
+        else if (playingLine === target) {
+          target.output?.cancel();
+          target.finish();
+        }
+        return;
+      }
       const waiting = waitingLines.indexOf(turn);
       if (waiting >= 0) {
         waitingLines.splice(waiting, 1);
@@ -306,4 +346,5 @@ export function queueAloud(options: ReadAloudOptions): SpeechOutput {
 export function clearAloudQueue(): void {
   waitingLines.length = 0;
   playingLine = null;
+  held = false;
 }

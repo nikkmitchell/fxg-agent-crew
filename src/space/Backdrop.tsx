@@ -81,6 +81,8 @@ export function WristButton({
   textSize,
   /** A multiplier on how visible the button is (1 = as designed). */
   opacity = 1,
+  /** Shown, but never catches a pointer: the ray passes straight through. */
+  passThrough = false,
   onTap,
 }: {
   label: string;
@@ -93,6 +95,7 @@ export function WristButton({
   lines?: number;
   textSize?: number;
   opacity?: number;
+  passThrough?: boolean;
   onTap: () => void;
 }) {
   /**
@@ -130,10 +133,14 @@ export function WristButton({
   return (
     <group position={[x, y, 0]}>
       <mesh
-        onClick={(event) => {
-          event.stopPropagation();
-          onTap();
-        }}
+        {...(passThrough
+          ? { raycast: () => null }
+          : {
+              onClick: (event: { stopPropagation: () => void }) => {
+                event.stopPropagation();
+                onTap();
+              },
+            })}
       >
         <shapeGeometry args={[shape, 6]} />
         <meshBasicMaterial color={colour} transparent opacity={0.92 * opacity} side={THREE.DoubleSide} />
