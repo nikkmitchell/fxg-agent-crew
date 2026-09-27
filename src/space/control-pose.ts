@@ -142,3 +142,43 @@ export function closedControlPose(at: { x: number; y?: number; z: number }, yaw:
     rotation: [-closedTilt(), yaw, 0],
   };
 }
+
+/**
+ * THE SETTINGS GEAR, UP WHERE YOU LOOK. Nikk (5245): "move the settings button
+ * ... up, so if you tilt your head upwards 45° then that setting button would
+ * appear in front of you, and then you can either touch it or select it with
+ * the pointer". Out of the way until you want it, then right where you are
+ * looking.
+ *
+ * Shown once the head is tipped up past LOOK_UP_SHOW, and not hidden again
+ * until it comes back below LOOK_UP_HIDE, so a head held near the threshold
+ * does not make it flicker.
+ */
+export const LOOK_UP_SHOW = (40 * Math.PI) / 180;
+export const LOOK_UP_HIDE = (30 * Math.PI) / 180;
+/** How far along your gaze it floats: in arm's reach, so it can be touched. */
+export const UP_GEAR_AHEAD = 0.45;
+
+/** Whether the gear is up, given whether it was and the head's pitch (up is positive). */
+export function lookingUp(shown: boolean, pitch: number): boolean {
+  return shown ? pitch > LOOK_UP_HIDE : pitch >= LOOK_UP_SHOW;
+}
+
+/** Where the up gear floats: along the gaze from the eyes. */
+export function upGearAt(
+  eyes: { x: number; y: number; z: number },
+  gaze: { x: number; y: number; z: number },
+): { x: number; y: number; z: number } {
+  return { x: eyes.x + gaze.x * UP_GEAR_AHEAD, y: eyes.y + gaze.y * UP_GEAR_AHEAD, z: eyes.z + gaze.z * UP_GEAR_AHEAD };
+}
+
+/**
+ * THE SETTINGS CLOSE WHEN YOU WALK AWAY. Nikk (5248): "once you've opened it up,
+ * if you move more than 1 m in any direction, have the settings close
+ * automatically". Measured across the floor from where you stood to open it.
+ */
+export const WALK_AWAY_METRES = 1;
+
+export function walkedAway(from: { x: number; z: number }, now: { x: number; z: number }): boolean {
+  return Math.hypot(now.x - from.x, now.z - from.z) > WALK_AWAY_METRES;
+}

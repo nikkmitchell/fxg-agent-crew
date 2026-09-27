@@ -7,6 +7,10 @@ import {
   closedTilt,
   squareOnTilt,
   TILT_FRACTION,
+  UP_GEAR_AHEAD,
+  lookingUp,
+  upGearAt,
+  walkedAway,
 } from "./control-pose";
 
 const deg = (radians: number) => (radians * 180) / Math.PI;
@@ -111,5 +115,31 @@ describe("which way the closed controls face", () => {
     const { rotation } = closedControlPose({ x: 0, z: 0 }, 1.23);
     expect(rotation[1]).toBe(1.23);
     expect(rotation[2]).toBe(0);
+  });
+});
+
+describe("the settings gear, up where you look (Nikk 5245)", () => {
+  const deg = (d: number) => (d * Math.PI) / 180;
+  it("appears once you tip your head up past 40°, and stays until you drop below 30°", () => {
+    expect(lookingUp(false, deg(20))).toBe(false);
+    expect(lookingUp(false, deg(39))).toBe(false);
+    expect(lookingUp(false, deg(45))).toBe(true);
+    expect(lookingUp(true, deg(35)), "no flicker near the line").toBe(true);
+    expect(lookingUp(true, deg(25))).toBe(false);
+  });
+
+  it("floats in arm's reach along your gaze", () => {
+    const at = upGearAt({ x: 0, y: 1.6, z: 0 }, { x: 0, y: Math.sin(deg(45)), z: -Math.cos(deg(45)) });
+    expect(Math.hypot(at.x, at.y - 1.6, at.z)).toBeCloseTo(UP_GEAR_AHEAD, 5);
+    expect(at.y).toBeGreaterThan(1.6);
+  });
+});
+
+describe("the settings close when you walk away (Nikk 5248)", () => {
+  it("closes past a metre in any direction, not before", () => {
+    const from = { x: 2, z: -1 };
+    expect(walkedAway(from, { x: 2.5, z: -1.5 })).toBe(false);
+    expect(walkedAway(from, { x: 3.1, z: -1 })).toBe(true);
+    expect(walkedAway(from, { x: 2, z: 0.1 })).toBe(true);
   });
 });
