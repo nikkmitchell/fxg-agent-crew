@@ -1074,4 +1074,17 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 35,
+    name: "each room's ikebana vase",
+    sql: `
+      -- The stems arranged in the room's vase (shared/ikebana.ts), until emptied.
+      CREATE TABLE space_vase (
+        room TEXT PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];

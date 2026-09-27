@@ -4,6 +4,7 @@ import type { Mandala, MandalaChange, MandalaEvent } from "../shared/mandala";
 import type { Lantern } from "../shared/lantern";
 import type { StarEvent, StarSky } from "../shared/stars";
 import type { Stick } from "../shared/incense";
+import type { Vase, VaseChange, VaseEvent } from "../shared/ikebana";
 import { actOnItem } from "./space/item-socket";
 import { requestJson } from "./api-request";
 import { base } from "./router";
@@ -169,6 +170,9 @@ export const space = {
   mandala: () => requestJson<{ mandala: Mandala }>(`${root}/mandala`),
   changeMandala: (change: MandalaChange) =>
     requestJson<{ event: MandalaEvent }>(`${root}/mandala`, { method: "POST", body: JSON.stringify(change) }),
+  /** The ikebana vase, and arranging it: see shared/ikebana.ts. */
+  vase: () => requestJson<{ vase: Vase }>(`${root}/vase`),
+  changeVase: (change: VaseChange) => requestJson<{ event: VaseEvent }>(`${root}/vase`, { method: "POST", body: JSON.stringify(change) }),
   /** The incense burning, and lighting a stick: see shared/incense.ts. */
   incense: () => requestJson<{ sticks: Stick[]; now: number }>(`${root}/incense`),
   lightIncense: () => requestJson<{ sticks: Stick[]; now: number }>(`${root}/incense`, { method: "POST", body: "{}" }),

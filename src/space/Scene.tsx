@@ -58,6 +58,7 @@ import { StarMap } from "./StarMap";
 import { BambooKnocker } from "./BambooKnocker";
 import { IncenseBowl } from "./IncenseBowl";
 import { HoldTheLight } from "./HoldTheLight";
+import { IkebanaVase } from "./IkebanaVase";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
@@ -913,6 +914,8 @@ export default function Scene({
         {connection.meditation?.shown && <IncenseBowl />}
         {/* And a light to hold between your hands: see HoldTheLight.tsx. */}
         {connection.meditation?.shown && <HoldTheLight peopleRef={connection.peopleRef} you={you} />}
+        {/* And ikebana: see shared/ikebana.ts. */}
+        {connection.meditation?.shown && <IkebanaVase />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}

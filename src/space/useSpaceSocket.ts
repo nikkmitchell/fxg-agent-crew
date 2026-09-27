@@ -7,6 +7,7 @@ import { wheelPushed } from "./wheel-events";
 import { lanternReleased } from "./lantern-events";
 import { starsChanged } from "./star-events";
 import { incenseLit } from "./incense-events";
+import { vaseChanged } from "./vase-events";
 import { registerItemSocket, settleItemAction } from "./item-socket";
 import { setAgentsHiddenForEveryone } from "./agents-hidden";
 import { registerCallSocket, settleCall } from "../call-socket";
@@ -308,6 +309,10 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
         if (message.type === "helpers") {
           // Agents' helpers: drawn as spirits, never counted as people.
           setHelpers(message.helpers);
+          return;
+        }
+        if (message.type === "vase") {
+          vaseChanged(message.event);
           return;
         }
         if (message.type === "incense") {
