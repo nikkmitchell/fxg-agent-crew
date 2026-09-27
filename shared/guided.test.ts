@@ -201,3 +201,15 @@ describe("the room's book", () => {
     expect(book.history.at(-1)?.at).toBe((BOOK_LENGTH + 2) * 600_000);
   });
 });
+
+describe("the mindfulness bell", () => {
+  it("rings on the quarter hour, pauses for three breaths, then is quiet", async () => {
+    const { BELL_EVERY_MS, BELL_PAUSE_MS, bellPause } = await import("./meditation.js");
+    const hour = 10 * 60 * 60_000;
+    expect(bellPause(hour)).toEqual({ rangAt: hour, left: BELL_PAUSE_MS });
+    expect(bellPause(hour + 5_000)?.left).toBe(BELL_PAUSE_MS - 5_000);
+    expect(bellPause(hour + BELL_PAUSE_MS)).toBeNull();
+    expect(bellPause(hour + BELL_EVERY_MS - 1)).toBeNull();
+    expect(bellPause(hour + BELL_EVERY_MS)?.rangAt).toBe(hour + BELL_EVERY_MS);
+  });
+});
