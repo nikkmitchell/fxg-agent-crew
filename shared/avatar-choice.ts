@@ -93,6 +93,13 @@ export const BODIES_ON_HAND: readonly BodyOnHand[] = [
  */
 export const bodyKey = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]/g, "");
 
+/**
+ * A small picture of a catalogue body, shipped with the site: 200x300, a few
+ * KB. The catalogue's own thumbnails are on arweave.net, which nobody in China
+ * can reach without a VPN, and are 225 KB each. Made by tools/avatar-thumbs.py.
+ */
+export const thumbPath = (name: string): string => `/avatars/thumbs/${bodyKey(name)}.jpg`;
+
 const BY_KEY = new Map<string, BodyOnHand>();
 for (const body of BODIES_ON_HAND) {
   BY_KEY.set(bodyKey(body.slug), body);

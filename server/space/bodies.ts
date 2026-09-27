@@ -121,6 +121,8 @@ export function registerBodyRoutes(
      * two. See server/space/catalogue.ts.
      */
     inTheCatalogue?: CatalogueLookup;
+    /** Keys of the catalogue bodies whose files are on this server now. */
+    ready?: () => Promise<string[]>;
   },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);
@@ -150,6 +152,13 @@ export function registerBodyRoutes(
       onHand,
       chosen: deps.bodies.all(),
       catalogue: "/avatars/catalogue.json",
+      /**
+       * WHAT CAN BE WORN FROM HERE, by key: the bodies that ship with the site
+       * and every catalogue body already on this server. Nikk wants the lobby
+       * to offer the avatars "that are available on the server", and a body
+       * that cannot be fetched is not one of them.
+       */
+      ready: [...new Set([...onHand.map((body) => bodyKey(body.slug)), ...(await (deps.ready?.() ?? Promise.resolve([])))])].sort(),
       ...describeWardrobe(onHand, readable()),
     });
   });

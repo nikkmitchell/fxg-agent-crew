@@ -20,6 +20,8 @@ import { getXRStore } from "./xr-store";
 import type { Comfort } from "./comfort";
 import { pointerWasClaimed } from "./pointer-claim";
 import { RoomPanel } from "./RoomPanel";
+import { LobbyHall } from "./LobbyHall";
+import { isLobby } from "../../shared/lobby-hall";
 import { useBoardCards } from "./useBoardCards";
 import { ScreenWall } from "./ScreenWall";
 import { ArrivalSparkles } from "./ArrivalSparkles";
@@ -739,7 +741,19 @@ export default function Scene({
           panel is an iframe running the whole app, and three of those drawing
           nothing behind a `visible={false}` is the same waste as leaving them
           up in a headset. */}
-        {openPanels
+        {/* THE LOBBY IS A FRONT HALL: doors to rooms, you, and a wardrobe, in
+          place of the work panels (Nikk, 2026-09-27; shared/lobby-hall.ts). */}
+        {isLobby(spaceRoomName) ? (
+          <LobbyHall
+            you={you}
+            currentRoom={spaceRoomName}
+            roster={connection.roster}
+            peopleRef={connection.peopleRef}
+            reducedMotion={reducedMotion}
+            onSwitchRoom={onSwitchRoom}
+          />
+        ) : null}
+        {(isLobby(spaceRoomName) ? [] : openPanels)
           .map((id) => STATIONS[id])
           .filter((station) => station !== undefined)
           .map((station) => (
