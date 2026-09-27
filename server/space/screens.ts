@@ -9,22 +9,32 @@ import { NOT_A_PERSON } from "../../shared/space-layout.js";
 import { SCREEN_LIMITS, sniffImage, type ScreenSummary } from "../../shared/screens.js";
 
 /**
- * Screen sharing: one picture per person per room, always the latest.
+ * Screen sharing: one picture per person, always the latest.
  *
  * Nikk asked for it so that people "can see what each agent is working on, to
  * get more information than just what they share in chat" — a page that takes
  * a picture of a screen about once a second and uploads it, and a virtual
  * screen in the room for each person who is sharing.
  *
- * ONE CONSTANTLY OVERWRITTEN FRAMEBUFFER PER ROOM, NOT AN ARCHIVE, which was
- * Nikk's own refinement and is the whole storage design. Each person has at
- * most one frame in a room; a new one replaces it; nothing is written to disk. That is also the
+ * ONE CONSTANTLY OVERWRITTEN FRAMEBUFFER, NOT AN ARCHIVE, which was Nikk's
+ * own refinement and is the whole storage design. Each person has at most one
+ * frame; a new one replaces it; nothing is written to disk. That is also the
  * privacy property worth having: a screen shows what is on it now and cannot be
  * scrolled back through by anybody later.
  *
  * IN MEMORY, AND THAT IS FINE. A restart forgets every frame, and the next one
  * arrives within a second. Keeping frames across restarts would only mean
  * showing a picture of a screen that may no longer look like that.
+ *
+ * A SCREEN IS SHOWN WHERE ITS PERSON IS. Nikk (2026-09-27): sharing "doesn't
+ * work unless you have joined a room on desktop, we don't need that ... you
+ * should be able to share no matter if you're in a room, and then the agent
+ * can share in any room they are in". A frame was filed under ONE room, the
+ * one the sharer's session had last entered (saha.ing if none), and appeared
+ * only there. Now it belongs to its person and shows in every room they are
+ * in. Only somebody in no room at all falls back to the room it was shared
+ * from, so a share always lands somewhere. It never shows in a room its
+ * person is not in, which is the isolation between rooms kept as it was.
  *
  * STALE FRAMES ARE NOT SHOWN. A sharer who closes the lid does not send a stop;
  * their last frame would otherwise hang in the room indefinitely, claiming to
@@ -33,6 +43,7 @@ import { SCREEN_LIMITS, sniffImage, type ScreenSummary } from "../../shared/scre
  */
 
 type Frame = {
+  /** The room it was shared from: where it shows if its person is in none. */
   room: string;
   actorId: string;
   /** Who put it up for `actorId`; null when the actor shared their own. */
@@ -43,6 +54,9 @@ type Frame = {
   at: number;
 };
 
+/** The rooms somebody is in right now. */
+export type RoomsOf = (actorId: string) => string[];
+
 export class ScreenFrames {
   private readonly frames = new Map<string, Frame>();
   private seq = 0;
@@ -50,32 +64,42 @@ export class ScreenFrames {
   constructor(private readonly now: () => number = Date.now) {}
 
   /** Keyed case-insensitively: the room and the chat spell the same person differently. */
-  private key(actorId: string, room: string): string {
-    return JSON.stringify([roomKey(room), actorId.trim().toLowerCase()]);
+  private key(actorId: string): string {
+    return actorId.trim().toLowerCase();
   }
 
   put(actorId: string, bytes: Buffer, type: string, sharedBy: string | null = null,
     room = DEFAULT_SPACE_ROOM): number {
     this.seq += 1;
-    this.frames.set(this.key(actorId, room), { room: roomKey(room), actorId, sharedBy,
+    this.frames.set(this.key(actorId), { room: roomKey(room), actorId, sharedBy,
       bytes, type, seq: this.seq, at: this.now() });
     return this.seq;
   }
 
   /** The latest frame, or nothing if there is none or it has gone stale. */
-  get(actorId: string, room = DEFAULT_SPACE_ROOM): Frame | undefined {
-    const frame = this.frames.get(this.key(actorId, room));
+  get(actorId: string): Frame | undefined {
+    const frame = this.frames.get(this.key(actorId));
     if (!frame) return undefined;
     if (this.now() - frame.at > SCREEN_LIMITS.staleMs) return undefined;
     return frame;
   }
 
-  clear(actorId: string, room = DEFAULT_SPACE_ROOM): void {
-    this.frames.delete(this.key(actorId, room));
+  clear(actorId: string): void {
+    this.frames.delete(this.key(actorId));
   }
 
-  /** Everybody currently sharing, in a stable order so the room does not reshuffle. */
-  list(room = DEFAULT_SPACE_ROOM): ScreenSummary[] {
+  /**
+   * Whether this frame shows in `room`: every room its person is in, or, when
+   * they are in none, the room it was shared from. `roomsOf` names the rooms
+   * somebody is in; without it (tests of storage alone) only the fallback.
+   */
+  static shows(frame: Pick<Frame, "room" | "actorId">, room: string, roomsOf: RoomsOf = () => []): boolean {
+    const theirs = roomsOf(frame.actorId).map(roomKey);
+    return theirs.length > 0 ? theirs.includes(roomKey(room)) : frame.room === roomKey(room);
+  }
+
+  /** Everybody sharing into this room, in a stable order so the room does not reshuffle. */
+  list(room = DEFAULT_SPACE_ROOM, roomsOf?: RoomsOf): ScreenSummary[] {
     const now = this.now();
     const live: ScreenSummary[] = [];
     for (const [key, frame] of this.frames) {
@@ -85,7 +109,7 @@ export class ScreenFrames {
         this.frames.delete(key);
         continue;
       }
-      if (frame.room !== roomKey(room)) continue;
+      if (!ScreenFrames.shows(frame, room, roomsOf)) continue;
       live.push({
         actorId: frame.actorId,
         sharedBy: frame.sharedBy,
@@ -206,6 +230,8 @@ export function registerScreenRoutes(
     sessions: SessionStore;
     frames: ScreenFrames;
     keys: ShareKeys;
+    /** Which rooms somebody is in, for which rooms their screen shows in. */
+    roomsOf?: RoomsOf;
   },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);
@@ -305,14 +331,14 @@ export function registerScreenRoutes(
     if (!who) {
       return reply.code(401).send({ code: "NOT_ALLOWED", error: "sign in, or use a current share link" });
     }
-    deps.frames.clear(who.actorId, who.room);
+    deps.frames.clear(who.actorId);
     return reply.send({ ok: true });
   });
 
   app.get("/bff/space/screens", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const screens = deps.frames.list(spaceRoomOf(session))
+    const screens = deps.frames.list(spaceRoomOf(session), deps.roomsOf)
       .map((screen) => ({ ...screen, kind: deps.keys.kindOf(screen.actorId) }));
     return reply.header("cache-control", "no-store").send({ screens });
   });
@@ -320,7 +346,8 @@ export function registerScreenRoutes(
   app.get<{ Params: { actorId: string } }>("/bff/space/screens/:actorId/frame", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const frame = deps.frames.get(request.params.actorId, spaceRoomOf(session));
+    const found = deps.frames.get(request.params.actorId);
+    const frame = found && ScreenFrames.shows(found, spaceRoomOf(session), deps.roomsOf) ? found : undefined;
     if (!frame) return reply.code(404).send({ code: "NOT_SHARING", error: "not sharing a screen" });
     return reply
       .header("content-type", frame.type)
