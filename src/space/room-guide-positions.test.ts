@@ -17,6 +17,7 @@ import { LIGHT_AT } from "./HoldTheLight";
 import { VASE_AT } from "./IkebanaVase";
 import { FIREFLIES_AT } from "./Fireflies";
 import { MALA_AT } from "./MalaStand";
+import { HARP_AT } from "./FloorHarp";
 
 /** The room guide sign copies each piece's place by hand; this keeps the copies honest. */
 describe("the room guide says where things really are", () => {
@@ -24,7 +25,7 @@ describe("the room guide says where things really are", () => {
     "Singing bowls": BOWLS_AT, "Sand garden": GARDEN_AT, "Ember fire": FIRE_AT, "Kaleidoscope dome": DOME_AT,
     "Light ribbons": RIBBONS_AT, "Koi pond": POND_AT, "Sand mandala": MANDALA_AT, "Wind chimes": CHIMES_AT,
     "Prayer wheel": WHEEL_AT, "Gong": GONG_AT, "Rain curtain": RAIN_AT, "Lanterns": LAUNCH_AT, "Incense": INCENSE_AT,
-    "Hold the light": LIGHT_AT, "Ikebana": VASE_AT, "Fireflies": FIREFLIES_AT, "Mala": MALA_AT,
+    "Hold the light": LIGHT_AT, "Ikebana": VASE_AT, "Fireflies": FIREFLIES_AT, "Mala": MALA_AT, "Floor harp": HARP_AT,
   };
   for (const [name, at] of Object.entries(places)) {
     it(name, () => {
