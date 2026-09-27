@@ -40,6 +40,12 @@ describe("spoken reply policy", () => {
     expect(shouldSpeakUtterance(utterance({ say: "   " }), "Wilson")).toBe(false);
   });
 
+  it("does not read out somebody else's spoken words: they were already heard (Baiwei, 5128)", () => {
+    expect(shouldSpeakUtterance(utterance({ actorId: "Nikk2", source: "voice" }), "baiwei2")).toBe(false);
+    // Typed words and agents' lines are still read.
+    expect(shouldSpeakUtterance(utterance({ actorId: "Nikk2", source: "text" }), "baiwei2")).toBe(true);
+  });
+
   it("says nothing to a viewer who is not signed in", () => {
     expect(shouldSpeakUtterance(utterance(), null)).toBe(false);
   });

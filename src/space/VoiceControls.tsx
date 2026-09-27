@@ -22,11 +22,20 @@ import { volumeAt } from "./agent-voice";
  *
  * Still never your own voice, and still nothing without a `say` — `detail` is
  * written and is not read out by anybody.
+ *
+ * AND NEVER SOMEBODY ELSE'S VOICE. A line that came from a person's microphone
+ * was already heard, by everyone near them or on the call with them; reading
+ * the transcript out again is an echo. Baiwei (5128): "can we stop
+ * transcribing people's words to other people's headsets? ... it's Nikk's
+ * voice being transcribed and broadcasted in my headset ... I can hear him over
+ * the phone." Only a microphone makes a `voice` line; agents and typed words
+ * are `text`, and are still read. The words stay in writing either way.
  */
 export function shouldSpeakUtterance(utterance: Utterance, you: string | null): boolean {
   return Boolean(
     you &&
     utterance.actorId !== you &&
+    utterance.source !== "voice" &&
     utterance.say?.trim(),
   );
 }
