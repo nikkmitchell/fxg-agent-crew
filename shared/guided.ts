@@ -263,6 +263,19 @@ export const READINGS = {
       "and not, when I came to die, discover that I had not lived.",
     ],
   },
+  /** Read at the tea table (src/space/TeaTable.tsx), not on the stone's list. */
+  tea: {
+    title: "A cup of tea",
+    by: "Sill, for meditation.AR (2026)",
+    lines: [
+      "Hold the cup in both hands. Feel its warmth.",
+      "Look at the steam rising, and disappearing.",
+      "Breathe in the smell of the tea, slowly.",
+      "Take one small sip. Notice the taste, the warmth, the swallow.",
+      "This cup of tea is the only thing to do right now.",
+      "Drink the rest slowly, one sip at a time.",
+    ],
+  },
   "summer-grass": {
     title: "A spear of summer grass",
     by: "Walt Whitman, Song of Myself (1855)",
