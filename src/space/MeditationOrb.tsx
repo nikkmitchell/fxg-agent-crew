@@ -11,6 +11,8 @@ import { bell, cueFor, omDrone, phaseCue } from "./breath-sound";
 import { GUIDES, GUIDE_IDS, guideCaption, guideLineAt } from "../../shared/guided";
 import { SOUNDSCAPE_LABEL, isSoundscape, nextSoundscape, playSoundscape, type Soundscape } from "./soundscape";
 import { useDisposable } from "./use-disposable";
+import { Typing3D } from "./Typing3D";
+import { INTENTION_LONGEST, type Intention } from "../../shared/meditation";
 
 /**
  * The breathing orb. Nikk (4649): "the full AR meditation experience".
@@ -65,6 +67,42 @@ function OrbButton({ label, at, onTap, width = 0.26, selected = false }: {
   </group>;
 }
 
+/**
+ * INTENTION STONES: each person's word, a small glowing stone circling the
+ * orb. They drift in on the in-breath and out on the out-breath, so the words
+ * breathe with the room. Spread evenly round the circle, turning slowly.
+ */
+function Stones({ intentions, fullness }: { intentions: Intention[]; fullness: () => number }) {
+  const spin = useRef<THREE.Group>(null);
+  const stones = useRef<Array<THREE.Group | null>>([]);
+  useFrame((_, delta) => {
+    if (spin.current) spin.current.rotation.y += delta * 0.06;
+    const breath = 0.18 * fullness();
+    stones.current.forEach((stone, index) => {
+      if (!stone) return;
+      // Twelve to a ring; each later ring wider and a little higher, so a room
+      // that has gathered forty words is a spiral of them, not a pile.
+      const ringIndex = Math.floor(index / 12);
+      const inRing = Math.min(12, intentions.length - ringIndex * 12);
+      const angle = ((index % 12) / inRing) * Math.PI * 2 + ringIndex * 0.4;
+      const radius = 0.78 + ringIndex * 0.3 - breath;
+      stone.position.set(Math.sin(angle) * radius, ringIndex * 0.12 + Math.sin(angle * 2 + index) * 0.05, Math.cos(angle) * radius);
+      // Words face outward from the orb's axis, turned back against the spin
+      // so they stay readable from the door.
+      stone.rotation.y = -(spin.current?.rotation.y ?? 0);
+    });
+  });
+  return <group ref={spin}>
+    {intentions.map((one, index) => <group key={`${index}-${one.by}-${one.word}`} ref={(node) => { stones.current[index] = node; }}>
+      <mesh raycast={noRaycast}>
+        <sphereGeometry args={[0.022, 16, 12]} />
+        <meshBasicMaterial color="#f2d59a" transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+      </mesh>
+      <Text position={[0, 0.05, 0]} fontSize={0.03} color="#fff6e0" raycast={noRaycast} outlineWidth={0.002} outlineColor="#0b1418">{one.word}</Text>
+    </group>)}
+  </group>;
+}
+
 export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
   meditation: Meditation;
   /** Apply the session as the server just answered with it. */
@@ -76,6 +114,9 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
   const halo = useRef<THREE.Sprite>(null);
   const ring = useRef<THREE.Mesh>(null);
   const ripple = useRef<THREE.Mesh>(null);
+  /** Writing an intention: the keyboard is open. */
+  const [intending, setIntending] = useState(false);
+  const fullnessNow = useRef(0.35);
   const glow = useDisposable(glowTexture, []);
   /** Server clock minus ours, so every device reads the same breath. */
   const offset = useRef(0);
@@ -154,6 +195,7 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
   useFrame(() => {
     const at = breathAt(meditation, now());
     const fullness = at.state === "breathing" ? at.fullness : at.state === "idle" ? 0.35 : 0;
+    fullnessNow.current = fullness;
     const colour = phaseColour.set(PHASE_COLOUR[at.state === "breathing" ? at.phase : "rest"]);
     const radius = SMALL + (LARGE - SMALL) * (reducedMotion ? Math.round(fullness) : fullness);
     core.current?.scale.setScalar(radius);
@@ -214,6 +256,7 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
       <sphereGeometry args={[1, 48, 32]} />
       <meshBasicMaterial color={PHASE_COLOUR[phaseKey]} transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
     </mesh>
+    {meditation.intentions.length > 0 && <Stones intentions={meditation.intentions} fullness={() => fullnessNow.current} />}
     {/* The out-breath rolling across the floor, 1.5 m below (rippleAt). */}
     <mesh ref={ripple} raycast={noRaycast} position={[0, -y + 0.01, 0]} rotation-x={-Math.PI / 2} visible={false}>
       <ringGeometry args={[0.96, 1, 96]} />
@@ -273,11 +316,20 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
         setSound(next);
         try { localStorage.setItem("orb-sound", next ? "on" : "off"); } catch { /* per-viewer only */ }
       }} />
+      <OrbButton label="+ INTENTION" width={0.26} at={[-0.55, running ? 0 : -0.1, 0]} onTap={() => setIntending(true)} />
       <OrbButton label={SOUNDSCAPE_LABEL[ambient]} width={0.2} at={[0.52, running ? -0.1 : -0.2, 0]} selected={ambient !== "off"} onTap={() => {
         const next = nextSoundscape(ambient);
         setAmbient(next);
         try { localStorage.setItem("orb-ambient", next); } catch { /* per-viewer only */ }
       }} />
+      {intending && <Typing3D
+        prompt="One word for a stone. Everyone in this room will see it, and it stays. Leave empty to take back your latest."
+        limit={INTENTION_LONGEST}
+        position={[0, -0.25, 0.35]}
+        scale={1}
+        onCancel={() => setIntending(false)}
+        onDone={(word) => { setIntending(false); change({ action: "intend", word }); }}
+      />}
       {trouble && <Text position={[0, -0.18, 0]} fontSize={0.026} color="#ffb4a6" raycast={noRaycast}>{trouble}</Text>}
     </group>
   </group>;

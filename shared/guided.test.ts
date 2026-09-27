@@ -78,3 +78,36 @@ describe("the breath on the floor", () => {
     expect(rippleAt({ state: "idle" })).toBeNull();
   });
 });
+
+describe("intention stones", () => {
+  const intend = (session: Meditation, by: string, word: unknown) => applyMeditation(session, { action: "intend", word }, by, 1_000);
+
+  it("builds up: every word adds a stone, and a writer takes back only their own latest", () => {
+    let session = intend(idleMeditation(), "Nikk2", "  rest ") as Meditation;
+    session = intend(session, "wilson", "patience") as Meditation;
+    session = intend(session, "nikk2", "home") as Meditation;
+    expect(session.intentions.map((one) => one.word)).toEqual(["rest", "patience", "home"]);
+    session = intend(session, "Nikk2", "") as Meditation;
+    expect(session.intentions.map((one) => one.word)).toEqual(["rest", "patience"]);
+    expect(intend(session, "stranger", "")).toHaveProperty("refused");
+  });
+
+  it("refuses an essay, keeps the stones when a session ends (Nikk, 5483), and lets the oldest drift away", async () => {
+    const { MOST_INTENTIONS } = await import("./meditation.js");
+    expect(intend(idleMeditation(), "Nikk2", "a".repeat(40))).toHaveProperty("refused");
+    const set = intend(idleMeditation(), "Nikk2", "rest") as Meditation;
+    const ended = applyMeditation(set, { action: "end" }, "Nikk2", 2_000) as Meditation;
+    expect(ended.intentions).toHaveLength(1);
+    let full = idleMeditation();
+    for (let n = 0; n <= MOST_INTENTIONS; n += 1) full = intend(full, "Nikk2", `w${n}`) as Meditation;
+    expect(full.intentions).toHaveLength(MOST_INTENTIONS);
+    expect(full.intentions[0].word).toBe("w1");
+  });
+
+  it("keeps the stones when the session starts, and reads back only real ones", () => {
+    const set = intend(idleMeditation(), "Nikk2", "rest") as Meditation;
+    const started = applyMeditation(set, { action: "start" }, "Nikk2", 2_000) as Meditation;
+    expect(started.intentions).toHaveLength(1);
+    expect(parseMeditation({ intentions: [{ by: "a", word: "b" }, { by: 3 }, "x"] })?.intentions).toEqual([{ by: "a", word: "b" }]);
+  });
+});
