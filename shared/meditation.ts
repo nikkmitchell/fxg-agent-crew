@@ -52,6 +52,15 @@ export const PATTERNS = {
     label: "4 · 7 · 8",
     steps: [{ phase: "in", seconds: 4 }, { phase: "hold", seconds: 7 }, { phase: "out", seconds: 8 }],
   },
+  /**
+   * OM, chanted together (Nikk, 5463: "chants"). A short breath in, then a long
+   * out-breath spent on one sustained sound. The orb hums the note on every
+   * out-breath (breath-sound.ts, omDrone), so the room has a pitch to join.
+   */
+  om: {
+    label: "OM",
+    steps: [{ phase: "in", seconds: 4 }, { phase: "out", seconds: 10, words: "CHANT OM" }],
+  },
   "wim-hof": {
     label: "WIM HOF",
     // Fast deep breathing and an empty hold can make people light-headed.
