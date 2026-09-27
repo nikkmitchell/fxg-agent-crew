@@ -12,7 +12,7 @@
  */
 import { audio } from "./breath-sound";
 
-export const SOUNDSCAPES = ["off", "rain", "stream", "bowls", "night"] as const;
+export const SOUNDSCAPES = ["off", "rain", "stream", "bowls", "night", "ocean", "wind"] as const;
 export type Soundscape = (typeof SOUNDSCAPES)[number];
 
 export const SOUNDSCAPE_LABEL: Record<Soundscape, string> = {
@@ -21,6 +21,8 @@ export const SOUNDSCAPE_LABEL: Record<Soundscape, string> = {
   stream: "STREAM",
   bowls: "BOWLS",
   night: "NIGHT",
+  ocean: "OCEAN",
+  wind: "WIND",
 };
 
 export function nextSoundscape(now: Soundscape): Soundscape {
@@ -178,6 +180,45 @@ export function playSoundscape(kind: Soundscape): () => void {
       timers.push(window.setTimeout(chirp, 600 + Math.random() * 2200));
     };
     chirp();
+  }
+
+  if (kind === "ocean") {
+    // Waves: brown noise through a low-pass that opens and closes over about
+    // ten seconds, with the level swelling in step: a wave arriving, a wave
+    // drawing back.
+    const sea = loop(noiseBuffer(ctx, "brown"));
+    const low = ctx.createBiquadFilter();
+    low.type = "lowpass";
+    low.frequency.value = 700;
+    lfo(low.frequency, 0.1, 500);
+    const level = ctx.createGain();
+    level.gain.value = 0.08;
+    lfo(level.gain, 0.1, 0.06);
+    sea.connect(low).connect(level).connect(master);
+    // The hiss of foam at the top of each wave.
+    const foam = loop(noiseBuffer(ctx, "white"));
+    const high = ctx.createBiquadFilter();
+    high.type = "highpass";
+    high.frequency.value = 3000;
+    const spray = ctx.createGain();
+    spray.gain.value = 0.004;
+    lfo(spray.gain, 0.1, 0.004);
+    foam.connect(high).connect(spray).connect(master);
+  } else if (kind === "wind") {
+    // Wind: white noise through a narrow band that wanders in pitch, and gusts
+    // that rise and fall on two slow, unrelated cycles so it never repeats.
+    const air = loop(noiseBuffer(ctx, "white"));
+    const band = ctx.createBiquadFilter();
+    band.type = "bandpass";
+    band.frequency.value = 500;
+    band.Q.value = 1.6;
+    lfo(band.frequency, 0.05, 250);
+    lfo(band.frequency, 0.13, 90);
+    const level = ctx.createGain();
+    level.gain.value = 0.05;
+    lfo(level.gain, 0.07, 0.03);
+    lfo(level.gain, 0.19, 0.012);
+    air.connect(band).connect(level).connect(master);
   }
 
   return () => {
