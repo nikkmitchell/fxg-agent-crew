@@ -467,3 +467,21 @@ export function rippleAt(breath: BreathNow): { radius: number; opacity: number }
   const opacity = 0.55 * Math.sin(Math.PI * Math.min(1, t * 1.15));
   return opacity > 0.01 ? { radius, opacity } : null;
 }
+
+/**
+ * THE MINDFULNESS BELL. A bell rings on every quarter hour in a room with the
+ * orb, and whoever hears it stops for three breaths: the old monastery
+ * practice. Worked out from the clock alone, so every headset rings on the
+ * same minute without anything being sent. Never during a session, which has
+ * its own bell.
+ */
+export const BELL_EVERY_MS = 15 * 60_000;
+/** How long the pause lasts after the bell: three slow breaths. */
+export const BELL_PAUSE_MS = 20_000;
+
+/** The bell that rang at or before `now`, if its pause is still going. */
+export function bellPause(now: number): { rangAt: number; left: number } | null {
+  const rangAt = Math.floor(now / BELL_EVERY_MS) * BELL_EVERY_MS;
+  const left = rangAt + BELL_PAUSE_MS - now;
+  return left > 0 ? { rangAt, left } : null;
+}
