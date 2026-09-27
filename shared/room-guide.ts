@@ -22,6 +22,7 @@ export const ROOM_GUIDE: readonly GuideEntry[] = [
   { name: "Sand garden", x: -2.2, z: 5.2, what: "rake it together" },
   { name: "Tea table", x: -1.7, z: 6.8, what: "one cup, slowly" },
   { name: "Labyrinth", x: 0, z: 8.6, what: "walk the path in" },
+  { name: "Ikebana", x: 1.9, z: 7.9, what: "place a flower" },
   { name: "Singing bowls", x: 1.15, z: 4.2, what: "strike or circle the rim" },
   { name: "Candle shelf", x: 1.5, z: 3.5, what: "light one for someone" },
   { name: "Ember fire", x: 2.3, z: 5.5, what: "let something go" },
