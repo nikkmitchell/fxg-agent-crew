@@ -259,16 +259,6 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
   if (!entered) {
     return (
       <section className="space-intro">
-        <p>
-          A room you can walk around, with everyone who is currently connected standing in it.
-          Positions are live and are not stored: close the tab and you leave, restart the server
-          and the room is empty, because after a restart nobody knows where anyone was standing.
-        </p>
-        <p className="muted-note">
-          The panels are the board, the mood boards, who is here, what has been said, chat and
-          settings — drawn in the room itself rather than pages hung on a wall. Cards drag between
-          columns, tapping one opens it, and you can add a card or a comment without leaving.
-        </p>
         {systemPrefersReduced ? (
           <p className="muted-note">
             Your system asks for reduced motion, so the room will redraw only when something
@@ -276,10 +266,6 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
             walking. You can change that once you are inside.
           </p>
         ) : null}
-        <p className="muted-note">
-          Entering downloads about a megabyte of 3D code, which is why it is not loaded until you
-          ask. Walk with W A S D or the arrow keys; drag to look around.
-        </p>
 
         <button type="button" className="primary-action" disabled={checkingDirectEntry} onClick={() => void enterFromDirectLink()}>
           {checkingDirectEntry ? "Checking the room…" : "Enter the room"}
