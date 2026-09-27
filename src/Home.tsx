@@ -3,7 +3,6 @@ import type { FormEvent } from "react";
 import type { RoomSummary } from "../shared/contracts";
 import { ApiError } from "./api-request";
 import { bff } from "./bff-client";
-import { pathForTab } from "./router";
 import { useHeadsetAvailable } from "./space/useHeadsetAvailable";
 
 type ListedRoom = { room: RoomSummary; joined: boolean };
@@ -193,8 +192,6 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
       <div className="room-front-intro">
         <p className="eyebrow">SAHA / ROOMS</p>
         <h1>Find your place.</h1>
-        <p>Your own front door: choose how you look, then choose where to go. Enter a room you belong to, join an existing one, or deliberately create a new one.</p>
-        <a className="room-front-avatar-link" href={pathForTab("profiles")}>Choose your avatar <span aria-hidden="true">↗</span></a>
       </div>
       <div className="room-front-layout">
         <div className="room-front-directory" id="room-directory">
