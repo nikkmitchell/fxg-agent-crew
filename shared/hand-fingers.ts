@@ -42,6 +42,8 @@ export const FINGER_ANGLES = 20;
 
 /** Largest bend and spread a hand can make, a little past the real limits. */
 const BEND_MIN = -0.6, BEND_MAX = 2.0, SPREAD_MAX = 0.6;
+/** Knuckle bends between which a finger's spread fades from all to none. */
+const SPREAD_FULL = (20 * Math.PI) / 180, SPREAD_NONE = (60 * Math.PI) / 180;
 
 /**
  * The WebXR joints the angles are read from, in the order `fingerAngles`
@@ -106,13 +108,18 @@ export function fingerAngles(joints: ReadonlyArray<V3 | null>, finger: V3, palm:
   for (let finger = 0; finger < 4; finger++) {
     const base = 4 + finger * 5;
     const bones = [0, 1, 2, 3].map((i) => sub(at[base + i + 1], at[base + i]));
-    // SPREAD is read in the palm's plane. A finger bent straight down into the
-    // palm has almost nothing left in that plane, and what little is left is
-    // noise, so the spread fades out as the knuckle closes.
-    const inPlane = length(flatten(bones[1], p)) / (length(bones[1]) || 1);
-    const spread = turnAbout(bones[0], bones[1], p) * Math.min(1, inPlane / 0.5);
-    out.push(clamp(spread, -SPREAD_MAX, SPREAD_MAX));
-    for (let i = 0; i < 3; i++) out.push(bend(turnAbout(bones[i], bones[i + 1], across)));
+    const bends = [0, 1, 2].map((i) => bend(turnAbout(bones[i], bones[i + 1], across)));
+    // SPREAD is read in the palm's plane, and ONLY WHILE THE FINGER IS MOSTLY
+    // STRAIGHT. A finger curling into the palm has little left in that plane,
+    // and what is left is noise that reads as a big sideways angle: Nikk's
+    // fists arrived with ring and little spread at the 34° limit (recorded
+    // live, 2026-09-27), and turning a curled finger that far about the palm
+    // swings it across its neighbours — "other people see them moving
+    // strangely" (5142). A real fist does not spread, so full spread up to
+    // SPREAD_FULL of knuckle bend, none past SPREAD_NONE.
+    const straight = clamp((SPREAD_NONE - bends[0]) / (SPREAD_NONE - SPREAD_FULL), 0, 1);
+    out.push(clamp(turnAbout(bones[0], bones[1], p) * straight, -SPREAD_MAX, SPREAD_MAX));
+    out.push(...bends);
   }
   return out;
 }
