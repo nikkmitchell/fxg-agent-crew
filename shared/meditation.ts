@@ -117,8 +117,33 @@ export type Meditation = {
   breathedMinutes: number;
   /** Candles lit on the shelf, each burning for a day (see CANDLE_HOURS). */
   candles: Candle[];
+  /** THE ROOM'S BOOK: the latest sessions held here, newest last (see sessionRecord). */
+  history: SessionRecord[];
   revision: number;
 };
+
+/**
+ * One line in the room's book: when a session began, what it was, how long it
+ * was breathed and by how many. Written when a session ends or the next one
+ * starts, if it lasted at least half a minute. The room remembers (Nightjar's
+ * prompt); nobody's name is kept, only how many.
+ */
+export type SessionRecord = { at: number; what: string; minutes: number; people: number };
+export const BOOK_LENGTH = 10;
+
+export function sessionRecord(session: Meditation, now: number): SessionRecord | null {
+  if (session.startedAt === null) return null;
+  const people = Math.max(1, session.together.length);
+  const minutes = minutesBreathed(session, now) / people;
+  if (minutes < 0.5) return null;
+  const what = session.guide ? GUIDES[session.guide].label.split(" · ")[0] : PATTERNS[session.pattern].label;
+  return { at: session.startedAt, what, minutes: Math.round(minutes), people };
+}
+
+function written(session: Meditation, now: number): SessionRecord[] {
+  const record = sessionRecord(session, now);
+  return record ? [...session.history, record].slice(-BOOK_LENGTH) : session.history;
+}
 
 /**
  * THE CANDLE SHELF. Light a candle, for someone or something if you like
@@ -175,7 +200,7 @@ export function intentionWord(value: unknown): string | { refused: string } {
 }
 
 export function idleMeditation(): Meditation {
-  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, intentions: [], breathedMinutes: 0, candles: [], revision: 0 };
+  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, intentions: [], breathedMinutes: 0, candles: [], history: [], revision: 0 };
 }
 
 export function isPattern(value: unknown): value is PatternId {
@@ -319,7 +344,7 @@ export function applyMeditation(
     case "start": {
       const refused = pick(change);
       if (refused) return { refused };
-      return { ...next, breathedMinutes: session.breathedMinutes + minutesBreathed(session, now), startedAt: now, pausedAt: null, startedBy: by, together: unique([by, ...present]) };
+      return { ...next, history: written(session, now), breathedMinutes: session.breathedMinutes + minutesBreathed(session, now), startedAt: now, pausedAt: null, startedBy: by, together: unique([by, ...present]) };
     }
     case "settings": {
       if (running) return { refused: "end the session before changing it" };
@@ -342,10 +367,11 @@ export function applyMeditation(
         // What the room has built up stays, even with the orb put away.
         intentions: session.intentions,
         candles: session.candles,
+        history: written(session, now),
         breathedMinutes: session.breathedMinutes + minutesBreathed(session, now),
       };
     case "end":
-      return { ...next, breathedMinutes: session.breathedMinutes + minutesBreathed(session, now), startedAt: null, pausedAt: null, startedBy: null, together: [] };
+      return { ...next, history: written(session, now), breathedMinutes: session.breathedMinutes + minutesBreathed(session, now), startedAt: null, pausedAt: null, startedBy: null, together: [] };
     case "light": {
       const dedication = change.for === undefined ? "" : intentionWord(change.for);
       if (typeof dedication !== "string") return dedication;
@@ -386,6 +412,12 @@ export function parseMeditation(value: unknown): Meditation | null {
     together: Array.isArray(v.together) ? v.together.filter((n): n is string => typeof n === "string") : [],
     shown: v.shown === true,
     guide: isGuide(v.guide) ? v.guide : null,
+    history: Array.isArray(v.history)
+      ? v.history.filter((one): one is SessionRecord =>
+          !!one && typeof one === "object" && typeof (one as SessionRecord).at === "number" && typeof (one as SessionRecord).what === "string" &&
+          typeof (one as SessionRecord).minutes === "number" && typeof (one as SessionRecord).people === "number")
+        .slice(-BOOK_LENGTH)
+      : [],
     candles: Array.isArray(v.candles)
       ? v.candles.filter((one): one is Candle =>
           !!one && typeof one === "object" && typeof (one as Candle).by === "string" &&
