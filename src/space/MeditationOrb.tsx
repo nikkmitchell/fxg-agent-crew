@@ -9,6 +9,7 @@ import {
 import { space } from "../space-client";
 import { bell, cueFor, phaseCue } from "./breath-sound";
 import { GUIDES, GUIDE_IDS, guideCaption, guideLineAt } from "../../shared/guided";
+import { SOUNDSCAPE_LABEL, isSoundscape, nextSoundscape, playSoundscape, type Soundscape } from "./soundscape";
 import { useDisposable } from "./use-disposable";
 
 /**
@@ -117,6 +118,16 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
   });
   const soundRef = useRef(sound);
   soundRef.current = sound;
+
+  /** Rain, a stream, bowls or a night, for this person only (soundscape.ts). */
+  const [ambient, setAmbient] = useState<Soundscape>(() => {
+    try {
+      const kept = localStorage.getItem("orb-ambient");
+      return isSoundscape(kept) ? kept : "off";
+    } catch { return "off"; }
+  });
+  // Only while SOUND is on: one switch still silences everything the orb makes.
+  useEffect(() => (sound ? playSoundscape(ambient) : undefined), [ambient, sound]);
   const lastBreath = useRef<ReturnType<typeof breathAt> | null>(null);
 
   /**
@@ -236,6 +247,11 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
         const next = !sound;
         setSound(next);
         try { localStorage.setItem("orb-sound", next ? "on" : "off"); } catch { /* per-viewer only */ }
+      }} />
+      <OrbButton label={SOUNDSCAPE_LABEL[ambient]} width={0.2} at={[0.52, running ? -0.1 : -0.2, 0]} selected={ambient !== "off"} onTap={() => {
+        const next = nextSoundscape(ambient);
+        setAmbient(next);
+        try { localStorage.setItem("orb-ambient", next); } catch { /* per-viewer only */ }
       }} />
       {trouble && <Text position={[0, -0.18, 0]} fontSize={0.026} color="#ffb4a6" raycast={noRaycast}>{trouble}</Text>}
     </group>

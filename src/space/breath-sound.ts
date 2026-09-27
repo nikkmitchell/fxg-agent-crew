@@ -10,7 +10,7 @@
 import type { BreathStep } from "../../shared/meditation";
 
 let context: AudioContext | null = null;
-function audio(): AudioContext | null {
+export function audio(): AudioContext | null {
   try {
     context ??= new AudioContext();
     if (context.state === "suspended") void context.resume();
