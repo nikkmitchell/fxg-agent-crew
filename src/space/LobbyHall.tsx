@@ -420,8 +420,11 @@ function SelfForMirror({
         body={body}
         live={live}
         recipe={recipe}
-        // Snapped, never eased: a reflection that trails you is not one.
-        reducedMotion
+        // Never eased, because a reflection that trails you is not one, but
+        // with the feet still stepping (Nikk, 5289: "you don't see your own
+        // legs moving").
+        reducedMotion={false}
+        exact
         onFailed={onFailed}
         speaking={false}
         agent={false}

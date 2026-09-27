@@ -70,6 +70,7 @@ export function VrmBody({
   onFailed,
   speaking,
   agent,
+  exact = false,
 }: {
   /** Whose body this is, which decides which model they wear. */
   actorId: string;
@@ -95,6 +96,13 @@ export function VrmBody({
   speaking: boolean;
   /** Only agents receive authored animation; measured humans remain authoritative. */
   agent: boolean;
+  /**
+   * Where the body is and how its head turns follow the sample exactly, with
+   * no easing, while the feet still STEP. For your own reflection in the lobby
+   * mirror, which must not trail you; `reducedMotion` would also freeze the
+   * feet in place, which is how Nikk's legs stood still in the mirror (5289).
+   */
+  exact?: boolean;
 }) {
   const [vrm, setVrm] = useState<VRM | null>(null);
   const arms = useRef<ArmSpec | null>(null);
@@ -222,7 +230,7 @@ export function VrmBody({
     //
     // EASED TOWARD THE SAMPLE, never past it. See easing.ts: the body is always
     // catching up with what the room last said, and never predicting.
-    const snap = reducedMotion || !shown.settled;
+    const snap = reducedMotion || exact || !shown.settled;
     approachPoint(shown.at, { x: person.at.x, y: 0, z: person.at.z }, 6, delta, snap);
 
     /**
@@ -393,7 +401,8 @@ export function VrmBody({
         bodyYaw: shown.yaw,
         scale,
         dt: Math.min(delta, 0.1),
-        snap,
+        // NOT `exact`: that means no easing, and the feet still step.
+        snap: reducedMotion || !shown.settled,
       });
       vrm.update(delta);
       return;
