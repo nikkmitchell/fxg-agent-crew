@@ -27,6 +27,8 @@ const SMALL = 0.16;
 const LARGE = 0.34;
 
 const noRaycast = () => undefined;
+/** Rows of guide buttons, three to a row. */
+const GUIDE_ROWS = Math.ceil(GUIDE_IDS.length / 3);
 
 function glowTexture(): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
@@ -230,7 +232,7 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
       </mesh>
     </group>}
 
-    <group position={[0, -0.52, 0.02]}>
+    <group position={[0, running ? -0.52 : -0.52 - (GUIDE_ROWS - 1) * 0.1, 0.02]}>
       {running
         ? <>
           <OrbButton label={breath.paused ? "RESUME" : "PAUSE"} at={[-0.15, 0, 0]} onTap={() => change({ action: breath.paused ? "resume" : "pause" })} />
@@ -240,8 +242,10 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
           {/* GUIDED, a row of its own above the breathing patterns: a guide
               sets its own length and breathes CALM, so picking a pattern or a
               length below goes back to plain breathing. */}
+          {/* Three to a row; the whole panel drops a row per extra row of guides
+              (GUIDE_ROWS), so they never climb up over the orb. */}
           {GUIDE_IDS.map((id, index) => <OrbButton key={id} label={GUIDES[id].label} width={0.36}
-            at={[(index - (GUIDE_IDS.length - 1) / 2) * 0.38, 0.2, 0]} selected={meditation.guide === id}
+            at={[((index % 3) - 1) * 0.38, 0.2 + (GUIDE_ROWS - 1 - Math.floor(index / 3)) * 0.1, 0]} selected={meditation.guide === id}
             onTap={() => change({ action: "settings", guide: meditation.guide === id ? null : id })} />)}
           {PATTERN_IDS.map((id, index) => <OrbButton key={id} label={PATTERNS[id].label} width={0.24}
             at={[(index - (PATTERN_IDS.length - 1) / 2) * 0.26, 0.1, 0]} selected={!meditation.guide && meditation.pattern === id} onTap={() => change({ action: "settings", pattern: id })} />)}
