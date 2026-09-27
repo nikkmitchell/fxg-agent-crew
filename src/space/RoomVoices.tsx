@@ -56,15 +56,26 @@ export function RoomVoices({ streams, muted }: { streams: Map<string, MediaStrea
     };
   }, [listener]);
 
+  /**
+   * THE AUDIO CONTEXT IS NEVER CLOSED, and it does not follow the camera.
+   *
+   * Nikk (5404): calls worked in the browser and went silent for both people
+   * the moment they entered VR. This effect used to depend on the camera and
+   * close the context in its cleanup. Entering VR can hand the scene a
+   * different camera, so the cleanup ran and closed the context, and a closed
+   * AudioContext can never play again. It was also not ours to close: three
+   * gives every AudioListener the same page-wide context
+   * (THREE.AudioContext.getContext()), so closing it silenced every call for
+   * the rest of the visit, including after changing rooms.
+   */
+  useEffect(() => registerRoomAudioContext(listener.context), [listener]);
+
+  /** Only the listener's place moves with the camera. */
   useEffect(() => {
-    const unregister = registerRoomAudioContext(listener.context);
     camera.add(listener);
+    resumeRoomAudio();
     return () => {
-      unregister();
       camera.remove(listener);
-      void listener.context.close().catch(() => {
-        // Already closed, or never opened because nobody ever spoke.
-      });
     };
   }, [camera, listener]);
 
