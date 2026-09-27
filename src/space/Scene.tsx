@@ -46,6 +46,7 @@ import { SingingBowls } from "./SingingBowls";
 import { GardenTray } from "./GardenTray";
 import { EmberFire } from "./EmberFire";
 import { StillnessTree } from "./StillnessTree";
+import { ReadingStone } from "./ReadingStone";
 import { SpiritCompanions } from "./SpiritCompanions";
 import { space } from "../space-client";
 
@@ -868,6 +869,7 @@ export default function Scene({
         {/* And the ember fire, to let something go: see shared/fire.ts. */}
         {connection.meditation?.shown && <EmberFire you={you} />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
+        {connection.meditation?.shown && <ReadingStone />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
           avatarRecorder={avatarRecorder}

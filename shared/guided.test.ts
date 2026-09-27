@@ -137,3 +137,19 @@ describe("the stillness tree", () => {
     expect(huge.height).toBeCloseTo(1.5);
   });
 });
+
+describe("the readings", () => {
+  it("are short, named, credited passages, each line sayable in one go", async () => {
+    const { READINGS, READING_IDS, isReading } = await import("./guided.js");
+    expect(READING_IDS.length).toBeGreaterThan(0);
+    for (const id of READING_IDS) {
+      const reading = READINGS[id];
+      expect(reading.title.length).toBeGreaterThan(0);
+      expect(reading.by, `${id} says where it is from`).toMatch(/\d{4}/);
+      expect(reading.lines.length).toBeGreaterThan(0);
+      for (const line of reading.lines) expect(line.length).toBeLessThanOrEqual(120);
+    }
+    expect(isReading("tao-8")).toBe(true);
+    expect(isReading("../etc/passwd")).toBe(false);
+  });
+});
