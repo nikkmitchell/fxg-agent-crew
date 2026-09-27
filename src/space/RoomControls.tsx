@@ -593,6 +593,12 @@ export function RoomControls({
     if (failures.length === 0) {
       if (source === "voice") {
         setHeard("");
+        // AND THE RECORDER'S OWN COPY. It keeps every phrase of a session and
+        // may still be listening (words sent while "waiting" did not stop it),
+        // so the next message began with this one: Nikk's second message was
+        // his first again, plus a few words (5326). clear() also stops the
+        // engine re-sending phrases it has already delivered.
+        input.current?.clear();
         confidence.current = undefined;
       }
       flash(unanswered.length > 0

@@ -9,6 +9,8 @@ import {
 } from "@react-three/xr";
 import * as THREE from "three";
 import { ROOM, WORLD, facingFor, type Vec3 } from "../../shared/space-layout";
+import { isLobby } from "../../shared/lobby-hall";
+import { roomKey } from "../../shared/space-room";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
 import { clearSelfPose, selfPose } from "./self-pose";
@@ -517,6 +519,37 @@ export function ImmersivePlayer({
    * for the head to land where the arc pointed. It still goes through the same
    * wall clamp as the sticks: one rule about where a person may stand, not two.
    */
+  /**
+   * ARRIVING IN THE LOBBY: in the middle of the hall, facing the mirror.
+   *
+   * Nikk (5324): "every time we appear behind the mirror ... have the user
+   * appear in the middle". Where you stand is remembered for the visit, not
+   * per room (rememberPlace), so walking into the lobby left you wherever you
+   * had been standing in the room before, which in the lobby is often behind
+   * the mirror. So on entering the lobby the play area is turned and moved so
+   * that your HEAD lands at the hall's centre looking at the mirror, however
+   * you are standing in your own tracked space. Other rooms are unchanged.
+   */
+  const arrivedIn = useRef<string | null>(null);
+  useFrame(() => {
+    const room = currentRoom ? roomKey(currentRoom) : null;
+    if (room === arrivedIn.current) return;
+    const group = origin.current;
+    if (!group) return;
+    arrivedIn.current = room;
+    if (!isLobby(room)) return;
+    group.updateMatrixWorld(true);
+    const head = xrCamera.getWorldPosition(new THREE.Vector3());
+    const local = group.worldToLocal(head.clone());
+    const turn = new THREE.Euler().setFromQuaternion(xrCamera.getWorldQuaternion(new THREE.Quaternion()), "YXZ");
+    // World yaw 0 looks down -Z, at the mirror.
+    const yaw = group.rotation.y - turn.y;
+    const offset = new THREE.Vector3(local.x, 0, local.z).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    group.rotation.y = yaw;
+    group.position.set(ROOM.spawn.x - offset.x, 0, ROOM.spawn.z - offset.z);
+    tell("arrived in the lobby: placed in the middle of the hall, facing the mirror");
+  });
+
   const teleport = useCallback((point: THREE.Vector3, event?: { point?: THREE.Vector3 }) => {
     const group = origin.current;
     if (!group) return;
