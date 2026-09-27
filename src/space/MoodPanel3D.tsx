@@ -226,13 +226,7 @@ export function MoodPanel3D({
 
   return (
     <group ref={plate}>
-      <mesh onPointerDown={onDown} onPointerMove={onMoveEvent} onPointerUp={onUp} onPointerLeave={(event) => {
-        at.current.delete(event.pointerId);
-        if (held?.pointer === event.pointerId || pulling?.pointer === event.pointerId) {
-          setHeld(null);
-          setPulling(null);
-        }
-      }}>
+      <mesh onPointerDown={onDown} onPointerMove={onMoveEvent} onPointerUp={onUp}>
         <planeGeometry args={[layout.width, layout.height]} />
         <meshBasicMaterial color={CARD_INK.paper} toneMapped={false} />
       </mesh>
@@ -255,6 +249,25 @@ export function MoodPanel3D({
           +  write a note
         </Text>
       </group>
+
+      {/*
+        WHILE SOMETHING IS HELD, ONE WIDE CATCHER IN FRONT OF EVERYTHING.
+        Nikk (5355): the second hand should be able to grab "anywhere", not
+        only on the picture, and notes would not grow at all. Every press and
+        move went to whichever small mesh a ray happened to cross, and a move
+        stopped on an item counted as leaving the board behind it, which
+        dropped the grab mid-pull. Now, as soon as one hand holds an item, a
+        plane far wider than the wall sits just in front of it and takes every
+        pointer that is aimed at the wall: the second hand's grab, both hands'
+        moves and either hand letting go, however far outside the board.
+        Invisible, and gone again when nothing is held.
+      */}
+      {held ? (
+        <mesh position={[0, 0, 0.06]} onPointerDown={onDown} onPointerMove={onMoveEvent} onPointerUp={onUp}>
+          <planeGeometry args={[layout.width * 12, layout.height * 12]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} toneMapped={false} />
+        </mesh>
+      ) : null}
 
       {layout.places.map((place, index) => (
         <mesh
