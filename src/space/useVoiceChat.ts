@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientMessage, ServerMessage, VoiceSignal } from "../../shared/space-wire";
 import { shouldDial } from "./voice-pairing";
+import { resumeRoomAudio } from "./room-audio";
 
 /**
  * Hearing each other, in the room.
@@ -325,6 +326,10 @@ export function useVoiceChat(
 
   const setOn = useCallback(
     (next: boolean) => {
+      // XR button presses are Three.js events, not necessarily DOM pointer or
+      // touch events. Resume from this user gesture so remote audio is audible
+      // even when the browser never delivered one of the window events.
+      if (next) resumeRoomAudio();
       setTrouble(null);
       if (!next) {
         // Cancelling a permission prompt invalidates its eventual result too.

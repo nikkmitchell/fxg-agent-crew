@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { registerRoomAudioContext, resumeRoomAudio } from "./room-audio";
 
 function Voice({
   stream,
@@ -39,13 +40,13 @@ export function RoomVoices({ streams, muted }: { streams: Map<string, MediaStrea
   const listener = useMemo(() => new THREE.AudioListener(), []);
 
   /**
-   * Browsers begin Web Audio contexts suspended until a user gesture. Resume on
-   * the first browser/headset interaction so a listener can hear before opening
-   * their own microphone.
+   * Browsers begin Web Audio contexts suspended until a user gesture. DOM
+   * interactions resume it here; the room-call toggle also resumes it directly
+   * because XR scene taps do not always dispatch browser DOM events.
    */
   useEffect(() => {
     const resume = () => {
-      if (listener.context.state !== "running") void listener.context.resume().catch(() => undefined);
+      resumeRoomAudio();
     };
     const events = ["pointerdown", "keydown", "touchstart"] as const;
     for (const name of events) window.addEventListener(name, resume, { passive: true });
@@ -56,8 +57,10 @@ export function RoomVoices({ streams, muted }: { streams: Map<string, MediaStrea
   }, [listener]);
 
   useEffect(() => {
+    const unregister = registerRoomAudioContext(listener.context);
     camera.add(listener);
     return () => {
+      unregister();
       camera.remove(listener);
       void listener.context.close().catch(() => {
         // Already closed, or never opened because nobody ever spoke.

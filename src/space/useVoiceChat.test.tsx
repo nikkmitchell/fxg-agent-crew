@@ -2,6 +2,7 @@
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClientMessage, ServerMessage } from "../../shared/space-wire";
+import { registerRoomAudioContext } from "./room-audio";
 import { useVoiceChat } from "./useVoiceChat";
 
 function deferred<T>() {
@@ -63,5 +64,25 @@ describe("the room voice toggle", () => {
     expect(result.current.on).toBe(false);
     expect(result.current.starting).toBe(false);
     expect(send).toHaveBeenCalledWith({ type: "voicePresence", on: false });
+  });
+
+  it("unlocks room playback directly from the call action", () => {
+    const context = {
+      state: "suspended",
+      resume: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AudioContext;
+    const unregister = registerRoomAudioContext(context);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn(() => new Promise<MediaStream>(() => {})) },
+    });
+    const send = vi.fn<(message: ClientMessage) => void>();
+    const listen = vi.fn<(handler: (message: ServerMessage) => void) => () => void>(() => () => {});
+    const { result } = renderHook(() => useVoiceChat(send, listen, "Moraine", ["Moraine"]));
+
+    act(() => result.current.setOn(true));
+
+    expect(context.resume).toHaveBeenCalledOnce();
+    unregister();
   });
 });
