@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handNear, IDLE_OPACITY, NEAR, touchPresses, type TouchButton } from "./touch-press";
+import { closedButtons, handNear, IDLE_OPACITY, NEAR, touchPresses, type TouchButton } from "./touch-press";
 
 const gear: TouchButton = { id: "gear", at: { x: 0, y: 1.3, z: -0.3 }, radius: 0.045 };
 const mic: TouchButton = { id: "mic", at: { x: 0.11, y: 1.3, z: -0.3 }, radius: 0.045 };
@@ -35,5 +35,17 @@ describe("how visible they are", () => {
     expect(handNear([gear], [on(gear, NEAR - 0.01)])).toBe(true);
     expect(handNear([gear], [on(gear, NEAR + 0.05), null])).toBe(false);
     expect(IDLE_OPACITY).toBe(0.3);
+  });
+});
+
+describe("which closed buttons exist", () => {
+  it("with hands in view, only the gear: nothing invisible beside it can start a recording (Nikk, 5125)", () => {
+    expect(closedButtons(true, false)).toEqual(["gear"]);
+    expect(closedButtons(true, true)).toEqual(["gear"]);
+  });
+
+  it("with controllers, the gear and talk, and cancel while there is something to throw away", () => {
+    expect(closedButtons(false, false)).toEqual(["gear", "talk"]);
+    expect(closedButtons(false, true)).toEqual(["gear", "talk", "cancel"]);
   });
 });

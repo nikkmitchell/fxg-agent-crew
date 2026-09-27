@@ -5,6 +5,8 @@ import {
   MIC_GESTURE_FIST_HOLD_MS,
   MIC_GESTURE_HOLD_MS,
   MIC_GESTURE_TILT_RADIANS,
+  describeStart,
+  startPoseMeasures,
   startPoseProblem,
   stepMicGesture,
   type MicGestureHands,
@@ -12,7 +14,8 @@ import {
 
 const identity = { x: 0, y: 0, z: 0, w: 1 };
 // The head 0.4 m behind and 0.3 m above the hand, facing -z: the hand is in
-// front of the face. The palm faces +x: edge-on, like a chop.
+// front of the face. The palm normal is +x: edge-on and facing in, like a
+// praying hand (see palmIn).
 const openHand = (rotation = identity, x = 0): MicGestureHand => ({
   wrist: { p: { x, y: 1, z: 0 }, q: rotation },
   fingerDirection: { x: 0, y: 1, z: 0 },
@@ -154,6 +157,25 @@ describe("mic hand gesture", () => {
       expect(fingersStraight(joints)).toBe(false);
     });
 
+    it("starts only with the palm facing IN, like half of praying hands, on either hand (Nikk, 5117)", () => {
+      // Thumb toward you, little finger away, fingers up, in front of the face.
+      const joints = (thumbTowardYou: boolean, x: number) => {
+        const j: ({ x: number; y: number; z: number } | null)[] = Array.from({ length: 25 }, () => null);
+        const toward = thumbTowardYou ? 1 : -1;
+        j[0] = { x, y: 1, z: 0 };
+        j[6] = { x, y: 1.09, z: 0.02 * toward };
+        j[11] = { x, y: 1.1, z: 0 };
+        j[21] = { x, y: 1.08, z: -0.04 * toward };
+        return j;
+      };
+      for (const x of [-0.08, 0.08]) {
+        const praying = { ...openHand(identity, x), palmNormal: palmNormalOf(joints(true, x)) };
+        expect(startPoseProblem(praying), `praying at x=${x}`).toBeNull();
+        const out = { ...openHand(identity, x), palmNormal: palmNormalOf(joints(false, x)) };
+        expect(startPoseProblem(out), `facing out at x=${x}`).toBe("palm facing out");
+      }
+    });
+
     it("finds the palm facing out of the hand's flat side", () => {
       const joints: ({ x: number; y: number; z: number } | null)[] = Array.from({ length: 25 }, () => null);
       // Knuckles across z, fingers up y: the palm faces along x.
@@ -195,10 +217,23 @@ describe("mic hand gesture", () => {
       expect(closedness(hand(0.1))).toBe(1);
     });
 
-    it("reports progress toward the finishing tilt", () => {
+    it("reports the tilt toward sending and the closing toward cancelling separately", () => {
       const recording = startGesture();
       const halfway = stepMicGesture(recording, hands(openHand(rotationBy(MIC_GESTURE_TILT_RADIANS / 2))), true, 2_000);
-      expect(halfway.progress).toBeCloseTo(0.5, 1);
+      expect(halfway.tilt).toBeCloseTo(0.5, 1);
+      expect(halfway.closing).toBe(0);
+      const curling = stepMicGesture(recording, hands({ ...openHand(), closedness: 0.6 }), true, 2_000);
+      expect(curling.tilt).toBeCloseTo(0, 6);
+      expect(curling.closing).toBe(0.6);
+      const sent = stepMicGesture(recording, hands(openHand(rotationBy(MIC_GESTURE_TILT_RADIANS))), true, 2_000);
+      expect([sent.action, sent.tilt]).toEqual(["finish", 1]);
+    });
+
+    it("says what it measured when it starts, for the server log", () => {
+      const line = describeStart("right", openHand());
+      expect(line).toMatch(/^voice gesture started \(right hand\): palm in, 0° from edge-on \(limit 35\), fingers 0° from up, 0° from ahead/);
+      // A high five: turned all the way from edge-on, which is why it is refused.
+      expect(startPoseMeasures({ ...openHand(), palmNormal: { x: 0, y: 0, z: -1 } })!.fromEdgeOn).toBeCloseTo(90, 0);
     });
 
     it("cancels a recording once held briefly, even when the tracker calls it open", () => {

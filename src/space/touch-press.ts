@@ -64,3 +64,14 @@ export const IDLE_OPACITY = 0.3;
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 }
+
+/**
+ * WHICH CLOSED BUTTONS EXIST, for drawing them and for touching them alike.
+ * Two lists drifted: with hands in view talk and cancel were not drawn but
+ * could still be touched, an invisible button beside the gear that started a
+ * recording (Nikk, 5125). With hands, the gesture talks and cancels.
+ */
+export function closedButtons(handsInView: boolean, cancellable: boolean): Array<"gear" | "talk" | "cancel"> {
+  if (handsInView) return ["gear"];
+  return cancellable ? ["gear", "talk", "cancel"] : ["gear", "talk"];
+}

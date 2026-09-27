@@ -10,13 +10,14 @@ import { micGestureHands, micGestureIndicator } from "./mic-gesture-input";
  * green ... the same design and look as the movement spheres". It replaces the
  * glowing outline drawn over the whole hand.
  *
- * AND IT SHOWS HOW NEAR THE END YOU ARE (5069): "as it is moving towards
- * disconnecting, like when you rotate your hand or move towards the closed
- * fist, I want the green cube to lose colour and ... fade out to white, and
- * then at the very end ... pop like it was broken apart". So its colour runs
- * from green to white with micGestureIndicator.progress — the tilt that sends
- * or the fist that drops, whichever is nearer — and when either happens it
- * breaks into small pieces that fly apart and fade.
+ * AND IT SHOWS HOW NEAR THE END YOU ARE, differently for the two ends.
+ * Closing toward a fist throws the words away, so the bar loses its colour
+ * toward white and breaks apart white (5069). Tilting down sends them, and
+ * Nikk (5113): "as I'm angling downwards the [bar] should also angle with my
+ * hand and it should go brighter and more green and then when the message
+ * sends it should do a green pop out". So the bar leans with the hand the
+ * whole time, brightens with micGestureIndicator.tilt, fades with .closing,
+ * and the pieces it breaks into are green for a send and white for a cancel.
  *
  * Drawn like the palm joystick's balls: unlit, a little see-through, never
  * hidden behind anything (depthTest off), a faint white wireframe edge. Beside
@@ -25,6 +26,8 @@ import { micGestureHands, micGestureIndicator } from "./mic-gesture-input";
  * positions it reads are in the player's frame.
  */
 const GREEN = new THREE.Color("#6fdc8c");
+/** Where the tilt takes it: brighter and greener, about to send. */
+const BRIGHT_GREEN = new THREE.Color("#8dff6a");
 const WHITE = new THREE.Color("#ffffff");
 const BESIDE_METRES = 0.07;
 const POP_MS = 450;
@@ -36,7 +39,9 @@ const SHARD_DIRECTIONS = Array.from({ length: SHARDS }, (_, i) => {
 });
 const scratchRight = new THREE.Vector3();
 const scratchCentre = new THREE.Vector3();
+const scratchAlong = new THREE.Vector3();
 const scratchQuaternion = new THREE.Quaternion();
+const UP = new THREE.Vector3(0, 1, 0);
 
 export function MicGestureBar() {
   const bar = useRef<THREE.Group>(null);
@@ -58,6 +63,7 @@ export function MicGestureBar() {
     if (popping && lastPop.current !== popAt) {
       lastPop.current = popAt;
       pieces.position.copy(last.current);
+      shardMaterial.color.copy(micGestureIndicator.popKind === "sent" ? BRIGHT_GREEN : WHITE);
     }
     pieces.visible = popping;
     if (popping) {
@@ -88,13 +94,18 @@ export function MicGestureBar() {
     scratchCentre.addScaledVector(scratchRight, side === "right" ? -BESIDE_METRES : BESIDE_METRES);
     node.position.copy(scratchCentre);
     last.current.copy(scratchCentre);
-    // Upright, and turned to face where you are looking.
-    node.rotation.set(0, Math.atan2(scratchRight.x, scratchRight.z) - Math.PI / 2, 0);
-    const progress = Math.max(0, Math.min(1, micGestureIndicator.progress));
+    // LEANING WITH THE HAND: its length along the hand, wrist to knuckle, so
+    // tilting the hand down to send tilts the bar with it. Upright when the
+    // knuckle is not tracked.
+    scratchAlong.set(knuckle.x - wrist.x, knuckle.y - wrist.y, knuckle.z - wrist.z);
+    if (scratchAlong.lengthSq() > 1e-6) node.quaternion.setFromUnitVectors(UP, scratchAlong.normalize());
+    else node.quaternion.identity();
+    const tilt = Math.max(0, Math.min(1, micGestureIndicator.tilt));
+    const closing = Math.max(0, Math.min(1, micGestureIndicator.closing));
     if (fill.current) {
-      fill.current.color.copy(GREEN).lerp(WHITE, progress);
-      // Breathing while live; steadier as it nears the end.
-      fill.current.opacity = 0.8 + Math.sin(clock.elapsedTime * 4) * 0.12 * (1 - progress);
+      fill.current.color.copy(GREEN).lerp(BRIGHT_GREEN, tilt).lerp(WHITE, closing);
+      // Breathing while live; steadier, and more solid, as it nears sending.
+      fill.current.opacity = Math.min(1, 0.8 + tilt * 0.2) + Math.sin(clock.elapsedTime * 4) * 0.12 * (1 - Math.max(tilt, closing));
     }
   });
   return (

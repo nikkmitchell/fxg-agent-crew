@@ -8,11 +8,11 @@ import { bff } from "../bff-client";
 import { space } from "../space-client";
 import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
 import { SCOPES, TABS, scopeOf, screenOf, type SettingsTab } from "./settings-tabs";
-import { handNear, IDLE_OPACITY, touchPresses, type TouchButton } from "./touch-press";
+import { closedButtons, handNear, IDLE_OPACITY, touchPresses, type TouchButton } from "./touch-press";
 import { goHandInput } from "./go-hand-input";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
-import { IDLE_MIC_GESTURE, stepMicGesture, type MicGestureState } from "./mic-gesture";
+import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
 import { micGestureHands, micGestureIndicator } from "./mic-gesture-input";
 import { closedControlPose } from "./control-pose";
 import { handModelsShown, pinchTeleportEnabled, setPinchTeleport, showHandModels } from "./xr-store";
@@ -1043,11 +1043,12 @@ export function RoomControls({
       const p = node.localToWorld(new THREE.Vector3(x, 0, 0));
       return { x: p.x, y: p.y, z: p.z };
     };
-    const buttons: TouchButton[] = [
-      { id: "gear", at: at(GEAR_X), radius: ICON / 2 },
-      { id: "talk", at: at(TALK_X), radius: ICON / 2 },
-      ...(cancelRef.current ? [{ id: "cancel", at: at(CANCEL_X), radius: ICON / 2 }] : []),
-    ];
+    // ONLY WHAT IS DRAWN: the same list the buttons below are drawn from.
+    const buttons: TouchButton[] = closedButtons(handsInViewNow.current, cancelRef.current !== null).map((id) => ({
+      id,
+      at: at(id === "gear" ? GEAR_X : id === "talk" ? TALK_X : CANCEL_X),
+      radius: ICON / 2,
+    }));
     const contacts = [goHandInput.left?.contact ?? null, goHandInput.right?.contact ?? null];
     const { pressed, inside } = touchPresses(buttons, contacts, touching.current);
     touching.current = inside;
@@ -1624,6 +1625,8 @@ export function RoomControls({
       heardWaiting ||
       saying === "recording" ||
       (!capabilities.recognition && written.trim() !== "" && !keyboardFocused)));
+  /** The closed buttons drawn, and the only ones a fingertip can press. */
+  const shownButtons = closedButtons(handsInView, cancellable);
   const cancel = () => {
     // A SEND IN FLIGHT STOPS, and what was said stays ready to send again.
     if (sending) {
@@ -1764,8 +1767,18 @@ export function RoomControls({
     );
     micGestureState.current = result.state;
     micGestureIndicator.side = result.outlineSide;
-    micGestureIndicator.progress = result.progress ?? 0;
-    if (result.action === "finish" || result.action === "cancel") micGestureIndicator.popAt = performance.now();
+    micGestureIndicator.tilt = result.tilt ?? 0;
+    micGestureIndicator.closing = result.closing ?? 0;
+    if (result.action === "finish" || result.action === "cancel") {
+      micGestureIndicator.popAt = performance.now();
+      micGestureIndicator.popKind = result.action === "finish" ? "sent" : "cancelled";
+    }
+    if (result.action === "start" && result.state.phase === "starting") {
+      // What the headset measured, so a start nobody meant can be explained
+      // from the server log (Nikk, 5111).
+      const hand = micGestureHands[result.state.side];
+      if (hand) onNote(describeStart(result.state.side, hand));
+    }
     if (result.action === "start") {
       sendAfterGesture.current = false;
       pressTalkRef.current();
@@ -1938,7 +1951,7 @@ export function RoomControls({
             * still carried by the notice line, which says what happened in
             * words.
             */}
-          {handsInView ? null : <WristButton
+          {!shownButtons.includes("talk") ? null : <WristButton
             label={
               capabilities.recognition
                 ? micGlyph({ sending, listening, heard, alwaysOn })
@@ -1965,7 +1978,7 @@ export function RoomControls({
               throw away. Nikk: "add a button to cancel recording so if you've
               begun recording but you want to cancel what you've just recorded,
               have a button that appears to the right of the record button". */}
-          {cancellable && !handsInView ? (
+          {shownButtons.includes("cancel") ? (
             <WristButton label="✕" glyph x={CANCEL_X} y={0} width={ICON} height={ICON} tone="danger" opacity={buttonOpacity} onTap={cancel} />
           ) : null}
         </group>

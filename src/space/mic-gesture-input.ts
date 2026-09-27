@@ -47,20 +47,24 @@ export const micGestureHands: Record<MicGestureSide, MicGestureHand | null> = {
 
 /**
  * What the bar beside the hand shows (MicGestureBar): which hand is recording,
- * how far it is toward finishing or cancelling (0..1, green fading to white),
- * and when it last ended, for the pop.
+ * how far it is toward sending (the tilt, 0..1: brighter green) and toward
+ * cancelling (the fist, 0..1: fading to white), and when and how it last
+ * ended, for the pop: green for sent, white for thrown away.
  */
 export const micGestureIndicator: {
   side: MicGestureSide | null;
-  progress: number;
+  tilt: number;
+  closing: number;
   popAt: number | null;
-} = { side: null, progress: 0, popAt: null };
+  popKind: "sent" | "cancelled";
+} = { side: null, tilt: 0, closing: 0, popAt: null, popKind: "sent" };
 
 export function clearMicGestureHands() {
   micGestureHands.left = null;
   micGestureHands.right = null;
   micGestureIndicator.side = null;
-  micGestureIndicator.progress = 0;
+  micGestureIndicator.tilt = 0;
+  micGestureIndicator.closing = 0;
 }
 
 function distance(a: Point3, b: Point3) {
