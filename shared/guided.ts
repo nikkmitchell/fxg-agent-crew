@@ -169,3 +169,61 @@ export function guideCaption(guide: GuideId, elapsed: number): string | null {
   }
   return null;
 }
+
+/**
+ * READINGS: short public-domain passages, read aloud at the reading stone
+ * (src/space/ReadingStone.tsx). Nikk (5463): "creative commons resources like
+ * old mandalas or speeches or chants". Everything here is out of copyright:
+ * James Legge's 1891 translation of the Tao Te Ching, and poems published
+ * before 1900. Voiced once at boot, like the guides, in the same voice.
+ */
+export type Reading = { title: string; by: string; lines: readonly string[] };
+
+export const READINGS = {
+  "tao-8": {
+    title: "Like water",
+    by: "Tao Te Ching, 8 (tr. James Legge, 1891)",
+    lines: [
+      "The highest excellence is like that of water.",
+      "The excellence of water appears in its benefiting all things,",
+      "and in its occupying, without striving to the contrary, the low place which all men dislike.",
+      "Hence its way is near to that of the Tao.",
+    ],
+  },
+  "tao-33": {
+    title: "Knowing yourself",
+    by: "Tao Te Ching, 33 (tr. James Legge, 1891)",
+    lines: [
+      "He who knows other men is discerning; he who knows himself is intelligent.",
+      "He who overcomes others is strong; he who overcomes himself is mighty.",
+      "He who is satisfied with his lot is rich; he who goes on acting with energy has a firm will.",
+    ],
+  },
+  hope: {
+    title: "Hope is the thing with feathers",
+    by: "Emily Dickinson (published 1891)",
+    lines: [
+      "Hope is the thing with feathers that perches in the soul,",
+      "and sings the tune without the words, and never stops at all,",
+      "and sweetest in the gale is heard; and sore must be the storm",
+      "that could abash the little bird that kept so many warm.",
+      "I've heard it in the chillest land, and on the strangest sea;",
+      "yet, never, in extremity, it asked a crumb of me.",
+    ],
+  },
+  "summer-grass": {
+    title: "A spear of summer grass",
+    by: "Walt Whitman, Song of Myself (1855)",
+    lines: [
+      "I loafe and invite my soul,",
+      "I lean and loafe at my ease observing a spear of summer grass.",
+    ],
+  },
+} as const satisfies Record<string, Reading>;
+
+export type ReadingId = keyof typeof READINGS;
+export const READING_IDS = Object.keys(READINGS) as ReadingId[];
+
+export function isReading(value: unknown): value is ReadingId {
+  return typeof value === "string" && (READING_IDS as string[]).includes(value);
+}

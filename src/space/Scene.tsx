@@ -44,6 +44,7 @@ import { RoomItems } from "./RoomItems";
 import { MeditationOrb } from "./MeditationOrb";
 import { SingingBowls } from "./SingingBowls";
 import { StillnessTree } from "./StillnessTree";
+import { ReadingStone } from "./ReadingStone";
 import { SpiritCompanions } from "./SpiritCompanions";
 import { space } from "../space-client";
 
@@ -862,6 +863,7 @@ export default function Scene({
         {/* The singing bowls stand beside the orb, wherever a room has one: see shared/bowl.ts. */}
         {connection.meditation?.shown && <SingingBowls you={you} />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
+        {connection.meditation?.shown && <ReadingStone />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
           avatarRecorder={avatarRecorder}
