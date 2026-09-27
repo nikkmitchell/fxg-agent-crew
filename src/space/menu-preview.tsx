@@ -26,6 +26,7 @@ import { SandMandala, MANDALA_AT } from "./SandMandala";
 import { PrayerWheel, WHEEL_AT } from "./PrayerWheel";
 import { GongStand } from "./GongStand";
 import { RainCurtain, RAIN_AT } from "./RainCurtain";
+import { IncenseBowl, INCENSE_AT } from "./IncenseBowl";
 import { SETTINGS_TABS, settingsBadge, settingsSections, tabOfView, type ArrangeMode, type SettingsView } from "./settings-menu-model";
 import { roomMenuRows } from "../../shared/room-switch";
 
@@ -139,9 +140,17 @@ function Preview() {
     <Canvas
       // ?fov=40 to look closely; 90 is about what a headset sees.
       camera={{ position: [0, 1.6, 0], fov: Number(params.get("fov") ?? 90), near: 0.05, far: 50 }}
-      onCreated={({ camera }) => (params.get("rain") === "1" ? camera.lookAt(0, 1.2, -2.2) : params.get("gong") === "1" ? camera.lookAt(3.7, 1.2, 0.6) : params.get("wheel") === "1" ? camera.lookAt(0, 1.2, -1.3) : params.get("mandala") === "1" ? camera.lookAt(0, 1.0, -1.0) : params.get("pond") === "1" ? camera.lookAt(0, 0.9, -1.1) : params.get("ribbons") === "1" ? camera.lookAt(0, 1.1, -1.6) : params.get("fire") === "1" ? camera.lookAt(FIRE_AT.x * 0.8, 0.8, FIRE_AT.z - 6.2) : params.get("bowls") === "1" || params.get("garden") === "1" ? camera.lookAt(0, 0.7, -1.05) : camera.lookAt(0, 1.6, -1))}
+      onCreated={({ camera }) => (params.get("incense") === "1" ? camera.lookAt(0, 1.5, -0.9) : params.get("rain") === "1" ? camera.lookAt(0, 1.2, -2.2) : params.get("gong") === "1" ? camera.lookAt(3.7, 1.2, 0.6) : params.get("wheel") === "1" ? camera.lookAt(0, 1.2, -1.3) : params.get("mandala") === "1" ? camera.lookAt(0, 1.0, -1.0) : params.get("pond") === "1" ? camera.lookAt(0, 0.9, -1.1) : params.get("ribbons") === "1" ? camera.lookAt(0, 1.1, -1.6) : params.get("fire") === "1" ? camera.lookAt(FIRE_AT.x * 0.8, 0.8, FIRE_AT.z - 6.2) : params.get("bowls") === "1" || params.get("garden") === "1" ? camera.lookAt(0, 0.7, -1.05) : camera.lookAt(0, 1.6, -1))}
       style={{ position: "fixed", inset: 0, background: "linear-gradient(#5c6470, #3b3f46 55%, #2a2c30)" }}
     >
+      {params.get("incense") === "1" ? (
+        <>
+          <hemisphereLight args={["#ffffff", "#2a3040", 2.2]} />
+          <group position={[-INCENSE_AT.x, 0.6, -INCENSE_AT.z - 0.9]}>
+            <IncenseBowl />
+          </group>
+        </>
+      ) : null}
       {params.get("rain") === "1" ? (
         <group position={[-RAIN_AT.x, 0, -RAIN_AT.z - 2.2]}>
           <RainCurtain />
@@ -226,7 +235,7 @@ function Preview() {
           <LobbyWelcome />
         </group>
       ) : null}
-      {params.get("welcome") === "1" || params.get("bowls") === "1" || params.get("garden") === "1" || params.get("fire") === "1" || params.get("dome") || params.get("ribbons") || params.get("pond") || params.get("mandala") || params.get("wheel") || params.get("gong") || params.get("rain") ? null : <SettingsMenu3D
+      {params.get("welcome") === "1" || params.get("bowls") === "1" || params.get("garden") === "1" || params.get("fire") === "1" || params.get("dome") || params.get("ribbons") || params.get("pond") || params.get("mandala") || params.get("wheel") || params.get("gong") || params.get("rain") || params.get("incense") ? null : <SettingsMenu3D
         position={[0, 1.6, -1.95]}
         model={{
           title: "Settings",

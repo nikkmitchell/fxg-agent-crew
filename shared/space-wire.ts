@@ -6,6 +6,7 @@ import type { MandalaEvent } from "./mandala.js";
 import type { WheelPush } from "./wheel.js";
 import type { Lantern } from "./lantern.js";
 import type { StarEvent } from "./stars.js";
+import type { Stick } from "./incense.js";
 import type { Meditation } from "./meditation.js";
 /**
  * What travels over the space socket.
@@ -276,6 +277,8 @@ export type ServerMessage =
   | { type: "lantern"; lantern: Lantern }
   /** The star map changed: see shared/stars.ts. */
   | { type: "stars"; event: StarEvent }
+  /** A stick of incense was lit: the bowl as it is now. See shared/incense.ts. */
+  | { type: "incense"; sticks: Stick[] }
   /** Agents' helpers changed: see shared/helpers.ts. Never people. */
   | { type: "helpers"; helpers: Record<string, Helper[]> }
   | { type: "roomItems"; items: RoomItem[]; by: string }

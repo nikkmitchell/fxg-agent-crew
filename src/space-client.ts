@@ -3,6 +3,7 @@ import type { Garden, GardenChange, GardenEvent } from "../shared/garden";
 import type { Mandala, MandalaChange, MandalaEvent } from "../shared/mandala";
 import type { Lantern } from "../shared/lantern";
 import type { StarEvent, StarSky } from "../shared/stars";
+import type { Stick } from "../shared/incense";
 import { actOnItem } from "./space/item-socket";
 import { requestJson } from "./api-request";
 import { base } from "./router";
@@ -168,6 +169,9 @@ export const space = {
   mandala: () => requestJson<{ mandala: Mandala }>(`${root}/mandala`),
   changeMandala: (change: MandalaChange) =>
     requestJson<{ event: MandalaEvent }>(`${root}/mandala`, { method: "POST", body: JSON.stringify(change) }),
+  /** The incense burning, and lighting a stick: see shared/incense.ts. */
+  incense: () => requestJson<{ sticks: Stick[]; now: number }>(`${root}/incense`),
+  lightIncense: () => requestJson<{ sticks: Stick[]; now: number }>(`${root}/incense`, { method: "POST", body: "{}" }),
   /** The star map's constellations, and joining two stars: see shared/stars.ts. */
   stars: () => requestJson<{ sky: StarSky }>(`${root}/stars`),
   joinStars: (a: number, b: number) => requestJson<{ event: StarEvent }>(`${root}/stars`, { method: "POST", body: JSON.stringify({ a, b }) }),

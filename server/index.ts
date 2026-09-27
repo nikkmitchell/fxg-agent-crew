@@ -31,6 +31,7 @@ import { registerFireRoutes } from "./space/fire.js";
 import { registerWheelRoutes } from "./space/wheel.js";
 import { registerLanternRoutes } from "./space/lantern.js";
 import { RoomSkies, registerStarRoutes } from "./space/stars.js";
+import { registerIncenseRoutes } from "./space/incense.js";
 import { RoomMandalas, registerMandalaRoutes } from "./space/mandala.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
@@ -435,6 +436,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       mandalas: roomMandalas,
       announce: (room, event) => hubFor(room).broadcast({ type: "mandala", event }),
+    });
+    registerIncenseRoutes(scoped, {
+      config,
+      sessions,
+      announce: (room, sticks) => hubFor(room).broadcast({ type: "incense", sticks }),
     });
     registerStarRoutes(scoped, {
       config,
