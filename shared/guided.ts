@@ -136,6 +136,38 @@ export const GUIDES = {
       { at: 540, say: "Rest now. Good night." },
     ],
   },
+  counting: {
+    label: "COUNTING · 3 MIN",
+    minutes: 3,
+    lines: [
+      { at: 2, say: "Welcome. This is the simplest practice there is: counting breaths." },
+      { at: 14, say: "Breathe in with the orb. As you breathe out, silently count one." },
+      { at: 30, say: "Next breath out, two. Then three. Up to ten." },
+      { at: 48, say: "When you reach ten, begin again at one." },
+      { at: 70, say: "If you lose count, or find yourself at fifteen, that is fine. Just start again at one." },
+      { at: 96, say: "Losing count is not failing. Noticing you lost it is the practice." },
+      { at: 124, say: "Keep counting, softly. One number for each breath out." },
+      { at: 150, say: "Let the numbers go now, and just breathe." },
+      { at: 166, say: "Thank you for counting together." },
+    ],
+  },
+  mountain: {
+    label: "MOUNTAIN · 5 MIN",
+    minutes: 5,
+    lines: [
+      { at: 2, say: "Welcome. Sit or stand tall, with your feet planted, and let the orb set your breath." },
+      { at: 20, say: "Picture a mountain. Its base wide and rooted in the earth, its peak high in the sky." },
+      { at: 42, say: "Let your body become that mountain. Solid at the base. Upright. Still." },
+      { at: 66, say: "Around a mountain, the weather changes. Sun, then cloud. Wind, then rain." },
+      { at: 90, say: "The mountain does not chase the sunshine, or run from the storm. It stays." },
+      { at: 116, say: "Your thoughts and feelings are weather too. Let them pass over you." },
+      { at: 142, say: "Something pleasant. Something difficult. Both pass. The mountain remains." },
+      { at: 170, say: "Feel how steady you can be, just by staying with your breath." },
+      { at: 200, say: "Seasons come and go. Snow melts. Flowers grow. The mountain sits through all of it." },
+      { at: 232, say: "Rest here, as the mountain, for a few more breaths." },
+      { at: 270, say: "Slowly let the image go, and carry some of its steadiness with you." },
+    ],
+  },
 } as const satisfies Record<string, Guide>;
 
 export type GuideId = keyof typeof GUIDES;
