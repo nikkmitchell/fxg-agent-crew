@@ -15,6 +15,7 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Canvas } from "@react-three/fiber";
 import { SettingsMenu3D } from "./SettingsMenu3D";
+import { LobbyWelcome } from "./LobbyWelcome";
 import { SETTINGS_TABS, settingsBadge, settingsSections, tabOfView, type ArrangeMode, type SettingsView } from "./settings-menu-model";
 import { roomMenuRows } from "../../shared/room-switch";
 
@@ -131,7 +132,12 @@ function Preview() {
       onCreated={({ camera }) => camera.lookAt(0, 1.6, -1)}
       style={{ position: "fixed", inset: 0, background: "linear-gradient(#5c6470, #3b3f46 55%, #2a2c30)" }}
     >
-      <SettingsMenu3D
+      {params.get("welcome") === "1" ? (
+        <group position={[0, 0, -2.4]}>
+          <LobbyWelcome />
+        </group>
+      ) : null}
+      {params.get("welcome") === "1" ? null : <SettingsMenu3D
         position={[0, 1.6, -1.95]}
         model={{
           title: "Settings",
@@ -142,7 +148,7 @@ function Preview() {
           sections,
           badge: settingsBadge(update, () => log("update")),
         }}
-      />
+      />}
     </Canvas>
   );
 }

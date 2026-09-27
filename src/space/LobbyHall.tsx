@@ -15,6 +15,7 @@ import { avatarRecipe } from "../avatar";
 import { WristButton } from "./Backdrop";
 import { VrmBody } from "./VrmBody";
 import { selfPose } from "./self-pose";
+import { LobbyWelcome } from "./LobbyWelcome";
 
 /**
  * THE LOBBY AS A FRONT HALL (shared/lobby-hall.ts has Nikk's words and the
@@ -50,6 +51,8 @@ const around = (degrees: number, metres = 2.5) => ({
   z: ROOM.spawn.z - Math.cos((degrees * Math.PI) / 180) * metres,
 });
 const DOORS_AT = around(55, 2.6);
+/** The welcome and the controls, on the far side of the doors from the mirror (Nikk, 5469). */
+const WELCOME_AT = around(102, 2.4);
 const DOORS = { at: DOORS_AT, columns: 4, rows: 2, width: 0.52, height: 0.56, gap: 0.08, top: 1.72 };
 const MIRROR = { at: around(0, 2.7), width: 2.2, height: 2.3, bottom: 0.05 };
 /**
@@ -170,6 +173,11 @@ export function LobbyHall({
           extra={{ label: "↻ refresh", onTap: () => { setDoorPage(0); loadRooms(); } }}
         />
         {notice ? <WristButton label={notice} y={0.28} width={2.2} height={0.1} tone="muted" onTap={() => setNotice(null)} /> : null}
+      </group>
+
+      {/* THE WELCOME, beside the doors. */}
+      <group position={[WELCOME_AT.x, 0, WELCOME_AT.z]} rotation={[0, facingSpawn(WELCOME_AT.x, WELCOME_AT.z), 0]}>
+        <LobbyWelcome />
       </group>
 
       {/* THE MIRROR, and you, drawn for it alone. */}
