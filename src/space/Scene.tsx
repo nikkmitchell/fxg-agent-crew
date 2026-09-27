@@ -49,6 +49,7 @@ import { KaleidoscopeDome } from "./KaleidoscopeDome";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
+import { RoomBook } from "./RoomBook";
 import { SpiritCompanions } from "./SpiritCompanions";
 import { space } from "../space-client";
 
@@ -875,6 +876,7 @@ export default function Scene({
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
+        {connection.meditation?.shown && <RoomBook history={connection.meditation.history} />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
           avatarRecorder={avatarRecorder}
