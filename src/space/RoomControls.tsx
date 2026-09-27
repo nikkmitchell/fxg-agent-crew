@@ -8,7 +8,7 @@ import { useXR } from "@react-three/xr";
 import * as THREE from "three";
 import { bff } from "../bff-client";
 import { space } from "../space-client";
-import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
+import { ButtonBox, WRIST_BUTTON, WristButton, roundedRect } from "./Backdrop";
 import { ALL_TABS, screenOf, type SettingsTab } from "./settings-tabs";
 import {
   closedButtons,
@@ -147,16 +147,16 @@ const FIX_HEIGHT = 1.38;
  * with under 2 cm between it and the next is a target a ray slides off; these
  * are half as tall again with three centimetres of gap.
  */
-const BOX_BUTTON = { width: 0.6, height: 0.16, gap: 0.03 } as const;
+const BOX_BUTTON = { width: 0.8, height: 0.16, gap: 0.03 } as const;
 /** A tab, and a scope above the tabs. Grown for the same reason. */
-// Wide enough for "Activity items" on one line, now that all six share a row.
-const TAB_BUTTON = { width: 0.42, height: 0.17, gap: 0.04 } as const;
+// Five tabs as one segmented row, as wide as the two-column grid below it.
+const TAB_BUTTON = { width: 0.33, height: 0.17, gap: 0.02 } as const;
 /**
  * THE TOP TWO ROWS' WORDS FILL THEIR BUTTONS. Baiwei (4976): "the first and
  * second row. Me, the room ... they're tiny ... I barely see the text." Their
  * text was a fixed size meant for a two-line sentence, a sixth of the button.
  */
-const TAB_TEXT = 0.4;
+const TAB_TEXT = 0.3;
 /** How far above the first box's top the tab row sits. */
 const TAB_ROW_ABOVE = 0.36;
 /**
@@ -172,7 +172,9 @@ const BOX_GAP = 0.08;
  * not by turning your head. Five was seventy-five, which is inside a headset's
  * field of view and still too wide to use comfortably.
  */
-const BOXES_PER_ROW = 3;
+// Two across (Nikk, 5439: "make the UI look nice and more organised"): a
+// two-by-two grid of wider sections reads as one panel, not a ragged spread.
+const BOXES_PER_ROW = 2;
 
 /**
  * The closed controls: settings and talk, the same size, rounded like a phone's
@@ -1656,6 +1658,12 @@ export function RoomControls({
   const gridTop = ((rowCount - 1) * rowStep) / 2 + boxHeight / 2;
   // The boxes are centred on the origin; the scope and tab rows add height above.
   menuMiddle.current = (TAB_ROW_ABOVE + TAB_BUTTON.height / 2) / 2;
+  const tabsWidth = ALL_TABS.length * (TAB_BUTTON.width + TAB_BUTTON.gap) - TAB_BUTTON.gap;
+  const gridWidth = Math.min(columns.length, BOXES_PER_ROW) * (columnWidth + BOX_GAP) - BOX_GAP;
+  const menuWidth = Math.max(tabsWidth, gridWidth) + 0.24;
+  const menuTop = gridTop + TAB_ROW_ABOVE + TAB_BUTTON.height / 2 + 0.2;
+  const menuBottom = -gridTop - (rowCount - 1) * rowStep - boxHeight - 0.1;
+  const tabTrack = useMemo(() => roundedRect(tabsWidth + 0.03, TAB_BUTTON.height + 0.03), [tabsWidth]);
 
   /**
    * THE WRITTEN DRAFT IS SHOWN IN THE ROOM, on the line under the controls.
@@ -1943,7 +1951,17 @@ export function RoomControls({
           only that scope's tabs, so there are never eight across (v0.2). The
           chosen one is lit; close sits at the end of the tab row.
         */}
-        {[...ALL_TABS, { id: "close" as const, label: "✕ Close" }].map((entry, index, all) => (
+        {/*
+          ONE PANEL (Nikk, 5439). A single rounded card behind the tabs and the
+          sections, so the menu reads as one object; the tabs are a segmented
+          row on it and close is a small ✕ in its corner.
+        */}
+        <MenuCard width={menuWidth} top={menuTop} bottom={menuBottom} />
+        <mesh position={[0, gridTop + TAB_ROW_ABOVE, -0.005]} raycast={() => null}>
+          <shapeGeometry args={[tabTrack, 6]} />
+          <meshBasicMaterial color="#0a0d14" transparent opacity={0.9} side={THREE.DoubleSide} />
+        </mesh>
+        {ALL_TABS.map((entry, index, all) => (
           <WristButton
             key={entry.id}
             label={entry.label}
@@ -1951,16 +1969,25 @@ export function RoomControls({
             y={gridTop + TAB_ROW_ABOVE}
             width={TAB_BUTTON.width}
             height={TAB_BUTTON.height}
-            lines={1}
+            lines={2}
             textSize={TAB_TEXT}
-            tone={entry.id === tab ? "live" : "normal"}
+            tone={entry.id === tab ? "live" : "muted"}
             onTap={() => {
-              if (entry.id === "close") return closeMenu();
               setTab(entry.id);
               setView(screenOf(entry.id));
             }}
           />
         ))}
+        <WristButton
+          label="✕"
+          glyph
+          x={menuWidth / 2 - 0.1}
+          y={menuTop - 0.1}
+          width={0.12}
+          height={0.12}
+          tone="muted"
+          onTap={() => closeMenu()}
+        />
         {columns.map((column, index) => (
           <ButtonBox
             key={`${index}-${column.title}`}
@@ -2090,5 +2117,16 @@ export function RoomControls({
       ) : null}
       </group>
     </>
+  );
+}
+
+/** The one rounded card the open menu sits on. Never catches a pointer. */
+function MenuCard({ width, top, bottom }: { width: number; top: number; bottom: number }) {
+  const shape = useMemo(() => roundedRect(width, top - bottom, 0.08), [width, top, bottom]);
+  return (
+    <mesh position={[0, (top + bottom) / 2, -0.02]} raycast={() => null}>
+      <shapeGeometry args={[shape, 8]} />
+      <meshBasicMaterial color="#0c1018" transparent opacity={0.88} side={THREE.DoubleSide} />
+    </mesh>
   );
 }

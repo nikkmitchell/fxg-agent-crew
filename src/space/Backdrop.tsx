@@ -129,7 +129,7 @@ export function WristButton({
   );
   const shape = useMemo(() => roundedRect(width, height), [width, height]);
   const colour =
-    tone === "live" ? "#5b74c4" : tone === "danger" ? "#b4433e" : tone === "muted" ? "#252a35" : "#1b2231";
+    tone === "live" ? "#4f6fd8" : tone === "danger" ? "#b4433e" : tone === "muted" ? "#1a2030" : "#243049";
   return (
     <group position={[x, y, 0]}>
       <mesh
@@ -182,12 +182,17 @@ export function ButtonBox({
   height: number;
   children: React.ReactNode;
 }) {
-  const texture = useDisposable(() => makeLabelTexture(title, { pixelsPerLine: 34, lines: 1 }), [title]);
+  const texture = useDisposable(
+    () => makeLabelTexture(title.toUpperCase(), { pixelsPerLine: 30, lines: 1, color: "#8fa3d9", halo: false }),
+    [title],
+  );
+  // A rounded section card, a shade lighter than the menu behind it (Nikk, 5439).
+  const card = useMemo(() => roundedRect(width + 0.05, height + 0.16, 0.045), [width, height]);
   return (
     <group position={[x, y, 0]}>
-      <mesh position={[0, -height / 2 + 0.06, -0.01]} raycast={() => null}>
-        <planeGeometry args={[width + 0.04, height + 0.12]} />
-        <meshBasicMaterial color="#0e1118" transparent opacity={0.82} side={THREE.DoubleSide} />
+      <mesh position={[0, -height / 2 + 0.08, -0.01]} raycast={() => null}>
+        <shapeGeometry args={[card, 6]} />
+        <meshBasicMaterial color="#161c29" transparent opacity={0.95} side={THREE.DoubleSide} />
       </mesh>
       {texture ? (
         <mesh position={[0, 0.11, 0]} raycast={() => null}>
