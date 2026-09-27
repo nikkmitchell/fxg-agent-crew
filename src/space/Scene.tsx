@@ -65,6 +65,7 @@ import { RoomBook } from "./RoomBook";
 import { MindfulnessBell } from "./MindfulnessBell";
 import { Labyrinth } from "./Labyrinth";
 import { TeaTable } from "./TeaTable";
+import { RoomGuideSign } from "./RoomGuideSign";
 import { SpiritCompanions } from "./SpiritCompanions";
 import { space } from "../space-client";
 
@@ -920,6 +921,7 @@ export default function Scene({
         {connection.meditation?.shown && <MindfulnessBell meditation={connection.meditation} />}
         {connection.meditation?.shown && <Labyrinth />}
         {connection.meditation?.shown && <TeaTable />}
+        {connection.meditation?.shown && <RoomGuideSign />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
           avatarRecorder={avatarRecorder}
