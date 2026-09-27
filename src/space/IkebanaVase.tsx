@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { type ThreeEvent } from "@react-three/fiber";
 import { FLOWERS, REACH, applyVaseEvent, emptyVase, type Stem, type Vase } from "../../shared/ikebana";
 import { onVaseChange } from "./vase-events";
@@ -18,6 +19,11 @@ import { ROOM } from "../../shared/space-layout";
 export const VASE_AT = { x: 1.9, z: 7.9, table: 0.55 } as const;
 const MOUTH = VASE_AT.table + 0.2;
 
+/**
+ * One stem and its bloom, as THREE meshes: the stem, the petals merged into
+ * one geometry, and the centre. It was eight (a mesh per petal), and twelve
+ * stems made ikebana alone about a hundred draw calls (Sill's check, 5594).
+ */
 function Bloom({ stem }: { stem: Stem }) {
   const flower = FLOWERS[stem.flower];
   const geometry = useMemo(() => {
@@ -26,7 +32,25 @@ function Bloom({ stem }: { stem: Stem }) {
     const middle = start.clone().lerp(end, 0.5).add(new THREE.Vector3(stem.x * 0.25, 0.04, stem.z * 0.25));
     return new THREE.TubeGeometry(new THREE.CatmullRomCurve3([start, middle, end]), 16, 0.004, 5, false);
   }, [stem]);
+  const petals = useMemo(() => {
+    const parts = Array.from({ length: 6 }, (_, i) => {
+      const a = (i / 6) * Math.PI * 2;
+      const petal = new THREE.SphereGeometry(1, 10, 8);
+      petal.applyMatrix4(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(Math.cos(a) * 0.022, 0.004, Math.sin(a) * 0.022),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -a, 0.5)),
+          new THREE.Vector3(0.024, 0.006, 0.014),
+        ),
+      );
+      return petal;
+    });
+    const merged = mergeGeometries(parts);
+    parts.forEach((part) => part.dispose());
+    return merged;
+  }, []);
   useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => petals?.dispose(), [petals]);
   const facing = useMemo(() => {
     const up = new THREE.Vector3(stem.x, stem.y, stem.z).normalize();
     return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
@@ -37,15 +61,11 @@ function Bloom({ stem }: { stem: Stem }) {
         <meshStandardMaterial color="#4f6b34" roughness={0.8} />
       </mesh>
       <group position={[stem.x, stem.y, stem.z]} quaternion={facing}>
-        {Array.from({ length: 6 }, (_, i) => {
-          const a = (i / 6) * Math.PI * 2;
-          return (
-            <mesh key={i} position={[Math.cos(a) * 0.022, 0.004, Math.sin(a) * 0.022]} rotation={[0, -a, 0.5]} scale={[0.024, 0.006, 0.014]} raycast={() => null}>
-              <sphereGeometry args={[1, 10, 8]} />
-              <meshStandardMaterial color={flower.colour} roughness={0.6} />
-            </mesh>
-          );
-        })}
+        {petals ? (
+          <mesh geometry={petals} raycast={() => null}>
+            <meshStandardMaterial color={flower.colour} roughness={0.6} />
+          </mesh>
+        ) : null}
         <mesh position={[0, 0.008, 0]} raycast={() => null}>
           <sphereGeometry args={[0.009, 10, 8]} />
           <meshStandardMaterial color={flower.centre} roughness={0.6} />
