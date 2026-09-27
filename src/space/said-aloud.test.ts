@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LONGEST_TURN_MS, NO_ENGINE, clearAloudQueue, queueAloud, readAloud, type Playable } from "./said-aloud";
+import { LONGEST_TURN_MS, NO_ENGINE, clearAloudQueue, holdAloud, queueAloud, readAloud, type Playable } from "./said-aloud";
 
 /**
  * Hearing an agent's OWN voice, and never hearing nothing.
@@ -274,6 +274,41 @@ describe("lines said close together", () => {
     b.end(0);
     await settle();
     expect(b.elements.map((e) => e.url)).toEqual(["blob:said-1", "blob:said-2"]);
+  });
+
+  /** Nikk (5158): "If agent is talking and I talk then I can't hear the agent". */
+  it("waits while you speak, and replays whole the line you talked over", async () => {
+    const b = box();
+    holdAloud(true);
+    line(1, b);
+    await settle();
+    expect(b.elements, "nothing starts while you are speaking").toEqual([]);
+    holdAloud(false);
+    await settle();
+    expect(b.elements.map((e) => e.url)).toEqual(["blob:said-1"]);
+    // You start speaking in the middle of it: it stops, and comes back after.
+    line(2, b);
+    holdAloud(true);
+    expect(b.elements[0].pause, "stopped rather than talked over").toHaveBeenCalled();
+    await settle();
+    expect(b.elements).toHaveLength(1);
+    holdAloud(false);
+    await settle();
+    expect(b.elements.map((e) => e.url), "line 1 again from the start, then 2 after it").toEqual(["blob:said-1", "blob:said-1"]);
+    b.end(1);
+    await settle();
+    expect(b.elements.map((e) => e.url)).toEqual(["blob:said-1", "blob:said-1", "blob:said-2"]);
+  });
+
+  it("can still cancel a line that was put back while you spoke", async () => {
+    const b = box();
+    const first = line(1, b);
+    await settle();
+    holdAloud(true);
+    first.cancel();
+    holdAloud(false);
+    await settle();
+    expect(b.elements, "it is not heard again").toHaveLength(1);
   });
 
   it("keeps the order they were said in", async () => {

@@ -1,4 +1,5 @@
 import type { Meditation } from "../../shared/meditation";
+import { holdAloud } from "./said-aloud";
 import { sendKey } from "../call-socket";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
@@ -1718,6 +1719,17 @@ export function RoomControls({
                   return;
               }
 };
+  /**
+   * NOBODY TALKS OVER YOU. Nikk (5158): "If agent is talking and I talk then I
+   * can't hear the agent". What the room says waits while you record and send,
+   * and plays once you have finished (said-aloud.ts holdAloud).
+   */
+  const talking = listening || saying === "recording" || sending;
+  useEffect(() => {
+    holdAloud(talking);
+  }, [talking]);
+  useEffect(() => () => holdAloud(false), []);
+
   pressTalkRef.current = pressTalk;
   openMenuRef.current = openMenu;
   // THE GESTURE NEVER STOPS A SEND ON ITS WAY. Only the ✕ button does. A
@@ -1996,6 +2008,11 @@ export function RoomControls({
         <WristButton
           label={said}
           tone={!notice && listening ? "live" : "muted"}
+          // WHILE RECORDING OR SENDING, A STATUS AND NOTHING ELSE. Nikk (5158):
+          // it "can be like touched with your cursor. We don't need that, that
+          // should be see-through for your cursor". A notice or a draft stays
+          // pressable, since pressing those does something.
+          passThrough={Boolean(recordingStatus) || sending}
           y={open ? -gridTop - (rowCount - 1) * rowStep - boxHeight - 0.18 : -ICON / 2 - 0.035 - STATUS.height / 2}
           width={open ? 0.9 : STATUS.width}
           height={open ? WRIST_BUTTON.height : STATUS.height}

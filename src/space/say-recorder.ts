@@ -218,6 +218,28 @@ export async function canTranscribe(): Promise<boolean> {
 /** Ask the server for the words. Its answer is text, never audio. */
 async function postForWords(wav: Blob): Promise<string> {
   const { base } = await import("../router");
+  const { blobToBase64, callOverSocket } = await import("../call-socket");
+  /*
+   * DOWN THE ROOM SOCKET FIRST. Baiwei (5167): every recording reached the
+   * server and was written down, and each time her connection dropped the
+   * answer (nginx 499) while her avatar, on the socket, kept moving. The web
+   * upload is still used when the socket cannot take it.
+   */
+  const tunnelled = await callOverSocket(
+    `${base}/bff/space/transcribe`,
+    { method: "POST" },
+    { base64: await blobToBase64(wav), contentType: "audio/wav", deadlineMs: 120_000 },
+  );
+  if (tunnelled) {
+    let body: { text?: string; error?: string } | null = null;
+    try {
+      body = JSON.parse(tunnelled.body) as { text?: string; error?: string };
+    } catch {
+      body = null;
+    }
+    if (tunnelled.status < 200 || tunnelled.status >= 300) throw new Error(body?.error ?? "The words could not be written down. Nothing was sent.");
+    return (body?.text ?? "").trim();
+  }
   const response = await fetch(`${base}/bff/space/transcribe`, {
     method: "POST",
     credentials: "same-origin",

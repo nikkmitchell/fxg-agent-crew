@@ -558,11 +558,13 @@ export function registerSpaceRoutes(
             headers: {
               cookie: request.headers.cookie ?? "",
               ...(message.body !== undefined ? { "content-type": "application/json" } : {}),
+              ...(message.bodyBase64 !== undefined ? { "content-type": message.contentType as string } : {}),
               ...(request.headers["user-agent"] ? { "user-agent": request.headers["user-agent"] } : {}),
               // The caller's idempotency key, so a retry is answered once (idempotency.ts).
               ...(message.key !== undefined ? { "idempotency-key": message.key } : {}),
             },
             ...(message.body !== undefined ? { payload: message.body } : {}),
+            ...(message.bodyBase64 !== undefined ? { payload: Buffer.from(message.bodyBase64, "base64") } : {}),
           })
           .then((response) =>
             // A cookie cannot reach the browser this way. No route that sets

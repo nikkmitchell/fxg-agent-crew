@@ -14,10 +14,15 @@
  * whenever the socket is not open, when the server says it will not tunnel
  * for this page, or when the socket closes before answering.
  */
-import { isCallPath, type CallMethod, CALL_BODY_LIMIT, CALL_METHODS } from "../shared/space-wire";
+import { isCallPath, type CallMethod, CALL_BINARY_LIMIT, CALL_BODY_LIMIT, CALL_METHODS } from "../shared/space-wire";
 
 type Answer = { status: number; body: string };
-type CallFrame = { type: "call"; ref: string; method: CallMethod; path: string; body?: string; key?: string };
+type CallFrame = {
+  type: "call"; ref: string; method: CallMethod; path: string; body?: string; key?: string;
+  bodyBase64?: string; contentType?: string;
+};
+/** A binary body, for callOverSocket's `binary`, and how long its answer may take. */
+type Binary = { base64: string; contentType: string; deadlineMs?: number };
 type Sender = (frame: CallFrame) => boolean;
 
 let sender: Sender | null = null;
@@ -49,11 +54,12 @@ export function callDeadline(path: string): number {
  * should go by web instead: no socket, not a call the socket takes, the socket
  * closed first, or this page was refused.
  */
-export function callOverSocket(path: string, init: RequestInit): Promise<Answer | null> {
+export function callOverSocket(path: string, init: RequestInit, binary?: Binary): Promise<Answer | null> {
   const method = (init.method ?? "GET").toUpperCase() as CallMethod;
   if (!sender || refused) return Promise.resolve(null);
   if (!CALL_METHODS.includes(method) || !isCallPath(path)) return Promise.resolve(null);
-  if (init.body !== undefined && init.body !== null && typeof init.body !== "string") return Promise.resolve(null);
+  if (binary && binary.base64.length > CALL_BINARY_LIMIT) return Promise.resolve(null);
+  if (!binary && init.body !== undefined && init.body !== null && typeof init.body !== "string") return Promise.resolve(null);
   if (typeof init.body === "string" && init.body.length > CALL_BODY_LIMIT) return Promise.resolve(null);
   if (init.signal?.aborted) return Promise.reject(new DOMException("aborted", "AbortError"));
 
@@ -73,7 +79,7 @@ export function callOverSocket(path: string, init: RequestInit): Promise<Answer 
     const onAbort = () => finish(null, new DOMException("aborted", "AbortError"));
     const timer = setTimeout(
       () => finish({ status: 504, body: JSON.stringify({ code: "NO_ANSWER", error: "no answer yet: it may still arrive, check before trying again" }) }),
-      callDeadline(path),
+      binary?.deadlineMs ?? callDeadline(path),
     );
     init.signal?.addEventListener("abort", onAbort);
     waiting.set(ref, {
@@ -88,8 +94,9 @@ export function callOverSocket(path: string, init: RequestInit): Promise<Answer 
     const key = new Headers(init.headers).get("idempotency-key") ?? undefined;
     const frame: CallFrame = {
       type: "call", ref, method, path,
-      ...(typeof init.body === "string" ? { body: init.body } : {}),
+      ...(!binary && typeof init.body === "string" ? { body: init.body } : {}),
       ...(key ? { key } : {}),
+      ...(binary ? { bodyBase64: binary.base64, contentType: binary.contentType } : {}),
     };
     if (!sender?.(frame)) finish(null);
   });
@@ -116,4 +123,12 @@ export function sendKey(...parts: string[]): string {
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return `send-${hash.toString(36)}-${text.length}`;
+}
+
+/** A Blob as base64, for a binary body on the socket. */
+export async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let text = "";
+  for (let at = 0; at < bytes.length; at += 0x8000) text += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+  return btoa(text);
 }

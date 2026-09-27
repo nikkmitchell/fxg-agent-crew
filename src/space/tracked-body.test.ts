@@ -16,7 +16,7 @@ import {
  * A plain humanoid in a T-pose, facing -Z, 1.62 m to the head — built from
  * bones rather than loaded, so the solver can be checked joint by joint.
  */
-function makeRig() {
+function makeRig(options: { fanLittle?: number; thumbDrop?: number } = {}) {
   const scene = new THREE.Group();
   const bones = new Map<BoneName, THREE.Object3D>();
   const tips = new Map<string, THREE.Object3D>();
@@ -39,14 +39,17 @@ function makeRig() {
     // Fingers along the arm, index toward the thumb; a tip on each to measure.
     for (const [name, z] of [["Index", -0.02], ["Middle", 0], ["Ring", 0.02], ["Little", 0.035]] as const) {
       const proximal = add(`${side}${name}Proximal`, hand, x * 0.09, 0, z);
-      const intermediate = add(`${side}${name}Intermediate`, proximal, x * 0.04, 0, 0);
-      const distal = add(`${side}${name}Distal`, intermediate, x * 0.025, 0, 0);
+      // A little finger that rests fanned out, as real models' do.
+      const fan = name === "Little" ? options.fanLittle ?? 0 : 0;
+      const intermediate = add(`${side}${name}Intermediate`, proximal, x * 0.04 * Math.cos(fan), 0, 0.04 * Math.sin(fan));
+      const distal = add(`${side}${name}Distal`, intermediate, x * 0.025 * Math.cos(fan), 0, 0.025 * Math.sin(fan));
       const tip = new THREE.Object3D();
-      tip.position.set(x * 0.02, 0, 0);
+      tip.position.set(x * 0.02 * Math.cos(fan), 0, 0.02 * Math.sin(fan));
       distal.add(tip);
       tips.set(`${side}${name}`, tip);
     }
-    const metacarpal = add(`${side}ThumbMetacarpal`, hand, x * 0.015, -0.01, -0.025);
+    // Real models rest the thumb below the palm, not in it: thumbDrop lowers it.
+    const metacarpal = add(`${side}ThumbMetacarpal`, hand, x * 0.015, -0.01 - (options.thumbDrop ?? 0), -0.025);
     const thumbProximal = add(`${side}ThumbProximal`, metacarpal, x * 0.005, 0, -0.015);
     const thumbDistal = add(`${side}ThumbDistal`, thumbProximal, x * 0.01, 0, -0.025);
     const thumbTip = new THREE.Object3D();
@@ -171,6 +174,43 @@ describe("a body from a headset's three points", () => {
       const before = tip(`right${finger}`).y;
       pose({ snap: true, hands: { right: { p: wrist, q: new THREE.Quaternion(), f: fist } } });
       expect(tip(`right${finger}`).y, finger).toBeLessThan(before - 0.01);
+    }
+  });
+
+  /** Nikk (5161): "when I start to make a fist my fingers ... also angle to the right". */
+  it("curls a finger that rests fanned out straight down, not off to one side", () => {
+    for (const side of ["left", "right"] as const) {
+      const { tip, world, pose } = makeRig({ fanLittle: 0.35 });
+      const wrist = new THREE.Vector3(side === "left" ? -0.35 : 0.35, 1.15, -0.35);
+      pose({ snap: true, hands: { [side]: { p: wrist, q: new THREE.Quaternion() } } });
+      const base = world(`${side}LittleProximal`);
+      const rest = tip(`${side}Little`).sub(base);
+      // Sideways is across the finger's own rest direction, in the palm's plane.
+      const sideways = new THREE.Vector3(rest.x, 0, rest.z).normalize().cross(new THREE.Vector3(0, 1, 0));
+      const bent = new Array(FINGER_ANGLES).fill(0);
+      bent[17] = 1.2; bent[18] = 1.2; bent[19] = 1.0;
+      pose({ snap: true, hands: { [side]: { p: wrist, q: new THREE.Quaternion(), f: bent } } });
+      const curled = tip(`${side}Little`).sub(world(`${side}LittleProximal`));
+      expect(curled.y, `${side}: it curls down, toward the palm`).toBeLessThan(-0.03);
+      expect(Math.abs(curled.dot(sideways)) - Math.abs(rest.dot(sideways)), `${side}: and not off to one side`).toBeLessThan(0.004);
+    }
+  });
+
+  /** Nikk (5166): fists curled "inward" and "also downward" — a palm read off the thumb. */
+  it("reads the palm from the knuckles, not the thumb, and curls a fist straight toward it", () => {
+    for (const side of ["left", "right"] as const) {
+      const { spec, tip, world, pose } = makeRig({ thumbDrop: 0.03 });
+      expect(spec.hands[side].palm.y, `${side}: a T-pose palm faces straight down`).toBeLessThan(-0.99);
+      const wrist = new THREE.Vector3(side === "left" ? -0.35 : 0.35, 1.15, -0.35);
+      const fist = new Array(FINGER_ANGLES).fill(0);
+      for (const f of [0, 1, 2, 3]) { fist[5 + f * 4] = 1.2; fist[6 + f * 4] = 1.2; fist[7 + f * 4] = 0.9; }
+      pose({ snap: true, hands: { [side]: { p: wrist, q: new THREE.Quaternion() } } });
+      pose({ snap: true, hands: { [side]: { p: wrist, q: new THREE.Quaternion(), f: fist } } });
+      const closed = tip(`${side}Middle`).sub(world(`${side}MiddleProximal`));
+      // The tracked hand's palm faces -Y and its fingers -Z: a curl stays in
+      // that plane and does not swing toward +/-X.
+      expect(Math.abs(closed.x), `${side}: not off to the side`).toBeLessThan(0.012);
+      expect(closed.y, `${side}: toward the palm`).toBeLessThan(-0.02);
     }
   });
 

@@ -94,6 +94,24 @@ describe("finger angles from tracked joints", () => {
     expect(Math.abs(fingerAngles(hand(folded), FINGER, PALM)![4])).toBeLessThan(0.05);
   });
 
+  /**
+   * Recorded from Nikk's headset (2026-09-27): his fists arrived with ring and
+   * little spread at the 34° limit, and a curled finger turned that far about
+   * the palm swings across its neighbours on everybody else's screen (5142).
+   */
+  it("reads no spread from a curled finger, however it drifts sideways, and full spread from a straight one", () => {
+    const curledAndDrifting = fist();
+    for (const finger of [0, 1, 2, 3]) curledAndDrifting[4 + finger * 4] = finger % 2 ? 0.5 : -0.5;
+    const read = fingerAngles(hand(curledAndDrifting), FINGER, PALM)!;
+    for (const finger of [0, 1, 2, 3]) expect(Math.abs(read[4 + finger * 4]), `finger ${finger}`).toBeLessThan(0.01);
+    const splayed = flat();
+    splayed[4] = 0.3;
+    splayed[16] = -0.3;
+    const open = fingerAngles(hand(splayed), FINGER, PALM)!;
+    expect(open[4]).toBeCloseTo(0.3, 2);
+    expect(open[16]).toBeCloseTo(-0.3, 2);
+  });
+
   it("gives up on a hand with a joint missing, rather than posing half of one", () => {
     const joints: Array<V3 | null> = hand(flat());
     joints[7] = null;
