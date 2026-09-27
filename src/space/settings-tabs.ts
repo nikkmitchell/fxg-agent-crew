@@ -58,3 +58,9 @@ export function screenOf(tab: SettingsTab): "root" | "rooms" | "items" | "panels
       return "root";
   }
 }
+
+/**
+ * ONE ROW, NO SCOPES (Nikk, 5426): "we don't need two separate tabs, one for me
+ * and one for this room ... have all the tabs just to be visible".
+ */
+export const ALL_TABS: { id: SettingsTab; label: string }[] = [...TABS.me, ...TABS.room];

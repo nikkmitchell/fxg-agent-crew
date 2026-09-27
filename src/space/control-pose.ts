@@ -156,8 +156,9 @@ export function closedControlPose(at: { x: number; y?: number; z: number }, yaw:
  */
 // 10° LOWER than first built (40/30): Nikk (5389), "I have to look up a little
 // bit too high, can we move it 10° lower".
-export const LOOK_UP_SHOW = (30 * Math.PI) / 180;
-export const LOOK_UP_HIDE = (20 * Math.PI) / 180;
+// Nikk (5426): three degrees higher than 30/20.
+export const LOOK_UP_SHOW = (33 * Math.PI) / 180;
+export const LOOK_UP_HIDE = (23 * Math.PI) / 180;
 /** How far along your gaze it floats: in arm's reach, so it can be touched. */
 export const UP_GEAR_AHEAD = 0.45;
 /** The call toggle is a distinct, equally easy target beside the settings gear. */

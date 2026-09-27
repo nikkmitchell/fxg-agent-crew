@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SCOPES, TABS, scopeOf, screenOf } from "./settings-tabs";
+import { ALL_TABS, SCOPES, TABS, scopeOf, screenOf } from "./settings-tabs";
 
 describe("the settings tabs", () => {
   it("are the ones Nikk named (5410), in two scopes, with the canonical labels", () => {
@@ -21,5 +21,9 @@ describe("the settings tabs", () => {
     expect(screenOf("rooms")).toBe("rooms");
     expect(screenOf("show")).toBe("panels");
     expect(screenOf("view")).toBe("root");
+  });
+
+  it("are drawn as one row with no scope buttons (Nikk 5426)", () => {
+    expect(ALL_TABS.map((t) => t.label)).toEqual(["Me", "Rooms", "Activity items", "Work items", "Agents"]);
   });
 });

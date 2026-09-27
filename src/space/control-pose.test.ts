@@ -123,12 +123,12 @@ describe("which way the closed controls face", () => {
 
 describe("the settings gear, up where you look (Nikk 5245)", () => {
   const deg = (d: number) => (d * Math.PI) / 180;
-  it("appears once you tip your head up past 30°, and stays until you drop below 20° (Nikk 5389: 10° lower)", () => {
-    expect(lookingUp(false, deg(20))).toBe(false);
-    expect(lookingUp(false, deg(29))).toBe(false);
-    expect(lookingUp(false, deg(32))).toBe(true);
+  it("appears once you tip your head up past 33°, and stays until you drop below 23° (Nikk 5426: 3° higher)", () => {
+    expect(lookingUp(false, deg(23))).toBe(false);
+    expect(lookingUp(false, deg(32))).toBe(false);
+    expect(lookingUp(false, deg(34))).toBe(true);
     expect(lookingUp(true, deg(25)), "no flicker near the line").toBe(true);
-    expect(lookingUp(true, deg(15))).toBe(false);
+    expect(lookingUp(true, deg(20))).toBe(false);
   });
 
   it("floats in arm's reach along your gaze", () => {

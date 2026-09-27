@@ -9,7 +9,7 @@ import * as THREE from "three";
 import { bff } from "../bff-client";
 import { space } from "../space-client";
 import { ButtonBox, WRIST_BUTTON, WristButton } from "./Backdrop";
-import { SCOPES, TABS, scopeOf, screenOf, type SettingsTab } from "./settings-tabs";
+import { ALL_TABS, screenOf, type SettingsTab } from "./settings-tabs";
 import {
   closedButtons,
   handNear,
@@ -26,7 +26,6 @@ import { handsTracked, micGestureHands, micGestureIndicator } from "./mic-gestur
 import {
   closedControlPose,
   lookingUp,
-  UP_CALL_CENTRE_X,
   UP_CONTROL_SIZE,
   upGearAt,
   walkedAway,
@@ -150,7 +149,8 @@ const FIX_HEIGHT = 1.38;
  */
 const BOX_BUTTON = { width: 0.6, height: 0.16, gap: 0.03 } as const;
 /** A tab, and a scope above the tabs. Grown for the same reason. */
-const TAB_BUTTON = { width: 0.34, height: 0.17, gap: 0.04 } as const;
+// Wide enough for "Activity items" on one line, now that all six share a row.
+const TAB_BUTTON = { width: 0.42, height: 0.17, gap: 0.04 } as const;
 /**
  * THE TOP TWO ROWS' WORDS FILL THEIR BUTTONS. Baiwei (4976): "the first and
  * second row. Me, the room ... they're tiny ... I barely see the text." Their
@@ -203,7 +203,6 @@ const TALK_X = 0;
 const CANCEL_X = TALK_X + ICON + ICON_GAP;
 /** The look-up gear and separate room-call control share one tested size. */
 const UP_GEAR_SIZE = UP_CONTROL_SIZE;
-const UP_CALL_SIZE = UP_CONTROL_SIZE;
 /** The status line under them: wide enough for a short sentence on two lines. */
 const STATUS = { width: 0.42, height: 0.09 } as const;
 
@@ -1171,8 +1170,6 @@ export function RoomControls({
     if (upShown.current && upGear.current) {
       const gearAt = upGear.current.getWorldPosition(new THREE.Vector3());
       buttons.push({ id: "gear", at: { x: gearAt.x, y: gearAt.y, z: gearAt.z }, radius: UP_GEAR_SIZE / 2 });
-      const callAt = upGear.current.localToWorld(new THREE.Vector3(UP_CALL_CENTRE_X, 0, 0));
-      buttons.push({ id: "room-call", at: { x: callAt.x, y: callAt.y, z: callAt.z }, radius: UP_CALL_SIZE / 2 });
     }
     const contacts = [goHandInput.left?.contact ?? null, goHandInput.right?.contact ?? null];
     const { pressed, inside } = touchPresses(buttons, contacts, touching.current);
@@ -1451,6 +1448,15 @@ export function RoomControls({
         tone: voice.on || voice.starting ? "live" : "normal",
         onTap: () => voice.setOn(voice.on || voice.starting ? false : true),
       },
+      // Mute someone, for yourself only (Nikk, 5423). Nobody else's hearing changes.
+      ...voice.others.map((name) => {
+        const isMuted = voice.muted.has(name.trim().toLowerCase());
+        return {
+          label: isMuted ? `${name}: muted for me — tap to hear` : `Mute ${name} for me`,
+          tone: isMuted ? ("muted" as const) : ("normal" as const),
+          onTap: () => voice.setMuted(name, !isMuted),
+        };
+      }),
     ];
     /**
      * WHAT THE ROOM IS SHOWING — two rows, each opening its own list.
@@ -1649,7 +1655,7 @@ export function RoomControls({
   // low — which at two rows is the difference between reading it and crouching.
   const gridTop = ((rowCount - 1) * rowStep) / 2 + boxHeight / 2;
   // The boxes are centred on the origin; the scope and tab rows add height above.
-  menuMiddle.current = (gridTop + TAB_ROW_ABOVE + TAB_BUTTON.height * 1.5 + TAB_BUTTON.gap - gridTop) / 2;
+  menuMiddle.current = (TAB_ROW_ABOVE + TAB_BUTTON.height / 2) / 2;
 
   /**
    * THE WRITTEN DRAFT IS SHOWN IN THE ROOM, on the line under the controls.
@@ -1897,17 +1903,8 @@ export function RoomControls({
       <group ref={upGear} visible={false}>
         {upVisible && !open ? (
           <>
-            <WristButton label="⚙" glyph x={0} y={0} width={UP_GEAR_SIZE} height={UP_GEAR_SIZE} onTap={openMenu} />
-            <WristButton
-              label={voice.starting ? "…" : "☎"}
-              glyph
-              x={UP_CALL_CENTRE_X}
-              y={0}
-              width={UP_CALL_SIZE}
-              height={UP_CALL_SIZE}
-              tone={voice.on ? "live" : "normal"}
-              onTap={toggleRoomCall}
-            />
+            {/* Half see-through, and the call button is gone from beside it (Nikk, 5426). */}
+            <WristButton label="⚙" glyph x={0} y={0} width={UP_GEAR_SIZE} height={UP_GEAR_SIZE} opacity={0.5} onTap={openMenu} />
           </>
         ) : null}
       </group>
@@ -1946,26 +1943,7 @@ export function RoomControls({
           only that scope's tabs, so there are never eight across (v0.2). The
           chosen one is lit; close sits at the end of the tab row.
         */}
-        {SCOPES.map((scope, index) => (
-          <WristButton
-            key={scope.id}
-            label={scope.label}
-            x={(index - 0.5) * (TAB_BUTTON.width * 1.4 + TAB_BUTTON.gap)}
-            y={gridTop + TAB_ROW_ABOVE + TAB_BUTTON.height + TAB_BUTTON.gap}
-            width={TAB_BUTTON.width * 1.4}
-            height={TAB_BUTTON.height}
-            lines={1}
-            textSize={TAB_TEXT}
-            tone={scopeOf(tab) === scope.id ? "live" : "muted"}
-            onTap={() => {
-              if (scopeOf(tab) === scope.id) return;
-              const first = TABS[scope.id][0].id;
-              setTab(first);
-              setView(screenOf(first));
-            }}
-          />
-        ))}
-        {[...TABS[scopeOf(tab)], { id: "close" as const, label: "✕ Close" }].map((entry, index, all) => (
+        {[...ALL_TABS, { id: "close" as const, label: "✕ Close" }].map((entry, index, all) => (
           <WristButton
             key={entry.id}
             label={entry.label}
