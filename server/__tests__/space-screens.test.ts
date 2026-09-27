@@ -251,6 +251,28 @@ describe("the frame store", () => {
     expect(frames.get("nikk2")).toBeUndefined();
   });
 
+  it("shows a screen in every room its person is in, whichever room it was shared from (Nikk, 2026-09-27)", () => {
+    const frames = new ScreenFrames(() => 0);
+    // Shared by somebody whose session was in saha.ing; the agent is in two others.
+    frames.put("Inkstone", webp(), "image/webp", "Nikk2", "saha.ing");
+    const roomsOf = (actorId: string) => (actorId.toLowerCase() === "inkstone" ? ["meditation.AR", "Go Club"] : []);
+    expect(frames.list("meditation.AR", roomsOf).map((one) => one.actorId)).toEqual(["Inkstone"]);
+    expect(frames.list("go club", roomsOf)).toHaveLength(1);
+    // Never in a room its person is not in, including the one it came from.
+    expect(frames.list("saha.ing", roomsOf)).toEqual([]);
+    expect(frames.list("lobby", roomsOf)).toEqual([]);
+  });
+
+  it("puts a screen in the room it was shared from when its person is in no room, so sharing always lands", () => {
+    const frames = new ScreenFrames(() => 0);
+    frames.put("nikk2", webp(), "image/webp", null, "saha.ing");
+    expect(frames.list("saha.ing", () => [])).toHaveLength(1);
+    expect(frames.list("meditation.AR", () => [])).toEqual([]);
+    // Once they walk into a room, it follows them there.
+    expect(frames.list("meditation.AR", () => ["meditation.AR"])).toHaveLength(1);
+    expect(frames.list("saha.ing", () => ["meditation.AR"])).toEqual([]);
+  });
+
   it("treats two spellings of one person as one screen", () => {
     const frames = new ScreenFrames(() => 0);
     frames.put("Nikk2", webp(1), "image/webp");

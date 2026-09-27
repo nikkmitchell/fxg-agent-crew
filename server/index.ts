@@ -194,7 +194,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     const created = new SpaceHub(
       new Presence(Date.now, new DeclaredPostures(database),
         { get: (actorId) => agentHomes.get(key, actorId) },
-        (actorId) => screenFrames.get(actorId, key) !== undefined),
+        (actorId) => screenFrames.get(actorId) !== undefined),
       (actorId) => agentBodies.get(actorId),
     );
     created.onSlowSocket = logSlowSocket(key);
@@ -446,7 +446,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
         hubFor(room).presence.follow(actorId, kind, targetId, side, because),
       (room, actorId) => hubFor(room).presence.stopFollowing(actorId),
     );
-    registerScreenRoutes(scoped, { config, sessions, frames: screenFrames, keys: shareKeys });
+    registerScreenRoutes(scoped, {
+      config, sessions, frames: screenFrames, keys: shareKeys,
+      // A screen shows in every room its person is in (see screens.ts).
+      roomsOf: (actorId) => [...spaceHubs].filter(([, hub]) => hub.presence.find(actorId)).map(([room]) => room),
+    });
     registerHomeRoutes(scoped, {
       config,
       sessions,

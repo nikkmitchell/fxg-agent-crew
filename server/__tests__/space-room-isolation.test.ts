@@ -291,6 +291,31 @@ describe("entering and isolating room spaces", () => {
     expect((await app.inject({ method: "GET", url: "/bff/space/screens", headers: { cookie: a } })).json().screens).toEqual([]);
   });
 
+  it("shows a screen in whatever room its person is in, shared without joining a room first (Nikk, 2026-09-27)", async () => {
+    joinedRooms({ alpha: ["alpha", "beta"], beta: ["beta"] });
+    const { as, enter, app, hubFor } = await boot();
+    // Aster shares before entering any room: the link is minted from nowhere.
+    const a = as("Aster", "alpha");
+    const share = await app.inject({ method: "POST", url: "/bff/space/screens/key", headers: { cookie: a }, payload: {} });
+    expect(share.statusCode).toBe(200);
+    const image = Buffer.from([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 1]);
+    expect((await app.inject({ method: "PUT", url: "/bff/space/screens/frame",
+      headers: { "x-screen-key": share.json().key, "content-type": "image/webp" }, payload: image })).statusCode).toBe(200);
+
+    // Aster is standing in beta, so beta sees the screen, and alpha, where
+    // Aster is not, does not.
+    hubFor("beta").presence.sendTo("Aster", "human", { x: 0, y: 0, z: 0 }, "test");
+    const b = as("Beryl", "beta");
+    expect((await enter(b, "beta")).statusCode).toBe(200);
+    expect((await app.inject({ method: "GET", url: "/bff/space/screens", headers: { cookie: b } })).json().screens)
+      .toEqual([expect.objectContaining({ actorId: "Aster" })]);
+    expect((await app.inject({ method: "GET", url: "/bff/space/screens/Aster/frame", headers: { cookie: b } })).statusCode).toBe(200);
+    const c = as("Cyan", "alpha");
+    expect((await enter(c, "alpha")).statusCode).toBe(200);
+    expect((await app.inject({ method: "GET", url: "/bff/space/screens", headers: { cookie: c } })).json().screens).toEqual([]);
+    expect((await app.inject({ method: "GET", url: "/bff/space/screens/Aster/frame", headers: { cookie: c } })).statusCode).toBe(404);
+  });
+
   it("backfills pre-lobby screen links to saha.ing without revoking them", () => {
     const db = new DatabaseSync(":memory:");
     for (const migration of MIGRATIONS.filter((entry) => entry.id <= 29)) db.exec(migration.sql);

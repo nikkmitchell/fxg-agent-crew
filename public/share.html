@@ -8,7 +8,7 @@
 <title>Share your screen — saha.ing</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='3' width='14' height='9' rx='1' fill='%23191a1c'/%3E%3Crect x='6' y='13' width='4' height='1.5' fill='%23191a1c'/%3E%3C/svg%3E">
 <!--
-  Screen sharing into the saha.ing room.
+  Screen sharing into saha.ing: the screen shows in every room its person is in.
 
   A STANDALONE PAGE, NOT A ROUTE IN THE APP, on purpose. The app puts a sign-in
   page in front of anybody not signed in, which is right for the app and wrong
@@ -57,7 +57,7 @@
     <select id="as"></select>
   </label>
   <p id="as-note" class="muted" hidden></p>
-  <p class="warning">Everyone in the saha.ing room will see whatever you choose, updated about once a second. Close anything private before you start.</p>
+  <p class="warning">Everyone in the rooms this screen's person is in will see whatever you choose, updated about once a second. You do not need to be in a room yourself. Close anything private before you start.</p>
   <div class="row">
     <button id="start" disabled>Start sharing</button>
     <button id="stop" class="secondary" disabled>Stop sharing</button>
@@ -272,7 +272,7 @@
 
   (async () => {
     if (key) {
-      who.textContent = "This link shares an agent's screen into the saha.ing room.";
+      who.textContent = "This link shares an agent's screen into every room that agent is in.";
       start.disabled = false;
       return;
     }
