@@ -21,38 +21,44 @@ import { selfPose } from "./self-pose";
  * rules). Drawn in place of the work panels when you stand in the room called
  * `lobby`, facing where people arrive:
  *
- *   ahead      a big panel of doors, one per room: yours (private ones too)
- *              and every public room on webharness.chat. A tap takes you
- *              there without leaving the headset, joining first if needed.
- *   left       a MIRROR on the wall, like VRChat's (Nikk, 5238: "an actual
+ *   ahead      a MIRROR on the wall, like VRChat's (Nikk, 5238: "an actual
  *              like mirror on the wall that shows a mirror image of you as
  *              well as any other humans or agents who are in the room ...
  *              with their movements reversed"). It draws the room again from
  *              the reflected viewpoint, so everybody in it is there, live.
- *   right      the wardrobe: every body this server can serve, with its
- *              picture. A tap puts it on, and your reflection changes.
+ *   left       the wardrobe, beside the mirror (Nikk, 5324: "so you can
+ *              switch avatars while you can still see yourself"): every body
+ *              this server can serve, with its picture. A tap puts it on.
+ *   right      a big panel of doors, one per room: yours (private ones too)
+ *              and every public room on webharness.chat. A tap takes you
+ *              there without leaving the headset, joining first if needed.
+ *
+ * You arrive in the middle of all three, facing the mirror (Immersive, on
+ * entering the lobby): people kept arriving behind it (5324).
  *
  * Buttons are the room's own WristButton, so a ray, a hand and a mouse all
  * press them the way they press the settings menu.
  */
 /**
- * AN ARC FROM WHERE PEOPLE ARRIVE: the doors straight ahead, the mirror 52
- * degrees to the left and the wardrobe 52 to the right. At 32 degrees the
- * wardrobe overlapped the doors (Nikk, 5238); a headset turns its head.
+ * AN ARC ROUND WHERE PEOPLE ARRIVE: the mirror straight ahead, the wardrobe
+ * beside it on the left, the doors on the right, far enough round that
+ * neither touches the mirror (at 32 degrees the wardrobe overlapped the
+ * doors, 5238).
  */
 const around = (degrees: number, metres = 2.5) => ({
   x: ROOM.spawn.x + Math.sin((degrees * Math.PI) / 180) * metres,
   z: ROOM.spawn.z - Math.cos((degrees * Math.PI) / 180) * metres,
 });
-const DOORS = { at: [ROOM.spawn.x, 0, ROOM.spawn.z - 2.5] as const, columns: 4, rows: 2, width: 0.52, height: 0.56, gap: 0.08, top: 1.72 };
-const MIRROR = { at: around(-52, 2.7), width: 2.2, height: 2.3, bottom: 0.05 };
+const DOORS_AT = around(55, 2.6);
+const DOORS = { at: DOORS_AT, columns: 4, rows: 2, width: 0.52, height: 0.56, gap: 0.08, top: 1.72 };
+const MIRROR = { at: around(0, 2.7), width: 2.2, height: 2.3, bottom: 0.05 };
 /**
  * The layer only the mirror sees: your own body. Your eyes must not see it (in
  * a headset it would sit round your head), and the mirror must. 1 and 2 are
  * three.js's left and right eye; this is well clear of them.
  */
 const MIRROR_ONLY = 10;
-const WARDROBE = { at: around(52), columns: 4, rows: 3, thumb: { width: 0.16, height: 0.24 }, top: 1.86 };
+const WARDROBE = { at: around(-50, 2.4), columns: 4, rows: 3, thumb: { width: 0.16, height: 0.24 }, top: 1.86 };
 
 /** Turned to face where people arrive, like everything else in the hall. */
 const facingSpawn = (x: number, z: number) => Math.atan2(ROOM.spawn.x - x, ROOM.spawn.z - z);
@@ -136,7 +142,7 @@ export function LobbyHall({
   return (
     <group>
       {/* THE DOORS, straight ahead of where people arrive. */}
-      <group position={[...DOORS.at]}>
+      <group position={[DOORS.at.x, 0, DOORS.at.z]} rotation={[0, facingSpawn(DOORS.at.x, DOORS.at.z), 0]}>
         <WristButton label={doorsTitle} y={DOORS.top + 0.44} width={2.2} height={0.12} tone="muted" onTap={() => {}} />
         {doorsShown.items.map((door, index) => {
           const column = index % DOORS.columns;
