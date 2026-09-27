@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -13,6 +13,8 @@ import { SOUNDSCAPE_LABEL, isSoundscape, nextSoundscape, playSoundscape, type So
 import { useDisposable } from "./use-disposable";
 import { Typing3D } from "./Typing3D";
 import { INTENTION_LONGEST, type Intention } from "../../shared/meditation";
+import type { WirePerson } from "../../shared/space-wire";
+import { AirWeave } from "./AirWeave";
 
 /**
  * The breathing orb. Nikk (4649): "the full AR meditation experience".
@@ -103,11 +105,13 @@ function Stones({ intentions, fullness }: { intentions: Intention[]; fullness: (
   </group>;
 }
 
-export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
+export function MeditationOrb({ meditation, onMeditation, reducedMotion, peopleRef, roster }: {
   meditation: Meditation;
   /** Apply the session as the server just answered with it. */
   onMeditation: (session: Meditation) => void;
   reducedMotion: boolean;
+  peopleRef: RefObject<WirePerson[]>;
+  roster: readonly Pick<WirePerson, "actorId" | "connected">[];
 }) {
   const { invalidate } = useThree();
   const core = useRef<THREE.Mesh>(null);
@@ -266,7 +270,9 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
   const running = breath.state === "breathing";
   const [x, y, z] = ORB_AT;
 
-  return <group position={[x, y, z]}>
+  return <>
+    <AirWeave peopleRef={peopleRef} roster={roster} meditation={meditation} reducedMotion={reducedMotion} now={now} />
+    <group position={[x, y, z]}>
     <mesh ref={core} raycast={noRaycast}>
       <sphereGeometry args={[1, 48, 32]} />
       <meshBasicMaterial color={PHASE_COLOUR[phaseKey]} transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
@@ -347,5 +353,6 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
       />}
       {trouble && <Text position={[0, -0.18, 0]} fontSize={0.026} color="#ffb4a6" raycast={noRaycast}>{trouble}</Text>}
     </group>
-  </group>;
+    </group>
+  </>;
 }
