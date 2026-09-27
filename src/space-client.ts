@@ -161,6 +161,8 @@ export const space = {
   helpers: () => requestJson<{ helpers: Record<string, Helper[]> }>(`${root}/helpers`),
   /** The room's breathing session, with the server's clock to line ours up to. */
   meditation: () => requestJson<{ meditation: Meditation; now: number }>(`${root}/meditation`),
+  /** Give the ember fire a word: everyone sees it burn; nothing is kept. See shared/fire.ts. */
+  offerToFire: (word: string) => requestJson<{ ok: boolean }>(`${root}/fire`, { method: "POST", body: JSON.stringify({ word }) }),
   /** The room's sand garden, and changes to it: see shared/garden.ts. */
   garden: () => requestJson<{ garden: Garden }>(`${root}/garden`),
   rakeGarden: (change: GardenChange) =>

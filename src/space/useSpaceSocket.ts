@@ -1,6 +1,7 @@
 import type { Helper } from "../../shared/helpers";
 import { bowlStruck } from "./bowl-strikes";
 import { gardenChanged } from "./garden-events";
+import { offered } from "./fire-events";
 import { registerItemSocket, settleItemAction } from "./item-socket";
 import { setAgentsHiddenForEveryone } from "./agents-hidden";
 import { registerCallSocket, settleCall } from "../call-socket";
@@ -302,6 +303,11 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
         if (message.type === "helpers") {
           // Agents' helpers: drawn as spirits, never counted as people.
           setHelpers(message.helpers);
+          return;
+        }
+        if (message.type === "fire") {
+          // A word for the ember fire: EmberFire.tsx burns it.
+          offered(message.offering);
           return;
         }
         if (message.type === "garden") {
