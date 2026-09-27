@@ -70,7 +70,7 @@ describe("automatic agent motion", () => {
  * a small deviation from a stance that already looks right.
  */
 describe("postures", () => {
-  const posed = (posture: "resting" | "thinking" | "sleeping", extra = {}) =>
+  const posed = (posture: "resting" | "thinking" | "sleeping" | "meditating", extra = {}) =>
     frame({
       nowMs: 5_000,
       avatar: { mood: "neutral", gesture: null, gestureStartedAt: null, gestureHoldMs: null, posture },
