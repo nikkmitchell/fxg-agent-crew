@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { micGestureHands, micGestureIndicator } from "./mic-gesture-input";
+import { recordedControl, recorderControlVisual } from "./recorder-control-visual";
 
 /**
  * RECORDING, SHOWN BESIDE THE HAND. Nikk (5044): "a talking kind of small
@@ -78,7 +79,7 @@ export function MicGestureBar() {
     const side = micGestureIndicator.side;
     const hand = side ? micGestureHands[side] : null;
     node.visible = hand !== null && !popping;
-    if (!hand || !side) return;
+    if (!hand || !side) { recorderControlVisual.micBar = null; return; }
     // The middle of the hand: wrist to middle knuckle, when tracked.
     const wrist = hand.wrist.p, knuckle = hand.joints[11] ?? wrist;
     scratchCentre.set((wrist.x + knuckle.x) / 2, (wrist.y + knuckle.y) / 2, (wrist.z + knuckle.z) / 2);
@@ -107,6 +108,7 @@ export function MicGestureBar() {
       // Breathing while live; steadier, and more solid, as it nears sending.
       fill.current.opacity = Math.min(1, 0.8 + tilt * 0.2) + Math.sin(clock.elapsedTime * 4) * 0.12 * (1 - Math.max(tilt, closing));
     }
+    recorderControlVisual.micBar = recordedControl(node);
   });
   return (
     <>

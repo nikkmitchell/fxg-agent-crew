@@ -22,6 +22,8 @@ import type { Comfort } from "./comfort";
 import { pointerWasClaimed } from "./pointer-claim";
 import { RoomPanel } from "./RoomPanel";
 import { LobbyHall } from "./LobbyHall";
+import { AvatarReplay } from "./AvatarReplay";
+import type { AvatarRecorder } from "./useAvatarRecorder";
 import { isLobby } from "../../shared/lobby-hall";
 import { useBoardCards } from "./useBoardCards";
 import { ScreenWall } from "./ScreenWall";
@@ -214,11 +216,15 @@ const KEYS: Record<string, [number, number]> = {
  * is a real rehearsal rather than a different feature.
  */
 function Me({
+  avatarRecorder,
+  inLobby,
   connection,
   reducedMotion,
   active,
   openPanels,
 }: {
+  avatarRecorder: AvatarRecorder;
+  inLobby: boolean;
   connection: SpaceConnection;
   reducedMotion: boolean;
   /** False in a headset session: the player's own body steers then, not WASD. */
@@ -443,6 +449,16 @@ function Me({
       },
       hands: { left: null, right: null },
     });
+    if (inLobby && avatarRecorder.status === "recording") avatarRecorder.capture({
+      head: {
+        p: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+        q: { x: camera.quaternion.x, y: camera.quaternion.y, z: camera.quaternion.z, w: camera.quaternion.w },
+      },
+      hands: { left: null, right: null },
+      balls: { left: null, leftShadow: null, right: null, rightShadow: null },
+      micBar: null,
+      personalUi: null,
+    });
     if (reducedMotion) invalidate();
   });
 
@@ -463,6 +479,7 @@ function OnDemand({ connection }: { connection: SpaceConnection }) {
 
 
 export default function Scene({
+  avatarRecorder,
   connection,
   spaceRoomName,
   reducedMotion,
@@ -476,6 +493,7 @@ export default function Scene({
   onPanelTrouble,
   voice,
 }: {
+  avatarRecorder: AvatarRecorder;
   connection: SpaceConnection;
   /** Server-confirmed WebHarness room this session is standing in. */
   spaceRoomName: string | null;
@@ -747,13 +765,13 @@ export default function Scene({
         {/* THE LOBBY IS A FRONT HALL: doors to rooms, you, and a wardrobe, in
           place of the work panels (Nikk, 2026-09-27; shared/lobby-hall.ts). */}
         {isLobby(spaceRoomName) ? (
-          <LobbyHall
+          <><LobbyHall
             you={you}
             currentRoom={spaceRoomName}
             roster={connection.roster}
             peopleRef={connection.peopleRef}
             onSwitchRoom={onSwitchRoom}
-          />
+          /><AvatarReplay recorder={avatarRecorder} /></>
         ) : null}
         {(isLobby(spaceRoomName) ? [] : openPanels)
           .map((id) => STATIONS[id])
@@ -822,6 +840,8 @@ export default function Scene({
           heard={connection.heard}
         />
         <Me
+          avatarRecorder={avatarRecorder}
+          inLobby={isLobby(spaceRoomName)}
           connection={connection}
           reducedMotion={reducedMotion}
           active={!inHeadset}
@@ -839,6 +859,7 @@ export default function Scene({
         {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation} reducedMotion={reducedMotion} />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
+          avatarRecorder={avatarRecorder}
           comfort={comfort}
           send={connection.send}
           onChange={onImmersiveChange}

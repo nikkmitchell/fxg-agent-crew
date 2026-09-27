@@ -20,6 +20,8 @@ import { takeCrumb } from "./left-crumb";
 import { useHeadsetAvailable } from "./useHeadsetAvailable";
 import { bff } from "../bff-client";
 import { ApiError } from "../api-request";
+import { useAvatarRecorder } from "./useAvatarRecorder";
+import { isLobby } from "../../shared/lobby-hall";
 
 /**
  * The way in to screen sharing, on the website rather than only in a terminal.
@@ -194,6 +196,10 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
     // no ears in a browser.
     connection.roster.filter((person) => person.connected && person.kind !== "agent").map((person) => person.actorId),
   );
+  const avatarRecorder = useAvatarRecorder(connection.status.state === "open" ? connection.status.you : null);
+  useEffect(() => {
+    if (!isLobby(spaceRoomName) && avatarRecorder.status === "recording") void avatarRecorder.stop();
+  }, [spaceRoomName, avatarRecorder.status, avatarRecorder.stop]);
 
   /**
    * WHAT THE PAGE BEFORE THIS ONE DID NOT GET TO SAY.
@@ -311,6 +317,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
           }
         >
           <Scene
+            avatarRecorder={avatarRecorder}
             connection={connection}
             spaceRoomName={spaceRoomName}
             reducedMotion={reducedMotion}
@@ -356,6 +363,42 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
       </div>
 
       <aside className="space-roster">
+        {isLobby(spaceRoomName) ? (
+          <section className="space-voice" aria-label="Avatar recorder settings">
+            <h2>Avatar recording</h2>
+            <p className="muted-note">Record up to two minutes of lobby movement and microphone audio. Your draft stays in this browser until you choose to use it.</p>
+            <label>
+              <input type="checkbox" checked={avatarRecorder.showPersonalUi} disabled={avatarRecorder.status !== "idle"} onChange={(event) => avatarRecorder.setShowPersonalUi(event.target.checked)} />
+              Show personal UI in replay
+            </label>
+            <div>
+              {avatarRecorder.status === "recording" ? (
+                <button type="button" className="primary-action" onClick={() => void avatarRecorder.stop()}>Stop recording</button>
+              ) : (
+                <button
+                  type="button"
+                  className="primary-action"
+                  disabled={avatarRecorder.status !== "idle" || status.state !== "open"}
+                  onClick={() => {
+                    if (status.state !== "open") return;
+                    const body = connection.roster.find((person) => person.actorId === status.you)?.body ?? null;
+                    void avatarRecorder.start(status.you, body);
+                  }}
+                >{avatarRecorder.status === "idle" ? "Record avatar + voice" : "Preparing recording…"}</button>
+              )}
+              {avatarRecorder.take ? (
+                <>
+                  <button type="button" onClick={() => avatarRecorder.playing ? avatarRecorder.stopPlayback() : void avatarRecorder.play()}>
+                    {avatarRecorder.playing ? "Stop preview" : "Play in lobby"}
+                  </button>
+                  <button type="button" disabled={avatarRecorder.status !== "idle"} onClick={() => void avatarRecorder.discard()}>Discard draft</button>
+                </>
+              ) : null}
+            </div>
+            {avatarRecorder.status === "recording" ? <p role="status">Recording movement and audio…</p> : null}
+            {avatarRecorder.notice ? <p role="status">{avatarRecorder.notice}</p> : null}
+          </section>
+        ) : null}
         {/* The headset's settings stay beside the view; the button is above it. */}
         {headsetAvailable === null ? null : headsetAvailable ? (
           <Suspense fallback={null}>

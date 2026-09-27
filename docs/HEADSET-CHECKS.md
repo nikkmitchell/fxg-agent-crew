@@ -1,5 +1,11 @@
 # The headset, and what only you can check
 
+## Lobby avatar recording, first version
+
+Enter the public **lobby** in your headset. Open Settings → Me, turn on **Personal UI in replay** if you want its position represented, then tap **Record avatar + voice**. Speak while moving your head and hands. Turn up a palm to show the blue or orange movement balls, and use the green voice-to-chat gesture so its bar appears in the take. Tap **Stop avatar recording**, then **Play avatar preview**. The take should appear ahead of the lobby entrance, facing the viewer, with voice, body, balls, and green bar at the moments you performed them. The Settings representation appears only if the UI option is on and the menu was open during recording.
+
+Record a short second take to replace the first. Leave and re-enter the lobby in the same browser; the draft should still be there. **Discard avatar draft** removes it. This first version saves the draft on that browser, for review before a welcome recording is published. The browser check covered audio capture, pose sampling, local save, reload and 3D preview; tracked headset hands and gesture timing still need a device check.
+
 ## Go table — device checks for the new model
 
 The Go changes have automated rules, transforms, ownership and synthetic-contact

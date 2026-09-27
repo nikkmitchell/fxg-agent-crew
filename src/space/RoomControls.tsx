@@ -64,6 +64,8 @@ import type { RoomItem } from "../../shared/room-items";
 import { Typing3D } from "./Typing3D";
 import { endSessionThenReturn } from "./end-session-to-lobby";
 import { sendOutcome, withDeadline } from "./send-timeout";
+import { recordedControl, recorderControlVisual } from "./recorder-control-visual";
+import type { AvatarRecorder } from "./useAvatarRecorder";
 
 /**
  * The room's controls, in front of you at body level.
@@ -263,6 +265,8 @@ export function RoomControls({
   onSwitchRoom,
   currentRoom,
   onNote,
+  avatarRecorder,
+  bodyOfYou,
 }: {
   anchor: () => { at: { x: number; y?: number; z: number }; yaw: number } | null;
   you: string | null;
@@ -314,6 +318,8 @@ export function RoomControls({
    * see. See the `note` frame in shared/space-wire.ts.
    */
   onNote: (note: string) => void;
+  avatarRecorder: AvatarRecorder;
+  bodyOfYou: () => string | null;
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
@@ -1153,6 +1159,9 @@ export function RoomControls({
     const near = handNear(buttons, contacts);
     if (near !== handIsNear) setHandIsNear(near);
   });
+  useFrame(() => {
+    recorderControlVisual.personalUi = open ? recordedControl(group.current) : null;
+  });
 
   type Row = { label: string; tone?: "normal" | "muted" | "live"; onTap: () => void };
   type Box = { title: string; rows: Row[] };
@@ -1532,6 +1541,33 @@ export function RoomControls({
      * something else should be answerable without asking around.
      */
     const meRows: Row[] = [
+        ...(currentRoom === "lobby" ? [
+          {
+            label: avatarRecorder.status === "recording" ? "Stop avatar recording" : avatarRecorder.status === "idle" ? "Record avatar + voice" : "Preparing avatar recording…",
+            tone: avatarRecorder.status === "recording" ? "live" as const : "normal" as const,
+            onTap: () => {
+              if (avatarRecorder.status === "recording") void avatarRecorder.stop();
+              else if (avatarRecorder.status === "idle" && you) {
+                void avatarRecorder.start(you, bodyOfYou());
+              }
+            },
+          },
+          {
+            label: avatarRecorder.showPersonalUi ? "Personal UI in replay: shown" : "Personal UI in replay: hidden",
+            tone: avatarRecorder.showPersonalUi ? "live" as const : "normal" as const,
+            onTap: () => { if (avatarRecorder.status === "idle") avatarRecorder.setShowPersonalUi(!avatarRecorder.showPersonalUi); },
+          },
+          ...(avatarRecorder.take && avatarRecorder.status === "idle" ? [{
+            label: avatarRecorder.playing ? "Stop avatar preview" : "Play avatar preview",
+            tone: avatarRecorder.playing ? "live" as const : "normal" as const,
+            onTap: () => avatarRecorder.playing ? avatarRecorder.stopPlayback() : void avatarRecorder.play(),
+          }, {
+            label: "Discard avatar draft",
+            tone: "muted" as const,
+            onTap: () => void avatarRecorder.discard(),
+          }] : []),
+          ...(avatarRecorder.notice ? [{ label: avatarRecorder.notice, tone: "muted" as const, onTap: () => {} }] : []),
+        ] : []),
         {
           label: handsShown ? "Hand models: shown" : "Hand models: hidden",
           tone: handsShown ? "normal" : "live",

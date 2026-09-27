@@ -64,6 +64,8 @@ import type { Utterance } from "../../shared/voice";
 import type { ClientMessage, HandPose, Pose, WirePerson } from "../../shared/space-wire";
 import { FINGER_JOINT_NAMES, fingerAngles, fingersForWire } from "../../shared/hand-fingers";
 import { TOUCH_COOLDOWN_MS, agentTouchPoints, touchedPart } from "../../shared/touch";
+import type { AvatarRecorder } from "./useAvatarRecorder";
+import { recordedControl, recorderControlVisual } from "./recorder-control-visual";
 
 /**
  * Standing in the room, rather than looking at it.
@@ -146,6 +148,7 @@ function lastPlace(): { x: number; z: number; yaw: number } | null {
  * headset feels like the tracking has broken.
  */
 export function ImmersivePlayer({
+  avatarRecorder,
   comfort,
   send,
   passthrough,
@@ -171,6 +174,7 @@ export function ImmersivePlayer({
   onMeditation,
   peopleRef,
 }: {
+  avatarRecorder: AvatarRecorder;
   comfort: Comfort;
   send: (message: ClientMessage) => void;
   passthrough: boolean;
@@ -215,6 +219,8 @@ export function ImmersivePlayer({
     clearGoHands();
     clearMicGestureHands();
     clearSelfPose();
+    recorderControlVisual.micBar = null;
+    recorderControlVisual.personalUi = null;
   }, []);
   /** When this person last touched each agent, so a resting hand is one touch. */
   const lastTouch = useRef(new Map<string, number>());
@@ -948,6 +954,25 @@ export function ImmersivePlayer({
     selfPose.hands.right = liveRight;
     selfPose.fingers.left = held.current.left.pose?.f;
     selfPose.fingers.right = held.current.right.pose?.f;
+    if (head && currentRoom === "lobby" && avatarRecorder.status === "recording") {
+      const hand = (side: "left" | "right") => {
+        const pose = side === "left" ? liveLeft : liveRight;
+        const fingers = selfPose.fingers[side];
+        return pose ? (fingers ? { ...pose, f: [...fingers] } : pose) : null;
+      };
+      avatarRecorder.capture({
+        head,
+        hands: { left: hand("left"), right: hand("right") },
+        balls: {
+          left: recordedControl(balls.left.current),
+          leftShadow: recordedControl(balls.leftShadow.current),
+          right: recordedControl(balls.right.current),
+          rightShadow: recordedControl(balls.rightShadow.current),
+        },
+        micBar: recorderControlVisual.micBar,
+        personalUi: recorderControlVisual.personalUi,
+      });
+    }
     if (now - lastSent.current < 100) return;
     lastSent.current = now;
     held.current.left = heldHand(held.current.left, withFingers(liveLeft, leftHand, held.current.left, frame), now, undefined, head);
@@ -1039,6 +1064,8 @@ export function ImmersivePlayer({
       {/* The controls you need while standing in the room. In front of you at
         body level, not on a hand — see the note at the top of RoomControls. */}
       <RoomControls
+        avatarRecorder={avatarRecorder}
+        bodyOfYou={() => peopleRef.current?.find((person) => person.actorId === you)?.body ?? null}
         onResetStanding={resetStanding}
         onReturnToLobby={onReturnToLobby}
         onSwitchRoom={onSwitchRoom}
@@ -1119,6 +1146,7 @@ function poseOf(position: THREE.Vector3, quaternion: THREE.Quaternion): Pose {
  * and `Me` stands down while a headset is driving.
  */
 export function Immersive({
+  avatarRecorder,
   comfort,
   send,
   onChange,
@@ -1141,6 +1169,7 @@ export function Immersive({
   onMeditation,
   peopleRef,
 }: {
+  avatarRecorder: AvatarRecorder;
   comfort: Comfort;
   send: (message: ClientMessage) => void;
   onChange: (inSession: boolean) => void;
@@ -1207,6 +1236,7 @@ export function Immersive({
   }, [session]);
   return session ? (
     <ImmersivePlayer
+      avatarRecorder={avatarRecorder}
       comfort={comfort}
       send={send}
       passthrough={available && passthrough}
