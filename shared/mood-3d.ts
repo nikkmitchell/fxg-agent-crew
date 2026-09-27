@@ -108,8 +108,13 @@ export function moodBounds(allItems: readonly MoodItem[]): MoodLayout["bounds"] 
  */
 export function layOutMood(items: readonly MoodItem[], size: MoodSize = MOOD, frozen?: MoodLayout["bounds"]): MoodLayout {
   const bounds = frozen ?? moodBounds(items);
+  // ABOVE THE NOTE STRIP, never on it. Nikk (5350): a note fitted over the
+  // "write a note" strip could not be dragged, because the strip answers a
+  // press first. The board is fitted into the space above it instead, and
+  // centred there, so nothing people pinned up can end up underneath it.
+  const strip = moodStripHeight(size);
   const usableWidth = size.width - size.padding * 2;
-  const usableHeight = size.height - size.padding * 2;
+  const usableHeight = size.height - size.padding * 2 - strip;
   // ONE SCALE FOR BOTH AXES. Fitting each axis separately would stretch every
   // picture on the board to a different shape than the person who put it there
   // chose, which is the one thing a mood board must not do.
@@ -121,7 +126,7 @@ export function layOutMood(items: readonly MoodItem[], size: MoodSize = MOOD, fr
       item,
       // Pixel y grows downward; panel y grows up.
       x: (item.x + item.w / 2 - (bounds.x + bounds.width / 2)) * scale,
-      y: -(item.y + item.h / 2 - (bounds.y + bounds.height / 2)) * scale,
+      y: -(item.y + item.h / 2 - (bounds.y + bounds.height / 2)) * scale + strip / 2,
       width: item.w * scale,
       height: item.h * scale,
     }));
@@ -149,6 +154,9 @@ export function moodItemAt(layout: MoodLayout, uv: { x: number; y: number }): Mo
   return null;
 }
 
+/** How tall the "add a note" strip is, in metres. */
+export const moodStripHeight = (size: MoodSize = MOOD): number => Math.min(size.height * 0.11, 0.26);
+
 /**
  * Where the "add a note" strip sits, in panel-local metres.
  *
@@ -166,7 +174,7 @@ export function moodAddControlOf(layout: MoodLayout, size: MoodSize = MOOD): {
   width: number;
   height: number;
 } {
-  const height = Math.min(size.height * 0.11, 0.26);
+  const height = moodStripHeight(size);
   return {
     x: 0,
     y: -layout.height / 2 + height / 2,
@@ -215,11 +223,56 @@ export function uvOfMoodPoint(layout: MoodLayout, point: { x: number; y: number 
  */
 export function moodMove(
   layout: MoodLayout,
-  item: MoodItem,
+  item: { x: number; y: number },
   fromUv: { x: number; y: number },
   toUv: { x: number; y: number },
 ): { x: number; y: number } {
   const dx = ((toUv.x - fromUv.x) * layout.width) / layout.scale;
   const dy = -((toUv.y - fromUv.y) * layout.height) / layout.scale;
   return { x: Math.round(withinReach(item.x + dx, item.x)), y: Math.round(withinReach(item.y + dy, item.y)) };
+}
+
+/** The smallest side an item can be pulled down to, in board pixels. */
+export const MOOD_SMALLEST = 40;
+
+/**
+ * TWO HANDS PULL AN ITEM BIGGER. Nikk (5350): "if one hand is grabbing and
+ * then the other hand grabs at the same time and we pull it apart" the item
+ * should grow, and shrink as they come together.
+ *
+ * Measured from where both hands were when the second one grabbed, like a
+ * one-hand drag is (5292): the size is the size then, times how much further
+ * apart the hands are now. The shape never changes, only the size, for the
+ * same reason the fit uses one scale for both axes. The item stays centred on
+ * the point between the hands, so it follows them as it grows.
+ *
+ * Returns null when the hands started too close together to measure a ratio.
+ */
+export function moodResize(
+  layout: MoodLayout,
+  item: { x: number; y: number; w: number; h: number },
+  from: { a: { x: number; y: number }; b: { x: number; y: number } },
+  to: { a: { x: number; y: number }; b: { x: number; y: number } },
+): { x: number; y: number; w: number; h: number } | null {
+  const metres = (uv: { x: number; y: number }) => ({ x: uv.x * layout.width, y: uv.y * layout.height });
+  const apart = (p: { x: number; y: number }, q: { x: number; y: number }) => {
+    const [m, n] = [metres(p), metres(q)];
+    return Math.hypot(m.x - n.x, m.y - n.y);
+  };
+  const start = apart(from.a, from.b);
+  if (!(start > 0.01)) return null;
+  const smallest = MOOD_SMALLEST / Math.min(item.w, item.h);
+  const largest = MOOD_REACH / Math.max(item.w, item.h);
+  const ratio = Math.min(largest, Math.max(smallest, apart(to.a, to.b) / start));
+  const w = Math.round(item.w * ratio);
+  const h = Math.round(item.h * ratio);
+  const mid = (p: { x: number; y: number }, q: { x: number; y: number }) => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
+  const shifted = moodMove(layout, item, mid(from.a, from.b), mid(to.a, to.b));
+  const centre = { x: shifted.x + item.w / 2, y: shifted.y + item.h / 2 };
+  return {
+    x: Math.round(withinReach(centre.x - w / 2, item.x)),
+    y: Math.round(withinReach(centre.y - h / 2, item.y)),
+    w,
+    h,
+  };
 }
