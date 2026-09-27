@@ -1,5 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "./api-request";
+import { base } from "./router";
+import { thumbPath } from "../shared/avatar-choice";
 import { board, toProfile } from "./board-client";
 import {
   bodiesFromCatalogue,
@@ -658,7 +660,8 @@ function BodyChooser(props: {
       <ul className="body-grid">
         {shown.map((b) => {
           const mine = props.chosenBody ? slugOf(b.name) === slugOf(props.chosenBody) : false;
-          const thumb = (b as CatalogueBody).thumbnail;
+          // Ours, not the catalogue's arweave address: see thumbPath.
+          const thumb = (b as CatalogueBody).thumbnail ? `${base}${thumbPath(b.name)}` : undefined;
           return (
             <li key={b.name}>
               <button type="button" className={mine ? "is-worn" : undefined} disabled={busy || mine}
