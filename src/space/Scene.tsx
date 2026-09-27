@@ -49,6 +49,7 @@ import { KaleidoscopeDome } from "./KaleidoscopeDome";
 import { LightRibbons } from "./LightRibbons";
 import { KoiPond } from "./KoiPond";
 import { SandMandala } from "./SandMandala";
+import { WindChimes } from "./WindChimes";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
@@ -885,6 +886,8 @@ export default function Scene({
         {connection.meditation?.shown && <KoiPond peopleRef={connection.peopleRef} />}
         {/* And the sand mandala: see shared/mandala.ts. */}
         {connection.meditation?.shown && <SandMandala />}
+        {/* And wind chimes by the way in: see WindChimes.tsx. */}
+        {connection.meditation?.shown && <WindChimes peopleRef={connection.peopleRef} you={you} />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
