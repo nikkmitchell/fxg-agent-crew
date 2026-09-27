@@ -8,6 +8,7 @@ import {
 } from "../../shared/meditation";
 import { space } from "../space-client";
 import { bell, cueFor, phaseCue } from "./breath-sound";
+import { GUIDES, GUIDE_IDS, guideCaption, guideLineAt } from "../../shared/guided";
 import { useDisposable } from "./use-disposable";
 
 /**
@@ -118,6 +119,24 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
   soundRef.current = sound;
   const lastBreath = useRef<ReturnType<typeof breathAt> | null>(null);
 
+  /**
+   * THE GUIDE'S VOICE. Each line is played when the shared clock reaches it,
+   * so the whole room hears the same sentence together (shared/guided.ts).
+   * `spoken` remembers which line of which session was last started, so a
+   * line plays once however many frames it spans.
+   */
+  const base = useRef("");
+  useEffect(() => {
+    void import("../router").then((router) => { base.current = router.base; }).catch(() => undefined);
+  }, []);
+  const spoken = useRef<{ session: number | null; index: number }>({ session: null, index: -1 });
+  const voice = useRef<HTMLAudioElement | null>(null);
+  const hush = () => {
+    voice.current?.pause();
+    voice.current = null;
+  };
+  useEffect(() => hush, []);
+
   useFrame(() => {
     const at = breathAt(meditation, now());
     const fullness = at.state === "breathing" ? at.fullness : at.state === "idle" ? 0.35 : 0;
@@ -132,6 +151,22 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
       const through = Math.max(0.001, 1 - at.remaining / (meditation.minutes * 60));
       ring.current.scale.x = through;
       ring.current.position.x = -0.4 + 0.4 * through;
+    }
+    if (!soundRef.current && voice.current) hush();
+    if (meditation.guide && at.state === "breathing" && !at.paused) {
+      if (spoken.current.session !== meditation.startedAt) spoken.current = { session: meditation.startedAt, index: -1 };
+      const due = guideLineAt(meditation.guide, at.elapsed);
+      if (due && due.index > spoken.current.index) {
+        spoken.current.index = due.index;
+        if (soundRef.current) {
+          hush();
+          const audio = new Audio(`${base.current}/bff/space/guides/${meditation.guide}/${due.index}/audio`);
+          voice.current = audio;
+          void audio.play().catch(() => undefined);
+        }
+      }
+    } else if (voice.current) {
+      hush();
     }
     const cue = cueFor(lastBreath.current, at);
     lastBreath.current = at;
@@ -159,9 +194,14 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
       {breath.state === "breathing" ? (breath.paused ? "PAUSED" : breath.counted ? `${breath.words}  ${breath.secondsLeft}` : breath.words)
         : breath.state === "done" ? "WELL DONE" : "BREATHE TOGETHER"}
     </Text>
+    {meditation.guide && breath.state === "breathing" && (() => {
+      const caption = guideCaption(meditation.guide, breath.elapsed);
+      return caption ? <Text position={[0, 0.66, 0]} fontSize={0.036} maxWidth={1.1} textAlign="center" color="#fff6e0" raycast={noRaycast} outlineWidth={0.003} outlineColor="#0b1418">{caption}</Text> : null;
+    })()}
     <Text position={[0, 0.43, 0]} fontSize={0.038} color="#cfe7e3" raycast={noRaycast} outlineWidth={0.002} outlineColor="#0b1418">
-      {breath.state === "breathing" ? `${clockText(breath.remaining)} left · ${PATTERNS[meditation.pattern].label}`
+      {breath.state === "breathing" ? `${clockText(breath.remaining)} left · ${meditation.guide ? GUIDES[meditation.guide].label : PATTERNS[meditation.pattern].label}`
         : breath.state === "done" ? doneLine(meditation)
+        : meditation.guide ? `GUIDED · ${GUIDES[meditation.guide].label}`
         : [PATTERNS[meditation.pattern].label, `${meditation.minutes} MIN`, patternNote(meditation.pattern)].filter(Boolean).join(" · ")}
     </Text>
 
@@ -180,10 +220,16 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
           <OrbButton label="END" at={[0.15, 0, 0]} onTap={() => change({ action: "end" })} />
         </>
         : <>
+          {/* GUIDED, a row of its own above the breathing patterns: a guide
+              sets its own length and breathes CALM, so picking a pattern or a
+              length below goes back to plain breathing. */}
+          {GUIDE_IDS.map((id, index) => <OrbButton key={id} label={GUIDES[id].label} width={0.36}
+            at={[(index - (GUIDE_IDS.length - 1) / 2) * 0.38, 0.2, 0]} selected={meditation.guide === id}
+            onTap={() => change({ action: "settings", guide: meditation.guide === id ? null : id })} />)}
           {PATTERN_IDS.map((id, index) => <OrbButton key={id} label={PATTERNS[id].label} width={0.24}
-            at={[(index - (PATTERN_IDS.length - 1) / 2) * 0.26, 0.1, 0]} selected={meditation.pattern === id} onTap={() => change({ action: "settings", pattern: id })} />)}
+            at={[(index - (PATTERN_IDS.length - 1) / 2) * 0.26, 0.1, 0]} selected={!meditation.guide && meditation.pattern === id} onTap={() => change({ action: "settings", pattern: id })} />)}
           {MINUTES.map((minutes, index) => <OrbButton key={minutes} label={`${minutes} MIN`} width={0.14}
-            at={[(index - 1.5) * 0.16, 0, 0]} selected={meditation.minutes === minutes} onTap={() => change({ action: "settings", minutes })} />)}
+            at={[(index - 1.5) * 0.16, 0, 0]} selected={!meditation.guide && meditation.minutes === minutes} onTap={() => change({ action: "settings", minutes })} />)}
           <OrbButton label={breath.state === "done" ? "AGAIN" : "START"} width={0.4} at={[0, -0.1, 0]} onTap={() => change({ action: "start" })} />
         </>}
       <OrbButton label={sound ? "SOUND ON" : "SOUND OFF"} width={0.2} at={[0.52, running ? 0 : -0.1, 0]} selected={sound} onTap={() => {
