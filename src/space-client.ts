@@ -166,6 +166,9 @@ export const space = {
   mandala: () => requestJson<{ mandala: Mandala }>(`${root}/mandala`),
   changeMandala: (change: MandalaChange) =>
     requestJson<{ event: MandalaEvent }>(`${root}/mandala`, { method: "POST", body: JSON.stringify(change) }),
+  /** The prayer wheel's count, and a push of it for everyone: see shared/wheel.ts. */
+  wheel: () => requestJson<{ turns: number }>(`${root}/wheel`),
+  pushWheel: (strength: number) => requestJson<{ push: unknown }>(`${root}/wheel`, { method: "POST", body: JSON.stringify({ strength }) }),
   /** Give the ember fire a word: everyone sees it burn; nothing is kept. See shared/fire.ts. */
   offerToFire: (word: string) => requestJson<{ ok: boolean }>(`${root}/fire`, { method: "POST", body: JSON.stringify({ word }) }),
   /** The room's sand garden, and changes to it: see shared/garden.ts. */

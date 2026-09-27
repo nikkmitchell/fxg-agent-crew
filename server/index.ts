@@ -28,6 +28,7 @@ import { registerGuideRoutes, voiceAllGuides } from "./space/guides.js";
 import { registerBowlRoutes } from "./space/bowl.js";
 import { RoomGardens, registerGardenRoutes } from "./space/garden.js";
 import { registerFireRoutes } from "./space/fire.js";
+import { registerWheelRoutes } from "./space/wheel.js";
 import { RoomMandalas, registerMandalaRoutes } from "./space/mandala.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
@@ -430,6 +431,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       mandalas: roomMandalas,
       announce: (room, event) => hubFor(room).broadcast({ type: "mandala", event }),
+    });
+    registerWheelRoutes(scoped, {
+      config,
+      sessions,
+      announce: (room, push) => hubFor(room).broadcast({ type: "wheel", push }),
     });
     registerFireRoutes(scoped, {
       config,
