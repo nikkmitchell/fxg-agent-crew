@@ -23,6 +23,7 @@ import { DeclaredPostures } from "./space/postures.js";
 import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
 import { AgentBodies, registerBodyRoutes } from "./space/bodies.js";
 import { AgentVoices, registerVoiceRoutes } from "./space/voices.js";
+import { registerIceRoutes } from "./space/ice.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
 import { BodyFiles, registerBodyFileRoutes } from "./space/body-files.js";
@@ -495,6 +496,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       whoIsHere: (room) => hubFor(room).presence.everyone().map((occupant) => occupant.actorId).sort(),
     });
     registerMemoryRoutes(scoped, { config, sessions, memories });
+    registerIceRoutes(scoped, { config, sessions });
     registerVoiceRoutes(scoped, {
       config,
       sessions,

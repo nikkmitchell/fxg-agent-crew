@@ -57,16 +57,13 @@ export type VoiceChat = {
 };
 
 /**
- * Public STUN only. No TURN, so two people behind strict NATs may not connect.
- *
- * A STUN SERVER CHINA CAN REACH COMES FIRST. saha.ing is used from mainland
- * China, where Google is blocked: a headset there asking only Google never
- * learns its own public address, and two headsets on different networks then
- * have no route for audio at all (Nikk, 5359 and 5379: "it did not work at
- * all"). Xiaomi's answers from inside China and out; Google stays for everyone
- * else.
+ * Public STUN until the server says more. The server's answer
+ * (GET /bff/space/ice, server/space/ice.ts) adds a TURN relay when one is
+ * configured; without one, two people behind strict NATs may not connect.
+ * A STUN server China can reach comes first, because Google is blocked there
+ * (Nikk, 5359 and 5379).
  */
-const ICE: RTCConfiguration = {
+const PUBLIC_ICE: RTCConfiguration = {
   iceServers: [{ urls: ["stun:stun.miwifi.com:3478", "stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }],
 };
 
@@ -137,12 +134,32 @@ export function useVoiceChat(
 
   const callRef = useRef<(actorId: string) => Promise<void>>(async () => {});
 
+  /** What calls are made with: public STUN, and the relay once the server has named it. */
+  const ice = useRef<RTCConfiguration>(PUBLIC_ICE);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { base } = await import("../router");
+        const response = await fetch(`${base}/bff/space/ice`, { credentials: "same-origin", cache: "no-store" });
+        if (!response.ok) return;
+        const body = (await response.json()) as { iceServers?: RTCIceServer[] };
+        if (!cancelled && Array.isArray(body.iceServers) && body.iceServers.length > 0) ice.current = { iceServers: body.iceServers };
+      } catch {
+        // Public STUN stays: a call that might not connect beats no call.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const connectionTo = useCallback(
     (actorId: string): RTCPeerConnection => {
       const id = key(actorId);
       const existing = peers.current.get(id);
       if (existing) return existing;
-      const peer = new RTCPeerConnection(ICE);
+      const peer = new RTCPeerConnection(ice.current);
       peers.current.set(id, peer);
       const mine = microphone.current;
       if (mine) for (const track of mine.getTracks()) peer.addTrack(track, mine);
