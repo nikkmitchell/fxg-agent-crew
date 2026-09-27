@@ -32,8 +32,12 @@ export const ROOM_GUIDE: readonly GuideEntry[] = [
   { name: "Lanterns", x: 0.6, z: 2.6, what: "release one" },
   { name: "Hold the light", x: -0.4, z: 1.2, what: "a ball between your hands" },
   { name: "Kaleidoscope dome", x: -2.8, z: 2.2, what: "walk inside" },
-  { name: "Light ribbons", x: 2.7, z: 2.3, what: "move your hands slowly" },
+  { name: "Light ribbons", x: 2.9, z: 2.0, what: "move your hands slowly" },
   { name: "Rain curtain", x: 4.6, z: 0.6, what: "stand in the rain" },
+  { name: "Sand mandala", x: -3.6, z: 7.2, what: "pour coloured sand" },
+  { name: "Prayer wheel", x: -3.6, z: 4.5, what: "push it round" },
+  { name: "Wind chimes", x: 0.9, z: 7.2, what: "walk under them" },
+  { name: "Fireflies", x: -2.9, z: 6.3, what: "hold a hand still" },
 ];
 
 /**
