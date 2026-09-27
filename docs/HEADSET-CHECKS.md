@@ -7,6 +7,7 @@ Enter the public **lobby** in your headset. Open Settings → Me, turn on **Pers
 Record a short second take to replace the first. Leave and re-enter the lobby in the same browser; the draft should still be there. **Discard avatar draft** removes it. This first version saves the draft on that browser, for review before a welcome recording is published. The browser check covered audio capture, pose sampling, local save, reload and 3D preview; tracked headset hands and gesture timing still need a device check.
 
 If you are already in a room voice call, start and stop an avatar take while someone else listens. Your call should stay connected and audible throughout: the recorder now copies the call's microphone track and releases only that copy.
+If you start a call while an avatar take is already recording, stop and save the take first, then start the call. That reverse order still opens a second microphone on some headsets and needs a device check before it can be made automatic.
 
 ## meditation.AR, Sill's pieces (2026-09-28)
 
