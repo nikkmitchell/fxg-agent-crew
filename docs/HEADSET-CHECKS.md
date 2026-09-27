@@ -6,6 +6,23 @@ Enter the public **lobby** in your headset. Open Settings → Me, turn on **Pers
 
 Record a short second take to replace the first. Leave and re-enter the lobby in the same browser; the draft should still be there. **Discard avatar draft** removes it. This first version saves the draft on that browser, for review before a welcome recording is published. The browser check covered audio capture, pose sampling, local save, reload and 3D preview; tracked headset hands and gesture timing still need a device check.
 
+## meditation.AR, Sill's pieces (2026-09-28)
+
+All built and checked in the local test room (dev-room-harness) and live on saha.ing. None of it has been tried in a headset. Enter **meditation.AR**, where the orb is switched on; everything below appears only in rooms with the orb. With the orb's **SOUND OFF**, the guides, OM, soundscapes and bell are silent.
+
+1. **Guided meditations.** Pick a guide from the top rows under the orb (ARRIVE, KINDNESS, BODY SCAN, WALKING, SLEEP, COUNTING, MOUNTAIN), then START. Each line is spoken in one voice and captioned above the orb. With two headsets, both should hear the same line at the same moment. Check: is the voice audible over the room, and is the caption readable in passthrough?
+2. **OM.** Choose OM in the pattern row and START. Every out-breath should carry a low held hum to chant along to. Is it too loud or too quiet?
+3. **Ambient soundscapes.** The button under SOUND ON cycles RAIN, STREAM, BOWLS, NIGHT, OCEAN, WIND and OFF. Your choice is per person and survives a reload. Does any of them hiss or click?
+4. **Floor ripple.** During a session, a ring of light spreads across the floor from under the orb on each out-breath. In passthrough it should lie on your real floor.
+5. **Intention stones.** **+ INTENTION** opens the keyboard. Your word should circle the orb as a small glowing stone and drift in on each in-breath. Stones stay after the session ends.
+6. **Stillness Tree** (the orb's left, on the floor). It grows with the minutes breathed together. After a session ends, its plaque number should go up.
+7. **Reading stone** (the orb's front-left, on a plinth). NEXT picks a passage and READ reads it to you, line by line, captioned. Only you hear it.
+8. **Candle shelf** (back right, behind the bowls). **+ LIGHT ONE** opens the keyboard for an optional dedication. The candle should appear for everyone and flicker; it burns down over 24 hours.
+9. **The room's book** (behind the tree). After a session of at least half a minute ends, it gains a line such as "Sat 21:04 · ARRIVE · 3 min · 2 together".
+10. **Mindfulness bell.** On the quarter hour, outside a session, a bell rings and "THE BELL · STOP FOR THREE BREATHS · 20" counts down above the orb. It rings only if you were already in the room when it struck.
+11. **Labyrinth.** Turn round from where you arrive: a seven-circuit path of light is drawn on the floor behind you. Walk it in to the centre. Is the line visible on a real floor, and is the sign at its mouth readable from standing height?
+12. **Tea table** (left of and a little behind the arrival point). Tap the teapot: it pours, the cup fills and steams, then a short tea practice is read to you.
+
 ## Go table — device checks for the new model
 
 The Go changes have automated rules, transforms, ownership and synthetic-contact
