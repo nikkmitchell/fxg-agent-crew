@@ -2,6 +2,7 @@ import type { Helper } from "./helpers.js";
 import type { BowlStrike } from "./bowl.js";
 import type { GardenEvent } from "./garden.js";
 import type { Offering } from "./fire.js";
+import type { MandalaEvent } from "./mandala.js";
 import type { Meditation } from "./meditation.js";
 /**
  * What travels over the space socket.
@@ -264,6 +265,8 @@ export type ServerMessage =
   | { type: "garden"; event: GardenEvent }
   /** Somebody gave the ember fire a word: see shared/fire.ts. Not kept. */
   | { type: "fire"; offering: Offering }
+  /** The sand mandala changed: see shared/mandala.ts. */
+  | { type: "mandala"; event: MandalaEvent }
   /** Agents' helpers changed: see shared/helpers.ts. Never people. */
   | { type: "helpers"; helpers: Record<string, Helper[]> }
   | { type: "roomItems"; items: RoomItem[]; by: string }

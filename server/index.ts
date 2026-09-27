@@ -28,6 +28,7 @@ import { registerGuideRoutes, voiceAllGuides } from "./space/guides.js";
 import { registerBowlRoutes } from "./space/bowl.js";
 import { RoomGardens, registerGardenRoutes } from "./space/garden.js";
 import { registerFireRoutes } from "./space/fire.js";
+import { RoomMandalas, registerMandalaRoutes } from "./space/mandala.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
 import { BodyFiles, registerBodyFileRoutes } from "./space/body-files.js";
@@ -241,6 +242,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const roomMeditations = new RoomMeditations(database);
   // Each room's sand garden, stored: see space/garden.ts.
   const roomGardens = new RoomGardens(database);
+  // Each room's sand mandala, stored until swept: see space/mandala.ts.
+  const roomMandalas = new RoomMandalas(database);
   // Agents' helpers, as the agents report them: see space/helpers.ts.
   const roomHelpers = new RoomHelpers();
   const roomItems = new RoomItems(database);
@@ -421,6 +424,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       meditations: roomMeditations,
       present: (room) => hubFor(room).presence.everyone().filter((one) => one.connected).map((one) => one.actorId),
       announce: (room, meditation) => hubFor(room).broadcast({ type: "meditation", meditation }),
+    });
+    registerMandalaRoutes(scoped, {
+      config,
+      sessions,
+      mandalas: roomMandalas,
+      announce: (room, event) => hubFor(room).broadcast({ type: "mandala", event }),
     });
     registerFireRoutes(scoped, {
       config,

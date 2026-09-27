@@ -1,5 +1,6 @@
 import type { Helper } from "../shared/helpers";
 import type { Garden, GardenChange, GardenEvent } from "../shared/garden";
+import type { Mandala, MandalaChange, MandalaEvent } from "../shared/mandala";
 import { actOnItem } from "./space/item-socket";
 import { requestJson } from "./api-request";
 import { base } from "./router";
@@ -161,6 +162,10 @@ export const space = {
   helpers: () => requestJson<{ helpers: Record<string, Helper[]> }>(`${root}/helpers`),
   /** The room's breathing session, with the server's clock to line ours up to. */
   meditation: () => requestJson<{ meditation: Meditation; now: number }>(`${root}/meditation`),
+  /** The room's sand mandala, and pouring or sweeping it: see shared/mandala.ts. */
+  mandala: () => requestJson<{ mandala: Mandala }>(`${root}/mandala`),
+  changeMandala: (change: MandalaChange) =>
+    requestJson<{ event: MandalaEvent }>(`${root}/mandala`, { method: "POST", body: JSON.stringify(change) }),
   /** Give the ember fire a word: everyone sees it burn; nothing is kept. See shared/fire.ts. */
   offerToFire: (word: string) => requestJson<{ ok: boolean }>(`${root}/fire`, { method: "POST", body: JSON.stringify({ word }) }),
   /** The room's sand garden, and changes to it: see shared/garden.ts. */

@@ -1046,4 +1046,18 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 33,
+    name: "each room's sand mandala",
+    sql: `
+      -- The coloured sand poured on the room's mandala plate, until it is swept
+      -- (shared/mandala.ts). One row per room, as JSON.
+      CREATE TABLE space_mandala (
+        room TEXT PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];
