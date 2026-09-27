@@ -149,9 +149,12 @@ const harnessSessions = new Map(
  * wrong habit for a security-sensitive application. This route exists only in
  * the loopback, in-memory harness guarded above.
  */
-app.get<{ Params: { username: string } }>("/dev/as/:username", (request, reply) => {
+app.get<{ Params: { username: string }; Querystring: { room?: string } }>("/dev/as/:username", (request, reply) => {
   const sid = harnessSessions.get(request.params.username);
   if (!sid) return reply.code(404).send("no such harness actor");
+  // ?room=lobby stands you in that room, which entering normally checks with
+  // WebHarness, and this harness has no WebHarness to ask.
+  if (request.query.room) sessions.enterRoom(sid, request.query.room);
   reply.header(
     "set-cookie",
     `${config.cookieName}=${sid}; Path=/; HttpOnly; SameSite=Lax`,
@@ -177,7 +180,7 @@ await app.listen({ port: PORT, host: "127.0.0.1" });
 console.log(`\n  http://127.0.0.1:${PORT}/room\n`);
 console.log("  open one of these local links to become that person:\n");
 for (const [username, kind] of people) {
-  console.log(`  http://127.0.0.1:${PORT}/dev/as/${encodeURIComponent(username)}   // ${username} (${kind})`);
+  console.log(`  http://127.0.0.1:${PORT}/dev/as/${encodeURIComponent(username)}   // ${username} (${kind}); add ?room=lobby to stand in a room`);
 }
 console.log(`\n  http://127.0.0.1:${PORT}/dev/demo/conversation/Inkstone/nikk   // watch Inkstone approach nikk`);
 
