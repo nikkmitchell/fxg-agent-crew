@@ -882,7 +882,7 @@ export default function Scene({
         {connection.meditation?.shown && <LightRibbons peopleRef={connection.peopleRef} you={you} />}
         {/* And the koi pond: see KoiPond.tsx. */}
         {connection.meditation?.shown && <KoiPond peopleRef={connection.peopleRef} />}
-        {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
+        {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
         {connection.meditation?.shown && <RoomBook history={connection.meditation.history} />}

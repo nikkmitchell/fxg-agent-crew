@@ -119,8 +119,18 @@ export type Meditation = {
   candles: Candle[];
   /** THE ROOM'S BOOK: the latest sessions held here, newest last (see sessionRecord). */
   history: SessionRecord[];
+  /**
+   * Colours the tree has been fed, from a swept sand mandala (Nightjar's, via
+   * the "feed" action): the leaves grown since take them on. Newest last.
+   */
+  treeColours: TreeColour[];
   revision: number;
 };
+
+/** A colour fed to the tree, and how many leaves it had when it was fed. */
+export type TreeColour = { colour: string; fromLeaf: number };
+export const MOST_TREE_COLOURS = 6;
+const HEX = /^#[0-9a-f]{6}$/i;
 
 /**
  * One line in the room's book: when a session began, what it was, how long it
@@ -200,7 +210,7 @@ export function intentionWord(value: unknown): string | { refused: string } {
 }
 
 export function idleMeditation(): Meditation {
-  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, intentions: [], breathedMinutes: 0, candles: [], history: [], revision: 0 };
+  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, intentions: [], breathedMinutes: 0, candles: [], history: [], treeColours: [], revision: 0 };
 }
 
 export function isPattern(value: unknown): value is PatternId {
@@ -308,6 +318,8 @@ export type MeditationChange =
   | { action: "intend"; word?: unknown }
   /** Light a candle, optionally for someone or something. */
   | { action: "light"; for?: unknown }
+  /** Feed the tree colours (a swept sand mandala's): the next leaves take them on. */
+  | { action: "feed"; colours?: unknown }
   | { action: "settings"; pattern?: unknown; minutes?: unknown; guide?: unknown };
 
 /**
@@ -367,11 +379,19 @@ export function applyMeditation(
         // What the room has built up stays, even with the orb put away.
         intentions: session.intentions,
         candles: session.candles,
+        treeColours: session.treeColours,
         history: written(session, now),
         breathedMinutes: session.breathedMinutes + minutesBreathed(session, now),
       };
     case "end":
       return { ...next, history: written(session, now), breathedMinutes: session.breathedMinutes + minutesBreathed(session, now), startedAt: null, pausedAt: null, startedBy: null, together: [] };
+    case "feed": {
+      const colours = Array.isArray(change.colours) ? change.colours.filter((one): one is string => typeof one === "string" && HEX.test(one)) : [];
+      if (colours.length === 0) return { refused: "feed the tree one or more colours like #c0392b" };
+      const fromLeaf = treeOf(session.breathedMinutes + minutesBreathed(session, now)).leaves;
+      const fed = colours.slice(0, MOST_TREE_COLOURS).map((colour) => ({ colour: colour.toLowerCase(), fromLeaf }));
+      return { ...next, treeColours: [...session.treeColours, ...fed].slice(-MOST_TREE_COLOURS) };
+    }
     case "light": {
       const dedication = change.for === undefined ? "" : intentionWord(change.for);
       if (typeof dedication !== "string") return dedication;
@@ -412,6 +432,12 @@ export function parseMeditation(value: unknown): Meditation | null {
     together: Array.isArray(v.together) ? v.together.filter((n): n is string => typeof n === "string") : [],
     shown: v.shown === true,
     guide: isGuide(v.guide) ? v.guide : null,
+    treeColours: Array.isArray(v.treeColours)
+      ? v.treeColours.filter((one): one is TreeColour =>
+          !!one && typeof one === "object" && typeof (one as TreeColour).colour === "string" && HEX.test((one as TreeColour).colour) &&
+          typeof (one as TreeColour).fromLeaf === "number")
+        .slice(-MOST_TREE_COLOURS)
+      : [],
     history: Array.isArray(v.history)
       ? v.history.filter((one): one is SessionRecord =>
           !!one && typeof one === "object" && typeof (one as SessionRecord).at === "number" && typeof (one as SessionRecord).what === "string" &&
@@ -484,4 +510,10 @@ export function bellPause(now: number): { rangAt: number; left: number } | null 
   const rangAt = Math.floor(now / BELL_EVERY_MS) * BELL_EVERY_MS;
   const left = rangAt + BELL_PAUSE_MS - now;
   return left > 0 ? { rangAt, left } : null;
+}
+
+/** The colour of leaf `index`: green, unless it grew after the tree was fed. */
+export function leafColour(index: number, fed: readonly TreeColour[]): string | null {
+  const after = fed.filter((one) => index >= one.fromLeaf);
+  return after.length === 0 ? null : after[index % after.length].colour;
 }

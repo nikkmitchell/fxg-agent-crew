@@ -213,3 +213,16 @@ describe("the mindfulness bell", () => {
     expect(bellPause(hour + BELL_EVERY_MS)?.rangAt).toBe(hour + BELL_EVERY_MS);
   });
 });
+
+describe("feeding the tree", () => {
+  it("takes a swept mandala's colours into the leaves that grow after", async () => {
+    const { leafColour } = await import("./meditation.js");
+    const grown = { ...idleMeditation(), breathedMinutes: 50 }; // 10 leaves
+    const fed = applyMeditation(grown, { action: "feed", colours: ["#C0392B", "#2e86c1", "blue", 3] }, "Nightjar", 1) as Meditation;
+    expect(fed.treeColours).toEqual([{ colour: "#c0392b", fromLeaf: 10 }, { colour: "#2e86c1", fromLeaf: 10 }]);
+    expect(leafColour(9, fed.treeColours)).toBeNull();
+    expect([leafColour(10, fed.treeColours), leafColour(11, fed.treeColours)]).toEqual(["#c0392b", "#2e86c1"]);
+    expect(applyMeditation(grown, { action: "feed", colours: ["red"] }, "a", 1)).toHaveProperty("refused");
+    expect(parseMeditation(fed)?.treeColours).toHaveLength(2);
+  });
+});
