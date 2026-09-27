@@ -43,6 +43,7 @@ import type { SettingsItem } from "../../shared/settings-3d";
 import { RoomItems } from "./RoomItems";
 import { MeditationOrb } from "./MeditationOrb";
 import { SingingBowls } from "./SingingBowls";
+import { StillnessTree } from "./StillnessTree";
 import { SpiritCompanions } from "./SpiritCompanions";
 import { space } from "../space-client";
 
@@ -860,6 +861,7 @@ export default function Scene({
         {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation} reducedMotion={reducedMotion} />}
         {/* The singing bowls stand beside the orb, wherever a room has one: see shared/bowl.ts. */}
         {connection.meditation?.shown && <SingingBowls you={you} />}
+        {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
           avatarRecorder={avatarRecorder}

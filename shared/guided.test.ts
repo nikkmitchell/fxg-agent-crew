@@ -111,3 +111,29 @@ describe("intention stones", () => {
     expect(parseMeditation({ intentions: [{ by: "a", word: "b" }, { by: 3 }, "x"] })?.intentions).toEqual([{ by: "a", word: "b" }]);
   });
 });
+
+describe("the stillness tree", () => {
+  it("adds minutes times people when a session ends, and never shrinks", async () => {
+    const { minutesBreathed } = await import("./meditation.js");
+    const running = { ...idleMeditation(), startedAt: 0, minutes: 5, together: ["a", "b", "c"] };
+    expect(minutesBreathed(running, 120_000)).toBeCloseTo(6);
+    expect(minutesBreathed(running, 60 * 60_000)).toBeCloseTo(15);
+    const ended = applyMeditation(running, { action: "end" }, "a", 120_000) as Meditation;
+    expect(ended.breathedMinutes).toBeCloseTo(6);
+    const hidden = applyMeditation({ ...ended, shown: true, intentions: [{ by: "a", word: "rest" }] }, { action: "show", shown: false }, "a", 130_000) as Meditation;
+    expect(hidden.breathedMinutes).toBeCloseTo(6);
+    expect(hidden.intentions).toHaveLength(1);
+  });
+
+  it("grows branches, then leaves, then blossoms, within its bounds", async () => {
+    const { treeOf } = await import("./meditation.js");
+    expect(treeOf(0)).toEqual({ branches: 0, leaves: 0, blossoms: 0, height: 0.35 });
+    expect(treeOf(60).branches).toBe(2);
+    expect(treeOf(60).leaves).toBe(12);
+    expect(treeOf(599).blossoms).toBe(0);
+    expect(treeOf(600).blossoms).toBe(1);
+    const huge = treeOf(1e9);
+    expect([huge.branches, huge.leaves, huge.blossoms]).toEqual([6, 120, 40]);
+    expect(huge.height).toBeCloseTo(1.5);
+  });
+});
