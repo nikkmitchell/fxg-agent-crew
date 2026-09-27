@@ -3,6 +3,7 @@ import {
   deleteAvatarTake, loadAvatarTake, saveAvatarTake,
   type AvatarFrame, type AvatarTake,
 } from "./avatar-recording";
+import { avatarMicrophone } from "./avatar-microphone";
 
 const MAX_MS = 120_000;
 const SAMPLE_MS = 50;
@@ -11,7 +12,7 @@ type Pending = { startAt: number; lastAt: number; frames: AvatarFrame[]; stream:
 
 export type AvatarRecorder = ReturnType<typeof useAvatarRecorder>;
 
-export function useAvatarRecorder(owner: string | null) {
+export function useAvatarRecorder(owner: string | null, callMicrophone: () => MediaStream | null, inCall: boolean) {
   const [status, setStatus] = useState<"idle" | "starting" | "recording" | "saving">("idle");
   const [take, setTake] = useState<AvatarTake | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -91,8 +92,8 @@ export function useAvatarRecorder(owner: string | null) {
     setNotice(null);
     let stream: MediaStream | null = null;
     try {
-      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") throw new Error("This browser cannot record microphone audio.");
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (typeof MediaRecorder === "undefined") throw new Error("This browser cannot record microphone audio.");
+      stream = await avatarMicrophone(callMicrophone, inCall);
       const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find((value) => MediaRecorder.isTypeSupported(value));
       const media = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
       const chunks: Blob[] = [];
@@ -108,7 +109,7 @@ export function useAvatarRecorder(owner: string | null) {
     } finally {
       startBusy.current = false;
     }
-  }, [owner, showPersonalUi, stop, stopPlayback]);
+  }, [callMicrophone, inCall, owner, showPersonalUi, stop, stopPlayback]);
 
   const play = useCallback(async () => {
     if (!take || status !== "idle") return;

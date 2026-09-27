@@ -6,6 +6,8 @@ Enter the public **lobby** in your headset. Open Settings → Me, turn on **Pers
 
 Record a short second take to replace the first. Leave and re-enter the lobby in the same browser; the draft should still be there. **Discard avatar draft** removes it. This first version saves the draft on that browser, for review before a welcome recording is published. The browser check covered audio capture, pose sampling, local save, reload and 3D preview; tracked headset hands and gesture timing still need a device check.
 
+If you are already in a room voice call, start and stop an avatar take while someone else listens. Your call should stay connected and audible throughout: the recorder now copies the call's microphone track and releases only that copy.
+
 ## meditation.AR, Sill's pieces (2026-09-28)
 
 All built and checked in the local test room (dev-room-harness) and live on saha.ing. None of it has been tried in a headset. Enter **meditation.AR**, where the orb is switched on; everything below appears only in rooms with the orb. With the orb's **SOUND OFF**, the guides, OM, soundscapes and bell are silent.
@@ -25,6 +27,7 @@ All built and checked in the local test room (dev-room-harness) and live on saha
 13. **Mandarin guides and readings.** On the orb, **到达 · 3 分钟** and **慈心 · 5 分钟** are spoken in Kokoro's Mandarin voice (zf_xiaoxiao), with Chinese captions. The reading stone also has 上善若水 and 自知者明, from the Tao Te Ching in the original. A Chinese speaker should check that the pronunciation is natural, and that the captions show characters, not empty boxes. The Chinese font is fetched from jsDelivr on first use.
 14. **Room guide sign** (just ahead-left of the arrival point). "WHAT IS HERE" lists every piece, with which way and how many steps to it. Is it readable from where you arrive, and are the directions right when you face the orb?
 15. **Frame rate.** In the test room, the view from the arrival point measured about 208 draw calls per frame. Check that the headset holds its frame rate in meditation.AR, particularly when turning to look across the whole room.
+
 
 ## Go table — device checks for the new model
 

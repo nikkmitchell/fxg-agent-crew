@@ -221,7 +221,8 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
       cancelled = true;
     };
   }, [entered, voiceYou]);
-  const avatarRecorder = useAvatarRecorder(connection.status.state === "open" ? connection.status.you : null);
+  const avatarRecorder = useAvatarRecorder(connection.status.state === "open" ? connection.status.you : null, voice.microphone, voice.on);
+
   useEffect(() => {
     if (!isLobby(spaceRoomName) && avatarRecorder.status === "recording") void avatarRecorder.stop();
   }, [spaceRoomName, avatarRecorder.status, avatarRecorder.stop]);
