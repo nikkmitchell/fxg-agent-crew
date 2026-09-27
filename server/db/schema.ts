@@ -1032,5 +1032,18 @@ export const MIGRATIONS: Migration[] = [
         updated_at TEXT NOT NULL
       );
     `,
+  },  {
+    id: 32,
+    name: "each room's zen sand garden",
+    sql: `
+      -- The grooves everyone has raked and where the stones are
+      -- (shared/garden.ts). One row per room, as JSON; it builds up over days.
+      CREATE TABLE space_garden (
+        room TEXT PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
   },
 ];

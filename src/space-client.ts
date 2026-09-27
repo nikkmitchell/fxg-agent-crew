@@ -1,4 +1,5 @@
 import type { Helper } from "../shared/helpers";
+import type { Garden, GardenChange, GardenEvent } from "../shared/garden";
 import { actOnItem } from "./space/item-socket";
 import { requestJson } from "./api-request";
 import { base } from "./router";
@@ -160,6 +161,10 @@ export const space = {
   helpers: () => requestJson<{ helpers: Record<string, Helper[]> }>(`${root}/helpers`),
   /** The room's breathing session, with the server's clock to line ours up to. */
   meditation: () => requestJson<{ meditation: Meditation; now: number }>(`${root}/meditation`),
+  /** The room's sand garden, and changes to it: see shared/garden.ts. */
+  garden: () => requestJson<{ garden: Garden }>(`${root}/garden`),
+  rakeGarden: (change: GardenChange) =>
+    requestJson<{ event: GardenEvent }>(`${root}/garden`, { method: "POST", body: JSON.stringify(change) }),
   /** Ring one of the singing bowls, for everyone in the room: see shared/bowl.ts. */
   bowl: (body: { bowl: number; strength: number; kind: "strike" | "sing" }) =>
     requestJson<{ strike: unknown }>(`${root}/bowl`, { method: "POST", body: JSON.stringify(body) }),

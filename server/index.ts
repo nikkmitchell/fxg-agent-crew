@@ -26,6 +26,7 @@ import { AgentVoices, registerVoiceRoutes } from "./space/voices.js";
 import { registerIceRoutes } from "./space/ice.js";
 import { registerGuideRoutes, voiceAllGuides } from "./space/guides.js";
 import { registerBowlRoutes } from "./space/bowl.js";
+import { RoomGardens, registerGardenRoutes } from "./space/garden.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
 import { BodyFiles, registerBodyFileRoutes } from "./space/body-files.js";
@@ -237,6 +238,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const roomShowing = new RoomShowing(database, new BoardReads(database));
   // The breathing session each room shares, in memory: see space/meditation.ts.
   const roomMeditations = new RoomMeditations(database);
+  // Each room's sand garden, stored: see space/garden.ts.
+  const roomGardens = new RoomGardens(database);
   // Agents' helpers, as the agents report them: see space/helpers.ts.
   const roomHelpers = new RoomHelpers();
   const roomItems = new RoomItems(database);
@@ -417,6 +420,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       meditations: roomMeditations,
       present: (room) => hubFor(room).presence.everyone().filter((one) => one.connected).map((one) => one.actorId),
       announce: (room, meditation) => hubFor(room).broadcast({ type: "meditation", meditation }),
+    });
+    registerGardenRoutes(scoped, {
+      config,
+      sessions,
+      gardens: roomGardens,
+      announce: (room, event) => hubFor(room).broadcast({ type: "garden", event }),
     });
     registerBowlRoutes(scoped, {
       config,

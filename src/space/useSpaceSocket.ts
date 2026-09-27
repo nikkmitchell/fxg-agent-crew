@@ -1,5 +1,6 @@
 import type { Helper } from "../../shared/helpers";
 import { bowlStruck } from "./bowl-strikes";
+import { gardenChanged } from "./garden-events";
 import { registerItemSocket, settleItemAction } from "./item-socket";
 import { setAgentsHiddenForEveryone } from "./agents-hidden";
 import { registerCallSocket, settleCall } from "../call-socket";
@@ -301,6 +302,11 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
         if (message.type === "helpers") {
           // Agents' helpers: drawn as spirits, never counted as people.
           setHelpers(message.helpers);
+          return;
+        }
+        if (message.type === "garden") {
+          // The sand garden changed: GardenTray.tsx applies it.
+          gardenChanged(message.event);
           return;
         }
         if (message.type === "bowl") {
