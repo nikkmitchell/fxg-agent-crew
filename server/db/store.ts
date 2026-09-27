@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { MOOD_REACH, onTheBoard } from "../../shared/mood-3d.js";
 import { coverings, nextSpot } from "../../shared/board-overlap.js";
 import {
   FORBIDDEN_PROFILE_KEYS,
@@ -24,6 +25,16 @@ type Db = import("node:sqlite").DatabaseSync;
  * change. An audit row written separately can be missing for the change that
  * most needs explaining — the one that failed halfway.
  */
+
+/**
+ * A place no board could have is refused, not stored (see MOOD_REACH): one
+ * item at x = 4e26 made the whole Saha Ing mood board vanish in VR.
+ */
+function refuseOffTheBoard(at: { x: number; y: number; w?: number; h?: number }): void {
+  if (!onTheBoard({ x: at.x, y: at.y, w: at.w ?? 1, h: at.h ?? 1 })) {
+    throw new Refused(`a board item must sit within ${MOOD_REACH} px of the origin, with a real size`, "OFF_THE_BOARD");
+  }
+}
 
 export class Refused extends Error {
   constructor(message: string, readonly code = "REFUSED") {
@@ -742,6 +753,7 @@ export class BoardStore {
         .get(boardId) as { z: number }).z;
       const w = item.w ?? 240;
       const h = item.h ?? 240;
+      refuseOffTheBoard({ x: item.x ?? 0, y: item.y ?? 0, w, h });
       const { x, y } = this.placeFor(boardId, item.x, item.y, w);
       this.db.prepare(`INSERT INTO board_items (id,board_id,kind,blob_id,url,text,caption,x,y,w,h,z,added_by,added_at)
                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -842,6 +854,7 @@ export class BoardStore {
 
   moveBoardItem(actor: Actor, itemId: string, at: { x: number; y: number; w?: number; h?: number; z?: number }) {
     return this.tx(() => {
+      refuseOffTheBoard(at);
       const row = this.db.prepare("SELECT board_id FROM board_items WHERE id = ?").get(itemId) as
         | { board_id: string } | undefined;
       if (!row) throw new Refused("no such item", "NOT_FOUND");

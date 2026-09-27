@@ -363,6 +363,22 @@ describe("being told what a mood-board item covers", () => {
     await app.close();
   });
 
+  it("refuses a place no board could have, so one item cannot hide the whole board (2026-09-27)", async () => {
+    const { app, as } = boot();
+    const h = { cookie: as("nikk") };
+    const boardId = await setUp(app, h);
+    const note = (await app.inject({ method: "POST", url: `/bff/board/boards/${boardId}/items`, headers: h,
+      payload: { kind: "note", text: "stays put", x: 10, y: 10, w: 200, h: 200 } })).json().result;
+    const flung = await app.inject({ method: "PATCH", url: `/bff/board/items/${note}`, headers: h,
+      payload: { x: 4.0126112025234914e26, y: -3.111820883530675e26 } });
+    expect(flung.statusCode).toBe(400);
+    expect(flung.json().code).toBe("OFF_THE_BOARD");
+    const added = await app.inject({ method: "POST", url: `/bff/board/boards/${boardId}/items`, headers: h,
+      payload: { kind: "note", text: "far away", x: 1e9, y: 0 } });
+    expect(added.statusCode).toBe(400);
+    await app.close();
+  });
+
   it("comes back on a MOVE too, so tidying cannot land on a second neighbour", async () => {
     const { app, as } = boot();
     const h = { cookie: as("nikk") };

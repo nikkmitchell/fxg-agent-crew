@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MOOD, isMoodAdd, layOutMood, moodAddControlOf, moodBounds, moodItemAt, moodMove, moodNextPlace, type MoodItem } from "./mood-3d.js";
+import { MOOD, MOOD_REACH, isMoodAdd, layOutMood, moodAddControlOf, moodBounds, moodItemAt, moodMove, moodNextPlace, type MoodItem } from "./mood-3d.js";
 
 const item = (id: string, over: Partial<MoodItem> = {}): MoodItem => ({
   id, kind: "note", x: 100, y: 100, w: 220, h: 120, z: 0, ...over,
@@ -149,5 +149,28 @@ describe("adding to a mood board from the room", () => {
     expect(Number.isFinite(at.y)).toBe(true);
     expect(at.w).toBeGreaterThan(0);
     expect(at.h).toBeGreaterThan(0);
+  });
+});
+
+describe("an item no board could have (the Saha Ing board, 2026-09-27)", () => {
+  // One image at x = 4e26 fitted the whole board into nothing: in VR every
+  // note and picture vanished.
+  const flung = item("flung", { x: 4.0126112025234914e26, y: -3.111820883530675e26, w: 1160, h: 650 });
+  const board = [item("a", { x: 40, y: 24, w: 260, h: 150 }), item("b", { x: 640, y: 2530, w: 560, h: 315 }), flung];
+
+  it("is left out of the fit, so the rest of the board is drawn at its own size", () => {
+    const layout = layOutMood(board);
+    expect(layout.places.map((place) => place.item.id)).toEqual(["a", "b"]);
+    expect(layout.scale).toBeCloseTo(layOutMood(board.slice(0, 2)).scale, 12);
+    expect(layout.places[0].width).toBeGreaterThan(0.1);
+    expect(moodBounds(board)).toEqual(moodBounds(board.slice(0, 2)));
+  });
+
+  it("cannot be made by a drag, however far or however small the board is drawn", () => {
+    const layout = layOutMood([item("a", { x: 0, y: 0, w: 100, h: 100 })]);
+    const shrunk = { ...layout, scale: 1e-27 };
+    const moved = moodMove(shrunk, item("a", { x: 0, y: 0, w: 100, h: 100 }), { x: 0.5, y: 0.5 }, { x: 0.9, y: 0.1 });
+    expect(Math.abs(moved.x)).toBeLessThanOrEqual(MOOD_REACH);
+    expect(Math.abs(moved.y)).toBeLessThanOrEqual(MOOD_REACH);
   });
 });

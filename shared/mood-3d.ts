@@ -57,7 +57,31 @@ export type MoodLayout = {
 /** A sensible rectangle when the board is empty, so the maths never divides by zero. */
 const EMPTY_BOUNDS = { x: 0, y: 0, width: 1200, height: 750 };
 
-export function moodBounds(items: readonly MoodItem[]): MoodLayout["bounds"] {
+/**
+ * HOW FAR FROM THE ORIGIN A BOARD ITEM CAN BE, in board pixels: far past any
+ * board a person could arrange, and nowhere near where arithmetic goes wrong.
+ *
+ * Why it exists (2026-09-27, Nikk: the mood board "is not visible inside of
+ * VR"): one image on the Saha Ing board was stored at x = 4e26. The panel fits
+ * every item's bounds to the wall, so that one item shrank everything else to
+ * nothing. A drag is divided by that scale, so each drag of a board already
+ * shrunk threw an item further still. The server now refuses a place past
+ * this, a drag cannot produce one, and the layout leaves out anything stored
+ * before either rule existed rather than letting it hide the board.
+ */
+export const MOOD_REACH = 100_000;
+
+export function onTheBoard(item: { x: number; y: number; w: number; h: number }): boolean {
+  return [item.x, item.y, item.w, item.h].every(Number.isFinite) &&
+    Math.abs(item.x) <= MOOD_REACH && Math.abs(item.y) <= MOOD_REACH &&
+    item.w > 0 && item.h > 0 && item.w <= MOOD_REACH && item.h <= MOOD_REACH;
+}
+
+const withinReach = (value: number, fallback: number) =>
+  Number.isFinite(value) ? Math.max(-MOOD_REACH, Math.min(MOOD_REACH, value)) : fallback;
+
+export function moodBounds(allItems: readonly MoodItem[]): MoodLayout["bounds"] {
+  const items = allItems.filter(onTheBoard);
   if (items.length === 0) return { ...EMPTY_BOUNDS };
   let left = Infinity;
   let top = Infinity;
@@ -85,7 +109,7 @@ export function layOutMood(items: readonly MoodItem[], size: MoodSize = MOOD): M
   // chose, which is the one thing a mood board must not do.
   const scale = Math.min(usableWidth / bounds.width, usableHeight / bounds.height);
 
-  const places = [...items]
+  const places = items.filter(onTheBoard)
     .sort((a, b) => a.z - b.z)
     .map((item) => ({
       item,
@@ -191,5 +215,5 @@ export function moodMove(
 ): { x: number; y: number } {
   const dx = ((toUv.x - fromUv.x) * layout.width) / layout.scale;
   const dy = -((toUv.y - fromUv.y) * layout.height) / layout.scale;
-  return { x: Math.round(item.x + dx), y: Math.round(item.y + dy) };
+  return { x: Math.round(withinReach(item.x + dx, item.x)), y: Math.round(withinReach(item.y + dy, item.y)) };
 }

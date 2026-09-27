@@ -33,6 +33,7 @@ const CODES: Record<string, number> = {
   UNSUPPORTED_TYPE: 415,
   EMPTY_FILE: 400,
   BAD_URL: 400,
+  OFF_THE_BOARD: 400,
 };
 
 export function registerBoardRoutes(
