@@ -2,7 +2,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import type { ThreeEvent } from "@react-three/fiber";
 import { useLoader, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { MOOD, isMoodAdd, layOutMood, moodAddControlOf, moodItemAt, moodMove, uvOfMoodPoint, type MoodItem, type MoodPlace } from "../../shared/mood-3d";
+import { MOOD, isMoodAdd, layOutMood, moodAddControlOf, moodItemAt, moodMove, moodResize, uvOfMoodPoint, type MoodItem, type MoodPlace } from "../../shared/mood-3d";
 import { Text } from "@react-three/drei";
 import { CARD_INK } from "../../shared/card-paint";
 import { drawInk, makeInkCanvas, measureWith } from "./ink-canvas";
@@ -60,7 +60,8 @@ export function MoodPanel3D({
 }: {
   items: MoodItem[];
   surface: { width: number; height: number };
-  onMove: (itemId: string, at: { x: number; y: number }) => Promise<void>;
+  /** Saves where an item is, and its size when two hands resized it. */
+  onMove: (itemId: string, at: { x: number; y: number; w?: number; h?: number }) => Promise<void>;
   onSay: (message: string) => void;
   /** Somebody pressed the strip and wants to write a note. */
   onAdd: () => void;
@@ -79,12 +80,26 @@ export function MoodPanel3D({
    */
   const [held, setHeld] = useState<{
     id: string;
+    /** The hand holding it. */
+    pointer: number;
     from: { x: number; y: number };
     origin: { x: number; y: number };
     bounds: ReturnType<typeof layOutMood>["bounds"];
   } | null>(null);
+  /**
+   * THE SECOND HAND, while two are pulling the held item bigger (5350): which
+   * pointer it is, where both hands were when it grabbed, and the item's place
+   * and size then. Every resize is measured from these.
+   */
+  const [pulling, setPulling] = useState<{
+    pointer: number;
+    from: { a: { x: number; y: number }; b: { x: number; y: number } };
+    item: { x: number; y: number; w: number; h: number };
+  } | null>(null);
+  /** Where each pointer on the panel is now, so either hand's move can be paired with the other's. */
+  const at = useRef(new Map<number, { x: number; y: number }>());
   /** Where a held item has been dragged to, before the server has agreed. */
-  const [nudged, setNudged] = useState<Record<string, { x: number; y: number }>>({});
+  const [nudged, setNudged] = useState<Record<string, { x: number; y: number; w?: number; h?: number }>>({});
 
   const shown = useMemo(
     () => items.map((item) => (nudged[item.id] ? { ...item, ...nudged[item.id] } : item)),
@@ -115,6 +130,18 @@ export function MoodPanel3D({
     claimPointer(event.nativeEvent);
     const uv = uvOf(event);
     if (!uv) return;
+    at.current.set(event.pointerId, uv);
+    // A SECOND HAND GRABBING while the first holds something starts a resize
+    // of what the first is holding, wherever on the board it grabbed: aiming
+    // the second hand at the same small note is more than a pull should ask.
+    if (held && event.pointerId !== held.pointer) {
+      const item = shown.find((one) => one.id === held.id);
+      const first = at.current.get(held.pointer);
+      if (item && first) {
+        setPulling({ pointer: event.pointerId, from: { a: first, b: uv }, item: { x: item.x, y: item.y, w: item.w, h: item.h } });
+      }
+      return;
+    }
     // THE STRIP IS ASKED FIRST and swallows the press: it sits below the
     // fitted board, so nothing is under it to pick up anyway.
     if (isMoodAdd(layout, uv, size)) {
@@ -122,7 +149,7 @@ export function MoodPanel3D({
       return;
     }
     const place = moodItemAt(layout, uv);
-    if (place) setHeld({ id: place.item.id, from: uv, origin: { x: place.item.x, y: place.item.y }, bounds: layout.bounds });
+    if (place) setHeld({ id: place.item.id, pointer: event.pointerId, from: uv, origin: { x: place.item.x, y: place.item.y }, bounds: layout.bounds });
   };
 
   const onMoveEvent = (event: ThreeEvent<PointerEvent>) => {
@@ -132,6 +159,15 @@ export function MoodPanel3D({
     const uv = uvOf(event);
     const item = shown.find((one) => one.id === held.id);
     if (!uv || !item) return;
+    at.current.set(event.pointerId, uv);
+    if (pulling) {
+      const a = at.current.get(held.pointer);
+      const b = at.current.get(pulling.pointer);
+      const resized = a && b ? moodResize(layout, pulling.item, pulling.from, { a, b }) : null;
+      if (resized) setNudged((current) => ({ ...current, [held.id]: resized }));
+      return;
+    }
+    if (event.pointerId !== held.pointer) return;
     // FROM WHERE IT WAS PICKED UP, not from where it has got to: the drag's
     // distance is the whole distance since the press, so adding it to an
     // already-moved item counted it again on every move (5292).
@@ -147,11 +183,18 @@ export function MoodPanel3D({
       if (uv && isMoodAdd(layout, uv, size)) onAdd();
       return;
     }
+    at.current.delete(event.pointerId);
     if (!held) return;
     event.stopPropagation();
-    const at = nudged[held.id];
+    // EITHER HAND LETTING GO ends a pull and saves the size it reached; the
+    // other hand does not carry on dragging, which would move what was just
+    // sized by however that hand happened to be twitching.
+    const wasPulling = pulling !== null;
+    if (!wasPulling && event.pointerId !== held.pointer) return;
+    const place = nudged[held.id];
     const id = held.id;
     setHeld(null);
+    setPulling(null);
     /**
      * NOTHING MOVED, SO IT WAS A TAP — and a tap on a note means "let me change
      * what this says". The board could be added to and rearranged but an item
@@ -162,12 +205,13 @@ export function MoodPanel3D({
      * press that moves is a drag however brief, and a press that does not is a
      * tap however long somebody rests on it.
      */
-    if (!at) {
+    if (!place) {
+      if (wasPulling) return;
       const item = shown.find((one) => one.id === id);
       if (item) onEdit(item);
       return;
     }
-    void onMove(id, at)
+    void onMove(id, place)
       .catch((error: unknown) => {
         // PUT IT BACK. An item that stays where the server would not accept it
         // is an arrangement everybody else cannot see.
@@ -182,7 +226,13 @@ export function MoodPanel3D({
 
   return (
     <group ref={plate}>
-      <mesh onPointerDown={onDown} onPointerMove={onMoveEvent} onPointerUp={onUp} onPointerLeave={() => setHeld(null)}>
+      <mesh onPointerDown={onDown} onPointerMove={onMoveEvent} onPointerUp={onUp} onPointerLeave={(event) => {
+        at.current.delete(event.pointerId);
+        if (held?.pointer === event.pointerId || pulling?.pointer === event.pointerId) {
+          setHeld(null);
+          setPulling(null);
+        }
+      }}>
         <planeGeometry args={[layout.width, layout.height]} />
         <meshBasicMaterial color={CARD_INK.paper} toneMapped={false} />
       </mesh>

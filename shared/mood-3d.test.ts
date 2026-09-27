@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MOOD, MOOD_REACH, isMoodAdd, layOutMood, moodAddControlOf, moodBounds, moodItemAt, moodMove, moodNextPlace, type MoodItem } from "./mood-3d.js";
+import { MOOD, MOOD_REACH, isMoodAdd, layOutMood, moodAddControlOf, moodBounds, moodItemAt, moodMove, moodNextPlace, moodResize, type MoodItem } from "./mood-3d.js";
 
 const item = (id: string, over: Partial<MoodItem> = {}): MoodItem => ({
   id, kind: "note", x: 100, y: 100, w: 220, h: 120, z: 0, ...over,
@@ -197,5 +197,61 @@ describe("dragging an item (Nikk, 5292: it \"moves like really far away off the 
     const carried = board.map((one) => (one.id === "a" ? { ...one, x: 5000 } : one));
     expect(layOutMood(carried, MOOD, start.bounds).scale).toBe(start.scale);
     expect(layOutMood(carried).scale).toBeLessThan(start.scale);
+  });
+});
+
+describe("the note strip and the board (Nikk, 5350)", () => {
+  it("never draws an item over the strip, however the board is shaped", () => {
+    for (const items of [
+      [item("wide", { x: 0, y: 0, w: 3000, h: 200 })],
+      [item("tall", { x: 0, y: 0, w: 200, h: 3000 })],
+      [item("a", { x: 0, y: 0 }), item("b", { x: 1400, y: 900, w: 500, h: 400 })],
+    ]) {
+      const layout = layOutMood(items);
+      const strip = moodAddControlOf(layout);
+      for (const place of layout.places) {
+        expect(place.y - place.height / 2).toBeGreaterThanOrEqual(strip.y + strip.height / 2 - 1e-9);
+        expect(place.y + place.height / 2).toBeLessThanOrEqual(layout.height / 2 + 1e-9);
+      }
+    }
+  });
+
+  it("so the lowest item on the board can still be picked up at its foot", () => {
+    const layout = layOutMood([item("top", { x: 0, y: 0 }), item("low", { x: 0, y: 800 })]);
+    const low = layout.places.find((place) => place.item.id === "low")!;
+    const foot = uvOf(layout, low.x, low.y - low.height / 2 + 0.005);
+    expect(isMoodAdd(layout, foot)).toBe(false);
+    expect(moodItemAt(layout, foot)?.item.id).toBe("low");
+  });
+});
+
+describe("pulling an item bigger with two hands (Nikk, 5350)", () => {
+  const layout = layOutMood([item("a", { x: 0, y: 0, w: 400, h: 200 }), item("b", { x: 1200, y: 700 })]);
+  const a = { x: 0, y: 0, w: 400, h: 200 };
+  const from = { a: { x: 0.2, y: 0.6 }, b: { x: 0.3, y: 0.6 } };
+
+  it("grows by how much further apart the hands are, keeping its shape and its centre", () => {
+    const bigger = moodResize(layout, a, from, { a: { x: 0.15, y: 0.6 }, b: { x: 0.35, y: 0.6 } })!;
+    expect(bigger.w).toBe(800);
+    expect(bigger.h).toBe(400);
+    expect(bigger.x + bigger.w / 2).toBeCloseTo(200, 0);
+    expect(bigger.y + bigger.h / 2).toBeCloseTo(100, 0);
+  });
+
+  it("shrinks as they come together, but not to nothing", () => {
+    expect(moodResize(layout, a, from, { a: { x: 0.225, y: 0.6 }, b: { x: 0.275, y: 0.6 } })!.w).toBe(200);
+    const tiny = moodResize(layout, a, from, { a: { x: 0.25, y: 0.6 }, b: { x: 0.2501, y: 0.6 } })!;
+    expect(Math.min(tiny.w, tiny.h)).toBe(40);
+    expect(tiny.w / tiny.h).toBeCloseTo(2, 1);
+  });
+
+  it("follows the hands when both move together", () => {
+    const moved = moodResize(layout, a, from, { a: { x: 0.3, y: 0.6 }, b: { x: 0.4, y: 0.6 } })!;
+    expect(moved.w).toBe(400);
+    expect(moved.x).toBe(moodMove(layout, { ...item("a"), ...a }, { x: 0.25, y: 0.6 }, { x: 0.35, y: 0.6 }).x);
+  });
+
+  it("does nothing when the hands started on the same spot", () => {
+    expect(moodResize(layout, a, { a: from.a, b: from.a }, from)).toBeNull();
   });
 });
