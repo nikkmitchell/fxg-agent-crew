@@ -115,8 +115,31 @@ export type Meditation = {
    * the next one starts; it only ever grows (see treeOf).
    */
   breathedMinutes: number;
+  /** Candles lit on the shelf, each burning for a day (see CANDLE_HOURS). */
+  candles: Candle[];
   revision: number;
 };
+
+/**
+ * THE CANDLE SHELF. Light a candle, for someone or something if you like
+ * ("Mum", "the team"), and it burns for everybody in the room for a day, then
+ * goes out. Kept with the session because it is room state that everyone
+ * shares and is told about, like the stones; drawn as its own thing
+ * (src/space/CandleShelf.tsx).
+ */
+export type Candle = { by: string; for: string; litAt: number };
+export const CANDLE_HOURS = 24;
+export const MOST_CANDLES = 24;
+
+/** The candles still burning at `now`, oldest first. */
+export function burning(candles: readonly Candle[], now: number): Candle[] {
+  return candles.filter((candle) => now - candle.litAt < CANDLE_HOURS * 3_600_000);
+}
+
+/** 1 when just lit, falling to 0 as it burns down: how tall the candle is. */
+export function candleLeft(candle: Candle, now: number): number {
+  return Math.max(0, Math.min(1, 1 - (now - candle.litAt) / (CANDLE_HOURS * 3_600_000)));
+}
 
 /** Minutes this session has been breathed, times the people who breathed it. */
 export function minutesBreathed(session: Meditation, now: number): number {
@@ -152,7 +175,7 @@ export function intentionWord(value: unknown): string | { refused: string } {
 }
 
 export function idleMeditation(): Meditation {
-  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, intentions: [], breathedMinutes: 0, revision: 0 };
+  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, intentions: [], breathedMinutes: 0, candles: [], revision: 0 };
 }
 
 export function isPattern(value: unknown): value is PatternId {
@@ -258,6 +281,8 @@ export type MeditationChange =
   | { action: "show"; shown?: unknown }
   /** Set your own intention; an empty word takes your stone away. */
   | { action: "intend"; word?: unknown }
+  /** Light a candle, optionally for someone or something. */
+  | { action: "light"; for?: unknown }
   | { action: "settings"; pattern?: unknown; minutes?: unknown; guide?: unknown };
 
 /**
@@ -316,10 +341,18 @@ export function applyMeditation(
         ...idleMeditation(), pattern: session.pattern, minutes: session.minutes, revision: next.revision,
         // What the room has built up stays, even with the orb put away.
         intentions: session.intentions,
+        candles: session.candles,
         breathedMinutes: session.breathedMinutes + minutesBreathed(session, now),
       };
     case "end":
       return { ...next, breathedMinutes: session.breathedMinutes + minutesBreathed(session, now), startedAt: null, pausedAt: null, startedBy: null, together: [] };
+    case "light": {
+      const dedication = change.for === undefined ? "" : intentionWord(change.for);
+      if (typeof dedication !== "string") return dedication;
+      const lit = burning(session.candles, now);
+      if (lit.length >= MOST_CANDLES) return { refused: "the shelf is full; a candle goes out every so often" };
+      return { ...next, candles: [...lit, { by, for: dedication, litAt: now }] };
+    }
     case "intend": {
       const word = intentionWord(change.word);
       if (typeof word !== "string") return word;
@@ -353,6 +386,12 @@ export function parseMeditation(value: unknown): Meditation | null {
     together: Array.isArray(v.together) ? v.together.filter((n): n is string => typeof n === "string") : [],
     shown: v.shown === true,
     guide: isGuide(v.guide) ? v.guide : null,
+    candles: Array.isArray(v.candles)
+      ? v.candles.filter((one): one is Candle =>
+          !!one && typeof one === "object" && typeof (one as Candle).by === "string" &&
+          typeof (one as Candle).for === "string" && typeof (one as Candle).litAt === "number" && Number.isFinite((one as Candle).litAt))
+        .slice(-MOST_CANDLES)
+      : [],
     breathedMinutes: typeof v.breathedMinutes === "number" && Number.isFinite(v.breathedMinutes) && v.breathedMinutes > 0 ? v.breathedMinutes : 0,
     intentions: Array.isArray(v.intentions)
       ? v.intentions.filter((one): one is Intention =>
