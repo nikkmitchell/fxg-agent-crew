@@ -306,7 +306,11 @@ export type ClientMessage =
    * signed in as this socket's own session, and answers with `callResult`.
    * The web request is the fallback whenever the socket is not open.
    */
-  | { type: "call"; ref: string; method: CallMethod; path: string; body?: string; key?: string }
+  | {
+      type: "call"; ref: string; method: CallMethod; path: string; body?: string; key?: string;
+      /** A binary body, such as a recording to write down, base64; with its type. */
+      bodyBase64?: string; contentType?: string;
+    }
   /**
    * A move at a Go table, over the socket that is already open.
    *
@@ -390,6 +394,12 @@ export type CallMethod = (typeof CALL_METHODS)[number];
 /** Small JSON only: files and pictures keep their own web requests. */
 export const CALL_BODY_LIMIT = 64 * 1024;
 /**
+ * A recording to write down may come too (Baiwei, 5167: uploads dropped by her
+ * connection while the room socket held). About two minutes of speech; longer
+ * goes by web as before.
+ */
+export const CALL_BINARY_LIMIT = 6 * 1024 * 1024;
+/**
  * Only this site's own API, and never the socket itself. No scheme, host,
  * "..", backslash or whitespace, so a call can only ever name a local route.
  */
@@ -468,10 +478,15 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     if (!isCallPath(message.path)) return null;
     if (message.body !== undefined && (typeof message.body !== "string" || message.body.length > CALL_BODY_LIMIT)) return null;
     if (message.key !== undefined && (typeof message.key !== "string" || message.key.length === 0 || message.key.length > 200)) return null;
+    if (message.bodyBase64 !== undefined) {
+      if (message.body !== undefined || typeof message.bodyBase64 !== "string" || message.bodyBase64.length > CALL_BINARY_LIMIT) return null;
+      if (typeof message.contentType !== "string" || !/^[a-z]+\/[a-z0-9.+-]+$/i.test(message.contentType)) return null;
+    }
     return {
       type: "call", ref: message.ref, method: message.method as CallMethod, path: message.path,
       ...(message.body !== undefined ? { body: message.body } : {}),
       ...(message.key !== undefined ? { key: message.key } : {}),
+      ...(message.bodyBase64 !== undefined ? { bodyBase64: message.bodyBase64, contentType: message.contentType as string } : {}),
     };
   }
   if (message.type === "itemAction") {

@@ -203,6 +203,24 @@ describe("the space socket", () => {
     client.close();
   });
 
+  it("carries a recording to be written down, byte for byte (Baiwei 5167)", async () => {
+    // A transcriber that answers with how many bytes it was handed.
+    process.env.TRANSCRIBE_CMD = "wc -c {file}";
+    try {
+      const { origin, as } = await boot();
+      const client = await connect(origin, as("baiwei2"));
+      await client.where((m) => m.type === "welcome", "welcome");
+      const recording = Buffer.alloc(48_000, 7);
+      client.send({ type: "call", ref: "t", method: "POST", path: "/bff/space/transcribe", bodyBase64: recording.toString("base64"), contentType: "audio/wav" });
+      const answer = await client.where((m) => m.type === "callResult" && m.ref === "t", "transcribe answer");
+      expect(answer).toMatchObject({ status: 200 });
+      expect(JSON.parse((answer as { body: string }).body).text).toContain("48000");
+      client.close();
+    } finally {
+      delete process.env.TRANSCRIBE_CMD;
+    }
+  });
+
   it("refuses calls on a socket another site's page opened", async () => {
     const { origin, as } = await boot();
     const socket = new WebSocket(`${origin}/bff/space/socket`, { headers: { cookie: as("Moraine", "agent"), origin: "https://evil.test" } } as never);
