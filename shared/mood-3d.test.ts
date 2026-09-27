@@ -174,3 +174,28 @@ describe("an item no board could have (the Saha Ing board, 2026-09-27)", () => {
     expect(Math.abs(moved.y)).toBeLessThanOrEqual(MOOD_REACH);
   });
 });
+
+describe("dragging an item (Nikk, 5292: it \"moves like really far away off the screen\")", () => {
+  const board = [item("a", { x: 0, y: 0, w: 200, h: 200 }), item("b", { x: 400, y: 0, w: 200, h: 200 })];
+
+  it("moves by what the hand moved, measured from where it was picked up, however many moves arrive", () => {
+    const start = layOutMood(board);
+    const origin = board[0];
+    // Twenty small moves to the right, each the whole distance so far.
+    let at = { x: origin.x, y: origin.y };
+    for (let step = 1; step <= 20; step += 1) {
+      const layout = layOutMood(board.map((one) => (one.id === "a" ? { ...one, ...at } : one)), MOOD, start.bounds);
+      at = moodMove(layout, origin, { x: 0.5, y: 0.5 }, { x: 0.5 + step * 0.005, y: 0.5 });
+    }
+    // 0.1 of the panel's width, in board pixels, and no more.
+    expect(at.x).toBeCloseTo((0.1 * start.width) / start.scale, -1);
+    expect(at.y).toBe(0);
+  });
+
+  it("keeps the board's fit while an item is carried, so the board does not rescale under the hand", () => {
+    const start = layOutMood(board);
+    const carried = board.map((one) => (one.id === "a" ? { ...one, x: 5000 } : one));
+    expect(layOutMood(carried, MOOD, start.bounds).scale).toBe(start.scale);
+    expect(layOutMood(carried).scale).toBeLessThan(start.scale);
+  });
+});

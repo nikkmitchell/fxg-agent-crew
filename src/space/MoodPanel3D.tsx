@@ -72,7 +72,17 @@ export function MoodPanel3D({
   onEdit: (item: MoodItem) => void;
 }) {
   const plate = useRef<THREE.Group>(null);
-  const [held, setHeld] = useState<{ id: string; from: { x: number; y: number } } | null>(null);
+  /**
+   * What a drag started from: where on the panel, where the item was, and the
+   * board's fit at that moment. Every move is measured from these, never from
+   * where the item has already got to (5292).
+   */
+  const [held, setHeld] = useState<{
+    id: string;
+    from: { x: number; y: number };
+    origin: { x: number; y: number };
+    bounds: ReturnType<typeof layOutMood>["bounds"];
+  } | null>(null);
   /** Where a held item has been dragged to, before the server has agreed. */
   const [nudged, setNudged] = useState<Record<string, { x: number; y: number }>>({});
 
@@ -84,7 +94,7 @@ export function MoodPanel3D({
     () => ({ ...MOOD, width: surface.width, height: surface.height }),
     [surface.width, surface.height],
   );
-  const layout = useMemo(() => layOutMood(shown, size), [shown, size]);
+  const layout = useMemo(() => layOutMood(shown, size, held?.bounds), [shown, size, held?.bounds]);
   const addBox = useMemo(() => moodAddControlOf(layout, size), [layout, size]);
 
   const uvOf = useCallback(
@@ -112,7 +122,7 @@ export function MoodPanel3D({
       return;
     }
     const place = moodItemAt(layout, uv);
-    if (place) setHeld({ id: place.item.id, from: uv });
+    if (place) setHeld({ id: place.item.id, from: uv, origin: { x: place.item.x, y: place.item.y }, bounds: layout.bounds });
   };
 
   const onMoveEvent = (event: ThreeEvent<PointerEvent>) => {
@@ -122,7 +132,11 @@ export function MoodPanel3D({
     const uv = uvOf(event);
     const item = shown.find((one) => one.id === held.id);
     if (!uv || !item) return;
-    setNudged((current) => ({ ...current, [held.id]: moodMove(layout, item, held.from, uv) }));
+    // FROM WHERE IT WAS PICKED UP, not from where it has got to: the drag's
+    // distance is the whole distance since the press, so adding it to an
+    // already-moved item counted it again on every move (5292).
+    const fromOrigin = { ...item, x: held.origin.x, y: held.origin.y };
+    setNudged((current) => ({ ...current, [held.id]: moodMove(layout, fromOrigin, held.from, uv) }));
   };
 
   const onUp = (event: ThreeEvent<PointerEvent>) => {

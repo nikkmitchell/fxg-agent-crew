@@ -100,8 +100,14 @@ export function moodBounds(allItems: readonly MoodItem[]): MoodLayout["bounds"] 
   return { x: left, y: top, width, height };
 }
 
-export function layOutMood(items: readonly MoodItem[], size: MoodSize = MOOD): MoodLayout {
-  const bounds = moodBounds(items);
+/**
+ * `frozen` keeps the fit the board had when a drag began. Re-fitting while an
+ * item is carried rescales the board under the hand: the item moves further
+ * than the hand did, which re-fits it again. Nikk (5292): dragging anything
+ * "moves like really far away off the screen".
+ */
+export function layOutMood(items: readonly MoodItem[], size: MoodSize = MOOD, frozen?: MoodLayout["bounds"]): MoodLayout {
+  const bounds = frozen ?? moodBounds(items);
   const usableWidth = size.width - size.padding * 2;
   const usableHeight = size.height - size.padding * 2;
   // ONE SCALE FOR BOTH AXES. Fitting each axis separately would stretch every
