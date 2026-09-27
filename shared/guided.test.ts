@@ -153,3 +153,27 @@ describe("the readings", () => {
     expect(isReading("../etc/passwd")).toBe(false);
   });
 });
+
+describe("the candle shelf", () => {
+  it("lights a candle for someone, burns it down over a day, then lets it go out", async () => {
+    const { CANDLE_HOURS, burning, candleLeft } = await import("./meditation.js");
+    const lit = applyMeditation(idleMeditation(), { action: "light", for: " Mum " }, "Nikk2", 1_000) as Meditation;
+    expect(lit.candles).toEqual([{ by: "Nikk2", for: "Mum", litAt: 1_000 }]);
+    const day = CANDLE_HOURS * 3_600_000;
+    expect(candleLeft(lit.candles[0], 1_000 + day / 2)).toBeCloseTo(0.5);
+    expect(burning(lit.candles, 1_000 + day - 1)).toHaveLength(1);
+    expect(burning(lit.candles, 1_000 + day)).toHaveLength(0);
+    // Lighting another prunes the ones that have gone out.
+    const later = applyMeditation(lit, { action: "light" }, "wilson", 1_000 + day + 5) as Meditation;
+    expect(later.candles.map((one) => one.by)).toEqual(["wilson"]);
+  });
+
+  it("keeps a full shelf from overflowing, refuses an essay, and survives being stored", async () => {
+    const { MOST_CANDLES } = await import("./meditation.js");
+    let shelf = idleMeditation();
+    for (let n = 0; n < MOST_CANDLES; n += 1) shelf = applyMeditation(shelf, { action: "light" }, `p${n}`, 1_000 + n) as Meditation;
+    expect(applyMeditation(shelf, { action: "light" }, "late", 2_000)).toHaveProperty("refused");
+    expect(applyMeditation(idleMeditation(), { action: "light", for: "x".repeat(60) }, "a", 1)).toHaveProperty("refused");
+    expect(parseMeditation({ candles: [{ by: "a", for: "", litAt: 5 }, { by: "b" }] })?.candles).toEqual([{ by: "a", for: "", litAt: 5 }]);
+  });
+});
