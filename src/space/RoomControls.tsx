@@ -15,7 +15,7 @@ import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
 import { micGestureHands, micGestureIndicator } from "./mic-gesture-input";
-import { closedControlPose } from "./control-pose";
+import { closedControlPose, lookingUp, upGearAt, walkedAway } from "./control-pose";
 import { handModelsShown, pinchTeleportEnabled, setPinchTeleport, showHandModels } from "./xr-store";
 import {
   DEFAULT_ROOM_PREFERENCES,
@@ -181,10 +181,11 @@ const BOXES_PER_ROW = 3;
  */
 const ICON = 0.09;
 const ICON_GAP = 0.02;
-/** Centres of the gear, the talk button and cancel, left to right. */
-const GEAR_X = -(ICON + ICON_GAP) / 2;
-const TALK_X = (ICON + ICON_GAP) / 2;
+/** Talk in the middle now the gear has gone up (Nikk, 5245); cancel to its right. */
+const TALK_X = 0;
 const CANCEL_X = TALK_X + ICON + ICON_GAP;
+/** The look-up gear: bigger than the pair was, being pointed at from a glance. */
+const UP_GEAR_SIZE = 0.12;
 /** The status line under them: wide enough for a short sentence on two lines. */
 const STATUS = { width: 0.42, height: 0.09 } as const;
 
@@ -923,7 +924,7 @@ export function RoomControls({
    * open." It also means you can step back to see the whole grid, or lean in
    * to press one button, which you cannot do with something welded to you.
    */
-  const pinned = useRef<{ x: number; z: number; yaw: number } | null>(null);
+  const pinned = useRef<{ x: number; z: number; yaw: number; from: { x: number; z: number } } | null>(null);
 
   const pinAhead = useCallback(() => {
     const body = anchor();
@@ -936,6 +937,8 @@ export function RoomControls({
       x: body.at.x - Math.sin(yaw) * OPEN_AHEAD,
       z: body.at.z - Math.cos(yaw) * OPEN_AHEAD,
       yaw,
+      // Where you stood to open it: walk a metre from here and it closes.
+      from: { x: body.at.x, z: body.at.z },
     };
   }, [anchor]);
 
@@ -981,6 +984,7 @@ export function RoomControls({
   /** The closed buttons' presses, current each render, for the touch check. */
   const pressTalkRef = useRef<() => void>(() => {});
   const openMenuRef = useRef<() => void>(() => {});
+  const closeMenuRef = useRef<() => void>(() => {});
   const cancelRef = useRef<(() => void) | null>(null);
   const micGestureState = useRef<MicGestureState>(IDLE_MIC_GESTURE);
   /** The gesture finished before the words were in: send them when they are. */
@@ -996,17 +1000,44 @@ export function RoomControls({
   const handsInViewNow = useRef(false);
   handsInViewNow.current = handsInView;
   const touching = useRef<Set<string>>(new Set());
+  /** The settings gear that appears when you look up (Nikk, 5245). */
+  const upGear = useRef<THREE.Group>(null);
+  const upShown = useRef(false);
+  const [upVisible, setUpVisible] = useState(false);
   const [handIsNear, setHandIsNear] = useState(false);
   const buttonOpacity = handIsNear ? 1 : IDLE_OPACITY;
-  useFrame(() => {
+  useFrame((state) => {
     const node = group.current;
     const body = anchor();
     if (!node) return;
     node.visible = body !== null;
+    // THE GEAR, UP WHERE YOU LOOK (Nikk, 5245): shown once you tip your head
+    // up, floating along your gaze and turned to face you.
+    const up = upGear.current;
+    if (up) {
+      const eyes = state.camera.getWorldPosition(new THREE.Vector3());
+      const gaze = state.camera.getWorldDirection(new THREE.Vector3());
+      const shown = body !== null && !open && lookingUp(upShown.current, Math.asin(Math.max(-1, Math.min(1, gaze.y))));
+      if (shown !== upShown.current) {
+        upShown.current = shown;
+        setUpVisible(shown);
+      }
+      up.visible = shown;
+      if (shown) {
+        const at = upGearAt(eyes, gaze);
+        up.position.set(at.x, at.y, at.z);
+        up.lookAt(eyes);
+      }
+    }
     if (!body) return;
 
     const held = pinned.current;
     if (held || fixingNow.current) placed.current = false;
+    if (held && walkedAway(held.from, body.at)) {
+      // WALKED AWAY: the settings close by themselves (Nikk, 5248).
+      closeMenuRef.current();
+      return;
+    }
     if (held) {
       node.position.set(held.x, OPEN_HEIGHT, held.z);
       node.rotation.set(0, held.yaw, 0);
@@ -1064,9 +1095,14 @@ export function RoomControls({
     // ONLY WHAT IS DRAWN: the same list the buttons below are drawn from.
     const buttons: TouchButton[] = closedButtons(handsInViewNow.current, cancelRef.current !== null).map((id) => ({
       id,
-      at: at(id === "gear" ? GEAR_X : id === "talk" ? TALK_X : CANCEL_X),
+      at: at(id === "talk" ? TALK_X : CANCEL_X),
       radius: ICON / 2,
     }));
+    // The gear, while it is up, is pressed by a fingertip the same way.
+    if (upShown.current && upGear.current) {
+      const p = upGear.current.getWorldPosition(new THREE.Vector3());
+      buttons.push({ id: "gear", at: { x: p.x, y: p.y, z: p.z }, radius: UP_GEAR_SIZE / 2 });
+    }
     const contacts = [goHandInput.left?.contact ?? null, goHandInput.right?.contact ?? null];
     const { pressed, inside } = touchPresses(buttons, contacts, touching.current);
     touching.current = inside;
@@ -1749,6 +1785,7 @@ export function RoomControls({
 
   pressTalkRef.current = pressTalk;
   openMenuRef.current = openMenu;
+  closeMenuRef.current = closeMenu;
   // THE GESTURE NEVER STOPS A SEND ON ITS WAY. Only the ✕ button does. A
   // tracking blink read as a fist was aborting Nikk's sends mid-flight (the
   // headset reported them "stopped"), then saying so, while they had arrived.
@@ -1830,6 +1867,13 @@ export function RoomControls({
 
   return (
     <>
+      {/* THE GEAR, UP WHERE YOU LOOK (Nikk, 5245): a pointer or a fingertip
+          opens the settings. Placed every frame in the loop above. */}
+      <group ref={upGear} visible={false}>
+        {upVisible && !open ? (
+          <WristButton label="⚙" glyph x={0} y={0} width={UP_GEAR_SIZE} height={UP_GEAR_SIZE} onTap={openMenu} />
+        ) : null}
+      </group>
       <group ref={group} visible={false}>
       {fixing ? (
         /*
@@ -1939,22 +1983,8 @@ export function RoomControls({
             The talk button is the wider of the two because it is the one you
             press constantly and the one you must be able to hit without aiming.
           */}
-          <WristButton
-            label="⚙"
-            glyph
-            // The pair is centred on you, with a real gap between them. They
-            // used to touch exactly, edge to edge, which on a control you aim
-            // at from across a room with a ray is a mis-tap waiting to happen —
-            // and the mis-tap would be "opened the settings" when you meant
-            // "start talking", or worse, the reverse while you were mid-sentence.
-            x={GEAR_X}
-            y={0}
-            width={ICON}
-            height={ICON}
-            tone={listening ? "muted" : "normal"}
-            opacity={buttonOpacity}
-            onTap={openMenu}
-          />
+          {/* THE GEAR IS UP WHERE YOU LOOK now, not down here: see upGear below
+              (Nikk, 5245). */}
           {/*
             * ONE BUTTON, TWO PRESSES: press to talk, press again to send.
             *

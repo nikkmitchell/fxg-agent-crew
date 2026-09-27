@@ -39,13 +39,13 @@ describe("how visible they are", () => {
 });
 
 describe("which closed buttons exist", () => {
-  it("with hands in view, only the gear: nothing invisible beside it can start a recording (Nikk, 5125)", () => {
-    expect(closedButtons(true, false)).toEqual(["gear"]);
-    expect(closedButtons(true, true)).toEqual(["gear"]);
+  it("with hands in view, nothing below you: the gesture talks and the gear is up (Nikk, 5125, 5245)", () => {
+    expect(closedButtons(true, false)).toEqual([]);
+    expect(closedButtons(true, true)).toEqual([]);
   });
 
-  it("with controllers, the gear and talk, and cancel while there is something to throw away", () => {
-    expect(closedButtons(false, false)).toEqual(["gear", "talk"]);
-    expect(closedButtons(false, true)).toEqual(["gear", "talk", "cancel"]);
+  it("with controllers, talk, and cancel while there is something to throw away; the gear is up", () => {
+    expect(closedButtons(false, false)).toEqual(["talk"]);
+    expect(closedButtons(false, true)).toEqual(["talk", "cancel"]);
   });
 });

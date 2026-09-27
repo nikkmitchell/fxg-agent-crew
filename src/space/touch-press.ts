@@ -71,7 +71,10 @@ function distance(a: Point, b: Point): number {
  * could still be touched, an invisible button beside the gear that started a
  * recording (Nikk, 5125). With hands, the gesture talks and cancels.
  */
-export function closedButtons(handsInView: boolean, cancellable: boolean): Array<"gear" | "talk" | "cancel"> {
-  if (handsInView) return ["gear"];
-  return cancellable ? ["gear", "talk", "cancel"] : ["gear", "talk"];
+export function closedButtons(handsInView: boolean, cancellable: boolean): Array<"talk" | "cancel"> {
+  // THE GEAR IS NOT DOWN HERE ANY MORE: it appears when you look up (Nikk,
+  // 5245; see control-pose.ts lookingUp). With hands the gesture talks, so the
+  // pair below is empty.
+  if (handsInView) return [];
+  return cancellable ? ["talk", "cancel"] : ["talk"];
 }
