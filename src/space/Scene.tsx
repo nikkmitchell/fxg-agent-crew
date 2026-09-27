@@ -55,6 +55,7 @@ import { GongStand } from "./GongStand";
 import { RainCurtain } from "./RainCurtain";
 import { Lanterns } from "./Lanterns";
 import { StarMap } from "./StarMap";
+import { BambooKnocker } from "./BambooKnocker";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
@@ -904,6 +905,8 @@ export default function Scene({
         {connection.meditation?.shown && <Lanterns you={you} />}
         {/* And the star map overhead: see shared/stars.ts. */}
         {connection.meditation?.shown && <StarMap />}
+        {/* And the bamboo water clock by the pond: see BambooKnocker.tsx. */}
+        {connection.meditation?.shown && <BambooKnocker />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
