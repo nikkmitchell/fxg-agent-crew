@@ -100,11 +100,32 @@ export type Meditation = {
    * See shared/guided.ts: a guide fixes the length and breathes CALM.
    */
   guide: GuideId | null;
+  /**
+   * INTENTION STONES: words people bring to a session ("rest", "patience",
+   * a name), each a glowing stone circling the orb.
+   *
+   * THEY STAY. Nikk (5483): not cleared when a session ends, "so there can be
+   * like building up of spaces". Every word adds a stone; past MOST_INTENTIONS
+   * the oldest drift away, and a writer can take back their latest.
+   */
+  intentions: Intention[];
   revision: number;
 };
 
+export type Intention = { by: string; word: string };
+export const INTENTION_LONGEST = 24;
+export const MOST_INTENTIONS = 40;
+
+/** A word someone typed, as a stone can carry it, or a sentence saying why not. */
+export function intentionWord(value: unknown): string | { refused: string } {
+  if (typeof value !== "string") return { refused: "an intention is a word or two" };
+  const word = value.replace(/\s+/g, " ").trim();
+  if (word.length > INTENTION_LONGEST) return { refused: `keep it to ${INTENTION_LONGEST} letters or fewer` };
+  return word;
+}
+
 export function idleMeditation(): Meditation {
-  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, revision: 0 };
+  return { pattern: "calm", minutes: 5, startedAt: null, pausedAt: null, startedBy: null, together: [], shown: false, guide: null, intentions: [], revision: 0 };
 }
 
 export function isPattern(value: unknown): value is PatternId {
@@ -208,6 +229,8 @@ export type MeditationChange =
   | { action: "resume" }
   | { action: "end" }
   | { action: "show"; shown?: unknown }
+  /** Set your own intention; an empty word takes your stone away. */
+  | { action: "intend"; word?: unknown }
   | { action: "settings"; pattern?: unknown; minutes?: unknown; guide?: unknown };
 
 /**
@@ -265,6 +288,15 @@ export function applyMeditation(
       return change.shown ? { ...next, shown: true } : { ...idleMeditation(), pattern: session.pattern, minutes: session.minutes, revision: next.revision };
     case "end":
       return { ...next, startedAt: null, pausedAt: null, startedBy: null, together: [] };
+    case "intend": {
+      const word = intentionWord(change.word);
+      if (typeof word !== "string") return word;
+      if (word) return { ...next, intentions: [...session.intentions, { by, word }].slice(-MOST_INTENTIONS) };
+      // An empty word takes back your own latest stone, and nobody else's.
+      const latest = session.intentions.map((one) => one.by.toLowerCase()).lastIndexOf(by.toLowerCase());
+      if (latest < 0) return { refused: "you have no stone here to take back" };
+      return { ...next, intentions: session.intentions.filter((_, index) => index !== latest) };
+    }
     default:
       return { refused: "unknown action" };
   }
@@ -289,6 +321,11 @@ export function parseMeditation(value: unknown): Meditation | null {
     together: Array.isArray(v.together) ? v.together.filter((n): n is string => typeof n === "string") : [],
     shown: v.shown === true,
     guide: isGuide(v.guide) ? v.guide : null,
+    intentions: Array.isArray(v.intentions)
+      ? v.intentions.filter((one): one is Intention =>
+          !!one && typeof one === "object" && typeof (one as Intention).by === "string" && typeof (one as Intention).word === "string")
+        .slice(0, MOST_INTENTIONS)
+      : [],
     revision: Number.isInteger(v.revision) ? (v.revision as number) : 0,
   };
 }
@@ -305,4 +342,24 @@ export function parseMeditation(value: unknown): Meditation | null {
  */
 export function clockOffset(serverNow: number, sentAt: number, arrivedAt: number): number {
   return serverNow - (sentAt + arrivedAt) / 2;
+}
+
+/**
+ * THE BREATH ON THE FLOOR. On every out-breath a ring rolls out across the
+ * floor from beneath the orb and fades, like a ripple on still water: in
+ * passthrough it lands on the person's own floor, so the breath is something
+ * you can see leave you. Pure, from the shared breath, so everybody's ripple
+ * is the same ripple.
+ *
+ * Returns the ring's radius in metres and how visible it is, or null when no
+ * ripple is on the floor.
+ */
+export const RIPPLE_REACH = 2.6;
+export function rippleAt(breath: BreathNow): { radius: number; opacity: number } | null {
+  if (breath.state !== "breathing" || breath.phase !== "out") return null;
+  const t = breath.progress;
+  // Eases out: quick to leave the orb, slowing as it spreads, like water.
+  const radius = 0.25 + (RIPPLE_REACH - 0.25) * (1 - (1 - t) * (1 - t));
+  const opacity = 0.55 * Math.sin(Math.PI * Math.min(1, t * 1.15));
+  return opacity > 0.01 ? { radius, opacity } : null;
 }

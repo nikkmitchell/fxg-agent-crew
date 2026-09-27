@@ -92,6 +92,50 @@ export const GUIDES = {
       { at: 568, say: "Notice the room around you. And when you are ready, open your eyes, and carry this with you." },
     ],
   },
+  /**
+   * WALKING, made for passthrough: the room opens as immersive-ar, so the
+   * person can see their own floor and walk slowly around it.
+   */
+  walking: {
+    label: "WALKING · 5 MIN",
+    minutes: 5,
+    lines: [
+      { at: 2, say: "Welcome to a walking meditation. You can see your own room around you, so find a clear path a few steps long." },
+      { at: 22, say: "Stand still for a moment. Feel both feet on the floor, and your weight spread between them." },
+      { at: 42, say: "Now begin to walk, much more slowly than usual. Half your normal speed, and then half again." },
+      { at: 64, say: "Notice the heel lifting. The foot moving through the air. The foot setting down." },
+      { at: 88, say: "Lifting. Moving. Placing. Let each step be complete before the next begins." },
+      { at: 114, say: "When you reach the end of your path, pause, turn slowly, and walk back." },
+      { at: 140, say: "If your mind drifts off, stop for a moment. Feel your feet. Then walk on." },
+      { at: 166, say: "Notice the small movements that keep you balanced. Your ankles, your knees, your hips." },
+      { at: 192, say: "Let your eyes rest softly ahead of you. There is nowhere to get to." },
+      { at: 220, say: "Let your breathing and your steps find their own rhythm together." },
+      { at: 250, say: "Begin to slow down even more, and come to a gentle stop." },
+      { at: 270, say: "Stand still, and feel the ground under you. Thank you for walking together." },
+    ],
+  },
+  sleep: {
+    label: "SLEEP · 10 MIN",
+    minutes: 10,
+    lines: [
+      { at: 2, say: "Welcome. This is a wind-down for the end of the day. Get as comfortable as you can." },
+      { at: 22, say: "Let the orb slow your breathing. A little longer on each breath out." },
+      { at: 48, say: "The day is finished. Whatever happened today can wait until tomorrow." },
+      { at: 74, say: "Let your forehead go smooth. Let your eyes feel heavy." },
+      { at: 100, say: "Let your jaw hang loose, and your tongue rest in your mouth." },
+      { at: 128, say: "Let your shoulders sink down, as if they were melting." },
+      { at: 156, say: "Your arms are heavy. Your hands are heavy and warm." },
+      { at: 186, say: "Each breath out lets you sink a little deeper." },
+      { at: 216, say: "Your chest and your belly rise and fall on their own. You do not need to do anything." },
+      { at: 248, say: "Your legs are heavy. Your feet are heavy and warm." },
+      { at: 280, say: "If a thought comes, let it drift past, like a cloud across the sky." },
+      { at: 316, say: "Imagine a soft, dim light, slowly fading, as the evening turns into night." },
+      { at: 356, say: "Count your breaths backwards from ten. Slowly. If you lose count, simply start again." },
+      { at: 420, say: "Heavier. Softer. Quieter." },
+      { at: 480, say: "There is nothing left to do today." },
+      { at: 540, say: "Rest now. Good night." },
+    ],
+  },
 } as const satisfies Record<string, Guide>;
 
 export type GuideId = keyof typeof GUIDES;
