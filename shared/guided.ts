@@ -24,6 +24,8 @@ export type Guide = {
   label: string;
   minutes: 3 | 5 | 10;
   lines: readonly GuideLine[];
+  /** A Kokoro voice for this guide; GUIDE_VOICE when not given. zf_ voices speak Mandarin. */
+  voice?: string;
 };
 
 /** The voice every guide speaks in: Kokoro's clearest, and unhurried. */
@@ -136,6 +138,27 @@ export const GUIDES = {
       { at: 540, say: "Rest now. Good night." },
     ],
   },
+  /**
+   * ARRIVE, in Mandarin, for the people in China who use this room (Nikk and
+   * baiwei are in Shanghai). Spoken by a Mandarin Kokoro voice; /opt/kokoro/say
+   * picks the language from the voice's first letter.
+   */
+  "arrive-zh": {
+    label: "到达 · 3 分钟",
+    minutes: 3,
+    voice: "zf_xiaoxiao",
+    lines: [
+      { at: 2, say: "欢迎。无论坐着还是站着，找一个舒服的姿势，让自己安顿下来。" },
+      { at: 16, say: "跟着光球呼吸。它变大时吸气，它变小时，慢慢呼气。" },
+      { at: 32, say: "感受身体的重量。地板或者椅子，正稳稳地支撑着你。" },
+      { at: 50, say: "此刻没有什么需要解决，也没有别的地方要去。" },
+      { at: 68, say: "如果思绪飘走了，没关系。留意它去了哪里，然后回到呼吸。" },
+      { at: 92, say: "让肩膀放松一点。放松下巴。松开双手。" },
+      { at: 114, say: "感受空气进来时的清凉，和出去时的温暖。" },
+      { at: 138, say: "我们再一起呼吸几次。" },
+      { at: 160, say: "慢慢地，重新注意到周围的房间。准备好了，就带着这份平静继续前行。" },
+    ],
+  },
   counting: {
     label: "COUNTING · 3 MIN",
     minutes: 3,
@@ -169,6 +192,12 @@ export const GUIDES = {
     ],
   },
 } as const satisfies Record<string, Guide>;
+
+/** The voice a guide is spoken in. */
+export function guideVoice(id: keyof typeof GUIDES): string {
+  const guide: Guide = GUIDES[id];
+  return guide.voice ?? GUIDE_VOICE;
+}
 
 export type GuideId = keyof typeof GUIDES;
 export const GUIDE_IDS = Object.keys(GUIDES) as GuideId[];
