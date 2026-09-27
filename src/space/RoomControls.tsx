@@ -22,7 +22,7 @@ import { goHandInput } from "./go-hand-input";
 import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
-import { micGestureHands, micGestureIndicator } from "./mic-gesture-input";
+import { handsTracked, micGestureHands, micGestureIndicator } from "./mic-gesture-input";
 import {
   closedControlPose,
   lookingUp,
@@ -1864,7 +1864,7 @@ export function RoomControls({
     // Seen hands, for hiding the touch buttons; lost for a few seconds before
     // they come back, so a blink in tracking does not flash them.
     const now = performance.now();
-    if (micGestureHands.left || micGestureHands.right) lastHandSeen.current = now;
+    if (handsTracked.left || handsTracked.right) lastHandSeen.current = now;
     const seen = now - lastHandSeen.current < 3_000;
     if (seen !== handsInView) setHandsInView(seen);
     const startAction = capabilities.recognition

@@ -22,6 +22,7 @@ import {
   MIC_GESTURE_JOINT_NAMES,
   MIC_GESTURE_POSTURE_JOINT_INDICES,
   micGestureHands,
+  handsTracked,
   fingersStraight,
   palmNormalOf,
   mostlyClosed,
@@ -897,7 +898,11 @@ export function ImmersivePlayer({
       // Treat it as lost, which the gesture already rides out.
       const wristSpace = input?.inputSource.hand.get("wrist");
       const guessed = wristSpace && frame && originSpace ? frame.getPose(wristSpace, originSpace)?.emulatedPosition === true : false;
-      const gestureWrist = input && !guessed && !holdsController(wristSpace) ? localPose(wristSpace, frame) : null;
+      const holding = holdsController(wristSpace);
+      // Hands in use, for hiding the touch buttons: a real hand, not a guessed
+      // one and not one holding a controller (see handsTracked).
+      handsTracked[side] = Boolean(input && wristSpace && !guessed && !holding);
+      const gestureWrist = input && !guessed && !holding ? localPose(wristSpace, frame) : null;
       const joints: Array<{ x: number; y: number; z: number } | null> = MIC_GESTURE_JOINT_NAMES.map(() => null);
       if (input && gestureWrist) {
         joints[0] = gestureWrist.p;

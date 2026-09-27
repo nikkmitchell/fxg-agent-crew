@@ -59,9 +59,21 @@ export const micGestureIndicator: {
   popKind: "sent" | "cancelled";
 } = { side: null, tilt: 0, closing: 0, popAt: null, popKind: "sent" };
 
+/**
+ * WHICH HANDS ARE BEING TRACKED AS HANDS, whether or not the gesture could read
+ * them this frame. Nikk (5375, 5381): with bare hands he still saw the touch
+ * talk button. Whether hands are in use was read off the gesture's hands, which
+ * are dropped for many reasons (a missing finger joint, a guessed wrist), so
+ * any gap brought the touch buttons back. This is only "a real, tracked hand
+ * that is not holding a controller".
+ */
+export const handsTracked: Record<MicGestureSide, boolean> = { left: false, right: false };
+
 export function clearMicGestureHands() {
   micGestureHands.left = null;
   micGestureHands.right = null;
+  handsTracked.left = false;
+  handsTracked.right = false;
   micGestureIndicator.side = null;
   micGestureIndicator.tilt = 0;
   micGestureIndicator.closing = 0;
