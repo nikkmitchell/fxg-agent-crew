@@ -35,10 +35,13 @@ import { shouldDial } from "./voice-pairing";
 export type VoiceChat = {
   /** True once your microphone is open and the room has been told. */
   on: boolean;
+  /** A microphone permission prompt or device initialization is in progress. */
+  starting: boolean;
   /**
-   * Everyone's incoming audio, by actor id, for the scene to place where each
-   * speaker stands. Also attached to a muted `<audio>` element here: a
-   * MediaStream never attached to a media element does not flow in Chrome.
+   * Everyone's incoming audio, by actor id, for the scene to play at one
+   * consistent room-wide level. Also attached to a muted `<audio>` element
+   * here: a MediaStream never attached to a media element does not flow in
+   * Chrome.
    */
   streams: Map<string, MediaStream>;
   /** Who else has their microphone on. */
@@ -79,12 +82,15 @@ export function useVoiceChat(
   roomPeople: string[],
 ): VoiceChat {
   const [on, setOnState] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [others, setOthers] = useState<string[]>([]);
   const [streams, setStreams] = useState<Map<string, MediaStream>>(new Map());
   const [trouble, setTrouble] = useState<string | null>(null);
   const [muted, setMutedState] = useState<Set<string>>(() => readMuted());
 
   const microphone = useRef<MediaStream | null>(null);
+  const microphoneRequest = useRef(0);
+  const microphonePending = useRef(false);
   const peers = useRef(new Map<string, RTCPeerConnection>());
   /** Candidates that arrived before the description they belong to. */
   const waiting = useRef(new Map<string, RTCIceCandidateInit[]>());
@@ -151,8 +157,8 @@ export function useVoiceChat(
         if (!sound) {
           sound = document.createElement("audio");
           sound.autoplay = true;
-          // Muted on purpose: the scene plays this voice positioned. The element
-          // is only here to make the stream flow at all.
+          // Muted on purpose: the scene plays the Web Audio stream uniformly.
+          // This element is only here to make the stream flow in Chrome.
           sound.muted = true;
           sounds.current.set(id, sound);
         }
@@ -321,6 +327,12 @@ export function useVoiceChat(
     (next: boolean) => {
       setTrouble(null);
       if (!next) {
+        // Cancelling a permission prompt invalidates its eventual result too.
+        // Without the generation check below, a slow browser prompt could
+        // resolve after this press and reopen the microphone unexpectedly.
+        microphoneRequest.current += 1;
+        microphonePending.current = false;
+        setStarting(false);
         for (const track of microphone.current?.getTracks() ?? []) track.stop();
         microphone.current = null;
         live.current.on = false;
@@ -330,15 +342,32 @@ export function useVoiceChat(
         send({ type: "voicePresence", on: false });
         return;
       }
+      if (live.current.on || microphonePending.current) return;
+      const request = ++microphoneRequest.current;
+      microphonePending.current = true;
+      setStarting(true);
       void (async () => {
+        let stream: MediaStream;
         try {
-          microphone.current = await navigator.mediaDevices.getUserMedia({
+          stream = await navigator.mediaDevices.getUserMedia({
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
           });
         } catch {
-          setTrouble("The microphone was refused, so nobody can hear you.");
+          if (microphoneRequest.current === request) {
+            setTrouble("The microphone could not be opened. Check this site's microphone permission and try again.");
+          }
+          return;
+        } finally {
+          if (microphoneRequest.current === request) {
+            microphonePending.current = false;
+            setStarting(false);
+          }
+        }
+        if (microphoneRequest.current !== request) {
+          for (const track of stream.getTracks()) track.stop();
           return;
         }
+        microphone.current = stream;
         live.current.on = true;
         setOnState(true);
         // Connections set up while I only listened carry no microphone. Start
@@ -367,6 +396,8 @@ export function useVoiceChat(
 
   useEffect(
     () => () => {
+      microphoneRequest.current += 1;
+      microphonePending.current = false;
       for (const id of [...peers.current.keys()]) drop(id);
       for (const track of microphone.current?.getTracks() ?? []) track.stop();
       microphone.current = null;
@@ -374,5 +405,5 @@ export function useVoiceChat(
     [drop],
   );
 
-  return { on, others, streams, muted, setMuted, trouble, setOn };
+  return { on, starting, others, streams, muted, setMuted, trouble, setOn };
 }
