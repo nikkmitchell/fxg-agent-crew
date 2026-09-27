@@ -22,6 +22,8 @@ import { bff } from "../bff-client";
 import { ApiError } from "../api-request";
 import { useAvatarRecorder } from "./useAvatarRecorder";
 import { isLobby } from "../../shared/lobby-hall";
+import { microphonePermission, rememberSelfMute, selfMuted, shouldStartVoice } from "./voice-default";
+import { inSession } from "../update-reload";
 
 /**
  * The way in to screen sharing, on the website rather than only in a terminal.
@@ -196,6 +198,29 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
     // no ears in a browser.
     connection.roster.filter((person) => person.connected && person.kind !== "agent").map((person) => person.actorId),
   );
+  /**
+   * VOICE ON FROM THE START (Nikk): see voice-default.ts. Once per page, as
+   * soon as the room knows who you are, and asked here on the flat page —
+   * never from inside a headset session unless the microphone is already
+   * allowed.
+   */
+  const voiceNow = useRef(voice);
+  voiceNow.current = voice;
+  const voiceDecided = useRef(false);
+  const voiceYou = connection.status.state === "open" ? connection.status.you : null;
+  useEffect(() => {
+    if (!entered || !voiceYou || voiceDecided.current) return;
+    let cancelled = false;
+    void microphonePermission().then((permission) => {
+      if (cancelled || voiceDecided.current) return;
+      voiceDecided.current = true;
+      const now = voiceNow.current;
+      if (shouldStartVoice({ selfMuted: selfMuted(), alreadyOn: now.on || now.starting, immersive: inSession(), permission })) now.setOn(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [entered, voiceYou]);
   const avatarRecorder = useAvatarRecorder(connection.status.state === "open" ? connection.status.you : null);
   useEffect(() => {
     if (!isLobby(spaceRoomName) && avatarRecorder.status === "recording") void avatarRecorder.stop();
@@ -423,7 +448,11 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
           <button
             type="button"
             className={voice.on || voice.starting ? "primary-action" : "text-button"}
-            onClick={() => voice.setOn(voice.on || voice.starting ? false : true)}
+            onClick={() => {
+              const next = !(voice.on || voice.starting);
+              rememberSelfMute(!next);
+              voice.setOn(next);
+            }}
           >
             {voice.starting
               ? "Opening microphone… click to cancel"

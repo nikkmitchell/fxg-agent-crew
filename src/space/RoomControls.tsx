@@ -8,8 +8,11 @@ import { useXR } from "@react-three/xr";
 import * as THREE from "three";
 import { bff } from "../bff-client";
 import { space } from "../space-client";
-import { ButtonBox, WRIST_BUTTON, WristButton, roundedRect } from "./Backdrop";
-import { ALL_TABS, screenOf, type SettingsTab } from "./settings-tabs";
+import { WRIST_BUTTON, WristButton } from "./Backdrop";
+import { SETTINGS_TABS, settingsBadge, settingsSections, tabOfView, type SettingsView } from "./settings-menu-model";
+import { SettingsMenu3D } from "./SettingsMenu3D";
+import { MENU, menuHeight } from "./menu-layout";
+import { rememberSelfMute } from "./voice-default";
 import {
   closedButtons,
   handNear,
@@ -19,7 +22,6 @@ import {
   type TouchButton,
 } from "./touch-press";
 import { goHandInput } from "./go-hand-input";
-import { columnX, gridSlots, toColumns } from "./menu-columns";
 import { micGlyph, micPress } from "./mic-press";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
 import { handsTracked, micGestureHands, micGestureIndicator } from "./mic-gesture-input";
@@ -140,43 +142,10 @@ const FIX_AHEAD = 1.2;
 const FIX_HEIGHT = 1.38;
 
 /**
- * One button in the open grid. Wider and taller than the waist buttons.
- *
- * BIGGER, WITH ROOM BETWEEN. Baiwei (4968): "The settings are too small ... When
- * I try to press any of them, I mostly miss". At two metres an 11 cm button
- * with under 2 cm between it and the next is a target a ray slides off; these
- * are half as tall again with three centimetres of gap.
+ * THE OPEN MENU is one drawn panel now: sizes, colours and layout live in
+ * menu-layout.ts and menu-paint.ts, and what each tab shows in
+ * settings-menu-model.ts (Nikk, 5426, 5439, 5445).
  */
-const BOX_BUTTON = { width: 0.8, height: 0.16, gap: 0.03 } as const;
-/** A tab, and a scope above the tabs. Grown for the same reason. */
-// Five tabs as one segmented row, as wide as the two-column grid below it.
-const TAB_BUTTON = { width: 0.33, height: 0.17, gap: 0.02 } as const;
-/**
- * THE TOP TWO ROWS' WORDS FILL THEIR BUTTONS. Baiwei (4976): "the first and
- * second row. Me, the room ... they're tiny ... I barely see the text." Their
- * text was a fixed size meant for a two-line sentence, a sixth of the button.
- */
-const TAB_TEXT = 0.3;
-/** How far above the first box's top the tab row sits. */
-const TAB_ROW_ABOVE = 0.36;
-/**
- * How many buttons a box holds before it spills into another column. Five, not
- * seven, since the buttons grew: seven tall ones stood a box half again as high.
- */
-const BOX_ROWS = 5;
-const BOX_GAP = 0.08;
-/**
- * How many boxes stand side by side before the grid wraps onto another row.
- *
- * Three at this distance is about fifty degrees across — read with your eyes,
- * not by turning your head. Five was seventy-five, which is inside a headset's
- * field of view and still too wide to use comfortably.
- */
-// ALL IN ONE ROW (Nikk, 5445): "show up horizontally so the menu never
-// increases in height". Sections sit side by side and never wrap downward.
-const BOXES_PER_ROW = 8;
-/** Nikk (5445): "make the size of everything 70% smaller". */
-const MENU_SCALE = 0.7;
 
 /**
  * The closed controls: settings and talk, the same size, rounded like a phone's
@@ -209,6 +178,8 @@ const CANCEL_X = TALK_X + ICON + ICON_GAP;
 const UP_GEAR_SIZE = UP_CONTROL_SIZE;
 /** The status line under them: wide enough for a short sentence on two lines. */
 const STATUS = { width: 0.42, height: 0.09 } as const;
+/** What the line under the controls says while a new version waits. */
+const UPDATE_LINE = "New version ready — press here to update";
 
 /** Good news goes by itself; a problem stays until it is tapped away. */
 const NOTICE_FADE_MS = 5_000;
@@ -348,16 +319,14 @@ export function RoomControls({
    * one decision, and a decision that changes what everybody in the room is
    * looking at deserves its own screen rather than a row among twenty.
    */
-  const [view, setView] = useState<"root" | "work" | "mood" | "panels" | "agents" | "items" | "rooms">("root");
+  const [view, setView] = useState<SettingsView>("root");
   /**
    * THE TABS (Nikk 4785, Moraine v0.2 and its addendum). First a scope, ME or
    * THIS ROOM, then that scope's short row of tabs, so a headset never shows
    * eight across. ME follows the person between rooms; THIS ROOM changes what
    * everybody here sees and says so.
    */
-  const [tab, setTab] = useState<SettingsTab>("me");
-  const tabRef = useRef<SettingsTab>("me");
-  tabRef.current = tab;
+  // The tab is whichever one the view belongs to: see tabOfView.
   /**
    * The Rooms page's lists, read each time it opens: which rooms you belong to
    * and which public ones you could join. Null while loading. Read fresh
@@ -390,6 +359,8 @@ export function RoomControls({
   const preferences = useRoomPreferences();
   /** Whether a newer build is waiting for this session to end. */
   const [newVersion, setNewVersion] = useState(() => updateWaiting());
+  /** Whether the line under the controls is offering the update, for the fingertip loop. */
+  const updateOfferedNow = useRef(false);
   useEffect(() => watchUpdate(setNewVersion), []);
   /**
    * BOTH, BY DEFAULT, IN A HEADSET.
@@ -972,13 +943,6 @@ export function RoomControls({
    * to press one button, which you cannot do with something welded to you.
    */
   const pinned = useRef<{ x: number; y?: number; z: number; yaw: number; from: { x: number; z: number } } | null>(null);
-  /**
-   * CENTRED ON YOUR EYES (Nikk, 5410): "move the menu position so that when it
-   * pops up the centre of the menu is straight in front of your head". The
-   * height is the head's at the moment it opens, and the menu is lifted by how
-   * far its drawn middle (tabs included) sits from its origin.
-   */
-  const menuMiddle = useRef(0);
 
   const pinAhead = useCallback(() => {
     const body = anchor();
@@ -1014,8 +978,8 @@ export function RoomControls({
 
   const closeMenu = useCallback(() => {
     pinned.current = null;
-    // Back to the screen of the tab you were on, so it opens where you left it.
-    setView(screenOf(tabRef.current));
+    // Back to the main screen of the tab you were on, so it opens where you left it.
+    setView((current) => SETTINGS_TABS.find((entry) => entry.id === tabOfView(current))?.view ?? "root");
     setOpen(false);
   }, []);
 
@@ -1072,7 +1036,9 @@ export function RoomControls({
     const now = performance.now();
     if (isDuplicateActivation(lastRoomCallPress.current, now)) return;
     lastRoomCallPress.current = now;
-    voice.setOn(voice.on || voice.starting ? false : true);
+    const next = !(voice.on || voice.starting);
+    rememberSelfMute(!next);
+    voice.setOn(next);
   }, [voice.on, voice.setOn, voice.starting]);
   useFrame((state) => {
     const node = group.current;
@@ -1109,7 +1075,10 @@ export function RoomControls({
     if (held) {
       if (held.y === undefined) {
         const head = state.camera.getWorldPosition(new THREE.Vector3()).y;
-        held.y = (head > 0.5 ? head : OPEN_HEIGHT) - menuMiddle.current;
+        // CENTRED ON YOUR EYES (Nikk, 5410): "when it pops up the centre of the
+        // menu is straight in front of your head". The panel is drawn about
+        // its own middle, so its middle goes at the head's height.
+        held.y = head > 0.5 ? head : OPEN_HEIGHT;
       }
       node.position.set(held.x, held.y, held.z);
       node.rotation.set(0, held.yaw, 0);
@@ -1170,6 +1139,15 @@ export function RoomControls({
       at: at(id === "talk" ? TALK_X : CANCEL_X),
       radius: ICON / 2,
     }));
+    // The update line, while it is offered: three touch points along it, since
+    // it is a wide strip and a touch point is a sphere.
+    if (updateOfferedNow.current) {
+      const y = -ICON / 2 - 0.035 - STATUS.height / 2;
+      for (const x of [-STATUS.width / 3, 0, STATUS.width / 3]) {
+        const p = node.localToWorld(new THREE.Vector3(x, y, 0));
+        buttons.push({ id: "update", at: { x: p.x, y: p.y, z: p.z }, radius: STATUS.height * 0.75 });
+      }
+    }
     // The gear, while it is up, is pressed by a fingertip the same way.
     if (upShown.current && upGear.current) {
       const gearAt = upGear.current.getWorldPosition(new THREE.Vector3());
@@ -1183,6 +1161,7 @@ export function RoomControls({
       else if (id === "room-call") toggleRoomCall();
       else if (id === "talk") pressTalkRef.current();
       else if (id === "cancel") cancelRef.current?.();
+      else if (id === "update") reloadNow();
     }
     const near = handNear(buttons, contacts);
     if (near !== handIsNear) setHandIsNear(near);
@@ -1191,481 +1170,190 @@ export function RoomControls({
     recorderControlVisual.personalUi = open ? recordedControl(group.current) : null;
   });
 
-  type Row = { label: string; tone?: "normal" | "muted" | "live"; onTap: () => void };
-  type Box = { title: string; rows: Row[] };
-
-  const boxes: Box[] = [];
-
+  /**
+   * WHAT THE MENU SHOWS: decided in settings-menu-model.ts, drawn as one panel
+   * by SettingsMenu3D. Only worked out while it is open.
+   */
   const projectName =
     showingChoices.projects?.find((project) => project.id === showing.projectId)?.name ?? null;
   const boardName =
     showingChoices.boards?.find((moodBoard) => moodBoard.id === showing.boardId)?.title ?? null;
-  const showRows: Row[] = [
-      {
-        label: `Work board: ${projectName ?? (showing.projectId ? showing.projectId : "none")}`,
-        tone: showing.projectId ? "live" : "normal",
-        onTap: () => setView("work"),
-      },
-      {
-        label: `Mood board: ${boardName ?? (showing.boardId ? showing.boardId : "none")}`,
-        tone: showing.boardId ? "live" : "normal",
-        onTap: () => setView("mood"),
-      },
-      // HIDE THE AGENTS FOR EVERYONE in this room, their screens too (Nikk 5384).
-      {
-        label: agentsHiddenForEveryone ? "Agents: hidden for everyone" : "Agents for everyone: shown",
-        tone: agentsHiddenForEveryone ? ("live" as const) : ("normal" as const),
-        onTap: () => {
-          const next = !agentsHiddenForEveryone;
-          setAgentsHiddenForEveryone(next);
-          void space.setAgentsHiddenForRoom(next).catch(() => {
-            setAgentsHiddenForEveryone(!next);
-            setNotice("That did not reach the room; the agents were not changed.");
-          });
-        },
-      },
-      // HIDE THE AGENTS, for you alone, in this room (Nikk 5299): see agents-hidden.ts.
-      ...(currentRoom
-        ? [{
-            label: hiddenForMe ? "Agents: hidden (just for you)" : "Agents for you: shown",
-            tone: hiddenForMe ? ("live" as const) : ("normal" as const),
-            onTap: () => setAgentsHidden(currentRoom, !hiddenForMe),
-          }]
-        : []),
-      ...(showingChoices.refusal
-        ? [{ label: showingChoices.refusal, tone: "muted" as const, onTap: () => {} }]
-        : showing.setBy
-          ? [{ label: `Set by ${showing.setBy}`, tone: "muted" as const, onTap: () => {} }]
-          : []),
-    ];
-
-  if (open && view === "work") {
-    /**
-     * EVERY WORK BOARD, as its own screen.
-     *
-     * One project per row rather than a cycle, because cycling would drag the
-     * whole room through every other project on the way to the one you want —
-     * every step of it a change everybody standing here can see.
-     */
-    const rows: Row[] = [{ label: "← Back to Show", onTap: () => setView("panels") }];
-    if (showingChoices.projects === null) {
-      rows.push({ label: "Projects could not be read", tone: "muted", onTap: () => {} });
-    } else if (showingChoices.projects.length === 0) {
-      rows.push({ label: "There are no projects yet", tone: "muted", onTap: () => {} });
-    } else {
-      rows.push({
-        label: `${showing.projectId === null ? "✓" : "·"} Show nothing`,
-        tone: showing.projectId === null ? "live" : "normal",
-        onTap: () => showingChoices.choose({ projectId: null, boardId: null }),
-      });
-      for (const project of showingChoices.projects) {
-        const on = showing.projectId === project.id;
-        rows.push({
-          label: `${on ? "✓" : "·"} ${project.name}`,
-          tone: on ? "live" : "normal",
-          onTap: () => {
-            showingChoices.choose({ projectId: project.id, boardId: null });
-            setView("panels");
-          },
-        });
-      }
-    }
-    boxes.push({ title: "Work board — for everyone", rows });
-  } else if (open && view === "mood") {
-    const rows: Row[] = [{ label: "← Back to Show", onTap: () => setView("panels") }];
-    if (!showing.projectId) {
-      // The server refuses a mood board with no project, and offering a list
-      // here would be inviting that refusal.
-      rows.push({ label: "Choose a work board first", tone: "muted", onTap: () => {} });
-    } else if (showingChoices.boards === null) {
-      rows.push({ label: "Mood boards could not be read", tone: "muted", onTap: () => {} });
-    } else if (showingChoices.boards.length === 0) {
-      rows.push({ label: "This project has no mood boards", tone: "muted", onTap: () => {} });
-    } else {
-      rows.push({
-        label: `${showing.boardId === null ? "✓" : "·"} Show none`,
-        tone: showing.boardId === null ? "live" : "normal",
-        onTap: () => showingChoices.choose({ projectId: showing.projectId, boardId: null }),
-      });
-      for (const moodBoard of showingChoices.boards) {
-        const on = showing.boardId === moodBoard.id;
-        rows.push({
-          label: `${on ? "✓" : "·"} ${moodBoard.title}`,
-          tone: on ? "live" : "normal",
-          onTap: () => {
-            showingChoices.choose({ projectId: showing.projectId, boardId: moodBoard.id });
-            setView("panels");
-          },
-        });
-      }
-    }
-    boxes.push({ title: "Mood board — for everyone", rows });
-  } else if (open && view === "panels") {
-    const panelRows: Row[] = [];
-    for (const panel of panels.catalogue) {
-      const shown = panels.open.includes(panel.id);
-      panelRows.push({
-        label: `${shown ? "✓" : "·"} ${panel.label}`,
-        tone: shown ? "live" : "muted",
-        onTap: () => panels.setOpen(panel.id, !shown),
-      });
-      if (!shown) continue;
-      const mode = arrange.modeOf(panel.id);
-      panelRows.push({
-        label:
-          mode === "locked"
-            ? `   ${panel.label}: fixed`
-            : mode === "move"
-              ? `   ${panel.label}: drag to move`
-              : `   ${panel.label}: drag to resize`,
-        tone: mode === "locked" ? "muted" : "live",
-        onTap: () => arrange.cycle(panel.id),
-      });
-    }
-    if (arrange.anyUnlocked) {
-      panelRows.push({ label: "Fix every panel in place", onTap: () => arrange.lockAll() });
-    }
-    if (panels.refusal) {
-      panelRows.push({ label: panels.refusal, tone: "muted", onTap: () => {} });
-    }
-    boxes.push({ title: "The room shows — for everyone", rows: showRows });
-    boxes.push({ title: "Panels — for everyone", rows: panelRows });
-  } else if (open && view === "items") {
-    const rows: Row[] = [];
-    rows.push({ label: "+ Add Go table", tone: "live", onTap: () => void space.addRoomItem().catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add the table.")) });
-    /**
-     * THE BREATHING ORB, AS AN ITEM (Nikk 4757; v0.2). Whether it is here is
-     * per room and for everyone; its sound stays personal, on the orb itself.
-     */
-    const orbHere = meditation?.shown === true;
-    rows.push({
-      label: orbHere ? "Breathing orb: in this room — tap to remove" : "+ Add breathing orb",
-      tone: orbHere ? "normal" : "live",
-      onTap: () =>
-        void space
-          .meditate({ action: "show", shown: !orbHere })
-          .then((answer) => onMeditation(answer.meditation))
-          .catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not change the orb.")),
-    });
-    /**
-     * THE TABLE'S OWN SETTINGS ARE ON THE TABLE NOW.
-     *
-     * This listed every board size for every table, as rows in a menu on the
-     * far side of the room — Nikk: "(now go board movement settings are just
-     * buttons which is super weird)". Size, players and clearing the board are
-     * behind the gear at the table's corner, and it is moved by dragging its
-     * base, so none of it needs a list over here. What is left is the one thing
-     * that cannot live on a table that does not exist yet: making one.
-     */
-    for (const item of roomItems) {
-      rows.push({
-        label: `Go table · ${item.size}×${item.size} · ${item.colours.length} playing`,
-        tone: "live",
-        onTap: () => {},
-      });
-    }
-    rows.push({
-      label: roomItems.length
-        ? "Set one up with the gear on its corner; drag its base to move it"
-        : "Add one, then use the gear on its corner",
-      tone: "muted",
-      onTap: () => {},
-    });
-    boxes.push({ title: "Room items — for everyone", rows });
-  } else if (open && view === "rooms") {
-    /**
-     * ROOMS, from inside the room (Nikk, 4735): every room you belong to, the
-     * one you are in marked, one tap to go to another, and the public rooms you
-     * could join. Going there keeps the headset on: SpacePanel's switchRoom
-     * moves this session and reopens the room in place. What the rows are is
-     * decided in shared/room-switch.ts, where it is tested.
-     */
-    const go = (room: string, join: boolean) => () => {
-      if (switching) return;
-      setSwitching(room);
-      flash(join ? `Joining ${room}…` : `Going to ${room}…`);
-      (join ? bff.joinRoom(room).then(() => onSwitchRoom(room)) : onSwitchRoom(room))
-        .then(() => flash(`You are in ${room}`))
-        .catch((error: unknown) => setNotice(error instanceof Error ? error.message : `Could not go to ${room}.`))
-        .finally(() => setSwitching(null));
-    };
-    const rows: Row[] = [];
-    // The board this room shows, for Sill's THIS ROOM block (32cbe6a).
-    for (const row of roomMenuRows(myRooms, openRooms, currentRoom, { project: projectName ?? showing.projectId })) {
-      if (row.kind === "heading" || row.kind === "note") rows.push({ label: row.label, tone: "muted", onTap: () => {} });
-      else if (row.kind === "here") rows.push({ label: row.label, tone: "live", onTap: () => {} });
-      else rows.push({ label: switching === row.room ? `${row.label} …` : row.label, onTap: go(row.room, row.kind === "join") });
-    }
-    rows.push({ label: "Lobby: make a room, or join one by its name", tone: "muted", onTap: returnToLobby });
-    boxes.push({ title: "Rooms", rows });
-  } else if (open && view === "agents") {
-    /**
-     * WHERE AGENTS LIVE, set from where you stand.
-     *
-     * Nikk: "I want you to be standing over here facing me or I want you to be
-     * standing beside me facing away from me so I can watch your work". Each
-     * choice is worked out from your own position and heading at the moment you
-     * tap, saved on the server as that agent's home, and the agent walks there.
-     */
-    const rows: Row[] = [];
-    if (agents.length === 0) rows.push({ label: "No agents in the room", tone: "muted", onTap: () => {} });
-    const placeWith = (agent: string, choose: (me: { at: { x: number; z: number }; facing: number }) => AgentHome, done: string) => () => {
-      const me = anchor();
-      if (!me) {
-        setNotice("Cannot tell where you are standing yet.");
-        return;
-      }
-      space
-        .placeAgent(agent, choose({ at: me.at, facing: me.yaw }))
-        .then(() => flash(`${agent} ${done}`))
-        .catch((error: unknown) => setNotice(error instanceof Error ? error.message : `Could not move ${agent}.`));
-    };
-    for (const agent of agents) {
-      rows.push(
-        { label: `${agent}: here, facing me`, onTap: placeWith(agent, homeFacingMe, "is coming to stand in front of you.") },
-        { label: `${agent}: beside me, so I can watch`, onTap: placeWith(agent, homeBesideMe, "is coming to work beside you.") },
-        {
-          label: `${agent}: back to its desk`,
-          tone: "muted",
-          onTap: () => {
-            space
-              .clearAgentHome(agent)
-              .then(() => flash(`${agent} is going back to its desk.`))
-              .catch((error: unknown) => setNotice(error instanceof Error ? error.message : `Could not move ${agent}.`));
-          },
-        },
-      );
-    }
-    boxes.push({ title: "Where agents live", rows });
-  } else if (open && view === "root") {
-    /**
-     * VOICE IS ONE ROW (Nikk, 5410): "remove all of those items except for just
-     * one option ... mute my voice". Recording and sending live on the mic.
-     */
-    const voiceRows: Row[] = [
-      {
-        label: voice.starting
-          ? "My voice: connecting…"
-          : voice.on
-            ? "My voice: on — tap to mute"
-            : "My voice: muted — tap to talk",
-        tone: voice.on || voice.starting ? "live" : "normal",
-        onTap: () => voice.setOn(voice.on || voice.starting ? false : true),
-      },
-      // Mute someone, for yourself only (Nikk, 5423). Nobody else's hearing changes.
-      ...voice.others.map((name) => {
-        const isMuted = voice.muted.has(name.trim().toLowerCase());
-        return {
-          label: isMuted ? `${name}: muted for me — tap to hear` : `Mute ${name} for me`,
-          tone: isMuted ? ("muted" as const) : ("normal" as const),
-          onTap: () => voice.setMuted(name, !isMuted),
-        };
-      }),
-    ];
-    /**
-     * WHAT THE ROOM IS SHOWING — two rows, each opening its own list.
-     *
-     * Every row in this box changes what other people are looking at, so it
-     * says "for everyone" and names who set it last. A wall that is showing
-     * something else should be answerable without asking around.
-     */
-    const meRows: Row[] = [
-        ...(currentRoom === "lobby" ? [
-          {
-            label: avatarRecorder.status === "recording" ? "Stop avatar recording" : avatarRecorder.status === "idle" ? "Record avatar + voice" : "Preparing avatar recording…",
-            tone: avatarRecorder.status === "recording" ? "live" as const : "normal" as const,
-            onTap: () => {
-              if (avatarRecorder.status === "recording") void avatarRecorder.stop();
-              else if (avatarRecorder.status === "idle" && you) {
-                void avatarRecorder.start(you, bodyOfYou());
-              }
-            },
-          },
-          {
-            label: avatarRecorder.showPersonalUi ? "Personal UI in replay: shown" : "Personal UI in replay: hidden",
-            tone: avatarRecorder.showPersonalUi ? "live" as const : "normal" as const,
-            onTap: () => { if (avatarRecorder.status === "idle") avatarRecorder.setShowPersonalUi(!avatarRecorder.showPersonalUi); },
-          },
-          ...(avatarRecorder.take && avatarRecorder.status === "idle" ? [{
-            label: avatarRecorder.playing ? "Stop avatar preview" : "Play avatar preview",
-            tone: avatarRecorder.playing ? "live" as const : "normal" as const,
-            onTap: () => avatarRecorder.playing ? avatarRecorder.stopPlayback() : void avatarRecorder.play(),
-          }, {
-            label: "Discard avatar draft",
-            tone: "muted" as const,
-            onTap: () => void avatarRecorder.discard(),
-          }] : []),
-          ...(avatarRecorder.notice ? [{ label: avatarRecorder.notice, tone: "muted" as const, onTap: () => {} }] : []),
-        ] : []),
-        // Hearing, not talking, so it stayed when Voice became one row.
-        {
-          label: hearReplies ? "The room is read aloud" : "The room stays silent",
-          tone: hearReplies ? "live" as const : "normal" as const,
-          onTap: () => setHearReplies((on) => !on),
-        },
-        {
-          label: handsShown ? "Hand models: shown" : "Hand models: hidden",
-          tone: handsShown ? "normal" : "live",
-          onTap: () => {
-            const next = !handsShown;
-            setHandsShown(next);
-            showHandModels(next);
-          },
-        },
-        // A NEW VERSION, OFFERED RATHER THAN FORCED. The room never reloads a
-        // live session — but a session that lasts an hour then never receives
-        // a fix, which is exactly how Nikk spent an afternoon reporting a bug
-        // that had been fixed for ninety minutes. See update-reload.ts.
-        ...(newVersion
-          ? [{
-              label: "Load the new version — leaves the headset",
-              tone: "live" as const,
-              onTap: () => reloadNow(),
-            }]
-          : []),
-    ];
-    const viewRows: Row[] = [
-        /**
-         * DARK MODE, ON UNTIL TURNED OFF. Nikk: "a darkmode that is on
-         * automatically... also add a setting to turn off dark mode in
-         * settings". First in the list of how the room is drawn, because it is
-         * the one change that decides whether the rest is comfortable to look at
-         * for an hour. Says what it IS, not what pressing it will do — the same
-         * rule as every other row here.
-         */
-        {
-          label: preferences.dark ? "Dark mode: on" : "Dark mode: off",
-          tone: preferences.dark ? "live" : "normal",
-          onTap: () => setRoomPreferences({ dark: !preferences.dark }),
-        },
-        {
-          label: preferences.rings ? "Rings under people: shown" : "Rings under people: hidden",
-          tone: preferences.rings ? "live" : "normal",
-          onTap: () => setRoomPreferences({ rings: !preferences.rings }),
-        },
-        // Off until chosen, and it says how many it is hiding: a hidden person
-        // is still in the room, and a silent filter looks like them leaving.
-        {
-          label: preferences.hideStill
-            ? `Still for 5 min: hidden${hiddenAsStill.length > 0 ? ` (${hiddenAsStill.length})` : ""}`
-            : "Still for 5 min: shown",
-          tone: preferences.hideStill ? "live" : "normal",
-          onTap: () => setRoomPreferences({ hideStill: !preferences.hideStill }),
-        },
-        // THE POINTER, as a value and a − and a +. Tapping the value turns the
-        // pointer off, or back on at its default — the "option to remove" — and −/+
-        // walk it between 0% and 100% of the brightness it used to have.
-        {
-          label: `Pointer brightness: ${pointerLabel(preferences.pointer)}`,
-          tone: preferences.pointer > 0 ? "normal" : "muted",
-          onTap: () => setRoomPreferences({ pointer: preferences.pointer > 0 ? 0 : DEFAULT_ROOM_PREFERENCES.pointer }),
-        },
-        { label: "−  Pointer dimmer", onTap: () => setRoomPreferences({ pointer: stepPointer(preferences.pointer, -1) }) },
-        { label: "+  Pointer brighter", onTap: () => setRoomPreferences({ pointer: stepPointer(preferences.pointer, 1) }) },
-        {
-          label: !passthroughAvailable
-            ? `No passthrough — this headset says: ${blendMode ?? "nothing yet"}`
-            : passthrough
-              ? "Passthrough — tap for void"
-              : "Black void — tap for passthrough",
-          tone: passthroughAvailable ? "normal" : "muted",
-          onTap: () => passthroughAvailable && onTogglePassthrough(),
-        },
-    ];
-    const movingRows: Row[] = [
-        {
-          label: "Reset head position",
-          onTap: () => {
-            onResetStanding();
-            flash("Measuring your height from where your head is now.");
-          },
-        },
-        {
-          label: pinchTeleport ? "Teleport (hand pinch, controller trigger): on" : "Teleport: off — hands and sticks move you",
-          tone: pinchTeleport ? "live" : "normal",
-          onTap: () => {
-            const next = !pinchTeleport;
-            setPinchTeleportShown(next);
-            setPinchTeleport(next);
-          },
-        },
-    ];
-    const voiceExtra: Row[] = [
-        ...(micRisky
-          ? [{
-              label: "Use the microphone anyway — the headset may ask",
-              tone: "muted" as const,
-              onTap: () => {
-                setMicRisky(false);
-                void startSaying(true);
-              },
-            }]
-          : []),
-        ...(keyboardRisky
-          ? [{
-              label: "Open the keyboard anyway — may exit the headset",
-              tone: "muted" as const,
-              onTap: () => {
-                setKeyboardRisky(false);
-                openTextEntry(true);
-              },
-            }]
-          : []),
-    ];
-    if (tab === "me") {
-      boxes.push({ title: "Me", rows: meRows }, { title: "Voice", rows: [...voiceRows, ...voiceExtra] });
-      boxes.push({ title: "View", rows: viewRows }, { title: "Moving", rows: movingRows });
-    }
-  }
-
   /**
-   * EVERY SCREEN IS NAMED, and none of them is a catch-all.
-   *
-   * This chain used to end in `else if (open)`, which silently swallowed every
-   * view that came after it — so tapping "Panels…" set the view and then
-   * rendered the root menu anyway. From inside a headset that looks exactly
-   * like a button that does nothing, and it is what took the panel settings
-   * away: "the settings for allowing panel movement and scaling are gone, as
-   * are the settings to show or hide rooms."
-   *
-   * With every branch named, a screen nobody wrote shows this instead of
-   * quietly showing the wrong one. An obviously empty menu is a better failure
-   * than a menu that looks fine and is lying about which screen you are on.
+   * ROOMS, from inside the room (Nikk, 4735): going to another keeps the
+   * headset on — SpacePanel's switchRoom moves this session and reopens the
+   * room in place.
    */
-  if (open && boxes.length === 0) {
-    boxes.push({
-      title: "Nothing here",
-      rows: [{ label: `No screen for "${view}" — back`, onTap: () => { setTab("me"); setView("root"); } }],
-    });
-  }
-
-  // Boxes become columns, and a box taller than `BOX_ROWS` continues into
-  // another column beside it rather than growing down past the floor — which
-  // is what made the single column unusable. See menu-columns.ts.
-  const columns = toColumns(boxes, BOX_ROWS);
-
-  const columnWidth = BOX_BUTTON.width;
-  const tallest = columns.reduce((most, column) => Math.max(most, column.rows.length), 0);
-  const boxHeight = tallest * (BOX_BUTTON.height + BOX_BUTTON.gap);
-  const slots = gridSlots(columns.length, BOXES_PER_ROW);
-  // Every row of boxes is the height of the TALLEST column, so the headings
-  // line up across a row instead of stepping down raggedly.
-  const rowStep = boxHeight + 0.22;
-  const rowCount = slots.length > 0 ? slots[slots.length - 1].row + 1 : 0;
-  // Centred vertically too, so a two-row grid does not sit with its first row
-  // at eye level and its second somewhere near your shins.
-  // Centred on the CONTENT, not on the box origins: a box hangs downward from
-  // its origin, so centring the origins would put the whole grid half a box too
-  // low — which at two rows is the difference between reading it and crouching.
-  const gridTop = ((rowCount - 1) * rowStep) / 2 + boxHeight / 2;
-  // The boxes are centred on the origin; the scope and tab rows add height above.
-  menuMiddle.current = (MENU_SCALE * (TAB_ROW_ABOVE + TAB_BUTTON.height / 2)) / 2;
-  const tabsWidth = ALL_TABS.length * (TAB_BUTTON.width + TAB_BUTTON.gap) - TAB_BUTTON.gap;
-  const gridWidth = Math.min(columns.length, BOXES_PER_ROW) * (columnWidth + BOX_GAP) - BOX_GAP;
-  const menuWidth = Math.max(tabsWidth, gridWidth) + 0.24;
-  const menuTop = gridTop + TAB_ROW_ABOVE + TAB_BUTTON.height / 2 + 0.2;
-  const menuBottom = -gridTop - (rowCount - 1) * rowStep - boxHeight - 0.1;
-  const tabTrack = useMemo(() => roundedRect(tabsWidth + 0.03, TAB_BUTTON.height + 0.03), [tabsWidth]);
+  const goRoom = (room: string, join: boolean) => {
+    if (switching) return;
+    setSwitching(room);
+    flash(join ? `Joining ${room}…` : `Going to ${room}…`);
+    (join ? bff.joinRoom(room).then(() => onSwitchRoom(room)) : onSwitchRoom(room))
+      .then(() => flash(`You are in ${room}`))
+      .catch((error: unknown) => setNotice(error instanceof Error ? error.message : `Could not go to ${room}.`))
+      .finally(() => setSwitching(null));
+  };
+  /**
+   * WHERE AGENTS LIVE, set from where you stand (Nikk): "I want you to be
+   * standing over here facing me or ... beside me facing away from me so I can
+   * watch your work". Worked out from your position and heading at the moment
+   * you press, saved as that agent's home, and the agent walks there.
+   */
+  const placeAgent = (agent: string, where: "facing" | "beside" | "desk") => {
+    const failed = (error: unknown) => setNotice(error instanceof Error ? error.message : `Could not move ${agent}.`);
+    if (where === "desk") {
+      space.clearAgentHome(agent).then(() => flash(`${agent} is going back to its desk.`)).catch(failed);
+      return;
+    }
+    const me = anchor();
+    if (!me) {
+      setNotice("Cannot tell where you are standing yet.");
+      return;
+    }
+    const choose: (me: { at: { x: number; z: number }; facing: number }) => AgentHome = where === "facing" ? homeFacingMe : homeBesideMe;
+    space
+      .placeAgent(agent, choose({ at: me.at, facing: me.yaw }))
+      .then(() => flash(`${agent} ${where === "facing" ? "is coming to stand in front of you." : "is coming to work beside you."}`))
+      .catch(failed);
+  };
+  const sections = !open ? [] : settingsSections({
+    view,
+    goTo: setView,
+    voice: {
+      on: voice.on,
+      starting: voice.starting,
+      others: voice.others,
+      isMuted: (name) => voice.muted.has(name.trim().toLowerCase()),
+      setOn: (on) => {
+        rememberSelfMute(!on);
+        voice.setOn(on);
+      },
+      setMuted: voice.setMuted,
+    },
+    voiceExtra: [
+      ...(micRisky
+        ? [{ label: "Use the microphone anyway — the headset may ask", onTap: () => { setMicRisky(false); void startSaying(true); } }]
+        : []),
+      ...(keyboardRisky
+        ? [{ label: "Open the keyboard anyway — may exit the headset", onTap: () => { setKeyboardRisky(false); openTextEntry(true); } }]
+        : []),
+    ],
+    hearReplies,
+    setHearReplies: (on) => setHearReplies(on),
+    handsShown,
+    setHandsShown: (shown) => {
+      setHandsShown(shown);
+      showHandModels(shown);
+    },
+    teleport: pinchTeleport,
+    setTeleport: (on) => {
+      setPinchTeleportShown(on);
+      setPinchTeleport(on);
+    },
+    resetHead: () => {
+      onResetStanding();
+      flash("Measuring your height from where your head is now.");
+    },
+    view3d: {
+      // DARK MODE, ON UNTIL TURNED OFF (Nikk).
+      dark: preferences.dark,
+      setDark: (on) => setRoomPreferences({ dark: on }),
+      rings: preferences.rings,
+      setRings: (on) => setRoomPreferences({ rings: on }),
+      // Off until chosen, and it says how many it is hiding: a hidden person
+      // is still in the room, and a silent filter looks like them leaving.
+      hideStill: preferences.hideStill,
+      hiddenStill: hiddenAsStill.length,
+      setHideStill: (on) => setRoomPreferences({ hideStill: on }),
+      // THE POINTER, as a value and a − and a +; pressing the name turns it
+      // off, or back on at its default.
+      pointer: pointerLabel(preferences.pointer),
+      pointerOn: preferences.pointer > 0,
+      pointerToggle: () => setRoomPreferences({ pointer: preferences.pointer > 0 ? 0 : DEFAULT_ROOM_PREFERENCES.pointer }),
+      pointerLess: () => setRoomPreferences({ pointer: stepPointer(preferences.pointer, -1) }),
+      pointerMore: () => setRoomPreferences({ pointer: stepPointer(preferences.pointer, 1) }),
+      passthroughAvailable,
+      passthrough,
+      blendMode: blendMode ?? null,
+      togglePassthrough: () => {
+        if (passthroughAvailable) onTogglePassthrough();
+      },
+    },
+    recorder: currentRoom === "lobby"
+      ? {
+          status: avatarRecorder.status === "recording" ? "recording" : avatarRecorder.status === "idle" ? "idle" : "preparing",
+          showPersonalUi: avatarRecorder.showPersonalUi,
+          hasTake: Boolean(avatarRecorder.take),
+          playing: avatarRecorder.playing,
+          notice: avatarRecorder.notice ?? null,
+          start: () => {
+            if (avatarRecorder.status === "idle" && you) void avatarRecorder.start(you, bodyOfYou());
+          },
+          stop: () => void avatarRecorder.stop(),
+          setShowPersonalUi: (shown) => {
+            if (avatarRecorder.status === "idle") avatarRecorder.setShowPersonalUi(shown);
+          },
+          play: () => void avatarRecorder.play(),
+          stopPlayback: () => avatarRecorder.stopPlayback(),
+          discard: () => void avatarRecorder.discard(),
+        }
+      : null,
+    // The board this room shows, for Sill's THIS ROOM block (32cbe6a).
+    roomRows: roomMenuRows(myRooms, openRooms, currentRoom, { project: projectName ?? showing.projectId }),
+    switching,
+    goRoom,
+    toLobby: returnToLobby,
+    goTables: roomItems.map((item) => ({ size: item.size, players: item.colours.length })),
+    orbHere: meditation?.shown === true,
+    addGoTable: () =>
+      void space.addRoomItem().catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add the table.")),
+    // THE BREATHING ORB, AS AN ITEM (Nikk 4757): whether it is here is per
+    // room and for everyone; its sound stays personal, on the orb itself.
+    setOrb: (shown) =>
+      void space
+        .meditate({ action: "show", shown })
+        .then((answer) => onMeditation(answer.meditation))
+        .catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not change the orb.")),
+    showing: {
+      projectId: showing.projectId,
+      projectName,
+      boardId: showing.boardId,
+      boardName,
+      setBy: showing.setBy ?? null,
+      refusal: showingChoices.refusal ?? null,
+    },
+    projects: showingChoices.projects,
+    boards: showingChoices.boards,
+    choose: (projectId, boardId) => showingChoices.choose({ projectId, boardId }),
+    panels: panels.catalogue.map((panel) => ({
+      id: panel.id,
+      label: panel.label,
+      shown: panels.open.includes(panel.id),
+      mode: arrange.modeOf(panel.id),
+    })),
+    setPanelShown: (id, shown) => panels.setOpen(id, shown),
+    cyclePanel: (id) => arrange.cycle(id),
+    anyUnlocked: arrange.anyUnlocked,
+    lockAll: () => arrange.lockAll(),
+    panelRefusal: panels.refusal ?? null,
+    agents,
+    // HIDE THE AGENTS FOR EVERYONE in this room, their screens too (Nikk 5384).
+    agentsHiddenForEveryone,
+    setAgentsHiddenForEveryone: (next) => {
+      setAgentsHiddenForEveryone(next);
+      void space.setAgentsHiddenForRoom(next).catch(() => {
+        setAgentsHiddenForEveryone(!next);
+        setNotice("That did not reach the room; the agents were not changed.");
+      });
+    },
+    // For you alone, in this room (Nikk 5299): see agents-hidden.ts.
+    agentsHiddenForMe: currentRoom ? hiddenForMe : null,
+    setAgentsHiddenForMe: (hidden) => {
+      if (currentRoom) setAgentsHidden(currentRoom, hidden);
+    },
+    placeAgent,
+  });
+  /** How far below the open menu's middle its bottom edge is, in metres. */
+  const menuHalfHeight = menuHeight() / MENU.pxPerMetre / 2;
 
   /**
    * THE WRITTEN DRAFT IS SHOWN IN THE ROOM, on the line under the controls.
@@ -1711,7 +1399,11 @@ export function RoomControls({
     recordingStatus ??
     voice.trouble ??
     (keyboardFocused ? null : draftPreview) ??
-    (newVersion ? "A new version is ready — settings ⚙ to load it" : null);
+    (newVersion ? UPDATE_LINE : null);
+  // THE UPDATE LINE IS A BUTTON (Nikk, desktop chat): "say click here to update,
+  // and allow it to be clickable or pressable" — by a ray, a pinch, or a fingertip.
+  const updateOffered = said === UPDATE_LINE;
+  updateOfferedNow.current = updateOffered && !open && !fixing;
   /** Something a cancel button can throw away: a recording, words waiting, or a written draft. */
   const cancellable =
     sending ||
@@ -1949,71 +1641,21 @@ export function RoomControls({
       ) : open ? (
         <>
         {/*
-          THE SCOPE, THEN ITS TABS, above the boxes. ME or THIS ROOM first, then
-          only that scope's tabs, so there are never eight across (v0.2). The
-          chosen one is lit; close sits at the end of the tab row.
+          ONE PANEL (Nikk, 5426, 5439, 5445): the tabs as a segmented control,
+          the sections side by side and never taller, close in the corner, and
+          "Update now" where the title is while a new version waits.
         */}
-        {/*
-          ONE PANEL (Nikk, 5439). A single rounded card behind the tabs and the
-          sections, so the menu reads as one object; the tabs are a segmented
-          row on it and close is a small ✕ in its corner.
-        */}
-        <group scale={MENU_SCALE}>
-        <MenuCard width={menuWidth} top={menuTop} bottom={menuBottom} />
-        <mesh position={[0, gridTop + TAB_ROW_ABOVE, -0.005]} raycast={() => null}>
-          <shapeGeometry args={[tabTrack, 6]} />
-          <meshBasicMaterial color="#0a0d14" transparent opacity={0.9} side={THREE.DoubleSide} />
-        </mesh>
-        {ALL_TABS.map((entry, index, all) => (
-          <WristButton
-            key={entry.id}
-            label={entry.label}
-            x={(index - (all.length - 1) / 2) * (TAB_BUTTON.width + TAB_BUTTON.gap)}
-            y={gridTop + TAB_ROW_ABOVE}
-            width={TAB_BUTTON.width}
-            height={TAB_BUTTON.height}
-            lines={2}
-            textSize={TAB_TEXT}
-            tone={entry.id === tab ? "live" : "muted"}
-            onTap={() => {
-              setTab(entry.id);
-              setView(screenOf(entry.id));
-            }}
-          />
-        ))}
-        <WristButton
-          label="✕"
-          glyph
-          x={menuWidth / 2 - 0.1}
-          y={menuTop - 0.1}
-          width={0.12}
-          height={0.12}
-          tone="muted"
-          onTap={() => closeMenu()}
+        <SettingsMenu3D
+          model={{
+            title: "Settings",
+            tabs: SETTINGS_TABS,
+            active: tabOfView(view),
+            onTab: (id) => setView(SETTINGS_TABS.find((entry) => entry.id === id)?.view ?? "root"),
+            onClose: () => closeMenu(),
+            sections,
+            badge: settingsBadge(newVersion, reloadNow),
+          }}
         />
-        {columns.map((column, index) => (
-          <ButtonBox
-            key={`${index}-${column.title}`}
-            title={column.title}
-            x={columnX(slots[index].col, slots[index].inRow, columnWidth, BOX_GAP)}
-            y={gridTop - slots[index].row * rowStep}
-            width={columnWidth}
-            height={boxHeight}
-          >
-            {column.rows.map((row, at) => (
-              <WristButton
-                key={`${at}-${row.label}`}
-                label={row.label}
-                tone={row.tone}
-                y={-at * (BOX_BUTTON.height + BOX_BUTTON.gap)}
-                width={BOX_BUTTON.width}
-                height={BOX_BUTTON.height}
-                onTap={row.onTap}
-              />
-            ))}
-          </ButtonBox>
-        ))}
-        </group>
         </>
       ) : (
         <group pointerEventsType={CLOSED_POINTERS}>
@@ -2100,19 +1742,20 @@ export function RoomControls({
       {said && !fixing ? (
         <WristButton
           label={said}
-          tone={!notice && listening ? "live" : "muted"}
+          tone={updateOffered || (!notice && listening) ? "live" : "muted"}
           // WHILE RECORDING OR SENDING, A STATUS AND NOTHING ELSE. Nikk (5158):
           // it "can be like touched with your cursor. We don't need that, that
           // should be see-through for your cursor". A notice or a draft stays
           // pressable, since pressing those does something.
           passThrough={Boolean(recordingStatus) || sending}
-          y={open ? MENU_SCALE * (-gridTop - (rowCount - 1) * rowStep - boxHeight - 0.18) : -ICON / 2 - 0.035 - STATUS.height / 2}
+          y={open ? -menuHalfHeight - 0.08 : -ICON / 2 - 0.035 - STATUS.height / 2}
           width={open ? 0.9 : STATUS.width}
           height={open ? WRIST_BUTTON.height : STATUS.height}
           onTap={() => {
             // Tapping the draft adds to it; tapping a notice dismisses it. The
             // recording status is not a notice and a tap does nothing to it.
-            if (notice || voice.trouble) setNotice(null);
+            if (updateOffered) reloadNow();
+            else if (notice || voice.trouble) setNotice(null);
             // THE WHOLE DRAFT, TO FIX — not the Quest keyboard, which opens
             // empty and can only add to it.
             else if (draftPreview && !recordingStatus) startFixing();
@@ -2124,13 +1767,3 @@ export function RoomControls({
   );
 }
 
-/** The one rounded card the open menu sits on. Never catches a pointer. */
-function MenuCard({ width, top, bottom }: { width: number; top: number; bottom: number }) {
-  const shape = useMemo(() => roundedRect(width, top - bottom, 0.08), [width, top, bottom]);
-  return (
-    <mesh position={[0, (top + bottom) / 2, -0.02]} raycast={() => null}>
-      <shapeGeometry args={[shape, 8]} />
-      <meshBasicMaterial color="#0c1018" transparent opacity={0.88} side={THREE.DoubleSide} />
-    </mesh>
-  );
-}
