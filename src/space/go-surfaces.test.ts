@@ -17,6 +17,10 @@ describe("board types on the table", () => {
 
   it("an unknown board type read back from storage falls back rather than losing the table", () => {
     expect(parseRoomItem({ ...defaultGoItem("t"), surface: "lava" })?.surface).toBe("bamboo");
+    // ROOTS, put away (Baiwei, 5118): a table left on it is bamboo again, game and all.
+    const roots = parseRoomItem({ ...defaultGoItem("t"), surface: "rootwood", stones: [{ x: 1, y: 1, colour: 1 }] });
+    expect(roots?.surface).toBe("bamboo");
+    expect(roots?.stones).toEqual([{ x: 1, y: 1, colour: 1 }]);
   });
 
   it("steps go round in both directions and visit every type", () => {

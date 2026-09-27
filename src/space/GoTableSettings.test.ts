@@ -33,11 +33,11 @@ describe("what a press means", () => {
   it("goes round the board types, both ways, and never refuses or warns", () => {
     // Nikk: "can we allow for changing board types inside the settings".
     expect(goSettingFor(table({ surface: "bamboo" }), "go:surface:more")).toEqual({ kind: "surface", surface: "stone" });
-    // Four since the rootwood throne (saha-ing-c1fd1ba9): bamboo, stone, rock, rootwood, round again.
+    // Three: bamboo, stone, rock, round again. (ROOTS was a fourth until
+    // Baiwei, 5118: "let's just stick with the three for now".)
     expect(goSettingFor(table({ surface: "stone" }), "go:surface:more")).toEqual({ kind: "surface", surface: "rock" });
-    expect(goSettingFor(table({ surface: "rock" }), "go:surface:more")).toEqual({ kind: "surface", surface: "rootwood" });
-    expect(goSettingFor(table({ surface: "rootwood" }), "go:surface:more")).toEqual({ kind: "surface", surface: "bamboo" });
-    expect(goSettingFor(table({ surface: "bamboo" }), "go:surface:less")).toEqual({ kind: "surface", surface: "rootwood" });
+    expect(goSettingFor(table({ surface: "rock" }), "go:surface:more")).toEqual({ kind: "surface", surface: "bamboo" });
+    expect(goSettingFor(table({ surface: "bamboo" }), "go:surface:less")).toEqual({ kind: "surface", surface: "rock" });
     const midGame = table({ stones: [{ x: 1, y: 1, colour: 0 }] });
     expect(goSettingCost(midGame, goSettingFor(midGame, "go:surface:more")!)).toBeNull();
     expect(goSettingRequest(table({ surface: "bamboo" }), "go:surface:more")).toEqual({ surface: "stone" });
