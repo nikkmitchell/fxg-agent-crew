@@ -20,6 +20,7 @@ import { SingingBowls, BOWLS_AT } from "./SingingBowls";
 import { GardenTray, GARDEN_AT } from "./GardenTray";
 import { EmberFire, FIRE_AT } from "./EmberFire";
 import { KaleidoscopeDome, DOME_AT } from "./KaleidoscopeDome";
+import { LightRibbons, RIBBONS_AT } from "./LightRibbons";
 import { SETTINGS_TABS, settingsBadge, settingsSections, tabOfView, type ArrangeMode, type SettingsView } from "./settings-menu-model";
 import { roomMenuRows } from "../../shared/room-switch";
 
@@ -133,9 +134,15 @@ function Preview() {
     <Canvas
       // ?fov=40 to look closely; 90 is about what a headset sees.
       camera={{ position: [0, 1.6, 0], fov: Number(params.get("fov") ?? 90), near: 0.05, far: 50 }}
-      onCreated={({ camera }) => (params.get("fire") === "1" ? camera.lookAt(FIRE_AT.x * 0.8, 0.8, FIRE_AT.z - 6.2) : params.get("bowls") === "1" || params.get("garden") === "1" ? camera.lookAt(0, 0.7, -1.05) : camera.lookAt(0, 1.6, -1))}
+      onCreated={({ camera }) => (params.get("ribbons") === "1" ? camera.lookAt(0, 1.1, -1.6) : params.get("fire") === "1" ? camera.lookAt(FIRE_AT.x * 0.8, 0.8, FIRE_AT.z - 6.2) : params.get("bowls") === "1" || params.get("garden") === "1" ? camera.lookAt(0, 0.7, -1.05) : camera.lookAt(0, 1.6, -1))}
       style={{ position: "fixed", inset: 0, background: "linear-gradient(#5c6470, #3b3f46 55%, #2a2c30)" }}
     >
+      {params.get("ribbons") === "1" ? (
+        // Drive a hand from the console: selfPose.hands.right = { p, q }.
+        <group position={[-RIBBONS_AT.x, 0, -RIBBONS_AT.z - 1.6]}>
+          <LightRibbons peopleRef={{ current: [] }} you="preview" />
+        </group>
+      ) : null}
       {params.get("dome") ? (
         // ?dome=out stands 3 m away; ?dome=in stands inside it.
         <group position={[-DOME_AT.x, 0.4, -DOME_AT.z + (params.get("dome") === "in" ? 0 : -4)]}>
@@ -173,7 +180,7 @@ function Preview() {
           <LobbyWelcome />
         </group>
       ) : null}
-      {params.get("welcome") === "1" || params.get("bowls") === "1" || params.get("garden") === "1" || params.get("fire") === "1" || params.get("dome") ? null : <SettingsMenu3D
+      {params.get("welcome") === "1" || params.get("bowls") === "1" || params.get("garden") === "1" || params.get("fire") === "1" || params.get("dome") || params.get("ribbons") ? null : <SettingsMenu3D
         position={[0, 1.6, -1.95]}
         model={{
           title: "Settings",

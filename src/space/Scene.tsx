@@ -46,6 +46,7 @@ import { SingingBowls } from "./SingingBowls";
 import { GardenTray } from "./GardenTray";
 import { EmberFire } from "./EmberFire";
 import { KaleidoscopeDome } from "./KaleidoscopeDome";
+import { LightRibbons } from "./LightRibbons";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
@@ -873,6 +874,8 @@ export default function Scene({
         {connection.meditation?.shown && <EmberFire you={you} />}
         {/* And the kaleidoscope dome, to walk into: see KaleidoscopeDome.tsx. */}
         {connection.meditation?.shown && <KaleidoscopeDome meditation={connection.meditation} />}
+        {/* And the light-ribbon circle, for slow movement: see LightRibbons.tsx. */}
+        {connection.meditation?.shown && <LightRibbons peopleRef={connection.peopleRef} you={you} />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
