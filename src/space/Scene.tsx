@@ -869,7 +869,8 @@ export default function Scene({
         {/* Agents' helpers, as the agents report them: spirits, never people. */}
         <SpiritCompanions helpers={connection.helpers} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         {/* The breathing orb, in rooms that have been given one: see shared/meditation.ts. */}
-        {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation} reducedMotion={reducedMotion} />}
+        {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation}
+          reducedMotion={reducedMotion} peopleRef={connection.peopleRef} roster={connection.roster} />}
         {/* The singing bowls stand beside the orb, wherever a room has one: see shared/bowl.ts. */}
         {connection.meditation?.shown && <SingingBowls you={you} />}
         {/* And the zen sand garden, on the orb's other side: see shared/garden.ts. */}
