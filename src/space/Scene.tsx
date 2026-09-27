@@ -42,6 +42,7 @@ import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
 import type { SettingsItem } from "../../shared/settings-3d";
 import { RoomItems } from "./RoomItems";
 import { MeditationOrb } from "./MeditationOrb";
+import { StillnessTree } from "./StillnessTree";
 import { SpiritCompanions } from "./SpiritCompanions";
 import { space } from "../space-client";
 
@@ -857,6 +858,7 @@ export default function Scene({
         <SpiritCompanions helpers={connection.helpers} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         {/* The breathing orb, in rooms that have been given one: see shared/meditation.ts. */}
         {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation} reducedMotion={reducedMotion} />}
+        {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
           avatarRecorder={avatarRecorder}
