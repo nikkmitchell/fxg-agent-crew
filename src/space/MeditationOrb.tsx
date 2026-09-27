@@ -7,7 +7,7 @@ import {
   type Meditation, type MeditationChange,
 } from "../../shared/meditation";
 import { space } from "../space-client";
-import { bell, cueFor, phaseCue } from "./breath-sound";
+import { bell, cueFor, omDrone, phaseCue } from "./breath-sound";
 import { GUIDES, GUIDE_IDS, guideCaption, guideLineAt } from "../../shared/guided";
 import { SOUNDSCAPE_LABEL, isSoundscape, nextSoundscape, playSoundscape, type Soundscape } from "./soundscape";
 import { useDisposable } from "./use-disposable";
@@ -181,7 +181,13 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
     }
     const cue = cueFor(lastBreath.current, at);
     lastBreath.current = at;
-    if (cue && soundRef.current) (cue === "bell" ? bell() : phaseCue(cue, at.state === "breathing" ? at.stepSeconds : undefined));
+    if (cue && soundRef.current) {
+      const stepSeconds = at.state === "breathing" ? at.stepSeconds : undefined;
+      if (cue === "bell") bell();
+      // OM: the out-breath is the chant, so it gets the held note instead of the falling cue.
+      else if (cue === "out" && meditation.pattern === "om" && stepSeconds) omDrone(stepSeconds);
+      else phaseCue(cue, stepSeconds);
+    }
     const second = at.state === "breathing" ? `${at.words}${at.secondsLeft}${Math.ceil(at.remaining)}${at.paused}` : at.state;
     if (second !== lastSecond.current) { lastSecond.current = second; redraw((n) => n + 1); }
     // The scene draws on demand; a breath is motion, so keep asking while it runs.

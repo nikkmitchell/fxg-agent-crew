@@ -55,3 +55,11 @@ describe("a guided session", () => {
     expect(parseMeditation({ pattern: "calm" })?.guide).toBeNull();
   });
 });
+
+describe("OM, chanted together", () => {
+  it("is a short breath in and a long chanted breath out", async () => {
+    const { PATTERNS, cycleSeconds } = await import("./meditation.js");
+    expect(PATTERNS.om.steps.map((step) => step.phase)).toEqual(["in", "out"]);
+    expect(cycleSeconds("om")).toBe(14);
+  });
+});

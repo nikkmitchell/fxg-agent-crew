@@ -47,6 +47,22 @@ export function phaseCue(phase: BreathStep["phase"], stepSeconds = Infinity): vo
   else if (phase === "hold") tone(262, 262, fit(0.9), 0.03);
 }
 
+/**
+ * The note to chant Om on, held for a whole out-breath.
+ *
+ * 136.1 Hz is the pitch commonly given for Om (the "Om frequency" of Indian
+ * tuning traditions), low enough for most voices to join an octave up. A soft
+ * fundamental with its octave and fifth, swelling in and fading out, so it
+ * reads as a hum rather than a tone.
+ */
+export const OM_HZ = 136.1;
+export function omDrone(seconds: number): void {
+  const length = Math.max(2, seconds * 0.95);
+  tone(OM_HZ, OM_HZ, length, 0.07);
+  tone(OM_HZ * 2, OM_HZ * 2, length, 0.025);
+  tone(OM_HZ * 3, OM_HZ * 3, length * 0.8, 0.01);
+}
+
 /** A bowl-like bell for the start and the end: two partials, a long fade. */
 export function bell(): void {
   tone(528, 520, 4.5, 0.07);
