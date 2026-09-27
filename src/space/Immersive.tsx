@@ -862,6 +862,19 @@ export function ImmersivePlayer({
           q: { x: viewer.transform.orientation.x, y: viewer.transform.orientation.y, z: viewer.transform.orientation.z, w: viewer.transform.orientation.w },
         }
       : null;
+    /**
+     * NO HAND GESTURE WHILE A CONTROLLER IS IN HAND. Nikk (5363): holding the
+     * controllers, the voice gesture "sometimes randomly starts". The gesture
+     * already reads only hand-tracking inputs, but a Quest can report tracked
+     * hands alongside controllers (and while swapping between them), and a
+     * hand wrapped round a controller can pass for a raised palm. So while
+     * either controller is really being tracked, neither hand counts.
+     */
+    const controllerInHand = [leftController, rightController].some((controller) => {
+      const grip = controller?.inputSource.gripSpace;
+      const pose = grip && frame && originSpace ? frame.getPose(grip, originSpace) : null;
+      return Boolean(pose && !pose.emulatedPosition);
+    });
     for (const [side, wrist, input] of [["left", liveLeft, leftHand], ["right", liveRight, rightHand]] as const) {
       const tip = input ? poseOfSpace(input.inputSource.hand.get("index-finger-tip"), frame, group) : null;
       goHandInput[side] = wrist ? { contact: (tip ?? wrist).p, carry: goCarryPoint(wrist), at: performance.now() } : null;
@@ -874,7 +887,7 @@ export function ImmersivePlayer({
       // Treat it as lost, which the gesture already rides out.
       const wristSpace = input?.inputSource.hand.get("wrist");
       const guessed = wristSpace && frame && originSpace ? frame.getPose(wristSpace, originSpace)?.emulatedPosition === true : false;
-      const gestureWrist = input && !guessed ? localPose(wristSpace, frame) : null;
+      const gestureWrist = input && !guessed && !controllerInHand ? localPose(wristSpace, frame) : null;
       const joints: Array<{ x: number; y: number; z: number } | null> = MIC_GESTURE_JOINT_NAMES.map(() => null);
       if (input && gestureWrist) {
         joints[0] = gestureWrist.p;
