@@ -467,7 +467,19 @@ export function RoomControls({
   inXrNow.current = Boolean(session);
   const returnToLobby = () => { void endSessionThenReturn(session, onReturnToLobby); };
   const confidence = useRef<number | undefined>(undefined);
-  const capabilities = useMemo(() => speechCapabilities(), []);
+  /**
+   * NO SPEECH RECOGNITION DURING A CALL. The browser's recognizer takes the
+   * microphone for itself, and on a headset that ends the call's hold on it:
+   * Nikk (5416) was cut out of the call and his message to the agents never
+   * sent. While the call is on, spoken messages are recorded from a copy of
+   * the call's own microphone and written down by the server instead.
+   */
+  const capabilities = useMemo(() => {
+    const found = speechCapabilities();
+    return voice.on ? { ...found, recognition: false } : found;
+  }, [voice.on]);
+  const voiceNow = useRef(voice);
+  voiceNow.current = voice;
 
   /**
    * WHAT THIS HEADSET CAN ACTUALLY DO WITH SPEECH, into the journal, once.
@@ -743,7 +755,10 @@ export function RoomControls({
     asked.current = true;
     let cancelled = false;
     void canTranscribe().then((available) => {
-      if (cancelled) return;
+      if (cancelled) {
+        asked.current = false;
+        return;
+      }
       setCanSpeak(available);
       onNote(`press to speak: the server ${available ? "can" : "cannot"} write speech down`);
     });
@@ -755,6 +770,7 @@ export function RoomControls({
   useEffect(() => () => sayer.current?.dispose(), []);
   const say = useCallback(() => {
     sayer.current ??= createSayRecorder({
+      borrow: () => (voiceNow.current.on ? voiceNow.current.microphone() : null),
       onPhase: setSaying,
       onTrouble: (message) => setNotice(message),
     });

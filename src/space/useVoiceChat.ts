@@ -52,6 +52,12 @@ export type VoiceChat = {
   setMuted: (actorId: string, muted: boolean) => void;
   /** Null unless something went wrong, in which case what. */
   trouble: string | null;
+  /**
+   * Your open microphone while the call is on, for anything else that needs to
+   * listen (a spoken message) to COPY rather than open a second one. See
+   * `borrow` in say-recorder.ts.
+   */
+  microphone: () => MediaStream | null;
   /** Open or close your microphone. Closing it leaves you listening. */
   setOn: (on: boolean) => void;
 };
@@ -436,5 +442,6 @@ export function useVoiceChat(
     [drop],
   );
 
-  return { on, starting, others, streams, muted, setMuted, trouble, setOn };
+  const lend = useCallback(() => microphone.current, []);
+  return { on, starting, others, streams, muted, setMuted, trouble, setOn, microphone: lend };
 }
