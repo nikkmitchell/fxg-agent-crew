@@ -26,11 +26,11 @@ export const TABS: Record<SettingsScope, { id: SettingsTab; label: string }[]> =
     { id: "me", label: "Me" },
     { id: "rooms", label: "Rooms" },
   ],
-  // And this room's three renamed: activity items (what the room shows), work
-  // items (the things in it), agents.
+  // And this room's three renamed (Nikk 5410, corrected in 5445): activity
+  // items are the things in the room, work items what it shows.
   room: [
-    { id: "show", label: "Activity items" },
-    { id: "items", label: "Work items" },
+    { id: "items", label: "Activity items" },
+    { id: "show", label: "Work items" },
     { id: "agents", label: "Agents" },
   ],
 };

@@ -172,9 +172,11 @@ const BOX_GAP = 0.08;
  * not by turning your head. Five was seventy-five, which is inside a headset's
  * field of view and still too wide to use comfortably.
  */
-// Two across (Nikk, 5439: "make the UI look nice and more organised"): a
-// two-by-two grid of wider sections reads as one panel, not a ragged spread.
-const BOXES_PER_ROW = 2;
+// ALL IN ONE ROW (Nikk, 5445): "show up horizontally so the menu never
+// increases in height". Sections sit side by side and never wrap downward.
+const BOXES_PER_ROW = 8;
+/** Nikk (5445): "make the size of everything 70% smaller". */
+const MENU_SCALE = 0.7;
 
 /**
  * The closed controls: settings and talk, the same size, rounded like a phone's
@@ -1657,7 +1659,7 @@ export function RoomControls({
   // low — which at two rows is the difference between reading it and crouching.
   const gridTop = ((rowCount - 1) * rowStep) / 2 + boxHeight / 2;
   // The boxes are centred on the origin; the scope and tab rows add height above.
-  menuMiddle.current = (TAB_ROW_ABOVE + TAB_BUTTON.height / 2) / 2;
+  menuMiddle.current = (MENU_SCALE * (TAB_ROW_ABOVE + TAB_BUTTON.height / 2)) / 2;
   const tabsWidth = ALL_TABS.length * (TAB_BUTTON.width + TAB_BUTTON.gap) - TAB_BUTTON.gap;
   const gridWidth = Math.min(columns.length, BOXES_PER_ROW) * (columnWidth + BOX_GAP) - BOX_GAP;
   const menuWidth = Math.max(tabsWidth, gridWidth) + 0.24;
@@ -1956,6 +1958,7 @@ export function RoomControls({
           sections, so the menu reads as one object; the tabs are a segmented
           row on it and close is a small ✕ in its corner.
         */}
+        <group scale={MENU_SCALE}>
         <MenuCard width={menuWidth} top={menuTop} bottom={menuBottom} />
         <mesh position={[0, gridTop + TAB_ROW_ABOVE, -0.005]} raycast={() => null}>
           <shapeGeometry args={[tabTrack, 6]} />
@@ -2010,6 +2013,7 @@ export function RoomControls({
             ))}
           </ButtonBox>
         ))}
+        </group>
         </>
       ) : (
         <group pointerEventsType={CLOSED_POINTERS}>
@@ -2102,7 +2106,7 @@ export function RoomControls({
           // should be see-through for your cursor". A notice or a draft stays
           // pressable, since pressing those does something.
           passThrough={Boolean(recordingStatus) || sending}
-          y={open ? -gridTop - (rowCount - 1) * rowStep - boxHeight - 0.18 : -ICON / 2 - 0.035 - STATUS.height / 2}
+          y={open ? MENU_SCALE * (-gridTop - (rowCount - 1) * rowStep - boxHeight - 0.18) : -ICON / 2 - 0.035 - STATUS.height / 2}
           width={open ? 0.9 : STATUS.width}
           height={open ? WRIST_BUTTON.height : STATUS.height}
           onTap={() => {
