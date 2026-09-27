@@ -13,6 +13,7 @@ import type { Utterance, UtteranceInput } from "../shared/voice";
 import type { AvatarControl, AvatarState } from "../shared/avatar-motion";
 import type { AgentHome } from "../shared/agent-home";
 import type { Meditation, MeditationChange } from "../shared/meditation";
+import type { SharedMindfulnessCard } from "../shared/mindfulness";
 import type { GoSize, GoSurface, RoomItem } from "../shared/room-items";
 
 /**
@@ -195,6 +196,15 @@ export const space = {
   /** Ring one of the singing bowls, for everyone in the room: see shared/bowl.ts. */
   bowl: (body: { bowl?: number; strength: number; kind: "strike" | "sing" | "gong" }) =>
     requestJson<{ strike: unknown }>(`${root}/bowl`, { method: "POST", body: JSON.stringify(body) }),
+  /** Cards deliberately shared to this room's persistent mindfulness page. */
+  mindfulnessPage: (before?: number | null) => requestJson<{ cards: SharedMindfulnessCard[]; older: number | null }>(
+    `${root}/mindfulness${before === undefined || before === null ? "" : `?before=${before}`}`,
+  ),
+  shareMindfulnessCard: (text: string) => requestJson<{ card: SharedMindfulnessCard }>(`${root}/mindfulness`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  }),
+  removeMindfulnessCard: (id: string) => requestJson<{ ok: true }>(`${root}/mindfulness/${encodeURIComponent(id)}`, { method: "DELETE" }),
   meditate: (change: MeditationChange & { revision?: number }) =>
     requestJson<{ meditation: Meditation; now: number }>(`${root}/meditation`, {
       method: "POST", body: JSON.stringify(change),

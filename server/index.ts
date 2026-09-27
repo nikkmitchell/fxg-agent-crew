@@ -27,6 +27,7 @@ import { registerIceRoutes } from "./space/ice.js";
 import { registerGuideRoutes, voiceAllGuides } from "./space/guides.js";
 import { registerBowlRoutes } from "./space/bowl.js";
 import { RoomGardens, registerGardenRoutes } from "./space/garden.js";
+import { RoomMindfulnessCards, registerMindfulnessRoutes } from "./space/mindfulness.js";
 import { registerFireRoutes } from "./space/fire.js";
 import { registerWheelRoutes } from "./space/wheel.js";
 import { registerLanternRoutes } from "./space/lantern.js";
@@ -253,6 +254,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const roomSkies = new RoomSkies(database);
   // Each room's ikebana vase: see space/vase.ts.
   const roomVases = new RoomVases(database);
+  // Only deliberately shared mindfulness sentences survive across visits.
+  const roomMindfulnessCards = new RoomMindfulnessCards(database);
   // Agents' helpers, as the agents report them: see space/helpers.ts.
   const roomHelpers = new RoomHelpers();
   const roomItems = new RoomItems(database);
@@ -477,6 +480,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       gardens: roomGardens,
       announce: (room, event) => hubFor(room).broadcast({ type: "garden", event }),
+    });
+    registerMindfulnessRoutes(scoped, {
+      config,
+      sessions,
+      cards: roomMindfulnessCards,
+      announce: (room) => hubFor(room).broadcast({ type: "mindfulnessPageChanged" }),
     });
     registerBowlRoutes(scoped, {
       config,

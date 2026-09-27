@@ -67,6 +67,7 @@ import { MindfulnessBell } from "./MindfulnessBell";
 import { Labyrinth } from "./Labyrinth";
 import { TeaTable } from "./TeaTable";
 import { RoomGuideSign } from "./RoomGuideSign";
+import { MindfulnessPanel } from "./MindfulnessPanel";
 import { SpiritCompanions } from "./SpiritCompanions";
 import { space } from "../space-client";
 
@@ -925,6 +926,8 @@ export default function Scene({
         {connection.meditation?.shown && <Labyrinth />}
         {connection.meditation?.shown && <TeaTable />}
         {connection.meditation?.shown && <RoomGuideSign />}
+        {/* Optional practices: drafts stay local; shared cards require confirmation. */}
+        {connection.meditation?.shown && <MindfulnessPanel subscribe={connection.subscribe} />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
           avatarRecorder={avatarRecorder}
