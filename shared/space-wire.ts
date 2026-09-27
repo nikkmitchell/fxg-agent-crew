@@ -1,5 +1,6 @@
 import type { Helper } from "./helpers.js";
 import type { BowlStrike } from "./bowl.js";
+import type { GardenEvent } from "./garden.js";
 import type { Meditation } from "./meditation.js";
 /**
  * What travels over the space socket.
@@ -258,6 +259,8 @@ export type ServerMessage =
   | { type: "meditation"; meditation: Meditation }
   /** Somebody struck the room's singing bowl: see shared/bowl.ts. An event. */
   | { type: "bowl"; strike: BowlStrike }
+  /** The room's sand garden changed: see shared/garden.ts. */
+  | { type: "garden"; event: GardenEvent }
   /** Agents' helpers changed: see shared/helpers.ts. Never people. */
   | { type: "helpers"; helpers: Record<string, Helper[]> }
   | { type: "roomItems"; items: RoomItem[]; by: string }

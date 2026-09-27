@@ -43,6 +43,7 @@ import type { SettingsItem } from "../../shared/settings-3d";
 import { RoomItems } from "./RoomItems";
 import { MeditationOrb } from "./MeditationOrb";
 import { SingingBowls } from "./SingingBowls";
+import { GardenTray } from "./GardenTray";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { SpiritCompanions } from "./SpiritCompanions";
@@ -862,6 +863,8 @@ export default function Scene({
         {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation} reducedMotion={reducedMotion} />}
         {/* The singing bowls stand beside the orb, wherever a room has one: see shared/bowl.ts. */}
         {connection.meditation?.shown && <SingingBowls you={you} />}
+        {/* And the zen sand garden, on the orb's other side: see shared/garden.ts. */}
+        {connection.meditation?.shown && <GardenTray />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
         {connection.meditation?.shown && <ReadingStone />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
