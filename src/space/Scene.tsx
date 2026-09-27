@@ -52,6 +52,7 @@ import { SandMandala } from "./SandMandala";
 import { WindChimes } from "./WindChimes";
 import { PrayerWheel } from "./PrayerWheel";
 import { GongStand } from "./GongStand";
+import { RainCurtain } from "./RainCurtain";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
@@ -895,6 +896,8 @@ export default function Scene({
         {connection.meditation?.shown && <PrayerWheel you={you} />}
         {/* And the gong, for a sound bath: see GongStand.tsx. */}
         {connection.meditation?.shown && <GongStand you={you} />}
+        {/* And the rain curtain, to stand in: see RainCurtain.tsx. */}
+        {connection.meditation?.shown && <RainCurtain />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
