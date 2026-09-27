@@ -29,6 +29,16 @@ describe("avatar microphone", () => {
     expect(getUserMedia).not.toHaveBeenCalled();
   });
 
+  it("releases a cloned track if its stream cannot be built", async () => {
+    const clone = { readyState: "live", stop: vi.fn() };
+    const source = { readyState: "live", clone: () => clone, stop: vi.fn() };
+    vi.stubGlobal("MediaStream", class { constructor() { throw new Error("stream failed"); } });
+    const call = { getAudioTracks: () => [source] } as unknown as MediaStream;
+    await expect(avatarMicrophone(() => call, true, { getUserMedia: vi.fn() } as unknown as MediaDevices)).rejects.toThrow("stream failed");
+    expect(clone.stop).toHaveBeenCalledOnce();
+    expect(source.stop).not.toHaveBeenCalled();
+  });
+
   it("opens the microphone when there is no call", async () => {
     const stream = {} as MediaStream;
     const getUserMedia = vi.fn().mockResolvedValue(stream);
