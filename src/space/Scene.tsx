@@ -63,6 +63,7 @@ import { Fireflies } from "./Fireflies";
 import { MalaStand } from "./MalaStand";
 import { FloorHarp } from "./FloorHarp";
 import { Moon } from "./Moon";
+import { SittingPlaces } from "./SittingPlaces";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
@@ -930,6 +931,8 @@ export default function Scene({
         {connection.meditation?.shown && <FloorHarp peopleRef={connection.peopleRef} you={you} />}
         {/* And tonight's moon, crossing slowly: see Moon.tsx. */}
         {connection.meditation?.shown && <Moon />}
+        {/* And cushions to sit on, and who is sitting: see SittingPlaces.tsx. */}
+        {connection.meditation?.shown && <SittingPlaces peopleRef={connection.peopleRef} />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
