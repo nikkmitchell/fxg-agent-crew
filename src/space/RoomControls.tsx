@@ -400,8 +400,8 @@ export function RoomControls({
    * the default should be the thing he asked for, and the switch is there for
    * the times he wants the room alone.
    */
-  const [destination, setDestination] = useState<VoiceDestination>("room-and-agents");
-  const [alwaysOn, setAlwaysOn] = useState(false);
+  const [destination] = useState<VoiceDestination>("room-and-agents");
+  const [alwaysOn] = useState(false);
   /**
    * Whether replies are read out.
    *
@@ -952,7 +952,14 @@ export function RoomControls({
    * open." It also means you can step back to see the whole grid, or lean in
    * to press one button, which you cannot do with something welded to you.
    */
-  const pinned = useRef<{ x: number; z: number; yaw: number; from: { x: number; z: number } } | null>(null);
+  const pinned = useRef<{ x: number; y?: number; z: number; yaw: number; from: { x: number; z: number } } | null>(null);
+  /**
+   * CENTRED ON YOUR EYES (Nikk, 5410): "move the menu position so that when it
+   * pops up the centre of the menu is straight in front of your head". The
+   * height is the head's at the moment it opens, and the menu is lifted by how
+   * far its drawn middle (tabs included) sits from its origin.
+   */
+  const menuMiddle = useRef(0);
 
   const pinAhead = useCallback(() => {
     const body = anchor();
@@ -1081,7 +1088,11 @@ export function RoomControls({
       return;
     }
     if (held) {
-      node.position.set(held.x, OPEN_HEIGHT, held.z);
+      if (held.y === undefined) {
+        const head = state.camera.getWorldPosition(new THREE.Vector3()).y;
+        held.y = (head > 0.5 ? head : OPEN_HEIGHT) - menuMiddle.current;
+      }
+      node.position.set(held.x, held.y, held.z);
       node.rotation.set(0, held.yaw, 0);
       return;
     }
@@ -1410,129 +1421,21 @@ export function RoomControls({
     }
     boxes.push({ title: "Where agents live", rows });
   } else if (open && view === "root") {
-    if (tab === "voice") boxes.push({
-      title: "Talking",
-      rows: [
-        {
-          label: voice.starting
-            ? "Opening your microphone…"
-            : voice.on
-              ? voice.others.length > 0
-                ? `Mic open — ${voice.others.join(", ")} also have mics open`
-                : "Mic open — tap to close"
-            : "Talk out loud",
-          tone: voice.on || voice.starting ? "live" : "normal",
-          onTap: () => voice.setOn(voice.on || voice.starting ? false : true),
-        },
-        // Mute anyone, for yourself. Nobody else's hearing changes.
-        ...voice.others.map((name) => {
-          const isMuted = voice.muted.has(name.trim().toLowerCase());
-          return {
-            label: isMuted ? `${name}: muted — tap to hear` : `Mute ${name}`,
-            tone: isMuted ? ("muted" as const) : ("normal" as const),
-            onTap: () => voice.setMuted(name, !isMuted),
-          };
-        }),
-        capabilities.recognition
-          ? {
-              // "Speak once" stopped being true: a recording now runs until it
-              // is stopped, through any pauses.
-              label: listening ? "Stop recording" : alwaysOn ? "Start talking" : "Start recording",
-              tone: listening ? "live" : "normal",
-              onTap: () => {
-                if (!listening) {
-                  input.current?.start();
-                  return;
-                }
-                /**
-                 * Stopping from the menu KEEPS the words for the mic to send,
-                 * rather than sending from inside a menu or throwing them away.
-                 * In always-on mode the last unsent words are posted, the same
-                 * as every phrase before them was.
-                 */
-                void (async () => {
-                  const result = await input.current?.finish();
-                  const text = result?.text.trim() ?? "";
-                  if (!text) return;
-                  if (result?.confidence !== undefined) confidence.current = result.confidence;
-                  if (live.current.alwaysOn) void post(text);
-                  else {
-                    setHeard(text);
-                  }
-                })();
-              },
-            }
-          : {
-              label: written.trim() ? "Add to what you wrote" : "Type or dictate with the system keyboard",
-              // Called with no argument on purpose: a tap is not insisting.
-              onTap: () => openTextEntry(),
-            },
-        ...(written.trim()
-          ? [
-              { label: "See and fix what you said", onTap: startFixing },
-              { label: "Send what you wrote", tone: "live" as const, onTap: () => void sendWritten() },
-              { label: "Throw away what you wrote", tone: "muted" as const, onTap: () => setWritten("") },
-            ]
-          : []),
-        {
-          label: alwaysOn ? "Sending as you speak" : "Review each one before sending",
-          tone: alwaysOn ? "live" : "normal",
-          onTap: () => setAlwaysOn((on) => !on),
-        },
-        {
-          label: destination === "room" ? "To: the room only" : "To: the room and the agents",
-          onTap: () => setDestination((d) => (d === "room" ? "room-and-agents" : "room")),
-        },
-        /**
-         * A SWITCH THAT CANNOT DO ANYTHING SAYS SO.
-         *
-         * Measured on baiwei's Quest: `speech here: recognition NO; synthesis
-         * no`. Quest Browser gives a page no speech synthesis at all — which
-         * contradicts the release notes Nikk found saying it arrived in version
-         * 40.1, and is exactly why the room reports what it finds on the device
-         * instead of what a page says about it.
-         *
-         * So on that headset this row read "Replies read aloud", in the live
-         * colour, above a room that physically cannot make a sound. It is the
-         * same fault as the hand models that were drawn while the setting said
-         * hidden: a setting that lies is worse than no setting, because it
-         * sends somebody looking for a volume control that does not exist.
-         */
-        /**
-         * AND THEN THE BOX LEARNED TO SPEAK, WHICH INVERTED THIS ROW.
-         *
-         * The warning above is still right and this was still wrong: gating on
-         * `capabilities.synthesis` asks whether the BROWSER can speak, and a
-         * room utterance is no longer spoken by the browser. It is a WAV
-         * rendered on the box and played through an Audio element, which every
-         * browser has — the browser's own synthesiser is only the fallback.
-         *
-         * So on baiwei's Quest this row said "This headset's browser cannot
-         * speak" ABOVE A ROOM THAT WAS SPEAKING, and replaced the switch, so
-         * the wearer could hear the voice and had no way to turn it off. The
-         * same fault as before, pointing the other way: the first version lied
-         * that sound was coming, this one lied that it could not.
-         *
-         * The row is always a switch now. `hearReplies` is what decides whether
-         * sound arrives, and the wearer owns it on every device.
-         */
-        {
-          label: hearReplies ? "The room is read aloud" : "The room stays silent",
-          tone: hearReplies ? "live" as const : "normal" as const,
-          onTap: () => setHearReplies((on) => !on),
-        },
-        ...(alwaysOn
-          ? []
-          : [
-              {
-                label: sending ? "Sending…" : heard ? `Send: ${heard}` : "Nothing heard yet",
-                tone: (!heard || sending ? "muted" : "normal") as Row["tone"],
-                onTap: () => void post(heard),
-              },
-            ]),
-      ],
-    });
-
+    /**
+     * VOICE IS ONE ROW (Nikk, 5410): "remove all of those items except for just
+     * one option ... mute my voice". Recording and sending live on the mic.
+     */
+    const voiceRows: Row[] = [
+      {
+        label: voice.starting
+          ? "My voice: connecting…"
+          : voice.on
+            ? "My voice: on — tap to mute"
+            : "My voice: muted — tap to talk",
+        tone: voice.on || voice.starting ? "live" : "normal",
+        onTap: () => voice.setOn(voice.on || voice.starting ? false : true),
+      },
+    ];
     /**
      * WHAT THE ROOM IS SHOWING — two rows, each opening its own list.
      *
@@ -1568,6 +1471,12 @@ export function RoomControls({
           }] : []),
           ...(avatarRecorder.notice ? [{ label: avatarRecorder.notice, tone: "muted" as const, onTap: () => {} }] : []),
         ] : []),
+        // Hearing, not talking, so it stayed when Voice became one row.
+        {
+          label: hearReplies ? "The room is read aloud" : "The room stays silent",
+          tone: hearReplies ? "live" as const : "normal" as const,
+          onTap: () => setHearReplies((on) => !on),
+        },
         {
           label: handsShown ? "Hand models: shown" : "Hand models: hidden",
           tone: handsShown ? "normal" : "live",
@@ -1677,10 +1586,10 @@ export function RoomControls({
             }]
           : []),
     ];
-    if (tab === "me") boxes.push({ title: "Me", rows: meRows });
-    else if (tab === "view") boxes.push({ title: "View", rows: viewRows });
-    else if (tab === "moving") boxes.push({ title: "Moving", rows: movingRows });
-    if (tab === "voice" && voiceExtra.length) boxes.push({ title: "Voice: the headset asked", rows: voiceExtra });
+    if (tab === "me") {
+      boxes.push({ title: "Me", rows: meRows }, { title: "Voice", rows: [...voiceRows, ...voiceExtra] });
+      boxes.push({ title: "View", rows: viewRows }, { title: "Moving", rows: movingRows });
+    }
   }
 
   /**
@@ -1723,6 +1632,8 @@ export function RoomControls({
   // its origin, so centring the origins would put the whole grid half a box too
   // low — which at two rows is the difference between reading it and crouching.
   const gridTop = ((rowCount - 1) * rowStep) / 2 + boxHeight / 2;
+  // The boxes are centred on the origin; the scope and tab rows add height above.
+  menuMiddle.current = (gridTop + TAB_ROW_ABOVE + TAB_BUTTON.height * 1.5 + TAB_BUTTON.gap - gridTop) / 2;
 
   /**
    * THE WRITTEN DRAFT IS SHOWN IN THE ROOM, on the line under the controls.

@@ -21,16 +21,16 @@ export const SCOPES: { id: SettingsScope; label: string }[] = [
 ];
 
 export const TABS: Record<SettingsScope, { id: SettingsTab; label: string }[]> = {
+  // Nikk (5410): Me, View, Moving and Voice are one tab now, "me", in sections.
   me: [
     { id: "me", label: "Me" },
-    { id: "view", label: "View" },
-    { id: "moving", label: "Moving" },
-    { id: "voice", label: "Voice" },
     { id: "rooms", label: "Rooms" },
   ],
+  // And this room's three renamed: activity items (what the room shows), work
+  // items (the things in it), agents.
   room: [
-    { id: "show", label: "Show" },
-    { id: "items", label: "Items" },
+    { id: "show", label: "Activity items" },
+    { id: "items", label: "Work items" },
     { id: "agents", label: "Agents" },
   ],
 };
