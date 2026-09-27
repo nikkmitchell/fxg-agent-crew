@@ -502,6 +502,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       // So a catalogue body resolves to a real choice, and an invented name is
       // told apart from one this server simply cannot check.
       inTheCatalogue,
+      ready: () => bodyFiles.ready(),
     });
     registerBodyFileRoutes(scoped, { config, sessions, files: bodyFiles });
     /**

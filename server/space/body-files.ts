@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { mkdir, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
@@ -84,6 +84,19 @@ export class BodyFiles {
     const started = this.fetchAndKeep(key).finally(() => this.inFlight.delete(key));
     this.inFlight.set(key, started);
     return started;
+  }
+
+  /**
+   * Every body whose file is here now, by key: what can be worn without a
+   * fetch. On the Shanghai box a fetch cannot reach the collection at all, so
+   * this is also the whole of what can be worn there (see the lobby picker).
+   */
+  async ready(): Promise<string[]> {
+    try {
+      return (await readdir(this.root)).filter((name) => name.endsWith(".vrm")).map((name) => name.slice(0, -4));
+    } catch {
+      return [];
+    }
   }
 
   private async onDisk(key: string): Promise<string | null> {

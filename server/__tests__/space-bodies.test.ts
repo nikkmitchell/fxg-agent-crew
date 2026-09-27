@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
@@ -196,6 +198,23 @@ describe("refusing a body we cannot put on", () => {
 });
 
 describe("the wardrobe", () => {
+  it("names what this server can dress somebody in right now: on hand, and whatever is already here", async () => {
+    // Nikk wants the lobby to offer the avatars "available on the server"; a
+    // body the server cannot fetch (arweave, from Shanghai) is not one of them.
+    const cache = tempDir("bodies-");
+    writeFileSync(join(cache, "abissaldude.vrm"), "glTF");
+    const built = buildServer({
+      WEBHARNESS_URL: "https://example.test", DATABASE_PATH: ":memory:", BLOB_ROOT: tempDir("blobs-"),
+      BODY_CACHE_ROOT: cache, LOG_LEVEL: "silent",
+    });
+    const cookie = `${built.config.cookieName}=${built.sessions.create("Nikk2", "t", "human")}`;
+    const ready = (await built.app.inject({ method: "GET", url: "/bff/space/bodies", headers: { cookie } })).json().ready as string[];
+    expect(ready).toContain("abissaldude");
+    expect(ready).toContain("shiro");
+    expect(ready).toEqual([...new Set(ready)].sort());
+    await built.app.close();
+  });
+
   it("lists what can be worn now, who has chosen, and where the other 285 are", async () => {
     const { app, as } = boot();
     await mine(app, as("Sill", "agent"), { body: "shiro" });
