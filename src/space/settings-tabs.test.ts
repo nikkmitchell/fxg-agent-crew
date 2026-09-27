@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { SCOPES, TABS, scopeOf, screenOf } from "./settings-tabs";
 
 describe("the settings tabs", () => {
-  it("are the eight Nikk named, in two scopes, with the canonical labels", () => {
-    expect(TABS.me.map((t) => t.label)).toEqual(["Me", "View", "Moving", "Voice", "Rooms"]);
-    expect(TABS.room.map((t) => t.label)).toEqual(["Show", "Items", "Agents"]);
+  it("are the ones Nikk named (5410), in two scopes, with the canonical labels", () => {
+    expect(TABS.me.map((t) => t.label)).toEqual(["Me", "Rooms"]);
+    expect(TABS.room.map((t) => t.label)).toEqual(["Activity items", "Work items", "Agents"]);
     expect(SCOPES.map((s) => s.id)).toEqual(["me", "room"]);
   });
 
