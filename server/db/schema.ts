@@ -1060,4 +1060,18 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 34,
+    name: "each room's star map",
+    sql: `
+      -- The lines people have drawn between the stars above the room
+      -- (shared/stars.ts). One row per room, as JSON; it builds up.
+      CREATE TABLE space_stars (
+        room TEXT PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];

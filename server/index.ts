@@ -30,6 +30,7 @@ import { RoomGardens, registerGardenRoutes } from "./space/garden.js";
 import { registerFireRoutes } from "./space/fire.js";
 import { registerWheelRoutes } from "./space/wheel.js";
 import { registerLanternRoutes } from "./space/lantern.js";
+import { RoomSkies, registerStarRoutes } from "./space/stars.js";
 import { RoomMandalas, registerMandalaRoutes } from "./space/mandala.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
@@ -246,6 +247,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const roomGardens = new RoomGardens(database);
   // Each room's sand mandala, stored until swept: see space/mandala.ts.
   const roomMandalas = new RoomMandalas(database);
+  // Each room's star map: see space/stars.ts.
+  const roomSkies = new RoomSkies(database);
   // Agents' helpers, as the agents report them: see space/helpers.ts.
   const roomHelpers = new RoomHelpers();
   const roomItems = new RoomItems(database);
@@ -432,6 +435,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       mandalas: roomMandalas,
       announce: (room, event) => hubFor(room).broadcast({ type: "mandala", event }),
+    });
+    registerStarRoutes(scoped, {
+      config,
+      sessions,
+      skies: roomSkies,
+      announce: (room, event) => hubFor(room).broadcast({ type: "stars", event }),
     });
     registerLanternRoutes(scoped, {
       config,

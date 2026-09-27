@@ -54,6 +54,7 @@ import { PrayerWheel } from "./PrayerWheel";
 import { GongStand } from "./GongStand";
 import { RainCurtain } from "./RainCurtain";
 import { Lanterns } from "./Lanterns";
+import { StarMap } from "./StarMap";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
@@ -901,6 +902,8 @@ export default function Scene({
         {connection.meditation?.shown && <RainCurtain />}
         {/* And floating lanterns: see shared/lantern.ts. */}
         {connection.meditation?.shown && <Lanterns you={you} />}
+        {/* And the star map overhead: see shared/stars.ts. */}
+        {connection.meditation?.shown && <StarMap />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
