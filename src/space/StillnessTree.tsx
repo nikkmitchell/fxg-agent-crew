@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Text } from "@react-three/drei";
 import * as THREE from "three";
-import { treeOf } from "../../shared/meditation";
+import { leafColour, treeOf, type TreeColour } from "../../shared/meditation";
 import { ORB_AT } from "./MeditationOrb";
 
 /**
@@ -32,7 +32,7 @@ function seeded(seed: number) {
 
 type Twig = { from: THREE.Vector3; to: THREE.Vector3 };
 
-export function StillnessTree({ minutes }: { minutes: number }) {
+export function StillnessTree({ minutes, fed = [] }: { minutes: number; fed?: TreeColour[] }) {
   const shape = treeOf(minutes);
   const { twigs, leaves, blossoms } = useMemo(() => {
     const random = seeded(4649);
@@ -74,7 +74,7 @@ export function StillnessTree({ minutes }: { minutes: number }) {
     })}
     {leaves.map((at, index) => <mesh key={`l${index}`} position={at} raycast={noRaycast}>
       <sphereGeometry args={[0.022, 6, 5]} />
-      <meshStandardMaterial color={index % 3 === 0 ? "#7fbf6a" : "#5e9e52"} roughness={0.8} />
+      <meshStandardMaterial color={leafColour(index, fed) ?? (index % 3 === 0 ? "#7fbf6a" : "#5e9e52")} roughness={0.8} />
     </mesh>)}
     {blossoms.map((at, index) => <mesh key={`f${index}`} position={at} raycast={noRaycast}>
       <sphereGeometry args={[0.018, 6, 5]} />

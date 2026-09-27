@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
-import { GUIDES, GUIDE_VOICE, READINGS, isGuide, isReading } from "../../shared/guided.js";
+import { GUIDES, GUIDE_VOICE, READINGS, guideVoice, isGuide, isReading } from "../../shared/guided.js";
 import type { SpeechCache } from "./speak.js";
 
 /**
@@ -25,7 +25,7 @@ export function registerGuideRoutes(
    * One line of a guide or a reading, from the script alone. `lineOf` returns
    * the fixed text, or null for anything that is not in a script.
    */
-  const speakLine = (route: string, lineOf: (id: string, index: number) => string | null) =>
+  const speakLine = (route: string, lineOf: (id: string, index: number) => string | null, voiceOf: (id: string) => string = () => GUIDE_VOICE) =>
   app.get<{ Params: { id: string; line: string } }>(route, async (request, reply) => {
     if (!requireSession(request, reply)) return reply;
     const index = Number(request.params.line);
@@ -34,11 +34,12 @@ export function registerGuideRoutes(
     if (!deps.speech.canSpeak()) {
       return reply.code(501).send({ code: "NOT_SPOKEN_HERE", error: "this server has no speech engine configured." });
     }
-    if (!(await deps.speech.ensure(text, GUIDE_VOICE))) {
+    const voice = voiceOf(request.params.id);
+    if (!(await deps.speech.ensure(text, voice))) {
       return reply.code(503).send({ code: "NOT_SAID_YET", error: "that line is still being voiced. Try again in a moment." });
     }
     try {
-      const bytes = await readFile(deps.speech.path(text, GUIDE_VOICE));
+      const bytes = await readFile(deps.speech.path(text, voice));
       return reply.header("content-type", "audio/wav").header("cache-control", "private, max-age=604800, immutable").send(bytes);
     } catch (error) {
       request.log.error({ err: error, id: request.params.id, index }, "voiced a script line and could not read it back");
@@ -46,7 +47,8 @@ export function registerGuideRoutes(
     }
   });
 
-  speakLine("/bff/space/guides/:id/:line/audio", (id, index) => (isGuide(id) ? GUIDES[id].lines[index]?.say ?? null : null));
+  speakLine("/bff/space/guides/:id/:line/audio", (id, index) => (isGuide(id) ? GUIDES[id].lines[index]?.say ?? null : null),
+    (id) => (isGuide(id) ? guideVoice(id) : GUIDE_VOICE));
   speakLine("/bff/space/readings/:id/:line/audio", (id, index) => (isReading(id) ? READINGS[id].lines[index] ?? null : null));
 }
 
@@ -61,12 +63,12 @@ export function registerGuideRoutes(
 export async function voiceAllGuides(speech: SpeechCache, log: (message: string) => void): Promise<void> {
   if (!speech.canSpeak()) return;
   let made = 0;
-  const lines = [
-    ...Object.values(GUIDES).flatMap((guide) => guide.lines.map((line) => line.say)),
-    ...Object.values(READINGS).flatMap((reading) => reading.lines),
+  const lines: Array<[string, string]> = [
+    ...(Object.keys(GUIDES) as Array<keyof typeof GUIDES>).flatMap((id) => GUIDES[id].lines.map((line): [string, string] => [line.say, guideVoice(id)])),
+    ...Object.values(READINGS).flatMap((reading) => reading.lines.map((line): [string, string] => [line, GUIDE_VOICE])),
   ];
-  for (const text of lines) {
-    if (await speech.ensure(text, GUIDE_VOICE)) made += 1;
+  for (const [text, voice] of lines) {
+    if (await speech.ensure(text, voice)) made += 1;
   }
   log(`guided meditations and readings: ${made} of ${lines.length} lines ready`);
 }

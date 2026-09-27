@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  MINUTES, PATTERNS, PATTERN_IDS, breathAt, rippleAt, patternNote, clockOffset, clockText, doneLine,
+  MINUTES, PATTERNS, PATTERN_IDS, breathAt, idleBreath, rippleAt, patternNote, clockOffset, clockText, doneLine,
   type Meditation, type MeditationChange,
 } from "../../shared/meditation";
 import { space } from "../space-client";
@@ -13,6 +13,8 @@ import { SOUNDSCAPE_LABEL, isSoundscape, nextSoundscape, playSoundscape, type So
 import { useDisposable } from "./use-disposable";
 import { Typing3D } from "./Typing3D";
 import { INTENTION_LONGEST, type Intention } from "../../shared/meditation";
+import type { WirePerson } from "../../shared/space-wire";
+import { AirWeave } from "./AirWeave";
 
 /**
  * The breathing orb. Nikk (4649): "the full AR meditation experience".
@@ -103,11 +105,13 @@ function Stones({ intentions, fullness }: { intentions: Intention[]; fullness: (
   </group>;
 }
 
-export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
+export function MeditationOrb({ meditation, onMeditation, reducedMotion, peopleRef, roster }: {
   meditation: Meditation;
   /** Apply the session as the server just answered with it. */
   onMeditation: (session: Meditation) => void;
   reducedMotion: boolean;
+  peopleRef: RefObject<WirePerson[]>;
+  roster: readonly Pick<WirePerson, "actorId" | "connected">[];
 }) {
   const { invalidate } = useThree();
   const core = useRef<THREE.Mesh>(null);
@@ -194,9 +198,11 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
 
   useFrame(() => {
     const at = breathAt(meditation, now());
-    const fullness = at.state === "breathing" ? at.fullness : at.state === "idle" ? 0.35 : 0;
+    // Idle, the orb still breathes gently (idleBreath), a little smaller than a session.
+    const idle = at.state === "idle" && !reducedMotion ? idleBreath(now()) : null;
+    const fullness = at.state === "breathing" ? at.fullness : idle ? 0.15 + 0.4 * idle.fullness : at.state === "idle" ? 0.35 : 0;
     fullnessNow.current = fullness;
-    const colour = phaseColour.set(PHASE_COLOUR[at.state === "breathing" ? at.phase : "rest"]);
+    const colour = phaseColour.set(PHASE_COLOUR[at.state === "breathing" ? at.phase : idle ? idle.phase : "rest"]);
     const radius = SMALL + (LARGE - SMALL) * (reducedMotion ? Math.round(fullness) : fullness);
     core.current?.scale.setScalar(radius);
     (core.current?.material as THREE.MeshBasicMaterial | undefined)?.color.copy(colour);
@@ -216,9 +222,22 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
         spoken.current.index = due.index;
         if (soundRef.current) {
           hush();
-          const audio = new Audio(`${base.current}/bff/space/guides/${meditation.guide}/${due.index}/audio`);
-          voice.current = audio;
-          void audio.play().catch(() => undefined);
+          const url = `${base.current}/bff/space/guides/${meditation.guide}/${due.index}/audio`;
+          /**
+           * TRY AGAIN, BRIEFLY. Right after a release the server may still be
+           * voicing lines (it answers 503 until one is ready), and the first
+           * lines of the first session would pass in silence. Two more tries,
+           * two seconds apart, while this is still the line being spoken.
+           */
+          const attempt = (left: number) => {
+            const audio = new Audio(url);
+            voice.current = audio;
+            audio.onerror = () => {
+              if (left > 0 && voice.current === audio) window.setTimeout(() => { if (voice.current === audio) attempt(left - 1); }, 2000);
+            };
+            void audio.play().catch(() => undefined);
+          };
+          attempt(2);
         }
       }
     } else if (voice.current) {
@@ -245,13 +264,15 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
     const second = at.state === "breathing" ? `${at.words}${at.secondsLeft}${Math.ceil(at.remaining)}${at.paused}` : at.state;
     if (second !== lastSecond.current) { lastSecond.current = second; redraw((n) => n + 1); }
     // The scene draws on demand; a breath is motion, so keep asking while it runs.
-    if (at.state === "breathing" && !at.paused) invalidate();
+    if ((at.state === "breathing" && !at.paused) || idle) invalidate();
   });
 
   const running = breath.state === "breathing";
   const [x, y, z] = ORB_AT;
 
-  return <group position={[x, y, z]}>
+  return <>
+    <AirWeave peopleRef={peopleRef} roster={roster} meditation={meditation} reducedMotion={reducedMotion} now={now} />
+    <group position={[x, y, z]}>
     <mesh ref={core} raycast={noRaycast}>
       <sphereGeometry args={[1, 48, 32]} />
       <meshBasicMaterial color={PHASE_COLOUR[phaseKey]} transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
@@ -332,5 +353,6 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
       />}
       {trouble && <Text position={[0, -0.18, 0]} fontSize={0.026} color="#ffb4a6" raycast={noRaycast}>{trouble}</Text>}
     </group>
-  </group>;
+    </group>
+  </>;
 }
