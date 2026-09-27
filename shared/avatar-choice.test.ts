@@ -12,6 +12,12 @@ describe("bodyKey", () => {
 });
 
 describe("chooseBody", () => {
+  it("refuses a body taken off the list, however it is spelled (Nikk, 5244)", () => {
+    const catalogue = (key: string) => (key === "coolpoo" ? { name: "CoolPoo" } : null);
+    expect(chooseBody("CoolPoo", catalogue)).toEqual(expect.objectContaining({ code: "NO_SUCH_BODY" }));
+    expect(chooseBody("cool poo", catalogue)).toEqual(expect.objectContaining({ code: "NO_SUCH_BODY" }));
+  });
+
   it("takes the slug, the catalogue name, or a human's spelling of either", () => {
     for (const asked of ["cool-candle", "CoolCandle", "Cool Candle", "COOLCANDLE"]) {
       const chosen = chooseBody(asked);

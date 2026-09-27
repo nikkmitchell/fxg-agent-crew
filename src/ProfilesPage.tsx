@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "./api-request";
 import { base } from "./router";
-import { thumbPath } from "../shared/avatar-choice";
+import { isWithdrawn, thumbPath } from "../shared/avatar-choice";
 import { board, toProfile } from "./board-client";
 import {
   bodiesFromCatalogue,
@@ -616,9 +616,11 @@ function BodyChooser(props: {
   // nullable field onto `name` — which is then lowercased and slugged below.
   // Nothing flagged it while the type claimed the field was a string; making
   // the type honest turned it into three compiler errors.
-  const all = props.catalogue.length
+  const all = (props.catalogue.length
     ? props.catalogue
-    : (props.bodies?.onHand ?? []).map((o) => ({ name: o.catalogue ?? o.slug }));
+    : (props.bodies?.onHand ?? []).map((o) => ({ name: o.catalogue ?? o.slug })))
+    // Taken off the list (Nikk, 5244): see WITHDRAWN_BODIES.
+    .filter((b) => !isWithdrawn(b.name));
   const worn = props.chosenBody
     ? props.bodies?.onHand.find((o) => slugOf(o.slug) === slugOf(props.chosenBody!))
     : undefined;

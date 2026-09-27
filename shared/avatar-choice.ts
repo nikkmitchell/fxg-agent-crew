@@ -139,6 +139,14 @@ export const bodyPath = (slug: string): string =>
  * genuinely cannot tell whether that name is a body or a typo, and must not
  * guess.
  */
+/**
+ * BODIES TAKEN OFF THE LIST. Nikk (5244): "can you remove the poop Avatar from
+ * the list of possible avatars". Not offered by any picker and refused when
+ * asked for; somebody already wearing one keeps it until they choose again.
+ */
+export const WITHDRAWN_BODIES: ReadonlySet<string> = new Set(["coolpoo"]);
+export const isWithdrawn = (name: string): boolean => WITHDRAWN_BODIES.has(bodyKey(name));
+
 export function chooseBody(
   asked: unknown,
   inTheCatalogue?: (key: string) => { name: string } | null,
@@ -147,6 +155,9 @@ export function chooseBody(
     return { code: "NO_SUCH_BODY", error: "say which body you want, as its name from /avatars/catalogue.json" };
   }
   const key = bodyKey(asked);
+  if (WITHDRAWN_BODIES.has(key)) {
+    return { code: "NO_SUCH_BODY", error: `${asked} has been taken off the list of bodies` };
+  }
   const found = BY_KEY.get(key);
   if (found) return found;
   const fromCatalogue = inTheCatalogue?.(key);
