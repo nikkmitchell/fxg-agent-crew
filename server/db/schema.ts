@@ -1046,4 +1046,23 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 33,
+    name: "each room's shared mindfulness page",
+    sql: `
+      -- Only a sentence a person explicitly shares is stored. It remains on
+      -- this room's page across sessions; authorship stays private and exists
+      -- only so the writer can remove their own card.
+      CREATE TABLE space_mindfulness_cards (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT NOT NULL UNIQUE,
+        room TEXT NOT NULL,
+        text TEXT NOT NULL CHECK (length(text) BETWEEN 1 AND 240),
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX mindfulness_cards_by_room ON space_mindfulness_cards(room, seq DESC);
+      CREATE INDEX mindfulness_cards_by_author ON space_mindfulness_cards(room, created_by, created_at);
+    `,
+  },
 ];

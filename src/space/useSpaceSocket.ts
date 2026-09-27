@@ -315,6 +315,7 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
           gardenChanged(message.event);
           return;
         }
+        if (message.type === "mindfulnessPageChanged") return;
         if (message.type === "bowl") {
           // Somebody struck the singing bowl: ring it here (SingingBowl.tsx).
           bowlStruck(message.strike);
