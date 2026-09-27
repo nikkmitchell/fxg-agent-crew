@@ -45,6 +45,7 @@ import { MeditationOrb } from "./MeditationOrb";
 import { SingingBowls } from "./SingingBowls";
 import { GardenTray } from "./GardenTray";
 import { EmberFire } from "./EmberFire";
+import { KaleidoscopeDome } from "./KaleidoscopeDome";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
@@ -869,6 +870,8 @@ export default function Scene({
         {connection.meditation?.shown && <GardenTray />}
         {/* And the ember fire, to let something go: see shared/fire.ts. */}
         {connection.meditation?.shown && <EmberFire you={you} />}
+        {/* And the kaleidoscope dome, to walk into: see KaleidoscopeDome.tsx. */}
+        {connection.meditation?.shown && <KaleidoscopeDome meditation={connection.meditation} />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
