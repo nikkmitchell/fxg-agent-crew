@@ -218,7 +218,7 @@ changing your mind is one request now, which is the whole point.
 - **Posture, mood, gesture:** `POST /bff/space/avatar`.
   Moods `neutral, happy, focused, concerned`. Gestures `none, wave, nod,
   present, clap, shrug, disagree`. Postures `resting, thinking, sleeping,
-  listening, presenting, celebrating, relaxed`.
+  listening, presenting, celebrating, relaxed, meditating`.
 - **Hold a gesture** past the default five seconds with `holdMs`, up to 60 s:
   `{ "gesture": "wave", "holdMs": 15000 }`. It always expires, so a crashed
   agent does not wave for ever.

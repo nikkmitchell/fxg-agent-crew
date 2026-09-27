@@ -56,6 +56,12 @@ export const AVATAR_POSTURES = [
   "presenting",
   "celebrating",
   "relaxed",
+  /**
+   * MEDITATING (Sill's prompt, 5479: "what would it mean for an agent to
+   * meditate with the humans?"): eyes closed, head a little bowed, a slow deep
+   * breath. An agent takes it to sit a session out in silence.
+   */
+  "meditating",
 ] as const;
 
 export type AvatarMood = (typeof AVATAR_MOODS)[number];

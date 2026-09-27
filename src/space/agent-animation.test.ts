@@ -34,6 +34,8 @@ describe("agent animation selection", () => {
     expect(state({ posture: "presenting" })).toBe("presenting");
     expect(state({ posture: "celebrating" })).toBe("celebrating");
     expect(state({ posture: "relaxed" })).toBe("relaxed");
+    // An agent sitting a session out (Sill, 5479).
+    expect(state({ posture: "meditating" })).toBe("meditating");
     expect(state({ posture: "sleeping" }), "lying down asleep, not standing idle").toBe("sleeping");
     expect(state({ speaking: true, posture: "presenting" })).toBe("presenting");
   });

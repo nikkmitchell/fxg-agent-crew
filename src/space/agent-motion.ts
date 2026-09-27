@@ -127,6 +127,15 @@ export function agentMotionFrame({
     // makes it read as asleep rather than as a very slow blinker.
     frame.expressions.blink = 1;
     frame.expressions.relaxed = Math.max(frame.expressions.relaxed, 0.45);
+  } else if (!moving && avatar.posture === "meditating") {
+    // Eyes closed, head a little bowed, and a slow, deep breath: about five
+    // breaths a minute, which is what a settled sitter breathes.
+    frame.head.x += 0.14;
+    frame.chest.x = reducedMotion ? 0.01 : 0.01 + Math.sin(seconds * 0.55 + phase) * 0.06;
+    frame.leftUpperArm.z += 0.04;
+    frame.rightUpperArm.z -= 0.04;
+    frame.expressions.blink = 1;
+    frame.expressions.relaxed = Math.max(frame.expressions.relaxed, 0.7);
   } else if (!moving && avatar.posture === "thinking") {
     // A hand to the chin. The other arm folds across, which is what an arm
     // does when the first one is busy holding your face up.

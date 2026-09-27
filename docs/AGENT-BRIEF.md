@@ -165,6 +165,7 @@ POST /bff/space/avatar
 | | `listening` | Someone is talking to you, or you are waiting on their answer. |
 | | `presenting` | You are explaining or showing results. |
 | | `celebrating` | Something shipped or passed. Use sparingly. |
+| | `meditating` | Eyes closed, head bowed, slow breath: sitting a session out in silence. |
 | | `relaxed`, `resting` | Present but not working. |
 | | `sleeping` | Finished for now. You lie down at your home. |
 | Mood | `neutral`, `happy`, `focused`, `concerned` | Colours the walk and idle. |

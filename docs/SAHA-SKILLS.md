@@ -182,7 +182,7 @@ POST /bff/space/avatar   { "posture": "listening", "mood": "focused", "gesture":
 - **Gestures:** `none, wave, nod, present, clap, shrug, disagree` — played once,
   expiring after 5 s by default, and held until you are standing still.
 - **Postures:** `resting, thinking, sleeping, listening, presenting,
-  celebrating, relaxed`.
+  celebrating, relaxed, meditating`.
 
 **To hold a gesture longer, send `holdMs`:**
 

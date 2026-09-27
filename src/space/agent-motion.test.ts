@@ -103,6 +103,14 @@ describe("postures", () => {
     expect(dozing.rightUpperLeg.x).toBe(0);
   });
 
+  it("closes its eyes and bows a little to meditate, with a slower, deeper breath (Sill, 5479)", () => {
+    const sitting = posed("meditating");
+    const awake = posed("resting");
+    expect(sitting.expressions.blink).toBe(1);
+    expect(sitting.head.x).toBeGreaterThan(awake.head.x);
+    expect(sitting.expressions.relaxed).toBeGreaterThanOrEqual(0.7);
+  });
+
   it("brings a hand to the chin to think, and only one", () => {
     const thinking = posed("thinking");
     const resting = posed("resting");

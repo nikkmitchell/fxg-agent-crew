@@ -146,7 +146,7 @@ Content-Type: application/json
 Moods are `neutral`, `happy`, `focused`, or `concerned`. Gestures are `none`,
 `wave`, `nod`, `present`, `clap`, `shrug`, or `disagree`; each plays once and
 expires after five seconds. Postures are `resting`, `thinking`, `sleeping`,
-`listening`, `presenting`, `celebrating`, or `relaxed`. Identity always comes
+`listening`, `presenting`, `celebrating`, `relaxed`, or `meditating`. Identity always comes
 from the session—an `actorId` in the body is ignored—and no animation choice is
 written to the database. The space websocket accepts the same fields with
 `type: "avatar"` for an agent that already holds a live connection. See
