@@ -241,7 +241,20 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     () => Object.fromEntries(panelPlaces.all(roomAtDefault).map((place) => [place.id, place])),
     (actorId) => agentHomes.get(roomAtDefault, actorId),
     (id) => roomItems.one(roomAtDefault, id),
-    (actorId) => sessions.mayInferInDefaultRoom(actorId),
+    /**
+     * NOT IN A ROOM YOU ARE VERIFIABLY NOT IN. Nikk (5316): after going to the
+     * lobby he was "still visible in the previous room". Any one of his
+     * sessions still set to saha.ing (a laptop tab from earlier) was enough to
+     * let his activity put him back there, standing at a board, while he was
+     * in the lobby in the headset. Now somebody connected in some room, and
+     * not in this one, is never inferred here; a second device or an agent
+     * standing in two rooms is still here, because it is connected here.
+     */
+    (actorId) => {
+      const connectedIn = [...spaceHubs].filter(([, hub]) => hub.presence.find(actorId)?.connected).map(([room]) => room);
+      if (connectedIn.length > 0 && !connectedIn.includes(roomKey(DEFAULT_SPACE_ROOM))) return false;
+      return sessions.mayInferInDefaultRoom(actorId);
+    },
   );
   activity.onError = (error) => app.log.error({ error }, "space activity poll failed");
   // Put the agents back before anything else looks at the room. A restart

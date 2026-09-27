@@ -133,6 +133,30 @@ describe("entering and isolating room spaces", () => {
     expect(betaPresence.json().people.map((person: { actorId: string }) => person.actorId)).toEqual(["Beryl"]);
   });
 
+  it("never draws somebody back into saha.ing from its board while they are standing in another room (Nikk, 5316)", async () => {
+    joinedRooms({ both: ["saha.ing", "alpha"] });
+    const { as, enter, origin, hubFor, activity } = await boot();
+    // An older session (a laptop tab from earlier) still set to saha.ing...
+    const laptop = as("Aster", "both");
+    expect((await enter(laptop, "saha.ing")).statusCode).toBe(200);
+    // ...and the headset, standing in alpha.
+    const headset = as("Aster", "both");
+    expect((await enter(headset, "alpha")).statusCode).toBe(200);
+    const inAlpha = await connect(origin, headset);
+    await inAlpha.until((frame) => frame.type === "welcome");
+
+    activity.observeRead("Aster", "human", "tasks");
+    expect(hubFor("saha.ing").presence.find("Aster"), "not drawn in a room they are not in").toBeUndefined();
+    expect(hubFor("alpha").presence.find("Aster")?.connected).toBe(true);
+
+    // Nowhere connected at all, the saha.ing session may place them again.
+    inAlpha.socket.close();
+    const end = Date.now() + 3_000;
+    while (hubFor("alpha").presence.find("Aster") && Date.now() < end) await new Promise((resolve) => setTimeout(resolve, 20));
+    activity.observeRead("Aster", "human", "tasks");
+    expect(hubFor("saha.ing").presence.find("Aster")).toBeDefined();
+  });
+
   it("closes a previous room's socket when the same session switches rooms", async () => {
     joinedRooms({ both: ["alpha", "beta"] });
     const { as, enter, origin, hubFor } = await boot();
