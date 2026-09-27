@@ -18,6 +18,17 @@ import { VASE_AT } from "./IkebanaVase";
 import { FIREFLIES_AT } from "./Fireflies";
 import { MALA_AT } from "./MalaStand";
 import { HARP_AT } from "./FloorHarp";
+import { ORB_AT } from "./MeditationOrb";
+import { TREE_AT } from "./StillnessTree";
+import { READING_AT } from "./ReadingStone";
+import { BOOK_AT } from "./RoomBook";
+import { SHELF_AT } from "./CandleShelf";
+import { TEA_AT } from "./TeaTable";
+import { MINDFULNESS_PANEL_AT } from "./MindfulnessPanel";
+import { LABYRINTH } from "../../shared/labyrinth";
+
+/** [x, y, z] as the floor place the sign uses. */
+const floor = ([x, , z]: readonly [number, number, number]) => ({ x, z });
 
 /** The room guide sign copies each piece's place by hand; this keeps the copies honest. */
 describe("the room guide says where things really are", () => {
@@ -26,6 +37,10 @@ describe("the room guide says where things really are", () => {
     "Light ribbons": RIBBONS_AT, "Koi pond": POND_AT, "Sand mandala": MANDALA_AT, "Wind chimes": CHIMES_AT,
     "Prayer wheel": WHEEL_AT, "Gong": GONG_AT, "Rain curtain": RAIN_AT, "Lanterns": LAUNCH_AT, "Incense": INCENSE_AT,
     "Hold the light": LIGHT_AT, "Ikebana": VASE_AT, "Fireflies": FIREFLIES_AT, "Mala": MALA_AT, "Floor harp": HARP_AT,
+    // Sill's and Inkstone's.
+    "Breathing orb": floor(ORB_AT), "Stillness tree": floor(TREE_AT), "Reading stone": floor(READING_AT),
+    "Room's book": floor(BOOK_AT), "Candle shelf": floor(SHELF_AT), "Tea table": floor(TEA_AT),
+    "Practice panel": floor(MINDFULNESS_PANEL_AT), "Labyrinth": LABYRINTH,
   };
   for (const [name, at] of Object.entries(places)) {
     it(name, () => {
