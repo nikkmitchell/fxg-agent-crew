@@ -65,17 +65,10 @@ export class PanelChoices {
   /** Record a decision. Returns null when it was accepted, a sentence when not. */
   set(room: string, panelId: string, open: boolean, by: string, at: string): string | null {
     if (!(panelId in STATIONS)) return `there is no panel called "${panelId}"`;
-    // REFUSING TO CLOSE THE LAST ONE. An empty arc is indistinguishable from a
-    // room that failed to load, and the way out of it is a settings list the
-    // person has just learned they cannot see. Cheaper to say no.
-    //
-    // NOW A REFUSAL ON EVERYBODY'S BEHALF, which is a stronger reason for it
-    // rather than a weaker one: closing the last panel would empty the room
-    // for every person in it, including people not looking at a settings menu
-    // and with no idea why the walls went bare.
-    if (!open && this.open(room).filter((id) => id !== panelId).length === 0) {
-      return "that is the last panel open; the room would be empty for everybody and nobody could get back";
-    }
+    // EVERY PANEL MAY CLOSE, the last one too. Nikk (5384): "I cannot remove
+    // the last panel, it says the room will be empty, but that's not true: the
+    // room may have a Go board, or agents, or people chatting". Panels come
+    // back from This room > Show, which does not need a panel to reach.
     this.database
       .prepare(
         `INSERT INTO space_panel_shown (room, panel_id, open, set_by, set_at) VALUES (?, ?, ?, ?, ?)
@@ -83,6 +76,28 @@ export class PanelChoices {
       )
       .run(roomKey(room), panelId, open ? 1 : 0, by, at);
     return null;
+  }
+
+  /**
+   * AGENTS HIDDEN FOR EVERYONE IN THE ROOM. Nikk (5384): "set in the menu of a
+   * room to hide agents for everyone, and when agents are hidden it should
+   * also hide their screens". Kept beside the panels, as the reserved row
+   * `agents`, because it is the same kind of thing: what this room shows.
+   */
+  agentsHidden(room: string): boolean {
+    const row = this.database
+      .prepare("SELECT open FROM space_panel_shown WHERE room = ? AND panel_id = 'agents'")
+      .get(roomKey(room)) as { open: number } | undefined;
+    return row !== undefined && row.open === 0;
+  }
+
+  setAgentsHidden(room: string, hidden: boolean, by: string, at: string): void {
+    this.database
+      .prepare(
+        `INSERT INTO space_panel_shown (room, panel_id, open, set_by, set_at) VALUES (?, 'agents', ?, ?, ?)
+         ON CONFLICT(room, panel_id) DO UPDATE SET open = excluded.open, set_by = excluded.set_by, set_at = excluded.set_at`,
+      )
+      .run(roomKey(room), hidden ? 0 : 1, by, at);
   }
 }
 
@@ -182,6 +197,7 @@ export function registerPanelRoutes(
     config,
     announce,
     announceOpen,
+    announceAgents,
     holds,
   }: {
     database: DatabaseSync;
@@ -192,6 +208,8 @@ export function registerPanelRoutes(
     /** Tell everyone in the room, so a panel moves under their eyes. */
     announce: (room: string, placement: Placement, by: string) => void;
     announceOpen: (room: string, open: string[], by: string) => void;
+    /** Tell everyone in the room the agents were hidden or shown for them. */
+    announceAgents?: (room: string, hidden: boolean, by: string) => void;
   },
 ) {
   const requireSession = makeRequireSession(config, sessions);
@@ -210,7 +228,22 @@ export function registerPanelRoutes(
       })),
       open: choices.open(spaceRoomOf(session)),
       places: places.all(spaceRoomOf(session)),
+      agentsHidden: choices.agentsHidden(spaceRoomOf(session)),
     });
+  });
+
+  /** Hide or show the agents, and their screens, for everyone in this room. */
+  app.put<{ Body: { hidden?: unknown } }>("/bff/space/agents-hidden", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const hidden = request.body?.hidden;
+    if (typeof hidden !== "boolean") {
+      return reply.code(400).send({ code: "BAD_HIDDEN", error: "hidden must be true or false" });
+    }
+    const room = spaceRoomOf(session);
+    choices.setAgentsHidden(room, hidden, session.username, new Date().toISOString());
+    announceAgents?.(room, hidden, session.username);
+    return reply.send({ agentsHidden: hidden });
   });
 
   app.put<{ Params: { id: string }; Body: { open?: unknown } }>(

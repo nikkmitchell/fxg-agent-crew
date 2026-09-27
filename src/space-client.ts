@@ -83,7 +83,16 @@ export const space = {
       panels: { id: string; label: string; tab: string }[];
       open: string[];
       places: Placement[];
+      /** The agents, and their screens, hidden for everyone in this room. */
+      agentsHidden?: boolean;
     }>(`${root}/panels`),
+
+  /** Hide or show the agents, and their screens, for everyone in this room. */
+  setAgentsHiddenForRoom: (hidden: boolean) =>
+    requestJson<{ agentsHidden: boolean }>(`${root}/agents-hidden`, {
+      method: "PUT",
+      body: JSON.stringify({ hidden }),
+    }),
 
   /** Open or close one panel, for yourself only. */
   setPanelOpen: (id: string, open: boolean) =>

@@ -372,6 +372,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       announce: (room, panel, by) => hubFor(room).broadcast({ type: "panelMoved", panel, by }),
       announceOpen: (room, open, by) => hubFor(room).broadcast({ type: "panelsOpen", open, by }),
+      announceAgents: (room, hidden, by) => hubFor(room).broadcast({ type: "agentsHidden", hidden, by }),
       holds,
     });
     registerHoldRoutes(scoped, { config, sessions, holds });

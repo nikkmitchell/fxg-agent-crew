@@ -35,6 +35,11 @@ function writeRooms(rooms: Set<string>): void {
 
 let rooms = readRooms();
 let current: string | null = null;
+/**
+ * HIDDEN FOR EVERYONE, by the room (Nikk 5384). Set by whoever chose it in
+ * This room > Show, saved by the server and broadcast to everybody in the room.
+ */
+let forEveryone = false;
 const listeners = new Set<() => void>();
 const tell = () => listeners.forEach((listener) => listener());
 
@@ -66,14 +71,27 @@ const subscribe = (listener: () => void) => {
   return () => listeners.delete(listener);
 };
 
-/** Whether the agents are hidden in the room being looked at now. */
+/** The room's own choice, from the server: hidden for everyone in it. */
+export function setAgentsHiddenForEveryone(hidden: boolean): void {
+  if (hidden === forEveryone) return;
+  forEveryone = hidden;
+  tell();
+}
+
+/** Whether the agents are hidden in the room being looked at now: for everyone, or just for you. */
 export function useAgentsHidden(): boolean {
-  return useSyncExternalStore(subscribe, () => agentsHiddenIn(current), () => false);
+  return useSyncExternalStore(subscribe, () => forEveryone || agentsHiddenIn(current), () => false);
+}
+
+/** Whether the room has hidden the agents for everyone. */
+export function useAgentsHiddenForEveryone(): boolean {
+  return useSyncExternalStore(subscribe, () => forEveryone, () => false);
 }
 
 /** For tests: start again. */
 export function resetAgentsHidden(): void {
   rooms = new Set();
   current = null;
+  forEveryone = false;
   tell();
 }

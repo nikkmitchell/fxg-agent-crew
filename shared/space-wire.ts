@@ -233,6 +233,8 @@ export type ServerMessage =
    * nothing and cannot desynchronise.
    */
   | { type: "panelsOpen"; open: string[]; by: string }
+  /** The agents, and their screens, hidden or shown for everyone in this room. */
+  | { type: "agentsHidden"; hidden: boolean; by: string }
   /**
    * Somebody changed what the room is showing.
    *

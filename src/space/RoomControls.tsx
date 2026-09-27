@@ -1,5 +1,5 @@
 import type { Meditation } from "../../shared/meditation";
-import { setAgentsHidden, setCurrentRoomForAgents, useAgentsHidden } from "./agents-hidden";
+import { agentsHiddenIn, setAgentsHidden, setAgentsHiddenForEveryone, setCurrentRoomForAgents, useAgentsHidden, useAgentsHiddenForEveryone } from "./agents-hidden";
 import { holdAloud } from "./said-aloud";
 import { sendKey } from "../call-socket";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1030,7 +1030,10 @@ export function RoomControls({
   const [upVisible, setUpVisible] = useState(false);
   // Which room the scene should hide agents in, if you asked it to.
   useEffect(() => setCurrentRoomForAgents(currentRoom), [currentRoom]);
-  const agentsHidden = useAgentsHidden();
+  // Re-read on every change to the store; the personal row shows only YOUR choice.
+  useAgentsHidden();
+  const agentsHiddenForEveryone = useAgentsHiddenForEveryone();
+  const hiddenForMe = agentsHiddenIn(currentRoom);
   const [handIsNear, setHandIsNear] = useState(false);
   const buttonOpacity = handIsNear ? 1 : IDLE_OPACITY;
   const toggleRoomCall = useCallback(() => {
@@ -1171,12 +1174,25 @@ export function RoomControls({
         tone: showing.boardId ? "live" : "normal",
         onTap: () => setView("mood"),
       },
+      // HIDE THE AGENTS FOR EVERYONE in this room, their screens too (Nikk 5384).
+      {
+        label: agentsHiddenForEveryone ? "Agents: hidden for everyone" : "Agents for everyone: shown",
+        tone: agentsHiddenForEveryone ? ("live" as const) : ("normal" as const),
+        onTap: () => {
+          const next = !agentsHiddenForEveryone;
+          setAgentsHiddenForEveryone(next);
+          void space.setAgentsHiddenForRoom(next).catch(() => {
+            setAgentsHiddenForEveryone(!next);
+            setNotice("That did not reach the room; the agents were not changed.");
+          });
+        },
+      },
       // HIDE THE AGENTS, for you alone, in this room (Nikk 5299): see agents-hidden.ts.
       ...(currentRoom
         ? [{
-            label: agentsHidden ? "Agents: hidden (just for you)" : "Agents: shown",
-            tone: agentsHidden ? ("live" as const) : ("normal" as const),
-            onTap: () => setAgentsHidden(currentRoom, !agentsHidden),
+            label: hiddenForMe ? "Agents: hidden (just for you)" : "Agents for you: shown",
+            tone: hiddenForMe ? ("live" as const) : ("normal" as const),
+            onTap: () => setAgentsHidden(currentRoom, !hiddenForMe),
           }]
         : []),
       ...(showingChoices.refusal

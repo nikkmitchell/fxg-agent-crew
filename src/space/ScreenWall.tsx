@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useAgentsHidden } from "./agents-hidden";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
@@ -292,6 +293,7 @@ export function ScreenWall({
   reducedMotion: boolean;
 }) {
   const { screens, shown } = useSharedScreens(base);
+  const agentsHidden = useAgentsHidden();
   // Only people whose first frame has actually decoded — a bezel around
   // nothing is not a screen.
   const ready = screens.filter((screen) => shown.has(screen.actorId));
@@ -313,7 +315,8 @@ export function ScreenWall({
   );
   const isAgent = (screen: ScreenSummary) => screen.kind === "agent" || agentIds.has(screen.actorId.toLowerCase());
   const row = ready.filter((screen) => !isAgent(screen));
-  const agents = ready.filter(isAgent);
+  // AGENTS HIDDEN, THEIR SCREENS TOO (Nikk 5384): for everyone, or just for you.
+  const agents = agentsHidden ? [] : ready.filter(isAgent);
 
   return (
     <group>

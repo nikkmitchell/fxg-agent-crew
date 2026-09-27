@@ -1,5 +1,6 @@
 import type { Helper } from "../../shared/helpers";
 import { registerItemSocket, settleItemAction } from "./item-socket";
+import { setAgentsHiddenForEveryone } from "./agents-hidden";
 import { registerCallSocket, settleCall } from "../call-socket";
 import type { Meditation } from "../../shared/meditation";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
@@ -275,6 +276,11 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
             ...previous.filter((place) => place.id !== message.panel.id),
             message.panel,
           ]);
+          return;
+        }
+        if (message.type === "agentsHidden") {
+          // Somebody hid or showed the agents for the whole room (Nikk 5384).
+          setAgentsHiddenForEveryone(message.hidden);
           return;
         }
         if (message.type === "panelsOpen") {

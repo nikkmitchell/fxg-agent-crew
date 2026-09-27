@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { setAgentsHiddenForEveryone } from "./agents-hidden";
 import { DEFAULT_OPEN_PANELS, STATIONS } from "../../shared/space-layout";
 import { ApiError } from "../api-request";
 import { space } from "../space-client";
@@ -61,7 +62,10 @@ export function usePanelChoices(
     void (async () => {
       try {
         const body = await space.panels();
-        if (!cancelled) setOpenState(body.open);
+        if (!cancelled) {
+          setOpenState(body.open);
+          setAgentsHiddenForEveryone(body.agentsHidden ?? false);
+        }
       } catch {
         // Keep the defaults. A room showing everything is a better failure than
         // a room showing nothing, and the panels themselves say when they are

@@ -109,38 +109,43 @@ describe("choosing panels", () => {
     await app.close();
   });
 
-  it("refuses the last panel on everybody's behalf, not just the closer's", async () => {
-    // The refusal existed before and protected one person's own room. Shared,
-    // it protects a room full of people who are not looking at a settings
-    // menu and would have no idea why the walls went bare.
+  it("lets the last panel close too: a room can have no panels (Nikk 5384)", async () => {
     const { app, as } = boot();
     const catalogue = (await app.inject({
       method: "GET", url: "/bff/space/panels", headers: { cookie: as("wren") },
     })).json().open as string[];
-
-    // Close everything but the last, as one person.
-    for (const id of catalogue.slice(0, -1)) {
+    for (const id of catalogue) {
       const put = await app.inject({
         method: "PUT", url: `/bff/space/panels/${id}`,
         headers: { cookie: as("wren") }, payload: { open: false },
       });
       expect(put.statusCode, `closing ${id}`).toBe(200);
     }
-
-    // Somebody ELSE now tries to close the one that is left.
-    const last = catalogue[catalogue.length - 1];
-    const refused = await app.inject({
-      method: "PUT", url: `/bff/space/panels/${last}`,
-      headers: { cookie: as("nikk") }, payload: { open: false },
-    });
-    expect(refused.statusCode).toBe(422);
-    expect(refused.json().error).toMatch(/everybody/);
-
-    // And the room still has it.
     const after = await app.inject({
       method: "GET", url: "/bff/space/panels", headers: { cookie: as("nikk") },
     });
-    expect(after.json().open).toEqual([last]);
+    expect(after.json().open).toEqual([]);
+    await app.close();
+  });
+
+  it("hides the agents for everyone in the room, and says so, per room (Nikk 5384)", async () => {
+    const { app, as } = boot();
+    const read = async (who: string) =>
+      (await app.inject({ method: "GET", url: "/bff/space/panels", headers: { cookie: as(who) } })).json();
+    expect((await read("nikk")).agentsHidden).toBe(false);
+    const put = await app.inject({
+      method: "PUT", url: "/bff/space/agents-hidden", headers: { cookie: as("wren") }, payload: { hidden: true },
+    });
+    expect(put.statusCode).toBe(200);
+    // Everybody in the room sees it, and it is not counted as a panel.
+    const after = await read("nikk");
+    expect(after.agentsHidden).toBe(true);
+    expect(after.open).not.toContain("agents");
+    expect((await app.inject({
+      method: "PUT", url: "/bff/space/agents-hidden", headers: { cookie: as("wren") }, payload: { hidden: "yes" },
+    })).statusCode).toBe(400);
+    await app.inject({ method: "PUT", url: "/bff/space/agents-hidden", headers: { cookie: as("wren") }, payload: { hidden: false } });
+    expect((await read("nikk")).agentsHidden).toBe(false);
     await app.close();
   });
 
@@ -165,35 +170,6 @@ describe("choosing panels", () => {
       await app.inject({ method: "GET", url: "/bff/space/panels", headers: { cookie } })
     ).json();
     expect(body.open).toEqual(Object.keys(STATIONS));
-    await app.close();
-  });
-
-  it("refuses to close the last one, and says why", async () => {
-    const { app, as } = boot();
-    const cookie = as("wren");
-    const ids = Object.keys(STATIONS);
-    for (const id of ids.slice(0, -1)) {
-      const response = await app.inject({
-        method: "PUT",
-        url: `/bff/space/panels/${id}`,
-        headers: { cookie },
-        payload: { open: false },
-      });
-      expect(response.statusCode).toBe(200);
-    }
-    const last = await app.inject({
-      method: "PUT",
-      url: `/bff/space/panels/${ids[ids.length - 1]}`,
-      headers: { cookie },
-      payload: { open: false },
-    });
-    expect(last.statusCode).toBe(422);
-    expect(last.json().error).toMatch(/last panel/);
-    // And it is still open, rather than refused and closed anyway.
-    const body = (
-      await app.inject({ method: "GET", url: "/bff/space/panels", headers: { cookie } })
-    ).json();
-    expect(body.open).toEqual([ids[ids.length - 1]]);
     await app.close();
   });
 

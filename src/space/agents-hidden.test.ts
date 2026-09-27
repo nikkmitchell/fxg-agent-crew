@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { agentsHiddenIn, resetAgentsHidden, setAgentsHidden } from "./agents-hidden";
+import { agentsHiddenIn, resetAgentsHidden, setAgentsHidden, setAgentsHiddenForEveryone } from "./agents-hidden";
 
 /** Nikk (5299): hide the agents in the meditation room, for himself. */
 describe("hiding the agents in a room", () => {
@@ -17,5 +17,15 @@ describe("hiding the agents in a room", () => {
     setAgentsHidden("meditation.AR", true);
     setAgentsHidden("meditation.AR", false);
     expect(agentsHiddenIn("meditation.AR")).toBe(false);
+  });
+});
+
+describe("hidden for everyone by the room (Nikk 5384)", () => {
+  afterEach(() => resetAgentsHidden());
+  it("is separate from your own choice, which it does not change", () => {
+    setAgentsHiddenForEveryone(true);
+    expect(agentsHiddenIn("saha.ing"), "your own choice is untouched").toBe(false);
+    setAgentsHiddenForEveryone(false);
+    expect(agentsHiddenIn("saha.ing")).toBe(false);
   });
 });
