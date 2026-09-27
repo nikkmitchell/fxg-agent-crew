@@ -216,9 +216,22 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
         spoken.current.index = due.index;
         if (soundRef.current) {
           hush();
-          const audio = new Audio(`${base.current}/bff/space/guides/${meditation.guide}/${due.index}/audio`);
-          voice.current = audio;
-          void audio.play().catch(() => undefined);
+          const url = `${base.current}/bff/space/guides/${meditation.guide}/${due.index}/audio`;
+          /**
+           * TRY AGAIN, BRIEFLY. Right after a release the server may still be
+           * voicing lines (it answers 503 until one is ready), and the first
+           * lines of the first session would pass in silence. Two more tries,
+           * two seconds apart, while this is still the line being spoken.
+           */
+          const attempt = (left: number) => {
+            const audio = new Audio(url);
+            voice.current = audio;
+            audio.onerror = () => {
+              if (left > 0 && voice.current === audio) window.setTimeout(() => { if (voice.current === audio) attempt(left - 1); }, 2000);
+            };
+            void audio.play().catch(() => undefined);
+          };
+          attempt(2);
         }
       }
     } else if (voice.current) {
