@@ -6,7 +6,7 @@ import type { BowlStrike } from "../../shared/bowl";
  */
 const listeners = new Set<(strike: BowlStrike) => void>();
 
-export function onBowlStrike(listener: (strike: BowlStrike) => void): () => void {
+export function onBowlStruck(listener: (strike: BowlStrike) => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
