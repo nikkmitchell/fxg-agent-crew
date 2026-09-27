@@ -131,8 +131,23 @@ export function measureRig(rig: Rig, scene: THREE.Object3D): RigSpec {
     // product's order flips between the hands, because the thumb is on the
     // other side of the fingers. (Worked through for a T-pose facing either way
     // along Z: palm down both times, with no further correction.)
-    const palm = (side === "left" ? new THREE.Vector3().crossVectors(finger, thumb) : new THREE.Vector3().crossVectors(thumb, finger));
+    const thumbSide = (side === "left" ? new THREE.Vector3().crossVectors(finger, thumb) : new THREE.Vector3().crossVectors(thumb, finger));
+    /*
+     * THE PALM IS THE PLANE OF THE KNUCKLES, and the thumb only says which
+     * side of it. Nikk (5166): fists "don't just curl inward, they also curl
+     * downward". The palm was taken square to the fingers and the THUMB, but a
+     * thumb rests below the palm, not in it: on every avatar we ship that
+     * normal leaned 30-42 degrees off the palm, so every bend turned about a
+     * tilted axis and curled diagonally — and the whole hand was rolled by as
+     * much to match it. Square to the fingers and the line across the
+     * knuckles, index to little, instead.
+     */
+    const index = at(`${side}IndexProximal`, wrist);
+    const little = at(`${side}LittleProximal`, wrist);
+    const knuckles = index.clone().sub(little);
+    const palm = knuckles.lengthSq() > 1e-10 ? new THREE.Vector3().crossVectors(finger, knuckles) : thumbSide.clone();
     palm.sub(finger.clone().multiplyScalar(palm.dot(finger)));
+    if (palm.dot(thumbSide) < 0) palm.negate();
     if (palm.lengthSq() < 1e-8) palm.set(0, -1, 0);
     palm.normalize();
     // THE THUMB bends about its own sideways axis, as the headset measures it:
