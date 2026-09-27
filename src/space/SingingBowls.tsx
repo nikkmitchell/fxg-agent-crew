@@ -66,6 +66,7 @@ export function SingingBowls({ you }: { you: string | null }) {
     () =>
       onBowlStruck((strike: BowlStrike) => {
         if (you && strike.by.toLowerCase() === you.toLowerCase()) return;
+        if (strike.kind === "gong") return;
         const index = strike.bowl ?? bowlForNote(strike.note);
         sound(index, strike.kind === "sing" ? "sing" : "strike", strike.strength ?? 0.6);
       }),

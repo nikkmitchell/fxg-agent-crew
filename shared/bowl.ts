@@ -24,7 +24,7 @@ export const BOWLS = [
 ] as const;
 
 /** Every note a bowl may ring: the three bowls', and the older pentatonic set. */
-export const BOWL_NOTES = [146.8, 174.6, 196, 220, 261.6, 293.7] as const;
+export const BOWL_NOTES = [55, 146.8, 174.6, 196, 220, 261.6, 293.7] as const;
 
 /**
  * The same person cannot strike faster than this. Short enough for a gentle
@@ -34,7 +34,11 @@ export const BOWL_REST_MS = 250;
 /** A singing rim is sent at most this often per person. */
 export const SING_EVERY_MS = 300;
 
-export type BowlKind = "strike" | "sing";
+/** Struck, sung round the rim, or the room's big gong (GongStand.tsx). */
+export type BowlKind = "strike" | "sing" | "gong";
+
+/** The gong's note: a low A, felt as much as heard. */
+export const GONG_NOTE = 55;
 
 export type BowlStrike = {
   by: string;

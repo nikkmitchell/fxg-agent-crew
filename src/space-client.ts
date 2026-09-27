@@ -176,7 +176,7 @@ export const space = {
   rakeGarden: (change: GardenChange) =>
     requestJson<{ event: GardenEvent }>(`${root}/garden`, { method: "POST", body: JSON.stringify(change) }),
   /** Ring one of the singing bowls, for everyone in the room: see shared/bowl.ts. */
-  bowl: (body: { bowl: number; strength: number; kind: "strike" | "sing" }) =>
+  bowl: (body: { bowl?: number; strength: number; kind: "strike" | "sing" | "gong" }) =>
     requestJson<{ strike: unknown }>(`${root}/bowl`, { method: "POST", body: JSON.stringify(body) }),
   meditate: (change: MeditationChange & { revision?: number }) =>
     requestJson<{ meditation: Meditation; now: number }>(`${root}/meditation`, {

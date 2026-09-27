@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession, spaceRoomOf } from "../require-session.js";
-import { BOWLS, SING_EVERY_MS, bowlIndex, bowlNote, bowlStrength, mayStrike, type BowlStrike } from "../../shared/bowl.js";
+import { BOWLS, GONG_NOTE, SING_EVERY_MS, bowlIndex, bowlNote, bowlStrength, mayStrike, type BowlStrike } from "../../shared/bowl.js";
 
 /**
  * POST /bff/space/bowl   { bowl?, strength?, kind?, note? }   ring a singing bowl.
@@ -23,7 +23,7 @@ export function registerBowlRoutes(app: FastifyInstance, deps: {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const at = now();
-    const kind = request.body?.kind === "sing" ? "sing" : "strike";
+    const kind = request.body?.kind === "sing" ? "sing" : request.body?.kind === "gong" ? "gong" : "strike";
     const last = kind === "sing" ? sung : struck;
     if (!mayStrike(last, session.username, at, kind === "sing" ? SING_EVERY_MS : undefined)) {
       return reply.code(429).send({ code: "TOO_SOON", error: "let the bowl ring a moment first" });
@@ -33,8 +33,8 @@ export function registerBowlRoutes(app: FastifyInstance, deps: {
     const strike: BowlStrike = {
       by: session.username,
       at,
-      note: bowl === null ? bowlNote(request.body?.note) : BOWLS[bowl].note,
-      ...(bowl === null ? {} : { bowl }),
+      note: kind === "gong" ? GONG_NOTE : bowl === null ? bowlNote(request.body?.note) : BOWLS[bowl].note,
+      ...(bowl === null || kind === "gong" ? {} : { bowl }),
       strength: bowlStrength(request.body?.strength),
       kind,
     };
