@@ -1,5 +1,5 @@
 import { actorKey } from "./space-layout.js";
-import type { Pose, WirePerson } from "./space-wire.js";
+import type { HandPose, Pose, WirePerson } from "./space-wire.js";
 
 /**
  * How long each person has been still, and who a viewer has asked not to see.
@@ -34,6 +34,9 @@ const fine = (value: number) => Math.round(value * 100);
 const poseOf = (pose: Pose | null): string =>
   pose ? [pose.p.x, pose.p.y, pose.p.z, pose.q.x, pose.q.y, pose.q.z, pose.q.w].map(fine).join(",") : "-";
 
+/** Moving only your fingers is still moving. */
+const fingersOf = (hand: HandPose | null): string => (hand?.f ? `/${hand.f.map(fine).join(",")}` : "");
+
 /**
  * What a person looks like, to the precision a watcher could notice.
  *
@@ -46,8 +49,8 @@ export function motionSignature(person: Omit<Seen, "actorId" | "moving">): strin
     [person.at.x, person.at.y, person.at.z].map(fine).join(","),
     fine(person.facing),
     poseOf(person.head),
-    poseOf(person.hands.left),
-    poseOf(person.hands.right),
+    poseOf(person.hands.left) + fingersOf(person.hands.left),
+    poseOf(person.hands.right) + fingersOf(person.hands.right),
     person.avatar.gesture ?? "-",
     person.avatar.gestureStartedAt ?? "-",
   ].join("|");

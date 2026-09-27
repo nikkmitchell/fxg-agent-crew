@@ -204,8 +204,8 @@ export function VrmBody({
       headAt: new THREE.Vector3(),
       headTurn: new THREE.Quaternion(),
       handTarget: {
-        left: { p: new THREE.Vector3(), q: new THREE.Quaternion() },
-        right: { p: new THREE.Vector3(), q: new THREE.Quaternion() },
+        left: { p: new THREE.Vector3(), q: new THREE.Quaternion(), f: undefined as readonly number[] | undefined },
+        right: { p: new THREE.Vector3(), q: new THREE.Quaternion(), f: undefined as readonly number[] | undefined },
       },
     }),
     [],
@@ -383,6 +383,7 @@ export function VrmBody({
         const target = shown.handTarget[side];
         target.p.set(reported.p.x, reported.p.y, reported.p.z);
         target.q.set(reported.q.x, reported.q.y, reported.q.z, reported.q.w);
+        target.f = reported.f;
         return target;
       };
       node.updateMatrixWorld(true);

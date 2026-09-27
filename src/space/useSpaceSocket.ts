@@ -5,6 +5,7 @@ import type { Meditation } from "../../shared/meditation";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type {
   ClientMessage,
+  HandPose,
   Placement,
   Pose,
   ServerMessage,
@@ -457,7 +458,7 @@ export function makeMoveSender(send: (message: ClientMessage) => void, minInterv
   return (
     at: Vec3,
     facing: number,
-    tracked?: { head?: Pose; hands?: { left: Pose | null; right: Pose | null } },
+    tracked?: { head?: Pose; hands?: { left: HandPose | null; right: HandPose | null } },
   ) => {
     const now = performance.now();
     if (now - lastSent < minIntervalMs) return;

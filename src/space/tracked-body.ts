@@ -42,7 +42,11 @@ export type BoneName =
   | "hips" | "spine" | "chest" | "neck" | "head"
   | "leftUpperArm" | "leftLowerArm" | "leftHand" | "rightUpperArm" | "rightLowerArm" | "rightHand"
   | "leftUpperLeg" | "leftLowerLeg" | "leftFoot" | "rightUpperLeg" | "rightLowerLeg" | "rightFoot"
-  | "leftMiddleProximal" | "rightMiddleProximal" | "leftThumbProximal" | "rightThumbProximal";
+  | `${Side}${FingerName}${"Proximal" | "Intermediate" | "Distal"}`
+  | `${Side}Thumb${"Metacarpal" | "Proximal" | "Distal"}`;
+
+type FingerName = "Index" | "Middle" | "Ring" | "Little";
+const FINGERS: readonly FingerName[] = ["Index", "Middle", "Ring", "Little"];
 
 export type Rig = { bone(name: BoneName): THREE.Object3D | null };
 export type Side = "left" | "right";
@@ -63,8 +67,12 @@ export type RigSpec = {
   stanceHalfWidth: number;
   /** How high the ankle sits above the floor. */
   ankleHeight: number;
-  /** Rest finger direction and palm normal of each hand. */
-  hands: Record<Side, { finger: THREE.Vector3; palm: THREE.Vector3 }>;
+  /**
+   * Rest finger direction and palm normal of each hand; the way the thumb's
+   * base bone points at rest, and the axis each thumb knuckle bends about
+   * (see shared/hand-fingers.ts).
+   */
+  hands: Record<Side, { finger: THREE.Vector3; palm: THREE.Vector3; thumbRest: THREE.Vector3; thumbAxes: [THREE.Vector3, THREE.Vector3] }>;
 };
 
 /**
@@ -119,7 +127,23 @@ export function measureRig(rig: Rig, scene: THREE.Object3D): RigSpec {
     const palm = (side === "left" ? new THREE.Vector3().crossVectors(finger, thumb) : new THREE.Vector3().crossVectors(thumb, finger));
     palm.sub(finger.clone().multiplyScalar(palm.dot(finger)));
     if (palm.lengthSq() < 1e-8) palm.set(0, -1, 0);
-    return { finger, palm: palm.normalize() };
+    palm.normalize();
+    // THE THUMB bends about its own sideways axis, as the headset measures it:
+    // across each thumb bone and the palm.
+    const metacarpal = at(`${side}ThumbMetacarpal`, wrist);
+    const proximal = at(`${side}ThumbProximal`, metacarpal);
+    const distal = at(`${side}ThumbDistal`, proximal);
+    const thumbAxis = (from: THREE.Vector3, to: THREE.Vector3) => {
+      const axis = new THREE.Vector3().crossVectors(to.clone().sub(from).normalize(), palm);
+      return axis.lengthSq() > 1e-8 ? axis.normalize() : new THREE.Vector3().crossVectors(finger, palm).normalize();
+    };
+    const thumbRest = proximal.clone().sub(metacarpal);
+    return {
+      finger,
+      palm,
+      thumbRest: thumbRest.lengthSq() > 1e-12 ? thumbRest.normalize() : finger.clone(),
+      thumbAxes: [thumbAxis(metacarpal, proximal), thumbAxis(proximal, distal)] as [THREE.Vector3, THREE.Vector3],
+    };
   };
 
   const leftUpperLeg = at("leftUpperLeg", hips.clone().add(new THREE.Vector3(leftArmX * 0.09, -0.05, 0)));
@@ -226,7 +250,8 @@ export function gripToWristConvention(q: THREE.Quaternion, side: Side): THREE.Qu
 
 export type TrackedInput = {
   head: { p: THREE.Vector3; q: THREE.Quaternion };
-  hands: Record<Side, { p: THREE.Vector3; q: THREE.Quaternion } | null>;
+  /** `f`: how bent each finger is, when the device tracks fingers. */
+  hands: Record<Side, { p: THREE.Vector3; q: THREE.Quaternion; f?: readonly number[] } | null>;
   /** The body's own yaw, as the root is turned. */
   bodyYaw: number;
   /** The root's uniform scale: model units to metres. */
@@ -261,10 +286,15 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
  */
 export class TrackedBody {
   private readonly feet: Record<Side, FootState | null> = { left: null, right: null };
+  /** Whether a hand's fingers are bent away from rest, so losing them straightens them once. */
+  private readonly fingersPosed: Record<Side, boolean> = { left: false, right: false };
   private readonly v = {
     neck: new THREE.Vector3(),
     hips: new THREE.Vector3(),
     forward: new THREE.Vector3(),
+    /** The fingers' own scratch: `forward` and `pole` still matter to the legs. */
+    across: new THREE.Vector3(),
+    thumb: new THREE.Vector3(),
     right: new THREE.Vector3(),
     pole: new THREE.Vector3(),
     q: new THREE.Quaternion(),
@@ -346,7 +376,7 @@ export class TrackedBody {
     }
   }
 
-  private poseArm(side: Side, target: { p: THREE.Vector3; q: THREE.Quaternion }, s: number): void {
+  private poseArm(side: Side, target: { p: THREE.Vector3; q: THREE.Quaternion; f?: readonly number[] }, s: number): void {
     const { rig, spec, v } = this;
     const upper = rig.bone(side === "left" ? "leftUpperArm" : "rightUpperArm");
     const lower = rig.bone(side === "left" ? "leftLowerArm" : "rightLowerArm");
@@ -379,6 +409,47 @@ export class TrackedBody {
     hand.parent.getWorldQuaternion(v.q2);
     hand.quaternion.copy(v.q2.invert().multiply(worldHand));
     hand.updateMatrixWorld(true);
+    this.poseFingers(side, target.f);
+  }
+
+  /**
+   * THE FINGERS, bent as the headset measured them (shared/hand-fingers.ts).
+   *
+   * Every normalised bone rests unrotated in the model's own frame, so a
+   * finger bone's turn is written about the hand's axes as measured at rest:
+   * spread about the palm's normal, bend about the axis across the hand. No
+   * angles — a controller, or an older client — is the model's own rest hand.
+   */
+  private poseFingers(side: Side, angles: readonly number[] | undefined): void {
+    const { rig, spec, v } = this;
+    if (!angles) {
+      if (!this.fingersPosed[side]) return;
+      this.fingersPosed[side] = false;
+      for (const name of fingerBones(side)) rig.bone(name)?.quaternion.identity();
+      return;
+    }
+    this.fingersPosed[side] = true;
+    const { finger, palm, thumbRest, thumbAxes } = spec.hands[side];
+    const across = v.across.crossVectors(finger, palm).normalize();
+    // The thumb's base bone turned from where it rests to where the headset
+    // says it points, in the hand's frame.
+    const [out, down] = angles;
+    v.thumb
+      .copy(finger)
+      .multiplyScalar(Math.cos(down) * Math.cos(out))
+      .addScaledVector(across, Math.cos(down) * Math.sin(out))
+      .addScaledVector(palm, Math.sin(down));
+    rig.bone(`${side}ThumbMetacarpal`)?.quaternion.setFromUnitVectors(thumbRest, v.thumb.normalize());
+    rig.bone(`${side}ThumbProximal`)?.quaternion.setFromAxisAngle(thumbAxes[0], angles[2]);
+    rig.bone(`${side}ThumbDistal`)?.quaternion.setFromAxisAngle(thumbAxes[1], angles[3]);
+    // Indexed rather than sliced: this runs every frame for everybody.
+    for (let i = 0; i < FINGERS.length; i++) {
+      const name = FINGERS[i], at = 4 + i * 4;
+      const proximal = rig.bone(`${side}${name}Proximal`);
+      if (proximal) proximal.quaternion.setFromAxisAngle(palm, angles[at]).multiply(v.q.setFromAxisAngle(across, angles[at + 1]));
+      rig.bone(`${side}${name}Intermediate`)?.quaternion.setFromAxisAngle(across, angles[at + 2]);
+      rig.bone(`${side}${name}Distal`)?.quaternion.setFromAxisAngle(across, angles[at + 3]);
+    }
   }
 
   private poseLeg(side: Side, input: TrackedInput, s: number): void {
@@ -480,4 +551,14 @@ export function rotationBetweenFrames(
   const to = basis(toForward, toNormal);
   const rotation = to.multiply(from.transpose());
   return new THREE.Quaternion().setFromRotationMatrix(rotation);
+}
+
+/** Every finger bone of one hand that `poseFingers` turns. */
+function fingerBones(side: Side): BoneName[] {
+  return [
+    `${side}ThumbMetacarpal`,
+    `${side}ThumbProximal`,
+    `${side}ThumbDistal`,
+    ...FINGERS.flatMap((name) => [`${side}${name}Proximal`, `${side}${name}Intermediate`, `${side}${name}Distal`] as const),
+  ];
 }

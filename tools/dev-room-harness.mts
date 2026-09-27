@@ -23,6 +23,11 @@ import { BoardStore } from "../server/db/store.js";
 import { deskFor } from "../shared/space-layout.js";
 import { facingToward } from "../shared/agent-home.js";
 
+/** Finger angles (shared/hand-fingers.ts): the thumb across the palm, every finger curled. */
+const FIST = [1.0, 0.5, 0.6, 0.6, ...[0, 1, 2, 3].flatMap(() => [0, 1.3, 1.3, 1.3])];
+/** The same with the index finger straight. */
+const POINT = FIST.map((angle, i) => (i >= 4 && i < 8 ? 0 : angle));
+
 if (process.env.NODE_ENV === "production") {
   console.error("dev-room-harness mints sessions without a password. Not in production.");
   process.exit(1);
@@ -243,9 +248,11 @@ space.presence.sendTo("Plumbline", "agent", deskFor("Plumbline"), "placed by the
   space.presence.sendTo("unstated-kind", null, at, "placed by the dev harness");
   space.presence.moveSelf("unstated-kind", at, Math.PI, {
     head: { p: { x: at.x, y: 1.62, z: at.z }, q: still },
+    // Fingers too (shared/hand-fingers.ts): the raised right hand a fist, the
+    // low left one pointing, so a finger bent the wrong way is plain to see.
     hands: {
-      right: { p: { x: at.x + 0.55, y: 1.55, z: at.z - 0.15 }, q: still },
-      left: { p: { x: at.x + 0.12, y: 0.95, z: at.z - 0.35 }, q: still },
+      right: { p: { x: at.x + 0.55, y: 1.55, z: at.z - 0.15 }, q: still, f: FIST },
+      left: { p: { x: at.x + 0.12, y: 0.95, z: at.z - 0.35 }, q: still, f: POINT },
     },
   });
 }

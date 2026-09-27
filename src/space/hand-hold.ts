@@ -1,4 +1,4 @@
-import type { Pose } from "../../shared/space-wire";
+import type { HandPose, Pose } from "../../shared/space-wire";
 
 /**
  * A hand that has stopped being tracked.
@@ -19,7 +19,7 @@ import type { Pose } from "../../shared/space-wire";
  */
 export type Held = {
   /** The last pose we actually measured, or null if we have none worth keeping. */
-  pose: Pose | null;
+  pose: HandPose | null;
   /** When that measurement was taken, in the same clock the caller passes in. */
   at: number;
   /** Where the hand was relative to the head when last measured, if the head was known. */
@@ -51,7 +51,7 @@ export const GIVE_UP_REACH = 1.2;
 /** What to report for one hand this frame, given what the headset just said. */
 export function heldHand(
   previous: Held,
-  live: Pose | null,
+  live: HandPose | null,
   now: number,
   holdMs: number = HOLD_MS,
   /** The head this frame, when known, so a held hand keeps its place relative to it. */
@@ -70,6 +70,7 @@ export function heldHand(
   if (Math.hypot(offset.x, offset.y, offset.z) > GIVE_UP_REACH) return NO_HAND;
   return {
     ...previous,
-    pose: { p: { x: head.p.x + offset.x, y: head.p.y + offset.y, z: head.p.z + offset.z }, q: previous.pose.q },
+    // The fingers stay as they were last seen, with the wrist they belong to.
+    pose: { ...previous.pose, p: { x: head.p.x + offset.x, y: head.p.y + offset.y, z: head.p.z + offset.z } },
   };
 }

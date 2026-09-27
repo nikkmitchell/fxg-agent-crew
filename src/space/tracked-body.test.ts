@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
+import { FINGER_ANGLES } from "../../shared/hand-fingers";
 import {
   STEP_SECONDS,
   StandingHeight,
@@ -18,6 +19,7 @@ import {
 function makeRig() {
   const scene = new THREE.Group();
   const bones = new Map<BoneName, THREE.Object3D>();
+  const tips = new Map<string, THREE.Object3D>();
   const add = (name: BoneName, parent: THREE.Object3D, x: number, y: number, z: number) => {
     const bone = new THREE.Bone();
     bone.position.set(x, y, z);
@@ -34,8 +36,23 @@ function makeRig() {
     const upperArm = add(`${side}UpperArm`, chest, x * 0.18, 0.22, 0);
     const lowerArm = add(`${side}LowerArm`, upperArm, x * 0.28, 0, 0);
     const hand = add(`${side}Hand`, lowerArm, x * 0.26, 0, 0);
-    add(`${side}MiddleProximal`, hand, x * 0.09, 0, 0);
-    add(`${side}ThumbProximal`, hand, x * 0.02, -0.01, -0.04);
+    // Fingers along the arm, index toward the thumb; a tip on each to measure.
+    for (const [name, z] of [["Index", -0.02], ["Middle", 0], ["Ring", 0.02], ["Little", 0.035]] as const) {
+      const proximal = add(`${side}${name}Proximal`, hand, x * 0.09, 0, z);
+      const intermediate = add(`${side}${name}Intermediate`, proximal, x * 0.04, 0, 0);
+      const distal = add(`${side}${name}Distal`, intermediate, x * 0.025, 0, 0);
+      const tip = new THREE.Object3D();
+      tip.position.set(x * 0.02, 0, 0);
+      distal.add(tip);
+      tips.set(`${side}${name}`, tip);
+    }
+    const metacarpal = add(`${side}ThumbMetacarpal`, hand, x * 0.015, -0.01, -0.025);
+    const thumbProximal = add(`${side}ThumbProximal`, metacarpal, x * 0.005, 0, -0.015);
+    const thumbDistal = add(`${side}ThumbDistal`, thumbProximal, x * 0.01, 0, -0.025);
+    const thumbTip = new THREE.Object3D();
+    thumbTip.position.set(x * 0.01, 0, -0.02);
+    thumbDistal.add(thumbTip);
+    tips.set(`${side}Thumb`, thumbTip);
     const upperLeg = add(`${side}UpperLeg`, hips, x * 0.09, -0.05, 0);
     const lowerLeg = add(`${side}LowerLeg`, upperLeg, 0, -0.42, 0);
     add(`${side}Foot`, lowerLeg, 0, -0.4, 0);
@@ -49,7 +66,7 @@ function makeRig() {
   const pose = (options: {
     head?: THREE.Vector3;
     headQ?: THREE.Quaternion;
-    hands?: { left?: { p: THREE.Vector3; q: THREE.Quaternion }; right?: { p: THREE.Vector3; q: THREE.Quaternion } };
+    hands?: { left?: Hand; right?: Hand };
     dt?: number;
     snap?: boolean;
   } = {}) => {
@@ -66,8 +83,14 @@ function makeRig() {
     });
     root.updateMatrixWorld(true);
   };
-  return { rig, spec, body, world, pose, bones };
+  const tip = (name: string) => tips.get(name)!.getWorldPosition(new THREE.Vector3());
+  return { rig, spec, body, world, tip, pose, bones };
 }
+
+type Hand = { p: THREE.Vector3; q: THREE.Quaternion; f?: number[] };
+/** Thumb swung across and down into the palm and bent; every finger curled. */
+const FIST = [1.0, 0.5, 0.6, 0.6, ...[0, 1, 2, 3].flatMap(() => [0, 1.3, 1.3, 1.3])];
+
 
 describe("a body from a headset's three points", () => {
   it("measures the rig at rest: limbs, stance and hands", () => {
@@ -127,6 +150,66 @@ describe("a body from a headset's three points", () => {
     expect(finger.z).toBeLessThan(-0.95);
     const thumb = world("leftThumbProximal").sub(world("leftHand"));
     expect(thumb.y, "palm down puts the thumb slightly below... or level").toBeLessThan(0.02);
+  });
+
+  it("bends the fingers as the headset measured them: a fist closes toward the palm", () => {
+    const { world, tip, pose } = makeRig();
+    // Within this rig's reach, so the wrist lands where it is asked to.
+    const wrist = new THREE.Vector3(0.35, 1.15, -0.35);
+    const fist = FIST;
+    // Identity in the hand-joint convention: fingers toward -Z, palm toward -Y.
+    pose({ snap: true, hands: { right: { p: wrist, q: new THREE.Quaternion() } } });
+    const open = tip("rightMiddle");
+    pose({ snap: true, hands: { right: { p: wrist, q: new THREE.Quaternion(), f: fist } } });
+    const closed = tip("rightMiddle");
+    expect(world("rightHand").distanceTo(wrist), "the wrist stays where it was").toBeLessThan(0.01);
+    expect(open.distanceTo(wrist), "an open hand reaches out").toBeGreaterThan(0.15);
+    expect(closed.distanceTo(wrist), "a fist is curled in").toBeLessThan(0.1);
+    expect(closed.y, "toward the palm, which faces down").toBeLessThan(wrist.y - 0.02);
+    for (const finger of ["Index", "Ring", "Little", "Thumb"]) {
+      pose({ snap: true, hands: { right: { p: wrist, q: new THREE.Quaternion() } } });
+      const before = tip(`right${finger}`).y;
+      pose({ snap: true, hands: { right: { p: wrist, q: new THREE.Quaternion(), f: fist } } });
+      expect(tip(`right${finger}`).y, finger).toBeLessThan(before - 0.01);
+    }
+  });
+
+  it("points with one finger while the others curl", () => {
+    const { world, tip, pose } = makeRig();
+    const wrist = new THREE.Vector3(-0.35, 1.15, -0.35);
+    const point = FIST.map((angle, i) => (i >= 4 && i < 8 ? 0 : angle));
+    pose({ snap: true, hands: { left: { p: wrist, q: new THREE.Quaternion(), f: point } } });
+    expect(world("leftHand").distanceTo(wrist)).toBeLessThan(0.01);
+    expect(tip("leftIndex").distanceTo(wrist)).toBeGreaterThan(0.15);
+    expect(tip("leftIndex").z, "pointing forward").toBeLessThan(wrist.z - 0.15);
+    expect(tip("leftMiddle").distanceTo(wrist)).toBeLessThan(0.1);
+  });
+
+  it("spreads each finger the way the tracked one spread, on either hand", () => {
+    const { tip, pose } = makeRig();
+    // A positive spread turns about the palm's normal (-Y): toward +X, which
+    // is a right hand's little-finger side and a left hand's thumb side.
+    for (const side of ["left", "right"] as const) {
+      const wrist = new THREE.Vector3(side === "left" ? -0.25 : 0.25, 1.1, -0.45);
+      const spread = new Array(FINGER_ANGLES).fill(0);
+      pose({ snap: true, hands: { [side]: { p: wrist, q: new THREE.Quaternion(), f: spread } } });
+      const before = tip(`${side}Index`);
+      spread[4] = 0.3;
+      pose({ snap: true, hands: { [side]: { p: wrist, q: new THREE.Quaternion(), f: spread } } });
+      expect(tip(`${side}Index`).x - before.x, side).toBeGreaterThan(0.02);
+    }
+  });
+
+  it("straightens the fingers again when they stop being reported", () => {
+    const { tip, pose } = makeRig();
+    const wrist = new THREE.Vector3(0.25, 1.1, -0.45);
+    pose({ snap: true, hands: { right: { p: wrist, q: new THREE.Quaternion() } } });
+    const open = tip("rightMiddle");
+    const fist = new Array(FINGER_ANGLES).fill(1);
+    pose({ snap: true, hands: { right: { p: wrist, q: new THREE.Quaternion(), f: fist } } });
+    // A controller: a wrist and no fingers.
+    pose({ snap: true, hands: { right: { p: wrist, q: new THREE.Quaternion() } } });
+    expect(tip("rightMiddle").distanceTo(open)).toBeLessThan(1e-6);
   });
 
   it("turns the head to the headset", () => {

@@ -1,7 +1,7 @@
 import { ROOM, WALK_SPEED, actorKey, clampToWorld, type Vec3, deskFor } from "../../shared/space-layout.js";
 import type { PostureMemory } from "./postures.js";
 import { facingToward, type AgentHome } from "../../shared/agent-home.js";
-import type { Pose } from "../../shared/space-wire.js";
+import type { HandPose, Pose } from "../../shared/space-wire.js";
 import {
   DEFAULT_AVATAR_STATE,
   MAX_GESTURE_HOLD_MS,
@@ -62,7 +62,7 @@ export type Occupant = {
    * NOT TRACKED, which is different from "resting at their side" and must stay
    * different all the way to the renderer.
    */
-  hands: { left: Pose | null; right: Pose | null };
+  hands: { left: HandPose | null; right: HandPose | null };
   /**
    * A declared intention to reply to an utterance, with the time it was
    * declared.
@@ -294,7 +294,7 @@ export class Presence {
      * controllers down, took the headset off) must stop having hands drawn
      * rather than leaving the last pair hanging in the air.
      */
-    tracked?: { head?: Pose | null; hands?: { left: Pose | null; right: Pose | null } },
+    tracked?: { head?: Pose | null; hands?: { left: HandPose | null; right: HandPose | null } },
     /**
      * How tall they say they are. UNDEFINED MEANS UNCHANGED, like the tracked
      * poses above: a client that does not measure heights must not erase the

@@ -16,6 +16,7 @@ import type { Vec3 } from "./space-layout.js";
 import type { Utterance } from "./voice.js";
 import { parseAvatarControl, type AvatarControl, type AvatarState } from "./avatar-motion.js";
 import { isTouchPart, type Touch, type TouchPart } from "./touch.js";
+import { parseFingers } from "./hand-fingers.js";
 import type { RoomItem } from "./room-items.js";
 
 /**
@@ -78,6 +79,13 @@ export type Quat = { x: number; y: number; z: number; w: number };
  */
 export type Pose = { p: Vec3; q: Quat };
 
+/**
+ * A hand: where the wrist is, and, when the device tracks fingers, how bent
+ * each one is (shared/hand-fingers.ts). No `f` means the fingers are not known
+ * — a controller, or an older client — and the model's own rest hand is drawn.
+ */
+export type HandPose = Pose & { f?: number[] };
+
 /** One occupant, as the browser needs to draw them. */
 export type WirePerson = {
   actorId: string;
@@ -130,7 +138,7 @@ export type WirePerson = {
    * be inventing the one thing hands are good at showing: what a person is
    * actually doing with them.
    */
-  hands: { left: Pose | null; right: Pose | null };
+  hands: { left: HandPose | null; right: HandPose | null };
   /**
    * An utterance this actor has SAID it is answering, or null.
    *
@@ -323,7 +331,7 @@ export type ClientMessage =
       at: Vec3;
       facing: number;
       head?: Pose;
-      hands?: { left: Pose | null; right: Pose | null };
+      hands?: { left: HandPose | null; right: HandPose | null };
       /**
        * How tall the sender is, in metres, as their own device measured it.
        *
@@ -435,7 +443,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       // still be able to walk around.
       ...(head ? { head } : {}),
       ...(typeof hands === "object" && hands !== null
-        ? { hands: { left: pose(hands.left), right: pose(hands.right) } }
+        ? { hands: { left: handPose(hands.left), right: handPose(hands.right) } }
         : {}),
     };
   }
@@ -545,6 +553,14 @@ function pose(value: unknown): Pose | null {
     p,
     q: { x: q.x as number, y: q.y as number, z: q.z as number, w: q.w as number },
   };
+}
+
+/** A hand's wrist pose, with its finger angles kept when they are readable. */
+function handPose(value: unknown): HandPose | null {
+  const wrist = pose(value);
+  if (!wrist) return null;
+  const f = parseFingers((value as Record<string, unknown>).f);
+  return f ? { ...wrist, f } : wrist;
 }
 
 /**

@@ -57,7 +57,8 @@ import type { Showing } from "../../shared/space-wire";
 import type { RoomShowingChoices } from "./useRoomShowing";
 import type { VoiceChat } from "./useVoiceChat";
 import type { Utterance } from "../../shared/voice";
-import type { ClientMessage, Pose, WirePerson } from "../../shared/space-wire";
+import type { ClientMessage, HandPose, Pose, WirePerson } from "../../shared/space-wire";
+import { FINGER_JOINT_NAMES, fingerAngles, fingersForWire } from "../../shared/hand-fingers";
 import { TOUCH_COOLDOWN_MS, agentTouchPoints, touchedPart } from "../../shared/touch";
 
 /**
@@ -581,6 +582,38 @@ export function ImmersivePlayer({
   };
 
   /**
+   * HOW BENT EACH FINGER IS, so everybody else's view of this person's avatar
+   * moves its fingers as theirs move (shared/hand-fingers.ts).
+   *
+   * Read in the WRIST'S OWN FRAME, by asking for each joint relative to the
+   * wrist: the angles then need nothing from the room, the origin or the
+   * body. Hands only; a controller says nothing about fingers and sends none.
+   *
+   * A joint the runtime is guessing at makes the whole reading unusable, and
+   * then the fingers stay as they were last read rather than springing flat:
+   * tracking fades for a moment far more often than a hand opens.
+   */
+  const withFingers = (
+    wrist: Pose | null,
+    hand: typeof leftHand,
+    previous: Held,
+    frame: XRFrame | undefined,
+  ): HandPose | null => {
+    const joints = hand?.inputSource.hand;
+    const wristSpace = joints?.get("wrist");
+    if (!wrist || !joints || !wristSpace || !frame) return wrist;
+    const positions = FINGER_JOINT_NAMES.map((name) => {
+      const space = joints.get(name as XRHandJoint);
+      const located = space ? frame.getPose(space, wristSpace) : undefined;
+      return located && !located.emulatedPosition ? located.transform.position : null;
+    });
+    // The WebXR wrist: -Z toward the fingertips, -Y out of the palm.
+    const angles = fingerAngles(positions, { x: 0, y: 0, z: -1 }, { x: 0, y: -1, z: 0 });
+    const f = angles ? fingersForWire(angles) : previous.pose?.f;
+    return f ? { ...wrist, f } : wrist;
+  };
+
+  /**
    * THE PALM JOYSTICK. Every frame, not at the send rate: movement at ten
    * updates a second would judder.
    *
@@ -847,8 +880,8 @@ export function ImmersivePlayer({
     }
     if (now - lastSent.current < 100) return;
     lastSent.current = now;
-    held.current.left = heldHand(held.current.left, liveLeft, now, undefined, head);
-    held.current.right = heldHand(held.current.right, liveRight, now, undefined, head);
+    held.current.left = heldHand(held.current.left, withFingers(liveLeft, leftHand, held.current.left, frame), now, undefined, head);
+    held.current.right = heldHand(held.current.right, withFingers(liveRight, rightHand, held.current.right, frame), now, undefined, head);
 
     /**
      * TOUCHING AN AGENT. A live hand (not a remembered one) within reach of a
