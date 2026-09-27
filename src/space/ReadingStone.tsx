@@ -31,6 +31,9 @@ function StoneButton({ label, at, onTap, width = 0.2 }: { label: string; at: [nu
   </group>;
 }
 
+/** The tea practice is read at the tea table, not here. */
+const ON_THE_STONE = READING_IDS.filter((id) => id !== "tea");
+
 export function ReadingStone() {
   const [pick, setPick] = useState(0);
   const [line, setLine] = useState<number | null>(null);
@@ -41,7 +44,7 @@ export function ReadingStone() {
     return () => { audio.current?.pause(); };
   }, []);
 
-  const id = READING_IDS[pick];
+  const id = ON_THE_STONE[pick];
   const reading = READINGS[id];
 
   /** Read line `index`, then the next when it ends, until the passage is done. */
@@ -76,7 +79,7 @@ export function ReadingStone() {
         {line === null ? "Tap READ to hear it." : reading.lines[line]}
       </Text>
       <StoneButton label={line === null ? "READ" : "STOP"} at={[-0.12, -0.06, 0]} onTap={() => (line === null ? read(0) : stop())} />
-      <StoneButton label="NEXT" at={[0.12, -0.06, 0]} onTap={() => { stop(); setPick((pick + 1) % READING_IDS.length); }} />
+      <StoneButton label="NEXT" at={[0.12, -0.06, 0]} onTap={() => { stop(); setPick((pick + 1) % ON_THE_STONE.length); }} />
     </group>
   </group>;
 }
