@@ -517,9 +517,13 @@ try {
   }
 
   // ---- SPEAKING --------------------------------------------------------
+  // WRITTEN, NOT SPOKEN. Nikk (5185): "I regularly hear a voice message that
+  // says onboarding audit walking the joining documents step by step". Every
+  // deploy runs this, so the room heard it several times an hour. A written
+  // detail still proves the endpoint takes an utterance, and is never read out.
   const spoke = await call("POST", "/bff/space/utterances", {
     source: "text",
-    say: "Onboarding audit: walking the joining documents step by step.",
+    detail: "Onboarding audit: checking the joining steps (written only, never spoken).",
   });
   say(
     "speak — POST /bff/space/utterances",
