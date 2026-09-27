@@ -56,9 +56,18 @@ export type VoiceChat = {
   setOn: (on: boolean) => void;
 };
 
-/** Public STUN only. No TURN, so two people behind strict NATs may not connect. */
+/**
+ * Public STUN only. No TURN, so two people behind strict NATs may not connect.
+ *
+ * A STUN SERVER CHINA CAN REACH COMES FIRST. saha.ing is used from mainland
+ * China, where Google is blocked: a headset there asking only Google never
+ * learns its own public address, and two headsets on different networks then
+ * have no route for audio at all (Nikk, 5359 and 5379: "it did not work at
+ * all"). Xiaomi's answers from inside China and out; Google stays for everyone
+ * else.
+ */
 const ICE: RTCConfiguration = {
-  iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }],
+  iceServers: [{ urls: ["stun:stun.miwifi.com:3478", "stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }],
 };
 
 const RETRY_MS = 4_000;
