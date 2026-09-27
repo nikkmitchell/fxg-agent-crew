@@ -3,7 +3,7 @@ import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  MINUTES, PATTERNS, PATTERN_IDS, breathAt, patternNote, clockOffset, clockText, doneLine,
+  MINUTES, PATTERNS, PATTERN_IDS, breathAt, rippleAt, patternNote, clockOffset, clockText, doneLine,
   type Meditation, type MeditationChange,
 } from "../../shared/meditation";
 import { space } from "../space-client";
@@ -75,6 +75,7 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
   const core = useRef<THREE.Mesh>(null);
   const halo = useRef<THREE.Sprite>(null);
   const ring = useRef<THREE.Mesh>(null);
+  const ripple = useRef<THREE.Mesh>(null);
   const glow = useDisposable(glowTexture, []);
   /** Server clock minus ours, so every device reads the same breath. */
   const offset = useRef(0);
@@ -181,6 +182,15 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
     } else if (voice.current) {
       hush();
     }
+    if (ripple.current) {
+      const wave = reducedMotion ? null : rippleAt(at);
+      ripple.current.visible = wave !== null;
+      if (wave) {
+        ripple.current.scale.setScalar(wave.radius);
+        (ripple.current.material as THREE.MeshBasicMaterial).opacity = wave.opacity;
+        (ripple.current.material as THREE.MeshBasicMaterial).color.copy(colour);
+      }
+    }
     const cue = cueFor(lastBreath.current, at);
     lastBreath.current = at;
     if (cue && soundRef.current) {
@@ -203,6 +213,11 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion }: {
     <mesh ref={core} raycast={noRaycast}>
       <sphereGeometry args={[1, 48, 32]} />
       <meshBasicMaterial color={PHASE_COLOUR[phaseKey]} transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+    </mesh>
+    {/* The out-breath rolling across the floor, 1.5 m below (rippleAt). */}
+    <mesh ref={ripple} raycast={noRaycast} position={[0, -y + 0.01, 0]} rotation-x={-Math.PI / 2} visible={false}>
+      <ringGeometry args={[0.96, 1, 96]} />
+      <meshBasicMaterial color={PHASE_COLOUR.out} transparent opacity={0} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
     </mesh>
     <sprite ref={halo} raycast={noRaycast}>
       <spriteMaterial map={glow} color={PHASE_COLOUR[phaseKey]} transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />

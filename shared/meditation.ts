@@ -306,3 +306,23 @@ export function parseMeditation(value: unknown): Meditation | null {
 export function clockOffset(serverNow: number, sentAt: number, arrivedAt: number): number {
   return serverNow - (sentAt + arrivedAt) / 2;
 }
+
+/**
+ * THE BREATH ON THE FLOOR. On every out-breath a ring rolls out across the
+ * floor from beneath the orb and fades, like a ripple on still water: in
+ * passthrough it lands on the person's own floor, so the breath is something
+ * you can see leave you. Pure, from the shared breath, so everybody's ripple
+ * is the same ripple.
+ *
+ * Returns the ring's radius in metres and how visible it is, or null when no
+ * ripple is on the floor.
+ */
+export const RIPPLE_REACH = 2.6;
+export function rippleAt(breath: BreathNow): { radius: number; opacity: number } | null {
+  if (breath.state !== "breathing" || breath.phase !== "out") return null;
+  const t = breath.progress;
+  // Eases out: quick to leave the orb, slowing as it spreads, like water.
+  const radius = 0.25 + (RIPPLE_REACH - 0.25) * (1 - (1 - t) * (1 - t));
+  const opacity = 0.55 * Math.sin(Math.PI * Math.min(1, t * 1.15));
+  return opacity > 0.01 ? { radius, opacity } : null;
+}

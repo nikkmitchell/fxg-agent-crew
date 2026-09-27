@@ -63,3 +63,18 @@ describe("OM, chanted together", () => {
     expect(cycleSeconds("om")).toBe(14);
   });
 });
+
+describe("the breath on the floor", () => {
+  it("rolls out on the out-breath only, spreading and fading", async () => {
+    const { rippleAt, breathAt, idleMeditation, RIPPLE_REACH } = await import("./meditation.js");
+    const session = { ...idleMeditation(), startedAt: 0, minutes: 5 };
+    // CALM is 4 s in, 6 s out.
+    expect(rippleAt(breathAt(session, 2_000))).toBeNull();
+    const early = rippleAt(breathAt(session, 4_600))!;
+    const later = rippleAt(breathAt(session, 7_000))!;
+    expect(later.radius).toBeGreaterThan(early.radius);
+    expect(later.radius).toBeLessThanOrEqual(RIPPLE_REACH);
+    expect(rippleAt(breathAt(session, 9_999))?.opacity ?? 0).toBeLessThan(0.1);
+    expect(rippleAt({ state: "idle" })).toBeNull();
+  });
+});
