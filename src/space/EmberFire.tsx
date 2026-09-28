@@ -108,6 +108,31 @@ function Sparks({ burning }: { burning: Burning[] }) {
   );
 }
 
+function FireStones() {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  useEffect(() => {
+    const node = mesh.current;
+    if (!node) return;
+    const matrix = new THREE.Matrix4();
+    for (let i = 0; i < 9; i += 1) {
+      const a = (i / 9) * Math.PI * 2;
+      matrix.compose(
+        new THREE.Vector3(Math.cos(a) * 0.32, 0.05, Math.sin(a) * 0.32),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(a, a * 2, 0)),
+        new THREE.Vector3(0.07, 0.055, 0.06),
+      );
+      node.setMatrixAt(i, matrix);
+    }
+    node.instanceMatrix.needsUpdate = true;
+  }, []);
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, 9]} raycast={() => null}>
+      <dodecahedronGeometry args={[1, 0]} />
+      <meshStandardMaterial color="#55504a" roughness={0.95} flatShading />
+    </instancedMesh>
+  );
+}
+
 /** One word, rising out of the fire and burning away. */
 function BurningWord({ burn }: { burn: Burning }) {
   const text = useRef<THREE.Mesh & { fillOpacity?: number; color?: THREE.Color | string }>(null);
@@ -196,16 +221,8 @@ export function EmberFire({ you }: { you: string | null }) {
   return (
     <group position={[FIRE_AT.x, 0, FIRE_AT.z]}>
       <pointLight ref={light} position={[0, 0.35, 0]} color="#ff9a4a" intensity={2.2} distance={4} decay={2} />
-      {/* The ring of stones. */}
-      {Array.from({ length: 9 }, (_, i) => {
-        const a = (i / 9) * Math.PI * 2;
-        return (
-          <mesh key={i} position={[Math.cos(a) * 0.32, 0.05, Math.sin(a) * 0.32]} rotation={[a, a * 2, 0]} scale={[0.07, 0.055, 0.06]} raycast={noRaycast}>
-            <dodecahedronGeometry args={[1, 0]} />
-            <meshStandardMaterial color="#55504a" roughness={0.95} flatShading />
-          </mesh>
-        );
-      })}
+      {/* The ring of stones: one instanced mesh, not nine (Sill's draw-call check, 5594). */}
+      <FireStones />
       {/* The logs, crossed. */}
       {[0, 1.1, 2.2].map((turn) => (
         <mesh key={turn} position={[0, 0.07, 0]} rotation={[0, turn, Math.PI / 2 - 0.25]} raycast={noRaycast}>

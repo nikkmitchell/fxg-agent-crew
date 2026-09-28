@@ -32,6 +32,7 @@ import { Fireflies, FIREFLIES_AT } from "./Fireflies";
 import { MalaStand } from "./MalaStand";
 import { Moon } from "./Moon";
 import { Nebula, NEBULA_AT } from "./Nebula";
+import { HourglassStand, HOURGLASS_AT } from "./HourglassStand";
 import { SETTINGS_TABS, settingsBadge, settingsSections, tabOfView, type ArrangeMode, type SettingsView } from "./settings-menu-model";
 import { roomMenuRows } from "../../shared/room-switch";
 
@@ -145,10 +146,18 @@ function Preview() {
     <Canvas
       // ?fov=40 to look closely; 90 is about what a headset sees.
       camera={{ position: params.get("moon") === "1" ? [0, 1.6, 6.2] : [0, 1.6, 0], fov: Number(params.get("fov") ?? 90), near: 0.05, far: 50 }}
-      onCreated={({ camera }) => (params.get("nebula") === "1" ? camera.lookAt(0, 1.6, -2.0) : params.get("moon") === "1" ? camera.lookAt(0, 8, -10) : params.get("mala") === "1" ? camera.lookAt(-1.6, 1.3, -5.9) : params.get("fireflies") === "1" ? camera.lookAt(0, 1.4, -2.2) : params.get("vase") === "1" ? camera.lookAt(0, 1.4, -1.0) : params.get("incense") === "1" ? camera.lookAt(0, 1.5, -0.9) : params.get("rain") === "1" ? camera.lookAt(0, 1.2, -2.2) : params.get("gong") === "1" ? camera.lookAt(3.7, 1.2, 0.6) : params.get("wheel") === "1" ? camera.lookAt(0, 1.2, -1.3) : params.get("mandala") === "1" ? camera.lookAt(0, 1.0, -1.0) : params.get("pond") === "1" ? camera.lookAt(0, 0.9, -1.1) : params.get("ribbons") === "1" ? camera.lookAt(0, 1.1, -1.6) : params.get("fire") === "1" ? camera.lookAt(FIRE_AT.x * 0.8, 0.8, FIRE_AT.z - 6.2) : params.get("bowls") === "1" || params.get("garden") === "1" ? camera.lookAt(0, 0.7, -1.05) : camera.lookAt(0, 1.6, -1))}
+      onCreated={({ camera }) => (params.get("hourglass") === "1" ? camera.lookAt(0, 1.6, -0.5) : params.get("nebula") === "1" ? camera.lookAt(0, 1.6, -2.0) : params.get("moon") === "1" ? camera.lookAt(0, 8, -10) : params.get("mala") === "1" ? camera.lookAt(-1.6, 1.3, -5.9) : params.get("fireflies") === "1" ? camera.lookAt(0, 1.4, -2.2) : params.get("vase") === "1" ? camera.lookAt(0, 1.4, -1.0) : params.get("incense") === "1" ? camera.lookAt(0, 1.5, -0.9) : params.get("rain") === "1" ? camera.lookAt(0, 1.2, -2.2) : params.get("gong") === "1" ? camera.lookAt(3.7, 1.2, 0.6) : params.get("wheel") === "1" ? camera.lookAt(0, 1.2, -1.3) : params.get("mandala") === "1" ? camera.lookAt(0, 1.0, -1.0) : params.get("pond") === "1" ? camera.lookAt(0, 0.9, -1.1) : params.get("ribbons") === "1" ? camera.lookAt(0, 1.1, -1.6) : params.get("fire") === "1" ? camera.lookAt(FIRE_AT.x * 0.8, 0.8, FIRE_AT.z - 6.2) : params.get("bowls") === "1" || params.get("garden") === "1" ? camera.lookAt(0, 0.7, -1.05) : camera.lookAt(0, 1.6, -1))}
       style={{ position: "fixed", inset: 0, background: "linear-gradient(#5c6470, #3b3f46 55%, #2a2c30)" }}
     >
       {params.get("moon") === "1" ? <Moon /> : null}
+      {params.get("hourglass") === "1" ? (
+        <>
+          <hemisphereLight args={["#ffffff", "#2a3040", 2.2]} />
+          <group position={[-HOURGLASS_AT.x, 0.9, -HOURGLASS_AT.z - 0.5]}>
+            <HourglassStand />
+          </group>
+        </>
+      ) : null}
       {params.get("nebula") === "1" ? (
         <group position={[-NEBULA_AT.x, 0.3, -NEBULA_AT.z - 2.0]}>
           <Nebula peopleRef={{ current: [] }} you="preview" />
@@ -268,7 +277,7 @@ function Preview() {
           <LobbyWelcome />
         </group>
       ) : null}
-      {params.get("welcome") === "1" || params.get("bowls") === "1" || params.get("garden") === "1" || params.get("fire") === "1" || params.get("dome") || params.get("ribbons") || params.get("pond") || params.get("mandala") || params.get("wheel") || params.get("gong") || params.get("rain") || params.get("incense") || params.get("vase") || params.get("fireflies") || params.get("mala") || params.get("moon") || params.get("nebula") ? null : <SettingsMenu3D
+      {params.get("welcome") === "1" || params.get("bowls") === "1" || params.get("garden") === "1" || params.get("fire") === "1" || params.get("dome") || params.get("ribbons") || params.get("pond") || params.get("mandala") || params.get("wheel") || params.get("gong") || params.get("rain") || params.get("incense") || params.get("vase") || params.get("fireflies") || params.get("mala") || params.get("moon") || params.get("nebula") || params.get("hourglass") ? null : <SettingsMenu3D
         position={[0, 1.6, -1.95]}
         model={{
           title: "Settings",
