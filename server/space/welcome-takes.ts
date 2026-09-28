@@ -20,13 +20,30 @@ const validFrame = (frame: any, index: number, frames: any[], durationMs: number
 
 export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessions: SessionStore, db: Db): void {
   const requireSession = makeRequireSession(config, sessions);
-  const published = () => (db.prepare("SELECT actor_id, take_json, audio, mime FROM lobby_welcome_takes").all() as Array<{ actor_id: string; take_json: string; audio: Uint8Array; mime: string }>);
+  const published = () => (db.prepare("SELECT actor_id, take_json, published_at FROM lobby_welcome_takes").all() as Array<{ actor_id: string; take_json: string; published_at: string }>);
   app.get("/bff/space/welcome", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const rows = published().sort((a, b) => CREATORS.findIndex((name) => name.toLowerCase() === a.actor_id.toLowerCase()) - CREATORS.findIndex((name) => name.toLowerCase() === b.actor_id.toLowerCase()));
     const seen = db.prepare("SELECT 1 FROM lobby_welcome_seen WHERE actor_id = ?").get(session.username.toLowerCase());
-    return { canPublish: CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase()), completed: !!seen, takes: rows.map((row) => ({ ...JSON.parse(row.take_json), audioBase64: Buffer.from(row.audio).toString("base64"), audioMime: row.mime })) };
+    return { canPublish: session.kind === "human" && CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase()), completed: !!seen, takes: rows.map((row) => ({ actorId: row.actor_id, durationMs: (JSON.parse(row.take_json) as { durationMs: number }).durationMs, publishedAt: row.published_at })) };
+  });
+  app.get<{ Params: { actor: string } }>("/bff/space/welcome/:actor/take", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const row = db.prepare("SELECT take_json FROM lobby_welcome_takes WHERE lower(actor_id) = ?").get(request.params.actor.toLowerCase()) as { take_json: string } | undefined;
+    if (!row) return reply.code(404).send({ code: "WELCOME_TAKE_NOT_FOUND" });
+    return reply.type("application/json").send(row.take_json);
+  });
+  app.get<{ Params: { actor: string } }>("/bff/space/welcome/:actor/audio", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const row = db.prepare("SELECT audio, mime, published_at FROM lobby_welcome_takes WHERE lower(actor_id) = ?").get(request.params.actor.toLowerCase()) as { audio: Uint8Array; mime: string; published_at: string } | undefined;
+    if (!row) return reply.code(404).send({ code: "WELCOME_TAKE_NOT_FOUND" });
+    const etag = `"${row.published_at}"`;
+    reply.header("ETag", etag).header("Cache-Control", "private, max-age=300");
+    if (request.headers["if-none-match"] === etag) return reply.code(304).send();
+    return reply.type(row.mime).send(Buffer.from(row.audio));
   });
   app.put<{ Body: unknown }>("/bff/space/welcome", { bodyLimit: 19_000_000 }, async (request, reply) => {
     const session = requireSession(request, reply);
