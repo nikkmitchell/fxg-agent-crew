@@ -15,7 +15,8 @@ const BIRDS = 3;
 const HEIGHT = 3.2;
 
 /** Where bird `index` is at `seconds`, and how its wings are. */
-export function birdAt(index: number, seconds: number): { x: number; y: number; z: number; heading: number; flap: number } {
+export function birdAt(index: number, seconds: number, reducedMotion = false): { x: number; y: number; z: number; heading: number; flap: number } {
+  if (reducedMotion) seconds = 0;
   const speed = 0.12 + index * 0.025;
   const radius = 1.4 + index * 0.5;
   const angle = seconds * speed + index * 2.1;
@@ -53,7 +54,7 @@ function cry(level: number): void {
   }
 }
 
-export function Seabirds() {
+export function Seabirds({ reducedMotion = false }: { reducedMotion?: boolean }) {
   const birds = useRef<(THREE.Group | null)[]>([]);
   const wings = useRef<(THREE.Mesh | null)[]>([]);
   const eye = useMemo(() => new THREE.Vector3(), []);
@@ -70,7 +71,7 @@ export function Seabirds() {
   useFrame((state) => {
     const seconds = Date.now() / 1000;
     for (let i = 0; i < BIRDS; i += 1) {
-      const bird = birdAt(i, seconds);
+      const bird = birdAt(i, seconds, reducedMotion);
       const node = birds.current[i];
       if (node) {
         node.position.set(bird.x, bird.y, bird.z);

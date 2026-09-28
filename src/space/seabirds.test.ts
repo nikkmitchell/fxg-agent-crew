@@ -10,4 +10,7 @@ describe("seabirds", () => {
     const flaps = Array.from({ length: 60 }, (_, s) => birdAt(0, s).flap);
     expect(flaps.filter((f) => f === 0.12).length).toBeGreaterThan(20);
   });
+  it("holds each bird in a calm, repeatable pose with reduced motion", () => {
+    expect(birdAt(2, 0, true)).toEqual(birdAt(2, 90, true));
+  });
 });

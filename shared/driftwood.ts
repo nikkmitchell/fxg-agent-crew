@@ -9,6 +9,8 @@
 export const DRIFT_WORDS = ["thanks", "hope", "rest", "home", "sorry", "yes"] as const;
 /** How long one person waits before sending another. */
 export const DRIFT_REST_MS = 4_000;
+/** The total lifetime of a driftwood note, including its still resting period. */
+export const DRIFT_LIFETIME_SECONDS = 10.5;
 
 export type Drift = { by: string; word: string; at: number };
 
@@ -23,7 +25,8 @@ export function cleanDrift(word: unknown): string | null {
  * moment, then drawn out to sea (along -1 = out) while bobbing and fading.
  * `out` is metres from where it lay; `fade` goes 1 to 0.
  */
-export function driftAt(seconds: number): { out: number; bob: number; fade: number } {
+export function driftAt(seconds: number, reducedMotion = false): { out: number; bob: number; fade: number } {
+  if (reducedMotion) return seconds < DRIFT_LIFETIME_SECONDS ? { out: 0, bob: 0, fade: 1 } : { out: 0, bob: 0, fade: 0 };
   const rest = 2.5;
   if (seconds < rest) return { out: 0, bob: 0, fade: 1 };
   const t = seconds - rest;

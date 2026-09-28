@@ -33,7 +33,7 @@ export function silenceHeld(tracks: Track[], now: number): boolean {
   return tracks.length >= 2 && tracks.every((track) => now - track.since >= STILL_SECONDS);
 }
 
-export function SilenceBell({ peopleRef, you }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null }) {
+export function SilenceBell({ peopleRef, you, reducedMotion = false }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null; reducedMotion?: boolean }) {
   const tracks = useRef(new Map<string, Track>());
   const rang = useRef(false);
   const bell = useRef<THREE.Group>(null);
@@ -65,7 +65,7 @@ export function SilenceBell({ peopleRef, you }: { peopleRef: MutableRefObject<Wi
     const still = all.filter((track) => now - track.since >= 5).length;
     if (still !== count.still || all.length !== count.all) setCount({ still, all: all.length });
     swing.current = Math.max(0, swing.current - delta * 0.25);
-    if (bell.current) bell.current.rotation.x = Math.sin(state.clock.elapsedTime * 3.2) * 0.35 * swing.current;
+    if (bell.current) bell.current.rotation.x = reducedMotion ? 0 : Math.sin(state.clock.elapsedTime * 3.2) * 0.35 * swing.current;
   });
 
   return (

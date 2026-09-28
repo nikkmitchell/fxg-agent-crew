@@ -12,4 +12,9 @@ describe("driftwood", () => {
     expect(driftAt(6).out).toBeGreaterThan(0);
     expect(driftAt(20).fade).toBe(0);
   });
+  it("stays still in reduced-motion mode, then clears without drifting or fading", () => {
+    expect(driftAt(2, true)).toEqual({ out: 0, bob: 0, fade: 1 });
+    expect(driftAt(8, true)).toEqual({ out: 0, bob: 0, fade: 1 });
+    expect(driftAt(10.5, true)).toEqual({ out: 0, bob: 0, fade: 0 });
+  });
 });

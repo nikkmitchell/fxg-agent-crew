@@ -25,6 +25,11 @@ export function reachAt(seconds: number): number {
   return t < 0.33 ? Math.sin((t / 0.33) * (Math.PI / 2)) : Math.cos(((t - 0.33) / 0.67) * (Math.PI / 2)) ** 1.5;
 }
 
+/** Reduced motion leaves the shoreline at a calm midpoint rather than advancing the wave. */
+export function shoreReach(seconds: number, reducedMotion = false): number {
+  return reducedMotion ? 0.5 : reachAt(seconds);
+}
+
 const vertex = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -86,12 +91,12 @@ function waves(): { set: (level: number, reach: number) => void; stop: () => voi
 }
 
 /** One piece of driftwood with a word on it, floating out on its own clock. */
-function Driftwood({ drift, slot, onGone }: { drift: Drift & { started: number }; slot: number; onGone: () => void }) {
+function Driftwood({ drift, slot, onGone, reducedMotion }: { drift: Drift & { started: number }; slot: number; onGone: () => void; reducedMotion: boolean }) {
   const group = useRef<THREE.Group>(null);
   const words = useRef<{ fillOpacity: number } | null>(null);
   const wood = useRef<THREE.MeshStandardMaterial>(null);
   useFrame(() => {
-    const place = driftAt((performance.now() - drift.started) / 1000);
+    const place = driftAt((performance.now() - drift.started) / 1000, reducedMotion);
     if (place.fade <= 0) return onGone();
     // Out is toward the sea: -z, the back of the room.
     group.current?.position.set(SHORE_AT.x + (slot - 1) * 0.35, 0.03 + place.bob, SHORE_AT.z + 0.1 - place.out);
@@ -111,7 +116,7 @@ function Driftwood({ drift, slot, onGone }: { drift: Drift & { started: number }
   );
 }
 
-export function Shore({ you = null }: { you?: string | null }) {
+export function Shore({ you = null, reducedMotion = false }: { you?: string | null; reducedMotion?: boolean }) {
   const [drifts, setDrifts] = useState<(Drift & { started: number; key: number })[]>([]);
   const next = useRef(0);
   const [note, setNote] = useState<string | null>(null);
@@ -146,9 +151,9 @@ export function Shore({ you = null }: { you?: string | null }) {
   const eye = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((state) => {
-    const reach = reachAt(Date.now() / 1000);
+    const reach = shoreReach(Date.now() / 1000, reducedMotion);
     material.uniforms.uReach.value = reach;
-    material.uniforms.uTime.value = state.clock.elapsedTime;
+    material.uniforms.uTime.value = reducedMotion ? 0 : state.clock.elapsedTime;
     state.camera.getWorldPosition(eye);
     const distance = Math.hypot(eye.x - SHORE_AT.x, eye.z - SHORE_AT.z);
     const level = Math.max(0, 1 - distance / 4);
@@ -163,7 +168,7 @@ export function Shore({ you = null }: { you?: string | null }) {
         <planeGeometry args={[SHORE_AT.width, SHORE_AT.depth]} />
       </mesh>
       {drifts.map((drift, index) => (
-        <Driftwood key={drift.key} drift={drift} slot={index} onGone={() => setDrifts((all) => all.filter((one) => one.key !== drift.key))} />
+        <Driftwood key={drift.key} drift={drift} slot={index} reducedMotion={reducedMotion} onGone={() => setDrifts((all) => all.filter((one) => one.key !== drift.key))} />
       ))}
       {/* A low post at the dry end: tap a word and a wave takes it. */}
       <group position={[SHORE_AT.x + SHORE_AT.width / 2 + 0.2, 0, SHORE_AT.z + 0.3]} rotation-y={-0.5}>

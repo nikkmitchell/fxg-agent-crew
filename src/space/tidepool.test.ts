@@ -13,4 +13,9 @@ describe("the tide pool", () => {
     expect(liftAt(4000)).toBe(1);
     expect(liftAt(20_000)).toBe(0);
   });
+  it("snaps the selected glass into place without a rise or spin", () => {
+    expect(liftAt(0, true)).toBe(1);
+    expect(liftAt(4_000, true)).toBe(1);
+    expect(liftAt(9_001, true)).toBe(0);
+  });
 });

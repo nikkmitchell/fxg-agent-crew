@@ -21,14 +21,15 @@ export function glassRest(index: number): { x: number; z: number; turn: number }
 }
 
 /** How far through being held, 0 resting to 1 at eye height, `ms` after the tap. */
-export function liftAt(ms: number): number {
+export function liftAt(ms: number, reducedMotion = false): number {
   if (ms < 0 || ms > HELD_MS) return 0;
+  if (reducedMotion) return 1;
   const rise = Math.min(1, ms / 1200);
   const fall = Math.min(1, (HELD_MS - ms) / 1500);
   return Math.min(rise, fall) ** 0.7;
 }
 
-export function TidePool() {
+export function TidePool({ reducedMotion = false }: { reducedMotion?: boolean }) {
   const held = useRef<number[]>(COLOURS.map(() => -Infinity));
   const pieces = useRef<(THREE.Mesh | null)[]>([]);
   const glow = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
@@ -39,18 +40,18 @@ export function TidePool() {
     pieces.current.forEach((mesh, index) => {
       if (!mesh) return;
       const rest = glassRest(index);
-      const lift = liftAt(now - held.current[index]);
+      const lift = liftAt(now - held.current[index], reducedMotion);
       mesh.position.set(rest.x * (1 - lift), 0.03 + lift * 1.35, rest.z * (1 - lift) + lift * 0.25);
-      mesh.rotation.set(lift * 0.6, rest.turn + lift * state.clock.elapsedTime * 0.8, 0);
+      mesh.rotation.set(lift * (reducedMotion ? 0 : 0.6), rest.turn + (reducedMotion ? 0 : lift * state.clock.elapsedTime * 0.8), 0);
       mesh.scale.setScalar(1 + lift * 0.6);
       const material = glow.current[index];
-      if (material) material.emissiveIntensity = 0.35 + lift * 1.4 + Math.sin(state.clock.elapsedTime * 0.7 + index) * 0.08;
+      if (material) material.emissiveIntensity = 0.35 + lift * 1.4 + (reducedMotion ? 0 : Math.sin(state.clock.elapsedTime * 0.7 + index) * 0.08);
     });
   });
 
   const pick = (index: number) => (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation();
-    if (liftAt(performance.now() - held.current[index]) === 0) held.current[index] = performance.now();
+    if (liftAt(performance.now() - held.current[index], reducedMotion) === 0) held.current[index] = performance.now();
   };
 
   return (

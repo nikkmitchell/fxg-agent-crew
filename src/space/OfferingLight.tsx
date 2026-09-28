@@ -39,7 +39,7 @@ export function nextPlace(place: number, reachingFrom: Side | null): number {
   return place;
 }
 
-export function OfferingLight({ peopleRef, you }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null }) {
+export function OfferingLight({ peopleRef, you, reducedMotion = false }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null; reducedMotion?: boolean }) {
   const light = useRef<THREE.Mesh>(null);
   const halo = useRef<THREE.Mesh>(null);
   const marks = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
@@ -83,12 +83,17 @@ export function OfferingLight({ peopleRef, you }: { peopleRef: MutableRefObject<
     s.reaching = reaching;
     // Left be for twenty seconds, it settles back to the middle.
     if (now - s.idleSince > 20_000) s.target = 0;
-    s.shown += (s.target - s.shown) * Math.min(1, delta * 0.9);
     const visible = both ? 1 : 0;
-    s.place += (visible - s.place) * Math.min(1, delta * 1.5);
+    if (reducedMotion) {
+      s.shown = s.target;
+      s.place = visible;
+    } else {
+      s.shown += (s.target - s.shown) * Math.min(1, delta * 0.9);
+      s.place += (visible - s.place) * Math.min(1, delta * 1.5);
+    }
 
     const x = OFFERING_AT.x + s.shown * OFFERING_AT.apart;
-    const pulse = 1 + Math.sin(frame.clock.elapsedTime * 1.6) * 0.08;
+    const pulse = reducedMotion ? 1 : 1 + Math.sin(frame.clock.elapsedTime * 1.6) * 0.08;
     if (light.current) {
       light.current.position.set(x, LIGHT_Y, OFFERING_AT.z);
       light.current.scale.setScalar(Math.max(0.001, 0.035 * s.place * pulse));

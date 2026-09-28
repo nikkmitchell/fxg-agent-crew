@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WAVE_SECONDS, reachAt } from "./Shore";
+import { WAVE_SECONDS, reachAt, shoreReach } from "./Shore";
 
 describe("the shore", () => {
   it("rushes in, then slides back, once a wave", () => {
@@ -7,5 +7,10 @@ describe("the shore", () => {
     expect(reachAt(WAVE_SECONDS * 0.33)).toBeCloseTo(1, 1);
     expect(reachAt(WAVE_SECONDS * 0.99)).toBeLessThan(0.1);
     expect(reachAt(3.1)).toBeCloseTo(reachAt(3.1 + WAVE_SECONDS));
+  });
+  it("holds a quiet, unmoving waterline with reduced motion", () => {
+    expect(shoreReach(0, true)).toBe(0.5);
+    expect(shoreReach(123, true)).toBe(0.5);
+    expect(shoreReach(3.1)).toBe(reachAt(3.1));
   });
 });

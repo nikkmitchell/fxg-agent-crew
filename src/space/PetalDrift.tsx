@@ -13,7 +13,8 @@ export const PETALS_AT = { x: -2.0, z: 6.0, width: 2.6, depth: 2.2, top: 2.6 } a
 const COUNT = 60;
 
 /** Where petal `index` is at `seconds`: falling slowly, swaying, and turning. */
-export function petalAt(index: number, seconds: number): { x: number; y: number; z: number; spin: number } {
+export function petalAt(index: number, seconds: number, reducedMotion = false): { x: number; y: number; z: number; spin: number } {
+  if (reducedMotion) seconds = 0;
   const s = index * 7.31;
   const fall = 0.18 + (index % 7) * 0.015;
   const cycle = PETALS_AT.top / fall;
@@ -28,7 +29,7 @@ export function petalAt(index: number, seconds: number): { x: number; y: number;
   };
 }
 
-export function PetalDrift() {
+export function PetalDrift({ reducedMotion = false }: { reducedMotion?: boolean }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const matrix = useMemo(() => new THREE.Matrix4(), []);
   const turn = useMemo(() => new THREE.Quaternion(), []);
@@ -41,7 +42,7 @@ export function PetalDrift() {
     if (!node) return;
     const seconds = Date.now() / 1000;
     for (let i = 0; i < COUNT; i += 1) {
-      const petal = petalAt(i, seconds);
+      const petal = petalAt(i, seconds, reducedMotion);
       euler.set(petal.spin, petal.spin * 0.7, petal.spin * 0.3);
       turn.setFromEuler(euler);
       at.set(petal.x, petal.y, petal.z);

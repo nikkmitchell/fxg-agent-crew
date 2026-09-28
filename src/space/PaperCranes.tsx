@@ -38,7 +38,7 @@ function craneGeometry(): THREE.BufferGeometry {
   return geometry;
 }
 
-export function PaperCranes() {
+export function PaperCranes({ reducedMotion = false }: { reducedMotion?: boolean }) {
   const [state, setState] = useState<Cranes>(noCranes);
   const current = useRef(state);
   current.current = state;
@@ -104,7 +104,7 @@ export function PaperCranes() {
   useEffect(() => () => strings.dispose(), [strings]);
 
   useFrame((frame) => {
-    if (overhead.current) overhead.current.rotation.y = Math.sin(frame.clock.elapsedTime * 0.15) * 0.04;
+    if (overhead.current) overhead.current.rotation.y = reducedMotion ? 0 : Math.sin(frame.clock.elapsedTime * 0.15) * 0.04;
   });
 
   const complete = state.cranes.length >= THOUSAND;

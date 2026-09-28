@@ -44,7 +44,7 @@ const fragment = /* glsl */ `
   }
 `;
 
-export function BreathingSilk({ meditation }: { meditation: Meditation | null }) {
+export function BreathingSilk({ meditation, reducedMotion = false }: { meditation: Meditation | null; reducedMotion?: boolean }) {
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -60,6 +60,12 @@ export function BreathingSilk({ meditation }: { meditation: Meditation | null })
   useEffect(() => () => material.dispose(), [material]);
 
   useFrame((state, delta) => {
+    if (reducedMotion) {
+      // Keep the silk at a calm, representative pose without breathing or rippling.
+      material.uniforms.uFull.value = 0.5;
+      material.uniforms.uTime.value = 0;
+      return;
+    }
     const now = meditation ? breathAt(meditation, Date.now()) : { state: "idle" as const };
     const target = now.state === "breathing" ? now.fullness : 0.25 + Math.sin(state.clock.elapsedTime * 0.3) * 0.12;
     material.uniforms.uFull.value += (target - material.uniforms.uFull.value) * Math.min(1, delta * 2.5);

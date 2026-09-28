@@ -21,13 +21,13 @@ export function onSand(x: number, z: number): boolean {
 }
 
 /** How bright a print is `ms` after it was made: bright at once, then slowly out. */
-export function stepGlow(ms: number): number {
-  return ms < 0 || ms > FADE_MS ? 0 : (1 - ms / FADE_MS) ** 1.6;
+export function stepGlow(ms: number, reducedMotion = false): number {
+  return ms < 0 || ms > FADE_MS ? 0 : reducedMotion ? 1 : (1 - ms / FADE_MS) ** 1.6;
 }
 
 type Print = { x: number; z: number; at: number; turn: number };
 
-export function GlowSteps({ peopleRef, you }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null }) {
+export function GlowSteps({ peopleRef, you, reducedMotion = false }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null; reducedMotion?: boolean }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const prints = useRef<Print[]>([]);
   const last = useRef(new Map<string, { x: number; z: number; foot: number }>());
@@ -66,7 +66,7 @@ export function GlowSteps({ peopleRef, you }: { peopleRef: MutableRefObject<Wire
     prints.current = prints.current.filter((print) => now - print.at < FADE_MS).slice(-COUNT);
     for (let i = 0; i < COUNT; i += 1) {
       const print = prints.current[i];
-      const bright = print ? stepGlow(now - print.at) : 0;
+      const bright = print ? stepGlow(now - print.at, reducedMotion) : 0;
       up.set(-Math.PI / 2, 0, print?.turn ?? 0);
       turn.setFromEuler(up);
       at.set(print?.x ?? 0, 0.012, print?.z ?? 0);

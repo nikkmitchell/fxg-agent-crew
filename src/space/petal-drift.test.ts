@@ -12,4 +12,7 @@ describe("drifting petals", () => {
       }
     }
   });
+  it("keeps each petal at one still pose when reduced motion is enabled", () => {
+    expect(petalAt(12, 0, true)).toEqual(petalAt(12, 90, true));
+  });
 });

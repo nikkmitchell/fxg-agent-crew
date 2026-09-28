@@ -27,7 +27,12 @@ export function openStep(open: number, moved: number, delta: number, near: boole
   return Math.min(1, Math.max(0, next));
 }
 
-export function StillFlower() {
+/** Reduced motion keeps the flower closed until its stillness practice completes, then opens it in one step. */
+export function flowerDisplayOpen(open: number, reducedMotion = false): number {
+  return reducedMotion ? (open >= 1 ? 1 : 0) : open;
+}
+
+export function StillFlower({ reducedMotion = false }: { reducedMotion?: boolean }) {
   const petals = useRef<THREE.InstancedMesh>(null);
   const glow = useRef<THREE.MeshBasicMaterial>(null);
   const light = useRef<THREE.PointLight>(null);
@@ -49,7 +54,8 @@ export function StillFlower() {
     root.current?.getWorldPosition(here);
     const near = Math.hypot(eye.x - here.x, eye.z - here.z) < NEAR;
     open.current = openStep(open.current, moved, Math.min(delta, 0.1), near);
-    const o = open.current;
+    // Preserve the stillness practice, but let the flower change in one clear step.
+    const o = flowerDisplayOpen(open.current, reducedMotion);
     const node = petals.current;
     if (node) {
       for (let i = 0; i < PETALS; i += 1) {
@@ -66,7 +72,7 @@ export function StillFlower() {
       }
       node.instanceMatrix.needsUpdate = true;
     }
-    const breathe = 0.85 + Math.sin(state.clock.elapsedTime * 1.2) * 0.15;
+    const breathe = reducedMotion ? 1 : 0.85 + Math.sin(state.clock.elapsedTime * 1.2) * 0.15;
     if (glow.current) glow.current.opacity = o * o * 0.8 * breathe;
     if (light.current) light.current.intensity = o * o * 1.2 * breathe;
   });

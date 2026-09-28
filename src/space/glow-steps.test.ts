@@ -12,4 +12,9 @@ describe("glowing steps", () => {
     expect(stepGlow(6000)).toBeGreaterThan(0);
     expect(stepGlow(13_000)).toBe(0);
   });
+  it("keeps a print steadily lit until it disappears", () => {
+    expect(stepGlow(0, true)).toBe(1);
+    expect(stepGlow(6_000, true)).toBe(1);
+    expect(stepGlow(13_000, true)).toBe(0);
+  });
 });

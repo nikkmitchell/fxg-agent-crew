@@ -51,7 +51,7 @@ export function ringTube(note: number, strength: number): void {
   }
 }
 
-export function WindChimes({ peopleRef, you }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null }) {
+export function WindChimes({ peopleRef, you, reducedMotion = false }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null; reducedMotion?: boolean }) {
   const tubes = useRef<(THREE.Group | null)[]>([]);
   /** Each tube's swing (radians) and its speed, as a damped pendulum. */
   const swing = useRef(CHIME_NOTES.map(() => ({ angle: 0, speed: 0, lastRing: 0 })));
@@ -62,7 +62,7 @@ export function WindChimes({ peopleRef, you }: { peopleRef: MutableRefObject<Wir
   const strike = (index: number, strength: number) => {
     const tube = swing.current[index];
     const now = performance.now();
-    tube.speed += strength * 3 * (Math.random() > 0.5 ? 1 : -1);
+    if (!reducedMotion) tube.speed += strength * 3 * (Math.random() > 0.5 ? 1 : -1);
     if (now - tube.lastRing < 180) return;
     tube.lastRing = now;
     ringTube(CHIME_NOTES[index], strength);
@@ -99,13 +99,18 @@ export function WindChimes({ peopleRef, you }: { peopleRef: MutableRefObject<Wir
 
     // THE PENDULUMS.
     swing.current.forEach((tube, index) => {
-      tube.speed += -tube.angle * 18 * delta;
-      tube.speed *= Math.exp(-delta * 1.4);
-      tube.angle += tube.speed * delta;
       const group = tubes.current[index];
-      if (group) group.rotation.x = tube.angle;
+      if (reducedMotion) {
+        tube.angle = 0;
+        tube.speed = 0;
+      } else {
+        tube.speed += -tube.angle * 18 * delta;
+        tube.speed *= Math.exp(-delta * 1.4);
+        tube.angle += tube.speed * delta;
+      }
+      if (group) group.rotation.x = reducedMotion ? 0 : tube.angle;
     });
-    if (clapper.current) clapper.current.rotation.z = Math.sin(state.clock.elapsedTime * 1.3) * 0.08 * (0.3 + stir);
+    if (clapper.current) clapper.current.rotation.z = reducedMotion ? 0 : Math.sin(state.clock.elapsedTime * 1.3) * 0.08 * (0.3 + stir);
   });
 
   return (

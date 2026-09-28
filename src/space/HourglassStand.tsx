@@ -14,7 +14,7 @@ import { space } from "../space-client";
 export const HOURGLASS_AT = { x: 1.25, z: 6.05, height: 0.62 } as const;
 const BULB = 0.07;
 
-export function HourglassStand() {
+export function HourglassStand({ reducedMotion = false }: { reducedMotion?: boolean }) {
   const [glass, setGlass] = useState<Hourglass>({ turnedAt: null, topThen: 0 });
   const offset = useRef(0);
   const turning = useRef(0);
@@ -56,7 +56,7 @@ export function HourglassStand() {
     // A half turn when it is turned over.
     if (frame.current) {
       turning.current = Math.max(0, turning.current - delta * 2);
-      frame.current.rotation.z = turning.current * Math.PI;
+      frame.current.rotation.z = reducedMotion ? 0 : turning.current * Math.PI;
     }
   });
 

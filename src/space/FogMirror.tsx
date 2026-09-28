@@ -28,7 +28,19 @@ export function breathMist(seconds: number, distance: number): number {
   return out * (1 - distance / BREATH_REACH);
 }
 
-export function FogMirror() {
+/** Lay one stable, drawable patch of mist without inheriting a prior wipe's erase mode. */
+export function drawStillMist(context: CanvasRenderingContext2D, width: number, height: number): void {
+  const px = width / 2;
+  const py = height / 2;
+  context.globalCompositeOperation = "source-over";
+  const gradient = context.createRadialGradient(px, py, 0, px, py, 60);
+  gradient.addColorStop(0, "rgba(235,240,245,0.45)");
+  gradient.addColorStop(1, "rgba(235,240,245,0)");
+  context.fillStyle = gradient;
+  context.fillRect(px - 60, py - 60, 120, 120);
+}
+
+export function FogMirror({ reducedMotion = false }: { reducedMotion?: boolean }) {
   const canvas = useMemo(() => {
     const element = document.createElement("canvas");
     element.width = PIXELS;
@@ -42,6 +54,15 @@ export function FogMirror() {
   const local = useMemo(() => new THREE.Vector3(), []);
   const lastFade = useRef(0);
   const facing = Math.atan2(ROOM.spawn.x - FOG_AT.x, ROOM.spawn.z - FOG_AT.z);
+
+  // Reduced motion gets one still patch of mist; wiping it remains interactive.
+  useEffect(() => {
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    if (reducedMotion) drawStillMist(context, canvas.width, canvas.height);
+    texture.needsUpdate = true;
+  }, [canvas, texture, reducedMotion]);
 
   /** A point on the glass, in its own metres (x across, y up from its centre), to canvas pixels. */
   const toPixel = (x: number, y: number) => ({ px: ((x + WIDTH / 2) / WIDTH) * canvas.width, py: ((HEIGHT / 2 - y) / HEIGHT) * canvas.height });
@@ -65,7 +86,7 @@ export function FogMirror() {
     // The mist lifts slowly on its own.
     const now = state.clock.elapsedTime;
     // (Per second, not per frame: a slow or throttled frame rate mists and clears the same.)
-    if (now - lastFade.current > 0.15) {
+    if (!reducedMotion && now - lastFade.current > 0.15) {
       lastFade.current = now;
       context.globalCompositeOperation = "destination-out";
       context.fillStyle = "rgba(0,0,0,0.012)";
@@ -76,7 +97,7 @@ export function FogMirror() {
     state.camera.getWorldPosition(eye);
     local.copy(eye);
     node.worldToLocal(local);
-    const mist = local.z > 0 ? breathMist(Date.now() / 1000, local.z) : 0;
+    const mist = !reducedMotion && local.z > 0 ? breathMist(Date.now() / 1000, local.z) : 0;
     if (mist > 0 && Math.abs(local.x) < WIDTH / 2 + 0.1 && Math.abs(local.y) < HEIGHT / 2 + 0.1) {
       const { px, py } = toPixel(local.x, local.y - 0.08);
       const gradient = context.createRadialGradient(px, py, 0, px, py, 60);
@@ -127,7 +148,7 @@ export function FogMirror() {
         <meshBasicMaterial map={texture} transparent depthWrite={false} />
       </mesh>
       <Text position={[0, BOTTOM - 0.06, 0.02]} fontSize={0.03} color="#cfc6b4" outlineWidth={0.002} outlineColor="#1a1714" raycast={() => null}>
-        breathe on the glass, then draw in the mist
+        {reducedMotion ? "draw a clear path through the still mist" : "breathe on the glass, then draw in the mist"}
       </Text>
     </group>
   );
