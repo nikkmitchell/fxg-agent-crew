@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
-import { GUIDES, GUIDE_VOICE, READINGS, guideVoice, isGuide, isReading, readingVoice, type ReadingId } from "../../shared/guided.js";
+import { GUIDES, GUIDE_VOICE, GUIDE_VOICE_CHOICES, READINGS, guideVoiceFor, isGuide, isReading, readingVoice, type ReadingId } from "../../shared/guided.js";
 import type { SpeechCache } from "./speak.js";
 
 /**
@@ -25,8 +25,8 @@ export function registerGuideRoutes(
    * One line of a guide or a reading, from the script alone. `lineOf` returns
    * the fixed text, or null for anything that is not in a script.
    */
-  const speakLine = (route: string, lineOf: (id: string, index: number) => string | null, voiceOf: (id: string) => string = () => GUIDE_VOICE) =>
-  app.get<{ Params: { id: string; line: string } }>(route, async (request, reply) => {
+  const speakLine = (route: string, lineOf: (id: string, index: number) => string | null, voiceOf: (id: string, wanted: unknown) => string = () => GUIDE_VOICE) =>
+  app.get<{ Params: { id: string; line: string }; Querystring: { voice?: string } }>(route, async (request, reply) => {
     if (!requireSession(request, reply)) return reply;
     const index = Number(request.params.line);
     const text = Number.isInteger(index) ? lineOf(request.params.id, index) : null;
@@ -34,7 +34,8 @@ export function registerGuideRoutes(
     if (!deps.speech.canSpeak()) {
       return reply.code(501).send({ code: "NOT_SPOKEN_HERE", error: "this server has no speech engine configured." });
     }
-    const voice = voiceOf(request.params.id);
+    // `voice` only ever selects from an allowlist (guideVoiceFor); anything else is the default.
+    const voice = voiceOf(request.params.id, request.query.voice);
     if (!(await deps.speech.ensure(text, voice))) {
       return reply.code(503).send({ code: "NOT_SAID_YET", error: "that line is still being voiced. Try again in a moment." });
     }
@@ -48,7 +49,7 @@ export function registerGuideRoutes(
   });
 
   speakLine("/bff/space/guides/:id/:line/audio", (id, index) => (isGuide(id) ? GUIDES[id].lines[index]?.say ?? null : null),
-    (id) => (isGuide(id) ? guideVoice(id) : GUIDE_VOICE));
+    (id, wanted) => (isGuide(id) ? guideVoiceFor(id, wanted) : GUIDE_VOICE));
   speakLine("/bff/space/readings/:id/:line/audio", (id, index) => (isReading(id) ? READINGS[id].lines[index] ?? null : null),
     (id) => (isReading(id) ? readingVoice(id) : GUIDE_VOICE));
 }
@@ -65,7 +66,10 @@ export async function voiceAllGuides(speech: SpeechCache, log: (message: string)
   if (!speech.canSpeak()) return;
   let made = 0;
   const lines: Array<[string, string]> = [
-    ...(Object.keys(GUIDES) as Array<keyof typeof GUIDES>).flatMap((id) => GUIDES[id].lines.map((line): [string, string] => [line.say, guideVoice(id)])),
+    // Every English guide in every voice a listener may choose; a Mandarin guide in its own.
+    ...(Object.keys(GUIDES) as Array<keyof typeof GUIDES>).flatMap((id) =>
+      [...new Set(GUIDE_VOICE_CHOICES.map((choice) => guideVoiceFor(id, choice.id)))].flatMap((voice) =>
+        GUIDES[id].lines.map((line): [string, string] => [line.say, voice]))),
     ...(Object.keys(READINGS) as ReadingId[]).flatMap((id) => READINGS[id].lines.map((line): [string, string] => [line, readingVoice(id)])),
   ];
   for (const [text, voice] of lines) {
