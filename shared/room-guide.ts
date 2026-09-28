@@ -46,6 +46,7 @@ export const ROOM_GUIDE: readonly GuideEntry[] = [
   { name: "Offering light", x: 1.4, z: 0.2, what: "for two: stand either side" },
   { name: "Cairn", x: -4.5, z: 5.9, what: "add a stone" },
   { name: "Shore", x: -4.8, z: 0.4, what: "listen to the waves" },
+  { name: "Tide pool", x: -3.5, z: -0.2, what: "hold sea glass to the light" },
 ];
 
 /**

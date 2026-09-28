@@ -73,6 +73,7 @@ import { PetalDrift, PETALS_AT } from "./PetalDrift";
 import { OfferingLight, OFFERING_AT } from "./OfferingLight";
 import { CairnStones, CAIRN_AT } from "./CairnStones";
 import { Shore, SHORE_AT } from "./Shore";
+import { TidePool, TIDEPOOL_AT } from "./TidePool";
 import { BOWLS_AT } from "./SingingBowls";
 import { GARDEN_AT } from "./GardenTray";
 import { FIRE_AT } from "./EmberFire";
@@ -977,6 +978,7 @@ export default function Scene({
         {connection.meditation?.shown && <Near at={CAIRN_AT}><CairnStones /></Near>}
         {/* And a shore where small waves come in: see Shore.tsx. */}
         {connection.meditation?.shown && <Near at={SHORE_AT} within={9}><Shore you={you} /></Near>}
+        {connection.meditation?.shown && <Near at={TIDEPOOL_AT}><TidePool /></Near>}
         {/* And a nebula to put your hands in: see Nebula.tsx. */}
         {connection.meditation?.shown && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} /></Near>}
         {connection.meditation?.shown && <Near at={floorOf(TREE_AT)}><StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} /></Near>}
