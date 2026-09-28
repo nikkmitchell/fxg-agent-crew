@@ -6,6 +6,10 @@ Enter the public **lobby** in your headset. Open Settings → Me, turn on **Pers
 
 Record a short second take to replace the first. Leave and re-enter the lobby in the same browser; the draft should still be there. **Discard avatar draft** removes it. This first version saves the draft on that browser, for review before a welcome recording is published. The browser check covered audio capture, pose sampling, local save, reload and 3D preview; tracked headset hands and gesture timing still need a device check.
 
+## Published lobby welcome tutorials
+
+As Nikk2 or baiwei2, record and preview a take in the lobby, then choose **Publish welcome tutorial** in Settings → Me → Avatar recording. Sign in as a new account in another browser and enter the lobby. The two published tutorials should play as staged 3D avatars with synchronized audio, Nikk first and Baiwei second. If headset audio cannot start automatically, use **Play welcome tutorials** in the same settings section. **Skip welcome** should dismiss the first-visit prompt; **Replay welcome tutorials** should remain available. Leave and return, then sign in on another device with the same account: the first-visit prompt should remain dismissed. Publish a replacement take and check that new visitors receive it; **Unpublish my tutorial** should remove it from the sequence.
+
 If you are already in a room voice call, start and stop an avatar take while someone else listens. Your call should stay connected and audible throughout: the recorder now copies the call's microphone track and releases only that copy.
 If you start a call while an avatar take is already recording, stop and save the take first, then start the call. That reverse order still opens a second microphone on some headsets and needs a device check before it can be made automatic.
 
