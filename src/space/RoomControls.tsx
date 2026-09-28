@@ -1221,7 +1221,7 @@ export function RoomControls({
     voice: {
       on: voice.on,
       starting: voice.starting,
-      others: voice.others,
+      others: voice.hearable,
       isMuted: (name) => voice.muted.has(name.trim().toLowerCase()),
       setOn: (on) => {
         rememberSelfMute(!on);

@@ -47,6 +47,14 @@ export type VoiceChat = {
   streams: Map<string, MediaStream>;
   /** Who else has their microphone on. */
   others: string[];
+  /**
+   * Everyone you could mute: the other people in the room, whether or not
+   * their microphone is on right now, plus anyone talking. Nikk (2026-09-28):
+   * "I can't find the mute other people options in settings now, I can only
+   * mute myself". The rows were built from `others`, which is empty whenever
+   * nobody else happens to be talking.
+   */
+  hearable: string[];
   /** Who you have muted, for yourself only. */
   muted: Set<string>;
   setMuted: (actorId: string, muted: boolean) => void;
@@ -85,6 +93,20 @@ function readMuted(): Set<string> {
   } catch {
     return new Set();
   }
+}
+
+/** The other people you could mute: in the room or talking, not you, each once. */
+export function hearableFrom(you: string | null, roomPeople: readonly string[], talking: readonly string[]): string[] {
+  const me = you?.trim().toLowerCase() ?? null;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const name of [...roomPeople, ...talking]) {
+    const id = name.trim().toLowerCase();
+    if (!id || id === me || seen.has(id)) continue;
+    seen.add(id);
+    out.push(name);
+  }
+  return out;
 }
 
 export function useVoiceChat(
@@ -443,5 +465,6 @@ export function useVoiceChat(
   );
 
   const lend = useCallback(() => microphone.current, []);
-  return { on, starting, others, streams, muted, setMuted, trouble, setOn, microphone: lend };
+  const hearable = hearableFrom(you, roomPeople, others);
+  return { on, starting, others, hearable, streams, muted, setMuted, trouble, setOn, microphone: lend };
 }
