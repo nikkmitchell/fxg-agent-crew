@@ -336,6 +336,17 @@ export const READINGS = {
       "and not, when I came to die, discover that I had not lived.",
     ],
   },
+  /** Spoken once to a first-time visitor, and on request, at the guide sign (src/space/RoomGuideSign.tsx). */
+  welcome: {
+    title: "Welcome",
+    by: "Sill, for meditation.AR (2026)",
+    lines: [
+      "Welcome to the meditation room. There is no right way to be here.",
+      "The glowing orb in front of you breathes. Breathe with it, or start a guided meditation under it.",
+      "The sign on your left lists everything in the room, and which way to go.",
+      "Take your time. Wander. Sit. Nothing here needs to be finished.",
+    ],
+  },
   /** Read at the tea table (src/space/TeaTable.tsx), not on the stone's list. */
   tea: {
     title: "A cup of tea",
