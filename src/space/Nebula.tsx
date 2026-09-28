@@ -14,7 +14,7 @@ import { selfPose } from "./self-pose";
  * eight hands (anyone's; the room already shares where hands are).
  */
 
-export const NEBULA_AT = { x: 4.2, z: 8.8, y: 1.3, radius: 0.9 } as const;
+export const NEBULA_AT = { x: -5.0, z: 3.5, y: 1.3, radius: 0.9 } as const;
 const POINTS = 3000;
 const HANDS = 8;
 
@@ -62,7 +62,7 @@ const fragment = /* glsl */ `
   varying float vFade;
   void main() {
     vec2 c = gl_PointCoord - 0.5;
-    float soft = smoothstep(0.5, 0.0, length(c));
+    float soft = (1.0 - smoothstep(0.0, 0.5, length(c)));
     gl_FragColor = vec4(vColour * soft * vFade, soft * vFade);
   }
 `;

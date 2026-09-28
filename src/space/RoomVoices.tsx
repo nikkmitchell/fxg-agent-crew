@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from "react";
 import { useThree } from "@react-three/fiber";
+import { useXR } from "@react-three/xr";
 import * as THREE from "three";
-import { registerRoomAudioContext, resumeRoomAudio } from "./room-audio";
+import { registerRoomAudioContext, resumeRoomAudio, unlockRoomAudioFromXR } from "./room-audio";
 
 function Voice({
   stream,
@@ -37,6 +38,7 @@ function Voice({
 /** Room-wide, equal-level human voice; agents do not participate in this call. */
 export function RoomVoices({ streams, muted }: { streams: Map<string, MediaStream>; muted: Set<string> }) {
   const camera = useThree((state) => state.camera);
+  const session = useXR((state) => state.session);
   const listener = useMemo(() => new THREE.AudioListener(), []);
 
   /**
@@ -55,6 +57,9 @@ export function RoomVoices({ streams, muted }: { streams: Map<string, MediaStrea
       for (const name of events) window.removeEventListener(name, resume);
     };
   }, [listener]);
+
+  /** XR controller and hand selections may not bubble through the DOM. */
+  useEffect(() => unlockRoomAudioFromXR(session), [session]);
 
   /**
    * THE AUDIO CONTEXT IS NEVER CLOSED, and it does not follow the camera.

@@ -39,7 +39,7 @@ const fragment = /* glsl */ `
     vec3 silk = vec3(0.96, 0.78, 0.46);
     // Light catches the fold toward you; the hem and edges fade.
     float sheen = 0.75 + vBillow * 1.6;
-    float edge = smoothstep(0.0, 0.05, vUv.x) * smoothstep(1.0, 0.95, vUv.x) * smoothstep(0.0, 0.06, vUv.y);
+    float edge = smoothstep(0.0, 0.05, vUv.x) * (1.0 - smoothstep(0.95, 1.0, vUv.x)) * smoothstep(0.0, 0.06, vUv.y);
     gl_FragColor = vec4(silk * sheen, 0.5 * edge);
   }
 `;

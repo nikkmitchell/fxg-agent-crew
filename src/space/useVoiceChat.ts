@@ -47,6 +47,14 @@ export type VoiceChat = {
   streams: Map<string, MediaStream>;
   /** Who else has their microphone on. */
   others: string[];
+  /**
+   * Everyone you could mute: the other people in the room, whether or not
+   * their microphone is on right now, plus anyone talking. Nikk (2026-09-28):
+   * "I can't find the mute other people options in settings now, I can only
+   * mute myself". The rows were built from `others`, which is empty whenever
+   * nobody else happens to be talking.
+   */
+  hearable: string[];
   /** Who you have muted, for yourself only. */
   muted: Set<string>;
   setMuted: (actorId: string, muted: boolean) => void;
@@ -85,6 +93,32 @@ function readMuted(): Set<string> {
   } catch {
     return new Set();
   }
+}
+
+/** Self-healing voice: how many restarts, in how long. See `setOn` in useVoiceChat. */
+export const HEAL_TRIES = 3;
+export const HEAL_WINDOW_MS = 5 * 60_000;
+const MICROPHONE_TROUBLE = "The microphone could not be opened";
+export function isMicrophoneTrouble(trouble: string): boolean {
+  return trouble.startsWith(MICROPHONE_TROUBLE);
+}
+/** May voice restart itself now, given when it last did? */
+export function mayHeal(previous: readonly number[], now: number): boolean {
+  return previous.filter((at) => now - at < HEAL_WINDOW_MS).length < HEAL_TRIES;
+}
+
+/** The other people you could mute: in the room or talking, not you, each once. */
+export function hearableFrom(you: string | null, roomPeople: readonly string[], talking: readonly string[]): string[] {
+  const me = you?.trim().toLowerCase() ?? null;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const name of [...roomPeople, ...talking]) {
+    const id = name.trim().toLowerCase();
+    if (!id || id === me || seen.has(id)) continue;
+    seen.add(id);
+    out.push(name);
+  }
+  return out;
 }
 
 export function useVoiceChat(
@@ -356,7 +390,7 @@ export function useVoiceChat(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomKey, dialEveryone, drop]);
 
-  const setOn = useCallback(
+  const setOnRaw = useCallback(
     (next: boolean) => {
       // XR button presses are Three.js events, not necessarily DOM pointer or
       // touch events. Resume from this user gesture so remote audio is audible
@@ -391,7 +425,7 @@ export function useVoiceChat(
           });
         } catch {
           if (microphoneRequest.current === request) {
-            setTrouble("The microphone could not be opened. Check this site's microphone permission and try again.");
+            setTrouble(`${MICROPHONE_TROUBLE}. Check this site's microphone permission and try again.`);
           }
           return;
         } finally {
@@ -416,6 +450,47 @@ export function useVoiceChat(
     },
     [dialEveryone, drop, send],
   );
+
+  /**
+   * SELF-HEALING VOICE (Nikk, 2026-09-28): "when voice is not working, it says
+   * voice not connected, but muting and unmuting works, so lets have it auto do
+   * something like that". When a call to someone fails while your microphone
+   * is on, do exactly that ourselves after a moment: off, then on again, which
+   * drops and redials every connection. At most HEAL_TRIES times in
+   * HEAL_WINDOW_MS, so a network that really blocks calls does not loop; never
+   * for a refused microphone, which a restart cannot fix.
+   */
+  const heals = useRef<number[]>([]);
+  const reOn = useRef<number | null>(null);
+  const setOn = useCallback(
+    (next: boolean) => {
+      // Your own press wins over a restart in progress.
+      if (reOn.current !== null) {
+        window.clearTimeout(reOn.current);
+        reOn.current = null;
+      }
+      setOnRaw(next);
+    },
+    [setOnRaw],
+  );
+  useEffect(() => {
+    if (!trouble || !live.current.on || isMicrophoneTrouble(trouble)) return;
+    const now = Date.now();
+    heals.current = heals.current.filter((at) => now - at < HEAL_WINDOW_MS);
+    if (!mayHeal(heals.current, now)) return;
+    const timer = window.setTimeout(() => {
+      heals.current.push(Date.now());
+      setOnRaw(false);
+      reOn.current = window.setTimeout(() => {
+        reOn.current = null;
+        setOnRaw(true);
+      }, 800);
+    }, 2_000);
+    return () => window.clearTimeout(timer);
+  }, [trouble, setOnRaw]);
+  useEffect(() => () => {
+    if (reOn.current !== null) window.clearTimeout(reOn.current);
+  }, []);
 
   const setMuted = useCallback((actorId: string, mute: boolean) => {
     setMutedState((before) => {
@@ -443,5 +518,6 @@ export function useVoiceChat(
   );
 
   const lend = useCallback(() => microphone.current, []);
-  return { on, starting, others, streams, muted, setMuted, trouble, setOn, microphone: lend };
+  const hearable = hearableFrom(you, roomPeople, others);
+  return { on, starting, others, hearable, streams, muted, setMuted, trouble, setOn, microphone: lend };
 }

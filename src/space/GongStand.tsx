@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { useFrame } from "@react-three/fiber";
 import { GONG_NOTE, strengthFromSpeed, type BowlStrike } from "../../shared/bowl";
 import { onBowlStruck } from "./bowl-strikes";
@@ -19,6 +20,24 @@ import { ROOM } from "../../shared/space-layout";
  */
 
 export const GONG_AT = { x: 3.7, z: 6.8, centre: 1.25, radius: 0.42 } as const;
+
+/** The five fixed wooden frame pieces, merged into one material/draw. */
+export function gongFrameGeometry(): THREE.BufferGeometry {
+  const post = GONG_AT.radius + 0.12;
+  const parts = [
+    ...[-post, post].flatMap((x) => [
+      new THREE.BoxGeometry(0.07, 1.8, 0.07).translate(x, 0.9, 0),
+      new THREE.BoxGeometry(0.1, 0.06, 0.5).translate(x, 0.03, 0),
+    ]),
+    new THREE.BoxGeometry(post * 2 + 0.2, 0.08, 0.08).translate(0, 1.82, 0),
+  ];
+  const merged = mergeGeometries(parts);
+  parts.forEach((part) => part.dispose());
+  if (!merged) throw new Error("The gong frame pieces must share geometry attributes");
+  merged.computeBoundingBox();
+  merged.computeBoundingSphere();
+  return merged;
+}
 
 /** Inharmonic partials: ratio to the note, loudness, and when each peaks (s). */
 const PARTIALS = [
@@ -54,7 +73,9 @@ export function GongStand({ you }: { you: string | null }) {
   const glow = useRef<THREE.MeshStandardMaterial>(null);
   const ringing = useRef(0);
   const eye = useMemo(() => new THREE.Vector3(), []);
+  const frameGeometry = useMemo(() => gongFrameGeometry(), []);
   const facing = Math.atan2(ROOM.spawn.x - GONG_AT.x, ROOM.spawn.z - GONG_AT.z);
+  useEffect(() => () => frameGeometry.dispose(), [frameGeometry]);
 
   const hear = (strength: number) => {
     soundGong(strength, Math.hypot(eye.x - GONG_AT.x, eye.z - GONG_AT.z));
@@ -115,21 +136,8 @@ export function GongStand({ you }: { you: string | null }) {
   const post = GONG_AT.radius + 0.12;
   return (
     <group position={[GONG_AT.x, 0, GONG_AT.z]} rotation={[0, facing, 0]}>
-      {/* THE FRAME: two posts and a beam, on feet. */}
-      {[-post, post].map((x) => (
-        <group key={x}>
-          <mesh position={[x, 0.9, 0]} raycast={() => null}>
-            <boxGeometry args={[0.07, 1.8, 0.07]} />
-            <meshStandardMaterial color="#2b1d14" roughness={0.8} />
-          </mesh>
-          <mesh position={[x, 0.03, 0]} raycast={() => null}>
-            <boxGeometry args={[0.1, 0.06, 0.5]} />
-            <meshStandardMaterial color="#2b1d14" roughness={0.8} />
-          </mesh>
-        </group>
-      ))}
-      <mesh position={[0, 1.82, 0]} raycast={() => null}>
-        <boxGeometry args={[post * 2 + 0.2, 0.08, 0.08]} />
+      {/* THE FRAME: posts, feet and beam keep the same shape in one draw. */}
+      <mesh geometry={frameGeometry} raycast={() => null}>
         <meshStandardMaterial color="#2b1d14" roughness={0.8} />
       </mesh>
       {[-0.2, 0.2].map((x) => (

@@ -12,6 +12,8 @@ function input(view: SettingsView, extra: Partial<SettingsMenuInput> = {}): Sett
     voice: { on: true, starting: false, others: ["baiwei2"], isMuted: () => false, setOn: noop, setMuted: noop },
     voiceExtra: [],
     hearReplies: true,
+    touchMic: false,
+    setTouchMic: () => {},
     setHearReplies: noop,
     handsShown: true,
     setHandsShown: noop,
