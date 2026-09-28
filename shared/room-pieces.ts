@@ -10,7 +10,7 @@ import { ROOM_GUIDE } from "./room-guide.js";
  */
 
 /** Things in the room that are not on the guide's list but can be hidden too. */
-export const EXTRA_PIECES = ["Star map", "Moon", "Water clock", "Paper boats", "Petals", "Sound bath"] as const;
+export const EXTRA_PIECES = ["Star map", "Moon", "Water clock", "Paper boats", "Petals", "Sound bath", "Dawn"] as const;
 
 /** Every piece that has a toggle. The orb is not here: it has its own switch in the room menu. */
 export const TOGGLEABLE: readonly string[] = [...ROOM_GUIDE.map((entry) => entry.name).filter((name) => name !== "Breathing orb"), ...EXTRA_PIECES];

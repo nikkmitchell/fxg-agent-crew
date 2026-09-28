@@ -58,7 +58,7 @@ export async function requestJson<T>(path: string, init: RequestInit = {}): Prom
   // DOWN THE ROOM'S OPEN SOCKET when there is one (call-socket.ts), with the
   // same answer a web request would give; the web request otherwise.
   const tunnelled = await callOverSocket(path, init);
-  if (tunnelled) return readAnswer<T>(tunnelled.status, () => Promise.resolve(parseOrUndefined(tunnelled.body)));
+  if (tunnelled) return readAnswer<T>(tunnelled.status, () => Promise.resolve(parseBody(tunnelled.body)));
   const response = await fetch(path, {
     ...init,
     // Explicit rather than relying on the default, so that moving the API to
@@ -70,14 +70,18 @@ export async function requestJson<T>(path: string, init: RequestInit = {}): Prom
     },
   });
 
-  return readAnswer<T>(response.status, () => response.json().catch(() => undefined));
+  return readAnswer<T>(response.status, () => response.text().then(parseBody, () => undefined));
 }
 
-function parseOrUndefined(text: string): unknown {
+/** Marks a body that was there but was not JSON (an HTML fallback page, a proxy's error page). */
+const NOT_JSON = Symbol("not json");
+
+function parseBody(text: string): unknown {
+  if (!text) return undefined;
   try {
-    return text ? JSON.parse(text) : undefined;
+    return JSON.parse(text);
   } catch {
-    return undefined;
+    return NOT_JSON;
   }
 }
 
@@ -86,8 +90,18 @@ async function readAnswer<T>(status: number, read: () => Promise<unknown>): Prom
   // 204 has no body to parse. The board API uses it for deletes.
   if (status === 204) return undefined as T;
 
-  const body = (await read()) as T | Refusal | undefined;
+  const read_ = await read();
   const response = { ok: status >= 200 && status < 300, status };
+  // A success that is not JSON is not an answer. Lumenfold (5702): the dev
+  // preview's HTML fallback came back "200" and the caller read fields off it
+  // inside a render, taking the whole scene down. Refuse it here, once, so
+  // every caller's own catch handles it.
+  if (response.ok && read_ === NOT_JSON) throw new ApiError("the server did not answer in JSON", status, "NOT_JSON");
+  // Nor is an empty success (204 was handled above). baiwei2 audited it
+  // (5718): every no-body success here is a 204, and the upstream client
+  // throws on an empty body before it could become an empty 2xx.
+  if (response.ok && read_ === undefined) throw new ApiError("the server answered with nothing", status, "EMPTY_ANSWER");
+  const body = (read_ === NOT_JSON ? undefined : read_) as T | Refusal | undefined;
   if (!response.ok) {
     const refusal = body as Refusal | undefined;
     throw new ApiError(

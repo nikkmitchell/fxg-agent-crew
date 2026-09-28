@@ -40,6 +40,12 @@ import { GlowSteps } from "./GlowSteps";
 import { Seabirds } from "./Seabirds";
 import { PaperCranes, CRANES_AT } from "./PaperCranes";
 import { RoomGuideSign, SIGN_AT } from "./RoomGuideSign";
+import { useHiddenPieces } from "./pieces-events";
+
+/** The guide sign with the room's real hidden list, as the scene gives it. */
+function PreviewSign() {
+  return <RoomGuideSign hidden={useHiddenPieces().hidden} />;
+}
 import { FogMirror, FOG_AT } from "./FogMirror";
 import { StillFlower, STILL_AT } from "./StillFlower";
 import { SilenceBell, SILENCE_AT } from "./SilenceBell";
@@ -114,6 +120,8 @@ function Preview() {
     },
     voiceExtra: [],
     hearReplies: hear,
+    touchMic: false,
+    setTouchMic: () => {},
     setHearReplies: setHear,
     handsShown: hands,
     setHandsShown: setHands,
@@ -199,7 +207,7 @@ function Preview() {
       ) : null}
       {params.get("sign") === "1" ? (
         <group position={[-SIGN_AT[0], 0.2, -SIGN_AT[2] - 1.5]}>
-          <RoomGuideSign />
+          <PreviewSign />
         </group>
       ) : null}
       {params.get("cranes") === "1" ? (

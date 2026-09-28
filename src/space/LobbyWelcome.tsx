@@ -29,7 +29,7 @@ export const WELCOME_TEXT = {
     {
       heading: "Send a voice message",
       lines: [
-        "Controllers: press the mic by your hip, speak, press again to send.",
+        "Controllers: press A or X, speak, press it again to send; B or Y cancels.",
         "Hands: hold a flat hand up in front of you, speak, then chop down to send. A fist cancels.",
       ],
     },

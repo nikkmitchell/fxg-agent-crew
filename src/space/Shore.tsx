@@ -39,16 +39,16 @@ const fragment = /* glsl */ `
   void main() {
     // vUv.y: 0 at the sea end, 1 at the dry sand.
     float edge = 0.15 + uReach * 0.55 + sin(vUv.x * 18.0 + uTime * 0.6) * 0.02 + sin(vUv.x * 41.0 - uTime) * 0.01;
-    float wet = smoothstep(edge + 0.02, edge - 0.02, vUv.y);
-    float foam = smoothstep(0.035, 0.0, abs(vUv.y - edge)) * (0.6 + 0.4 * sin(vUv.x * 90.0 + uTime * 2.0));
+    float wet = (1.0 - smoothstep(edge - 0.02, edge + 0.02, vUv.y));
+    float foam = (1.0 - smoothstep(0.0, 0.035, abs(vUv.y - edge))) * (0.6 + 0.4 * sin(vUv.x * 90.0 + uTime * 2.0));
     vec3 sand = vec3(0.86, 0.8, 0.66);
     vec3 dampSand = vec3(0.62, 0.56, 0.45);
     vec3 sea = mix(vec3(0.12, 0.3, 0.36), vec3(0.28, 0.5, 0.55), vUv.y * 1.5);
     // Sand darkens where the water has just been.
-    float damp = smoothstep(edge + 0.2, edge, vUv.y);
+    float damp = (1.0 - smoothstep(edge, edge + 0.2, vUv.y));
     vec3 colour = mix(mix(sand, dampSand, damp), sea, wet * 0.85) + vec3(1.0) * foam * 0.7;
     // The far edge fades into the room.
-    float fade = smoothstep(0.0, 0.08, vUv.x) * smoothstep(1.0, 0.92, vUv.x) * smoothstep(0.0, 0.1, vUv.y) * smoothstep(1.0, 0.85, vUv.y);
+    float fade = smoothstep(0.0, 0.08, vUv.x) * (1.0 - smoothstep(0.92, 1.0, vUv.x)) * smoothstep(0.0, 0.1, vUv.y) * (1.0 - smoothstep(0.85, 1.0, vUv.y));
     gl_FragColor = vec4(colour, fade * 0.95);
   }
 `;

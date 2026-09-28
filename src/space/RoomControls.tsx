@@ -23,6 +23,8 @@ import {
 } from "./touch-press";
 import { goHandInput } from "./go-hand-input";
 import { micGlyph, micPress } from "./mic-press";
+import { statusLineActionable } from "./touch-press";
+import { controllerFaceButtons, controllerMicAction, readTouchMicSetting, writeTouchMicSetting } from "./controller-mic";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
 import { controllersInUse, micGestureHands, micGestureIndicator } from "./mic-gesture-input";
 import {
@@ -183,6 +185,13 @@ const UPDATE_LINE = "New version ready — press here to update";
 
 /** Good news goes by itself; a problem stays until it is tapped away. */
 const NOTICE_FADE_MS = 5_000;
+/**
+ * NOTHING STAYS FOR EVER (Nikk, 2026-09-28): "make sure none of those update
+ * messages stay too long". A failure stays longer than news, so it can be
+ * read, and then it goes too; a voice problem also goes once voice has had
+ * its chance to heal itself (useVoiceChat's self-healing).
+ */
+const NOTICE_STAY_MS = 12_000;
 
 const EASE = 0.12;
 /**
@@ -386,6 +395,16 @@ export function RoomControls({
    * answer has to go and find one, which is not a conversation.
    */
   const [hearReplies, setHearReplies] = useState(true);
+  /** The touch mic by your hip, for controllers: off unless chosen (controller-mic.ts). */
+  const [touchMic, setTouchMicState] = useState(readTouchMicSetting);
+  const touchMicNow = useRef(touchMic);
+  touchMicNow.current = touchMic;
+  const setTouchMic = (on: boolean) => {
+    writeTouchMicSetting(on);
+    setTouchMicState(on);
+  };
+  /** Which face buttons were down last frame, to act only as one goes down. */
+  const facePrev = useRef({ talk: false, cancel: false });
   /** Every line this surface has queued and not yet heard end — see queueAloud. */
   const speaking = useRef(new Set<SpeechOutput>());
   const spokenAlready = useRef<number | null>(null);
@@ -407,6 +426,14 @@ export function RoomControls({
     return () => holdDraft("written-draft", false);
   }, [written]);
   const [notice, setNotice] = useState<string | null>(null);
+  /** A voice problem shows for NOTICE_STAY_MS, then goes; a new problem shows again. */
+  const [troubleShown, setTroubleShown] = useState(false);
+  useEffect(() => {
+    if (!voice.trouble) return setTroubleShown(false);
+    setTroubleShown(true);
+    const timer = window.setTimeout(() => setTroubleShown(false), NOTICE_STAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [voice.trouble]);
   /**
    * A NOTICE THAT GOES BY ITSELF. Nikk: "after you send it has a message that
    * says sent into the group but that message never disappears... [it] should
@@ -427,6 +454,12 @@ export function RoomControls({
   useEffect(() => () => {
     if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
   }, []);
+  // Any notice, however it was set, goes after NOTICE_STAY_MS at the most.
+  useEffect(() => {
+    if (notice === null) return;
+    const timer = window.setTimeout(() => setNotice((current) => (current === notice ? null : current)), NOTICE_STAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   const [sending, setSending] = useState(false);
   /** Pressing ✕ while a send is in flight: see send-timeout.ts. */
   const sendStop = useRef<AbortController | null>(null);
@@ -1134,7 +1167,7 @@ export function RoomControls({
       return { x: p.x, y: p.y, z: p.z };
     };
     // ONLY WHAT IS DRAWN: the same list the buttons below are drawn from.
-    const buttons: TouchButton[] = closedButtons(handsInViewNow.current, cancelRef.current !== null).map((id) => ({
+    const buttons: TouchButton[] = closedButtons(handsInViewNow.current || !touchMicNow.current, cancelRef.current !== null).map((id) => ({
       id,
       at: at(id === "talk" ? TALK_X : CANCEL_X),
       radius: ICON / 2,
@@ -1221,7 +1254,7 @@ export function RoomControls({
     voice: {
       on: voice.on,
       starting: voice.starting,
-      others: voice.others,
+      others: voice.hearable,
       isMuted: (name) => voice.muted.has(name.trim().toLowerCase()),
       setOn: (on) => {
         rememberSelfMute(!on);
@@ -1238,6 +1271,8 @@ export function RoomControls({
         : []),
     ],
     hearReplies,
+    touchMic,
+    setTouchMic,
     setHearReplies: (on) => setHearReplies(on),
     handsShown,
     setHandsShown: (shown) => {
@@ -1397,12 +1432,20 @@ export function RoomControls({
   const said =
     notice ??
     recordingStatus ??
-    voice.trouble ??
+    (troubleShown ? voice.trouble : null) ??
     (keyboardFocused ? null : draftPreview) ??
     (newVersion ? UPDATE_LINE : null);
   // THE UPDATE LINE IS A BUTTON (Nikk, desktop chat): "say click here to update,
   // and allow it to be clickable or pressable" — by a ray, a pinch, or a fingertip.
   const updateOffered = said === UPDATE_LINE;
+  /**
+   * ONLY PRESSABLE WHEN PRESSING DOES SOMETHING (Nikk, 2026-09-28): the line
+   * "is still clickable so it gets in the way of clicking on things". The
+   * update offer and a draft you can open to fix are actions; "sent",
+   * "cancelled", a failure or a status are words to read, and a ray or a
+   * fingertip passes straight through them to whatever is behind.
+   */
+  const lineActionable = statusLineActionable({ updateOffered, showingDraft: said !== null && said === draftPreview && !recordingStatus && !sending });
   updateOfferedNow.current = updateOffered && !open && !fixing;
   /** Something a cancel button can throw away: a recording, words waiting, or a written draft. */
   const cancellable =
@@ -1413,7 +1456,7 @@ export function RoomControls({
       saying === "recording" ||
       (!capabilities.recognition && written.trim() !== "" && !keyboardFocused)));
   /** The closed buttons drawn, and the only ones a fingertip can press. */
-  const shownButtons = closedButtons(handsInView, cancellable);
+  const shownButtons = closedButtons(handsInView || !touchMic, cancellable);
   const cancel = () => {
     // A SEND IN FLIGHT STOPS, and what was said stays ready to send again.
     if (sending) {
@@ -1578,6 +1621,28 @@ export function RoomControls({
       // from the server log (Nikk, 5111).
       const hand = micGestureHands[result.state.side];
       if (hand) onNote(describeStart(result.state.side, hand));
+    }
+    // A OR X, B OR Y: the same three actions as the gesture, from the moment
+    // a button goes down. Only when no gesture acted this frame.
+    const faces = { talk: controllerFaceButtons.talk, cancel: controllerFaceButtons.cancel };
+    const went = (key: "talk" | "cancel") => faces[key] && !facePrev.current[key];
+    const faceAction = result.action === null || result.action === undefined
+      ? went("cancel")
+        ? controllerMicAction("cancel", recording, false)
+        : went("talk")
+          ? controllerMicAction("talk", recording, anchor() !== null && !sending && saying !== "writing" && startAction)
+          : null
+      : null;
+    facePrev.current = faces;
+    if (faceAction === "start") {
+      sendAfterGesture.current = false;
+      pressTalkRef.current();
+    } else if (faceAction === "finish") {
+      sendAfterGesture.current = !capabilities.recognition;
+      pressTalkRef.current();
+    } else if (faceAction === "cancel") {
+      sendAfterGesture.current = false;
+      cancelRef.current?.();
     }
     if (result.action === "start") {
       sendAfterGesture.current = false;
@@ -1748,18 +1813,18 @@ export function RoomControls({
           // it "can be like touched with your cursor. We don't need that, that
           // should be see-through for your cursor". A notice or a draft stays
           // pressable, since pressing those does something.
-          passThrough={Boolean(recordingStatus) || sending}
+          passThrough={!lineActionable}
           y={open ? -menuHalfHeight - 0.08 : -ICON / 2 - 0.035 - STATUS.height / 2}
           width={open ? 0.9 : STATUS.width}
           height={open ? WRIST_BUTTON.height : STATUS.height}
           onTap={() => {
             // Tapping the draft adds to it; tapping a notice dismisses it. The
             // recording status is not a notice and a tap does nothing to it.
+            if (!lineActionable) return;
             if (updateOffered) reloadNow();
-            else if (notice || voice.trouble) setNotice(null);
             // THE WHOLE DRAFT, TO FIX — not the Quest keyboard, which opens
             // empty and can only add to it.
-            else if (draftPreview && !recordingStatus) startFixing();
+            else startFixing();
           }}
         />
       ) : null}

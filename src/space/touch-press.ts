@@ -89,3 +89,12 @@ export function closedButtons(handsInView: boolean, cancellable: boolean): Array
   if (handsInView) return [];
   return cancellable ? ["talk", "cancel"] : ["talk"];
 }
+
+/**
+ * Whether the status line under you should take presses at all: only when it
+ * offers the update, or shows a draft you can open to fix. Everything else is
+ * words to read, and presses go through to what is behind (Nikk, 2026-09-28).
+ */
+export function statusLineActionable({ updateOffered, showingDraft }: { updateOffered: boolean; showingDraft: boolean }): boolean {
+  return updateOffered || showingDraft;
+}
