@@ -11,6 +11,7 @@ const SAMPLE_MS = 50;
 type Capture = Omit<AvatarFrame, "t">;
 type Pending = { startAt: number; lastAt: number; frames: AvatarFrame[]; stream: MediaStream; media: MediaRecorder; chunks: Blob[]; actorId: string; body: string | null; showPersonalUi: boolean };
 type PublishedTake = { actorId: string; durationMs: number; publishedAt: string };
+type UploadedTake = Pick<PublishedTake, "actorId" | "publishedAt">;
 
 export type AvatarRecorder = ReturnType<typeof useAvatarRecorder>;
 
@@ -18,7 +19,7 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
   const [status, setStatus] = useState<"idle" | "starting" | "recording" | "saving">("idle");
   const [take, setTake] = useState<AvatarTake | null>(null);
   const [published, setPublished] = useState<PublishedTake[]>([]);
-  const [uploadedMine, setUploadedMine] = useState<PublishedTake | null>(null);
+  const [uploadedMine, setUploadedMine] = useState<UploadedTake | null>(null);
   const [welcomeCompleted, setWelcomeCompleted] = useState(true);
   const [canPublish, setCanPublish] = useState(false);
   const [activeTake, setActiveTake] = useState<AvatarTake | null>(null);
@@ -36,7 +37,7 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
   const refreshWelcome = useCallback(async () => {
     const response = await fetch(`${base}/bff/space/welcome`, { credentials: "same-origin" });
     if (!response.ok) throw new Error("Could not load welcome recordings.");
-    const data = await response.json() as { canPublish: boolean; uploadedMine: PublishedTake | null; completed: boolean; takes: PublishedTake[] };
+    const data = await response.json() as { canPublish: boolean; uploadedMine: UploadedTake | null; completed: boolean; takes: PublishedTake[] };
     setCanPublish(data.canPublish);
     setUploadedMine(data.uploadedMine);
     setWelcomeCompleted(data.completed);
@@ -161,7 +162,7 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
     setWelcomeCompleted(true);
     void fetch(`${base}/bff/space/welcome/complete`, { method: "POST", credentials: "same-origin" }).catch(() => setNotice("Could not save welcome progress."));
   }, [stopPlayback]);
-  const loadPublished = useCallback(async (item: PublishedTake): Promise<AvatarTake> => {
+  const loadPublished = useCallback(async (item: UploadedTake): Promise<AvatarTake> => {
     const key = `${item.actorId}:${item.publishedAt}`;
     const cached = publishedCache.current.get(key);
     if (cached) return cached;
