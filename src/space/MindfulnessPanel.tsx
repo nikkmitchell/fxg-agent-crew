@@ -24,11 +24,12 @@ import { Typing3D } from "./Typing3D";
 
 /** A slim, walk-up page between the room's book and candle shelf. */
 /**
- * On the open floor at the left, between the sand garden and the dome, turned
- * to face the arrival point. (First placed at (0.15, 3.45), which is where
- * Nightjar's incense stand went; moved by Sill when merging.)
+ * On open floor at the right, clear of the koi pond, the ribbon circle and the
+ * rain curtain (1.9 m or more), turned to face the arrival point. First at
+ * (0.15, 3.45) (the incense stand), then (-3.3, 4.1) (the prayer wheel):
+ * moved each time by Sill.
  */
-export const MINDFULNESS_PANEL_AT: [number, number, number] = [-3.3, 0, 4.1];
+export const MINDFULNESS_PANEL_AT: [number, number, number] = [4.8, 0, 3.0];
 const PANEL_WIDTH = 1.28;
 const PANEL_HEIGHT = 0.8;
 const noRaycast = () => undefined;
@@ -204,7 +205,7 @@ export function MindfulnessPanel({ subscribe }: {
   };
 
   return (
-    <group position={MINDFULNESS_PANEL_AT} rotation-y={1.0}>
+    <group position={MINDFULNESS_PANEL_AT} rotation-y={-0.98}>
       {/* A quiet wood stand: the canvas is readable from a chair or while walking. */}
       <mesh position={[0, 0.48, 0]} raycast={noRaycast}>
         <boxGeometry args={[0.075, 0.96, 0.075]} />

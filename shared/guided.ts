@@ -259,7 +259,7 @@ export function guideCaption(guide: GuideId, elapsed: number): string | null {
  * James Legge's 1891 translation of the Tao Te Ching, and poems published
  * before 1900. Voiced once at boot, like the guides, in the same voice.
  */
-export type Reading = { title: string; by: string; lines: readonly string[] };
+export type Reading = { title: string; by: string; lines: readonly string[]; voice?: string };
 
 export const READINGS = {
   "tao-8": {
@@ -270,6 +270,29 @@ export const READINGS = {
       "The excellence of water appears in its benefiting all things,",
       "and in its occupying, without striving to the contrary, the low place which all men dislike.",
       "Hence its way is near to that of the Tao.",
+    ],
+  },
+  /** The same two chapters in the original, read by the Mandarin voice. */
+  "tao-8-zh": {
+    title: "上善若水",
+    by: "道德经 · 第八章（老子，约公元前 400 年）",
+    voice: "zf_xiaoxiao",
+    lines: [
+      "上善若水。",
+      "水善利万物而不争，处众人之所恶，故几于道。",
+      "居善地，心善渊，与善仁，言善信，政善治，事善能，动善时。",
+      "夫唯不争，故无尤。",
+    ],
+  },
+  "tao-33-zh": {
+    title: "自知者明",
+    by: "道德经 · 第三十三章（老子，约公元前 400 年）",
+    voice: "zf_xiaoxiao",
+    lines: [
+      "知人者智，自知者明。",
+      "胜人者有力，自胜者强。",
+      "知足者富。强行者有志。",
+      "不失其所者久。死而不亡者寿。",
     ],
   },
   "tao-33": {
@@ -341,4 +364,10 @@ export const READING_IDS = Object.keys(READINGS) as ReadingId[];
 
 export function isReading(value: unknown): value is ReadingId {
   return typeof value === "string" && (READING_IDS as string[]).includes(value);
+}
+
+/** The voice a reading is spoken in. */
+export function readingVoice(id: ReadingId): string {
+  const reading: Reading = READINGS[id];
+  return reading.voice ?? GUIDE_VOICE;
 }
