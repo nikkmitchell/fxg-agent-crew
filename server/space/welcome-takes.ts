@@ -20,26 +20,29 @@ const validFrame = (frame: any, index: number, frames: any[], durationMs: number
 
 export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessions: SessionStore, db: Db): void {
   const requireSession = makeRequireSession(config, sessions);
-  const published = () => (db.prepare("SELECT actor_id, take_json, published_at FROM lobby_welcome_takes").all() as Array<{ actor_id: string; take_json: string; published_at: string }>);
+  const published = () => (db.prepare("SELECT actor_id, take_json, published_at FROM lobby_welcome_takes WHERE active = 1").all() as Array<{ actor_id: string; take_json: string; published_at: string }>);
   app.get("/bff/space/welcome", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const rows = published().sort((a, b) => CREATORS.findIndex((name) => name.toLowerCase() === a.actor_id.toLowerCase()) - CREATORS.findIndex((name) => name.toLowerCase() === b.actor_id.toLowerCase()));
     const seen = db.prepare("SELECT 1 FROM lobby_welcome_seen WHERE actor_id = ?").get(session.username.toLowerCase());
-    return { canPublish: session.kind === "human" && CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase()), completed: !!seen, takes: rows.map((row) => ({ actorId: row.actor_id, durationMs: (JSON.parse(row.take_json) as { durationMs: number }).durationMs, publishedAt: row.published_at })) };
+    const own = db.prepare("SELECT published_at FROM lobby_welcome_takes WHERE lower(actor_id) = ?").get(session.username.toLowerCase()) as { published_at: string } | undefined;
+    return { canPublish: session.kind === "human" && CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase()), uploadedMine: own ? { actorId: session.username, publishedAt: own.published_at } : null, completed: !!seen, takes: rows.map((row) => ({ actorId: row.actor_id, durationMs: (JSON.parse(row.take_json) as { durationMs: number }).durationMs, publishedAt: row.published_at })) };
   });
   app.get<{ Params: { actor: string } }>("/bff/space/welcome/:actor/take", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const row = db.prepare("SELECT take_json FROM lobby_welcome_takes WHERE lower(actor_id) = ?").get(request.params.actor.toLowerCase()) as { take_json: string } | undefined;
+    const row = db.prepare("SELECT take_json, active, actor_id FROM lobby_welcome_takes WHERE lower(actor_id) = ?").get(request.params.actor.toLowerCase()) as { take_json: string; active: number; actor_id: string } | undefined;
     if (!row) return reply.code(404).send({ code: "WELCOME_TAKE_NOT_FOUND" });
+    if (!row.active && (session.kind !== "human" || row.actor_id.toLowerCase() !== session.username.toLowerCase())) return reply.code(404).send({ code: "WELCOME_TAKE_NOT_FOUND" });
     return reply.type("application/json").send(row.take_json);
   });
   app.get<{ Params: { actor: string } }>("/bff/space/welcome/:actor/audio", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const row = db.prepare("SELECT audio, mime, published_at FROM lobby_welcome_takes WHERE lower(actor_id) = ?").get(request.params.actor.toLowerCase()) as { audio: Uint8Array; mime: string; published_at: string } | undefined;
+    const row = db.prepare("SELECT audio, mime, published_at, active, actor_id FROM lobby_welcome_takes WHERE lower(actor_id) = ?").get(request.params.actor.toLowerCase()) as { audio: Uint8Array; mime: string; published_at: string; active: number; actor_id: string } | undefined;
     if (!row) return reply.code(404).send({ code: "WELCOME_TAKE_NOT_FOUND" });
+    if (!row.active && (session.kind !== "human" || row.actor_id.toLowerCase() !== session.username.toLowerCase())) return reply.code(404).send({ code: "WELCOME_TAKE_NOT_FOUND" });
     const etag = `"${row.published_at}"`;
     reply.header("ETag", etag).header("Cache-Control", "private, max-age=300");
     if (request.headers["if-none-match"] === etag) return reply.code(304).send();
@@ -58,7 +61,7 @@ export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessi
     const audio = Buffer.from(audioBase64, "base64");
     if (!audio.length || audio.length > MAX_AUDIO || frames.some((frame, index) => !validFrame(frame, index, frames, durationMs))) return reply.code(400).send({ code: "BAD_WELCOME_TAKE" });
     const take = { version: 1, actorId: session.username, recordedAt: value.recordedAt, durationMs, body: typeof value.body === "string" ? value.body : null, showPersonalUi: value.showPersonalUi === true, frames };
-    db.prepare("INSERT INTO lobby_welcome_takes (actor_id,take_json,audio,mime,published_at) VALUES (?,?,?,?,?) ON CONFLICT(actor_id) DO UPDATE SET take_json=excluded.take_json,audio=excluded.audio,mime=excluded.mime,published_at=excluded.published_at").run(session.username, JSON.stringify(take), audio, mime, new Date().toISOString());
+    db.prepare("INSERT INTO lobby_welcome_takes (actor_id,take_json,audio,mime,active,published_at) VALUES (?,?,?,?,0,?) ON CONFLICT(actor_id) DO UPDATE SET take_json=excluded.take_json,audio=excluded.audio,mime=excluded.mime,active=0,published_at=excluded.published_at").run(session.username, JSON.stringify(take), audio, mime, new Date().toISOString());
     return { ok: true };
   });
   app.delete("/bff/space/welcome", async (request, reply) => {

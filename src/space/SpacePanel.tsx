@@ -413,10 +413,10 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
                     {avatarRecorder.playing ? "Stop preview" : "Play in lobby"}
                   </button>
                   <button type="button" disabled={avatarRecorder.status !== "idle"} onClick={() => void avatarRecorder.discard()}>Discard draft</button>
-                  {avatarRecorder.canPublish ? <button type="button" disabled={avatarRecorder.status !== "idle"} onClick={() => void avatarRecorder.publish()}>Publish welcome tutorial</button> : null}
+                  {avatarRecorder.canPublish ? <button type="button" disabled={avatarRecorder.status !== "idle"} onClick={() => void avatarRecorder.publish()}>Upload tutorial to server</button> : null}
                 </>
               ) : null}
-              {avatarRecorder.canPublish && avatarRecorder.published.some((entry) => entry.actorId === (status.state === "open" ? status.you : "")) ? <button type="button" onClick={() => void avatarRecorder.unpublish()}>Unpublish my tutorial</button> : null}
+              {avatarRecorder.canPublish && avatarRecorder.uploadedMine ? <><button type="button" onClick={() => avatarRecorder.playUploaded()}>Play uploaded copy</button><button type="button" onClick={() => void avatarRecorder.unpublish()}>Remove uploaded tutorial</button></> : null}
               {avatarRecorder.published.length ? <button type="button" onClick={() => avatarRecorder.playWelcome()}>Replay welcome tutorials</button> : null}
               {!avatarRecorder.welcomeCompleted && avatarRecorder.published.length ? <><p role="status">Welcome to the lobby. Play the published tutorials.</p><button type="button" className="primary-action" onClick={() => avatarRecorder.playWelcome()}>Play welcome</button><button type="button" onClick={() => avatarRecorder.finishWelcome()}>Skip welcome</button></> : null}
             </div>

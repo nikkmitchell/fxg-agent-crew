@@ -1332,11 +1332,12 @@ export function RoomControls({
           stopPlayback: () => avatarRecorder.stopPlayback(),
           discard: () => void avatarRecorder.discard(),
           canPublish: avatarRecorder.canPublish,
-          publishedMine: avatarRecorder.published.some((entry) => entry.actorId === you),
+          publishedMine: Boolean(avatarRecorder.uploadedMine),
           hasPublished: avatarRecorder.published.length > 0,
           welcomeCompleted: avatarRecorder.welcomeCompleted,
           publish: () => void avatarRecorder.publish(),
           unpublish: () => void avatarRecorder.unpublish(),
+          playUploaded: () => avatarRecorder.playUploaded(),
           playWelcome: () => avatarRecorder.playWelcome(),
           skipWelcome: () => avatarRecorder.finishWelcome(),
         }

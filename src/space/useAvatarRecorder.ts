@@ -18,6 +18,7 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
   const [status, setStatus] = useState<"idle" | "starting" | "recording" | "saving">("idle");
   const [take, setTake] = useState<AvatarTake | null>(null);
   const [published, setPublished] = useState<PublishedTake[]>([]);
+  const [uploadedMine, setUploadedMine] = useState<PublishedTake | null>(null);
   const [welcomeCompleted, setWelcomeCompleted] = useState(true);
   const [canPublish, setCanPublish] = useState(false);
   const [activeTake, setActiveTake] = useState<AvatarTake | null>(null);
@@ -35,8 +36,9 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
   const refreshWelcome = useCallback(async () => {
     const response = await fetch(`${base}/bff/space/welcome`, { credentials: "same-origin" });
     if (!response.ok) throw new Error("Could not load welcome recordings.");
-    const data = await response.json() as { canPublish: boolean; completed: boolean; takes: PublishedTake[] };
+    const data = await response.json() as { canPublish: boolean; uploadedMine: PublishedTake | null; completed: boolean; takes: PublishedTake[] };
     setCanPublish(data.canPublish);
+    setUploadedMine(data.uploadedMine);
     setWelcomeCompleted(data.completed);
     setPublished(data.takes);
   }, []);
@@ -190,6 +192,15 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
     next();
   }, [published, stopPlayback, playTake, finishWelcome, loadPublished]);
 
+  const playUploaded = useCallback(() => {
+    if (!uploadedMine) return;
+    stopPlayback();
+    const generation = playbackGeneration.current;
+    void loadPublished(uploadedMine).then((loaded) => {
+      if (generation === playbackGeneration.current) void playTake(loaded, stopPlayback);
+    }).catch(() => { if (generation === playbackGeneration.current) setNotice("Could not load your uploaded tutorial."); });
+  }, [uploadedMine, stopPlayback, loadPublished, playTake]);
+
   const publish = useCallback(async () => {
     if (!take || !canPublish) return;
     try {
@@ -200,14 +211,14 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
       const response = await fetch(`${base}/bff/space/welcome`, { method: "PUT", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...take, audio: undefined, audioBase64: btoa(binary), audioMime: take.audio.type }) });
       if (!response.ok) throw new Error("Upload failed. Your browser draft is safe.");
       await refreshWelcome();
-      setNotice("Published. New visitors can play this tutorial in the lobby.");
+      setNotice("Uploaded to the server. You can review it here; newcomers will not see it until you choose when to use it.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Upload failed."); }
   }, [take, canPublish, refreshWelcome]);
 
   const unpublish = useCallback(async () => {
     const response = await fetch(`${base}/bff/space/welcome`, { method: "DELETE", credentials: "same-origin" });
-    if (response.ok) { await refreshWelcome(); setNotice("Welcome tutorial unpublished."); }
-    else setNotice("Could not unpublish the tutorial.");
+    if (response.ok) { await refreshWelcome(); setNotice("Uploaded tutorial removed."); }
+    else setNotice("Could not remove the uploaded tutorial.");
   }, [refreshWelcome]);
 
   const discard = useCallback(async () => {
@@ -232,5 +243,5 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
     if (playerUrl.current) URL.revokeObjectURL(playerUrl.current);
   }, []);
 
-  return { status, take, activeTake, published, welcomeCompleted, canPublish, playing, showPersonalUi, setShowPersonalUi: choosePersonalUi, notice, capture, start, stop, play, playWelcome, finishWelcome, publish, unpublish, stopPlayback, discard, player };
+  return { status, take, activeTake, published, uploadedMine, welcomeCompleted, canPublish, playing, showPersonalUi, setShowPersonalUi: choosePersonalUi, notice, capture, start, stop, play, playWelcome, playUploaded, finishWelcome, publish, unpublish, stopPlayback, discard, player };
 }

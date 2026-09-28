@@ -110,7 +110,7 @@ describe("what each settings tab holds", () => {
       publish, unpublish: noop, playWelcome, skipWelcome,
     };
     const rows = settingsSections(input("root", { recorder })).find((section) => section.title === "Avatar recording")!.rows;
-    (rows.find((row) => row.label === "Publish welcome tutorial") as { onTap: () => void }).onTap();
+    (rows.find((row) => row.label === "Upload tutorial to server") as { onTap: () => void }).onTap();
     (rows.find((row) => row.label === "Play welcome tutorials") as { onTap: () => void }).onTap();
     (rows.find((row) => row.label === "Skip welcome") as { onTap: () => void }).onTap();
     expect(publish).toHaveBeenCalledOnce();

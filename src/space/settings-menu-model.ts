@@ -95,6 +95,7 @@ export type SettingsMenuInput = {
     welcomeCompleted?: boolean;
     publish?: () => void;
     unpublish?: () => void;
+    playUploaded?: () => void;
     playWelcome?: () => void;
     skipWelcome?: () => void;
   };
@@ -238,8 +239,9 @@ function meSections(s: SettingsMenuInput): MenuSection[] {
               { kind: "action", label: "Discard the draft", tone: "danger", onTap: r.discard } as MenuRow,
             ]
           : []),
-        ...(r.canPublish && r.hasTake && r.status === "idle" && r.publish ? [{ kind: "action", label: "Publish welcome tutorial", tone: "accent", onTap: r.publish } as MenuRow] : []),
-        ...(r.canPublish && r.publishedMine && r.unpublish ? [{ kind: "action", label: "Unpublish my tutorial", tone: "danger", onTap: r.unpublish } as MenuRow] : []),
+        ...(r.canPublish && r.hasTake && r.status === "idle" && r.publish ? [{ kind: "action", label: "Upload tutorial to server", tone: "accent", onTap: r.publish } as MenuRow] : []),
+        ...(r.canPublish && r.publishedMine && r.playUploaded ? [{ kind: "action", label: "Play uploaded copy", onTap: r.playUploaded } as MenuRow] : []),
+        ...(r.canPublish && r.publishedMine && r.unpublish ? [{ kind: "action", label: "Remove uploaded tutorial", tone: "danger", onTap: r.unpublish } as MenuRow] : []),
         ...(r.hasPublished && r.playWelcome ? [{ kind: "action", label: r.welcomeCompleted ? "Replay welcome tutorials" : "Play welcome tutorials", onTap: r.playWelcome } as MenuRow] : []),
         ...(r.hasPublished && !r.welcomeCompleted && r.skipWelcome ? [{ kind: "action", label: "Skip welcome", onTap: r.skipWelcome } as MenuRow] : []),
         ...(r.notice ? [note(r.notice)] : []),
