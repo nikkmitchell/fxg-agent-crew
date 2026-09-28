@@ -137,6 +137,8 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion, peopleR
   const halo = useRef<THREE.Sprite>(null);
   const ring = useRef<THREE.Mesh>(null);
   const ripple = useRef<THREE.Mesh>(null);
+  /** The breathing pattern and length rows, folded by default. */
+  const [patternsOpen, setPatternsOpen] = useState(false);
   /** Writing an intention: the keyboard is open. */
   const [intending, setIntending] = useState(false);
   const fullnessNow = useRef(0.35);
@@ -354,10 +356,19 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion, peopleR
           {GUIDE_IDS.map((id, index) => <OrbButton key={id} label={GUIDES[id].label} width={0.36}
             at={[((index % 3) - 1) * 0.38, 0.2 + (GUIDE_ROWS - 1 - Math.floor(index / 3)) * 0.1, 0]} selected={meditation.guide === id}
             onTap={() => change({ action: "settings", guide: meditation.guide === id ? null : id })} />)}
-          {PATTERN_IDS.map((id, index) => <OrbButton key={id} label={PATTERNS[id].label} width={0.24}
-            at={[(index - (PATTERN_IDS.length - 1) / 2) * 0.26, 0.1, 0]} selected={!meditation.guide && meditation.pattern === id} onTap={() => change({ action: "settings", pattern: id })} />)}
-          {MINUTES.map((minutes, index) => <OrbButton key={minutes} label={`${minutes} MIN`} width={0.14}
-            at={[(index - 1.5) * 0.16, 0, 0]} selected={!meditation.guide && meditation.minutes === minutes} onTap={() => change({ action: "settings", minutes })} />)}
+          {/* BREATHING WITHOUT A GUIDE, FOLDED AWAY. The pattern and length
+              rows were nine buttons, about thirty draw calls a frame, shown to
+              everyone though most sessions are guided. Folded, one button says
+              what START would run and opens them. */}
+          {patternsOpen ? <>
+            {PATTERN_IDS.map((id, index) => <OrbButton key={id} label={PATTERNS[id].label} width={0.24}
+              at={[(index - (PATTERN_IDS.length - 1) / 2) * 0.26, 0.1, 0]} selected={!meditation.guide && meditation.pattern === id} onTap={() => change({ action: "settings", pattern: id })} />)}
+            {MINUTES.map((minutes, index) => <OrbButton key={minutes} label={`${minutes} MIN`} width={0.14}
+              at={[(index - 1.5) * 0.16, 0, 0]} selected={!meditation.guide && meditation.minutes === minutes} onTap={() => change({ action: "settings", minutes })} />)}
+            <OrbButton label="▴" width={0.08} at={[0.38, 0, 0]} onTap={() => setPatternsOpen(false)} />
+          </> : <OrbButton width={0.6} at={[0, 0.05, 0]} selected={!meditation.guide}
+            label={`${meditation.guide ? "BREATHING PATTERNS" : `${PATTERNS[meditation.pattern].label} · ${meditation.minutes} MIN`} ▾`}
+            onTap={() => setPatternsOpen(true)} />}
           <OrbButton label={breath.state === "done" ? "AGAIN" : "START"} width={0.4} at={[0, -0.1, 0]} onTap={() => change({ action: "start" })} />
         </>}
       <OrbButton label={sound ? "SOUND ON" : "SOUND OFF"} width={0.2} at={[0.52, running ? 0 : -0.1, 0]} selected={sound} onTap={() => {
