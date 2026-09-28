@@ -97,6 +97,10 @@ async function readAnswer<T>(status: number, read: () => Promise<unknown>): Prom
   // inside a render, taking the whole scene down. Refuse it here, once, so
   // every caller's own catch handles it.
   if (response.ok && read_ === NOT_JSON) throw new ApiError("the server did not answer in JSON", status, "NOT_JSON");
+  // Nor is an empty success (204 was handled above). baiwei2 audited it
+  // (5718): every no-body success here is a 204, and the upstream client
+  // throws on an empty body before it could become an empty 2xx.
+  if (response.ok && read_ === undefined) throw new ApiError("the server answered with nothing", status, "EMPTY_ANSWER");
   const body = (read_ === NOT_JSON ? undefined : read_) as T | Refusal | undefined;
   if (!response.ok) {
     const refusal = body as Refusal | undefined;
