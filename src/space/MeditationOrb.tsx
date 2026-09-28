@@ -52,19 +52,38 @@ function glowTexture(): THREE.CanvasTexture {
 const phaseColour = new THREE.Color();
 const PHASE_COLOUR = { in: "#8fe3d6", hold: "#f2d59a", out: "#b9a8ff", rest: "#9fb6c9" } as const;
 
+/** A button's outline, shared between buttons of the same size. */
+const outlines = new Map<string, THREE.BufferGeometry>();
+function outline(width: number, height: number): THREE.BufferGeometry {
+  const key = `${width}x${height}`;
+  let found = outlines.get(key);
+  if (!found) {
+    const w = width / 2;
+    const h = height / 2;
+    found = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-w, -h, 0), new THREE.Vector3(w, -h, 0), new THREE.Vector3(w, h, 0), new THREE.Vector3(-w, h, 0),
+    ]);
+    outlines.set(key, found);
+  }
+  return found;
+}
+
 function OrbButton({ label, at, onTap, width = 0.26, selected = false }: {
   label: string; at: [number, number, number]; onTap: () => void; width?: number; selected?: boolean;
 }) {
   const [hover, setHover] = useState(false);
   const colour = selected ? "#f2d59a" : "#dff6f2";
   const height = 0.085;
-  const stroke = 0.004;
   return <group position={at} onClick={(event) => { event.stopPropagation(); onTap(); }}
     onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
     {/* The whole button is a target; only a hint of fill until pointed at. */}
     <mesh><planeGeometry args={[width, height]} /><meshBasicMaterial color={colour} transparent opacity={hover ? 0.2 : selected ? 0.1 : 0.02} depthWrite={false} /></mesh>
-    {[[0, height / 2, width, stroke], [0, -height / 2, width, stroke], [width / 2, 0, stroke, height], [-width / 2, 0, stroke, height]].map(([x, y, w, h], index) =>
-      <mesh key={index} position={[x, y, 0.001]} raycast={noRaycast}><planeGeometry args={[w, h]} /><meshBasicMaterial color={colour} toneMapped={false} /></mesh>)}
+    {/* ONE OUTLINE, NOT FOUR STRIPS. Four strip meshes per button cost four
+        draw calls each, over twenty buttons: about seventy of a room's ~275 per
+        frame (Sill's count, 5594). A line loop is one. */}
+    <lineLoop position-z={0.001} raycast={noRaycast} geometry={outline(width, height)}>
+      <lineBasicMaterial color={colour} toneMapped={false} />
+    </lineLoop>
     <Text position-z={0.002} fontSize={0.034} color={colour} raycast={noRaycast} outlineWidth={0.002} outlineColor="#0b1418">{label}</Text>
   </group>;
 }
