@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { BOWLS, bowlForNote, onBowlWall, rimSpeed, strengthFromSpeed, type BowlStrike } from "../../shared/bowl";
@@ -43,11 +43,25 @@ function bowlGeometry(radius: number, height: number): THREE.LatheGeometry {
 
 export function SingingBowls({ you }: { you: string | null }) {
   const bowls = useRef<(THREE.Mesh | null)[]>([]);
+  const cushions = useRef<THREE.InstancedMesh>(null);
   const glows = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
   /** How much each bowl is ringing right now, 0 to 1, for the glow and the shiver. */
   const ringing = useRef<number[]>(BOWLS.map(() => 0));
   const geometries = useMemo(() => BOWLS.map((bowl) => bowlGeometry(bowl.radius, bowl.height)), []);
+  const cushionMatrix = useMemo(() => new THREE.Matrix4(), []);
   useEffect(() => () => geometries.forEach((geometry) => geometry.dispose()), [geometries]);
+  useLayoutEffect(() => {
+    const mesh = cushions.current;
+    if (!mesh) return;
+    BOWLS.forEach((bowl, index) => {
+      const [x, z] = PLACES[index];
+      cushionMatrix.makeScale(bowl.radius, 1, bowl.radius)
+        .setPosition(x, BOWLS_AT.tableHeight + 0.008, z);
+      mesh.setMatrixAt(index, cushionMatrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [cushionMatrix]);
 
   const listener = useRef(new THREE.Vector3());
   const distanceTo = (index: number) => {
@@ -140,15 +154,14 @@ export function SingingBowls({ you }: { you: string | null }) {
         <cylinderGeometry args={[0.07, 0.12, BOWLS_AT.tableHeight - 0.04, 24]} />
         <meshStandardMaterial color="#2c2018" roughness={0.9} />
       </mesh>
-      {BOWLS.map((bowl, index) => {
+      <instancedMesh ref={cushions} args={[undefined, undefined, BOWLS.length]} raycast={() => null}>
+        <cylinderGeometry args={[0.7, 0.75, 0.016, 32]} />
+        <meshStandardMaterial color="#6d2b2b" roughness={1} />
+      </instancedMesh>
+      {BOWLS.map((_, index) => {
         const [px, pz] = PLACES[index];
         return (
           <group key={index} position={[px, BOWLS_AT.tableHeight, pz]}>
-            {/* A cushion under each bowl, the way they are rested. */}
-            <mesh position={[0, 0.008, 0]} raycast={() => null}>
-              <cylinderGeometry args={[bowl.radius * 0.7, bowl.radius * 0.75, 0.016, 32]} />
-              <meshStandardMaterial color="#6d2b2b" roughness={1} />
-            </mesh>
             <mesh
               ref={(mesh) => {
                 bowls.current[index] = mesh;

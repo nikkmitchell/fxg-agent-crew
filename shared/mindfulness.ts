@@ -32,7 +32,17 @@ export const MINDFULNESS_PRACTICES = [
     steps: [
       "Recall one small moment that felt okay, kind, useful, or pleasant. You may pass.",
       "Stay with one detail for a moment: a color, gesture, sound, or texture.",
-      "If you like, write one sentence. Keep it private, or choose to share it with the room.",
+      "If you like, write a short reflection — a phrase or a sentence. Keep it private, or choose to share it with the room.",
+    ],
+  },
+  {
+    id: "wide-frame",
+    title: "Widen the frame",
+    subtitle: "Let the edges come into view",
+    steps: [
+      "Rest your eyes on something comfortable. If vision feels tiring, choose a sound or point of contact instead.",
+      "Notice what is already at the edges of your awareness. No need to turn, search, or name anything.",
+      "Let the center and edges—or the sound or contact—share attention for a breath. Blink, look away, or stop whenever you like.",
     ],
   },
 ] as const;
@@ -87,6 +97,8 @@ export type MindfulnessPaintOptions = {
   hasOlder?: boolean;
   hasNewer?: boolean;
   notice?: string | null;
+  hoveredTarget?: string | null;
+  pressedTarget?: string | null;
 };
 
 export function paintMindfulness(
@@ -100,10 +112,14 @@ export function paintMindfulness(
     { kind: "rect", x: 0, y: 0, width, height, fill: CARD_INK.paper },
     { kind: "rect", x: 0, y: 0, width, height: 8, fill: CARD_INK.accent },
     { kind: "text", x: 48, y: 46, text: "A PLACE TO NOTICE", size: 17, fill: CARD_INK.muted, weight: "bold" },
-    { kind: "text", x: width - 48, y: 48, text: screen === "room-page" || screen === "remove-preview" ? "Shared with this room · kept between sessions" : MINDFULNESS_PRIVACY, size: 15, fill: CARD_INK.muted, align: "right" },
+    { kind: "text", x: width - 48, y: 48, text: screen === "room-page" || screen === "remove-preview" ? "Shared with this room · no expiry; writer may remove" : MINDFULNESS_PRIVACY, size: 15, fill: CARD_INK.muted, align: "right" },
   ];
   const targets: MindfulnessTarget[] = [];
-  const card = (x: number, y: number, w: number, h: number, title: string, body: string) => {
+  const card = (x: number, y: number, w: number, h: number, title: string, body: string, targetId?: string) => {
+    if (targetId && (options.hoveredTarget === targetId || options.pressedTarget === targetId)) {
+      const pressed = options.pressedTarget === targetId;
+      ink.push({ kind: "rect", x: x - (pressed ? 5 : 3), y: y - (pressed ? 5 : 3), width: w + (pressed ? 10 : 6), height: h + (pressed ? 10 : 6), fill: pressed ? "#8ca8cb" : "#b2c4de", radius: 19 });
+    }
     ink.push({ kind: "rect", x, y, width: w, height: h, fill: CARD_INK.paperHeld, radius: 16 });
     ink.push({ kind: "rect", x, y, width: w, height: 4, fill: CARD_INK.edge });
     ink.push({ kind: "text", x: x + 20, y: y + 48, text: title, size: 23, fill: CARD_INK.ink, weight: "bold" });
@@ -112,7 +128,11 @@ export function paintMindfulness(
     });
   };
   const button = (id: string, label: string, x: number, y: number, w: number, primary = false) => {
-    ink.push({ kind: "rect", x, y, width: w, height: 56, fill: primary ? CARD_INK.accent : CARD_INK.paperHeld, radius: 11 });
+    const hovered = options.hoveredTarget === id;
+    const pressed = options.pressedTarget === id;
+    if (hovered || pressed) ink.push({ kind: "rect", x: x - (pressed ? 4 : 3), y: y - (pressed ? 4 : 3), width: w + (pressed ? 8 : 6), height: 62 + (pressed ? 2 : 0), fill: pressed ? "#8ca8cb" : "#b2c4de", radius: 14 });
+    const fill = primary ? (pressed ? "#ba482f" : hovered ? "#ed684b" : CARD_INK.accent) : (pressed ? "#e3d9c7" : hovered ? "#f2ede2" : CARD_INK.paperHeld);
+    ink.push({ kind: "rect", x, y, width: w, height: 56, fill, radius: 11 });
     const labelWidth = measure(label, 18);
     ink.push({ kind: "text", x: x + (w - labelWidth) / 2, y: y + 35, text: label, size: 18, fill: primary ? "#ffffff" : CARD_INK.ink, weight: primary ? "bold" : "normal" });
     targets.push({ id, x, y, width: w, height: 56 });
@@ -124,7 +144,7 @@ export function paintMindfulness(
   if (screen === "share-preview") {
     ink.push({ kind: "text", x: 48, y: 98, text: "Before it joins the room page", size: 32, fill: CARD_INK.ink, weight: "bold" });
     card(88, 132, 848, 250, "Your exact words", view.note || "Nothing written yet.");
-    fitLines(measure, "Everyone in this room can read this card. It stays here between sessions. Your name is not shown; you can remove your own card later.", 18, 800, 3)
+    fitLines(measure, "Everyone here can read this card; it stays until you remove it and does not expire. Your name is hidden. The app keeps a private record of who shared and when (not the text) to enforce an 8-share/24-hour limit; removal will not reset it.", 18, 800, 3)
       .forEach((line, index) => ink.push({ kind: "text", x: 112, y: 424 + index * 27, text: line, size: 18, fill: CARD_INK.muted }));
     button("cancel-share", "Keep it private", 88, 526, 260);
     button("confirm-share", "Share this card", 676, 526, 260, true);
@@ -148,13 +168,13 @@ export function paintMindfulness(
     const index = Math.max(0, Math.min(options.cardIndex ?? 0, Math.max(0, cards.length - 1)));
     const current = cards[index];
     ink.push({ kind: "text", x: 48, y: 98, text: "The room's page", size: 36, fill: CARD_INK.ink, weight: "bold" });
-    ink.push({ kind: "text", x: 48, y: 133, text: "Shared by choice · kept between sessions · names stay private", size: 17, fill: CARD_INK.muted });
+    ink.push({ kind: "text", x: 48, y: 133, text: "Shared by choice · no expiry · writers can remove their own cards · names stay private", size: 17, fill: CARD_INK.muted });
     if (!current) {
       card(88, 168, 848, 258, "The first page is blank", "When someone wants to share a small bright spot, it will live here. Nothing is required.");
     } else {
       card(88, 168, 848, 258, "A small bright spot", current.text);
       const date = new Date(current.createdAt);
-      const stamp = Number.isNaN(date.getTime()) ? "" : `${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+      const stamp = Number.isNaN(date.getTime()) ? "" : `Shared · ${date.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}`;
       ink.push({ kind: "text", x: 112, y: 392, text: stamp, size: 16, fill: CARD_INK.muted });
       if (current.mine) button("remove-card", "Remove my card", 680, 452, 256);
     }
@@ -172,15 +192,25 @@ export function paintMindfulness(
   if (!active) {
     ink.push({ kind: "text", x: 48, y: 98, text: "Practice", size: 38, fill: CARD_INK.ink, weight: "bold" });
     ink.push({ kind: "text", x: 48, y: 137, text: "Choose one. Move at your own pace; skip or stop whenever you like.", size: 19, fill: CARD_INK.muted });
-    const xPositions = [48, 368, 688];
+    const twoRows = MINDFULNESS_PRACTICES.length > 3;
+    const choices = twoRows
+      ? [
+          { x: 48, y: 162, width: 448, height: 154 },
+          { x: 528, y: 162, width: 448, height: 154 },
+          { x: 48, y: 328, width: 448, height: 154 },
+          { x: 528, y: 328, width: 448, height: 154 },
+        ]
+      : [48, 368, 688].map((x) => ({ x, y: 178, width: 288, height: 252 }));
     MINDFULNESS_PRACTICES.forEach((flow, index) => {
-      const x = xPositions[index];
-      card(x, 178, 288, 252, flow.title, flow.subtitle);
-      ink.push({ kind: "text", x: x + 20, y: 394, text: "BEGIN →", size: 18, fill: CARD_INK.accent, weight: "bold" });
-      targets.push({ id: `choose:${flow.id}`, x, y: 178, width: 288, height: 252 });
+      const choice = choices[index];
+      if (!choice) return;
+      const { x, y, width: cardWidth, height: cardHeight } = choice;
+      card(x, y, cardWidth, cardHeight, flow.title, flow.subtitle, `choose:${flow.id}`);
+      ink.push({ kind: "text", x: x + 20, y: y + cardHeight - 16, text: "BEGIN →", size: 18, fill: CARD_INK.accent, weight: "bold" });
+      targets.push({ id: `choose:${flow.id}`, x, y, width: cardWidth, height: cardHeight });
     });
-    button("open-page", "Read the room's page", 48, 466, 300);
-    ink.push({ kind: "text", x: 48, y: 556, text: "No timer, score, or required sharing. Stop or skip whenever you like.", size: 16, fill: CARD_INK.muted });
+    button("open-page", "Read the room's page", 48, twoRows ? 502 : 466, 300);
+    ink.push({ kind: "text", x: 48, y: twoRows ? 592 : 556, text: "No timer, score, or required sharing. Stop or skip whenever you like.", size: 16, fill: CARD_INK.muted });
     notice();
     return { ink, targets };
   }
@@ -207,7 +237,7 @@ export function paintMindfulness(
   }
 
   if (active.id === "bright-spot" && view.step === active.steps.length - 1) {
-    button("write", view.note ? "Edit sentence" : "Write a sentence", 488, 466, 230, true);
+    button("write", view.note ? "Edit reflection" : "Write a reflection", 488, 466, 230, true);
     if (view.note) button("review-share", "Share…", 736, 466, 144);
     if (view.note) button("clear", "Erase", 892, 466, 84);
   }
