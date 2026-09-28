@@ -63,6 +63,21 @@ import { Fireflies } from "./Fireflies";
 import { MalaStand } from "./MalaStand";
 import { FloorHarp } from "./FloorHarp";
 import { Moon } from "./Moon";
+import { SittingPlaces } from "./SittingPlaces";
+import { Near } from "./Near";
+import { BOWLS_AT } from "./SingingBowls";
+import { GARDEN_AT } from "./GardenTray";
+import { FIRE_AT } from "./EmberFire";
+import { POND_AT } from "./KoiPond";
+import { MANDALA_AT } from "./SandMandala";
+import { WHEEL_AT } from "./PrayerWheel";
+import { GONG_AT } from "./GongStand";
+import { INCENSE_AT } from "./IncenseBowl";
+import { LIGHT_AT } from "./HoldTheLight";
+import { VASE_AT } from "./IkebanaVase";
+import { MALA_AT } from "./MalaStand";
+import { CHIMES_AT } from "./WindChimes";
+import { RAIN_AT } from "./RainCurtain";
 import { StillnessTree } from "./StillnessTree";
 import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
@@ -889,47 +904,49 @@ export default function Scene({
         {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation}
           reducedMotion={reducedMotion} peopleRef={connection.peopleRef} roster={connection.roster} />}
         {/* The singing bowls stand beside the orb, wherever a room has one: see shared/bowl.ts. */}
-        {connection.meditation?.shown && <SingingBowls you={you} />}
+        {connection.meditation?.shown && <Near at={BOWLS_AT}><SingingBowls you={you} /></Near>}
         {/* And the zen sand garden, on the orb's other side: see shared/garden.ts. */}
-        {connection.meditation?.shown && <GardenTray />}
+        {connection.meditation?.shown && <Near at={GARDEN_AT}><GardenTray /></Near>}
         {/* And the ember fire, to let something go: see shared/fire.ts. */}
-        {connection.meditation?.shown && <EmberFire you={you} />}
+        {connection.meditation?.shown && <Near at={FIRE_AT}><EmberFire you={you} /></Near>}
         {/* And the kaleidoscope dome, to walk into: see KaleidoscopeDome.tsx. */}
         {connection.meditation?.shown && <KaleidoscopeDome meditation={connection.meditation} />}
         {/* And the light-ribbon circle, for slow movement: see LightRibbons.tsx. */}
         {connection.meditation?.shown && <LightRibbons peopleRef={connection.peopleRef} you={you} />}
         {/* And the koi pond: see KoiPond.tsx. */}
-        {connection.meditation?.shown && <KoiPond peopleRef={connection.peopleRef} />}
+        {connection.meditation?.shown && <Near at={POND_AT}><KoiPond peopleRef={connection.peopleRef} /></Near>}
         {/* And the sand mandala: see shared/mandala.ts. */}
-        {connection.meditation?.shown && <SandMandala />}
+        {connection.meditation?.shown && <Near at={MANDALA_AT}><SandMandala /></Near>}
         {/* And wind chimes by the way in: see WindChimes.tsx. */}
-        {connection.meditation?.shown && <WindChimes peopleRef={connection.peopleRef} you={you} />}
+        {connection.meditation?.shown && <Near at={CHIMES_AT}><WindChimes peopleRef={connection.peopleRef} you={you} /></Near>}
         {/* And the prayer wheel: see shared/wheel.ts. */}
-        {connection.meditation?.shown && <PrayerWheel you={you} />}
+        {connection.meditation?.shown && <Near at={WHEEL_AT}><PrayerWheel you={you} /></Near>}
         {/* And the gong, for a sound bath: see GongStand.tsx. */}
-        {connection.meditation?.shown && <GongStand you={you} />}
+        {connection.meditation?.shown && <Near at={GONG_AT}><GongStand you={you} /></Near>}
         {/* And the rain curtain, to stand in: see RainCurtain.tsx. */}
-        {connection.meditation?.shown && <RainCurtain />}
+        {connection.meditation?.shown && <Near at={RAIN_AT}><RainCurtain /></Near>}
         {/* And floating lanterns: see shared/lantern.ts. */}
         {connection.meditation?.shown && <Lanterns you={you} />}
         {/* And the star map overhead: see shared/stars.ts. */}
         {connection.meditation?.shown && <StarMap />}
         {/* And the bamboo water clock by the pond: see BambooKnocker.tsx. */}
-        {connection.meditation?.shown && <BambooKnocker />}
+        {connection.meditation?.shown && <Near at={POND_AT}><BambooKnocker /></Near>}
         {/* And incense, a ten-minute timer: see shared/incense.ts. */}
-        {connection.meditation?.shown && <IncenseBowl />}
+        {connection.meditation?.shown && <Near at={INCENSE_AT}><IncenseBowl /></Near>}
         {/* And a light to hold between your hands: see HoldTheLight.tsx. */}
-        {connection.meditation?.shown && <HoldTheLight peopleRef={connection.peopleRef} you={you} />}
+        {connection.meditation?.shown && <Near at={LIGHT_AT}><HoldTheLight peopleRef={connection.peopleRef} you={you} /></Near>}
         {/* And ikebana: see shared/ikebana.ts. */}
-        {connection.meditation?.shown && <IkebanaVase />}
+        {connection.meditation?.shown && <Near at={VASE_AT}><IkebanaVase /></Near>}
         {/* And fireflies that land on a still hand: see Fireflies.tsx. */}
         {connection.meditation?.shown && <Fireflies peopleRef={connection.peopleRef} you={you} />}
         {/* And a mala for counting: see MalaStand.tsx. */}
-        {connection.meditation?.shown && <MalaStand />}
+        {connection.meditation?.shown && <Near at={MALA_AT}><MalaStand /></Near>}
         {/* And a harp you walk across: see FloorHarp.tsx. */}
         {connection.meditation?.shown && <FloorHarp peopleRef={connection.peopleRef} you={you} />}
         {/* And tonight's moon, crossing slowly: see Moon.tsx. */}
         {connection.meditation?.shown && <Moon />}
+        {/* And cushions to sit on, and who is sitting: see SittingPlaces.tsx. */}
+        {connection.meditation?.shown && <SittingPlaces peopleRef={connection.peopleRef} />}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
