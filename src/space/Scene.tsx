@@ -1023,7 +1023,7 @@ export default function Scene({
         {connection.meditation?.shown && on("Room's book") && <Near at={floorOf(BOOK_AT)}><RoomBook history={connection.meditation.history} /></Near>}
         {connection.meditation?.shown && <MindfulnessBell meditation={connection.meditation} />}
         {connection.meditation?.shown && on("Labyrinth") && <Near at={LABYRINTH} within={9}><Labyrinth /></Near>}
-        {connection.meditation?.shown && on("Tea table") && <Near at={floorOf(TEA_AT)}><TeaTable /></Near>}
+        {connection.meditation?.shown && on("Tea table") && <Near at={floorOf(TEA_AT)}><TeaTable reducedMotion={reducedMotion} /></Near>}
         {connection.meditation?.shown && <RoomGuideSign hidden={hiddenPieces.hidden} />}
         {/* Optional practices: drafts stay local; shared cards require confirmation. */}
         {connection.meditation?.shown && on("Practice panel") && <MindfulnessPanel subscribe={connection.subscribe} />}

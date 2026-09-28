@@ -55,7 +55,7 @@ describe("reduced motion in high-salience meditation ambience", () => {
 
   it("wires the preference to the remaining ambient pieces in this pass", () => {
     const scene = readFileSync(new URL("./Scene.tsx", import.meta.url), "utf8");
-    for (const component of ["EmberFire", "KaleidoscopeDome", "KoiPond", "Moon", "StarMap", "IncenseBowl", "Lanterns", "Fireflies", "PaperBoats", "CandleShelf", "LightRibbons", "BambooKnocker", "RainCurtain", "Nebula"]) {
+    for (const component of ["EmberFire", "KaleidoscopeDome", "KoiPond", "Moon", "StarMap", "IncenseBowl", "Lanterns", "Fireflies", "PaperBoats", "CandleShelf", "LightRibbons", "BambooKnocker", "RainCurtain", "Nebula", "TeaTable"]) {
       const openingTag = scene.match(new RegExp(`<${component}\\b[^>]*>`))?.[0] ?? "";
       expect(openingTag).toContain("reducedMotion={reducedMotion}");
     }

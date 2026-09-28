@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { READINGS } from "../../shared/guided";
+import { teaPourFrame, TEA_POUR_MS } from "./tea-motion";
 
 /**
  * THE TEA TABLE: a low table with a teapot and a cup, near where people
@@ -13,10 +14,9 @@ import { READINGS } from "../../shared/guided";
  */
 export const TEA_AT: [number, number, number] = [-1.7, 0, 6.8];
 const TABLE = 0.38;
-const POUR_MS = 3500;
 const noRaycast = () => undefined;
 
-export function TeaTable() {
+export function TeaTable({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
   const [pouredAt, setPouredAt] = useState<number | null>(null);
   const [line, setLine] = useState<number | null>(null);
   const tea = useRef<THREE.Mesh>(null);
@@ -25,14 +25,20 @@ export function TeaTable() {
   const audio = useRef<HTMLAudioElement | null>(null);
   const base = useRef("");
   const down = useRef<number | null>(null);
+  const pourTimer = useRef<number | null>(null);
+  const readingStartedAt = useRef<number | null>(null);
+  const snappedPourAt = useRef<number | null>(null);
   const invalidate = useThree((state) => state.invalidate);
   useEffect(() => {
     void import("../router").then((router) => { base.current = router.base; }).catch(() => undefined);
-    return () => { audio.current?.pause(); };
+    return () => {
+      if (pourTimer.current !== null) window.clearTimeout(pourTimer.current);
+      audio.current?.pause();
+    };
   }, []);
 
   const lines = READINGS.tea.lines;
-  const read = (index: number) => {
+  const read = useCallback((index: number) => {
     audio.current?.pause();
     if (index >= lines.length) { setLine(null); audio.current = null; return; }
     setLine(index);
@@ -42,33 +48,62 @@ export function TeaTable() {
     next.onended = () => { window.setTimeout(() => { if (audio.current === next) read(index + 1); }, 4000); };
     next.onerror = () => { window.setTimeout(() => { if (audio.current === next) read(index + 1); }, 8000); };
     void next.play().catch(() => undefined);
-  };
+  }, [lines]);
 
   const pour = () => {
-    if (pouredAt !== null && Date.now() - pouredAt < POUR_MS) return;
-    setPouredAt(Date.now());
-    window.setTimeout(() => read(0), POUR_MS);
+    if (pouredAt !== null && Date.now() - pouredAt < TEA_POUR_MS) return;
+    const startedAt = Date.now();
+    setPouredAt(startedAt);
+    readingStartedAt.current = null;
+    snappedPourAt.current = reducedMotion ? startedAt : null;
+    if (pourTimer.current !== null) window.clearTimeout(pourTimer.current);
+    if (reducedMotion) {
+      pourTimer.current = null;
+      readingStartedAt.current = startedAt;
+      read(0);
+    } else {
+      pourTimer.current = window.setTimeout(() => {
+        pourTimer.current = null;
+        readingStartedAt.current = startedAt;
+        read(0);
+      }, TEA_POUR_MS);
+    }
   };
 
+  // If the preference changes during a pour, finish it without waiting or animating.
+  useEffect(() => {
+    if (!reducedMotion || pouredAt === null || Date.now() - pouredAt >= TEA_POUR_MS) return;
+    if (readingStartedAt.current === pouredAt) return;
+    if (pourTimer.current !== null) window.clearTimeout(pourTimer.current);
+    pourTimer.current = null;
+    snappedPourAt.current = pouredAt;
+    readingStartedAt.current = pouredAt;
+    read(0);
+  }, [pouredAt, read, reducedMotion]);
+
   useFrame(({ clock }) => {
-    const since = pouredAt === null ? Infinity : Date.now() - pouredAt;
-    const pouring = since < POUR_MS;
-    const full = pouredAt === null ? 0 : Math.min(1, since / POUR_MS);
+    const frame = teaPourFrame(pouredAt, Date.now(), reducedMotion || snappedPourAt.current === pouredAt);
     if (tea.current) {
-      tea.current.visible = full > 0.02;
-      tea.current.scale.y = Math.max(0.01, full);
-      tea.current.position.y = TABLE + 0.012 + 0.03 * full;
+      tea.current.visible = frame.fill > 0.02;
+      tea.current.scale.y = Math.max(0.01, frame.fill);
+      tea.current.position.y = TABLE + 0.012 + 0.03 * frame.fill;
     }
-    if (stream.current) stream.current.visible = pouring;
+    if (stream.current) stream.current.visible = frame.pouring;
     if (steam.current) {
-      steam.current.visible = full >= 1;
+      steam.current.visible = frame.complete;
       steam.current.children.forEach((puff, index) => {
-        const t = (clock.elapsedTime * 0.35 + index / 3) % 1;
-        puff.position.set(Math.sin(t * 6 + index) * 0.015, 0.09 + t * 0.2, 0);
-        ((puff as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.25 * (1 - t);
+        const material = (puff as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        if (reducedMotion) {
+          puff.position.set((index - 1) * 0.035, 0.1 + index * 0.045, 0);
+          material.opacity = 0.12;
+        } else {
+          const t = (clock.elapsedTime * 0.35 + index / 3) % 1;
+          puff.position.set(Math.sin(t * 6 + index) * 0.015, 0.09 + t * 0.2, 0);
+          material.opacity = 0.25 * (1 - t);
+        }
       });
     }
-    if (pouring || full >= 1) invalidate();
+    if (!reducedMotion && (frame.pouring || frame.complete)) invalidate();
   });
 
   return <group position={TEA_AT} rotation-y={Math.PI * 0.85}>
