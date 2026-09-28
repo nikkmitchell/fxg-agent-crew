@@ -89,8 +89,17 @@ type ActorRow = {
 const myRow = async () =>
   ((await call("GET", "/bff/board/people")).json?.actors as ActorRow[] | undefined)?.find((one) => isMe(one.id));
 
+/**
+ * WHETHER WE KNOW WHAT YOU WERE WEARING. Nikk (2026-09-28): "night jar why did
+ * you change your avatar I loved your moth Avatar". This audit dresses you as
+ * Retroman and then puts back what you wore. When the read of what you wore
+ * failed (a flaky proxy, a server restarting), `body` came back undefined and
+ * the restore CLEARED it. Now a failed read leaves the body alone entirely.
+ */
+const bodiesAnswer = await call("GET", "/bff/space/bodies");
+const bodyKnown = bodiesAnswer.status === 200 && Array.isArray(bodiesAnswer.json?.chosen);
 const before = {
-  body: ((await call("GET", "/bff/space/bodies")).json?.chosen as { actorId: string; body: string }[] | undefined)?.find(
+  body: (bodiesAnswer.json?.chosen as { actorId: string; body: string }[] | undefined)?.find(
     (one) => isMe(one.actorId),
   )?.body,
   homes: ((await call("GET", "/bff/space/homes")).json?.homes as { actorId: string; at: { x: number; z: number }; facing: number }[] | undefined)?.find(
@@ -102,7 +111,9 @@ const before = {
 
 const restore = async () => {
   console.log("\nputting everything back:");
-  if (before.body) {
+  if (!bodyKnown) {
+    console.log("  body   -> left alone: what you wore could not be read, so it was never changed");
+  } else if (before.body) {
     const put = await call("PUT", "/bff/space/body", { body: before.body });
     console.log(`  body   -> ${before.body} (${put.status})`);
   } else {
@@ -391,7 +402,8 @@ try {
       : `NEVER LOOKED AT: ${unlooked.join(", ")} — choosable only by name`,
   );
 
-  const dressed = await call("PUT", "/bff/space/body", { body: "Retroman" });
+  // Never dress someone whose own choice could not be read: it could not be put back.
+  const dressed = bodyKnown ? await call("PUT", "/bff/space/body", { body: "Retroman" }) : { status: 0, json: { body: "not tried: your own body could not be read first" } };
   say(
     "dress yourself — PUT /bff/space/body, no actor id",
     dressed.status === 200 && dressed.json?.body === "retroman" ? "pass" : "fail",
