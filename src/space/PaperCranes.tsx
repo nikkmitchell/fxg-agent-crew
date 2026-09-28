@@ -130,20 +130,33 @@ export function PaperCranes() {
           <boxGeometry args={[0.5, TABLE, 0.34]} />
           <meshStandardMaterial color="#6b4f37" roughness={0.8} />
         </mesh>
-        {PAPERS.map((colour, index) => (
-          <mesh
-            key={colour}
-            position={[((index % 4) - 1.5) * 0.1, TABLE + (index === paper ? 0.012 : 0.003), index < 4 ? -0.06 : 0.05]}
-            rotation={[-Math.PI / 2, 0, 0.2 * ((index % 3) - 1)]}
-            onClick={(event) => {
-              event.stopPropagation();
-              setPaper(index);
-            }}
-          >
-            <planeGeometry args={[0.07, 0.07]} />
-            <meshStandardMaterial color={colour} roughness={0.9} side={THREE.DoubleSide} />
-          </mesh>
-        ))}
+        {/* The eight papers, one draw; the chosen one lifts a little. */}
+        <instancedMesh
+          args={[undefined, undefined, PAPERS.length]}
+          ref={(node) => {
+            if (!node) return;
+            const matrix = new THREE.Matrix4();
+            PAPERS.forEach((colour, index) => {
+              matrix.compose(
+                new THREE.Vector3(((index % 4) - 1.5) * 0.1, TABLE + (index === paper ? 0.012 : 0.003), index < 4 ? -0.06 : 0.05),
+                new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0.2 * ((index % 3) - 1))),
+                new THREE.Vector3(1, 1, 1),
+              );
+              node.setMatrixAt(index, matrix);
+              node.setColorAt(index, new THREE.Color(colour));
+            });
+            node.instanceMatrix.needsUpdate = true;
+            if (node.instanceColor) node.instanceColor.needsUpdate = true;
+            node.computeBoundingSphere();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (event.instanceId !== undefined) setPaper(event.instanceId);
+          }}
+        >
+          <planeGeometry args={[0.07, 0.07]} />
+          <meshStandardMaterial roughness={0.9} side={THREE.DoubleSide} />
+        </instancedMesh>
         <Text
           position={[0, TABLE + 0.2, 0.12]}
           fontSize={0.045}
