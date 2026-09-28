@@ -67,6 +67,7 @@ import { SittingPlaces } from "./SittingPlaces";
 import { Near } from "./Near";
 import { Nebula, NEBULA_AT } from "./Nebula";
 import { SoundBath } from "./SoundBath";
+import { HourglassStand, HOURGLASS_AT } from "./HourglassStand";
 import { BOWLS_AT } from "./SingingBowls";
 import { GARDEN_AT } from "./GardenTray";
 import { FIRE_AT } from "./EmberFire";
@@ -959,6 +960,8 @@ export default function Scene({
         {connection.meditation?.shown && <SittingPlaces peopleRef={connection.peopleRef} />}
         {/* And a sound bath for the whole room, begun by the gong: see SoundBath.tsx. */}
         {connection.meditation?.shown && <SoundBath />}
+        {/* And an hourglass by the cushions: see shared/hourglass.ts. */}
+        {connection.meditation?.shown && <Near at={HOURGLASS_AT}><HourglassStand /></Near>}
         {/* And a nebula to put your hands in: see Nebula.tsx. */}
         {connection.meditation?.shown && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} /></Near>}
         {connection.meditation?.shown && <Near at={floorOf(TREE_AT)}><StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} /></Near>}

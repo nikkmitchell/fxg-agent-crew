@@ -8,6 +8,7 @@ import type { Lantern } from "./lantern.js";
 import type { StarEvent } from "./stars.js";
 import type { Stick } from "./incense.js";
 import type { VaseEvent } from "./ikebana.js";
+import type { Hourglass } from "./hourglass.js";
 import type { Meditation } from "./meditation.js";
 /**
  * What travels over the space socket.
@@ -286,6 +287,8 @@ export type ServerMessage =
   | { type: "vase"; event: VaseEvent }
   /** A sound bath started (or stopped: null): see shared/sound-bath.ts. */
   | { type: "bath"; bath: { startedAt: number | null; by: string } }
+  /** The hourglass was turned: see shared/hourglass.ts. */
+  | { type: "hourglass"; glass: Hourglass }
   /** Agents' helpers changed: see shared/helpers.ts. Never people. */
   | { type: "helpers"; helpers: Record<string, Helper[]> }
   | { type: "roomItems"; items: RoomItem[]; by: string }

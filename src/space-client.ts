@@ -4,6 +4,7 @@ import type { Mandala, MandalaChange, MandalaEvent } from "../shared/mandala";
 import type { Lantern } from "../shared/lantern";
 import type { StarEvent, StarSky } from "../shared/stars";
 import type { Stick } from "../shared/incense";
+import type { Hourglass } from "../shared/hourglass";
 import type { Vase, VaseChange, VaseEvent } from "../shared/ikebana";
 import { actOnItem } from "./space/item-socket";
 import { requestJson } from "./api-request";
@@ -171,6 +172,9 @@ export const space = {
   mandala: () => requestJson<{ mandala: Mandala }>(`${root}/mandala`),
   changeMandala: (change: MandalaChange) =>
     requestJson<{ event: MandalaEvent }>(`${root}/mandala`, { method: "POST", body: JSON.stringify(change) }),
+  /** The hourglass, and turning it over: see shared/hourglass.ts. */
+  hourglass: () => requestJson<{ glass: Hourglass; now: number }>(`${root}/hourglass`),
+  turnHourglass: () => requestJson<{ glass: Hourglass; now: number }>(`${root}/hourglass`, { method: "POST", body: "{}" }),
   /** The sound bath: whether one is playing, and starting or stopping it. See shared/sound-bath.ts. */
   soundBath: () => requestJson<{ startedAt: number | null; now: number }>(`${root}/sound-bath`),
   changeSoundBath: (action: "start" | "stop") =>
