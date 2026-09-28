@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { isLobby } from "../../shared/lobby-hall";
 import { useAgentsHidden } from "./agents-hidden";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -283,13 +284,26 @@ function AgentScreen({
   );
 }
 
+/**
+ * NO AGENT SCREENS IN THE LOBBY (Nikk, 2026-09-28): "I like that you're inside
+ * the lobby to greet new users ... but I want you to have your screen hidden
+ * here so that they don't see what you're working on but instead you can just
+ * be here as a greeter." Everywhere else an agent's screen shows in front of it.
+ */
+export function agentScreensShownIn(room: string | null): boolean {
+  return !isLobby(room);
+}
+
 export function ScreenWall({
   base,
   peopleRef,
   reducedMotion,
+  room = null,
 }: {
   base: string;
   peopleRef: RefObject<WirePerson[]>;
+  /** The room this is drawn in: no agent screens in the lobby. */
+  room?: string | null;
   reducedMotion: boolean;
 }) {
   const { screens, shown } = useSharedScreens(base);
@@ -316,7 +330,7 @@ export function ScreenWall({
   const isAgent = (screen: ScreenSummary) => screen.kind === "agent" || agentIds.has(screen.actorId.toLowerCase());
   const row = ready.filter((screen) => !isAgent(screen));
   // AGENTS HIDDEN, THEIR SCREENS TOO (Nikk 5384): for everyone, or just for you.
-  const agents = agentsHidden ? [] : ready.filter(isAgent);
+  const agents = agentsHidden || !agentScreensShownIn(room) ? [] : ready.filter(isAgent);
 
   return (
     <group>

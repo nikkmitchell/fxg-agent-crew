@@ -898,7 +898,7 @@ export default function Scene({
         {/* Shared screens. A person's hangs in the row above the panels; an
           agent's sits in front of the agent, only while it is working there.
           Textures on planes, so the same in the window and in a headset. */}
-        <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
+        <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} room={spaceRoomName} />
         {/* Sparks where an agent reaches a board, as its card change lands. */}
         <ArrivalSparkles peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         {/* Light rising off whoever is speaking, for as long as their line
