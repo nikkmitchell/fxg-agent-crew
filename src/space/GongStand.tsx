@@ -8,6 +8,7 @@ import { goHandInput } from "./go-hand-input";
 import { audio } from "./breath-sound";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
+import { gongVisual } from "./percussion-motion";
 
 /**
  * THE GONG, for a sound bath: a big bronze disc hanging in a dark wooden
@@ -68,7 +69,7 @@ export function soundGong(strength: number, distance: number): void {
   }
 }
 
-export function GongStand({ you }: { you: string | null }) {
+export function GongStand({ you, reducedMotion = false }: { you: string | null; reducedMotion?: boolean }) {
   const disc = useRef<THREE.Group>(null);
   const glow = useRef<THREE.MeshStandardMaterial>(null);
   const ringing = useRef(0);
@@ -102,11 +103,11 @@ export function GongStand({ you }: { you: string | null }) {
     state.camera.getWorldPosition(eye);
     ringing.current = Math.max(0, ringing.current - delta / 12);
     if (disc.current) {
-      const t = state.clock.elapsedTime;
-      disc.current.rotation.x = Math.sin(t * 7) * 0.012 * ringing.current;
-      disc.current.rotation.z = Math.sin(t * 5.3) * 0.01 * ringing.current;
+      const visual = gongVisual(ringing.current, state.clock.elapsedTime, reducedMotion);
+      disc.current.rotation.x = visual.rotationX;
+      disc.current.rotation.z = visual.rotationZ;
+      if (glow.current) glow.current.emissiveIntensity = visual.glow;
     }
-    if (glow.current) glow.current.emissiveIntensity = ringing.current * 0.25;
 
     // A FINGERTIP hitting the face of the disc strikes it, as hard as it was moving.
     const now = performance.now();

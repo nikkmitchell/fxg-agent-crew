@@ -939,7 +939,7 @@ export default function Scene({
         {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation}
           reducedMotion={reducedMotion} peopleRef={connection.peopleRef} roster={connection.roster} />}
         {/* The singing bowls stand beside the orb, wherever a room has one: see shared/bowl.ts. */}
-        {connection.meditation?.shown && on("Singing bowls") && <Near at={BOWLS_AT}><SingingBowls you={you} /></Near>}
+        {connection.meditation?.shown && on("Singing bowls") && <Near at={BOWLS_AT}><SingingBowls you={you} reducedMotion={reducedMotion} /></Near>}
         {/* And the zen sand garden, on the orb's other side: see shared/garden.ts. */}
         {connection.meditation?.shown && on("Sand garden") && <Near at={GARDEN_AT}><GardenTray /></Near>}
         {/* And the ember fire, to let something go: see shared/fire.ts. */}
@@ -957,7 +957,7 @@ export default function Scene({
         {/* And the prayer wheel: see shared/wheel.ts. */}
         {connection.meditation?.shown && on("Prayer wheel") && <Near at={WHEEL_AT}><PrayerWheel you={you} /></Near>}
         {/* And the gong, for a sound bath: see GongStand.tsx. */}
-        {connection.meditation?.shown && on("Gong") && <Near at={GONG_AT}><GongStand you={you} /></Near>}
+        {connection.meditation?.shown && on("Gong") && <Near at={GONG_AT}><GongStand you={you} reducedMotion={reducedMotion} /></Near>}
         {/* And the rain curtain, to stand in: see RainCurtain.tsx. */}
         {connection.meditation?.shown && on("Rain curtain") && <Near at={RAIN_AT}><RainCurtain /></Near>}
         {/* And floating lanterns: see shared/lantern.ts. */}

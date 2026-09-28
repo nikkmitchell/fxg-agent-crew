@@ -6,6 +6,7 @@ import { onBowlStruck } from "./bowl-strikes";
 import { ringBowl, singBowl } from "./bowl-sound";
 import { goHandInput } from "./go-hand-input";
 import { space } from "../space-client";
+import { singingBowlVisual } from "./percussion-motion";
 
 /**
  * Three singing bowls on a low round table beside the orb (shared/bowl.ts).
@@ -41,7 +42,7 @@ function bowlGeometry(radius: number, height: number): THREE.LatheGeometry {
   return new THREE.LatheGeometry(profile, 48);
 }
 
-export function SingingBowls({ you }: { you: string | null }) {
+export function SingingBowls({ you, reducedMotion = false }: { you: string | null; reducedMotion?: boolean }) {
   const bowls = useRef<(THREE.Mesh | null)[]>([]);
   const cushions = useRef<THREE.InstancedMesh>(null);
   const glows = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
@@ -102,12 +103,10 @@ export function SingingBowls({ you }: { you: string | null }) {
     ringing.current = ringing.current.map((level, index) => {
       const next = Math.max(0, level - delta / (index === 0 ? 5 : 3.5));
       const glow = glows.current[index];
-      if (glow) glow.emissiveIntensity = next * 0.28;
+      const visual = singingBowlVisual(next, BOWLS[index].note, state.clock.elapsedTime, reducedMotion);
+      if (glow) glow.emissiveIntensity = visual.glow;
       const mesh = bowls.current[index];
-      if (mesh) {
-        const shiver = 1 + Math.sin(state.clock.elapsedTime * BOWLS[index].note * 0.05) * 0.004 * next;
-        mesh.scale.set(shiver, 1, shiver);
-      }
+      if (mesh) mesh.scale.set(visual.scale, 1, visual.scale);
       return next;
     });
 
