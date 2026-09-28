@@ -13,6 +13,7 @@ import type { Hourglass } from "./hourglass.js";
 import type { Boat } from "./boats.js";
 import type { CairnEvent } from "./cairn.js";
 import type { CraneEvent } from "./cranes.js";
+import type { PiecesEvent } from "./room-pieces.js";
 import type { Meditation } from "./meditation.js";
 /**
  * What travels over the space socket.
@@ -301,6 +302,8 @@ export type ServerMessage =
   | { type: "cairn"; event: CairnEvent }
   /** A paper crane was folded, or the thousand released: see shared/cranes.ts. */
   | { type: "cranes"; event: CraneEvent }
+  /** A piece was toggled on or off on the guide board: see shared/room-pieces.ts. */
+  | { type: "pieces"; event: PiecesEvent }
   /** Agents' helpers changed: see shared/helpers.ts. Never people. */
   | { type: "helpers"; helpers: Record<string, Helper[]> }
   | { type: "roomItems"; items: RoomItem[]; by: string }

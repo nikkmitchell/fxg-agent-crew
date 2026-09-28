@@ -1132,4 +1132,17 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 39,
+    name: "which pieces each room shows",
+    sql: `
+      -- The pieces a room has toggled off on its guide board (shared/room-pieces.ts).
+      CREATE TABLE space_pieces (
+        room TEXT PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];

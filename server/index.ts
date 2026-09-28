@@ -40,6 +40,7 @@ import { registerHourglassRoutes } from "./space/hourglass.js";
 import { registerBoatRoutes } from "./space/boats.js";
 import { RoomCairns, registerCairnRoutes } from "./space/cairn.js";
 import { RoomCranes, registerCraneRoutes } from "./space/cranes.js";
+import { RoomPiecesStore, registerPiecesRoutes } from "./space/pieces.js";
 import { RoomMandalas, registerMandalaRoutes } from "./space/mandala.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
@@ -264,6 +265,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const roomCairns = new RoomCairns(database);
   // Each room's paper cranes: see space/cranes.ts.
   const roomCranes = new RoomCranes(database);
+  // Which pieces each room shows: see space/pieces.ts.
+  const roomPieces = new RoomPiecesStore(database);
   // Only deliberately shared mindfulness sentences survive across visits.
   const roomMindfulnessCards = new RoomMindfulnessCards(database);
   // Agents' helpers, as the agents report them: see space/helpers.ts.
@@ -452,6 +455,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       mandalas: roomMandalas,
       announce: (room, event) => hubFor(room).broadcast({ type: "mandala", event }),
+    });
+    registerPiecesRoutes(scoped, {
+      config,
+      sessions,
+      pieces: roomPieces,
+      announce: (room, event) => hubFor(room).broadcast({ type: "pieces", event }),
     });
     registerCraneRoutes(scoped, {
       config,
