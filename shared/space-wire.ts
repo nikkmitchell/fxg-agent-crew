@@ -284,6 +284,8 @@ export type ServerMessage =
   | { type: "incense"; sticks: Stick[] }
   /** The ikebana vase changed: see shared/ikebana.ts. */
   | { type: "vase"; event: VaseEvent }
+  /** A sound bath started (or stopped: null): see shared/sound-bath.ts. */
+  | { type: "bath"; bath: { startedAt: number | null; by: string } }
   /** Agents' helpers changed: see shared/helpers.ts. Never people. */
   | { type: "helpers"; helpers: Record<string, Helper[]> }
   | { type: "roomItems"; items: RoomItem[]; by: string }

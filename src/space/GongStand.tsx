@@ -26,7 +26,7 @@ const PARTIALS = [
   [3.34, 0.35, 1.6], [4.12, 0.28, 1.9], [5.23, 0.2, 2.2], [6.31, 0.15, 2.5],
 ] as const;
 
-function soundGong(strength: number, distance: number): void {
+export function soundGong(strength: number, distance: number): void {
   const ctx = audio();
   if (!ctx) return;
   const at = ctx.currentTime;

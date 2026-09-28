@@ -30,7 +30,7 @@ export function stirFor(distance: number): number {
   return (1.2 - distance) / 1.2;
 }
 
-function ringTube(note: number, strength: number): void {
+export function ringTube(note: number, strength: number): void {
   const ctx = audio();
   if (!ctx) return;
   const at = ctx.currentTime;

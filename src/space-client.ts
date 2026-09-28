@@ -171,6 +171,10 @@ export const space = {
   mandala: () => requestJson<{ mandala: Mandala }>(`${root}/mandala`),
   changeMandala: (change: MandalaChange) =>
     requestJson<{ event: MandalaEvent }>(`${root}/mandala`, { method: "POST", body: JSON.stringify(change) }),
+  /** The sound bath: whether one is playing, and starting or stopping it. See shared/sound-bath.ts. */
+  soundBath: () => requestJson<{ startedAt: number | null; now: number }>(`${root}/sound-bath`),
+  changeSoundBath: (action: "start" | "stop") =>
+    requestJson<{ startedAt: number | null; now: number }>(`${root}/sound-bath`, { method: "POST", body: JSON.stringify({ action }) }),
   /** The ikebana vase, and arranging it: see shared/ikebana.ts. */
   vase: () => requestJson<{ vase: Vase }>(`${root}/vase`),
   changeVase: (change: VaseChange) => requestJson<{ event: VaseEvent }>(`${root}/vase`, { method: "POST", body: JSON.stringify(change) }),
