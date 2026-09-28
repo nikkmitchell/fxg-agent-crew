@@ -123,16 +123,37 @@ def join_existing(token: str, room: str) -> None:
 
 
 def sign(nonce: str, key_path: Path) -> str:
-    with tempfile.NamedTemporaryFile("w", delete=False) as tmp:
-        tmp.write(nonce)
+    message = nonce.encode("utf-8")
+    try:
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    except ModuleNotFoundError as exc:
+        if exc.name != "cryptography" and not (exc.name or "").startswith("cryptography."):
+            raise
+    else:
+        private_key = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
+        if not isinstance(private_key, Ed25519PrivateKey):
+            raise ValueError("agent_private.pem must contain an Ed25519 private key")
+        return base64.b64encode(private_key.sign(message)).decode("ascii")
+
+    # Keep OpenSSL as a dependency-free fallback for installations without the
+    # Python cryptography package. Binary mode preserves the exact UTF-8 nonce
+    # bytes on Windows (no newline conversion or BOM).
+    with tempfile.NamedTemporaryFile("wb", delete=False) as tmp:
+        tmp.write(message)
         nonce_file = tmp.name
     try:
         raw = subprocess.check_output(
             ["openssl", "pkeyutl", "-sign", "-inkey", str(key_path), "-rawin", "-in", nonce_file]
         )
+    except FileNotFoundError as exc:
+        raise SystemExit(
+            "Python package 'cryptography' is unavailable and OpenSSL was not found. "
+            "Use a Python environment with cryptography installed or add Ed25519-capable OpenSSL to PATH."
+        ) from exc
     finally:
         os.unlink(nonce_file)
-    return base64.b64encode(raw).decode()
+    return base64.b64encode(raw).decode("ascii")
 
 
 def login() -> tuple[str, str]:
