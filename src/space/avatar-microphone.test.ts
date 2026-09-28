@@ -42,7 +42,10 @@ describe("avatar microphone", () => {
   it("opens the microphone when there is no call", async () => {
     const stream = {} as MediaStream;
     const getUserMedia = vi.fn().mockResolvedValue(stream);
-    expect(await avatarMicrophone(() => null, false, { getUserMedia } as unknown as MediaDevices)).toBe(stream);
+    const staleCallTrack = { readyState: "live", clone: vi.fn() };
+    const staleCallStream = { getAudioTracks: () => [staleCallTrack] } as unknown as MediaStream;
+    expect(await avatarMicrophone(() => staleCallStream, false, { getUserMedia } as unknown as MediaDevices)).toBe(stream);
+    expect(staleCallTrack.clone).not.toHaveBeenCalled();
     expect(getUserMedia).toHaveBeenCalledWith({ audio: true });
   });
 });

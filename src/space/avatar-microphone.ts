@@ -4,7 +4,7 @@ export async function avatarMicrophone(
   inCall: boolean,
   devices: Pick<MediaDevices, "getUserMedia"> | undefined = navigator.mediaDevices,
 ): Promise<MediaStream> {
-  const lent = callMicrophone()?.getAudioTracks().find((track) => track.readyState === "live");
+  const lent = inCall ? callMicrophone()?.getAudioTracks().find((track) => track.readyState === "live") : null;
   if (inCall && !lent) throw new Error("The room call's microphone is not ready. Try again in a moment.");
   if (lent) {
     const copy = lent.clone();
