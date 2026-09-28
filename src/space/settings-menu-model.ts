@@ -93,6 +93,8 @@ export type SettingsMenuInput = {
     uploadedClips?: readonly { id: string; title: string }[];
     selectedUploadedId?: string | null;
     selectUploadedClip?: (id: string) => void;
+    uploadedActive?: boolean;
+    setUploadedActive?: (active: boolean) => void;
     hasTake: boolean;
     playing: boolean;
     notice: string | null;
@@ -260,6 +262,7 @@ function meSections(s: SettingsMenuInput): MenuSection[] {
         ...(r.canPublish && r.hasTake && r.status === "idle" && r.publish ? [{ kind: "action", label: "Upload tutorial to server", tone: "accent", onTap: r.publish } as MenuRow] : []),
         ...(r.uploadedClips ?? []).map((clip): MenuRow => ({ kind: "action", label: `${clip.id === r.selectedUploadedId ? "● " : ""}Server: ${clip.title}`, onTap: () => r.selectUploadedClip?.(clip.id) })),
         ...(r.canPublish && r.publishedMine && r.playUploaded ? [{ kind: "action", label: "Play uploaded copy", onTap: r.playUploaded } as MenuRow] : []),
+        ...(r.canPublish && r.publishedMine && r.setUploadedActive ? [{ kind: "action", label: r.uploadedActive ? "Remove from first-visit welcome" : "Add to first-visit welcome", onTap: () => r.setUploadedActive?.(!r.uploadedActive) } as MenuRow] : []),
         ...(r.canPublish && r.publishedMine && r.unpublish ? [{ kind: "action", label: "Remove uploaded tutorial", tone: "danger", onTap: r.unpublish } as MenuRow] : []),
         ...(r.hasPublished && r.playWelcome ? [{ kind: "action", label: r.welcomeCompleted ? "Replay welcome tutorials" : "Play welcome tutorials", onTap: r.playWelcome } as MenuRow] : []),
         ...(r.hasPublished && !r.welcomeCompleted && r.skipWelcome ? [{ kind: "action", label: "Skip welcome", onTap: r.skipWelcome } as MenuRow] : []),

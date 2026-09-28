@@ -1332,6 +1332,8 @@ export function RoomControls({
           uploadedClips: avatarRecorder.uploadedClips.map((clip) => ({ id: clip.id, title: clip.title })),
           selectedUploadedId: avatarRecorder.uploadedClip?.id ?? null,
           selectUploadedClip: avatarRecorder.selectUploadedClip,
+          uploadedActive: avatarRecorder.uploadedClip?.active ?? false,
+          setUploadedActive: (active) => void avatarRecorder.setClipActive(active),
           hasTake: Boolean(avatarRecorder.take),
           playing: avatarRecorder.playing,
           notice: avatarRecorder.notice ?? null,

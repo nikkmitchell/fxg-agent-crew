@@ -20,14 +20,14 @@ const validFrame = (frame: any, index: number, frames: any[], durationMs: number
 
 export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessions: SessionStore, db: Db): void {
   const requireSession = makeRequireSession(config, sessions);
-  const published = () => (db.prepare("SELECT actor_id, take_json, published_at FROM lobby_welcome_takes WHERE active = 1").all() as Array<{ actor_id: string; take_json: string; published_at: string }>);
+  const published = () => (db.prepare("SELECT id, actor_id, duration_ms, take_json, uploaded_at AS published_at, participants_json FROM lobby_welcome_clips WHERE active = 1").all() as Array<{ id: string; actor_id: string; duration_ms: number | null; take_json: string | null; published_at: string; participants_json: string }>);
   app.get("/bff/space/welcome", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const rows = published().sort((a, b) => CREATORS.findIndex((name) => name.toLowerCase() === a.actor_id.toLowerCase()) - CREATORS.findIndex((name) => name.toLowerCase() === b.actor_id.toLowerCase()));
+    const rows = published().filter((row) => (JSON.parse(row.participants_json) as string[]).every((actorId) => { const consent = db.prepare("SELECT allowed,updated_at FROM lobby_welcome_consent WHERE actor_id = ?").get(actorId) as { allowed: number; updated_at: string } | undefined; return consent?.allowed === 1 && Date.parse(consent.updated_at) <= Date.parse(row.published_at); })).sort((a, b) => CREATORS.findIndex((name) => name.toLowerCase() === a.actor_id.toLowerCase()) - CREATORS.findIndex((name) => name.toLowerCase() === b.actor_id.toLowerCase()) || a.published_at.localeCompare(b.published_at));
     const seen = db.prepare("SELECT 1 FROM lobby_welcome_seen WHERE actor_id = ?").get(session.username.toLowerCase());
     const own = db.prepare("SELECT published_at FROM lobby_welcome_takes WHERE lower(actor_id) = ?").get(session.username.toLowerCase()) as { published_at: string } | undefined;
-    return { canPublish: session.kind === "human" && CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase()), uploadedMine: own ? { actorId: session.username, publishedAt: own.published_at } : null, completed: !!seen, takes: rows.map((row) => ({ actorId: row.actor_id, durationMs: (JSON.parse(row.take_json) as { durationMs: number }).durationMs, publishedAt: row.published_at })) };
+    return { canPublish: session.kind === "human" && CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase()), uploadedMine: own ? { actorId: session.username, publishedAt: own.published_at } : null, completed: !!seen, takes: rows.map((row) => ({ id: row.id, actorId: row.actor_id, durationMs: row.duration_ms ?? (JSON.parse(row.take_json!) as { durationMs: number }).durationMs, publishedAt: row.published_at })) };
   });
   app.get<{ Params: { actor: string } }>("/bff/space/welcome/:actor/take", async (request, reply) => {
     const session = requireSession(request, reply);
@@ -61,7 +61,9 @@ export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessi
     const audio = Buffer.from(audioBase64, "base64");
     if (!audio.length || audio.length > MAX_AUDIO || frames.some((frame, index) => !validFrame(frame, index, frames, durationMs))) return reply.code(400).send({ code: "BAD_WELCOME_TAKE" });
     const take = { version: 1, actorId: session.username, recordedAt: value.recordedAt, durationMs, body: typeof value.body === "string" ? value.body : null, showPersonalUi: value.showPersonalUi === true, frames };
-    db.prepare("INSERT INTO lobby_welcome_takes (actor_id,take_json,audio,mime,active,published_at) VALUES (?,?,?,?,0,?) ON CONFLICT(actor_id) DO UPDATE SET take_json=excluded.take_json,audio=excluded.audio,mime=excluded.mime,active=0,published_at=excluded.published_at").run(session.username, JSON.stringify(take), audio, mime, new Date().toISOString());
+    const uploadedAt = new Date().toISOString();
+    db.prepare("INSERT INTO lobby_welcome_takes (actor_id,take_json,audio,mime,active,published_at) VALUES (?,?,?,?,0,?) ON CONFLICT(actor_id) DO UPDATE SET take_json=excluded.take_json,audio=excluded.audio,mime=excluded.mime,active=0,published_at=excluded.published_at").run(session.username, JSON.stringify(take), audio, mime, uploadedAt);
+    db.prepare("INSERT INTO lobby_welcome_clips (id,actor_id,title,duration_ms,take_json,audio,mime,active,uploaded_at) VALUES (?,?,?,?,?,?,?,0,?) ON CONFLICT(id) DO UPDATE SET duration_ms=excluded.duration_ms,take_json=excluded.take_json,audio=excluded.audio,mime=excluded.mime,active=0,uploaded_at=excluded.uploaded_at").run(`${session.username.toLowerCase()}-legacy`, session.username, "First recording", durationMs, JSON.stringify(take), audio, mime, uploadedAt);
     return { ok: true };
   });
   app.delete("/bff/space/welcome", async (request, reply) => {
@@ -69,6 +71,7 @@ export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessi
     if (!session) return reply;
     if (session.kind !== "human" || !CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase())) return reply.code(403).send({ code: "WELCOME_CREATOR_ONLY" });
     db.prepare("DELETE FROM lobby_welcome_takes WHERE lower(actor_id) = ?").run(session.username.toLowerCase());
+    db.prepare("DELETE FROM lobby_welcome_clips WHERE id = ?").run(`${session.username.toLowerCase()}-legacy`);
     return { ok: true };
   });
   app.post("/bff/space/welcome/complete", async (request, reply) => {

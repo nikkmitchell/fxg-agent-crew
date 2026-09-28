@@ -29,6 +29,8 @@ export type AvatarTake = {
   showPersonalUi: boolean;
   frames: AvatarFrame[];
   audio: Blob;
+  /** Separate microphone track lets a revoked participant's mixed voice be removed. */
+  ownAudio?: Blob;
 };
 
 const DATABASE = "saha-avatar-recorder";

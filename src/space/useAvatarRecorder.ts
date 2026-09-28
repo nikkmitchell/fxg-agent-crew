@@ -10,8 +10,8 @@ import type { WirePerson } from "../../shared/space-wire";
 
 const SAMPLE_MS = 50;
 type Capture = Omit<AvatarFrame, "t">;
-type Pending = { startAt: number; recordedAt: number; lastAt: number; frames: AvatarFrame[]; stream: MediaStream; mix: ReturnType<typeof avatarAudioMix>; media: MediaRecorder; chunks: Blob[]; actorId: string; body: string | null; showPersonalUi: boolean; includeHumans: boolean; includeAgents: boolean };
-type PublishedTake = { actorId: string; durationMs: number; publishedAt: string };
+type Pending = { startAt: number; recordedAt: number; lastAt: number; frames: AvatarFrame[]; stream: MediaStream; mix: ReturnType<typeof avatarAudioMix>; media: MediaRecorder; chunks: Blob[]; ownMedia: MediaRecorder | null; ownChunks: Blob[]; revoked: Set<string>; actorId: string; body: string | null; showPersonalUi: boolean; includeHumans: boolean; includeAgents: boolean };
+type PublishedTake = { id: string; actorId: string; durationMs: number; publishedAt: string };
 type UploadedTake = Pick<PublishedTake, "actorId" | "publishedAt">;
 type UploadedClip = { id: string; actorId: string; title: string; durationMs: number; uploadedAt: string; active: boolean };
 
@@ -66,6 +66,8 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
     if (!response.ok) throw new Error("Could not check recording permissions.");
     const data = await response.json() as { mine: boolean; allowed: string[] };
     consented.current = new Set(data.allowed.map((name) => name.toLowerCase()));
+    const session = pending.current;
+    if (session) for (const actorId of consentedAtStart.current) if (!consented.current.has(actorId)) session.revoked.add(actorId);
     setAllowInOthersClips(data.mine);
   }, []);
   useEffect(() => {
@@ -122,12 +124,11 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
     if (!session) return;
     pending.current = null;
     setStatus("saving");
-    const audio = session.media.state === "inactive"
-      ? new Blob(session.chunks, { type: session.media.mimeType || "audio/webm" })
-      : await new Promise<Blob>((resolve) => {
-          session.media.onstop = () => resolve(new Blob(session.chunks, { type: session.media.mimeType || "audio/webm" }));
-          session.media.stop();
-        });
+    const finishAudio = (media: MediaRecorder, chunks: Blob[]) => media.state === "inactive"
+      ? Promise.resolve(new Blob(chunks, { type: media.mimeType || "audio/webm" }))
+      : new Promise<Blob>((resolve) => { media.onstop = () => resolve(new Blob(chunks, { type: media.mimeType || "audio/webm" })); media.stop(); });
+    const [mixedAudio, ownAudio] = await Promise.all([finishAudio(session.media, session.chunks), session.ownMedia ? finishAudio(session.ownMedia, session.ownChunks) : Promise.resolve(undefined)]);
+    const audio = session.revoked.size ? ownAudio ?? mixedAudio : mixedAudio;
     session.mix.stop();
     session.stream.getTracks().forEach((track) => track.stop());
     try {
@@ -143,8 +144,9 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
         showPersonalUi: session.showPersonalUi,
         includeHumans: session.includeHumans,
         includeAgents: session.includeAgents,
-        frames: session.frames,
+        frames: session.frames.map((frame) => ({ ...frame, others: frame.others?.filter((person) => !session.revoked.has(person.actorId.toLowerCase())) })),
         audio,
+        ownAudio,
       };
       await saveAvatarTake(result);
       setTakes((previous) => [result, ...previous]);
@@ -196,10 +198,14 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
       const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find((value) => MediaRecorder.isTypeSupported(value));
       const media = new MediaRecorder(mix.stream, mime ? { mimeType: mime } : undefined);
       const chunks: Blob[] = [];
+      const ownMedia = includeHumans || includeAgents ? new MediaRecorder(stream, mime ? { mimeType: mime } : undefined) : null;
+      const ownChunks: Blob[] = [];
       media.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      if (ownMedia) ownMedia.ondataavailable = (event) => { if (event.data.size) ownChunks.push(event.data); };
       media.onerror = () => { setNotice("The microphone recording failed."); void stop(); };
       media.start(250);
-      pending.current = { startAt: performance.now(), recordedAt: Date.now(), lastAt: -Infinity, frames: [], stream, mix, media, chunks, actorId, body, showPersonalUi, includeHumans, includeAgents };
+      ownMedia?.start(250);
+      pending.current = { startAt: performance.now(), recordedAt: Date.now(), lastAt: -Infinity, frames: [], stream, mix, media, chunks, ownMedia, ownChunks, revoked: new Set(), actorId, body, showPersonalUi, includeHumans, includeAgents };
       setStatus("recording");
     } catch (error) {
       mix?.stop();
@@ -222,11 +228,11 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
     setWelcomeCompleted(true);
     void fetch(`${base}/bff/space/welcome/complete`, { method: "POST", credentials: "same-origin" }).catch(() => setNotice("Could not save welcome progress."));
   }, [stopPlayback]);
-  const loadPublished = useCallback(async (item: UploadedTake): Promise<AvatarTake> => {
-    const key = `${item.actorId}:${item.publishedAt}`;
+  const loadPublished = useCallback(async (item: PublishedTake): Promise<AvatarTake> => {
+    const key = `${item.id}:${item.publishedAt}`;
     const cached = publishedCache.current.get(key);
     if (cached) return cached;
-    const root = `${base}/bff/space/welcome/${encodeURIComponent(item.actorId)}`;
+    const root = `${base}/bff/space/welcome/clips/${encodeURIComponent(item.id)}`;
     const version = `?v=${encodeURIComponent(item.publishedAt)}`;
     const [takeResponse, audioResponse] = await Promise.all([
       fetch(`${root}/take${version}`, { credentials: "same-origin" }),
@@ -271,8 +277,13 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
     try {
       setStatus("uploading");
       setNotice("Uploading welcome recording…");
+      await refreshConsent();
+      const revoked = new Set(take.frames.flatMap((frame) => frame.others?.map((person) => person.actorId.toLowerCase()) ?? []).filter((name) => !consented.current.has(name)));
+      if (revoked.size && !take.ownAudio) throw new Error("A participant withdrew permission. This older clip cannot remove their voice; please record a new take.");
+      const uploadTake = revoked.size ? { ...take, uploadId: undefined, frames: take.frames.map((frame) => ({ ...frame, others: frame.others?.filter((person) => !revoked.has(person.actorId.toLowerCase())) })), audio: take.ownAudio! } : take;
+      if (revoked.size) { await saveAvatarTake(uploadTake); setTake(uploadTake); setTakes((previous) => previous.map((item) => item.id === take.id ? uploadTake : item)); }
       const root = `${base}/bff/space/welcome/uploads`;
-      let id = take.uploadId;
+      let id = uploadTake.uploadId;
       let existing = { frames: [] as number[], audio: [] as number[] };
       if (id) {
         const status = await fetch(`${root}/${id}/status`, { credentials: "same-origin" });
@@ -280,33 +291,33 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
         else id = undefined;
       }
       if (!id) {
-        const created = await fetch(root, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: take.title ?? "First recording", recordedAt: take.recordedAt, durationMs: take.durationMs, body: take.body, showPersonalUi: take.showPersonalUi, includeHumans: take.includeHumans, includeAgents: take.includeAgents, frameCount: take.frames.length, audioMime: take.audio.type }) });
+        const created = await fetch(root, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: uploadTake.title ?? "First recording", recordedAt: uploadTake.recordedAt, durationMs: uploadTake.durationMs, body: uploadTake.body, showPersonalUi: uploadTake.showPersonalUi, includeHumans: uploadTake.includeHumans, includeAgents: uploadTake.includeAgents, frameCount: uploadTake.frames.length, audioMime: uploadTake.audio.type }) });
         if (!created.ok) throw new Error("Could not start the upload. Your browser clip is safe.");
         id = (await created.json() as { id: string }).id;
-        const staged = { ...take, uploadId: id };
+        const staged = { ...uploadTake, uploadId: id };
         await saveAvatarTake(staged);
         setTake(staged);
         setTakes((previous) => previous.map((item) => item.id === take.id ? staged : item));
       }
-      const movementParts = Math.ceil(take.frames.length / 50);
-      const audioParts = Math.ceil(take.audio.size / 1_000_000);
+      const movementParts = Math.ceil(uploadTake.frames.length / 50);
+      const audioParts = Math.ceil(uploadTake.audio.size / 1_000_000);
       const totalParts = movementParts + audioParts;
-      for (let index = 0; index < take.frames.length; index += 50) {
+      for (let index = 0; index < uploadTake.frames.length; index += 50) {
         const part = index / 50;
         if (existing.frames.includes(part)) continue;
         setNotice(`Uploading “${take.title}”: ${part + 1}/${totalParts} parts…`);
-        const response = await fetch(`${root}/${id}/frames/${part}`, { method: "PUT", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(take.frames.slice(index, index + 50)) });
+        const response = await fetch(`${root}/${id}/frames/${part}`, { method: "PUT", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(uploadTake.frames.slice(index, index + 50)) });
         if (!response.ok) throw new Error(`Movement upload stopped at part ${part + 1}. Your browser clip is safe.`);
       }
-      for (let offset = 0, part = 0; offset < take.audio.size; offset += 1_000_000, part++) {
+      for (let offset = 0, part = 0; offset < uploadTake.audio.size; offset += 1_000_000, part++) {
         if (existing.audio.includes(part)) continue;
         setNotice(`Uploading “${take.title}”: ${movementParts + part + 1}/${totalParts} parts…`);
-        const response = await fetch(`${root}/${id}/audio/${part}`, { method: "PUT", credentials: "same-origin", headers: { "content-type": "application/octet-stream" }, body: take.audio.slice(offset, offset + 1_000_000) });
+        const response = await fetch(`${root}/${id}/audio/${part}`, { method: "PUT", credentials: "same-origin", headers: { "content-type": "application/octet-stream" }, body: uploadTake.audio.slice(offset, offset + 1_000_000) });
         if (!response.ok) throw new Error(`Audio upload stopped at part ${part + 1}. Your browser clip is safe.`);
       }
       const completed = await fetch(`${root}/${id}/complete`, { method: "POST", credentials: "same-origin" });
       if (!completed.ok) throw new Error("Could not finish the upload. Your browser clip is safe.");
-      const saved = { ...take, uploadId: undefined, serverId: id };
+      const saved = { ...uploadTake, uploadId: undefined, serverId: id };
       await saveAvatarTake(saved);
       setTake(saved);
       setTakes((previous) => previous.map((item) => item.id === take.id ? saved : item));
@@ -315,7 +326,7 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
       setNotice(`“${saved.title}” uploaded. Play the server copy to review it.`);
     } catch (error) { setNotice(error instanceof Error ? error.message : "Upload failed."); }
     finally { setStatus("idle"); }
-  }, [take, canPublish, status, refreshWelcome]);
+  }, [take, canPublish, status, refreshWelcome, refreshConsent]);
 
   const unpublish = useCallback(async () => {
     if (!uploadedClip) return;
@@ -323,6 +334,14 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
     if (response.ok) { await refreshWelcome(); setNotice("Uploaded tutorial removed."); }
     else setNotice("Could not remove the uploaded tutorial.");
   }, [refreshWelcome, uploadedClip]);
+
+  const setClipActive = useCallback(async (active: boolean) => {
+    if (!uploadedClip) return;
+    const response = await fetch(`${base}/bff/space/welcome/clips/${encodeURIComponent(uploadedClip.id)}`, { method: "PATCH", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ active }) });
+    if (!response.ok) { setNotice("Could not change who sees this clip. Check participant permission."); return; }
+    await refreshWelcome();
+    setNotice(active ? `“${uploadedClip.title}” is now in the first-visit welcome.` : `“${uploadedClip.title}” is staged again.`);
+  }, [uploadedClip, refreshWelcome]);
 
   const discard = useCallback(async () => {
     stopPlayback();
@@ -353,11 +372,12 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
 
   useEffect(() => () => {
     pending.current?.media.stop();
+    if (pending.current?.ownMedia?.state === "recording") pending.current.ownMedia.stop();
     pending.current?.mix.stop();
     pending.current?.stream.getTracks().forEach((track) => track.stop());
     player.current?.pause();
     if (playerUrl.current) URL.revokeObjectURL(playerUrl.current);
   }, []);
 
-  return { status, take, takes, selectTake: (id: string) => { stopPlayback(); setTake(takes.find((item) => item.id === id) ?? null); }, rename, includeHumans, setIncludeHumans, includeAgents, setIncludeAgents, allowInOthersClips, setRecordingConsent, uploadedClips, uploadedClip, selectUploadedClip: (id: string) => setUploadedClip(uploadedClips.find((item) => item.id === id) ?? null), activeTake, published, uploadedMine, welcomeCompleted, canPublish, playing, showPersonalUi, setShowPersonalUi: choosePersonalUi, notice, capture, start, stop, play, playWelcome, playUploaded, finishWelcome, publish, unpublish, stopPlayback, discard, player };
+  return { status, take, takes, selectTake: (id: string) => { stopPlayback(); setTake(takes.find((item) => item.id === id) ?? null); }, rename, includeHumans, setIncludeHumans, includeAgents, setIncludeAgents, allowInOthersClips, setRecordingConsent, uploadedClips, uploadedClip, selectUploadedClip: (id: string) => setUploadedClip(uploadedClips.find((item) => item.id === id) ?? null), setClipActive, activeTake, published, uploadedMine, welcomeCompleted, canPublish, playing, showPersonalUi, setShowPersonalUi: choosePersonalUi, notice, capture, start, stop, play, playWelcome, playUploaded, finishWelcome, publish, unpublish, stopPlayback, discard, player };
 }

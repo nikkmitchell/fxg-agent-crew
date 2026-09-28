@@ -167,6 +167,18 @@ export function registerWelcomeClips(app: FastifyInstance, config: Config, sessi
     return reply.code(404).send({ code: "WELCOME_CLIP_NOT_FOUND" });
   });
 
+  app.patch<{ Params: { id: string }; Body: { active?: unknown } }>("/bff/space/welcome/clips/:id", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    if (!creator(session)) return reply.code(403).send({ code: "WELCOME_CREATOR_ONLY" });
+    if (typeof request.body?.active !== "boolean") return reply.code(400).send({ code: "BAD_WELCOME_CLIP" });
+    const row = db.prepare("SELECT participants_json,uploaded_at FROM lobby_welcome_clips WHERE id = ? AND lower(actor_id) = ?").get(request.params.id, session.username.toLowerCase()) as { participants_json: string; uploaded_at: string } | undefined;
+    if (!row) return reply.code(404).send({ code: "WELCOME_CLIP_NOT_FOUND" });
+    if (request.body.active && (JSON.parse(row.participants_json) as string[]).some((actorId) => !consentValid(actorId, Date.parse(row.uploaded_at)))) return reply.code(403).send({ code: "WELCOME_PARTICIPANT_CONSENT" });
+    db.prepare("UPDATE lobby_welcome_clips SET active = ? WHERE id = ?").run(request.body.active ? 1 : 0, request.params.id);
+    return { ok: true, active: request.body.active };
+  });
+
   app.delete<{ Params: { id: string } }>("/bff/space/welcome/clips/:id", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
