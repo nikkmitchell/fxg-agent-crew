@@ -4,7 +4,6 @@ import { READINGS } from "../../shared/guided";
 import { ROOM_GUIDE, arrowTo, stepsTo } from "../../shared/room-guide";
 import * as THREE from "three";
 import { TOGGLEABLE } from "../../shared/room-pieces";
-import { useHiddenPieces } from "./pieces-events";
 import { space } from "../space-client";
 
 /**
@@ -60,12 +59,16 @@ function useWelcome() {
   return { line, text: line === null ? null : lines[line], replay: () => read(0) };
 }
 
-export function RoomGuideSign() {
+export function RoomGuideSign({ hidden }: { hidden: ReadonlySet<string> }) {
   const welcome = useWelcome();
   const down = useRef<number | null>(null);
   return <group position={SIGN_AT} rotation-y={0.95}>
-    <mesh position={[0, 0.55, -0.02]} raycast={noRaycast}>
-      <boxGeometry args={[0.04, 1.1, 0.04]} />
+    {/* THE POST STOPS UNDER THE BOARD, and stands behind it. Nikk
+        (2026-09-28): the post "flickers". When the board grew for the toggles
+        its face landed exactly on the post's front face (both at z = 0), and
+        two surfaces in one place flicker. Board bottom: 1.35 - 0.18 - 0.63. */}
+    <mesh position={[0, 0.29, -0.035]} raycast={noRaycast}>
+      <boxGeometry args={[0.04, 0.58, 0.04]} />
       <meshStandardMaterial color="#4a3223" roughness={0.9} />
     </mesh>
     <group position={[0, 1.35, 0]}>
@@ -84,7 +87,7 @@ export function RoomGuideSign() {
       </group>
       {welcome.text && <Text position={[0, 0.56, 0.004]} fontSize={0.028} maxWidth={1.1} textAlign="center" color="#fff6e0" raycast={noRaycast} outlineWidth={0.002} outlineColor="#0b1418">{welcome.text}</Text>}
       {/* THE TOGGLES (Nikk, 2026-09-28): every piece, on or off for the whole room. */}
-      <ToggleList />
+      <ToggleList hidden={hidden} />
     </group>
   </group>;
 }
@@ -106,8 +109,8 @@ export function rowAt(u: number, v: number): number | null {
  * texts and buttons would be a hundred draws standing next to where everyone
  * arrives. A tap finds its row from where it landed.
  */
-function ToggleList() {
-  const { hidden } = useHiddenPieces();
+function ToggleList(props: { hidden: ReadonlySet<string> }) {
+  const hidden = props.hidden;
   const [note, setNote] = useState<string | null>(null);
   const canvas = useMemo(() => {
     const element = document.createElement("canvas");

@@ -49,6 +49,9 @@ export type SettingsMenuInput = {
   /** Rows the headset asked for: "use the microphone anyway", and the like. */
   voiceExtra: readonly { label: string; onTap: () => void }[];
   hearReplies: boolean;
+  /** The touch mic by your hip, for controllers (controller-mic.ts). Off: A/X records, B/Y cancels. */
+  touchMic: boolean;
+  setTouchMic: (on: boolean) => void;
   setHearReplies: (on: boolean) => void;
   handsShown: boolean;
   setHandsShown: (shown: boolean) => void;
@@ -166,6 +169,7 @@ function meSections(s: SettingsMenuInput): MenuSection[] {
         onTap: () => voice.setOn(!(voice.on || voice.starting)),
       },
       { kind: "toggle", label: "Read the room aloud", on: s.hearReplies, onTap: () => s.setHearReplies(!s.hearReplies) },
+      { kind: "toggle", label: "Touch mic by my hip", detail: s.touchMic ? "Touch it to record" : "Off: A/X talk · B/Y cancel", on: s.touchMic, onTap: () => s.setTouchMic(!s.touchMic) },
       // Mute someone, for yourself only (Nikk, 5423). Nobody else's hearing changes.
       ...voice.others.map((name): MenuRow => {
         const muted = voice.isMuted(name);
