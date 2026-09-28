@@ -17,5 +17,6 @@ describe("toggling what the room shows", () => {
   it("refuses a name that is not in the room, and never offers the orb", () => {
     expect("refused" in applyPieces(allShown(), { name: "Swimming pool", shown: false }, "x")).toBe(true);
     expect(TOGGLEABLE).not.toContain("Breathing orb");
+    expect(TOGGLEABLE).toContain("Dawn");
   });
 });

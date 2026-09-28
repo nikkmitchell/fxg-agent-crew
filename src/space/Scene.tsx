@@ -84,6 +84,7 @@ import { StillFlower, STILL_AT } from "./StillFlower";
 import { SilenceBell } from "./SilenceBell";
 import { BreathingSilk, SILK_AT } from "./BreathingSilk";
 import { Seabirds } from "./Seabirds";
+import { SharedDawn } from "./SharedDawn";
 
 /** The middle of the shore corner: shore, pool, conch, bench, steps, birds. */
 const SHORE_CORNER = { x: -4.0, z: 0.5 } as const;
@@ -823,7 +824,8 @@ export default function Scene({
           passthrough behind the scene where the device supports it; where it
           does not, the session is simply black, which is what was asked for. */}
         {inHeadset ? null : <color attach="background" args={["#0b0d12"]} />}
-        <hemisphereLight args={["#ffffff", "#2a3040", 2.2]} />
+        {/* Dawn reuses this room light, so its shared color wash adds no draw call. */}
+        <SharedDawn reducedMotion={reducedMotion} active={connection.meditation?.shown === true && on("Dawn")} />
         <directionalLight position={[3, 6, 4]} intensity={1.4} />
         {/* NOT IN A HEADSET. The grid is there so that somebody moving through
           a featureless void can tell they are moving — which is a real problem
