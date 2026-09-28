@@ -79,6 +79,7 @@ import { ShoreBench } from "./ShoreBench";
 import { GlowSteps } from "./GlowSteps";
 import { PaperCranes, CRANES_AT } from "./PaperCranes";
 import { useHiddenPieces } from "./pieces-events";
+import { roomBoards, useArrivalClearance } from "./arrival-clearance";
 import { FogMirror, FOG_AT } from "./FogMirror";
 import { StillFlower, STILL_AT } from "./StillFlower";
 import { SilenceBell } from "./SilenceBell";
@@ -357,6 +358,20 @@ function Me({
   // stands still: the browser draws them at the spawn point while the server
   // still has them wherever their last board action put them, labelled with the
   // reason for it. Everyone else in the room sees the stale one.
+  // NOT ON TOP OF ANYONE OR ANYTHING (Nikk, 2026-09-28): see arrival-clearance.ts.
+  useArrivalClearance({
+    peopleRef: connection.peopleRef,
+    you: connection.status.state === "open" ? connection.status.you : null,
+    arrivalKey: active ? "window" : "headset",
+    boards: () => roomBoards(panelsOnArrival.current, inLobby, connection.meditation?.shown === true),
+    where: () => (active ? { x: camera.position.x, z: camera.position.z } : null),
+    move: (dx, dz) => {
+      camera.position.x += dx;
+      camera.position.z += dz;
+      connection.send({ type: "move", at: { x: camera.position.x, y: 0, z: camera.position.z }, facing: yaw.current });
+    },
+  });
+
   const announced = useRef(false);
   const open = connection.status.state === "open";
   useEffect(() => {

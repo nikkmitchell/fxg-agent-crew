@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { agentScreensShownIn } from "./ScreenWall";
+import { agentScreenShownIn } from "./ScreenWall";
 
 describe("agents' screens and the lobby (Nikk, 2026-09-28)", () => {
-  it("hides agents' screens in the lobby, where an agent is a greeter", () => {
-    expect(agentScreensShownIn("lobby")).toBe(false);
+  it("hides the greeter's screen in the lobby", () => {
+    expect(agentScreenShownIn("lobby", "Nightjar")).toBe(false);
   });
-  it("shows them in the working rooms", () => {
-    expect(agentScreensShownIn("saha.ing")).toBe(true);
-    expect(agentScreensShownIn("meditation.AR")).toBe(true);
+  it("still shows other people's agents' screens in the lobby", () => {
+    expect(agentScreenShownIn("lobby", "Skein")).toBe(true);
+  });
+  it("shows the greeter's screen in the working rooms", () => {
+    expect(agentScreenShownIn("saha.ing", "Nightjar")).toBe(true);
+    expect(agentScreenShownIn("meditation.AR", "Nightjar")).toBe(true);
   });
 });

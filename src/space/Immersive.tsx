@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { roomBoards, useArrivalClearance } from "./arrival-clearance";
 import { controllerFaceButtons, isPressed } from "./controller-mic";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
@@ -561,6 +562,26 @@ export function ImmersivePlayer({
     group.rotation.y = yaw;
     group.position.set(ROOM.spawn.x - offset.x, 0, ROOM.spawn.z - offset.z);
     tell("arrived in the lobby: placed in the middle of the hall, facing the mirror");
+  });
+
+  // NOT ON TOP OF ANYONE OR ANYTHING (Nikk, 2026-09-28): see arrival-clearance.ts.
+  useArrivalClearance({
+    peopleRef,
+    you,
+    arrivalKey: currentRoom ? roomKey(currentRoom) : "",
+    boards: () => roomBoards(openPanels, isLobby(currentRoom ? roomKey(currentRoom) : null), meditation?.shown === true),
+    where: () => {
+      if (!origin.current) return null;
+      const head = xrCamera.getWorldPosition(new THREE.Vector3());
+      return { x: head.x, z: head.z };
+    },
+    move: (dx, dz) => {
+      const group = origin.current;
+      if (!group) return;
+      group.position.x += dx;
+      group.position.z += dz;
+      tell(`arrived clear of others: moved ${Math.hypot(dx, dz).toFixed(2)} m from where you landed`);
+    },
   });
 
   const teleport = useCallback((point: THREE.Vector3, event?: { point?: THREE.Vector3 }) => {

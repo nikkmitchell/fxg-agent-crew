@@ -290,8 +290,15 @@ function AgentScreen({
  * here so that they don't see what you're working on but instead you can just
  * be here as a greeter." Everywhere else an agent's screen shows in front of it.
  */
-export function agentScreensShownIn(room: string | null): boolean {
-  return !isLobby(room);
+/**
+ * Nikk clarified (same day): "it's okay if other people bring in their agent
+ * and they want to see their agent's screen, but for you, we don't want your
+ * screen shown in the lobby because you're in the lobby just acting as a
+ * greeter." So only the lobby's greeters are hidden there.
+ */
+export const LOBBY_GREETERS = ["nightjar"];
+export function agentScreenShownIn(room: string | null, actorId: string): boolean {
+  return !(isLobby(room) && LOBBY_GREETERS.includes(actorId.toLowerCase()));
 }
 
 export function ScreenWall({
@@ -330,7 +337,7 @@ export function ScreenWall({
   const isAgent = (screen: ScreenSummary) => screen.kind === "agent" || agentIds.has(screen.actorId.toLowerCase());
   const row = ready.filter((screen) => !isAgent(screen));
   // AGENTS HIDDEN, THEIR SCREENS TOO (Nikk 5384): for everyone, or just for you.
-  const agents = agentsHidden || !agentScreensShownIn(room) ? [] : ready.filter(isAgent);
+  const agents = agentsHidden ? [] : ready.filter((screen) => isAgent(screen) && agentScreenShownIn(room, screen.actorId));
 
   return (
     <group>
