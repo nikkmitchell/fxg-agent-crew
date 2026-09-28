@@ -69,11 +69,31 @@ export const micGestureIndicator: {
  */
 export const handsTracked: Record<MicGestureSide, boolean> = { left: false, right: false };
 
+/**
+ * WHETHER A CONTROLLER IS ACTUALLY CONNECTED, left or right. Nikk (2026-09-28):
+ * with bare hands the touch mic button "keeps coming up when my hands are not
+ * in tracking ... that button should never come up unless it is confirmed you
+ * are using controllers". Lost hands are not controllers: the touch talk and
+ * cancel buttons follow THIS, never the absence of hands.
+ */
+export const controllersInUse = { now: false };
+
+/**
+ * Controllers are confirmed in use when at least one is really tracked (not a
+ * guessed pose) AND no bare hand has been tracked for five seconds. Hands that
+ * drop out of tracking never make this true; a controller lying on the table
+ * while you use your hands does not either.
+ */
+export function controllersConfirmed(trackedControllers: number, lastBareHandAt: number, now: number): boolean {
+  return trackedControllers > 0 && now - lastBareHandAt > 5_000;
+}
+
 export function clearMicGestureHands() {
   micGestureHands.left = null;
   micGestureHands.right = null;
   handsTracked.left = false;
   handsTracked.right = false;
+  controllersInUse.now = false;
   micGestureIndicator.side = null;
   micGestureIndicator.tilt = 0;
   micGestureIndicator.closing = 0;

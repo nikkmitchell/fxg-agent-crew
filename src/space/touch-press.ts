@@ -77,6 +77,11 @@ function distance(a: Point, b: Point): number {
  * could still be touched, an invisible button beside the gear that started a
  * recording (Nikk, 5125). With hands, the gesture talks and cancels.
  */
+/**
+ * The touch talk and cancel buttons, ONLY while controllers are confirmed in
+ * use. `handsInView` is true unless a controller is connected: bare hands
+ * that have dropped out of tracking still get no buttons (Nikk, 2026-09-28).
+ */
 export function closedButtons(handsInView: boolean, cancellable: boolean): Array<"talk" | "cancel"> {
   // THE GEAR IS NOT DOWN HERE ANY MORE: it appears when you look up (Nikk,
   // 5245; see control-pose.ts lookingUp). With hands the gesture talks, so the

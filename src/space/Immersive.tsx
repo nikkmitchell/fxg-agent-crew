@@ -23,6 +23,8 @@ import {
   MIC_GESTURE_POSTURE_JOINT_INDICES,
   micGestureHands,
   handsTracked,
+  controllersInUse,
+  controllersConfirmed,
   fingersStraight,
   palmNormalOf,
   mostlyClosed,
@@ -147,6 +149,9 @@ function lastPlace(): { x: number; z: number; yaw: number } | null {
  * the input would let the player push into a wall and stop dead, which in a
  * headset feels like the tracking has broken.
  */
+/** When a bare hand was last tracked, for controllersInUse. */
+const lastBareHand = { at: -Infinity };
+
 export function ImmersivePlayer({
   avatarRecorder,
   comfort,
@@ -947,6 +952,11 @@ export function ImmersivePlayer({
         micGestureHands[side] = null;
       }
     }
+    // CONTROLLERS IN USE (see controllersInUse): a controller really tracked,
+    // and no bare hand tracked for five seconds. Hands dropping out never
+    // counts; a controller lying on the table while hands are used does not.
+    if (handsTracked.left || handsTracked.right) lastBareHand.at = performance.now();
+    controllersInUse.now = controllersConfirmed(controllerGrips.length, lastBareHand.at, performance.now());
     // Every frame, for the lobby's mirror (self-pose.ts): the room only hears
     // the tenth-of-a-second version below.
     selfPose.head = head;

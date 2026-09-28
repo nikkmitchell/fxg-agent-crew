@@ -24,7 +24,7 @@ import {
 import { goHandInput } from "./go-hand-input";
 import { micGlyph, micPress } from "./mic-press";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
-import { handsTracked, micGestureHands, micGestureIndicator } from "./mic-gesture-input";
+import { controllersInUse, micGestureHands, micGestureIndicator } from "./mic-gesture-input";
 import {
   closedControlPose,
   lookingUp,
@@ -1007,7 +1007,7 @@ export function RoomControls({
   const micGestureState = useRef<MicGestureState>(IDLE_MIC_GESTURE);
   /** The gesture finished before the words were in: send them when they are. */
   const sendAfterGesture = useRef(false);
-  const lastHandSeen = useRef(-Infinity);
+  const lastControllerSeen = useRef(-Infinity);
   /**
    * TRACKED HANDS IN VIEW: the touch talk and cancel buttons hide. Nikk
    * (5044): "remove the touch for starting recording as well as cancelling
@@ -1548,11 +1548,12 @@ export function RoomControls({
       ? !listening && heard.trim() !== ""
       : saying === "idle" && written.trim() !== "" && !keyboardFocused);
     const recording = listening || saying === "recording" || waiting;
-    // Seen hands, for hiding the touch buttons; lost for a few seconds before
-    // they come back, so a blink in tracking does not flash them.
+    // The touch buttons are for controllers only (Nikk, 2026-09-28): they show
+    // while a controller is connected, and never because hands dropped out of
+    // tracking. A second's grace so a controller blinking out does not flash them.
     const now = performance.now();
-    if (handsTracked.left || handsTracked.right) lastHandSeen.current = now;
-    const seen = now - lastHandSeen.current < 3_000;
+    if (controllersInUse.now) lastControllerSeen.current = now;
+    const seen = now - lastControllerSeen.current >= 1_000;
     if (seen !== handsInView) setHandsInView(seen);
     const startAction = capabilities.recognition
       ? micPress({ available: true, listening, sending, heard, alwaysOn }) === "start"
