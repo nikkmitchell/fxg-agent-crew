@@ -30,7 +30,9 @@ const gesture = await fetch(`${site}/bff/space/avatar`, {
 });
 console.log(`gesture ${gesture.status}`);
 
-execFileSync("pnpm", ["exec", "tsx", "tools/room-say.mts", "--to", to, "--say", say, "--detail", say], {
-  stdio: "inherit",
+// The written copy goes in on stdin: room-say has no flag for it.
+execFileSync("pnpm", ["exec", "tsx", "tools/room-say.mts", "--to", to, "--say", say], {
+  input: say,
+  stdio: ["pipe", "inherit", "inherit"],
   env: process.env,
 });
