@@ -232,7 +232,9 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
 
   useEffect(() => {
     if (!isLobby(spaceRoomName) && avatarRecorder.status === "recording") void avatarRecorder.stop();
-  }, [spaceRoomName, avatarRecorder.status, avatarRecorder.stop]);
+    if (!isLobby(spaceRoomName) && avatarRecorder.playing) avatarRecorder.stopPlayback();
+    if (!isLobby(spaceRoomName)) welcomeAttempted.current = null;
+  }, [spaceRoomName, avatarRecorder.status, avatarRecorder.stop, avatarRecorder.playing, avatarRecorder.stopPlayback]);
 
   /**
    * WHAT THE PAGE BEFORE THIS ONE DID NOT GET TO SAY.
