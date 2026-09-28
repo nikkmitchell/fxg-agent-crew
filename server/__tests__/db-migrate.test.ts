@@ -6,6 +6,8 @@ import { RoomMindfulnessCards } from "../space/mindfulness.js";
 
 const fresh = () => openDatabase(":memory:", DatabaseSync);
 
+// Live had 42 (lobby welcome takes) before 41 existed, so this is every
+// migration except 41: the upgrade the live database actually makes.
 function databaseBeforeMindfulnessShareLedger() {
   const db = new DatabaseSync(":memory:");
   db.exec(`
@@ -15,7 +17,7 @@ function databaseBeforeMindfulnessShareLedger() {
       applied_at TEXT NOT NULL
     );
   `);
-  for (const migration of MIGRATIONS.filter((entry) => entry.id < 41)) {
+  for (const migration of MIGRATIONS.filter((entry) => entry.id !== 41)) {
     db.exec("BEGIN");
     db.exec(migration.sql);
     db.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)")
