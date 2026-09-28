@@ -3,17 +3,26 @@ import {
   deleteAvatarTake, loadAvatarTake, saveAvatarTake,
   type AvatarFrame, type AvatarTake,
 } from "./avatar-recording";
+import { avatarMicrophone } from "./avatar-microphone";
+import { base } from "../router";
 
 const MAX_MS = 120_000;
 const SAMPLE_MS = 50;
 type Capture = Omit<AvatarFrame, "t">;
 type Pending = { startAt: number; lastAt: number; frames: AvatarFrame[]; stream: MediaStream; media: MediaRecorder; chunks: Blob[]; actorId: string; body: string | null; showPersonalUi: boolean };
+type PublishedTake = { actorId: string; durationMs: number; publishedAt: string };
+type UploadedTake = Pick<PublishedTake, "actorId" | "publishedAt">;
 
 export type AvatarRecorder = ReturnType<typeof useAvatarRecorder>;
 
-export function useAvatarRecorder(owner: string | null) {
+export function useAvatarRecorder(owner: string | null, callMicrophone: () => MediaStream | null, inCall: boolean) {
   const [status, setStatus] = useState<"idle" | "starting" | "recording" | "saving">("idle");
   const [take, setTake] = useState<AvatarTake | null>(null);
+  const [published, setPublished] = useState<PublishedTake[]>([]);
+  const [uploadedMine, setUploadedMine] = useState<UploadedTake | null>(null);
+  const [welcomeCompleted, setWelcomeCompleted] = useState(true);
+  const [canPublish, setCanPublish] = useState(false);
+  const [activeTake, setActiveTake] = useState<AvatarTake | null>(null);
   const [playing, setPlaying] = useState(false);
   const [showPersonalUi, setShowPersonalUi] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -21,6 +30,21 @@ export function useAvatarRecorder(owner: string | null) {
   const player = useRef<HTMLAudioElement | null>(null);
   const playerUrl = useRef<string | null>(null);
   const startBusy = useRef(false);
+  const queue = useRef<PublishedTake[]>([]);
+  const playbackGeneration = useRef(0);
+  const publishedCache = useRef(new Map<string, AvatarTake>());
+
+  const refreshWelcome = useCallback(async () => {
+    const response = await fetch(`${base}/bff/space/welcome`, { credentials: "same-origin" });
+    if (!response.ok) throw new Error("Could not load welcome recordings.");
+    const data = await response.json() as { canPublish: boolean; uploadedMine: UploadedTake | null; completed: boolean; takes: PublishedTake[] };
+    setCanPublish(data.canPublish);
+    setUploadedMine(data.uploadedMine);
+    setWelcomeCompleted(data.completed);
+    setPublished(data.takes);
+  }, []);
+
+  useEffect(() => { if (owner) void refreshWelcome().catch(() => setNotice("Could not load welcome recordings.")); }, [owner, refreshWelcome]);
 
   useEffect(() => {
     if (!owner) { setTake(null); return; }
@@ -32,12 +56,29 @@ export function useAvatarRecorder(owner: string | null) {
   }, [owner]);
 
   const stopPlayback = useCallback(() => {
+    playbackGeneration.current += 1;
+    queue.current = [];
     player.current?.pause();
     player.current = null;
     if (playerUrl.current) URL.revokeObjectURL(playerUrl.current);
     playerUrl.current = null;
     setPlaying(false);
+    setActiveTake(null);
   }, []);
+
+  const playTake = useCallback(async (selected: AvatarTake, next: () => void) => {
+    player.current?.pause();
+    if (playerUrl.current) URL.revokeObjectURL(playerUrl.current);
+    const url = URL.createObjectURL(selected.audio);
+    const audio = new Audio(url);
+    player.current = audio;
+    playerUrl.current = url;
+    setActiveTake(selected);
+    audio.onended = next;
+    audio.onerror = () => { setNotice("This browser could not play the recorded audio."); stopPlayback(); };
+    try { await audio.play(); setPlaying(true); }
+    catch { setNotice("Audio playback was blocked. Tap Play welcome again."); stopPlayback(); }
+  }, [stopPlayback]);
 
   const stop = useCallback(async () => {
     const session = pending.current;
@@ -91,8 +132,8 @@ export function useAvatarRecorder(owner: string | null) {
     setNotice(null);
     let stream: MediaStream | null = null;
     try {
-      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") throw new Error("This browser cannot record microphone audio.");
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (typeof MediaRecorder === "undefined") throw new Error("This browser cannot record microphone audio.");
+      stream = await avatarMicrophone(callMicrophone, inCall);
       const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find((value) => MediaRecorder.isTypeSupported(value));
       const media = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
       const chunks: Blob[] = [];
@@ -108,25 +149,78 @@ export function useAvatarRecorder(owner: string | null) {
     } finally {
       startBusy.current = false;
     }
-  }, [owner, showPersonalUi, stop, stopPlayback]);
+  }, [callMicrophone, inCall, owner, showPersonalUi, stop, stopPlayback]);
 
   const play = useCallback(async () => {
     if (!take || status !== "idle") return;
     stopPlayback();
-    const url = URL.createObjectURL(take.audio);
-    const audio = new Audio(url);
-    player.current = audio;
-    playerUrl.current = url;
-    audio.onended = stopPlayback;
-    audio.onerror = () => { setNotice("This browser could not play the recorded audio."); stopPlayback(); };
+    await playTake(take, stopPlayback);
+  }, [status, take, stopPlayback, playTake]);
+
+  const finishWelcome = useCallback(() => {
+    stopPlayback();
+    setWelcomeCompleted(true);
+    void fetch(`${base}/bff/space/welcome/complete`, { method: "POST", credentials: "same-origin" }).catch(() => setNotice("Could not save welcome progress."));
+  }, [stopPlayback]);
+  const loadPublished = useCallback(async (item: UploadedTake): Promise<AvatarTake> => {
+    const key = `${item.actorId}:${item.publishedAt}`;
+    const cached = publishedCache.current.get(key);
+    if (cached) return cached;
+    const root = `${base}/bff/space/welcome/${encodeURIComponent(item.actorId)}`;
+    const version = `?v=${encodeURIComponent(item.publishedAt)}`;
+    const [takeResponse, audioResponse] = await Promise.all([
+      fetch(`${root}/take${version}`, { credentials: "same-origin" }),
+      fetch(`${root}/audio${version}`, { credentials: "same-origin" }),
+    ]);
+    if (!takeResponse.ok || !audioResponse.ok) throw new Error("Could not load a welcome tutorial.");
+    const take = { ...await takeResponse.json() as Omit<AvatarTake, "audio">, audio: await audioResponse.blob() };
+    publishedCache.current.set(key, take);
+    return take;
+  }, []);
+  const playWelcome = useCallback(() => {
+    if (!published.length) return;
+    stopPlayback();
+    const generation = playbackGeneration.current;
+    queue.current = [...published];
+    const next = () => {
+      const item = queue.current.shift();
+      if (!item) { finishWelcome(); return; }
+      void loadPublished(item).then((loaded) => {
+        if (generation !== playbackGeneration.current) return;
+        void playTake(loaded, next);
+      }).catch(() => { if (generation === playbackGeneration.current) { setNotice("Could not load a welcome tutorial. Tap Play to retry."); stopPlayback(); } });
+    };
+    next();
+  }, [published, stopPlayback, playTake, finishWelcome, loadPublished]);
+
+  const playUploaded = useCallback(() => {
+    if (!uploadedMine) return;
+    stopPlayback();
+    const generation = playbackGeneration.current;
+    void loadPublished(uploadedMine).then((loaded) => {
+      if (generation === playbackGeneration.current) void playTake(loaded, stopPlayback);
+    }).catch(() => { if (generation === playbackGeneration.current) setNotice("Could not load your uploaded tutorial."); });
+  }, [uploadedMine, stopPlayback, loadPublished, playTake]);
+
+  const publish = useCallback(async () => {
+    if (!take || !canPublish) return;
     try {
-      await audio.play();
-      setPlaying(true);
-    } catch {
-      setNotice("Audio playback was blocked. Tap Play again.");
-      stopPlayback();
-    }
-  }, [status, take, stopPlayback]);
+      setNotice("Uploading welcome recording…");
+      const bytes = new Uint8Array(await take.audio.arrayBuffer());
+      let binary = "";
+      for (let offset = 0; offset < bytes.length; offset += 32768) binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+      const response = await fetch(`${base}/bff/space/welcome`, { method: "PUT", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...take, audio: undefined, audioBase64: btoa(binary), audioMime: take.audio.type }) });
+      if (!response.ok) throw new Error("Upload failed. Your browser draft is safe.");
+      await refreshWelcome();
+      setNotice("Uploaded to the server. You can review it here; newcomers will not see it until you choose when to use it.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Upload failed."); }
+  }, [take, canPublish, refreshWelcome]);
+
+  const unpublish = useCallback(async () => {
+    const response = await fetch(`${base}/bff/space/welcome`, { method: "DELETE", credentials: "same-origin" });
+    if (response.ok) { await refreshWelcome(); setNotice("Uploaded tutorial removed."); }
+    else setNotice("Could not remove the uploaded tutorial.");
+  }, [refreshWelcome]);
 
   const discard = useCallback(async () => {
     stopPlayback();
@@ -150,5 +244,5 @@ export function useAvatarRecorder(owner: string | null) {
     if (playerUrl.current) URL.revokeObjectURL(playerUrl.current);
   }, []);
 
-  return { status, take, playing, showPersonalUi, setShowPersonalUi: choosePersonalUi, notice, capture, start, stop, play, stopPlayback, discard, player };
+  return { status, take, activeTake, published, uploadedMine, welcomeCompleted, canPublish, playing, showPersonalUi, setShowPersonalUi: choosePersonalUi, notice, capture, start, stop, play, playWelcome, playUploaded, finishWelcome, publish, unpublish, stopPlayback, discard, player };
 }

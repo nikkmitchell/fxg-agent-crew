@@ -1211,6 +1211,7 @@ export function RoomControls({
     showingChoices.projects?.find((project) => project.id === showing.projectId)?.name ?? null;
   const boardName =
     showingChoices.boards?.find((moodBoard) => moodBoard.id === showing.boardId)?.title ?? null;
+
   /**
    * ROOMS, from inside the room (Nikk, 4735): going to another keeps the
    * headset on — SpacePanel's switchRoom moves this session and reopens the
@@ -1330,6 +1331,15 @@ export function RoomControls({
           play: () => void avatarRecorder.play(),
           stopPlayback: () => avatarRecorder.stopPlayback(),
           discard: () => void avatarRecorder.discard(),
+          canPublish: avatarRecorder.canPublish,
+          publishedMine: Boolean(avatarRecorder.uploadedMine),
+          hasPublished: avatarRecorder.published.length > 0,
+          welcomeCompleted: avatarRecorder.welcomeCompleted,
+          publish: () => void avatarRecorder.publish(),
+          unpublish: () => void avatarRecorder.unpublish(),
+          playUploaded: () => avatarRecorder.playUploaded(),
+          playWelcome: () => avatarRecorder.playWelcome(),
+          skipWelcome: () => avatarRecorder.finishWelcome(),
         }
       : null,
     // The board this room shows, for Sill's THIS ROOM block (32cbe6a).
@@ -1832,4 +1842,3 @@ export function RoomControls({
     </>
   );
 }
-

@@ -1170,4 +1170,22 @@ export const MIGRATIONS: Migration[] = [
         ON space_mindfulness_share_events(created_at);
     `,
   },
+  {
+    id: 42,
+    name: "published lobby welcome recordings",
+    sql: `
+      CREATE TABLE lobby_welcome_takes (
+        actor_id TEXT PRIMARY KEY,
+        take_json TEXT NOT NULL,
+        audio BLOB NOT NULL,
+        mime TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0,1)),
+        published_at TEXT NOT NULL
+      );
+      CREATE TABLE lobby_welcome_seen (
+        actor_id TEXT PRIMARY KEY,
+        completed_at TEXT NOT NULL
+      );
+    `,
+  },
 ];
