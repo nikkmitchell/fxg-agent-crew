@@ -21,8 +21,10 @@ import os
 import sys
 import time
 import urllib.error
+from pathlib import Path
 
-sys.path.insert(0, os.path.expanduser("~/.webharness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(1, os.path.expanduser("~/.webharness"))
 import inbox  # noqa: E402
 
 STATE = inbox.HOME

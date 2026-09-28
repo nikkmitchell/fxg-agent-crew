@@ -24,7 +24,10 @@
  *
  * Never make it easier to get identity wrong than to get it right.
  */
-import { execFileSync } from "node:child_process";
+import { execPythonFileSync } from "./python-runtime.mts";
+import { fileURLToPath } from "node:url";
+
+const WEBHARNESS_INBOX_DIR = fileURLToPath(new URL("./webharness/", import.meta.url));
 
 export type SahaSession = {
   /** Cookie header for every subsequent request. */
@@ -48,20 +51,20 @@ export async function signIn(): Promise<SahaSession> {
     process.exit(2);
   }
   const site = process.env.SAHA_URL ?? "https://saha.ing";
-  const token = execFileSync(
-    "python3",
+  const token = execPythonFileSync(
     [
       "-c",
       `
 import os, sys
-sys.path.insert(0, os.path.expanduser("~/.webharness"))
+sys.path.insert(0, os.environ["WEBHARNESS_INBOX_DIR"])
+sys.path.insert(1, os.path.expanduser("~/.webharness"))
 import inbox
 _, t = inbox.login()
 print(t)
 `,
     ],
     {
-      env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
+      env: { ...process.env, WEBHARNESS_INBOX_DIR, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
       encoding: "utf8",
     },
   ).trim();

@@ -27,8 +27,10 @@ import json
 import os
 import sys
 import time
+from pathlib import Path
 
-sys.path.insert(0, os.path.expanduser("~/.webharness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(1, os.path.expanduser("~/.webharness"))
 import inbox  # noqa: E402
 
 # Statuses that mean "ask again shortly" rather than "stop". Same set on-duty

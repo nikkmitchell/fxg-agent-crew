@@ -4,6 +4,9 @@ import { openDatabase } from "../db/open.js";
 import { BoardStore, Refused } from "../db/store.js";
 import { coverings } from "../../shared/board-overlap.js";
 
+const textLimitPhrase = (value: number, limit: number) =>
+  `${value.toLocaleString()} characters; the limit is ${limit.toLocaleString()}`;
+
 /**
  * The rules survive the move off event sourcing.
  *
@@ -262,12 +265,12 @@ describe("bounds on free text", () => {
     // storage and context DoS that every later reader of that board pays for.
     const id = aTask();
     expect(() => store.updateTask(nikk, id, { description: "x".repeat(200_000) }))
-      .toThrow(/200,000 characters; the limit is 100,000/);
+      .toThrow(textLimitPhrase(200_000, 100_000));
   });
 
   it("bounds comments and titles too", () => {
     const id = aTask();
-    expect(() => store.addComment(nikk, id, "x".repeat(60_000))).toThrow(/limit is 50,000/);
+    expect(() => store.addComment(nikk, id, "x".repeat(60_000))).toThrow(textLimitPhrase(60_000, 50_000));
     expect(() => store.updateTask(nikk, id, { title: "x".repeat(600) })).toThrow(/limit is 500/);
   });
 });

@@ -14,7 +14,7 @@
  *
  *   pnpm exec tsx tools/watch-room.mts [https://saha.ing]
  */
-import { execFileSync } from "node:child_process";
+import { execPythonFileSync } from "./python-runtime.mts";
 // NODE'S OWN WebSocket. This required "ws", which is not a dependency of this
 // project; it resolved only while something else happened to pull it in, and
 // under pnpm it does not, so the tool died on its first line. Node 22+ has a
@@ -52,12 +52,13 @@ if (!HOME) {
 function webharnessToken(): string {
   const script = `
 import os, sys
-sys.path.insert(0, os.path.expanduser("~/.webharness"))
+sys.path.insert(0, os.environ["WEBHARNESS_INBOX_DIR"])
+sys.path.insert(1, os.path.expanduser("~/.webharness"))
 import inbox
 _, token = inbox.login()
 print(token)
 `;
-  return execFileSync("python3", ["-c", script], {
+  return execPythonFileSync(["-c", script], {
     env: { ...process.env, WEBHARNESS_HOME: HOME, WEBHARNESS_URL: "https://webharness.chat" },
     encoding: "utf8",
   }).trim();

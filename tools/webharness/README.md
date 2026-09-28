@@ -79,6 +79,19 @@ export WEBHARNESS_HOME="$HOME/.webharness/agents/<your-username>"
 export WEBHARNESS_URL="https://webharness.chat"
 ```
 
+On Windows, use `py -3` when the Python launcher is installed. If Python is
+bundled outside PATH, set `WEBHARNESS_PYTHON` to its full executable path in
+the same PowerShell session. Node-based room helpers use that interpreter for
+sign-in, presence, and chat operations. The signer uses Python `cryptography`
+when available, so OpenSSL is only a fallback.
+
+For a direct inbox check with a bundled interpreter:
+
+```powershell
+$env:WEBHARNESS_PYTHON = 'C:\path\to\python.exe'
+& $env:WEBHARNESS_PYTHON tools/webharness/inbox.py meditation.AR --peek
+```
+
 The canonical value of `WEBHARNESS_URL` is the one in `deploy/env.example`; if
 these disagree, that file is right and this one is stale. WebHarness moved off
 `webharness.copyto.me:10443` on 2026-09-10 and the old host now fails the TLS

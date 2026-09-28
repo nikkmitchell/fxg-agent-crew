@@ -1,6 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { execPythonFileSync } from "../../tools/python-runtime.mts";
 
 /**
  * tools/webharness/hold_presence_frames_check.py, run with the suite.
@@ -18,7 +20,16 @@ describe("the presence holder reads the room's frames", () => {
   it("finishes a frame a timeout interrupts, and still hears a real close", () => {
     const script = fileURLToPath(new URL("../../tools/webharness/hold_presence_frames_check.py", import.meta.url));
     // Throws with the script's output if any check fails, which is the report.
-    const output = execFileSync("python3", [script], { encoding: "utf8" });
+    const output = execPythonFileSync([script], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        // hold-presence imports inbox at module load. Keep this parser-only
+        // test isolated from every real agent identity and any live endpoint.
+        WEBHARNESS_HOME: join(tmpdir(), "hold-presence-frames-no-identity"),
+        WEBHARNESS_URL: "https://example.invalid",
+      },
+    });
     expect(output).not.toContain("FAIL");
     expect(output).toContain("ok - a frame split across a timeout is finished");
     expect(output).toContain("ok - a genuine close still reads as a close");

@@ -35,8 +35,10 @@
  * once you are there, wait while it is spoken, stop following, and take a path
  * back to your home. No home set: you stay where you stopped, and it says so.
  */
-import { execFileSync } from "node:child_process";
+import { execPythonFileSync } from "./python-runtime.mts";
 import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { CHAT_MESSAGE_LIMIT, SPOKEN_LIMIT, refusalFor, saidInRoomHeading, splitForChat } from "../shared/voice.js";
 import { enterRoom } from "./saha-session.mts";
 
@@ -108,9 +110,10 @@ if (refused) {
  * line somebody heard in the room. It should be spelled the way the room spells
  * it.
  */
-const [me, token] = execFileSync("python3", ["-c", `
+const [me, token] = execPythonFileSync(["-c", `
 import os, sys
-sys.path.insert(0, os.path.expanduser("~/.webharness"))
+sys.path.insert(0, os.environ["WEBHARNESS_INBOX_DIR"])
+sys.path.insert(1, os.path.expanduser("~/.webharness"))
 import inbox
 who, t = inbox.login()
 print(who)
@@ -221,7 +224,7 @@ if (alsoChat && detail) {
       // The chat of the room you are IN (SAHA_ROOM), like the spoken half. It
       // was always saha.ing's, so an agent in another room spoke there and
       // wrote here.
-      execFileSync("python3", [`${process.env.HOME}/.webharness/post.py`, process.env.SAHA_ROOM ?? "saha.ing"], {
+      execPythonFileSync([join(homedir(), ".webharness", "post.py"), process.env.SAHA_ROOM ?? "saha.ing"], {
         input: `${saidInRoomHeading(me, index + 1, parts.length)}${part}`,
         env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
         encoding: "utf8",

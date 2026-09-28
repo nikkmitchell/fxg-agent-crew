@@ -202,11 +202,12 @@ describe("a body already on disk", () => {
 describe("where fetched bodies are kept", () => {
   it("sits beside the database, wherever that is", async () => {
     const { loadConfig } = await import("../config.js");
+    const databasePath = resolve("/var/lib/fxg-crew/saha.db");
     const config = loadConfig({
       WEBHARNESS_URL: "https://example.test",
-      DATABASE_PATH: "/var/lib/fxg-crew/saha.db",
+      DATABASE_PATH: databasePath,
     });
-    expect(config.bodyCacheRoot).toBe("/var/lib/fxg-crew/bodies");
+    expect(config.bodyCacheRoot).toBe(resolve("/var/lib/fxg-crew/bodies"));
   });
 
   it("never lands under the read-only install directory", async () => {
@@ -217,7 +218,7 @@ describe("where fetched bodies are kept", () => {
       SESSION_SECRET: "x",
       DATABASE_PATH: "/var/lib/fxg-crew/saha.db",
     });
-    expect(config.bodyCacheRoot.startsWith("/var/lib/")).toBe(true);
+    expect(config.bodyCacheRoot.startsWith(resolve("/var/lib"))).toBe(true);
     expect(config.bodyCacheRoot).not.toContain("./data");
   });
 

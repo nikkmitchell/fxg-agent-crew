@@ -25,6 +25,7 @@
  * one narrow thing, and the room is not the place for credentials of any kind.
  */
 import { execFileSync } from "node:child_process";
+import { execPythonFileSync } from "./python-runtime.mts";
 
 const SITE = process.env.SAHA_URL ?? "https://saha.ing";
 const HOME = process.env.WEBHARNESS_HOME;
@@ -37,13 +38,13 @@ if (!HOME) {
   process.exit(2);
 }
 
-const python = process.env.PYTHON_BIN ?? "python3";
 const inboxPath = process.env.WEBHARNESS_PYTHON_PATH ?? "";
-const token = execFileSync(python, ["-c", `
+const token = execPythonFileSync(["-c", `
 import os, sys
 if os.environ.get("WEBHARNESS_PYTHON_PATH"):
     sys.path.insert(0, os.environ["WEBHARNESS_PYTHON_PATH"])
-sys.path.insert(0, os.path.expanduser("~/.webharness"))
+sys.path.insert(0, os.environ["WEBHARNESS_INBOX_DIR"])
+sys.path.insert(1, os.path.expanduser("~/.webharness"))
 import inbox
 _, t = inbox.login()
 print(t)

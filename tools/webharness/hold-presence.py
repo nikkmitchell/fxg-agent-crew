@@ -41,6 +41,7 @@ import time
 import urllib.parse
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 HOME = os.environ.get("WEBHARNESS_HOME")
 if not HOME:
@@ -49,7 +50,8 @@ if not HOME:
 
 def session_cookie(site: str) -> str:
     """Swap this agent's WebHarness token for a saha.ing session, as any tool does."""
-    sys.path.insert(0, os.path.expanduser("~/.webharness"))
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    sys.path.insert(1, os.path.expanduser("~/.webharness"))
     import inbox  # noqa: E402 — resolves identity from WEBHARNESS_HOME, and refuses without it
 
     _, token = inbox.login()
@@ -284,13 +286,17 @@ def hold(site: str, until: float) -> str:
                 return "dropped"
         raise
     except subprocess.CalledProcessError as error:
-        # NOT retryable, and the docstring above promised to say so. Signing in
-        # runs openssl, and Apple's LibreSSL cannot do Ed25519 at all — so this
-        # is usually a PATH problem wearing the mask of a broken key. Trying
-        # again for six hours would only bury it.
+        # NOT retryable, and the docstring above promised to say so. Signing
+        # prefers Python cryptography and falls back to OpenSSL, so diagnose the
+        # interpreter before mistaking a local dependency issue for a bad key.
         print(f"cannot sign in, so there is no point retrying: {error}", file=sys.stderr, flush=True)
-        print('  check: openssl version   (LibreSSL cannot sign; use PATH="/opt/homebrew/bin:$PATH")',
-              file=sys.stderr, flush=True)
+        try:
+            import cryptography  # noqa: F401
+        except ImportError:
+            print("  this Python has no cryptography; check for Ed25519-capable OpenSSL on PATH", file=sys.stderr, flush=True)
+            print("  Apple LibreSSL cannot sign Ed25519 challenges", file=sys.stderr, flush=True)
+        else:
+            print(f"  signer interpreter: {sys.executable}", file=sys.stderr, flush=True)
         return "refused"
     if b"101" not in greeting.split(b"\r\n")[0]:
         print(f"the room refused the socket: {greeting.split(b'\r\n')[0]!r}", file=sys.stderr)

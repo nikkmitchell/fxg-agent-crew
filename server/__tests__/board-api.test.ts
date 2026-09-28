@@ -3,6 +3,9 @@ import { buildServer } from "../index.js";
 import { STATIONS } from "../../shared/space-layout.js";
 import { tempDir } from "./test-config.js";
 
+const textLimitPhrase = (value: number, limit: number) =>
+  `${value.toLocaleString()} characters; the limit is ${limit.toLocaleString()}`;
+
 /**
  * The API over saha.ing's own database.
  *
@@ -312,7 +315,7 @@ describe("what was asked, not only what changed", () => {
       payload: { description: "x".repeat(200_000) } });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json().error).toMatch(/200,000 characters; the limit is 100,000/);
+    expect(response.json().error).toContain(textLimitPhrase(200_000, 100_000));
     await app.close();
   });
 });
