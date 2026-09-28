@@ -1119,4 +1119,17 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 38,
+    name: "each room's paper cranes",
+    sql: `
+      -- The paper cranes the room has folded (shared/cranes.ts): up to a thousand, over days.
+      CREATE TABLE space_cranes (
+        room TEXT PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];

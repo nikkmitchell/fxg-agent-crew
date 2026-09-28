@@ -7,6 +7,7 @@ import type { Stick } from "../shared/incense";
 import type { Hourglass } from "../shared/hourglass";
 import type { Boat } from "../shared/boats";
 import type { Cairn, CairnChange, CairnEvent } from "../shared/cairn";
+import type { Cranes, CraneChange, CraneEvent } from "../shared/cranes";
 import type { Vase, VaseChange, VaseEvent } from "../shared/ikebana";
 import { actOnItem } from "./space/item-socket";
 import { requestJson } from "./api-request";
@@ -176,6 +177,9 @@ export const space = {
     requestJson<{ event: MandalaEvent }>(`${root}/mandala`, { method: "POST", body: JSON.stringify(change) }),
   /** The cairn, and adding or lifting a stone: see shared/cairn.ts. */
   cairn: () => requestJson<{ cairn: Cairn }>(`${root}/cairn`),
+  /** The paper cranes, and folding one (or releasing the thousand): see shared/cranes.ts. */
+  cranes: () => requestJson<{ cranes: Cranes }>(`${root}/cranes`),
+  changeCranes: (change: CraneChange) => requestJson<{ event: CraneEvent }>(`${root}/cranes`, { method: "POST", body: JSON.stringify(change) }),
   changeCairn: (change: CairnChange) => requestJson<{ event: CairnEvent }>(`${root}/cairn`, { method: "POST", body: JSON.stringify(change) }),
   /** The paper boats on the koi pond, and floating one: see shared/boats.ts. */
   boats: () => requestJson<{ boats: Boat[]; now: number }>(`${root}/boats`),

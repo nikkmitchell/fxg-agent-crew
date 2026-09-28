@@ -77,6 +77,7 @@ import { TidePool } from "./TidePool";
 import { Conch } from "./Conch";
 import { ShoreBench } from "./ShoreBench";
 import { GlowSteps } from "./GlowSteps";
+import { PaperCranes, CRANES_AT } from "./PaperCranes";
 import { Seabirds } from "./Seabirds";
 
 /** The middle of the shore corner: shore, pool, conch, bench, steps, birds. */
@@ -984,6 +985,8 @@ export default function Scene({
         {/* And a cairn the room builds stone by stone: see shared/cairn.ts. */}
         {connection.meditation?.shown && <Near at={CAIRN_AT}><CairnStones /></Near>}
         {/* And a shore where small waves come in: see Shore.tsx. */}
+        {/* A thousand paper cranes, folded together over days: see PaperCranes.tsx. */}
+        {connection.meditation?.shown && <Near at={CRANES_AT}><PaperCranes /></Near>}
         {/* The shore corner, all behind one Near (Sill's draw-call count, 5644):
             hidden from the arrival point and anywhere more than 5.5 m away. */}
         {connection.meditation?.shown && (
