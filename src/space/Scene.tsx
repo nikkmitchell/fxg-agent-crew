@@ -81,6 +81,7 @@ import { PaperCranes, CRANES_AT } from "./PaperCranes";
 import { FogMirror, FOG_AT } from "./FogMirror";
 import { StillFlower, STILL_AT } from "./StillFlower";
 import { SilenceBell } from "./SilenceBell";
+import { BreathingSilk, SILK_AT } from "./BreathingSilk";
 import { Seabirds } from "./Seabirds";
 
 /** The middle of the shore corner: shore, pool, conch, bench, steps, birds. */
@@ -993,6 +994,8 @@ export default function Scene({
         {connection.meditation?.shown && <Near at={FOG_AT} within={4}><FogMirror /></Near>}
         {connection.meditation?.shown && <Near at={STILL_AT} within={5}><StillFlower /></Near>}
         {/* Never behind Near: it listens to the whole room, and you should hear it anywhere. */}
+        {/* The silk behind the orb, breathing with the session: see BreathingSilk.tsx. */}
+        {connection.meditation?.shown && <Near at={SILK_AT} within={9}><BreathingSilk meditation={connection.meditation} /></Near>}
         {connection.meditation?.shown && <SilenceBell peopleRef={connection.peopleRef} you={you} />}
         {/* The shore corner, all behind one Near (Sill's draw-call count, 5644):
             hidden from the arrival point and anywhere more than 5.5 m away. */}
