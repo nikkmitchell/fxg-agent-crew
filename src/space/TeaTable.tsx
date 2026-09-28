@@ -82,7 +82,7 @@ export function TeaTable({ reducedMotion = false }: { reducedMotion?: boolean } 
   }, [pouredAt, read, reducedMotion]);
 
   useFrame(({ clock }) => {
-    const frame = teaPourFrame(pouredAt, Date.now(), reducedMotion || snappedPourAt.current === pouredAt);
+    const frame = teaPourFrame(pouredAt, Date.now(), reducedMotion, snappedPourAt.current);
     if (tea.current) {
       tea.current.visible = frame.fill > 0.02;
       tea.current.scale.y = Math.max(0.01, frame.fill);

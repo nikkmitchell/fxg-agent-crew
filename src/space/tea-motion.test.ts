@@ -15,6 +15,11 @@ describe("tea table motion", () => {
     expect(teaPourFrame(1_000, 1_001, true)).toEqual({ fill: 1, pouring: false, complete: true });
   });
 
+  it("keeps an already-snapped pour still if the preference is turned back off", () => {
+    expect(teaPourFrame(1_000, 1_001, false, 1_000)).toEqual({ fill: 1, pouring: false, complete: true });
+    expect(teaPourFrame(2_000, 2_001, false, 1_000)).toEqual({ fill: 1 / TEA_POUR_MS, pouring: true, complete: false });
+  });
+
   it("does not show time reversal as a negative pour", () => {
     expect(teaPourFrame(2_000, 1_000, false)).toEqual({ fill: 0, pouring: true, complete: false });
   });

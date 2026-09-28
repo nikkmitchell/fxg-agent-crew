@@ -7,9 +7,14 @@ export type TeaPourFrame = {
 };
 
 /** Resolve the visible pour, snapping it to completion for reduced-motion users. */
-export function teaPourFrame(pouredAt: number | null, now: number, reducedMotion: boolean): TeaPourFrame {
+export function teaPourFrame(
+  pouredAt: number | null,
+  now: number,
+  reducedMotion: boolean,
+  snappedAt: number | null = null,
+): TeaPourFrame {
   if (pouredAt === null) return { fill: 0, pouring: false, complete: false };
-  if (reducedMotion) return { fill: 1, pouring: false, complete: true };
+  if (reducedMotion || snappedAt === pouredAt) return { fill: 1, pouring: false, complete: true };
 
   const elapsed = Math.max(0, now - pouredAt);
   return {
