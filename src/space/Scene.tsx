@@ -626,7 +626,7 @@ export default function Scene({
   const { dark } = useRoomPreferences();
   const you = connection.status.state === "open" ? connection.status.you : null;
   // The guide board's toggles: which pieces this room has turned off (shared/room-pieces.ts).
-  const hiddenPieces = useHiddenPieces();
+  const hiddenPieces = useHiddenPieces(`${connection.status.state}:${spaceRoomName ?? ""}`);
   const on = (name: string) => !hiddenPieces.hidden.has(name);
   /**
    * The WebHarness room, read ONCE for the whole scene.
@@ -1022,7 +1022,7 @@ export default function Scene({
         {connection.meditation?.shown && <MindfulnessBell meditation={connection.meditation} />}
         {connection.meditation?.shown && on("Labyrinth") && <Near at={LABYRINTH} within={9}><Labyrinth /></Near>}
         {connection.meditation?.shown && on("Tea table") && <Near at={floorOf(TEA_AT)}><TeaTable /></Near>}
-        {connection.meditation?.shown && <RoomGuideSign />}
+        {connection.meditation?.shown && <RoomGuideSign hidden={hiddenPieces.hidden} />}
         {/* Optional practices: drafts stay local; shared cards require confirmation. */}
         {connection.meditation?.shown && on("Practice panel") && <MindfulnessPanel subscribe={connection.subscribe} />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
