@@ -347,6 +347,18 @@ export const READINGS = {
       "Take your time. Wander. Sit. Nothing here needs to be finished.",
     ],
   },
+  /** The welcome, for a browser whose language is Chinese. */
+  "welcome-zh": {
+    title: "欢迎",
+    by: "Sill, for meditation.AR (2026)",
+    voice: "zf_xiaoxiao",
+    lines: [
+      "欢迎来到冥想室。在这里，没有对或错的方式。",
+      "你面前发光的光球在呼吸。跟着它呼吸，或者在它下面开始一段引导冥想。",
+      "左边的牌子上列出了房间里的一切，以及往哪里走。",
+      "慢慢来。四处走走，坐一坐。这里没有什么需要完成。",
+    ],
+  },
   /** Read at the tea table (src/space/TeaTable.tsx), not on the stone's list. */
   tea: {
     title: "A cup of tea",

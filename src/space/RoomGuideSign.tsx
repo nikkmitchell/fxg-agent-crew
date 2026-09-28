@@ -24,12 +24,14 @@ function useWelcome() {
   const [line, setLine] = useState<number | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const base = useRef("");
-  const lines = READINGS.welcome.lines;
+  // In Mandarin for a browser set to Chinese: the room is used from Shanghai.
+  const id = typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh") ? "welcome-zh" : "welcome";
+  const lines = READINGS[id].lines;
   const read = (index: number) => {
     audio.current?.pause();
     if (index >= lines.length) { setLine(null); audio.current = null; return; }
     setLine(index);
-    const next = new Audio(`${base.current}/bff/space/readings/welcome/${index}/audio`);
+    const next = new Audio(`${base.current}/bff/space/readings/${id}/${index}/audio`);
     audio.current = next;
     next.onended = () => { window.setTimeout(() => { if (audio.current === next) read(index + 1); }, 1200); };
     next.onerror = () => { window.setTimeout(() => { if (audio.current === next) read(index + 1); }, 5000); };

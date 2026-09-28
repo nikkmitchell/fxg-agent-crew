@@ -32,7 +32,7 @@ function StoneButton({ label, at, onTap, width = 0.2 }: { label: string; at: [nu
 }
 
 /** The tea practice is read at the tea table, and the welcome at the guide sign, not here. */
-const ON_THE_STONE = READING_IDS.filter((id) => id !== "tea" && id !== "welcome");
+const ON_THE_STONE = READING_IDS.filter((id) => id !== "tea" && id !== "welcome" && id !== "welcome-zh");
 
 export function ReadingStone() {
   const [pick, setPick] = useState(0);
