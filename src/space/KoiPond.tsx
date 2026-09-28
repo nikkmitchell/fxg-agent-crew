@@ -93,34 +93,63 @@ function plop(level: number): void {
   osc.stop(at + 0.3);
 }
 
-function Koi({ index, fish }: { index: number; fish: MutableRefObject<(THREE.Group | null)[]> }) {
-  const koi = KOI[index];
-  const tail = useRef<THREE.Mesh>(null);
+/**
+ * The five koi, drawn as three instanced meshes (bodies, patches, tails)
+ * instead of fifteen (Nightjar's draw-call count, 2026-09-28). Each fish's
+ * place and heading come from its anchor group, which KoiPond moves.
+ */
+function KoiSchool({ fish }: { fish: MutableRefObject<(THREE.Group | null)[]> }) {
+  const bodies = useRef<THREE.InstancedMesh>(null);
+  const patches = useRef<THREE.InstancedMesh>(null);
+  const tails = useRef<THREE.InstancedMesh>(null);
+  const parts = useMemo(() => {
+    const at = (x: number, y: number, z: number, sx: number, sy: number, sz: number) =>
+      new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion(), new THREE.Vector3(sx, sy, sz));
+    return {
+      body: at(0, 0, 0, 0.028, 0.02, 0.075),
+      patch: at(0, 0.012, 0.012, 0.02, 0.01, 0.035),
+      tailBase: new THREE.Matrix4().makeTranslation(0, 0, -0.075),
+      // The cone stands on its base, laid along the fish and flattened.
+      tailShape: new THREE.Matrix4().makeRotationX(Math.PI / 2).multiply(at(0, 0.03, 0, 1, 1, 0.25)),
+    };
+  }, []);
+  const wag = useMemo(() => new THREE.Matrix4(), []);
+  const out = useMemo(() => new THREE.Matrix4(), []);
+  useEffect(() => {
+    KOI.forEach((koi, index) => {
+      bodies.current?.setColorAt(index, new THREE.Color(koi.body));
+      patches.current?.setColorAt(index, new THREE.Color(koi.patch));
+      tails.current?.setColorAt(index, new THREE.Color(koi.body));
+    });
+    for (const mesh of [bodies.current, patches.current, tails.current]) if (mesh?.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, []);
   useFrame((state) => {
-    if (tail.current) tail.current.rotation.y = Math.sin(state.clock.elapsedTime * 6 + index) * 0.45;
+    KOI.forEach((_, index) => {
+      const anchor = fish.current[index];
+      if (!anchor) return;
+      anchor.updateMatrix();
+      bodies.current?.setMatrixAt(index, out.multiplyMatrices(anchor.matrix, parts.body));
+      patches.current?.setMatrixAt(index, out.multiplyMatrices(anchor.matrix, parts.patch));
+      wag.makeRotationY(Math.sin(state.clock.elapsedTime * 6 + index) * 0.45);
+      tails.current?.setMatrixAt(index, out.copy(anchor.matrix).multiply(parts.tailBase).multiply(wag).multiply(parts.tailShape));
+    });
+    for (const mesh of [bodies.current, patches.current, tails.current]) if (mesh) mesh.instanceMatrix.needsUpdate = true;
   });
   return (
-    <group ref={(node) => { fish.current[index] = node; }} scale={koi.size * 1.45}>
-      {/* The body: a long, slightly flattened egg. */}
-      <mesh scale={[0.028, 0.02, 0.075]} raycast={() => null}>
+    <>
+      <instancedMesh ref={bodies} args={[undefined, undefined, KOI.length]} raycast={() => null} frustumCulled={false}>
         <sphereGeometry args={[1, 16, 12]} />
-        <meshStandardMaterial color={koi.body} roughness={0.45} />
-      </mesh>
-      {/* A patch of the second colour on the back. */}
-      <mesh position={[0, 0.012, 0.012]} scale={[0.02, 0.01, 0.035]} raycast={() => null}>
+        <meshStandardMaterial roughness={0.45} />
+      </instancedMesh>
+      <instancedMesh ref={patches} args={[undefined, undefined, KOI.length]} raycast={() => null} frustumCulled={false}>
         <sphereGeometry args={[1, 12, 8]} />
-        <meshStandardMaterial color={koi.patch} roughness={0.45} />
-      </mesh>
-      {/* The tail, which swishes. */}
-      <mesh ref={tail} position={[0, 0, -0.075]} raycast={() => null}>
-        <group rotation-x={Math.PI / 2}>
-          <mesh position={[0, 0.03, 0]} scale={[1, 1, 0.25]}>
-            <coneGeometry args={[0.028, 0.06, 8]} />
-            <meshStandardMaterial color={koi.body} roughness={0.5} transparent opacity={0.9} />
-          </mesh>
-        </group>
-      </mesh>
-    </group>
+        <meshStandardMaterial roughness={0.45} />
+      </instancedMesh>
+      <instancedMesh ref={tails} args={[undefined, undefined, KOI.length]} raycast={() => null} frustumCulled={false}>
+        <coneGeometry args={[0.028, 0.06, 8]} />
+        <meshStandardMaterial roughness={0.5} transparent opacity={0.9} />
+      </instancedMesh>
+    </>
   );
 }
 
@@ -233,9 +262,11 @@ export function KoiPond({ peopleRef }: { peopleRef: MutableRefObject<WirePerson[
           <meshStandardMaterial color="#3f7a45" roughness={0.7} side={THREE.DoubleSide} />
         </mesh>
       ))}
-      {KOI.map((_, index) => (
-        <Koi key={index} index={index} fish={fish} />
+      {/* Each koi's anchor: KoiPond moves it, KoiSchool draws the fish there. */}
+      {KOI.map((koi, index) => (
+        <group key={index} ref={(node) => { fish.current[index] = node; }} scale={koi.size * 1.45} />
       ))}
+      <KoiSchool fish={fish} />
       {/* THE WATER: a ray or a click on it rings it too. */}
       <mesh
         position={[0, WATER, 0]}

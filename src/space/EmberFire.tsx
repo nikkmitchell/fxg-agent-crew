@@ -7,6 +7,7 @@ import { onOffering } from "./fire-events";
 import { crackle, fireLevel, rumble, whoosh } from "./fire-sound";
 import { WristButton } from "./Backdrop";
 import { Typing3D } from "./Typing3D";
+import { Near } from "./Near";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
 
@@ -246,6 +247,9 @@ export function EmberFire({ you }: { you: string | null }) {
       {/* THE SIGN: a few words to tap, or your own. */}
       <group position={[Math.sin(facing) * 0.1 - Math.cos(facing) * 0.7, 1.05, Math.cos(facing) * 0.1 + Math.sin(facing) * 0.7]} rotation={[0, facing, 0]}>
         <WristButton label="LET SOMETHING GO" y={0.2} width={0.62} height={0.08} lines={1} textSize={0.5} tone="muted" passThrough onTap={() => {}} />
+        {/* The words come in as you walk up: from further off they are about 25
+            draw calls nobody can tap (Sill's count, 5644). */}
+        <Near at={FIRE_AT} within={1.8}>
         {READY_WORDS.map((word, index) => (
           <WristButton
             key={word}
@@ -261,6 +265,7 @@ export function EmberFire({ you }: { you: string | null }) {
         ))}
         <WristButton label="my own word…" y={-0.17} width={0.4} height={0.07} lines={1} textSize={0.42} tone="live" onTap={() => setWriting(true)} />
         {note ? <WristButton label={note} y={-0.26} width={0.62} height={0.07} tone="muted" onTap={() => setNote(null)} /> : null}
+        </Near>
         {writing ? (
           <Typing3D
             prompt="A word to let go of. Everyone here sees it burn; nothing is kept."
