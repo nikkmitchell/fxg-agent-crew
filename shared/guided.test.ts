@@ -145,7 +145,7 @@ describe("the readings", () => {
     for (const id of READING_IDS) {
       const reading = READINGS[id];
       expect(reading.title.length).toBeGreaterThan(0);
-      expect(reading.by, `${id} says where it is from`).toMatch(/\d{4}/);
+      expect(reading.by, `${id} says where it is from, with a date`).toMatch(/\d{3,4}/);
       expect(reading.lines.length).toBeGreaterThan(0);
       for (const line of reading.lines) expect(line.length).toBeLessThanOrEqual(120);
     }

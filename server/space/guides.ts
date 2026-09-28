@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
-import { GUIDES, GUIDE_VOICE, READINGS, guideVoice, isGuide, isReading } from "../../shared/guided.js";
+import { GUIDES, GUIDE_VOICE, READINGS, guideVoice, isGuide, isReading, readingVoice, type ReadingId } from "../../shared/guided.js";
 import type { SpeechCache } from "./speak.js";
 
 /**
@@ -49,7 +49,8 @@ export function registerGuideRoutes(
 
   speakLine("/bff/space/guides/:id/:line/audio", (id, index) => (isGuide(id) ? GUIDES[id].lines[index]?.say ?? null : null),
     (id) => (isGuide(id) ? guideVoice(id) : GUIDE_VOICE));
-  speakLine("/bff/space/readings/:id/:line/audio", (id, index) => (isReading(id) ? READINGS[id].lines[index] ?? null : null));
+  speakLine("/bff/space/readings/:id/:line/audio", (id, index) => (isReading(id) ? READINGS[id].lines[index] ?? null : null),
+    (id) => (isReading(id) ? readingVoice(id) : GUIDE_VOICE));
 }
 
 /**
@@ -65,7 +66,7 @@ export async function voiceAllGuides(speech: SpeechCache, log: (message: string)
   let made = 0;
   const lines: Array<[string, string]> = [
     ...(Object.keys(GUIDES) as Array<keyof typeof GUIDES>).flatMap((id) => GUIDES[id].lines.map((line): [string, string] => [line.say, guideVoice(id)])),
-    ...Object.values(READINGS).flatMap((reading) => reading.lines.map((line): [string, string] => [line, GUIDE_VOICE])),
+    ...(Object.keys(READINGS) as ReadingId[]).flatMap((id) => READINGS[id].lines.map((line): [string, string] => [line, readingVoice(id)])),
   ];
   for (const [text, voice] of lines) {
     if (await speech.ensure(text, voice)) made += 1;

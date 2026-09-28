@@ -21,3 +21,21 @@ describe("the room guide", () => {
     for (const one of ROOM_GUIDE) expect(one.what.length).toBeLessThanOrEqual(40);
   });
 });
+
+describe("nothing stands on anything else", () => {
+  // Checked side by side in the test room and fine: a small pot beside a plinth.
+  const neighbours = new Set(["Stillness tree / Reading stone"]);
+  it("keeps pieces 0.6 m apart, which would have caught the panel landing on the incense (0.3 m) and the prayer wheel (0.5 m)", () => {
+    const tooClose: string[] = [];
+    ROOM_GUIDE.forEach((a, i) => ROOM_GUIDE.slice(i + 1).forEach((b) => {
+      const pair = `${a.name} / ${b.name}`;
+      if (neighbours.has(pair)) return;
+      const apart = Math.hypot(a.x - b.x, a.z - b.z);
+      // The labyrinth is a drawing on the floor that people walk on: only its path matters.
+      const labyrinth = a.name === "Labyrinth" || b.name === "Labyrinth";
+      const gap = labyrinth ? apart - 1.45 : apart;
+      if (gap < (labyrinth ? 0.15 : 0.6)) tooClose.push(`${pair}: ${gap.toFixed(2)} m`);
+    }));
+    expect(tooClose).toEqual([]);
+  });
+});
