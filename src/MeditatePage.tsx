@@ -15,6 +15,29 @@ import { base } from "./router";
  * from a phone on the bus. Solo: the room's shared clock is for being there
  * together; this one starts when you press it.
  */
+/** The page's own words, in Chinese for a browser set to Chinese (the room is used from Shanghai). */
+const WORDS = {
+  en: {
+    title: "Guided meditations",
+    intro: "The same guides as the breathing orb in meditation.AR, spoken in the room\u2019s own voice. Put the phone down, breathe with the circle.",
+    running: "A session is running in the room right now", join: "Join it", voice: "Voice",
+    begin: "Begin", again: "Again", done: (minutes: number) => `Well done. ${minutes} minutes.`,
+    voiceless: "The voice could not be loaded (are you signed in?). The captions will still guide you.",
+    left: "left", withRoom: "with the room", end: "End",
+    phase: PHASE_WORDS,
+  },
+  zh: {
+    title: "引导冥想",
+    intro: "和 meditation.AR 里呼吸光球一样的引导，用房间自己的声音朗读。放下手机，跟着圆圈呼吸。",
+    running: "房间里现在正在进行一段冥想", join: "加入", voice: "声音",
+    begin: "开始", again: "再来一次", done: (minutes: number) => `做得很好。${minutes} 分钟。`,
+    voiceless: "声音无法加载（你登录了吗？）。字幕仍会引导你。",
+    left: "剩余", withRoom: "与房间一起", end: "结束",
+    phase: { in: "吸气", hold: "屏息", out: "呼气", rest: "休息" },
+  },
+} as const;
+const words = typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh") ? WORDS.zh : WORDS.en;
+
 export function MeditatePage() {
   const [guide, setGuide] = useState<GuideId>("arrive");
   const [voice, setVoice] = useState<GuideVoiceChoice>(() => {
@@ -121,16 +144,16 @@ export function MeditatePage() {
   const left = running ? Math.ceil(breath.remaining) : 0;
 
   return (
-    <section className="meditate-page" aria-label="Guided meditations">
-      <h1>Guided meditations</h1>
+    <section className="meditate-page" aria-label={words.title}>
+      <h1>{words.title}</h1>
       <p className="muted-note">
-        The same guides as the breathing orb in meditation.AR, spoken in the room&rsquo;s own voice. Put the phone down, breathe with the circle.
+        {words.intro}
       </p>
 
       {!running && roomRunning && (
         <p className="meditate-room" role="status">
-          A session is running in the room right now{roomRunning.guide && isGuide(roomRunning.guide) ? ` (${GUIDES[roomRunning.guide].label})` : ""}.{" "}
-          <button type="button" className="primary-action" onClick={join}>Join it</button>
+          {words.running}{roomRunning.guide && isGuide(roomRunning.guide) ? ` (${GUIDES[roomRunning.guide].label})` : ""}.{" "}
+          <button type="button" className="primary-action" onClick={join}>{words.join}</button>
         </p>
       )}
       {!running ? (
@@ -145,7 +168,7 @@ export function MeditatePage() {
           </div>
           {!(GUIDES[guide] as { voice?: string }).voice && (
             <label className="meditate-voice">
-              Voice{" "}
+              {words.voice}{" "}
               <select value={voice} onChange={(event) => {
                 const next = event.target.value;
                 if (!isGuideVoiceChoice(next)) return;
@@ -156,17 +179,17 @@ export function MeditatePage() {
               </select>
             </label>
           )}
-          <button type="button" className="primary-action" onClick={start}>{done ? "Again" : "Begin"}</button>
-          {done && <p>Well done. {GUIDES[guide].minutes} minutes.</p>}
+          <button type="button" className="primary-action" onClick={start}>{done ? words.again : words.begin}</button>
+          {done && <p>{words.done(GUIDES[guide].minutes)}</p>}
         </>
       ) : (
         <div className="meditate-now">
           <div className="meditate-circle" aria-hidden="true" style={{ width: size, height: size }} />
-          <p className="meditate-phase">{PHASE_WORDS[breath.phase]}</p>
+          <p className="meditate-phase">{words.phase[breath.phase]}</p>
           <p className="meditate-caption" aria-live="polite">{caption ?? " "}</p>
-          {voiceless && <p className="muted-note" role="status">The voice could not be loaded (are you signed in?). The captions will still guide you.</p>}
-          <p className="muted-note">{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} left · {label}{joined ? " · with the room" : ""}</p>
-          <button type="button" className="text-button" onClick={stop}>End</button>
+          {voiceless && <p className="muted-note" role="status">{words.voiceless}</p>}
+          <p className="muted-note">{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} {words.left} · {label}{joined ? ` · ${words.withRoom}` : ""}</p>
+          <button type="button" className="text-button" onClick={stop}>{words.end}</button>
         </div>
       )}
     </section>
