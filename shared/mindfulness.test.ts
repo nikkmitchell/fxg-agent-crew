@@ -38,7 +38,8 @@ describe("the room's optional mindfulness practices", () => {
     const preview = texts({ id: "bright-spot", step: 2, complete: false, note: "tea with a friend" }, "share-preview").join(" ");
     expect(preview).toContain("tea with a friend");
     expect(preview).toContain("Everyone in this room can read this card");
-    expect(preview).toContain("stays here between sessions");
+    expect(preview).toContain("until you remove it");
+    expect(preview).toContain("does not expire");
     const painted = paintMindfulness(EMPTY_MINDFULNESS, measure, { screen: "share-preview" });
     expect(painted.targets.map((target) => target.id)).toEqual(["cancel-share", "confirm-share"]);
   });
@@ -57,9 +58,20 @@ describe("the room's optional mindfulness practices", () => {
     });
     const ink = painted.ink.flatMap((item) => item.kind === "text" ? [item.text] : []).join(" ");
     expect(ink).toContain("A quiet cup of tea");
-    expect(ink).toContain("kept between sessions");
+    expect(ink).toContain("no expiry");
     expect(ink).not.toContain("false");
     expect(painted.targets.some((target) => target.id === "remove-card")).toBe(false);
+    const stamp = painted.ink.find((item) => item.kind === "text" && item.text.startsWith("Shared ·"));
+    expect(stamp?.kind === "text" ? stamp.text : "").not.toContain(":");
+  });
+
+  it("gives XR pointer users a visible hover and pressed state", () => {
+    const base = paintMindfulness(EMPTY_MINDFULNESS, measure);
+    const hovered = paintMindfulness(EMPTY_MINDFULNESS, measure, { hoveredTarget: "choose:grounding" });
+    const pressed = paintMindfulness(EMPTY_MINDFULNESS, measure, { pressedTarget: "choose:grounding" });
+    expect(base.ink.some((item) => item.kind === "rect" && item.fill === "#b2c4de")).toBe(false);
+    expect(hovered.ink.some((item) => item.kind === "rect" && item.fill === "#b2c4de")).toBe(true);
+    expect(pressed.ink.some((item) => item.kind === "rect" && item.fill === "#8ca8cb")).toBe(true);
   });
 
   it("previews the exact card again before its writer removes it", () => {

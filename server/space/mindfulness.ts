@@ -71,7 +71,7 @@ export class RoomMindfulnessCards {
 /**
  * GET    /bff/space/mindfulness                 latest page of room cards
  * GET    /bff/space/mindfulness?before=<cursor> older page
- * POST   /bff/space/mindfulness                 explicitly share one sentence
+ * POST   /bff/space/mindfulness                 explicitly share a short reflection
  * DELETE /bff/space/mindfulness/:id             remove only the writer's card
  *
  * Draft text never reaches this route until the writer confirms the exact
@@ -106,7 +106,7 @@ export function registerMindfulnessRoutes(app: FastifyInstance, deps: {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const text = normalizeMindfulnessText(request.body?.text);
-    if (!text) return reply.code(400).send({ code: "BAD_CARD", error: "Write one sentence of up to 240 characters." });
+    if (!text) return reply.code(400).send({ code: "BAD_CARD", error: "A shared reflection can be up to 240 characters." });
     const room = spaceRoomOf(session);
     const result = deps.cards.share(room, session.username, text, now());
     if ("refused" in result) return reply.code(429).send({ code: "SHARE_LIMIT", error: result.refused });

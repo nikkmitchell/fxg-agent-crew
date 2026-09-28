@@ -59,7 +59,9 @@ describe("shared mindfulness page", () => {
   it("rejects blank or oversized text and limits repeated sharing", async () => {
     const { app, as } = await boot();
     const writer = as("Inkstone", "meditation.AR");
-    expect((await call(app, writer, "POST", "/bff/space/mindfulness", { text: "  " })).statusCode).toBe(400);
+    const blank = await call(app, writer, "POST", "/bff/space/mindfulness", { text: "  " });
+    expect(blank.statusCode).toBe(400);
+    expect(blank.json().error).toContain("reflection");
     expect((await call(app, writer, "POST", "/bff/space/mindfulness", { text: "x".repeat(241) })).statusCode).toBe(400);
     for (let i = 0; i < 8; i += 1) {
       expect((await call(app, writer, "POST", "/bff/space/mindfulness", { text: `Card ${i}` })).statusCode).toBe(201);
