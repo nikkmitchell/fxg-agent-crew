@@ -84,6 +84,14 @@ import { ReadingStone } from "./ReadingStone";
 import { CandleShelf } from "./CandleShelf";
 import { RoomBook } from "./RoomBook";
 import { MindfulnessBell } from "./MindfulnessBell";
+import { TREE_AT } from "./StillnessTree";
+import { READING_AT } from "./ReadingStone";
+import { SHELF_AT } from "./CandleShelf";
+import { BOOK_AT } from "./RoomBook";
+import { TEA_AT } from "./TeaTable";
+import { LABYRINTH } from "../../shared/labyrinth";
+/** [x, y, z] as the floor place Near measures from. */
+const floorOf = ([x, , z]: readonly [number, number, number]) => ({ x, z });
 import { Labyrinth } from "./Labyrinth";
 import { TeaTable } from "./TeaTable";
 import { RoomGuideSign } from "./RoomGuideSign";
@@ -950,13 +958,13 @@ export default function Scene({
         {connection.meditation?.shown && <SittingPlaces peopleRef={connection.peopleRef} />}
         {/* And a nebula to put your hands in: see Nebula.tsx. */}
         {connection.meditation?.shown && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} /></Near>}
-        {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} />}
-        {connection.meditation?.shown && <ReadingStone />}
-        {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
-        {connection.meditation?.shown && <RoomBook history={connection.meditation.history} />}
+        {connection.meditation?.shown && <Near at={floorOf(TREE_AT)}><StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} /></Near>}
+        {connection.meditation?.shown && <Near at={floorOf(READING_AT)}><ReadingStone /></Near>}
+        {connection.meditation?.shown && <Near at={floorOf(SHELF_AT)}><CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} /></Near>}
+        {connection.meditation?.shown && <Near at={floorOf(BOOK_AT)}><RoomBook history={connection.meditation.history} /></Near>}
         {connection.meditation?.shown && <MindfulnessBell meditation={connection.meditation} />}
-        {connection.meditation?.shown && <Labyrinth />}
-        {connection.meditation?.shown && <TeaTable />}
+        {connection.meditation?.shown && <Near at={LABYRINTH} within={9}><Labyrinth /></Near>}
+        {connection.meditation?.shown && <Near at={floorOf(TEA_AT)}><TeaTable /></Near>}
         {connection.meditation?.shown && <RoomGuideSign />}
         {/* Optional practices: drafts stay local; shared cards require confirmation. */}
         {connection.meditation?.shown && <MindfulnessPanel subscribe={connection.subscribe} />}
