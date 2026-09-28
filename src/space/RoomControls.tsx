@@ -23,6 +23,7 @@ import {
 } from "./touch-press";
 import { goHandInput } from "./go-hand-input";
 import { micGlyph, micPress } from "./mic-press";
+import { statusLineActionable } from "./touch-press";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
 import { controllersInUse, micGestureHands, micGestureIndicator } from "./mic-gesture-input";
 import {
@@ -183,6 +184,13 @@ const UPDATE_LINE = "New version ready — press here to update";
 
 /** Good news goes by itself; a problem stays until it is tapped away. */
 const NOTICE_FADE_MS = 5_000;
+/**
+ * NOTHING STAYS FOR EVER (Nikk, 2026-09-28): "make sure none of those update
+ * messages stay too long". A failure stays longer than news, so it can be
+ * read, and then it goes too; a voice problem also goes once voice has had
+ * its chance to heal itself (useVoiceChat's self-healing).
+ */
+const NOTICE_STAY_MS = 12_000;
 
 const EASE = 0.12;
 /**
@@ -407,6 +415,14 @@ export function RoomControls({
     return () => holdDraft("written-draft", false);
   }, [written]);
   const [notice, setNotice] = useState<string | null>(null);
+  /** A voice problem shows for NOTICE_STAY_MS, then goes; a new problem shows again. */
+  const [troubleShown, setTroubleShown] = useState(false);
+  useEffect(() => {
+    if (!voice.trouble) return setTroubleShown(false);
+    setTroubleShown(true);
+    const timer = window.setTimeout(() => setTroubleShown(false), NOTICE_STAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [voice.trouble]);
   /**
    * A NOTICE THAT GOES BY ITSELF. Nikk: "after you send it has a message that
    * says sent into the group but that message never disappears... [it] should
@@ -427,6 +443,12 @@ export function RoomControls({
   useEffect(() => () => {
     if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
   }, []);
+  // Any notice, however it was set, goes after NOTICE_STAY_MS at the most.
+  useEffect(() => {
+    if (notice === null) return;
+    const timer = window.setTimeout(() => setNotice((current) => (current === notice ? null : current)), NOTICE_STAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   const [sending, setSending] = useState(false);
   /** Pressing ✕ while a send is in flight: see send-timeout.ts. */
   const sendStop = useRef<AbortController | null>(null);
@@ -1221,7 +1243,7 @@ export function RoomControls({
     voice: {
       on: voice.on,
       starting: voice.starting,
-      others: voice.others,
+      others: voice.hearable,
       isMuted: (name) => voice.muted.has(name.trim().toLowerCase()),
       setOn: (on) => {
         rememberSelfMute(!on);
@@ -1397,12 +1419,20 @@ export function RoomControls({
   const said =
     notice ??
     recordingStatus ??
-    voice.trouble ??
+    (troubleShown ? voice.trouble : null) ??
     (keyboardFocused ? null : draftPreview) ??
     (newVersion ? UPDATE_LINE : null);
   // THE UPDATE LINE IS A BUTTON (Nikk, desktop chat): "say click here to update,
   // and allow it to be clickable or pressable" — by a ray, a pinch, or a fingertip.
   const updateOffered = said === UPDATE_LINE;
+  /**
+   * ONLY PRESSABLE WHEN PRESSING DOES SOMETHING (Nikk, 2026-09-28): the line
+   * "is still clickable so it gets in the way of clicking on things". The
+   * update offer and a draft you can open to fix are actions; "sent",
+   * "cancelled", a failure or a status are words to read, and a ray or a
+   * fingertip passes straight through them to whatever is behind.
+   */
+  const lineActionable = statusLineActionable({ updateOffered, showingDraft: said !== null && said === draftPreview && !recordingStatus && !sending });
   updateOfferedNow.current = updateOffered && !open && !fixing;
   /** Something a cancel button can throw away: a recording, words waiting, or a written draft. */
   const cancellable =
@@ -1748,18 +1778,18 @@ export function RoomControls({
           // it "can be like touched with your cursor. We don't need that, that
           // should be see-through for your cursor". A notice or a draft stays
           // pressable, since pressing those does something.
-          passThrough={Boolean(recordingStatus) || sending}
+          passThrough={!lineActionable}
           y={open ? -menuHalfHeight - 0.08 : -ICON / 2 - 0.035 - STATUS.height / 2}
           width={open ? 0.9 : STATUS.width}
           height={open ? WRIST_BUTTON.height : STATUS.height}
           onTap={() => {
             // Tapping the draft adds to it; tapping a notice dismisses it. The
             // recording status is not a notice and a tap does nothing to it.
+            if (!lineActionable) return;
             if (updateOffered) reloadNow();
-            else if (notice || voice.trouble) setNotice(null);
             // THE WHOLE DRAFT, TO FIX — not the Quest keyboard, which opens
             // empty and can only add to it.
-            else if (draftPreview && !recordingStatus) startFixing();
+            else startFixing();
           }}
         />
       ) : null}

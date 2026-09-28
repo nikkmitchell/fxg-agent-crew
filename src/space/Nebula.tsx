@@ -62,7 +62,7 @@ const fragment = /* glsl */ `
   varying float vFade;
   void main() {
     vec2 c = gl_PointCoord - 0.5;
-    float soft = smoothstep(0.5, 0.0, length(c));
+    float soft = (1.0 - smoothstep(0.0, 0.5, length(c)));
     gl_FragColor = vec4(vColour * soft * vFade, soft * vFade);
   }
 `;
