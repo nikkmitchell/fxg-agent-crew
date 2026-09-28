@@ -65,6 +65,7 @@ import { FloorHarp } from "./FloorHarp";
 import { Moon } from "./Moon";
 import { SittingPlaces } from "./SittingPlaces";
 import { Near } from "./Near";
+import { Nebula, NEBULA_AT } from "./Nebula";
 import { BOWLS_AT } from "./SingingBowls";
 import { GARDEN_AT } from "./GardenTray";
 import { FIRE_AT } from "./EmberFire";
@@ -947,6 +948,8 @@ export default function Scene({
         {connection.meditation?.shown && <Moon />}
         {/* And cushions to sit on, and who is sitting: see SittingPlaces.tsx. */}
         {connection.meditation?.shown && <SittingPlaces peopleRef={connection.peopleRef} />}
+        {/* And a nebula to put your hands in: see Nebula.tsx. */}
+        {connection.meditation?.shown && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} /></Near>}
         {connection.meditation?.shown && <StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} />}
         {connection.meditation?.shown && <ReadingStone />}
         {connection.meditation?.shown && <CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} />}
