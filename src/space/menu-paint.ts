@@ -366,6 +366,34 @@ export function paintMenu(context: CanvasRenderingContext2D, layout: MenuLayout,
   context.stroke();
   context.restore();
 
+  // MOVE, a round four-way arrow beside close: hold it and point to carry the menu.
+  const moveState = stateOf("move", hover, pressed);
+  const m = layout.move;
+  const mx = m.x + m.width / 2;
+  const my = m.y + m.height / 2;
+  context.beginPath();
+  context.arc(mx, my, m.width / 2, 0, Math.PI * 2);
+  context.fillStyle = moveState === "pressed" ? MENU_INK.pressed : moveState === "hover" ? MENU_INK.controlHover : MENU_INK.control;
+  context.fill();
+  context.save();
+  context.strokeStyle = MENU_INK.text;
+  context.lineWidth = 4;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.beginPath();
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const tipX = mx + dx * 14;
+    const tipY = my + dy * 14;
+    context.moveTo(mx, my);
+    context.lineTo(tipX, tipY);
+    // The arrowhead: two short strokes back from the tip.
+    context.moveTo(tipX - dx * 5 + dy * 5, tipY - dy * 5 + dx * 5);
+    context.lineTo(tipX, tipY);
+    context.lineTo(tipX - dx * 5 - dy * 5, tipY - dy * 5 - dx * 5);
+  }
+  context.stroke();
+  context.restore();
+
   // SECTIONS: a caption over a grouped list.
   for (const column of layout.columns) {
     if (column.title) {
