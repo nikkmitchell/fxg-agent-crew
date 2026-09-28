@@ -15,6 +15,7 @@ import { useViewer } from "./use-session";
 import SignIn, { CannotTell } from "./SignIn";
 import { Join } from "./Join";
 import { ProfilesPage } from "./ProfilesPage";
+import { MeditatePage } from "./MeditatePage";
 import { board } from "./board-client";
 import { bff } from "./bff-client";
 import { startUpdateReload } from "./update-reload";
@@ -74,6 +75,7 @@ const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" |
   chat: { label: "Rooms", glyph: "chat" },
   join: { label: "Joining", glyph: "room" },
   profiles: { label: "People", glyph: "grid" },
+  meditate: { label: "Meditate", glyph: "clock" },
 };
 
 /**
@@ -137,6 +139,8 @@ function TabContent({
       ) : null}
 
       {tab === "build" ? <BuildPanel /> : null}
+      {/* The guided meditations without a headset (shared/guided.ts). */}
+      {tab === "meditate" ? <MeditatePage /> : null}
 
       {tab === "said" ? <SaidPanel /> : null}
 
