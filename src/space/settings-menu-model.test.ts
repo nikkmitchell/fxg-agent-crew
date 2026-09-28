@@ -101,6 +101,23 @@ describe("what each settings tab holds", () => {
     expect(titles(settingsSections(input("root", { recorder })))).toContain("Avatar recording");
   });
 
+  it("offers publishing and first-visit playback in the headset menu", () => {
+    const publish = vi.fn(), playWelcome = vi.fn(), skipWelcome = vi.fn();
+    const recorder = {
+      status: "idle" as const, showPersonalUi: false, hasTake: true, playing: false, notice: null,
+      start: noop, stop: noop, setShowPersonalUi: noop, play: noop, stopPlayback: noop, discard: noop,
+      canPublish: true, publishedMine: false, hasPublished: true, welcomeCompleted: false,
+      publish, unpublish: noop, playWelcome, skipWelcome,
+    };
+    const rows = settingsSections(input("root", { recorder })).find((section) => section.title === "Avatar recording")!.rows;
+    (rows.find((row) => row.label === "Publish welcome tutorial") as { onTap: () => void }).onTap();
+    (rows.find((row) => row.label === "Play welcome tutorials") as { onTap: () => void }).onTap();
+    (rows.find((row) => row.label === "Skip welcome") as { onTap: () => void }).onTap();
+    expect(publish).toHaveBeenCalledOnce();
+    expect(playWelcome).toHaveBeenCalledOnce();
+    expect(skipWelcome).toHaveBeenCalledOnce();
+  });
+
   it("offers the update as the header's button, only while there is one", () => {
     const update = vi.fn();
     expect(settingsBadge(false, update)).toBeNull();
