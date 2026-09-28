@@ -223,6 +223,13 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
   }, [entered, voiceYou]);
   const avatarRecorder = useAvatarRecorder(connection.status.state === "open" ? connection.status.you : null, voice.microphone, voice.on);
 
+  const welcomeAttempted = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isLobby(spaceRoomName) || connection.status.state !== "open" || avatarRecorder.welcomeCompleted || !avatarRecorder.published.length || welcomeAttempted.current === connection.status.you) return;
+    welcomeAttempted.current = connection.status.you;
+    avatarRecorder.playWelcome();
+  }, [spaceRoomName, connection.status, avatarRecorder.welcomeCompleted, avatarRecorder.published, avatarRecorder.playWelcome]);
+
   useEffect(() => {
     if (!isLobby(spaceRoomName) && avatarRecorder.status === "recording") void avatarRecorder.stop();
   }, [spaceRoomName, avatarRecorder.status, avatarRecorder.stop]);
@@ -404,8 +411,12 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
                     {avatarRecorder.playing ? "Stop preview" : "Play in lobby"}
                   </button>
                   <button type="button" disabled={avatarRecorder.status !== "idle"} onClick={() => void avatarRecorder.discard()}>Discard draft</button>
+                  {avatarRecorder.canPublish ? <button type="button" disabled={avatarRecorder.status !== "idle"} onClick={() => void avatarRecorder.publish()}>Publish welcome tutorial</button> : null}
                 </>
               ) : null}
+              {avatarRecorder.canPublish && avatarRecorder.published.some((entry) => entry.actorId === (status.state === "open" ? status.you : "")) ? <button type="button" onClick={() => void avatarRecorder.unpublish()}>Unpublish my tutorial</button> : null}
+              {avatarRecorder.published.length ? <button type="button" onClick={() => avatarRecorder.playWelcome()}>Replay welcome tutorials</button> : null}
+              {!avatarRecorder.welcomeCompleted && avatarRecorder.published.length ? <><p role="status">Welcome to the lobby. Play the tutorials from Nikk and Baiwei.</p><button type="button" className="primary-action" onClick={() => avatarRecorder.playWelcome()}>Play welcome</button><button type="button" onClick={() => avatarRecorder.finishWelcome()}>Skip welcome</button></> : null}
             </div>
             {avatarRecorder.status === "recording" ? <p role="status">Recording movement and audio…</p> : null}
             {avatarRecorder.notice ? <p role="status">{avatarRecorder.notice}</p> : null}

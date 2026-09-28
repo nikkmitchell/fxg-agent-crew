@@ -89,6 +89,14 @@ export type SettingsMenuInput = {
     play: () => void;
     stopPlayback: () => void;
     discard: () => void;
+    canPublish: boolean;
+    publishedMine: boolean;
+    hasPublished: boolean;
+    welcomeCompleted: boolean;
+    publish: () => void;
+    unpublish: () => void;
+    playWelcome: () => void;
+    skipWelcome: () => void;
   };
 
   // ROOMS
@@ -230,6 +238,10 @@ function meSections(s: SettingsMenuInput): MenuSection[] {
               { kind: "action", label: "Discard the draft", tone: "danger", onTap: r.discard } as MenuRow,
             ]
           : []),
+        ...(r.canPublish && r.hasTake && r.status === "idle" ? [{ kind: "action", label: "Publish welcome tutorial", tone: "accent", onTap: r.publish } as MenuRow] : []),
+        ...(r.canPublish && r.publishedMine ? [{ kind: "action", label: "Unpublish my tutorial", tone: "danger", onTap: r.unpublish } as MenuRow] : []),
+        ...(r.hasPublished ? [{ kind: "action", label: r.welcomeCompleted ? "Replay welcome tutorials" : "Play welcome tutorials", onTap: r.playWelcome } as MenuRow] : []),
+        ...(r.hasPublished && !r.welcomeCompleted ? [{ kind: "action", label: "Skip welcome", onTap: r.skipWelcome } as MenuRow] : []),
         ...(r.notice ? [note(r.notice)] : []),
       ],
     });

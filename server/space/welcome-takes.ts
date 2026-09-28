@@ -1,0 +1,50 @@
+import type { FastifyInstance } from "fastify";
+import type { Config } from "../config.js";
+import type { SessionStore } from "../session.js";
+import { makeRequireSession } from "../require-session.js";
+
+type Db = import("node:sqlite").DatabaseSync;
+const CREATORS = ["Nikk2", "baiwei2"];
+const MAX_AUDIO = 12_000_000;
+const MAX_FRAMES = 2_500;
+
+export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessions: SessionStore, db: Db): void {
+  const requireSession = makeRequireSession(config, sessions);
+  const published = () => (db.prepare("SELECT actor_id, take_json, audio, mime FROM lobby_welcome_takes").all() as Array<{ actor_id: string; take_json: string; audio: Uint8Array; mime: string }>);
+  app.get("/bff/space/welcome", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const rows = published().sort((a, b) => CREATORS.findIndex((name) => name.toLowerCase() === a.actor_id.toLowerCase()) - CREATORS.findIndex((name) => name.toLowerCase() === b.actor_id.toLowerCase()));
+    const seen = db.prepare("SELECT 1 FROM lobby_welcome_seen WHERE actor_id = ?").get(session.username.toLowerCase());
+    return { canPublish: CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase()), completed: !!seen, takes: rows.map((row) => ({ ...JSON.parse(row.take_json), audioBase64: Buffer.from(row.audio).toString("base64"), audioMime: row.mime })) };
+  });
+  app.put<{ Body: unknown }>("/bff/space/welcome", { bodyLimit: 19_000_000 }, async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    if (session.kind !== "human" || !CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase())) return reply.code(403).send({ code: "WELCOME_CREATOR_ONLY" });
+    const value = request.body as Record<string, unknown> | null;
+    const frames = value?.frames;
+    const audioBase64 = value?.audioBase64;
+    const durationMs = value?.durationMs;
+    const mime = value?.audioMime;
+    if (value?.version !== 1 || value.actorId !== session.username || !Array.isArray(frames) || frames.length < 2 || frames.length > MAX_FRAMES || typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0 || durationMs > 120_000 || typeof audioBase64 !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(audioBase64) || typeof mime !== "string" || !/^audio\/(webm|mp4|ogg)(?:;[\w=.-]+)?$/.test(mime)) return reply.code(400).send({ code: "BAD_WELCOME_TAKE" });
+    const audio = Buffer.from(audioBase64, "base64");
+    if (!audio.length || audio.length > MAX_AUDIO || frames.some((frame, index) => !frame || typeof frame !== "object" || !Number.isFinite(frame.t) || frame.t < 0 || frame.t > durationMs + 100 || (index > 0 && frame.t < frames[index - 1].t) || !frame.head?.p || !frame.head?.q || !frame.hands || !frame.balls)) return reply.code(400).send({ code: "BAD_WELCOME_TAKE" });
+    const take = { version: 1, actorId: session.username, recordedAt: value.recordedAt, durationMs, body: typeof value.body === "string" ? value.body : null, showPersonalUi: value.showPersonalUi === true, frames };
+    db.prepare("INSERT INTO lobby_welcome_takes (actor_id,take_json,audio,mime,published_at) VALUES (?,?,?,?,?) ON CONFLICT(actor_id) DO UPDATE SET take_json=excluded.take_json,audio=excluded.audio,mime=excluded.mime,published_at=excluded.published_at").run(session.username, JSON.stringify(take), audio, mime, new Date().toISOString());
+    return { ok: true };
+  });
+  app.delete("/bff/space/welcome", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    if (session.kind !== "human" || !CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase())) return reply.code(403).send({ code: "WELCOME_CREATOR_ONLY" });
+    db.prepare("DELETE FROM lobby_welcome_takes WHERE lower(actor_id) = ?").run(session.username.toLowerCase());
+    return { ok: true };
+  });
+  app.post("/bff/space/welcome/complete", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    db.prepare("INSERT OR IGNORE INTO lobby_welcome_seen (actor_id,completed_at) VALUES (?,?)").run(session.username.toLowerCase(), new Date().toISOString());
+    return { ok: true };
+  });
+}

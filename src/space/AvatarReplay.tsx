@@ -79,7 +79,7 @@ function Control({ sample, kind }: { sample: () => RecordedControl; kind: "left"
 
 /** Replays a local draft at its measured world positions, timed from the audio. */
 export function AvatarReplay({ recorder }: { recorder: AvatarRecorder }) {
-  const take = recorder.take;
+  const take = recorder.activeTake;
   if (!recorder.playing || !take) return null;
   return <PlayingTake take={take} recorder={recorder} />;
 }
