@@ -94,6 +94,26 @@ export function chopOf(start: HandFrame, now: HandFrame): { chop: number; turn: 
   return { chop, turn, tip };
 }
 
+/**
+ * ONLY A DOWNWARD CHOP SENDS (Nikk, 2026-09-28: "its only a downard til, like a
+ * karate chop"). The chop's size alone has no direction, and from an upright
+ * hand the fingertips drop whether they tip forward or back toward the face;
+ * Lumenfold found the backward tilt sending too (5838). A karate chop comes
+ * down in front of you: the fingertips move AWAY from the face. So the send
+ * counts only when the fingers moved forward, taken as the level direction
+ * from the head to the hand. Null when that cannot be told (no head), in
+ * which case the chop counts as before rather than blocking the send.
+ */
+export function chopIsForward(hand: MicGestureHand, start: HandFrame, now: HandFrame): boolean | null {
+  if (!hand.head) return null;
+  const fx = hand.wrist.p.x - hand.head.p.x;
+  const fz = hand.wrist.p.z - hand.head.p.z;
+  const level = Math.hypot(fx, fz);
+  if (level < 1e-3) return null;
+  const moved = (now.fingers.x - start.fingers.x) * (fx / level) + (now.fingers.z - start.fingers.z) * (fz / level);
+  return moved > 0;
+}
+
 /** A chop must clearly outweigh any turn or tip to send. */
 const CHOP_DOMINANCE = 1.5;
 /** Turned or tipped this far the wrong way, for this long, cancels. */
@@ -317,7 +337,9 @@ export function stepMicGesture(
     if (!frame || !current) {
       return { state: { ...previous, frame, fistSince: null, missingSince: null }, outlineSide: previous.side, tilt: 0, closing: hand.closedness ?? 0 };
     }
-    const { chop, turn, tip } = chopOf(frame, current);
+    const { chop: size, turn, tip } = chopOf(frame, current);
+    // Backward toward the face is no chop at all: it neither sends nor cancels.
+    const chop = chopIsForward(hand, frame, current) === false ? 0 : size;
     const wrongWay = Math.max(turn, tip);
     if (chop >= MIC_GESTURE_TILT_RADIANS - 1e-6 && chop >= wrongWay * CHOP_DOMINANCE) {
       return { state: { phase: "ending", side: previous.side }, action: "finish", outlineSide: previous.side, tilt: 1 };
