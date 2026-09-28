@@ -58,6 +58,7 @@ import { registerClientErrorRoutes } from "./space/client-errors.js";
 import { Utterances, registerUtteranceRoutes } from "./space/utterances.js";
 import { registerSpeechRoutes, speakWith, speechCache } from "./space/speak.js";
 import { registerAvatarRoutes } from "./space/avatar.js";
+import { registerWelcomeTakes } from "./space/welcome-takes.js";
 import { registerFollowingRoutes } from "./space/following.js";
 import { registerPathRoutes } from "./space/paths.js";
 import { registerTranscribeRoutes } from "./space/transcribe.js";
@@ -582,6 +583,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       (room, actorId, kind, control) => hubFor(room).presence.animate(actorId, control, kind),
     );
+    registerWelcomeTakes(scoped, config, sessions, database);
     registerPathRoutes(scoped, {
       config,
       sessions,
