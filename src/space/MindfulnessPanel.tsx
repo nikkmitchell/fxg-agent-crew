@@ -227,6 +227,7 @@ export function MindfulnessPanel({ subscribe }: {
         ref={plate}
         position={[0, 1.39, 0.014]}
         onPointerMove={(event) => {
+          event.stopPropagation();
           const next = pointTarget(event);
           setHoveredTarget((current) => current === next ? current : next);
         }}
