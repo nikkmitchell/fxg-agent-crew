@@ -29,6 +29,7 @@ import { registerBowlRoutes } from "./space/bowl.js";
 import { RoomGardens, registerGardenRoutes } from "./space/garden.js";
 import { RoomMindfulnessCards, registerMindfulnessRoutes } from "./space/mindfulness.js";
 import { registerFireRoutes } from "./space/fire.js";
+import { registerDriftRoutes } from "./space/driftwood.js";
 import { registerWheelRoutes } from "./space/wheel.js";
 import { registerLanternRoutes } from "./space/lantern.js";
 import { RoomSkies, registerStarRoutes } from "./space/stars.js";
@@ -501,6 +502,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       sessions,
       announce: (room, offering) => hubFor(room).broadcast({ type: "fire", offering }),
+    });
+    registerDriftRoutes(scoped, {
+      config,
+      sessions,
+      announce: (room, drift) => hubFor(room).broadcast({ type: "driftwood", drift }),
     });
     registerGardenRoutes(scoped, {
       config,

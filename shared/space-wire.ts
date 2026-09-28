@@ -2,6 +2,7 @@ import type { Helper } from "./helpers.js";
 import type { BowlStrike } from "./bowl.js";
 import type { GardenEvent } from "./garden.js";
 import type { Offering } from "./fire.js";
+import type { Drift } from "./driftwood.js";
 import type { MandalaEvent } from "./mandala.js";
 import type { WheelPush } from "./wheel.js";
 import type { Lantern } from "./lantern.js";
@@ -275,6 +276,8 @@ export type ServerMessage =
   | { type: "mindfulnessPageChanged" }
   /** Somebody gave the ember fire a word: see shared/fire.ts. Not kept. */
   | { type: "fire"; offering: Offering }
+  /** A word written on driftwood at the shore: see shared/driftwood.ts. Not kept. */
+  | { type: "driftwood"; drift: Drift }
   /** The sand mandala changed: see shared/mandala.ts. */
   | { type: "mandala"; event: MandalaEvent }
   /** Somebody pushed the prayer wheel: see shared/wheel.ts. */

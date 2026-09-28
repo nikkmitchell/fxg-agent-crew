@@ -976,7 +976,7 @@ export default function Scene({
         {/* And a cairn the room builds stone by stone: see shared/cairn.ts. */}
         {connection.meditation?.shown && <Near at={CAIRN_AT}><CairnStones /></Near>}
         {/* And a shore where small waves come in: see Shore.tsx. */}
-        {connection.meditation?.shown && <Near at={SHORE_AT} within={9}><Shore /></Near>}
+        {connection.meditation?.shown && <Near at={SHORE_AT} within={9}><Shore you={you} /></Near>}
         {/* And a nebula to put your hands in: see Nebula.tsx. */}
         {connection.meditation?.shown && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} /></Near>}
         {connection.meditation?.shown && <Near at={floorOf(TREE_AT)}><StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} /></Near>}

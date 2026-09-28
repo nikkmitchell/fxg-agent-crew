@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Text } from "@react-three/drei";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { audio } from "./breath-sound";
+import { DRIFT_WORDS, driftAt, type Drift } from "../../shared/driftwood";
+import { onDrift } from "./driftwood-events";
+import { space } from "../space-client";
 
 /**
  * THE SHORE: a strip of pale sand in the back-left corner where small waves
@@ -81,7 +85,50 @@ function waves(): { set: (level: number, reach: number) => void; stop: () => voi
   };
 }
 
-export function Shore() {
+/** One piece of driftwood with a word on it, floating out on its own clock. */
+function Driftwood({ drift, slot, onGone }: { drift: Drift & { started: number }; slot: number; onGone: () => void }) {
+  const group = useRef<THREE.Group>(null);
+  const words = useRef<{ fillOpacity: number } | null>(null);
+  const wood = useRef<THREE.MeshStandardMaterial>(null);
+  useFrame(() => {
+    const place = driftAt((performance.now() - drift.started) / 1000);
+    if (place.fade <= 0) return onGone();
+    // Out is toward the sea: -z, the back of the room.
+    group.current?.position.set(SHORE_AT.x + (slot - 1) * 0.35, 0.03 + place.bob, SHORE_AT.z + 0.1 - place.out);
+    if (wood.current) wood.current.opacity = place.fade;
+    if (words.current) words.current.fillOpacity = place.fade;
+  });
+  return (
+    <group ref={group} rotation-y={(slot - 1) * 0.25}>
+      <mesh rotation-z={Math.PI / 2} raycast={() => null}>
+        <cylinderGeometry args={[0.025, 0.03, 0.34, 8]} />
+        <meshStandardMaterial ref={wood} color="#9c8a70" roughness={1} transparent />
+      </mesh>
+      <Text ref={words as never} position={[0, 0.032, 0]} rotation-x={-Math.PI / 2} fontSize={0.05} color="#fff4dc" outlineWidth={0.003} outlineColor="#2a1f14" raycast={() => null}>
+        {drift.word}
+      </Text>
+    </group>
+  );
+}
+
+export function Shore({ you = null }: { you?: string | null }) {
+  const [drifts, setDrifts] = useState<(Drift & { started: number; key: number })[]>([]);
+  const next = useRef(0);
+  const [note, setNote] = useState<string | null>(null);
+  const launch = (drift: Drift) => setDrifts((all) => [...all.slice(-2), { ...drift, started: performance.now(), key: next.current++ }]);
+  useEffect(
+    () =>
+      onDrift((drift) => {
+        if (you && drift.by.toLowerCase() === you.toLowerCase()) return;
+        launch(drift);
+      }),
+    [you],
+  );
+  const write = (word: string) => {
+    setNote(null);
+    launch({ by: you ?? "", word, at: Date.now() });
+    space.writeOnDriftwood(word).catch((error: unknown) => setNote(error instanceof Error ? error.message : "The sea is resting."));
+  };
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -111,8 +158,39 @@ export function Shore() {
 
   // The sea is toward the room's back wall (-z), the dry sand toward you.
   return (
-    <mesh position={[SHORE_AT.x, 0.008, SHORE_AT.z]} rotation={[-Math.PI / 2, 0, Math.PI]} material={material} raycast={() => null}>
-      <planeGeometry args={[SHORE_AT.width, SHORE_AT.depth]} />
-    </mesh>
+    <group>
+      <mesh position={[SHORE_AT.x, 0.008, SHORE_AT.z]} rotation={[-Math.PI / 2, 0, Math.PI]} material={material} raycast={() => null}>
+        <planeGeometry args={[SHORE_AT.width, SHORE_AT.depth]} />
+      </mesh>
+      {drifts.map((drift, index) => (
+        <Driftwood key={drift.key} drift={drift} slot={index} onGone={() => setDrifts((all) => all.filter((one) => one.key !== drift.key))} />
+      ))}
+      {/* A low post at the dry end: tap a word and a wave takes it. */}
+      <group position={[SHORE_AT.x + SHORE_AT.width / 2 + 0.2, 0, SHORE_AT.z + 0.3]} rotation-y={-0.5}>
+        <mesh position={[0, 0.35, 0]} raycast={() => null}>
+          <boxGeometry args={[0.05, 0.7, 0.05]} />
+          <meshStandardMaterial color="#7d6c55" roughness={1} />
+        </mesh>
+        <Text position={[0, 0.82, 0.03]} fontSize={0.035} color="#e8e0cf" outlineWidth={0.002} outlineColor="#1a1714" raycast={() => null}>
+          {note ?? "SEND SOMETHING OUT TO SEA"}
+        </Text>
+        {DRIFT_WORDS.map((word, index) => (
+          <Text
+            key={word}
+            position={[((index % 3) - 1) * 0.16, 0.74 - Math.floor(index / 3) * 0.06, 0.03]}
+            fontSize={0.035}
+            color="#bfe3e6"
+            outlineWidth={0.002}
+            outlineColor="#10262a"
+            onClick={(event) => {
+              event.stopPropagation();
+              write(word);
+            }}
+          >
+            {word}
+          </Text>
+        ))}
+      </group>
+    </group>
   );
 }

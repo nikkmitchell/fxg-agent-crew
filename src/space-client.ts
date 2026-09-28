@@ -204,6 +204,8 @@ export const space = {
   wheel: () => requestJson<{ turns: number }>(`${root}/wheel`),
   pushWheel: (strength: number) => requestJson<{ push: unknown }>(`${root}/wheel`, { method: "POST", body: JSON.stringify({ strength }) }),
   /** Give the ember fire a word: everyone sees it burn; nothing is kept. See shared/fire.ts. */
+  /** Write a word on driftwood at the shore: the next wave takes it. See shared/driftwood.ts. */
+  writeOnDriftwood: (word: string) => requestJson<{ ok: boolean }>(`${root}/driftwood`, { method: "POST", body: JSON.stringify({ word }) }),
   offerToFire: (word: string) => requestJson<{ ok: boolean }>(`${root}/fire`, { method: "POST", body: JSON.stringify({ word }) }),
   /** The room's sand garden, and changes to it: see shared/garden.ts. */
   garden: () => requestJson<{ garden: Garden }>(`${root}/garden`),

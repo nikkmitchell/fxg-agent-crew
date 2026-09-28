@@ -2,6 +2,7 @@ import type { Helper } from "../../shared/helpers";
 import { bowlStruck } from "./bowl-strikes";
 import { gardenChanged } from "./garden-events";
 import { offered } from "./fire-events";
+import { drifted } from "./driftwood-events";
 import { mandalaChanged } from "./mandala-events";
 import { wheelPushed } from "./wheel-events";
 import { lanternReleased } from "./lantern-events";
@@ -353,6 +354,11 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
         }
         if (message.type === "mandala") {
           mandalaChanged(message.event);
+          return;
+        }
+        if (message.type === "driftwood") {
+          // A word on driftwood: Shore.tsx floats it out.
+          drifted(message.drift);
           return;
         }
         if (message.type === "fire") {
