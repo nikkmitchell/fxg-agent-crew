@@ -236,3 +236,13 @@ describe("the idle orb", () => {
     expect(seen.has("in") && seen.has("out")).toBe(true);
   });
 });
+
+describe("choosing the guide's voice", () => {
+  it("uses the listener's choice for English guides, keeps a Mandarin guide's own, and ignores anything off the list", async () => {
+    const { guideVoiceFor } = await import("./guided.js");
+    expect(guideVoiceFor("arrive", "bm_george")).toBe("bm_george");
+    expect(guideVoiceFor("arrive", "af_heart")).toBe("af_heart");
+    expect(guideVoiceFor("arrive", "rm -rf /")).toBe("af_heart");
+    expect(guideVoiceFor("arrive-zh", "bm_george")).toBe("zf_xiaoxiao");
+  });
+});

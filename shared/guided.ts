@@ -31,6 +31,33 @@ export type Guide = {
 /** The voice every guide speaks in: Kokoro's clearest, and unhurried. */
 export const GUIDE_VOICE = "af_heart";
 
+/**
+ * VOICES A LISTENER MAY CHOOSE for the English guides, per person: each
+ * headset fetches its own audio on the shared clock, so one person can hear
+ * a woman's voice and the person beside them a man's. A short allowlist
+ * because every line is voiced ahead of time in each of them.
+ */
+export const GUIDE_VOICE_CHOICES = [
+  { id: "af_heart", label: "VOICE: HEART" },
+  { id: "bm_george", label: "VOICE: GEORGE" },
+] as const;
+export type GuideVoiceChoice = (typeof GUIDE_VOICE_CHOICES)[number]["id"];
+
+export function isGuideVoiceChoice(value: unknown): value is GuideVoiceChoice {
+  return GUIDE_VOICE_CHOICES.some((one) => one.id === value);
+}
+
+/**
+ * The voice to speak a guide's lines in for a listener who chose `wanted`:
+ * their choice for English guides; a guide with its own voice (Mandarin)
+ * keeps it.
+ */
+export function guideVoiceFor(id: keyof typeof GUIDES, wanted: unknown): string {
+  const own = (GUIDES[id] as Guide).voice;
+  if (own) return own;
+  return isGuideVoiceChoice(wanted) ? wanted : GUIDE_VOICE;
+}
+
 export const GUIDES = {
   arrive: {
     label: "ARRIVE · 3 MIN",
