@@ -14,3 +14,20 @@ export function resumeRoomAudio(): void {
   if (!context || context.state === "running" || context.state === "closed") return;
   void context.resume().catch(() => undefined);
 }
+
+/**
+ * A controller or hand selection is a headset user gesture, but it need not
+ * dispatch a DOM pointer event. Unlock the page-wide playback context from
+ * WebXR's trusted `select` event, and ignore gaze-triggered selections.
+ */
+export function unlockRoomAudioFromXR(
+  session: Pick<XRSession, "addEventListener" | "removeEventListener"> | null | undefined,
+): () => void {
+  if (!session) return () => {};
+  const unlock = (event: XRInputSourceEvent) => {
+    if (!event.isTrusted || event.inputSource.targetRayMode !== "tracked-pointer") return;
+    resumeRoomAudio();
+  };
+  session.addEventListener("select", unlock);
+  return () => session.removeEventListener("select", unlock);
+}
