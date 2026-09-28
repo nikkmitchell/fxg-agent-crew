@@ -77,6 +77,16 @@ describe("XR room audio playback unlock", () => {
     xr.unregister();
   });
 
+  it("resumes on visionOS hand-tracked pinch selections", () => {
+    const xr = setupXrUnlock();
+
+    xr.fire("transient-pointer");
+
+    expect(xr.context.resume).toHaveBeenCalledOnce();
+    xr.cleanup();
+    xr.unregister();
+  });
+
   it("ignores gaze and synthetic selections", () => {
     const xr = setupXrUnlock();
 

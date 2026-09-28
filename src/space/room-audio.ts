@@ -18,14 +18,15 @@ export function resumeRoomAudio(): void {
 /**
  * A controller or hand selection is a headset user gesture, but it need not
  * dispatch a DOM pointer event. Unlock the page-wide playback context from
- * WebXR's trusted `select` event, and ignore gaze-triggered selections.
+ * WebXR's trusted `select` event, and ignore gaze-triggered selections. A
+ * transient pointer is used by hand-tracked pinch input in visionOS.
  */
 export function unlockRoomAudioFromXR(
   session: Pick<XRSession, "addEventListener" | "removeEventListener"> | null | undefined,
 ): () => void {
   if (!session) return () => {};
   const unlock = (event: XRInputSourceEvent) => {
-    if (!event.isTrusted || event.inputSource.targetRayMode !== "tracked-pointer") return;
+    if (!event.isTrusted || event.inputSource.targetRayMode === "gaze") return;
     resumeRoomAudio();
   };
   session.addEventListener("select", unlock);
