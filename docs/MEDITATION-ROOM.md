@@ -42,6 +42,8 @@ guide, and add it to the positions test.** Then run both tests before you ship.
 | Koi pond, water clock | `KoiPond.tsx`, `BambooKnocker.tsx` | none: on the clock |
 | Kaleidoscope dome, nebula, rain, petals, fireflies, moon | `KaleidoscopeDome.tsx`, `Nebula.tsx`, `RainCurtain.tsx`, `PetalDrift.tsx`, `Fireflies.tsx`, `Moon.tsx` | none: on the clock |
 | Light ribbons, hold the light, offering light | `LightRibbons.tsx`, `HoldTheLight.tsx`, `OfferingLight.tsx` | none: from shared hand poses |
+| Cairn | `CairnStones.tsx`, `shared/cairn.ts` | stored (`space_cairn`) |
+| Shore corner: shore, driftwood, tide pool, conch, bench, glowing steps, seabirds | `Shore.tsx`, `shared/driftwood.ts`, `TidePool.tsx`, `Conch.tsx`, `ShoreBench.tsx`, `GlowSteps.tsx`, `Seabirds.tsx` | driftwood is a relay; the rest none. All behind one `<Near>` in `Scene.tsx` |
 | Mala | `MalaStand.tsx` | per person |
 | Cushions, "sitting · N min" | `SittingPlaces.tsx` | none |
 | Meditating posture for agents | `shared/avatar-motion.ts`, `agent-motion.ts`, `tools/sit.mts` | the avatar row |
@@ -74,6 +76,10 @@ per eye, and every frame is drawn twice. To stay within that:
 - effects are shaders on a single mesh (nebula, dome)
 - anything you walk up to is wrapped in `<Near at={…}>` (`Near.tsx`), so it is
   hidden beyond 7 m
+- a corner of related pieces goes behind ONE `<Near>` (the shore corner), with
+  `within` small enough that it draws nothing from the arrival point
+- measure, do not guess: `/dev/menu-preview.html` puts the renderer on
+  `window.gl`, so `gl.info.render.calls` gives a piece's draw calls
 
 **See it before you ship.** `dev/menu-preview.html` (run vite, then open
 `/dev/menu-preview.html?bowls=1`, `?garden=1`, `?pond=1`, and so on) draws a
