@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { audio } from "./breath-sound";
+import { displayMotionTime, freezeMotionTime } from "./ambient-motion";
 
 /**
  * THE RAIN CURTAIN: a circle of soft rain falling out of nothing, back-right of
@@ -52,7 +53,7 @@ function rainSound(): { set: (level: number) => void; stop: () => void } {
   };
 }
 
-export function RainCurtain() {
+export function RainCurtain({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
   const drops = useRef<THREE.InstancedMesh>(null);
   const rings = useRef<THREE.InstancedMesh>(null);
   const seeds = useMemo(
@@ -71,10 +72,13 @@ export function RainCurtain() {
   const still = useMemo(() => new THREE.Quaternion(), []);
   const eye = useMemo(() => new THREE.Vector3(), []);
   const sound = useRef<ReturnType<typeof rainSound> | null>(null);
+  const frozenTime = useRef<number | null>(null);
   useEffect(() => () => sound.current?.stop(), []);
 
   useFrame((state) => {
-    const t = Date.now() / 1000;
+    const now = Date.now() / 1000;
+    frozenTime.current = freezeMotionTime(now, frozenTime.current, reducedMotion);
+    const t = displayMotionTime(now, frozenTime.current, reducedMotion);
     const fall = RAIN_AT.top / FALL_SPEED;
     seeds.forEach((drop, index) => {
       const phase = ((t * drop.speed + drop.offset) % fall) / fall;

@@ -959,7 +959,7 @@ export default function Scene({
         {/* And the gong, for a sound bath: see GongStand.tsx. */}
         {connection.meditation?.shown && on("Gong") && <Near at={GONG_AT}><GongStand you={you} /></Near>}
         {/* And the rain curtain, to stand in: see RainCurtain.tsx. */}
-        {connection.meditation?.shown && on("Rain curtain") && <Near at={RAIN_AT}><RainCurtain /></Near>}
+        {connection.meditation?.shown && on("Rain curtain") && <Near at={RAIN_AT}><RainCurtain reducedMotion={reducedMotion} /></Near>}
         {/* And floating lanterns: see shared/lantern.ts. */}
         {connection.meditation?.shown && on("Lanterns") && <Lanterns you={you} reducedMotion={reducedMotion} />}
         {/* And the star map overhead: see shared/stars.ts. */}
@@ -1016,7 +1016,7 @@ export default function Scene({
           </Near>
         )}
         {/* And a nebula to put your hands in: see Nebula.tsx. */}
-        {connection.meditation?.shown && on("Nebula") && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} /></Near>}
+        {connection.meditation?.shown && on("Nebula") && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} reducedMotion={reducedMotion} /></Near>}
         {connection.meditation?.shown && on("Stillness tree") && <Near at={floorOf(TREE_AT)}><StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} /></Near>}
         {connection.meditation?.shown && on("Reading stone") && <Near at={floorOf(READING_AT)}><ReadingStone /></Near>}
         {connection.meditation?.shown && on("Candle shelf") && <Near at={floorOf(SHELF_AT)}><CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} reducedMotion={reducedMotion} /></Near>}

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { WirePerson } from "../../shared/space-wire";
 import { selfPose } from "./self-pose";
+import { displayMotionTime, freezeMotionTime } from "./ambient-motion";
 
 /**
  * THE NEBULA: a slow, swirling cloud of three thousand points of coloured
@@ -67,7 +68,7 @@ const fragment = /* glsl */ `
   }
 `;
 
-export function Nebula({ peopleRef, you }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null }) {
+export function Nebula({ peopleRef, you, reducedMotion = false }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null; reducedMotion?: boolean }) {
   const geometry = useMemo(() => {
     const made = new THREE.BufferGeometry();
     const seeds = new Float32Array(POINTS * 3);
@@ -78,6 +79,7 @@ export function Nebula({ peopleRef, you }: { peopleRef: MutableRefObject<WirePer
     return made;
   }, []);
   const hands = useMemo(() => Array.from({ length: HANDS }, () => new THREE.Vector3(0, -100, 0)), []);
+  const frozenTime = useRef<number | null>(null);
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -96,7 +98,8 @@ export function Nebula({ peopleRef, you }: { peopleRef: MutableRefObject<WirePer
   }, [geometry, material]);
 
   useFrame((state) => {
-    material.uniforms.uTime.value = state.clock.elapsedTime;
+    frozenTime.current = freezeMotionTime(state.clock.elapsedTime, frozenTime.current, reducedMotion);
+    material.uniforms.uTime.value = displayMotionTime(state.clock.elapsedTime, frozenTime.current, reducedMotion);
     const all: { x: number; y: number; z: number }[] = [];
     if (selfPose.hands.left) all.push(selfPose.hands.left.p);
     if (selfPose.hands.right) all.push(selfPose.hands.right.p);
