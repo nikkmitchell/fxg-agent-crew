@@ -102,8 +102,22 @@ describe("shared mindfulness page", () => {
     for (let i = 0; i < 8; i += 1) {
       expect("refused" in cards.share("meditation.AR", "Inkstone", `Card ${i}`, base)).toBe(false);
     }
+    cards.page("meditation.AR", null, "Inkstone", base + 24 * 60 * 60 * 1000);
+    expect(database.prepare("SELECT count(*) AS count FROM space_mindfulness_share_events").get()).toEqual({ count: 0 });
     expect("refused" in cards.share("meditation.AR", "Inkstone", "At the boundary", base + 24 * 60 * 60 * 1000)).toBe(false);
     expect(database.prepare("SELECT count(*) AS count FROM space_mindfulness_share_events").get()).toEqual({ count: 1 });
+  });
+
+  it("keeps the rolling limit independent per author and room", async () => {
+    const { app, as } = await boot();
+    const firstRoomWriter = as("Inkstone", "meditation.AR");
+    const otherRoomWriter = as("Inkstone", "quiet-garden");
+    const otherRoomMember = as("Sill", "meditation.AR");
+    for (let i = 0; i < 8; i += 1) {
+      expect((await call(app, firstRoomWriter, "POST", "/bff/space/mindfulness", { text: `Card ${i}` })).statusCode).toBe(201);
+    }
+    expect((await call(app, otherRoomWriter, "POST", "/bff/space/mindfulness", { text: "A different room" })).statusCode).toBe(201);
+    expect((await call(app, otherRoomMember, "POST", "/bff/space/mindfulness", { text: "A different writer" })).statusCode).toBe(201);
   });
 
   it("paginates a growing room page without caching a viewer's private delete bit", async () => {
