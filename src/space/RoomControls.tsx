@@ -24,6 +24,7 @@ import {
 import { goHandInput } from "./go-hand-input";
 import { micGlyph, micPress } from "./mic-press";
 import { statusLineActionable } from "./touch-press";
+import { controllerFaceButtons, controllerMicAction, readTouchMicSetting, writeTouchMicSetting } from "./controller-mic";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
 import { controllersInUse, micGestureHands, micGestureIndicator } from "./mic-gesture-input";
 import {
@@ -394,6 +395,16 @@ export function RoomControls({
    * answer has to go and find one, which is not a conversation.
    */
   const [hearReplies, setHearReplies] = useState(true);
+  /** The touch mic by your hip, for controllers: off unless chosen (controller-mic.ts). */
+  const [touchMic, setTouchMicState] = useState(readTouchMicSetting);
+  const touchMicNow = useRef(touchMic);
+  touchMicNow.current = touchMic;
+  const setTouchMic = (on: boolean) => {
+    writeTouchMicSetting(on);
+    setTouchMicState(on);
+  };
+  /** Which face buttons were down last frame, to act only as one goes down. */
+  const facePrev = useRef({ talk: false, cancel: false });
   /** Every line this surface has queued and not yet heard end — see queueAloud. */
   const speaking = useRef(new Set<SpeechOutput>());
   const spokenAlready = useRef<number | null>(null);
@@ -1156,7 +1167,7 @@ export function RoomControls({
       return { x: p.x, y: p.y, z: p.z };
     };
     // ONLY WHAT IS DRAWN: the same list the buttons below are drawn from.
-    const buttons: TouchButton[] = closedButtons(handsInViewNow.current, cancelRef.current !== null).map((id) => ({
+    const buttons: TouchButton[] = closedButtons(handsInViewNow.current || !touchMicNow.current, cancelRef.current !== null).map((id) => ({
       id,
       at: at(id === "talk" ? TALK_X : CANCEL_X),
       radius: ICON / 2,
@@ -1260,6 +1271,8 @@ export function RoomControls({
         : []),
     ],
     hearReplies,
+    touchMic,
+    setTouchMic,
     setHearReplies: (on) => setHearReplies(on),
     handsShown,
     setHandsShown: (shown) => {
@@ -1443,7 +1456,7 @@ export function RoomControls({
       saying === "recording" ||
       (!capabilities.recognition && written.trim() !== "" && !keyboardFocused)));
   /** The closed buttons drawn, and the only ones a fingertip can press. */
-  const shownButtons = closedButtons(handsInView, cancellable);
+  const shownButtons = closedButtons(handsInView || !touchMic, cancellable);
   const cancel = () => {
     // A SEND IN FLIGHT STOPS, and what was said stays ready to send again.
     if (sending) {
@@ -1608,6 +1621,28 @@ export function RoomControls({
       // from the server log (Nikk, 5111).
       const hand = micGestureHands[result.state.side];
       if (hand) onNote(describeStart(result.state.side, hand));
+    }
+    // A OR X, B OR Y: the same three actions as the gesture, from the moment
+    // a button goes down. Only when no gesture acted this frame.
+    const faces = { talk: controllerFaceButtons.talk, cancel: controllerFaceButtons.cancel };
+    const went = (key: "talk" | "cancel") => faces[key] && !facePrev.current[key];
+    const faceAction = result.action === null || result.action === undefined
+      ? went("cancel")
+        ? controllerMicAction("cancel", recording, false)
+        : went("talk")
+          ? controllerMicAction("talk", recording, anchor() !== null && !sending && saying !== "writing" && startAction)
+          : null
+      : null;
+    facePrev.current = faces;
+    if (faceAction === "start") {
+      sendAfterGesture.current = false;
+      pressTalkRef.current();
+    } else if (faceAction === "finish") {
+      sendAfterGesture.current = !capabilities.recognition;
+      pressTalkRef.current();
+    } else if (faceAction === "cancel") {
+      sendAfterGesture.current = false;
+      cancelRef.current?.();
     }
     if (result.action === "start") {
       sendAfterGesture.current = false;

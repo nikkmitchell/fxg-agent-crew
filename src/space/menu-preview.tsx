@@ -120,6 +120,8 @@ function Preview() {
     },
     voiceExtra: [],
     hearReplies: hear,
+    touchMic: false,
+    setTouchMic: () => {},
     setHearReplies: setHear,
     handsShown: hands,
     setHandsShown: setHands,

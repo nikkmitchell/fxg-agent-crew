@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { controllerFaceButtons, isPressed } from "./controller-mic";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
   TeleportTarget,
@@ -738,6 +739,9 @@ export function ImmersivePlayer({
      * controller, and the library moved you for any reading at all. See
      * stick-walk.ts.
      */
+    // THE MIC ON A/X AND B/Y (controller-mic.ts): which face buttons are down.
+    controllerFaceButtons.talk = isPressed(rightController?.gamepad?.["a-button"]) || isPressed(leftController?.gamepad?.["x-button"]);
+    controllerFaceButtons.cancel = isPressed(rightController?.gamepad?.["b-button"]) || isPressed(leftController?.gamepad?.["y-button"]);
     const stick = leftController?.gamepad?.["xr-standard-thumbstick"];
     if (stick) {
       // The heading is read from the HEADSET's camera, which @react-three/xr
