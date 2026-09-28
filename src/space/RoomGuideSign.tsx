@@ -4,8 +4,7 @@ import { READINGS } from "../../shared/guided";
 import { ROOM_GUIDE, arrowTo, stepsTo } from "../../shared/room-guide";
 import * as THREE from "three";
 import { TOGGLEABLE } from "../../shared/room-pieces";
-import { useHiddenPieces } from "./pieces-events";
-import { space } from "../space-client";
+import { changeHiddenPieces, useHiddenPieces } from "./pieces-events";
 
 /**
  * THE ROOM GUIDE SIGN (shared/room-guide.ts): a standing board just ahead of
@@ -162,11 +161,11 @@ function ToggleList() {
     if (index === null) return;
     const name = TOGGLEABLE[index];
     setNote(null);
-    space.togglePieces({ name, shown: hidden.has(name) }).catch((error: unknown) => setNote(error instanceof Error ? error.message : "The board did not answer."));
+    changeHiddenPieces({ name, shown: hidden.has(name) }).catch((error: unknown) => setNote(error instanceof Error ? error.message : "The board did not answer."));
   };
   const all = (shown: boolean) => {
     setNote(null);
-    space.togglePieces({ all: shown }).catch((error: unknown) => setNote(error instanceof Error ? error.message : "The board did not answer."));
+    changeHiddenPieces({ all: shown }).catch((error: unknown) => setNote(error instanceof Error ? error.message : "The board did not answer."));
   };
   return <group>
     <mesh position={[0, LIST.y, 0.002]} onClick={(event) => { event.stopPropagation(); if (event.uv) toggle(rowAt(event.uv.x, event.uv.y)); }}>
