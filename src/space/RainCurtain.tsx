@@ -13,7 +13,7 @@ import { audio } from "./breath-sound";
  * drawn from the clock, and the sound is only for whoever is standing in it.
  */
 
-export const RAIN_AT = { x: 4.6, z: 0.6, radius: 0.9, top: 2.7 } as const;
+export const RAIN_AT = { x: 3.6, z: 0.3, radius: 0.9, top: 2.7 } as const;
 const DROPS = 420;
 const FALL_SPEED = 4.2;
 

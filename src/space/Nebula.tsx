@@ -14,7 +14,7 @@ import { selfPose } from "./self-pose";
  * eight hands (anyone's; the room already shares where hands are).
  */
 
-export const NEBULA_AT = { x: 4.2, z: 8.8, y: 1.3, radius: 0.9 } as const;
+export const NEBULA_AT = { x: -5.0, z: 3.5, y: 1.3, radius: 0.9 } as const;
 const POINTS = 3000;
 const HANDS = 8;
 
