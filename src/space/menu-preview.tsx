@@ -41,6 +41,10 @@ import { Seabirds } from "./Seabirds";
 import { PaperCranes, CRANES_AT } from "./PaperCranes";
 import { FogMirror, FOG_AT } from "./FogMirror";
 import { StillFlower, STILL_AT } from "./StillFlower";
+import { SilenceBell, SILENCE_AT } from "./SilenceBell";
+
+/** A pretend second person sitting perfectly still, for ?silence=1. */
+const sitter = { current: [{ actorId: "sitter", connected: true, kind: "human", at: { x: 0, z: 0 }, head: { p: { x: 0, y: 1.2, z: 0 }, q: { x: 0, y: 0, z: 0, w: 1 } } }] as unknown as WirePerson[] };
 import type { WirePerson } from "../../shared/space-wire";
 
 /** A pretend person pacing across the shore, for ?steps=1. */
@@ -164,10 +168,16 @@ function Preview() {
     <Canvas
       // ?fov=40 to look closely; 90 is about what a headset sees.
       camera={{ position: params.get("moon") === "1" ? [0, 1.6, 6.2] : [0, 1.6, 0], fov: Number(params.get("fov") ?? 90), near: 0.05, far: 50 }}
-      onCreated={({ camera, gl, scene }) => (Object.assign(window, { gl, scene }), params.get("flower") === "1" ? camera.lookAt(0, 1.4, -0.7) : params.get("fog") === "1" ? (camera.position.set(-0.2, 1.62, -0.38), camera.lookAt(0, 1.55, -0.6)) : params.get("cranes") === "1" ? camera.lookAt(0, 1.2, -2.2) : params.get("bench") === "1" ? camera.lookAt(0, 1.1, -1.3) : params.get("conch") === "1" ? camera.lookAt(0, 1.5, -1.0) : params.get("pool") === "1" ? camera.lookAt(0, 0.8, -1.3) : params.get("shore") === "1" ? camera.lookAt(0, 0.6, -1.3) : params.get("hourglass") === "1" ? camera.lookAt(0, 1.6, -0.5) : params.get("nebula") === "1" ? camera.lookAt(0, 1.6, -2.0) : params.get("moon") === "1" ? camera.lookAt(0, 8, -10) : params.get("mala") === "1" ? camera.lookAt(-1.6, 1.3, -5.9) : params.get("fireflies") === "1" ? camera.lookAt(0, 1.4, -2.2) : params.get("vase") === "1" ? camera.lookAt(0, 1.4, -1.0) : params.get("incense") === "1" ? camera.lookAt(0, 1.5, -0.9) : params.get("rain") === "1" ? camera.lookAt(0, 1.2, -2.2) : params.get("gong") === "1" ? camera.lookAt(3.7, 1.2, 0.6) : params.get("wheel") === "1" ? camera.lookAt(0, 1.2, -1.3) : params.get("mandala") === "1" ? camera.lookAt(0, 1.0, -1.0) : params.get("pond") === "1" ? camera.lookAt(0, 0.9, -1.1) : params.get("ribbons") === "1" ? camera.lookAt(0, 1.1, -1.6) : params.get("fire") === "1" ? camera.lookAt(FIRE_AT.x * 0.8, 0.8, FIRE_AT.z - 6.2) : params.get("bowls") === "1" || params.get("garden") === "1" ? camera.lookAt(0, 0.7, -1.05) : camera.lookAt(0, 1.6, -1))}
+      onCreated={({ camera, gl, scene }) => (Object.assign(window, { gl, scene }), params.get("silence") === "1" ? camera.lookAt(0, 1.5, -1.2) : params.get("flower") === "1" ? camera.lookAt(0, 1.4, -0.7) : params.get("fog") === "1" ? (camera.position.set(-0.2, 1.62, -0.38), camera.lookAt(0, 1.55, -0.6)) : params.get("cranes") === "1" ? camera.lookAt(0, 1.2, -2.2) : params.get("bench") === "1" ? camera.lookAt(0, 1.1, -1.3) : params.get("conch") === "1" ? camera.lookAt(0, 1.5, -1.0) : params.get("pool") === "1" ? camera.lookAt(0, 0.8, -1.3) : params.get("shore") === "1" ? camera.lookAt(0, 0.6, -1.3) : params.get("hourglass") === "1" ? camera.lookAt(0, 1.6, -0.5) : params.get("nebula") === "1" ? camera.lookAt(0, 1.6, -2.0) : params.get("moon") === "1" ? camera.lookAt(0, 8, -10) : params.get("mala") === "1" ? camera.lookAt(-1.6, 1.3, -5.9) : params.get("fireflies") === "1" ? camera.lookAt(0, 1.4, -2.2) : params.get("vase") === "1" ? camera.lookAt(0, 1.4, -1.0) : params.get("incense") === "1" ? camera.lookAt(0, 1.5, -0.9) : params.get("rain") === "1" ? camera.lookAt(0, 1.2, -2.2) : params.get("gong") === "1" ? camera.lookAt(3.7, 1.2, 0.6) : params.get("wheel") === "1" ? camera.lookAt(0, 1.2, -1.3) : params.get("mandala") === "1" ? camera.lookAt(0, 1.0, -1.0) : params.get("pond") === "1" ? camera.lookAt(0, 0.9, -1.1) : params.get("ribbons") === "1" ? camera.lookAt(0, 1.1, -1.6) : params.get("fire") === "1" ? camera.lookAt(FIRE_AT.x * 0.8, 0.8, FIRE_AT.z - 6.2) : params.get("bowls") === "1" || params.get("garden") === "1" ? camera.lookAt(0, 0.7, -1.05) : camera.lookAt(0, 1.6, -1))}
       style={{ position: "fixed", inset: 0, background: "linear-gradient(#5c6470, #3b3f46 55%, #2a2c30)" }}
     >
       {params.get("moon") === "1" ? <Moon /> : null}
+      {params.get("silence") === "1" ? (
+        <group position={[-SILENCE_AT.x, 0.6, -SILENCE_AT.z - 1.2]}>
+          <ambientLight intensity={0.8} />
+          <SilenceBell peopleRef={sitter} you={null} />
+        </group>
+      ) : null}
       {params.get("flower") === "1" ? (
         <group position={[-STILL_AT.x, 0.9, -STILL_AT.z - 0.7]}>
           <ambientLight intensity={0.6} />
@@ -339,7 +349,7 @@ function Preview() {
           <LobbyWelcome />
         </group>
       ) : null}
-      {params.get("welcome") === "1" || params.get("bowls") === "1" || params.get("garden") === "1" || params.get("fire") === "1" || params.get("dome") || params.get("ribbons") || params.get("pond") || params.get("mandala") || params.get("wheel") || params.get("gong") || params.get("rain") || params.get("incense") || params.get("vase") || params.get("fireflies") || params.get("mala") || params.get("moon") || params.get("nebula") || params.get("hourglass") || params.get("shore") || params.get("pool") || params.get("conch") || params.get("bench") || params.get("cranes") || params.get("fog") || params.get("flower") ? null : <SettingsMenu3D
+      {params.get("welcome") === "1" || params.get("bowls") === "1" || params.get("garden") === "1" || params.get("fire") === "1" || params.get("dome") || params.get("ribbons") || params.get("pond") || params.get("mandala") || params.get("wheel") || params.get("gong") || params.get("rain") || params.get("incense") || params.get("vase") || params.get("fireflies") || params.get("mala") || params.get("moon") || params.get("nebula") || params.get("hourglass") || params.get("shore") || params.get("pool") || params.get("conch") || params.get("bench") || params.get("cranes") || params.get("fog") || params.get("flower") || params.get("silence") ? null : <SettingsMenu3D
         position={[0, 1.6, -1.95]}
         model={{
           title: "Settings",

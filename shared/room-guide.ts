@@ -45,6 +45,7 @@ export const ROOM_GUIDE: readonly GuideEntry[] = [
   { name: "Hourglass", x: 1.25, z: 6.05, what: "turn it for three minutes" },
   { name: "Offering light", x: 1.4, z: 0.2, what: "for two: stand either side" },
   { name: "Cairn", x: -4.5, z: 5.9, what: "add a stone" },
+  { name: "Silence bell", x: 1.8, z: 2.6, what: "rings when all are still" },
   { name: "Still flower", x: -1.2, z: 2.4, what: "be still, and it opens" },
   { name: "Fog mirror", x: 2.6, z: 3.4, what: "breathe on the glass" },
   { name: "Paper cranes", x: -2.2, z: 3.0, what: "fold a crane" },
