@@ -1163,4 +1163,47 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 43,
+    name: "multiple avatar tutorial clips and multipart uploads",
+    sql: `
+      CREATE TABLE lobby_welcome_clips (
+        id TEXT PRIMARY KEY,
+        actor_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        duration_ms REAL,
+        participants_json TEXT NOT NULL DEFAULT '[]',
+        take_json TEXT,
+        audio BLOB,
+        take_path TEXT,
+        audio_path TEXT,
+        mime TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0,1)),
+        uploaded_at TEXT NOT NULL
+      );
+      CREATE INDEX lobby_welcome_clips_by_actor ON lobby_welcome_clips(actor_id, uploaded_at);
+      INSERT INTO lobby_welcome_clips (id,actor_id,title,take_json,audio,mime,active,uploaded_at)
+        SELECT lower(actor_id)||'-legacy',actor_id,'First recording',take_json,audio,mime,active,published_at FROM lobby_welcome_takes;
+      CREATE TABLE lobby_welcome_uploads (
+        id TEXT PRIMARY KEY,
+        actor_id TEXT NOT NULL,
+        header_json TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        frame_count INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE lobby_welcome_upload_parts (
+        upload_id TEXT NOT NULL REFERENCES lobby_welcome_uploads(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('frames','audio')),
+        part INTEGER NOT NULL,
+        data_path TEXT NOT NULL,
+        PRIMARY KEY(upload_id,kind,part)
+      );
+      CREATE TABLE lobby_welcome_consent (
+        actor_id TEXT PRIMARY KEY,
+        allowed INTEGER NOT NULL CHECK (allowed IN (0,1)),
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];

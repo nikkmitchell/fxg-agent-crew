@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { DEFAULT_AVATAR_STATE } from "../../shared/avatar-motion";
 import type { WirePerson } from "../../shared/space-wire";
 import { avatarRecipe } from "../avatar";
-import { frameAt, type AvatarFrame, type AvatarTake, type RecordedControl } from "./avatar-recording";
+import { frameAt, type AvatarFrame, type AvatarTake, type RecordedControl, type RecordedPerson } from "./avatar-recording";
 import type { AvatarRecorder } from "./useAvatarRecorder";
 import { VrmBody } from "./VrmBody";
 import { WristButton } from "./Backdrop";
@@ -43,6 +43,7 @@ export function stagedFrames(frames: readonly AvatarFrame[]): AvatarFrame[] {
     },
     micBar: turn(frame.micBar),
     personalUi: turn(frame.personalUi),
+    others: frame.others?.map((person) => ({ ...person, head: turn(person.head) as RecordedPerson["head"], hands: { left: person.hands.left ? { ...turn(person.hands.left)!, ...(person.hands.left.f ? { f: person.hands.left.f } : {}) } as RecordedPerson["hands"]["left"] : null, right: person.hands.right ? { ...turn(person.hands.right)!, ...(person.hands.right.f ? { f: person.hands.right.f } : {}) } as RecordedPerson["hands"]["right"] : null } })),
   }));
 }
 
@@ -87,6 +88,11 @@ export function AvatarReplay({ recorder }: { recorder: AvatarRecorder }) {
 function PlayingTake({ take, recorder }: { take: AvatarTake; recorder: AvatarRecorder }) {
   const recipe = useMemo(() => avatarRecipe(take.actorId), [take.actorId]);
   const frames = useMemo(() => stagedFrames(take.frames), [take.frames]);
+  const others = useMemo(() => {
+    const found = new Map<string, RecordedPerson>();
+    for (const frame of frames) for (const person of frame.others ?? []) found.set(person.actorId, person);
+    return [...found.values()];
+  }, [frames]);
   const [failed, setFailed] = useState(false);
   const current = useRef<AvatarFrame | null>(frames[0] ?? null);
   const refresh = useCallback(() => {
@@ -127,6 +133,22 @@ function PlayingTake({ take, recorder }: { take: AvatarTake; recorder: AvatarRec
       <Control sample={control("rightShadow")} kind="shadow" />
       <Control sample={mic} kind="mic" />
       <Control sample={ui} kind="ui" />
+      {others.map((person) => <ReplayCompanion key={person.actorId} person={person} sample={() => refresh()?.others?.find((other) => other.actorId === person.actorId) ?? null} />)}
     </group>
   );
+}
+
+function ReplayCompanion({ person, sample }: { person: RecordedPerson; sample: () => RecordedPerson | null }) {
+  const group = useRef<THREE.Group>(null);
+  const recipe = useMemo(() => avatarRecipe(person.actorId), [person.actorId]);
+  const [failed, setFailed] = useState(false);
+  useFrame(() => { if (group.current) group.current.visible = sample() !== null; });
+  const live = useCallback((): WirePerson | null => {
+    const current = sample();
+    if (!current) return null;
+    const head = current.head;
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion(head.q.x, head.q.y, head.q.z, head.q.w));
+    return { actorId: current.actorId, kind: current.kind, at: { x: head.p.x, y: 0, z: head.p.z }, moving: false, facing: Math.atan2(-forward.x, -forward.z), because: "recorded tutorial", connected: true, head, hands: current.hands, attending: null, avatar: current.avatar, body: current.body };
+  }, [sample]);
+  return <group ref={group}>{failed ? <Control sample={() => { const head = sample()?.head; return head ? { p: head.p } : null; }} kind="left" /> : <VrmBody actorId={person.actorId} body={person.body} live={live} recipe={recipe} reducedMotion={false} exact onFailed={() => setFailed(true)} speaking={false} agent={person.kind === "agent"} />}</group>;
 }
