@@ -1158,6 +1158,12 @@ export const MIGRATIONS: Migration[] = [
         created_by TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
+      -- Carry forward the old quota's source of truth on upgrade. Keep only
+      -- room, author, and timestamp: reflection text must never enter the ledger.
+      INSERT INTO space_mindfulness_share_events (room, created_by, created_at)
+        SELECT room, created_by, created_at
+        FROM space_mindfulness_cards
+        WHERE julianday(created_at) > julianday('now', '-1 day');
       CREATE INDEX mindfulness_share_events_by_author
         ON space_mindfulness_share_events(room, created_by, created_at);
       CREATE INDEX mindfulness_share_events_by_expiry
