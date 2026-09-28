@@ -63,16 +63,16 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
   useEffect(() => { if (owner) void refreshWelcome().catch(() => setNotice("Could not load welcome recordings.")); }, [owner, refreshWelcome]);
   const refreshConsent = useCallback(async () => {
     const response = await fetch(`${base}/bff/space/welcome/consent`, { credentials: "same-origin" });
-    if (!response.ok) return;
+    if (!response.ok) throw new Error("Could not check recording permissions.");
     const data = await response.json() as { mine: boolean; allowed: string[] };
     consented.current = new Set(data.allowed.map((name) => name.toLowerCase()));
     setAllowInOthersClips(data.mine);
   }, []);
   useEffect(() => {
     if (!owner) return;
-    void refreshConsent();
+    void refreshConsent().catch(() => setNotice("Could not check recording permissions."));
     if (status !== "recording") return;
-    const timer = window.setInterval(() => void refreshConsent(), 1000);
+    const timer = window.setInterval(() => void refreshConsent().catch(() => setNotice("Could not refresh recording permissions.")), 1000);
     return () => window.clearInterval(timer);
   }, [owner, status, refreshConsent]);
   const setRecordingConsent = useCallback(async (allowed: boolean) => {

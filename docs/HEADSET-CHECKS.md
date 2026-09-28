@@ -1,14 +1,16 @@
 # The headset, and what only you can check
 
-## Lobby avatar recording, first version
+## Lobby avatar recording
 
 Enter the public **lobby** in your headset. Open Settings → Me, turn on **Personal UI in replay** if you want its position represented, then tap **Record avatar + voice**. Speak while moving your head and hands. Turn up a palm to show the blue or orange movement balls, and use the green voice-to-chat gesture so its bar appears in the take. Tap **Stop avatar recording**, then **Play avatar preview**. The take should appear ahead of the lobby entrance, facing the viewer, with voice, body, balls, and green bar at the moments you performed them. The Settings representation appears only if the UI option is on and the menu was open during recording.
 
-Record a short second take to replace the first. Leave and re-enter the lobby in the same browser; the draft should still be there. **Discard avatar draft** removes it. This first version saves the draft on that browser, for review before a welcome recording is published. The browser check covered audio capture, pose sampling, local save, reload and 3D preview; tracked headset hands and gesture timing still need a device check.
+Record a second take. Both clips should remain in **Browser clips** after leaving and re-entering the lobby in the same browser. Name each clip before uploading; **Discard draft** removes only the selected browser clip. There is no recording timer. A long take still depends on the browser having enough memory and local storage. Tracked headset hands and gesture timing need a device check.
+
+For a group take, ask each participant to turn on **Others may record my avatar and voice**, then select **Include other humans** or **Include agents** before recording. Check that consenting participants appear and can be heard in the replay. A participant who turns permission off during a take should disappear from subsequent movement and audio; the server will refuse a take that still contains their earlier data. Other rooms are not yet supported.
 
 ## Published lobby welcome tutorials
 
-As Nikk2 or baiwei2, record and preview a take in the lobby, then choose **Upload tutorial to server** in Settings → Me → Avatar recording. **Play uploaded copy** should replay the server version with synchronized 3D movement, audio, balls and green voice bar. Replacing the upload should update that copy; **Remove uploaded tutorial** should delete it. For now, new visitors must not see uploaded clips: Nikk and Baiwei will choose which clips to use and when after recording them.
+As Nikk2 or baiwei2, record and preview a named take in the lobby, then choose **Upload tutorial to server** in Settings → Me → Avatar recording. **Server clips** should list each upload separately. **Play uploaded copy** should replay the selected server version with synchronized 3D movement, audio, balls and green voice bar. **Remove uploaded tutorial** should delete only the selected server clip. New clips are staged for review; Nikk and Baiwei will choose which clips to publish for new visitors later.
 
 If you are already in a room voice call, start and stop an avatar take while someone else listens. Your call should stay connected and audible throughout: the recorder now copies the call's microphone track and releases only that copy.
 If you start a call while an avatar take is already recording, stop and save the take first, then start the call. That reverse order still opens a second microphone on some headsets and needs a device check before it can be made automatic.
