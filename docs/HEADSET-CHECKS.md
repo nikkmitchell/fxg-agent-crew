@@ -22,6 +22,9 @@ All built and checked in the local test room (dev-room-harness) and live on saha
 10. **Mindfulness bell.** On the quarter hour, outside a session, a bell rings and "THE BELL · STOP FOR THREE BREATHS · 20" counts down above the orb. It rings only if you were already in the room when it struck.
 11. **Labyrinth.** Turn round from where you arrive: a seven-circuit path of light is drawn on the floor behind you. Walk it in to the centre. Is the line visible on a real floor, and is the sign at its mouth readable from standing height?
 12. **Tea table** (left of and a little behind the arrival point). Tap the teapot: it pours, the cup fills and steams, then a short tea practice is read to you.
+13. **Mandarin guides and readings.** On the orb, **到达 · 3 分钟** and **慈心 · 5 分钟** are spoken in Kokoro's Mandarin voice (zf_xiaoxiao), with Chinese captions. The reading stone also has 上善若水 and 自知者明, from the Tao Te Ching in the original. A Chinese speaker should check that the pronunciation is natural, and that the captions show characters, not empty boxes. The Chinese font is fetched from jsDelivr on first use.
+14. **Room guide sign** (just ahead-left of the arrival point). "WHAT IS HERE" lists every piece, with which way and how many steps to it. Is it readable from where you arrive, and are the directions right when you face the orb?
+15. **Frame rate.** In the test room, the view from the arrival point measured about 208 draw calls per frame. Check that the headset holds its frame rate in meditation.AR, particularly when turning to look across the whole room.
 
 ## Go table — device checks for the new model
 
