@@ -25,6 +25,8 @@ export function MeditatePage() {
   const [now, setNow] = useState(Date.now());
   const spoken = useRef(-1);
   const audio = useRef<HTMLAudioElement | null>(null);
+  /** Set when the voice would not load: the captions still carry the guide. */
+  const [voiceless, setVoiceless] = useState(false);
 
   const session = startedAt === null ? null : { ...idleMeditation(), pattern: "calm" as const, minutes: GUIDES[guide].minutes, startedAt, guide };
   const breath = session ? breathAt(session, now) : null;
@@ -43,8 +45,21 @@ export function MeditatePage() {
     if (!due || due.index <= spoken.current) return;
     spoken.current = due.index;
     audio.current?.pause();
-    audio.current = new Audio(`${base}/bff/space/guides/${guide}/${due.index}/audio?voice=${voice}`);
-    void audio.current.play().catch(() => undefined);
+    const url = `${base}/bff/space/guides/${guide}/${due.index}/audio?voice=${voice}`;
+    // Two more tries, two seconds apart, as the orb does: right after a
+    // release the server may still be voicing lines. After that, say so.
+    const attempt = (left: number) => {
+      const next = new Audio(url);
+      audio.current = next;
+      next.onplaying = () => setVoiceless(false);
+      next.onerror = () => {
+        if (audio.current !== next) return;
+        if (left > 0) window.setTimeout(() => { if (audio.current === next) attempt(left - 1); }, 2000);
+        else setVoiceless(true);
+      };
+      void next.play().catch(() => undefined);
+    };
+    attempt(2);
   });
 
   useEffect(() => () => audio.current?.pause(), []);
@@ -103,6 +118,7 @@ export function MeditatePage() {
           <div className="meditate-circle" aria-hidden="true" style={{ width: size, height: size }} />
           <p className="meditate-phase">{PHASE_WORDS[breath.phase]}</p>
           <p className="meditate-caption" aria-live="polite">{caption ?? " "}</p>
+          {voiceless && <p className="muted-note" role="status">The voice could not be loaded (are you signed in?). The captions will still guide you.</p>}
           <p className="muted-note">{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} left · {GUIDES[guide].label}</p>
           <button type="button" className="text-button" onClick={stop}>End</button>
         </div>
