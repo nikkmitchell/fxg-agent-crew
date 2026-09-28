@@ -35,6 +35,16 @@ export const MINDFULNESS_PRACTICES = [
       "If you like, write one sentence. Keep it private, or choose to share it with the room.",
     ],
   },
+  {
+    id: "wide-frame",
+    title: "Widen the frame",
+    subtitle: "Let the edges come into view",
+    steps: [
+      "Rest your eyes on something comfortable. If vision feels tiring, choose a sound or point of contact instead.",
+      "Notice what is already at the edges of your awareness. No need to turn, search, or name anything.",
+      "Let the center and edges—or the sound or contact—share attention for a breath. Blink, look away, or stop whenever you like.",
+    ],
+  },
 ] as const;
 
 export type MindfulnessId = (typeof MINDFULNESS_PRACTICES)[number]["id"];
@@ -172,15 +182,25 @@ export function paintMindfulness(
   if (!active) {
     ink.push({ kind: "text", x: 48, y: 98, text: "Practice", size: 38, fill: CARD_INK.ink, weight: "bold" });
     ink.push({ kind: "text", x: 48, y: 137, text: "Choose one. Move at your own pace; skip or stop whenever you like.", size: 19, fill: CARD_INK.muted });
-    const xPositions = [48, 368, 688];
+    const twoRows = MINDFULNESS_PRACTICES.length > 3;
+    const choices = twoRows
+      ? [
+          { x: 48, y: 162, width: 448, height: 154 },
+          { x: 528, y: 162, width: 448, height: 154 },
+          { x: 48, y: 328, width: 448, height: 154 },
+          { x: 528, y: 328, width: 448, height: 154 },
+        ]
+      : [48, 368, 688].map((x) => ({ x, y: 178, width: 288, height: 252 }));
     MINDFULNESS_PRACTICES.forEach((flow, index) => {
-      const x = xPositions[index];
-      card(x, 178, 288, 252, flow.title, flow.subtitle);
-      ink.push({ kind: "text", x: x + 20, y: 394, text: "BEGIN →", size: 18, fill: CARD_INK.accent, weight: "bold" });
-      targets.push({ id: `choose:${flow.id}`, x, y: 178, width: 288, height: 252 });
+      const choice = choices[index];
+      if (!choice) return;
+      const { x, y, width: cardWidth, height: cardHeight } = choice;
+      card(x, y, cardWidth, cardHeight, flow.title, flow.subtitle);
+      ink.push({ kind: "text", x: x + 20, y: y + cardHeight - 16, text: "BEGIN →", size: 18, fill: CARD_INK.accent, weight: "bold" });
+      targets.push({ id: `choose:${flow.id}`, x, y, width: cardWidth, height: cardHeight });
     });
-    button("open-page", "Read the room's page", 48, 466, 300);
-    ink.push({ kind: "text", x: 48, y: 556, text: "No timer, score, or required sharing. Stop or skip whenever you like.", size: 16, fill: CARD_INK.muted });
+    button("open-page", "Read the room's page", 48, twoRows ? 502 : 466, 300);
+    ink.push({ kind: "text", x: 48, y: twoRows ? 592 : 556, text: "No timer, score, or required sharing. Stop or skip whenever you like.", size: 16, fill: CARD_INK.muted });
     notice();
     return { ink, targets };
   }
