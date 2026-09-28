@@ -87,6 +87,25 @@ function paintGrains(context: CanvasRenderingContext2D, colour: string, points: 
   context.globalAlpha = 1;
 }
 
+/** Put the six cups (or their sand) along the plate's near edge; the chosen one is raised and its sand brighter. */
+function placeCups(node: THREE.InstancedMesh | null, chosen: number, part: "cup" | "sand"): void {
+  if (!node) return;
+  const matrix = new THREE.Matrix4();
+  const flat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+  SANDS.forEach((colour, index) => {
+    const a = ((index - (SANDS.length - 1) / 2) / SANDS.length) * 1.5;
+    const r = PLATE_RADIUS + 0.12;
+    const y = MANDALA_AT.height + (index === chosen ? 0.04 : 0.015) + (part === "sand" ? 0.016 : 0);
+    matrix.compose(new THREE.Vector3(Math.sin(a) * r, y, Math.cos(a) * r), part === "sand" ? flat : new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+    node.setMatrixAt(index, matrix);
+    if (part === "sand") node.setColorAt(index, new THREE.Color(colour).multiplyScalar(index === chosen ? 1.35 : 1));
+  });
+  node.instanceMatrix.needsUpdate = true;
+  if (node.instanceColor) node.instanceColor.needsUpdate = true;
+  // The bounds must cover where the cups now are, or taps and culling miss them.
+  node.computeBoundingSphere();
+}
+
 export function SandMandala() {
   const [mandala, setMandala] = useState<Mandala>(emptyMandala);
   const current = useRef(mandala);
@@ -256,28 +275,22 @@ export function SandMandala() {
       </mesh>
       <group rotation={[0, facing, 0]}>
         {/* THE SIX CUPS OF SAND, along the near edge: tap one to pour with it. */}
-        {SANDS.map((colour, index) => {
-          const a = ((index - (SANDS.length - 1) / 2) / SANDS.length) * 1.5;
-          const r = PLATE_RADIUS + 0.12;
-          const chosen = index === sand;
-          return (
-            <group key={colour} position={[Math.sin(a) * r, MANDALA_AT.height + (chosen ? 0.04 : 0.015), Math.cos(a) * r]}>
-              <mesh
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setSand(index);
-                }}
-              >
-                <cylinderGeometry args={[0.035, 0.025, 0.03, 16]} />
-                <meshStandardMaterial color="#6a5646" roughness={0.8} />
-              </mesh>
-              <mesh position={[0, 0.016, 0]} rotation-x={-Math.PI / 2} raycast={() => null}>
-                <circleGeometry args={[0.031, 16]} />
-                <meshStandardMaterial color={colour} roughness={1} emissive={chosen ? colour : "#000000"} emissiveIntensity={chosen ? 0.35 : 0} />
-              </mesh>
-            </group>
-          );
-        })}
+        {/* Two draws for all six cups and their sand, not twelve (draw-call count, 2026-09-28). */}
+        <instancedMesh
+          args={[undefined, undefined, SANDS.length]}
+          ref={(node) => placeCups(node, sand, "cup")}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (event.instanceId !== undefined) setSand(event.instanceId);
+          }}
+        >
+          <cylinderGeometry args={[0.035, 0.025, 0.03, 16]} />
+          <meshStandardMaterial color="#6a5646" roughness={0.8} />
+        </instancedMesh>
+        <instancedMesh args={[undefined, undefined, SANDS.length]} ref={(node) => placeCups(node, sand, "sand")} raycast={() => null}>
+          <circleGeometry args={[0.031, 16]} />
+          <meshStandardMaterial roughness={1} />
+        </instancedMesh>
         {/* THE BRUSH: tap twice to sweep. */}
         <mesh
           position={[PLATE_RADIUS + 0.1, MANDALA_AT.height + 0.02, 0.25]}

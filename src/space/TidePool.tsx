@@ -82,6 +82,7 @@ export function TidePool() {
             node.setColorAt(i, new THREE.Color(i % 2 ? "#5d5850" : "#6e685d"));
           });
           node.instanceMatrix.needsUpdate = true;
+          node.computeBoundingSphere();
         }}
       >
         <sphereGeometry args={[1, 10, 6]} />
