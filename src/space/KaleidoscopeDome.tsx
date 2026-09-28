@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { breathAt, type Meditation } from "../../shared/meditation";
 import { audio } from "./breath-sound";
+import type { WirePerson } from "../../shared/space-wire";
 
 /**
  * THE KALEIDOSCOPE DOME: for the trippy end of the room (baiwei, 5489: "Run a
@@ -37,6 +38,7 @@ const fragment = /* glsl */ `
   uniform float uTime;
   uniform float uBreath;
   uniform float uInside;
+  uniform float uTogether;
   varying vec3 vDir;
   varying vec3 vNormal;
   varying vec3 vView;
@@ -64,6 +66,18 @@ const fragment = /* glsl */ `
     vec3 colour = palette(r * 0.15 + m * 0.18 + uTime * 0.02);
     colour *= 0.22 + 0.45 * (m * 0.5 + 0.5) + uBreath * 0.2;
     colour += line * vec3(1.0, 0.85, 0.6) * (0.35 + uBreath * 0.25);
+
+    // TOGETHER (Lumenfold, 5552): with two or more inside, a second mandala
+    // turns the other way, and where the two patterns meet a gold rosette
+    // blooms. Nobody has to match anyone's breath for it.
+    if (uTogether > 0.001) {
+      float b = atan(vDir.z, vDir.x) - uTime * 0.05;
+      float slice2 = 6.2831853 / 8.0;
+      b = abs(mod(b, slice2) - slice2 * 0.5);
+      float second = sin(r * 13.0 + t * 2.4 + sin(b * 8.0) * 1.5);
+      float rosette = smoothstep(0.7, 1.0, rings * second) + smoothstep(0.85, 1.0, abs(second)) * 0.25;
+      colour += vec3(1.0, 0.78, 0.35) * rosette * uTogether * 0.8;
+    }
 
     if (gl_FrontFacing && uInside < 0.5) {
       // Seen from OUTSIDE: a glowing skin, brighter at the edge.
@@ -104,13 +118,13 @@ function startPad(): { set: (level: number) => void; stop: () => void } {
   };
 }
 
-export function KaleidoscopeDome({ meditation }: { meditation: Meditation | null }) {
+export function KaleidoscopeDome({ meditation, peopleRef, you }: { meditation: Meditation | null; peopleRef?: { current: WirePerson[] | null }; you?: string | null }) {
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
         vertexShader: vertex,
         fragmentShader: fragment,
-        uniforms: { uTime: { value: 0 }, uBreath: { value: 0 }, uInside: { value: 0 } },
+        uniforms: { uTime: { value: 0 }, uBreath: { value: 0 }, uInside: { value: 0 }, uTogether: { value: 0 } },
         transparent: true,
         depthWrite: false,
         side: THREE.DoubleSide,
@@ -137,6 +151,14 @@ export function KaleidoscopeDome({ meditation }: { meditation: Meditation | null
     mesh.current?.getWorldPosition(centre);
     const inside = eye.distanceTo(centre) < DOME_AT.radius - 0.1;
     material.uniforms.uInside.value = inside ? 1 : 0;
+    // How many are inside: me, and anyone else standing within the dome.
+    let together = inside ? 1 : 0;
+    for (const person of peopleRef?.current ?? []) {
+      if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+      if (Math.hypot(person.at.x - centre.x, person.at.z - centre.z) < DOME_AT.radius - 0.1) together += 1;
+    }
+    const shared = together >= 2 ? 1 : 0;
+    material.uniforms.uTogether.value += (shared - material.uniforms.uTogether.value) * Math.min(1, delta * 0.8);
     if (inside && !pad.current) pad.current = startPad();
     pad.current?.set(inside ? 0.6 + breath.current * 0.4 : 0);
   });

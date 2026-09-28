@@ -920,7 +920,7 @@ export default function Scene({
         {/* And the ember fire, to let something go: see shared/fire.ts. */}
         {connection.meditation?.shown && <Near at={FIRE_AT}><EmberFire you={you} /></Near>}
         {/* And the kaleidoscope dome, to walk into: see KaleidoscopeDome.tsx. */}
-        {connection.meditation?.shown && <KaleidoscopeDome meditation={connection.meditation} />}
+        {connection.meditation?.shown && <KaleidoscopeDome meditation={connection.meditation} peopleRef={connection.peopleRef} you={you} />}
         {/* And the light-ribbon circle, for slow movement: see LightRibbons.tsx. */}
         {connection.meditation?.shown && <LightRibbons peopleRef={connection.peopleRef} you={you} />}
         {/* And the koi pond: see KoiPond.tsx. */}

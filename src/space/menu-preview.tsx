@@ -234,7 +234,7 @@ function Preview() {
       {params.get("dome") ? (
         // ?dome=out stands 3 m away; ?dome=in stands inside it.
         <group position={[-DOME_AT.x, 0.4, -DOME_AT.z + (params.get("dome") === "in" ? 0 : -4)]}>
-          <KaleidoscopeDome meditation={null} />
+          <KaleidoscopeDome meditation={null} you="preview" peopleRef={{ current: params.get("together") === "1" ? ([{ actorId: "someone", at: { x: 0.3, y: 0, z: 0.2 } }] as never[]) : [] }} />
         </group>
       ) : null}
       {params.get("fire") === "1" ? (
