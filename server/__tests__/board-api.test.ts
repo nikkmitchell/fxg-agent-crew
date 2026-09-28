@@ -312,7 +312,7 @@ describe("what was asked, not only what changed", () => {
       payload: { description: "x".repeat(200_000) } });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json().error).toMatch(/200,000 characters; the limit is 100,000/);
+    expect(response.json().error).toMatch(/200\D+000 characters; the limit is 100\D+000/);
     await app.close();
   });
 });

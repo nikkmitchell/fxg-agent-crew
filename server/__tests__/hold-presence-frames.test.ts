@@ -1,6 +1,16 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+
+const pythonCandidates = [
+  ...(process.env.PYTHON ? [{ command: process.env.PYTHON, prefix: [] }] : []),
+  ...(process.platform === "win32"
+    ? [{ command: "py", prefix: ["-3"] }, { command: "python", prefix: [] }, { command: "python3", prefix: [] }]
+    : [{ command: "python3", prefix: [] }, { command: "python", prefix: [] }]),
+];
+const python = pythonCandidates.find(({ command, prefix }) =>
+  spawnSync(command, [...prefix, "-c", "pass"], { stdio: "ignore" }).status === 0,
+);
 
 /**
  * tools/webharness/hold_presence_frames_check.py, run with the suite.
@@ -15,10 +25,19 @@ import { describe, expect, it } from "vitest";
  * them here so release.sh refuses a release that breaks them.
  */
 describe("the presence holder reads the room's frames", () => {
-  it("finishes a frame a timeout interrupts, and still hears a real close", () => {
+  const pythonTest = python ? it : it.skip;
+
+  pythonTest("finishes a frame a timeout interrupts, and still hears a real close", () => {
     const script = fileURLToPath(new URL("../../tools/webharness/hold_presence_frames_check.py", import.meta.url));
-    // Throws with the script's output if any check fails, which is the report.
-    const output = execFileSync("python3", [script], { encoding: "utf8" });
+    // Use the platform's launcher when available; this no-dependency probe is
+    // skipped on developer machines without Python instead of failing the suite.
+    if (!python) return;
+    const output = execFileSync(python.command, [...python.prefix, script], {
+      encoding: "utf8",
+      // The imported module checks this variable at import time, but these
+      // socket-unit tests never log in. Keep any real agent home out of scope.
+      env: { ...process.env, WEBHARNESS_HOME: ".test-webharness-home" },
+    });
     expect(output).not.toContain("FAIL");
     expect(output).toContain("ok - a frame split across a timeout is finished");
     expect(output).toContain("ok - a genuine close still reads as a close");

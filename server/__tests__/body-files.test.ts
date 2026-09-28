@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { BodyFiles } from "../space/body-files.js";
 import { DRIVEN_BONES } from "../../shared/vrm-meta.js";
 
@@ -202,23 +202,28 @@ describe("a body already on disk", () => {
 describe("where fetched bodies are kept", () => {
   it("sits beside the database, wherever that is", async () => {
     const { loadConfig } = await import("../config.js");
+    const databasePath = resolve("runtime-state", "saha.db");
     const config = loadConfig({
       WEBHARNESS_URL: "https://example.test",
-      DATABASE_PATH: "/var/lib/fxg-crew/saha.db",
+      DATABASE_PATH: databasePath,
     });
-    expect(config.bodyCacheRoot).toBe("/var/lib/fxg-crew/bodies");
+    expect(config.bodyCacheRoot).toBe(resolve(dirname(databasePath), "bodies"));
   });
 
   it("never lands under the read-only install directory", async () => {
     const { loadConfig } = await import("../config.js");
+    const databasePath = resolve("runtime-state", "var", "lib", "fxg-crew", "saha.db");
     const config = loadConfig({
       WEBHARNESS_URL: "https://example.test",
       NODE_ENV: "production",
       SESSION_SECRET: "x",
-      DATABASE_PATH: "/var/lib/fxg-crew/saha.db",
+      DATABASE_PATH: databasePath,
     });
-    expect(config.bodyCacheRoot.startsWith("/var/lib/")).toBe(true);
-    expect(config.bodyCacheRoot).not.toContain("./data");
+    expect(config.bodyCacheRoot).toBe(resolve(dirname(databasePath), "bodies"));
+    const relativeToInstallData = relative(resolve("data"), config.bodyCacheRoot);
+    const isUnderInstallData = relativeToInstallData === "" ||
+      (!relativeToInstallData.startsWith("..") && !isAbsolute(relativeToInstallData));
+    expect(isUnderInstallData).toBe(false);
   });
 
   it("uses the development directory when the database is in memory", async () => {

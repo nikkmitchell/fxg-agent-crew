@@ -262,12 +262,12 @@ describe("bounds on free text", () => {
     // storage and context DoS that every later reader of that board pays for.
     const id = aTask();
     expect(() => store.updateTask(nikk, id, { description: "x".repeat(200_000) }))
-      .toThrow(/200,000 characters; the limit is 100,000/);
+      .toThrow(/200\D+000 characters; the limit is 100\D+000/);
   });
 
   it("bounds comments and titles too", () => {
     const id = aTask();
-    expect(() => store.addComment(nikk, id, "x".repeat(60_000))).toThrow(/limit is 50,000/);
+    expect(() => store.addComment(nikk, id, "x".repeat(60_000))).toThrow(/limit is 50\D+000/);
     expect(() => store.updateTask(nikk, id, { title: "x".repeat(600) })).toThrow(/limit is 500/);
   });
 });
