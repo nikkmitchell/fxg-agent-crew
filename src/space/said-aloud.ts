@@ -1,6 +1,7 @@
 import { base } from "../router";
 import { speakSay, type SpeechFailure, type SpeechOutput, type SpeechPhase } from "./speech";
 import { primeAudioOnFirstGesture } from "./audio-unlock";
+import { offerRecordedSpeech } from "./room-recording-audio";
 
 /**
  * Hearing a line in the speaker's OWN voice, made on the box, with the
@@ -175,6 +176,7 @@ export function readAloud(options: ReadAloudOptions): SpeechOutput {
         if (url === NO_ENGINE) return browser("no-audio");
         if (!url) return unvoiced();
         const audio = makeAudio(url);
+        if (speaker) offerRecordedSpeech(speaker, audio);
         playing = audio;
         playingUrl = url;
         if (volume !== undefined) audio.volume = Math.max(0, Math.min(1, volume));

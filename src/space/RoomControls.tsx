@@ -417,6 +417,7 @@ export function RoomControls({
   const [heard, setHeard] = useState("");
   /** Whether the headset's system keyboard is up right now. */
   const [keyboardFocused, setKeyboardFocused] = useState(false);
+  const [renamingClip, setRenamingClip] = useState(false);
   /** Words from the system keyboard, kept between keyboard sessions until sent. */
   const [written, setWritten] = useState("");
   // A written draft lives only in this component, not in any text box on the
@@ -1316,8 +1317,23 @@ export function RoomControls({
     },
     recorder: currentRoom === "lobby"
       ? {
-          status: avatarRecorder.status === "recording" ? "recording" : avatarRecorder.status === "idle" ? "idle" : "preparing",
+          status: avatarRecorder.status === "recording" ? "recording" : avatarRecorder.status === "idle" ? "idle" : avatarRecorder.status === "uploading" ? "uploading" : "preparing",
           showPersonalUi: avatarRecorder.showPersonalUi,
+          includeHumans: avatarRecorder.includeHumans,
+          includeAgents: avatarRecorder.includeAgents,
+          allowInOthersClips: avatarRecorder.allowInOthersClips,
+          setRecordingConsent: (on) => void avatarRecorder.setRecordingConsent(on),
+          setIncludeHumans: avatarRecorder.setIncludeHumans,
+          setIncludeAgents: avatarRecorder.setIncludeAgents,
+          clips: avatarRecorder.takes.map((clip) => ({ id: clip.id ?? "", title: clip.title ?? "First recording" })),
+          selectedClipId: avatarRecorder.take?.id ?? null,
+          selectClip: avatarRecorder.selectTake,
+          renameClip: () => setRenamingClip(true),
+          uploadedClips: avatarRecorder.uploadedClips.map((clip) => ({ id: clip.id, title: clip.title })),
+          selectedUploadedId: avatarRecorder.uploadedClip?.id ?? null,
+          selectUploadedClip: avatarRecorder.selectUploadedClip,
+          uploadedActive: avatarRecorder.uploadedClip?.active ?? false,
+          setUploadedActive: (active) => void avatarRecorder.setClipActive(active),
           hasTake: Boolean(avatarRecorder.take),
           playing: avatarRecorder.playing,
           notice: avatarRecorder.notice ?? null,
@@ -1332,7 +1348,7 @@ export function RoomControls({
           stopPlayback: () => avatarRecorder.stopPlayback(),
           discard: () => void avatarRecorder.discard(),
           canPublish: avatarRecorder.canPublish,
-          publishedMine: Boolean(avatarRecorder.uploadedMine),
+          publishedMine: avatarRecorder.uploadedClips.length > 0,
           hasPublished: avatarRecorder.published.length > 0,
           welcomeCompleted: avatarRecorder.welcomeCompleted,
           publish: () => void avatarRecorder.publish(),
@@ -1687,7 +1703,9 @@ export function RoomControls({
         ) : null}
       </group>
       <group ref={group} visible={false}>
-      {fixing ? (
+      {renamingClip && avatarRecorder.take ? (
+        <Typing3D prompt="Name this tutorial clip" initial={avatarRecorder.take.title ?? "First recording"} limit={120} position={[0, -0.12, 0]} scale={1.5} keyboardScale={0.7} onDone={(title) => { void avatarRecorder.rename(title); setRenamingClip(false); }} onCancel={() => setRenamingClip(false)} />
+      ) : fixing ? (
         /*
           IN PLACE OF THE CONTROLS, not beside them: the editor has its own
           speak and save, and a mic button behind the keys would be one more

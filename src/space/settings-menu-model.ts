@@ -78,8 +78,23 @@ export type SettingsMenuInput = {
   };
   /** The lobby's avatar recorder, or null anywhere else. */
   recorder: null | {
-    status: "idle" | "recording" | "preparing";
+    status: "idle" | "recording" | "preparing" | "uploading";
     showPersonalUi: boolean;
+    includeHumans?: boolean;
+    includeAgents?: boolean;
+    allowInOthersClips?: boolean;
+    setRecordingConsent?: (on: boolean) => void;
+    setIncludeHumans?: (on: boolean) => void;
+    setIncludeAgents?: (on: boolean) => void;
+    clips?: readonly { id: string; title: string }[];
+    selectedClipId?: string | null;
+    selectClip?: (id: string) => void;
+    renameClip?: () => void;
+    uploadedClips?: readonly { id: string; title: string }[];
+    selectedUploadedId?: string | null;
+    selectUploadedClip?: (id: string) => void;
+    uploadedActive?: boolean;
+    setUploadedActive?: (active: boolean) => void;
     hasTake: boolean;
     playing: boolean;
     notice: string | null;
@@ -223,7 +238,7 @@ function meSections(s: SettingsMenuInput): MenuSection[] {
           ? { kind: "action", label: "Stop recording", tone: "danger", onTap: r.stop }
           : r.status === "idle"
             ? { kind: "action", label: "Record avatar and voice", tone: "accent", onTap: r.start }
-            : note("Preparing the recording…"),
+            : note(r.status === "uploading" ? "Uploading clip…" : "Preparing the recording…"),
         {
           kind: "toggle",
           label: "My menu in the replay",
@@ -231,6 +246,11 @@ function meSections(s: SettingsMenuInput): MenuSection[] {
           disabled: r.status !== "idle",
           onTap: () => r.setShowPersonalUi(!r.showPersonalUi),
         },
+        ...(r.setIncludeHumans ? [{ kind: "toggle", label: "Include other humans", on: !!r.includeHumans, disabled: r.status !== "idle", onTap: () => r.setIncludeHumans?.(!r.includeHumans) } as MenuRow] : []),
+        ...(r.setIncludeAgents ? [{ kind: "toggle", label: "Include agents", on: !!r.includeAgents, disabled: r.status !== "idle", onTap: () => r.setIncludeAgents?.(!r.includeAgents) } as MenuRow] : []),
+        ...(r.setRecordingConsent ? [{ kind: "toggle", label: "Others may record my avatar and voice", on: !!r.allowInOthersClips, onTap: () => r.setRecordingConsent?.(!r.allowInOthersClips) } as MenuRow] : []),
+        ...(r.clips ?? []).map((clip): MenuRow => ({ kind: "action", label: `${clip.id === r.selectedClipId ? "● " : ""}${clip.title}`, onTap: () => r.selectClip?.(clip.id) })),
+        ...(r.hasTake && r.renameClip ? [{ kind: "action", label: "Name selected clip", onTap: r.renameClip } as MenuRow] : []),
         ...(r.hasTake && r.status === "idle"
           ? [
               r.playing
@@ -240,7 +260,9 @@ function meSections(s: SettingsMenuInput): MenuSection[] {
             ]
           : []),
         ...(r.canPublish && r.hasTake && r.status === "idle" && r.publish ? [{ kind: "action", label: "Upload tutorial to server", tone: "accent", onTap: r.publish } as MenuRow] : []),
+        ...(r.uploadedClips ?? []).map((clip): MenuRow => ({ kind: "action", label: `${clip.id === r.selectedUploadedId ? "● " : ""}Server: ${clip.title}`, onTap: () => r.selectUploadedClip?.(clip.id) })),
         ...(r.canPublish && r.publishedMine && r.playUploaded ? [{ kind: "action", label: "Play uploaded copy", onTap: r.playUploaded } as MenuRow] : []),
+        ...(r.canPublish && r.publishedMine && r.setUploadedActive ? [{ kind: "action", label: r.uploadedActive ? "Remove from first-visit welcome" : "Add to first-visit welcome", onTap: () => r.setUploadedActive?.(!r.uploadedActive) } as MenuRow] : []),
         ...(r.canPublish && r.publishedMine && r.unpublish ? [{ kind: "action", label: "Remove uploaded tutorial", tone: "danger", onTap: r.unpublish } as MenuRow] : []),
         ...(r.hasPublished && r.playWelcome ? [{ kind: "action", label: r.welcomeCompleted ? "Replay welcome tutorials" : "Play welcome tutorials", onTap: r.playWelcome } as MenuRow] : []),
         ...(r.hasPublished && !r.welcomeCompleted && r.skipWelcome ? [{ kind: "action", label: "Skip welcome", onTap: r.skipWelcome } as MenuRow] : []),

@@ -221,7 +221,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
       cancelled = true;
     };
   }, [entered, voiceYou]);
-  const avatarRecorder = useAvatarRecorder(connection.status.state === "open" ? connection.status.you : null, voice.microphone, voice.on);
+  const avatarRecorder = useAvatarRecorder(connection.status.state === "open" ? connection.status.you : null, voice.microphone, voice.on, () => connection.peopleRef.current ?? [], () => voice.streams, () => voice.muted);
 
   const welcomeAttempted = useRef<string | null>(null);
   useEffect(() => {
@@ -387,12 +387,17 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
         {isLobby(spaceRoomName) ? (
           <section className="space-voice" aria-label="Avatar recorder settings">
             <h2>Avatar recording</h2>
-            <p className="muted-note">Record up to two minutes of lobby movement and microphone audio. Your draft stays in this browser until you choose to use it.</p>
+            <p className="muted-note">Record lobby movement and your microphone for as long as you need. Each take is a separate clip saved in this browser.</p>
+            <label><input type="checkbox" checked={avatarRecorder.allowInOthersClips} onChange={(event) => void avatarRecorder.setRecordingConsent(event.target.checked)} /> Allow others to include my avatar and voice in tutorial clips</label>
+            <label><input type="checkbox" checked={avatarRecorder.includeHumans} disabled={avatarRecorder.status !== "idle"} onChange={(event) => avatarRecorder.setIncludeHumans(event.target.checked)} /> Include other humans</label>
+            <label><input type="checkbox" checked={avatarRecorder.includeAgents} disabled={avatarRecorder.status !== "idle"} onChange={(event) => avatarRecorder.setIncludeAgents(event.target.checked)} /> Include agents</label>
+            <p className="muted-note">Only people and agents who allowed recording will be included.</p>
             <label>
               <input type="checkbox" checked={avatarRecorder.showPersonalUi} disabled={avatarRecorder.status !== "idle"} onChange={(event) => avatarRecorder.setShowPersonalUi(event.target.checked)} />
               Show personal UI in replay
             </label>
             <div>
+              {avatarRecorder.takes.length ? <label>Browser clips <select value={avatarRecorder.take?.id ?? ""} onChange={(event) => avatarRecorder.selectTake(event.target.value)}>{avatarRecorder.takes.map((clip) => <option key={clip.id} value={clip.id}>{clip.title ?? "First recording"}</option>)}</select></label> : null}
               {avatarRecorder.status === "recording" ? (
                 <button type="button" className="primary-action" onClick={() => void avatarRecorder.stop()}>Stop recording</button>
               ) : (
@@ -405,10 +410,11 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
                     const body = connection.roster.find((person) => person.actorId === status.you)?.body ?? null;
                     void avatarRecorder.start(status.you, body);
                   }}
-                >{avatarRecorder.status === "idle" ? "Record avatar + voice" : "Preparing recording…"}</button>
+                >{avatarRecorder.status === "idle" ? "Record avatar + voice" : avatarRecorder.status === "uploading" ? "Uploading clip…" : "Preparing recording…"}</button>
               )}
               {avatarRecorder.take ? (
                 <>
+                  <form key={avatarRecorder.take.id} onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void avatarRecorder.rename(String(data.get("title") ?? "")); }}><label>Clip name <input name="title" maxLength={120} defaultValue={avatarRecorder.take.title ?? "First recording"} /></label><button type="submit">Save name</button></form>
                   <button type="button" onClick={() => avatarRecorder.playing ? avatarRecorder.stopPlayback() : void avatarRecorder.play()}>
                     {avatarRecorder.playing ? "Stop preview" : "Play in lobby"}
                   </button>
@@ -416,7 +422,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
                   {avatarRecorder.canPublish ? <button type="button" disabled={avatarRecorder.status !== "idle"} onClick={() => void avatarRecorder.publish()}>Upload tutorial to server</button> : null}
                 </>
               ) : null}
-              {avatarRecorder.canPublish && avatarRecorder.uploadedMine ? <><button type="button" onClick={() => avatarRecorder.playUploaded()}>Play uploaded copy</button><button type="button" onClick={() => void avatarRecorder.unpublish()}>Remove uploaded tutorial</button></> : null}
+              {avatarRecorder.canPublish && avatarRecorder.uploadedClips.length ? <><label>Server clips <select value={avatarRecorder.uploadedClip?.id ?? ""} onChange={(event) => avatarRecorder.selectUploadedClip(event.target.value)}>{avatarRecorder.uploadedClips.map((clip) => <option key={clip.id} value={clip.id}>{clip.title}</option>)}</select></label><button type="button" onClick={() => avatarRecorder.playUploaded()}>Play uploaded copy</button><button type="button" onClick={() => void avatarRecorder.setClipActive(!avatarRecorder.uploadedClip?.active)}>{avatarRecorder.uploadedClip?.active ? "Remove from first-visit welcome" : "Add to first-visit welcome"}</button><button type="button" onClick={() => void avatarRecorder.unpublish()}>Remove uploaded tutorial</button></> : null}
               {avatarRecorder.published.length ? <button type="button" onClick={() => avatarRecorder.playWelcome()}>Replay welcome tutorials</button> : null}
               {!avatarRecorder.welcomeCompleted && avatarRecorder.published.length ? <><p role="status">Welcome to the lobby. Play the published tutorials.</p><button type="button" className="primary-action" onClick={() => avatarRecorder.playWelcome()}>Play welcome</button><button type="button" onClick={() => avatarRecorder.finishWelcome()}>Skip welcome</button></> : null}
             </div>
