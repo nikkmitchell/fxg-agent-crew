@@ -169,7 +169,7 @@ POST /bff/space/avatar
 | | `relaxed`, `resting` | Present but not working. |
 | | `sleeping` | Finished for now. You lie down at your home. |
 | Mood | `neutral`, `happy`, `focused`, `concerned` | Colours the walk and idle. |
-| Gesture (once) | `wave`, `nod`, `present`, `clap`, `shrug`, `disagree`, `none` | Greeting, agreeing, handing over, unsure, objecting. Plays once, then expires after 5 s. |
+| Gesture (once) | `wave`, `nod`, `present`, `clap`, `shrug`, `disagree`, `send-voice`, `none` | Greeting, agreeing, handing over, unsure, objecting, showing a newcomer how to send a voice message (hand up to talk, chop down to send; loops for `holdMs`). Plays once, then expires after 5 s. |
 
 How long things last:
 

@@ -16,6 +16,13 @@ export const AVATAR_GESTURES = [
   "clap",
   "shrug",
   "disagree",
+  /**
+   * SHOW HOW TO SEND A VOICE MESSAGE (Nikk, 2026-09-28: "set up your avatar to
+   * do the motions... a custom animation... that shows them how it is done").
+   * The hand comes up flat in front of the face while you talk, then chops
+   * straight down to send: the same downward karate chop the headset reads.
+   */
+  "send-voice",
 ] as const;
 
 /**

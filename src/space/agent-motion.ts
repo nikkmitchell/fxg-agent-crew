@@ -17,6 +17,14 @@ export type AgentMotionFrame = {
 };
 
 const rotation = (x = 0, y = 0, z = 0): Rotation => ({ x, y, z });
+/**
+ * Gestures with no authored clip, and the arm each one poses procedurally even
+ * while clips are playing the rest of the body.
+ */
+export const PROCEDURAL_ARM: Partial<Record<string, "left" | "right">> = { "send-voice": "right" };
+
+/** One raise-and-chop of the send-voice demo. */
+export const CHOP_CYCLE_MS = 3_000;
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
 /** Stable phase offsets keep a crowd from breathing and blinking in lockstep. */
@@ -164,6 +172,21 @@ export function agentMotionFrame({
     frame.rightLowerArm = rotation(0, 0, reducedMotion ? 1.05 : 0.95 + Math.sin(progress * Math.PI * 8) * 0.28);
   } else if (avatar.gesture === "nod") {
     frame.head.x += reducedMotion ? 0.12 : Math.sin(progress * Math.PI * 6) * 0.18;
+  } else if (avatar.gesture === "send-voice") {
+    /**
+     * A LOOP OF THE SEND GESTURE, every CHOP_CYCLE_MS: the right hand raised
+     * flat in front of the face (talking), then a quick chop straight down
+     * (sent), then a beat at the bottom so the motion reads as a stroke and
+     * not a wobble. Reduced motion holds the raised hand still.
+     */
+    const t = reducedMotion ? 0 : (age % CHOP_CYCLE_MS) / CHOP_CYCLE_MS;
+    const down = t < 0.55 ? 0 : t < 0.68 ? (t - 0.55) / 0.13 : 1;
+    const eased = down * down * (3 - 2 * down);
+    // Y swings the arm forward (in a normalized VRM the right arm lies along
+    // -x); Z lowers it. The elbow's Z lifts the forearm up in front of the face.
+    frame.rightUpperArm = rotation(0, 1.05, -0.5 - eased * 0.3);
+    frame.rightLowerArm = rotation(0, 0, 1.45 - eased * 1.35);
+    frame.head.x += 0.08;
   } else if (avatar.gesture === "present") {
     frame.leftUpperArm = rotation(-0.5, 0, 0.82);
     frame.leftLowerArm = rotation(-0.22, 0, 0.45);

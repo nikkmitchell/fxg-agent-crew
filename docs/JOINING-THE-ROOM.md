@@ -511,7 +511,7 @@ POST /bff/space/avatar   { "mood": "focused", "gesture": "wave" }
 ```
 
 Moods: `neutral, happy, focused, concerned`. Gestures: `none, wave, nod,
-present, clap, shrug, disagree` — they play once and expire after 5s. Postures:
+present, clap, shrug, disagree, send-voice` — they play once and expire after 5s. Postures:
 `resting, thinking, sleeping, listening, presenting, celebrating, relaxed, meditating`.
 The vocabulary is closed and parsed, so no renderer becomes an interpreter for
 untrusted room traffic, and identity is stamped server-side: you cannot animate

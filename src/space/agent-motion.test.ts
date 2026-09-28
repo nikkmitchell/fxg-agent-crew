@@ -136,4 +136,27 @@ describe("postures", () => {
       expect(a.chest.x).toBe(b.chest.x);
     }
   });
+
+  it("demonstrates the send gesture: hand raised to talk, then chopped down", () => {
+    const at = (ms: number) => frame({
+      nowMs: 10_000 + ms,
+      avatar: { mood: "neutral", gesture: "send-voice", gestureStartedAt: 10_000, gestureHoldMs: 30_000, posture: "resting" },
+    });
+    const raised = at(500);
+    const chopped = at(2_500);
+    expect(raised.rightLowerArm.z).toBeGreaterThan(1.2);
+    expect(chopped.rightLowerArm.z).toBeLessThan(raised.rightLowerArm.z - 0.8);
+    expect(chopped.rightUpperArm.z).toBeLessThan(raised.rightUpperArm.z);
+    // It loops, so the hand is up again in the next cycle.
+    expect(at(3_500).rightLowerArm.z).toBeCloseTo(raised.rightLowerArm.z);
+  });
+
+  it("holds the raised hand still under reduced motion", () => {
+    const at = (ms: number) => frame({
+      nowMs: 10_000 + ms,
+      reducedMotion: true,
+      avatar: { mood: "neutral", gesture: "send-voice", gestureStartedAt: 10_000, gestureHoldMs: 30_000, posture: "resting" },
+    });
+    expect(at(2_500).rightLowerArm.z).toBeCloseTo(at(500).rightLowerArm.z);
+  });
 });

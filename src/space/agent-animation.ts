@@ -112,13 +112,18 @@ const VARIANT_PERIOD_MS: Record<AgentAnimationState, number> = {
   walking: 30_000,
 };
 
-const GESTURE_CLIPS: Record<ActiveAvatarGesture, AgentAnimationClip> = {
+/**
+ * `null` is a gesture with no authored clip: the body keeps its state clip and
+ * VrmBody poses the gesturing arm procedurally on top (see agent-motion.ts).
+ */
+const GESTURE_CLIPS: Record<ActiveAvatarGesture, AgentAnimationClip | null> = {
   wave: "gestureWave",
   nod: "gestureNod",
   present: "gesturePresent",
   clap: "gestureClap",
   shrug: "gestureShrug",
   disagree: "gestureDisagree",
+  "send-voice": null,
 };
 
 const hash = (value: string): number => [...value].reduce(
@@ -187,7 +192,7 @@ export function agentAnimationSelection(input: AgentAnimationInput): AgentAnimat
     state,
     clip,
     gestureClip: canGesture ? GESTURE_CLIPS[input.gesture!] : null,
-    gestureToken: canGesture ? input.gestureStartedAt : null,
+    gestureToken: canGesture && GESTURE_CLIPS[input.gesture!] ? input.gestureStartedAt : null,
   };
 }
 

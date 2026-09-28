@@ -10,7 +10,7 @@ import { elbowFor } from "./two-bone-ik";
 import { headOf } from "./Avatar3D";
 import type { AvatarRecipe } from "../avatar";
 import type { WirePerson } from "../../shared/space-wire";
-import { agentMotionFrame, type Rotation } from "./agent-motion";
+import { agentMotionFrame, PROCEDURAL_ARM, type Rotation } from "./agent-motion";
 import {
   agentAnimationSelection,
   createAgentAnimationPlayer,
@@ -480,19 +480,23 @@ export function VrmBody({
       if (!pose) {
         // Authored clips own untracked arms, including declared gestures. The
         // procedural pose remains the complete fallback when clips fail.
-        if (automatic && !authored) {
+        // The one exception is a gesture with no clip (the send-voice demo):
+        // its arm is posed here over the clip, snapped, because the clip
+        // rewrites the bone every frame and easing toward it would never land.
+        const overClip = automatic !== null && authored !== null && side === PROCEDURAL_ARM[person.avatar.gesture ?? "none"];
+        if (automatic && (!authored || overClip)) {
           rotateToward(
             upper,
             side === "left" ? automatic.leftUpperArm : automatic.rightUpperArm,
             delta,
-            reducedMotion,
+            reducedMotion || overClip,
             scratch,
           );
           rotateToward(
             lower,
             side === "left" ? automatic.leftLowerArm : automatic.rightLowerArm,
             delta,
-            reducedMotion,
+            reducedMotion || overClip,
             scratch,
           );
         }
