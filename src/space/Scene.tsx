@@ -70,6 +70,7 @@ import { SoundBath } from "./SoundBath";
 import { HourglassStand, HOURGLASS_AT } from "./HourglassStand";
 import { PaperBoats } from "./PaperBoats";
 import { PetalDrift, PETALS_AT } from "./PetalDrift";
+import { OfferingLight, OFFERING_AT } from "./OfferingLight";
 import { BOWLS_AT } from "./SingingBowls";
 import { GARDEN_AT } from "./GardenTray";
 import { FIRE_AT } from "./EmberFire";
@@ -968,6 +969,8 @@ export default function Scene({
         {connection.meditation?.shown && <Near at={POND_AT}><PaperBoats /></Near>}
         {/* And blossom petals drifting over the garden: see PetalDrift.tsx. */}
         {connection.meditation?.shown && <Near at={PETALS_AT} within={9}><PetalDrift /></Near>}
+        {/* And Inkstone's offering light, for two: see OfferingLight.tsx. */}
+        {connection.meditation?.shown && <Near at={OFFERING_AT}><OfferingLight peopleRef={connection.peopleRef} you={you} /></Near>}
         {/* And a nebula to put your hands in: see Nebula.tsx. */}
         {connection.meditation?.shown && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} /></Near>}
         {connection.meditation?.shown && <Near at={floorOf(TREE_AT)}><StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} /></Near>}
