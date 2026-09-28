@@ -65,9 +65,11 @@ describe("the room's optional mindfulness practices", () => {
   it("requires a second, explicit share-confirm action and explains room visibility and retention", () => {
     const preview = texts({ id: "bright-spot", step: 2, complete: false, note: "tea with a friend" }, "share-preview").join(" ");
     expect(preview).toContain("tea with a friend");
-    expect(preview).toContain("Everyone in this room can read this card");
+    expect(preview).toContain("Everyone here can read this card");
     expect(preview).toContain("until you remove it");
     expect(preview).toContain("does not expire");
+    expect(preview).toContain("private record of who shared and when");
+    expect(preview).toContain("removal will not reset it");
     const painted = paintMindfulness(EMPTY_MINDFULNESS, measure, { screen: "share-preview" });
     expect(painted.targets.map((target) => target.id)).toEqual(["cancel-share", "confirm-share"]);
   });

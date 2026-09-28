@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from "fastify";
 import { buildServer } from "../index.js";
+import { RoomMindfulnessCards } from "../space/mindfulness.js";
 import { tempDir } from "./test-config.js";
 
 const running: Array<() => Promise<void>> = [];
@@ -69,6 +70,40 @@ describe("shared mindfulness page", () => {
     const refused = await call(app, writer, "POST", "/bff/space/mindfulness", { text: "One more" });
     expect(refused.statusCode).toBe(429);
     expect(refused.json().code).toBe("SHARE_LIMIT");
+    expect(refused.json().error).toContain("rolling 24-hour period");
+  });
+
+  it("does not let card removal reset the rolling limit and stores no text in its private ledger", async () => {
+    const { app, as, database } = await boot();
+    const writer = as("Inkstone", "meditation.AR");
+    const cardIds: string[] = [];
+    for (let i = 0; i < 8; i += 1) {
+      const response = await call(app, writer, "POST", "/bff/space/mindfulness", { text: `Card ${i}` });
+      expect(response.statusCode).toBe(201);
+      cardIds.push(response.json().card.id);
+    }
+
+    expect((await call(app, writer, "DELETE", `/bff/space/mindfulness/${cardIds[0]}`)).statusCode).toBe(200);
+    const refused = await call(app, writer, "POST", "/bff/space/mindfulness", { text: "A replacement" });
+    expect(refused.statusCode).toBe(429);
+    expect((await call(app, writer, "GET", "/bff/space/mindfulness")).json().cards).toHaveLength(7);
+
+    const events = database.prepare("SELECT room, created_by, created_at FROM space_mindfulness_share_events").all();
+    expect(events).toHaveLength(8);
+    expect(JSON.stringify(events)).not.toContain("Card ");
+    expect(database.prepare("PRAGMA table_info(space_mindfulness_share_events)").all().map((column) => (column as { name: string }).name))
+      .toEqual(["seq", "room", "created_by", "created_at"]);
+  });
+
+  it("expires rate-limit events at the 24-hour boundary", async () => {
+    const { database } = await boot();
+    const cards = new RoomMindfulnessCards(database);
+    const base = Date.parse("2026-09-28T10:00:00.000Z");
+    for (let i = 0; i < 8; i += 1) {
+      expect("refused" in cards.share("meditation.AR", "Inkstone", `Card ${i}`, base)).toBe(false);
+    }
+    expect("refused" in cards.share("meditation.AR", "Inkstone", "At the boundary", base + 24 * 60 * 60 * 1000)).toBe(false);
+    expect(database.prepare("SELECT count(*) AS count FROM space_mindfulness_share_events").get()).toEqual({ count: 1 });
   });
 
   it("paginates a growing room page without caching a viewer's private delete bit", async () => {

@@ -1145,4 +1145,23 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 41,
+    name: "private rolling share limits for mindfulness cards",
+    sql: `
+      -- A text-free timestamp ledger keeps deleting a card from resetting the
+      -- writer's eight-shares-per-24-hours limit. Expired rows are pruned when
+      -- the mindfulness page is read or a card is shared.
+      CREATE TABLE space_mindfulness_share_events (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        room TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX mindfulness_share_events_by_author
+        ON space_mindfulness_share_events(room, created_by, created_at);
+      CREATE INDEX mindfulness_share_events_by_expiry
+        ON space_mindfulness_share_events(created_at);
+    `,
+  },
 ];

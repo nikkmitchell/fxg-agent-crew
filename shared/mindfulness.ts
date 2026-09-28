@@ -144,7 +144,7 @@ export function paintMindfulness(
   if (screen === "share-preview") {
     ink.push({ kind: "text", x: 48, y: 98, text: "Before it joins the room page", size: 32, fill: CARD_INK.ink, weight: "bold" });
     card(88, 132, 848, 250, "Your exact words", view.note || "Nothing written yet.");
-    fitLines(measure, "Everyone in this room can read this card. It stays until you remove it; it does not expire. Your name is not shown; only you can remove your card.", 18, 800, 3)
+    fitLines(measure, "Everyone here can read this card; it stays until you remove it and does not expire. Your name is hidden. The app keeps a private record of who shared and when (not the text) to enforce an 8-share/24-hour limit; removal will not reset it.", 18, 800, 3)
       .forEach((line, index) => ink.push({ kind: "text", x: 112, y: 424 + index * 27, text: line, size: 18, fill: CARD_INK.muted }));
     button("cancel-share", "Keep it private", 88, 526, 260);
     button("confirm-share", "Share this card", 676, 526, 260, true);
