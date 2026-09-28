@@ -72,11 +72,15 @@ import { PaperBoats } from "./PaperBoats";
 import { PetalDrift, PETALS_AT } from "./PetalDrift";
 import { OfferingLight, OFFERING_AT } from "./OfferingLight";
 import { CairnStones, CAIRN_AT } from "./CairnStones";
-import { Shore, SHORE_AT } from "./Shore";
-import { TidePool, TIDEPOOL_AT } from "./TidePool";
-import { Conch, CONCH_AT } from "./Conch";
-import { ShoreBench, BENCH_AT } from "./ShoreBench";
+import { Shore } from "./Shore";
+import { TidePool } from "./TidePool";
+import { Conch } from "./Conch";
+import { ShoreBench } from "./ShoreBench";
 import { GlowSteps } from "./GlowSteps";
+import { Seabirds } from "./Seabirds";
+
+/** The middle of the shore corner: shore, pool, conch, bench, steps, birds. */
+const SHORE_CORNER = { x: -4.0, z: 0.5 } as const;
 import { BOWLS_AT } from "./SingingBowls";
 import { GARDEN_AT } from "./GardenTray";
 import { FIRE_AT } from "./EmberFire";
@@ -980,11 +984,18 @@ export default function Scene({
         {/* And a cairn the room builds stone by stone: see shared/cairn.ts. */}
         {connection.meditation?.shown && <Near at={CAIRN_AT}><CairnStones /></Near>}
         {/* And a shore where small waves come in: see Shore.tsx. */}
-        {connection.meditation?.shown && <Near at={SHORE_AT} within={9}><Shore you={you} /></Near>}
-        {connection.meditation?.shown && <Near at={TIDEPOOL_AT}><TidePool /></Near>}
-        {connection.meditation?.shown && <Near at={CONCH_AT}><Conch /></Near>}
-        {connection.meditation?.shown && <Near at={BENCH_AT}><ShoreBench /></Near>}
-        {connection.meditation?.shown && <Near at={SHORE_AT}><GlowSteps peopleRef={connection.peopleRef} you={you} /></Near>}
+        {/* The shore corner, all behind one Near (Sill's draw-call count, 5644):
+            hidden from the arrival point and anywhere more than 5.5 m away. */}
+        {connection.meditation?.shown && (
+          <Near at={SHORE_CORNER} within={5.5}>
+            <Shore you={you} />
+            <TidePool />
+            <Conch />
+            <ShoreBench />
+            <GlowSteps peopleRef={connection.peopleRef} you={you} />
+            <Seabirds />
+          </Near>
+        )}
         {/* And a nebula to put your hands in: see Nebula.tsx. */}
         {connection.meditation?.shown && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} /></Near>}
         {connection.meditation?.shown && <Near at={floorOf(TREE_AT)}><StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} /></Near>}

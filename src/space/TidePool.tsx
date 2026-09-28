@@ -65,12 +65,28 @@ export function TidePool() {
         <meshStandardMaterial color="#6b6454" roughness={1} />
       </mesh>
       {/* The ring of stones. */}
-      {stones.map((angle, i) => (
-        <mesh key={i} position={[Math.cos(angle) * (TIDEPOOL_AT.radius + 0.04), 0.05, Math.sin(angle) * (TIDEPOOL_AT.radius + 0.04)]} rotation-y={angle} scale={[0.09, 0.06, 0.07 + (i % 3) * 0.015]} raycast={() => null}>
-          <sphereGeometry args={[1, 10, 6]} />
-          <meshStandardMaterial color={i % 2 ? "#5d5850" : "#6e685d"} roughness={0.95} flatShading />
-        </mesh>
-      ))}
+      {/* One draw for all fourteen stones. */}
+      <instancedMesh
+        args={[undefined, undefined, stones.length]}
+        raycast={() => null}
+        ref={(node) => {
+          if (!node) return;
+          const matrix = new THREE.Matrix4();
+          stones.forEach((angle, i) => {
+            matrix.compose(
+              new THREE.Vector3(Math.cos(angle) * (TIDEPOOL_AT.radius + 0.04), 0.05, Math.sin(angle) * (TIDEPOOL_AT.radius + 0.04)),
+              new THREE.Quaternion().setFromEuler(new THREE.Euler(0, angle, 0)),
+              new THREE.Vector3(0.09, 0.06, 0.07 + (i % 3) * 0.015),
+            );
+            node.setMatrixAt(i, matrix);
+            node.setColorAt(i, new THREE.Color(i % 2 ? "#5d5850" : "#6e685d"));
+          });
+          node.instanceMatrix.needsUpdate = true;
+        }}
+      >
+        <sphereGeometry args={[1, 10, 6]} />
+        <meshStandardMaterial roughness={0.95} flatShading />
+      </instancedMesh>
       {/* The sea glass: tap a piece to hold it to the light. */}
       {COLOURS.map((colour, index) => (
         <mesh key={colour} ref={(mesh) => { pieces.current[index] = mesh; }} onClick={pick(index)}>

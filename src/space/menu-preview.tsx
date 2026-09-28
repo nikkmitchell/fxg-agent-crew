@@ -37,6 +37,7 @@ import { TidePool, TIDEPOOL_AT } from "./TidePool";
 import { Conch, CONCH_AT } from "./Conch";
 import { ShoreBench, BENCH_AT } from "./ShoreBench";
 import { GlowSteps } from "./GlowSteps";
+import { Seabirds } from "./Seabirds";
 import type { WirePerson } from "../../shared/space-wire";
 
 /** A pretend person pacing across the shore, for ?steps=1. */
@@ -185,6 +186,7 @@ function Preview() {
       {params.get("shore") === "1" ? (
         <group position={[-SHORE_AT.x, 0.6, -SHORE_AT.z - 1.3]}>
           {params.get("steps") === "1" ? <GlowSteps peopleRef={walker} you={null} /> : null}
+          {params.get("birds") === "1" ? <Seabirds /> : null}
           <Shore />
         </group>
       ) : null}
