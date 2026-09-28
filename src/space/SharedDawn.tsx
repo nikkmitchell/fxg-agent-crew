@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { clockOffset } from "../../shared/meditation";
-import { dawnWarmthAt } from "../../shared/dawn";
+import { DAWN_TIME_ZONE, dawnWarmthAt } from "../../shared/dawn";
 import { space } from "../space-client";
 
 const BASE_SKY = new THREE.Color("#ffffff");
@@ -12,12 +12,18 @@ const DAWN_GROUND = new THREE.Color("#6b4b39");
 const BASE_INTENSITY = 2.2;
 
 /**
- * A shared, wordless color wash: ten-minute sunrise at 06:00 UTC, a quiet
- * daytime hold, and a ten-minute settle at 18:00. This is the room's existing
- * hemisphere light, not another lamp or draw call. No audio, motion samples,
- * or new saved state. A reduced-motion session freezes at today's endpoint.
+ * A shared, wordless color wash: ten-minute sunrise at 06:00 in the room's
+ * named timezone, a quiet daytime hold, and a ten-minute settle at 18:00.
+ * It uses the room's existing hemisphere light—not another lamp or draw call—
+ * with no audio, motion samples, or new saved state. A reduced-motion session
+ * freezes at today's endpoint.
  */
-export function SharedDawn({ reducedMotion, active, now }: { reducedMotion: boolean; active: boolean; now?: () => number }) {
+export function SharedDawn({ reducedMotion, active, now, timeZone = DAWN_TIME_ZONE }: {
+  reducedMotion: boolean;
+  active: boolean;
+  now?: () => number;
+  timeZone?: string;
+}) {
   const light = useRef<THREE.HemisphereLight>(null);
   const offset = useRef(0);
   const frozenWarmth = useRef<number | null>(null);
@@ -39,7 +45,7 @@ export function SharedDawn({ reducedMotion, active, now }: { reducedMotion: bool
 
   useEffect(() => {
     frozenWarmth.current = null;
-  }, [active, reducedMotion]);
+  }, [active, reducedMotion, timeZone]);
 
   useFrame(() => {
     const instant = now ? now() : Date.now() + offset.current;
@@ -48,11 +54,11 @@ export function SharedDawn({ reducedMotion, active, now }: { reducedMotion: bool
       frozenWarmth.current = null;
       warmth = 0;
     } else if (reducedMotion) {
-      frozenWarmth.current ??= dawnWarmthAt(instant, true);
+      frozenWarmth.current ??= dawnWarmthAt(instant, true, timeZone);
       warmth = frozenWarmth.current;
     } else {
       frozenWarmth.current = null;
-      warmth = dawnWarmthAt(instant);
+      warmth = dawnWarmthAt(instant, false, timeZone);
     }
 
     if (light.current) {
