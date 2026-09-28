@@ -418,7 +418,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
               ) : null}
               {avatarRecorder.canPublish && avatarRecorder.published.some((entry) => entry.actorId === (status.state === "open" ? status.you : "")) ? <button type="button" onClick={() => void avatarRecorder.unpublish()}>Unpublish my tutorial</button> : null}
               {avatarRecorder.published.length ? <button type="button" onClick={() => avatarRecorder.playWelcome()}>Replay welcome tutorials</button> : null}
-              {!avatarRecorder.welcomeCompleted && avatarRecorder.published.length ? <><p role="status">Welcome to the lobby. Play the tutorials from Nikk and Baiwei.</p><button type="button" className="primary-action" onClick={() => avatarRecorder.playWelcome()}>Play welcome</button><button type="button" onClick={() => avatarRecorder.finishWelcome()}>Skip welcome</button></> : null}
+              {!avatarRecorder.welcomeCompleted && avatarRecorder.published.length ? <><p role="status">Welcome to the lobby. Play the published tutorials.</p><button type="button" className="primary-action" onClick={() => avatarRecorder.playWelcome()}>Play welcome</button><button type="button" onClick={() => avatarRecorder.finishWelcome()}>Skip welcome</button></> : null}
             </div>
             {avatarRecorder.status === "recording" ? <p role="status">Recording movement and audio…</p> : null}
             {avatarRecorder.notice ? <p role="status">{avatarRecorder.notice}</p> : null}

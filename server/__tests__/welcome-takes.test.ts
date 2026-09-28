@@ -18,6 +18,7 @@ describe("lobby welcome recordings", () => {
     expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("Visitor") }, payload: take })).statusCode).toBe(403);
     expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("Nikk2", "agent") }, payload: take })).statusCode).toBe(403);
     expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("baiwei2") }, payload: take })).statusCode).toBe(400);
+    expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("Nikk2") }, payload: { ...take, frames: [{ ...frame(0), head: { p: { x: "bad", y: 0, z: 0 }, q: pose.q } }, frame(1000)] } })).statusCode).toBe(400);
     expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("Nikk2") }, payload: take })).statusCode).toBe(200);
     await app.close();
   });

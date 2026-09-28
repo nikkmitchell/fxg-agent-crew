@@ -7,6 +7,16 @@ type Db = import("node:sqlite").DatabaseSync;
 const CREATORS = ["Nikk2", "baiwei2"];
 const MAX_AUDIO = 12_000_000;
 const MAX_FRAMES = 2_500;
+const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+const vector = (value: any): boolean => value && finite(value.x) && finite(value.y) && finite(value.z);
+const quaternion = (value: any): boolean => value && finite(value.x) && finite(value.y) && finite(value.z) && finite(value.w);
+const control = (value: any): boolean => value === null || (value && vector(value.p) && (value.q === undefined || quaternion(value.q)));
+const pose = (value: any): boolean => value && vector(value.p) && quaternion(value.q);
+const hand = (value: any): boolean => value === null || (pose(value) && (value.f === undefined || (Array.isArray(value.f) && value.f.length <= 30 && value.f.every(finite))));
+const validFrame = (frame: any, index: number, frames: any[], durationMs: number): boolean =>
+  frame && finite(frame.t) && frame.t >= 0 && frame.t <= durationMs + 100 && (index === 0 || frame.t >= frames[index - 1].t) &&
+  pose(frame.head) && frame.hands && hand(frame.hands.left) && hand(frame.hands.right) && frame.balls &&
+  [frame.balls.left, frame.balls.leftShadow, frame.balls.right, frame.balls.rightShadow, frame.micBar, frame.personalUi].every(control);
 
 export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessions: SessionStore, db: Db): void {
   const requireSession = makeRequireSession(config, sessions);
@@ -29,7 +39,7 @@ export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessi
     const mime = value?.audioMime;
     if (value?.version !== 1 || value.actorId !== session.username || !Array.isArray(frames) || frames.length < 2 || frames.length > MAX_FRAMES || typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0 || durationMs > 120_000 || typeof audioBase64 !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(audioBase64) || typeof mime !== "string" || !/^audio\/(webm|mp4|ogg)(?:;[\w=.-]+)?$/.test(mime)) return reply.code(400).send({ code: "BAD_WELCOME_TAKE" });
     const audio = Buffer.from(audioBase64, "base64");
-    if (!audio.length || audio.length > MAX_AUDIO || frames.some((frame, index) => !frame || typeof frame !== "object" || !Number.isFinite(frame.t) || frame.t < 0 || frame.t > durationMs + 100 || (index > 0 && frame.t < frames[index - 1].t) || !frame.head?.p || !frame.head?.q || !frame.hands || !frame.balls)) return reply.code(400).send({ code: "BAD_WELCOME_TAKE" });
+    if (!audio.length || audio.length > MAX_AUDIO || frames.some((frame, index) => !validFrame(frame, index, frames, durationMs))) return reply.code(400).send({ code: "BAD_WELCOME_TAKE" });
     const take = { version: 1, actorId: session.username, recordedAt: value.recordedAt, durationMs, body: typeof value.body === "string" ? value.body : null, showPersonalUi: value.showPersonalUi === true, frames };
     db.prepare("INSERT INTO lobby_welcome_takes (actor_id,take_json,audio,mime,published_at) VALUES (?,?,?,?,?) ON CONFLICT(actor_id) DO UPDATE SET take_json=excluded.take_json,audio=excluded.audio,mime=excluded.mime,published_at=excluded.published_at").run(session.username, JSON.stringify(take), audio, mime, new Date().toISOString());
     return { ok: true };
