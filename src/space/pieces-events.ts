@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { PiecesEvent } from "../../shared/room-pieces";
+import { parsePieces, type PiecesEvent } from "../../shared/room-pieces";
 import { space } from "../space-client";
 
 /** Toggles on the guide board, as they arrive over the room socket (shared/room-pieces.ts). */
@@ -23,9 +23,16 @@ export function useHiddenPieces(): { hidden: ReadonlySet<string>; revision: numb
   useEffect(() => {
     let live = true;
     space.pieces().then((answer) => {
-      if (live) setState((now) => (answer.pieces.revision >= now.revision ? { hidden: new Set(answer.pieces.hidden), revision: answer.pieces.revision } : now));
+      // Checked HERE, not inside the state update: a bad answer (the dev
+      // preview's HTML fallback, a proxy error page) must be ignored, and a
+      // throw inside setState would take the whole scene down (Lumenfold, 5702).
+      const pieces = parsePieces((answer as { pieces?: unknown } | null)?.pieces);
+      if (live && pieces) setState((now) => (pieces.revision >= now.revision ? { hidden: new Set(pieces.hidden), revision: pieces.revision } : now));
     }).catch(() => {});
-    const stop = onPiecesChange((event) => setState((now) => (event.revision > now.revision ? { hidden: new Set(event.hidden), revision: event.revision } : now)));
+    const stop = onPiecesChange((event) => {
+      const pieces = parsePieces(event);
+      if (pieces) setState((now) => (pieces.revision > now.revision ? { hidden: new Set(pieces.hidden), revision: pieces.revision } : now));
+    });
     return () => {
       live = false;
       stop();
