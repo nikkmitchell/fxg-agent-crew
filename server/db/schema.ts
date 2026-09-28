@@ -1106,4 +1106,17 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX mindfulness_cards_by_author ON space_mindfulness_cards(room, created_by, created_at);
     `,
   },
+  {
+    id: 37,
+    name: "each room's cairn",
+    sql: `
+      -- The stones stacked on the room's cairn (shared/cairn.ts). It builds up.
+      CREATE TABLE space_cairn (
+        room TEXT PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];
