@@ -38,8 +38,13 @@ const openHand = (rotation: Q = identity, x = 0): MicGestureHand => ({
 const fistHand = (rotation = identity): MicGestureHand => ({ ...openHand(rotation), shape: "fist", closed: true, closedness: 1 });
 const hands = (right: MicGestureHand | null, left: MicGestureHand | null = null): MicGestureHands => ({ left, right });
 // About x, the palm normal: the flat hand swings in its own plane, fingertips
-// tipping forward and down. A chop.
-const rotationBy = (radians: number) => ({ x: Math.sin(radians / 2), y: 0, z: 0, w: Math.cos(radians / 2) });
+// tipping FORWARD and down, away from the face (the head is at +z, so forward
+// is -z). A chop. It used to turn the other way, toward the face, which sent
+// only because the chop had no direction (Lumenfold 5838; Nikk: "only a
+// downard til, like a karate chop").
+const rotationBy = (radians: number) => ({ x: Math.sin(-radians / 2), y: 0, z: 0, w: Math.cos(-radians / 2) });
+/** The same swing the other way: fingertips tipping back toward the face. */
+const backwardBy = (radians: number) => ({ x: Math.sin(radians / 2), y: 0, z: 0, w: Math.cos(radians / 2) });
 // About y, the fingers of an upright hand: turning left or right.
 const turnBy = (radians: number) => ({ x: 0, y: Math.sin(radians / 2), z: 0, w: Math.cos(radians / 2) });
 // About z: the fingers leaning over toward the palm side.
@@ -84,6 +89,16 @@ describe("mic hand gesture", () => {
     expect(finished.action).toBe("finish");
     expect(finished.state.phase).toBe("ending");
     expect(stepMicGesture(finished.state, hands(openHand()), true, 2_100).action).toBeUndefined();
+  });
+
+  it("does not send when the fingers tip back toward the face (Nikk, 2026-09-28: only a downward chop)", () => {
+    const deg = (d: number) => (d * Math.PI) / 180;
+    const state = startGesture();
+    const back = stepMicGesture(state, hands(openHand(backwardBy(deg(40)))), true, 2_000);
+    expect(back.action).toBeUndefined();
+    expect(stepMicGesture(back.state, hands(openHand(backwardBy(deg(40)))), true, 2_400).action).toBeUndefined();
+    // The same size of swing forward sends.
+    expect(stepMicGesture(startGesture(), hands(openHand(rotationBy(deg(40)))), true, 2_000).action).toBe("finish");
   });
 
   /** Nikk (5135): only a downward chop sends; turning to either side cancels. */
