@@ -8,7 +8,7 @@ import {
 } from "../../shared/meditation";
 import { space } from "../space-client";
 import { bell, cueFor, omDrone, phaseCue } from "./breath-sound";
-import { GUIDES, GUIDE_IDS, guideCaption, guideLineAt } from "../../shared/guided";
+import { GUIDES, GUIDE_IDS, GUIDE_VOICE_CHOICES, guideCaption, guideLineAt, isGuideVoiceChoice, type GuideVoiceChoice } from "../../shared/guided";
 import { SOUNDSCAPE_LABEL, isSoundscape, nextSoundscape, playSoundscape, type Soundscape } from "./soundscape";
 import { useDisposable } from "./use-disposable";
 import { Typing3D } from "./Typing3D";
@@ -193,6 +193,15 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion, peopleR
       return isSoundscape(kept) ? kept : "off";
     } catch { return "off"; }
   });
+  /** Which voice reads the English guides to this person (guideVoiceFor). */
+  const [guideVoice, setGuideVoice] = useState<GuideVoiceChoice>(() => {
+    try {
+      const kept = localStorage.getItem("orb-guide-voice");
+      return isGuideVoiceChoice(kept) ? kept : GUIDE_VOICE_CHOICES[0].id;
+    } catch { return GUIDE_VOICE_CHOICES[0].id; }
+  });
+  const guideVoiceRef = useRef(guideVoice);
+  guideVoiceRef.current = guideVoice;
   // Only while SOUND is on: one switch still silences everything the orb makes.
   useEffect(() => (sound ? playSoundscape(ambient) : undefined), [ambient, sound]);
   const lastBreath = useRef<ReturnType<typeof breathAt> | null>(null);
@@ -241,7 +250,7 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion, peopleR
         spoken.current.index = due.index;
         if (soundRef.current) {
           hush();
-          const url = `${base.current}/bff/space/guides/${meditation.guide}/${due.index}/audio`;
+          const url = `${base.current}/bff/space/guides/${meditation.guide}/${due.index}/audio?voice=${guideVoiceRef.current}`;
           /**
            * TRY AGAIN, BRIEFLY. Right after a release the server may still be
            * voicing lines (it answers 503 until one is ready), and the first
@@ -357,6 +366,12 @@ export function MeditationOrb({ meditation, onMeditation, reducedMotion, peopleR
         try { localStorage.setItem("orb-sound", next ? "on" : "off"); } catch { /* per-viewer only */ }
       }} />
       <OrbButton label="+ INTENTION" width={0.26} at={[-0.55, running ? 0 : -0.1, 0]} onTap={() => setIntending(true)} />
+      <OrbButton label={GUIDE_VOICE_CHOICES.find((one) => one.id === guideVoice)?.label ?? "VOICE"} width={0.26} at={[-0.55, running ? -0.1 : -0.2, 0]} onTap={() => {
+        const at = GUIDE_VOICE_CHOICES.findIndex((one) => one.id === guideVoice);
+        const next = GUIDE_VOICE_CHOICES[(at + 1) % GUIDE_VOICE_CHOICES.length].id;
+        setGuideVoice(next);
+        try { localStorage.setItem("orb-guide-voice", next); } catch { /* per-viewer only */ }
+      }} />
       <OrbButton label={SOUNDSCAPE_LABEL[ambient]} width={0.2} at={[0.52, running ? -0.1 : -0.2, 0]} selected={ambient !== "off"} onTap={() => {
         const next = nextSoundscape(ambient);
         setAmbient(next);
