@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Text } from "@react-three/drei";
 import { READINGS } from "../../shared/guided";
 import { ROOM_GUIDE, arrowTo, stepsTo } from "../../shared/room-guide";
+import { dawnScheduleLabelAt } from "../../shared/dawn";
 import * as THREE from "three";
 import { TOGGLEABLE } from "../../shared/room-pieces";
 import { space } from "../space-client";
@@ -61,7 +62,15 @@ function useWelcome() {
 
 export function RoomGuideSign({ hidden }: { hidden: ReadonlySet<string> }) {
   const welcome = useWelcome();
+  const [dawnSchedule, setDawnSchedule] = useState(() => dawnScheduleLabelAt(Date.now()));
   const down = useRef<number | null>(null);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const next = dawnScheduleLabelAt(Date.now());
+      setDawnSchedule((current) => current === next ? current : next);
+    }, 60 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   return <group position={SIGN_AT} rotation-y={0.95}>
     {/* THE POST STOPS UNDER THE BOARD, and stands behind it. Nikk
         (2026-09-28): the post "flickers". When the board grew for the toggles
@@ -87,7 +96,7 @@ export function RoomGuideSign({ hidden }: { hidden: ReadonlySet<string> }) {
       </group>
       {welcome.text && <Text position={[0, 0.56, 0.004]} fontSize={0.028} maxWidth={1.1} textAlign="center" color="#fff6e0" raycast={noRaycast} outlineWidth={0.002} outlineColor="#0b1418">{welcome.text}</Text>}
       {/* THE TOGGLES (Nikk, 2026-09-28): every piece, on or off for the whole room. */}
-      <ToggleList hidden={hidden} />
+      <ToggleList hidden={hidden} dawnSchedule={dawnSchedule} />
     </group>
   </group>;
 }
@@ -109,8 +118,9 @@ export function rowAt(u: number, v: number): number | null {
  * texts and buttons would be a hundred draws standing next to where everyone
  * arrives. A tap finds its row from where it landed.
  */
-function ToggleList(props: { hidden: ReadonlySet<string> }) {
+function ToggleList(props: { hidden: ReadonlySet<string>; dawnSchedule: string }) {
   const hidden = props.hidden;
+  const dawnSchedule = props.dawnSchedule;
   const [note, setNote] = useState<string | null>(null);
   const canvas = useMemo(() => {
     const element = document.createElement("canvas");
@@ -151,15 +161,18 @@ function ToggleList(props: { hidden: ReadonlySet<string> }) {
       context.fillStyle = shown ? "#eefaf7" : "#7d8a8f";
       context.textBaseline = "middle";
       context.fillText(name, x + 58, y + rowHeight / 2);
-      if (guide) {
+      const detail = guide
+        ? `${guide.what} · ${arrowTo(guide)}, ${stepsTo(guide)} steps`
+        : name === "Dawn" ? dawnSchedule : null;
+      if (detail) {
         const width = context.measureText(name).width;
         context.font = `${Math.round(rowHeight * 0.4)}px system-ui, sans-serif`;
         context.fillStyle = shown ? "#9fb6c9" : "#5d696d";
-        context.fillText(`${guide.what} · ${arrowTo(guide)}, ${stepsTo(guide)} steps`, x + 66 + width, y + rowHeight / 2, columnWidth - width - 90);
+        context.fillText(detail, x + 66 + width, y + rowHeight / 2, columnWidth - width - 90);
       }
     });
     texture.needsUpdate = true;
-  }, [hidden, canvas, texture]);
+  }, [hidden, dawnSchedule, canvas, texture]);
 
   const toggle = (index: number | null) => {
     if (index === null) return;
