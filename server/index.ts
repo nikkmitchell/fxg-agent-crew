@@ -36,6 +36,7 @@ import { registerIncenseRoutes } from "./space/incense.js";
 import { RoomVases, registerVaseRoutes } from "./space/vase.js";
 import { registerSoundBathRoutes } from "./space/sound-bath.js";
 import { registerHourglassRoutes } from "./space/hourglass.js";
+import { registerBoatRoutes } from "./space/boats.js";
 import { RoomMandalas, registerMandalaRoutes } from "./space/mandala.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
@@ -444,6 +445,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       mandalas: roomMandalas,
       announce: (room, event) => hubFor(room).broadcast({ type: "mandala", event }),
+    });
+    registerBoatRoutes(scoped, {
+      config,
+      sessions,
+      announce: (room, boat) => hubFor(room).broadcast({ type: "boat", boat }),
     });
     registerHourglassRoutes(scoped, {
       config,

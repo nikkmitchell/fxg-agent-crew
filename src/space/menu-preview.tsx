@@ -22,6 +22,7 @@ import { EmberFire, FIRE_AT } from "./EmberFire";
 import { KaleidoscopeDome, DOME_AT } from "./KaleidoscopeDome";
 import { LightRibbons, RIBBONS_AT } from "./LightRibbons";
 import { KoiPond, POND_AT } from "./KoiPond";
+import { PaperBoats } from "./PaperBoats";
 import { SandMandala, MANDALA_AT } from "./SandMandala";
 import { PrayerWheel, WHEEL_AT } from "./PrayerWheel";
 import { GongStand } from "./GongStand";
@@ -231,6 +232,7 @@ function Preview() {
           <directionalLight position={[3, 6, 4]} intensity={1.4} />
           <group position={[-POND_AT.x, 0.6, -POND_AT.z - 1.1]}>
             <KoiPond peopleRef={{ current: [] }} />
+            <PaperBoats />
           </group>
         </>
       ) : null}
