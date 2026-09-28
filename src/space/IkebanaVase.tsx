@@ -19,59 +19,63 @@ import { ROOM } from "../../shared/space-layout";
 export const VASE_AT = { x: 1.9, z: 7.9, table: 0.55 } as const;
 const MOUTH = VASE_AT.table + 0.2;
 
-/**
- * One stem and its bloom, as THREE meshes: the stem, the petals merged into
- * one geometry, and the centre. It was eight (a mesh per petal), and twelve
- * stems made ikebana alone about a hundred draw calls (Sill's check, 5594).
- */
-function Bloom({ stem }: { stem: Stem }) {
+/** Paint every vertex of `geometry` one colour, for a merged, vertex-coloured mesh. */
+function painted(geometry: THREE.BufferGeometry, colour: string): THREE.BufferGeometry {
+  const c = new THREE.Color(colour);
+  const count = geometry.getAttribute("position").count;
+  const colours = new Float32Array(count * 3);
+  for (let i = 0; i < count; i += 1) colours.set([c.r, c.g, c.b], i * 3);
+  geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
+  // Merging needs the same attributes everywhere: keep position, normal, colour.
+  for (const name of Object.keys(geometry.attributes)) if (!["position", "normal", "color"].includes(name)) geometry.deleteAttribute(name);
+  return geometry.index ? geometry.toNonIndexed() : geometry;
+}
+
+/** One stem and its bloom: the stem, six petals and the centre, placed and painted. */
+export function bloomParts(stem: Stem): THREE.BufferGeometry[] {
   const flower = FLOWERS[stem.flower];
+  const start = new THREE.Vector3(0, 0, 0);
+  const end = new THREE.Vector3(stem.x, stem.y, stem.z);
+  const middle = start.clone().lerp(end, 0.5).add(new THREE.Vector3(stem.x * 0.25, 0.04, stem.z * 0.25));
+  const parts = [painted(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([start, middle, end]), 16, 0.004, 5, false), "#4f6b34")];
+  const facing = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), end.clone().normalize());
+  const bloom = new THREE.Matrix4().compose(end, facing, new THREE.Vector3(1, 1, 1));
+  for (let i = 0; i < 6; i += 1) {
+    const a = (i / 6) * Math.PI * 2;
+    const petal = new THREE.SphereGeometry(1, 10, 8);
+    petal.applyMatrix4(
+      new THREE.Matrix4().compose(
+        new THREE.Vector3(Math.cos(a) * 0.022, 0.004, Math.sin(a) * 0.022),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -a, 0.5)),
+        new THREE.Vector3(0.024, 0.006, 0.014),
+      ),
+    );
+    parts.push(painted(petal.applyMatrix4(bloom), flower.colour));
+  }
+  const centre = new THREE.SphereGeometry(0.009, 10, 8).translate(0, 0.008, 0).applyMatrix4(bloom);
+  parts.push(painted(centre, flower.centre));
+  return parts;
+}
+
+/**
+ * THE WHOLE ARRANGEMENT AS ONE DRAW. It was a mesh per petal (a hundred draws
+ * for twelve stems, Sill's check 5594), then three per stem (36); now every
+ * stem, petal and centre is merged into one vertex-coloured mesh.
+ */
+function Arrangement({ stems }: { stems: Stem[] }) {
   const geometry = useMemo(() => {
-    const start = new THREE.Vector3(0, 0, 0);
-    const end = new THREE.Vector3(stem.x, stem.y, stem.z);
-    const middle = start.clone().lerp(end, 0.5).add(new THREE.Vector3(stem.x * 0.25, 0.04, stem.z * 0.25));
-    return new THREE.TubeGeometry(new THREE.CatmullRomCurve3([start, middle, end]), 16, 0.004, 5, false);
-  }, [stem]);
-  const petals = useMemo(() => {
-    const parts = Array.from({ length: 6 }, (_, i) => {
-      const a = (i / 6) * Math.PI * 2;
-      const petal = new THREE.SphereGeometry(1, 10, 8);
-      petal.applyMatrix4(
-        new THREE.Matrix4().compose(
-          new THREE.Vector3(Math.cos(a) * 0.022, 0.004, Math.sin(a) * 0.022),
-          new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -a, 0.5)),
-          new THREE.Vector3(0.024, 0.006, 0.014),
-        ),
-      );
-      return petal;
-    });
+    if (stems.length === 0) return null;
+    const parts = stems.flatMap(bloomParts);
     const merged = mergeGeometries(parts);
     parts.forEach((part) => part.dispose());
     return merged;
-  }, []);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  useEffect(() => () => petals?.dispose(), [petals]);
-  const facing = useMemo(() => {
-    const up = new THREE.Vector3(stem.x, stem.y, stem.z).normalize();
-    return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
-  }, [stem]);
+  }, [stems]);
+  useEffect(() => () => geometry?.dispose(), [geometry]);
+  if (!geometry) return null;
   return (
-    <group>
-      <mesh geometry={geometry} raycast={() => null}>
-        <meshStandardMaterial color="#4f6b34" roughness={0.8} />
-      </mesh>
-      <group position={[stem.x, stem.y, stem.z]} quaternion={facing}>
-        {petals ? (
-          <mesh geometry={petals} raycast={() => null}>
-            <meshStandardMaterial color={flower.colour} roughness={0.6} />
-          </mesh>
-        ) : null}
-        <mesh position={[0, 0.008, 0]} raycast={() => null}>
-          <sphereGeometry args={[0.009, 10, 8]} />
-          <meshStandardMaterial color={flower.centre} roughness={0.6} />
-        </mesh>
-      </group>
-    </group>
+    <mesh geometry={geometry} raycast={() => null}>
+      <meshStandardMaterial vertexColors roughness={0.65} />
+    </mesh>
   );
 }
 
@@ -169,9 +173,7 @@ export function IkebanaVase() {
       </mesh>
       {/* The arrangement. */}
       <group position={[0, MOUTH, 0]}>
-        {vase.stems.map((stem, index) => (
-          <Bloom key={`${index}-${stem.x}-${stem.y}`} stem={stem} />
-        ))}
+        <Arrangement stems={vase.stems} />
         {/* Where a bloom can go: seen faintly once you have chosen a flower. */}
         <mesh onClick={place} visible={chosen !== null}>
           <sphereGeometry args={[REACH * 0.85, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
