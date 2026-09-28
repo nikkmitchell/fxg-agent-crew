@@ -79,6 +79,7 @@ import { ShoreBench } from "./ShoreBench";
 import { GlowSteps } from "./GlowSteps";
 import { PaperCranes, CRANES_AT } from "./PaperCranes";
 import { FogMirror, FOG_AT } from "./FogMirror";
+import { StillFlower, STILL_AT } from "./StillFlower";
 import { Seabirds } from "./Seabirds";
 
 /** The middle of the shore corner: shore, pool, conch, bench, steps, birds. */
@@ -989,6 +990,7 @@ export default function Scene({
         {/* A thousand paper cranes, folded together over days: see PaperCranes.tsx. */}
         {connection.meditation?.shown && <Near at={CRANES_AT}><PaperCranes /></Near>}
         {connection.meditation?.shown && <Near at={FOG_AT} within={4}><FogMirror /></Near>}
+        {connection.meditation?.shown && <Near at={STILL_AT} within={5}><StillFlower /></Near>}
         {/* The shore corner, all behind one Near (Sill's draw-call count, 5644):
             hidden from the arrival point and anywhere more than 5.5 m away. */}
         {connection.meditation?.shown && (
