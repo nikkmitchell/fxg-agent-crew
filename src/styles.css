@@ -1260,3 +1260,12 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .crash-notice h2 { margin: 0 0 0.4rem; font-size: 1.1rem; }
 .crash-notice p { margin: 0.4rem 0; }
 .crash-notice button { margin-right: 0.5rem; }
+
+/* /meditate: the guided meditations without a headset (src/MeditatePage.tsx). */
+.meditate-page { max-width: 640px; }
+.meditate-choices { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.meditate-voice { display: block; margin: 8px 0 16px; }
+.meditate-now { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 0; }
+.meditate-circle { border-radius: 50%; background: radial-gradient(circle, #8fe3d6 0%, #8fe3d655 55%, transparent 72%); transition: width 0.1s linear, height 0.1s linear; }
+.meditate-phase { font-size: 20px; font-weight: 700; letter-spacing: 0.08em; }
+.meditate-caption { font-size: 18px; text-align: center; min-height: 3em; max-width: 30em; }
