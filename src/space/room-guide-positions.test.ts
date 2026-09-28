@@ -25,6 +25,7 @@ import { CAIRN_AT } from "./CairnStones";
 import { SHORE_AT } from "./Shore";
 import { TIDEPOOL_AT } from "./TidePool";
 import { CONCH_AT } from "./Conch";
+import { BENCH_AT } from "./ShoreBench";
 import { ORB_AT } from "./MeditationOrb";
 import { TREE_AT } from "./StillnessTree";
 import { READING_AT } from "./ReadingStone";
@@ -43,7 +44,7 @@ describe("the room guide says where things really are", () => {
     "Singing bowls": BOWLS_AT, "Sand garden": GARDEN_AT, "Ember fire": FIRE_AT, "Kaleidoscope dome": DOME_AT,
     "Light ribbons": RIBBONS_AT, "Koi pond": POND_AT, "Sand mandala": MANDALA_AT, "Wind chimes": CHIMES_AT,
     "Prayer wheel": WHEEL_AT, "Gong": GONG_AT, "Rain curtain": RAIN_AT, "Lanterns": LAUNCH_AT, "Incense": INCENSE_AT,
-    "Hold the light": LIGHT_AT, "Ikebana": VASE_AT, "Fireflies": FIREFLIES_AT, "Mala": MALA_AT, "Floor harp": HARP_AT, "Nebula": NEBULA_AT, "Hourglass": HOURGLASS_AT, "Offering light": OFFERING_AT, "Cairn": CAIRN_AT, "Shore": SHORE_AT, "Tide pool": TIDEPOOL_AT, "Conch": CONCH_AT,
+    "Hold the light": LIGHT_AT, "Ikebana": VASE_AT, "Fireflies": FIREFLIES_AT, "Mala": MALA_AT, "Floor harp": HARP_AT, "Nebula": NEBULA_AT, "Hourglass": HOURGLASS_AT, "Offering light": OFFERING_AT, "Cairn": CAIRN_AT, "Shore": SHORE_AT, "Tide pool": TIDEPOOL_AT, "Conch": CONCH_AT, "Shore bench": BENCH_AT,
     // Sill's and Inkstone's.
     "Breathing orb": floor(ORB_AT), "Stillness tree": floor(TREE_AT), "Reading stone": floor(READING_AT),
     "Room's book": floor(BOOK_AT), "Candle shelf": floor(SHELF_AT), "Tea table": floor(TEA_AT),
