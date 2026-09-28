@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { GUIDES, GUIDE_IDS, GUIDE_VOICE_CHOICES, guideCaption, guideLineAt, isGuideVoiceChoice, type GuideId, type GuideVoiceChoice } from "../shared/guided";
-import { breathAt, idleMeditation, PHASE_WORDS } from "../shared/meditation";
+import { breathAt, clockOffset, idleMeditation, isPattern, PHASE_WORDS, type Meditation } from "../shared/meditation";
+import { isGuide } from "../shared/guided";
+import { space } from "./space-client";
 import { base } from "./router";
 
 /**
@@ -22,30 +24,58 @@ export function MeditatePage() {
     } catch { return GUIDE_VOICE_CHOICES[0].id; }
   });
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  /**
+   * JOIN THE ROOM'S SESSION. If a session is running on the orb in the room
+   * this login is standing in, the page can follow it on the same clock, so
+   * someone on a phone breathes with the people in headsets. Server clock
+   * minus ours, as the orb does (clockOffset).
+   */
+  const [roomSession, setRoomSession] = useState<Meditation | null>(null);
+  const offset = useRef(0);
+  const [joined, setJoined] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const look = () => {
+      const sent = Date.now();
+      space.meditation().then((answer) => {
+        if (!alive) return;
+        offset.current = clockOffset(answer.now, sent, Date.now());
+        setRoomSession(answer.meditation);
+      }).catch(() => undefined);
+    };
+    look();
+    const timer = window.setInterval(look, 15_000);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, []);
+  const roomRunning = roomSession && breathAt(roomSession, Date.now() + offset.current).state === "breathing" ? roomSession : null;
   const [now, setNow] = useState(Date.now());
   const spoken = useRef(-1);
   const audio = useRef<HTMLAudioElement | null>(null);
   /** Set when the voice would not load: the captions still carry the guide. */
   const [voiceless, setVoiceless] = useState(false);
 
-  const session = startedAt === null ? null : { ...idleMeditation(), pattern: "calm" as const, minutes: GUIDES[guide].minutes, startedAt, guide };
-  const breath = session ? breathAt(session, now) : null;
+  const session = joined && roomRunning
+    ? roomRunning
+    : startedAt === null ? null : { ...idleMeditation(), pattern: "calm" as const, minutes: GUIDES[guide].minutes, startedAt, guide };
+  const clock = joined ? now + offset.current : now;
+  const breath = session ? breathAt(session, clock) : null;
+  const playing: GuideId | null = session && isGuide(session.guide) ? session.guide : null;
   const elapsed = breath?.state === "breathing" ? breath.elapsed : 0;
 
   useEffect(() => {
-    if (startedAt === null) return;
+    if (startedAt === null && !joined) return;
     const timer = window.setInterval(() => setNow(Date.now()), 100);
     return () => window.clearInterval(timer);
-  }, [startedAt]);
+  }, [startedAt, joined]);
 
   // Each line once, when the timetable reaches it.
   useEffect(() => {
-    if (breath?.state !== "breathing") return;
-    const due = guideLineAt(guide, breath.elapsed);
+    if (breath?.state !== "breathing" || !playing) return;
+    const due = guideLineAt(playing, breath.elapsed);
     if (!due || due.index <= spoken.current) return;
     spoken.current = due.index;
     audio.current?.pause();
-    const url = `${base}/bff/space/guides/${guide}/${due.index}/audio?voice=${voice}`;
+    const url = `${base}/bff/space/guides/${playing}/${due.index}/audio?voice=${voice}`;
     // Two more tries, two seconds apart, as the orb does: right after a
     // release the server may still be voicing lines. After that, say so.
     const attempt = (left: number) => {
@@ -72,12 +102,22 @@ export function MeditatePage() {
   const stop = () => {
     audio.current?.pause();
     setStartedAt(null);
+    setJoined(false);
+  };
+  const join = () => {
+    // Lines already past are not replayed; the next one plays when it comes.
+    spoken.current = roomRunning?.guide && isGuide(roomRunning.guide)
+      ? (guideLineAt(roomRunning.guide, (breathAt(roomRunning, Date.now() + offset.current) as { elapsed: number }).elapsed, 0)?.index ?? -1)
+      : -1;
+    setNow(Date.now());
+    setJoined(true);
   };
 
   const running = breath?.state === "breathing";
   const done = breath?.state === "done";
   const size = running ? 90 + 110 * breath.fullness : 120;
-  const caption = running ? guideCaption(guide, elapsed) : null;
+  const caption = running && playing ? guideCaption(playing, elapsed) : null;
+  const label = playing ? GUIDES[playing].label : session && isPattern(session.pattern) ? `${session.minutes} MIN` : "";
   const left = running ? Math.ceil(breath.remaining) : 0;
 
   return (
@@ -87,6 +127,12 @@ export function MeditatePage() {
         The same guides as the breathing orb in meditation.AR, spoken in the room&rsquo;s own voice. Put the phone down, breathe with the circle.
       </p>
 
+      {!running && roomRunning && (
+        <p className="meditate-room" role="status">
+          A session is running in the room right now{roomRunning.guide && isGuide(roomRunning.guide) ? ` (${GUIDES[roomRunning.guide].label})` : ""}.{" "}
+          <button type="button" className="primary-action" onClick={join}>Join it</button>
+        </p>
+      )}
       {!running ? (
         <>
           <div className="meditate-choices" role="radiogroup" aria-label="Guide">
@@ -119,7 +165,7 @@ export function MeditatePage() {
           <p className="meditate-phase">{PHASE_WORDS[breath.phase]}</p>
           <p className="meditate-caption" aria-live="polite">{caption ?? " "}</p>
           {voiceless && <p className="muted-note" role="status">The voice could not be loaded (are you signed in?). The captions will still guide you.</p>}
-          <p className="muted-note">{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} left · {GUIDES[guide].label}</p>
+          <p className="muted-note">{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} left · {label}{joined ? " · with the room" : ""}</p>
           <button type="button" className="text-button" onClick={stop}>End</button>
         </div>
       )}
