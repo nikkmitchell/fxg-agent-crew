@@ -16,6 +16,7 @@ function smoothstep(t: number): number {
 export function dawnWarmthAt(epochMs: number, reducedMotion = false): number {
   if (!Number.isFinite(epochMs)) return 0;
   const at = new Date(epochMs);
+  if (Number.isNaN(at.getTime())) return 0;
   const minute = at.getUTCHours() * 60
     + at.getUTCMinutes()
     + at.getUTCSeconds() / 60

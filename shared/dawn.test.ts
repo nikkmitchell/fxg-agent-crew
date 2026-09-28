@@ -20,6 +20,7 @@ describe("the shared daily dawn", () => {
     expect(dawnWarmthAt(utc(6, 5, 29))).toBeCloseTo(0.5, 2);
     expect(dawnWarmthAt(Number.NaN)).toBe(0);
     expect(dawnWarmthAt(Number.POSITIVE_INFINITY)).toBe(0);
+    expect(dawnWarmthAt(Number.MAX_VALUE)).toBe(0);
   });
 
   it("gives reduced-motion users a static endpoint instead of a moving sunrise", () => {
