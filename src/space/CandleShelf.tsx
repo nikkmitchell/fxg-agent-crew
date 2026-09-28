@@ -19,16 +19,20 @@ const TALLEST = 0.14;
 
 const noRaycast = () => undefined;
 
-function Flame({ seed }: { seed: number }) {
+export function candleFlameScale(seconds: number, seed: number, reducedMotion = false): [number, number, number] {
+  if (reducedMotion) return [0.9, 1, 0.9];
+  const t = seconds + seed * 7.3;
+  const flicker = 1 + 0.12 * Math.sin(t * 9.1) + 0.08 * Math.sin(t * 13.7);
+  return [0.9 + 0.1 * Math.sin(t * 5), flicker, 0.9];
+}
+
+function Flame({ seed, reducedMotion }: { seed: number; reducedMotion: boolean }) {
   const flame = useRef<THREE.Mesh>(null);
   const invalidate = useThree((state) => state.invalidate);
   useFrame(({ clock }) => {
     if (!flame.current) return;
-    // A flicker: two slow waves out of step, different for every candle.
-    const t = clock.elapsedTime + seed * 7.3;
-    const f = 1 + 0.12 * Math.sin(t * 9.1) + 0.08 * Math.sin(t * 13.7);
-    flame.current.scale.set(0.9 + 0.1 * Math.sin(t * 5), f, 0.9);
-    invalidate();
+    flame.current.scale.set(...candleFlameScale(clock.elapsedTime, seed, reducedMotion));
+    if (!reducedMotion) invalidate();
   });
   return <mesh ref={flame} raycast={noRaycast}>
     <sphereGeometry args={[0.012, 10, 8]} />
@@ -36,9 +40,10 @@ function Flame({ seed }: { seed: number }) {
   </mesh>;
 }
 
-export function CandleShelf({ meditation, onMeditation }: {
+export function CandleShelf({ meditation, onMeditation, reducedMotion = false }: {
   meditation: Meditation;
   onMeditation: (session: Meditation) => void;
+  reducedMotion?: boolean;
 }) {
   const [lighting, setLighting] = useState(false);
   const [trouble, setTrouble] = useState<string | null>(null);
@@ -76,7 +81,7 @@ export function CandleShelf({ meditation, onMeditation }: {
           <cylinderGeometry args={[0.016, 0.016, height, 12]} />
           <meshStandardMaterial color="#f3ead7" roughness={0.5} emissive="#ffb35c" emissiveIntensity={0.15} />
         </mesh>
-        <group position={[0, height + 0.018, 0]}><Flame seed={index + candle.litAt % 97} /></group>
+        <group position={[0, height + 0.018, 0]}><Flame seed={index + candle.litAt % 97} reducedMotion={reducedMotion} /></group>
         {candle.for && <Text position={[0, height + 0.06, 0]} fontSize={0.018} color="#fff1d6" raycast={noRaycast} outlineWidth={0.0015} outlineColor="#0b1418">{candle.for}</Text>}
       </group>;
     })}

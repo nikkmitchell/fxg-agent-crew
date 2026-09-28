@@ -45,6 +45,28 @@ export function koiAt(index: number, seconds: number, radius = POND_AT.radius): 
   return { x, z, heading: Math.atan2(x2 - x, z2 - z) };
 }
 
+export function koiClock(seconds: number, reducedMotion = false): number {
+  return reducedMotion ? 0 : seconds;
+}
+
+/** Keep hand response available while removing easing motion for reduced-motion users. */
+export function updateKoiPull(
+  current: { x: number; z: number },
+  target: { x: number; z: number },
+  delta: number,
+  handNearby: boolean,
+  reducedMotion: boolean,
+): void {
+  if (reducedMotion) {
+    current.x = target.x;
+    current.z = target.z;
+    return;
+  }
+  const ease = Math.min(1, delta * (handNearby ? 1.2 : 0.5));
+  current.x += (target.x - current.x) * ease;
+  current.z += (target.z - current.z) * ease;
+}
+
 const waterVertex = /* glsl */ `
   varying vec2 vLocal;
   void main() {
@@ -54,11 +76,12 @@ const waterVertex = /* glsl */ `
 `;
 const waterFragment = /* glsl */ `
   uniform float uTime;
+  uniform float uMotionTime;
   uniform vec4 uRipples[8];
   varying vec2 vLocal;
   void main() {
     vec2 p = vLocal;
-    float lap = sin(p.x * 11.0 + uTime * 0.9) * 0.5 + sin(p.y * 13.0 - uTime * 0.7) * 0.5;
+    float lap = sin(p.x * 11.0 + uMotionTime * 0.9) * 0.5 + sin(p.y * 13.0 - uMotionTime * 0.7) * 0.5;
     float rings = 0.0;
     for (int i = 0; i < 8; i++) {
       vec4 r = uRipples[i];
@@ -98,7 +121,7 @@ function plop(level: number): void {
  * instead of fifteen (Nightjar's draw-call count, 2026-09-28). Each fish's
  * place and heading come from its anchor group, which KoiPond moves.
  */
-function KoiSchool({ fish }: { fish: MutableRefObject<(THREE.Group | null)[]> }) {
+function KoiSchool({ fish, reducedMotion }: { fish: MutableRefObject<(THREE.Group | null)[]>; reducedMotion: boolean }) {
   const bodies = useRef<THREE.InstancedMesh>(null);
   const patches = useRef<THREE.InstancedMesh>(null);
   const tails = useRef<THREE.InstancedMesh>(null);
@@ -130,7 +153,7 @@ function KoiSchool({ fish }: { fish: MutableRefObject<(THREE.Group | null)[]> })
       anchor.updateMatrix();
       bodies.current?.setMatrixAt(index, out.multiplyMatrices(anchor.matrix, parts.body));
       patches.current?.setMatrixAt(index, out.multiplyMatrices(anchor.matrix, parts.patch));
-      wag.makeRotationY(Math.sin(state.clock.elapsedTime * 6 + index) * 0.45);
+      wag.makeRotationY(reducedMotion ? 0 : Math.sin(state.clock.elapsedTime * 6 + index) * 0.45);
       tails.current?.setMatrixAt(index, out.copy(anchor.matrix).multiply(parts.tailBase).multiply(wag).multiply(parts.tailShape));
     });
     for (const mesh of [bodies.current, patches.current, tails.current]) if (mesh) mesh.instanceMatrix.needsUpdate = true;
@@ -153,7 +176,7 @@ function KoiSchool({ fish }: { fish: MutableRefObject<(THREE.Group | null)[]> })
   );
 }
 
-export function KoiPond({ peopleRef }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null } }) {
+export function KoiPond({ peopleRef, reducedMotion = false }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; reducedMotion?: boolean }) {
   const fish = useRef<(THREE.Group | null)[]>([]);
   const curiosity = useRef(KOI.map(() => ({ x: 0, z: 0 })));
   const ripples = useMemo(() => Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, -99, 0)), []);
@@ -163,7 +186,7 @@ export function KoiPond({ peopleRef }: { peopleRef: MutableRefObject<WirePerson[
       new THREE.ShaderMaterial({
         vertexShader: waterVertex,
         fragmentShader: waterFragment,
-        uniforms: { uTime: { value: 0 }, uRipples: { value: ripples } },
+        uniforms: { uTime: { value: 0 }, uMotionTime: { value: 0 }, uRipples: { value: ripples } },
         transparent: true,
         depthWrite: false,
       }),
@@ -181,7 +204,8 @@ export function KoiPond({ peopleRef }: { peopleRef: MutableRefObject<WirePerson[
   useFrame((state, delta) => {
     const time = state.clock.elapsedTime;
     material.uniforms.uTime.value = time;
-    const seconds = Date.now() / 1000;
+    material.uniforms.uMotionTime.value = koiClock(time, reducedMotion);
+    const seconds = koiClock(Date.now() / 1000, reducedMotion);
 
     // Every hand near the water, in the pond's own coordinates.
     const hands: { x: number; y: number; z: number }[] = [];
@@ -209,14 +233,13 @@ export function KoiPond({ peopleRef }: { peopleRef: MutableRefObject<WirePerson[
         }
       }
       const pull = curiosity.current[index];
-      const ease = Math.min(1, delta * (closest < Infinity ? 1.2 : 0.5));
-      pull.x += (target.x - pull.x) * ease;
-      pull.z += (target.z - pull.z) * ease;
+      updateKoiPull(pull, target, delta, closest < Infinity, reducedMotion);
       const x = path.x + pull.x;
       const z = path.z + pull.z;
       const heading = closest < Infinity ? Math.atan2(pull.x - node.position.x + path.x, pull.z - node.position.z + path.z) : path.heading;
       node.position.set(x, WATER - 0.05 - index * 0.006, z);
-      node.rotation.y += Math.atan2(Math.sin(heading - node.rotation.y), Math.cos(heading - node.rotation.y)) * Math.min(1, delta * 3);
+      if (reducedMotion) node.rotation.y = path.heading;
+      else node.rotation.y += Math.atan2(Math.sin(heading - node.rotation.y), Math.cos(heading - node.rotation.y)) * Math.min(1, delta * 3);
     });
 
     // TOUCHING THE WATER: a fingertip reaching the surface rings it.
@@ -266,7 +289,7 @@ export function KoiPond({ peopleRef }: { peopleRef: MutableRefObject<WirePerson[
       {KOI.map((koi, index) => (
         <group key={index} ref={(node) => { fish.current[index] = node; }} scale={koi.size * 1.45} />
       ))}
-      <KoiSchool fish={fish} />
+      <KoiSchool fish={fish} reducedMotion={reducedMotion} />
       {/* THE WATER: a ray or a click on it rings it too. */}
       <mesh
         position={[0, WATER, 0]}

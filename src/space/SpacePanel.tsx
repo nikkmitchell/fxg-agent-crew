@@ -573,7 +573,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
             onChange={(event) => setReducedOverride(event.currentTarget.checked)}
           />
           <span>
-            Redraw only when something happens
+            Reduce ambient motion
             {reducedOverride === null && systemPrefersReduced ? " (your system asks for this)" : ""}
           </span>
         </label>

@@ -8,6 +8,7 @@ import { WristButton } from "./Backdrop";
 import { Typing3D } from "./Typing3D";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
+import { displayMotionTime, freezeMotionTime } from "./ambient-motion";
 
 /**
  * FLOATING LANTERNS (shared/lantern.ts): a small stone step behind the orb
@@ -18,19 +19,26 @@ import { ROOM } from "../../shared/space-layout";
 
 export const LAUNCH_AT = { x: 0.6, z: 2.6 } as const;
 
-function OneLantern({ lantern, offset }: { lantern: Lantern; offset: React.MutableRefObject<number> }) {
+export function lanternDisplaySeconds(seconds: number, frozenSeconds: number | null, reducedMotion = false): number {
+  return displayMotionTime(seconds, frozenSeconds, reducedMotion);
+}
+
+function OneLantern({ lantern, offset, reducedMotion }: { lantern: Lantern; offset: React.MutableRefObject<number>; reducedMotion: boolean }) {
   const group = useRef<THREE.Group>(null);
   const paper = useRef<THREE.MeshBasicMaterial>(null);
   const flicker = useMemo(() => Math.random() * 10, []);
+  const frozenSeconds = useRef<number | null>(null);
   useFrame((state) => {
     const seconds = (Date.now() + offset.current - lantern.at) / 1000;
-    const at = lanternAt(lantern.seed, seconds);
+    frozenSeconds.current = freezeMotionTime(seconds, frozenSeconds.current, reducedMotion);
+    const shownSeconds = lanternDisplaySeconds(seconds, frozenSeconds.current, reducedMotion);
+    const at = lanternAt(lantern.seed, shownSeconds);
     if (group.current) {
       group.current.position.set(at.x, at.y, at.z);
-      group.current.rotation.y = seconds * 0.2 + lantern.seed * 6;
+      group.current.rotation.y = shownSeconds * 0.2 + lantern.seed * 6;
       group.current.visible = at.glow > 0;
     }
-    if (paper.current) paper.current.opacity = 0.9 * at.glow * (0.9 + Math.sin(state.clock.elapsedTime * 7 + flicker) * 0.08);
+    if (paper.current) paper.current.opacity = 0.9 * at.glow * (reducedMotion ? 0.9 : 0.9 + Math.sin(state.clock.elapsedTime * 7 + flicker) * 0.08);
   });
   return (
     <group ref={group}>
@@ -53,7 +61,7 @@ function OneLantern({ lantern, offset }: { lantern: Lantern; offset: React.Mutab
   );
 }
 
-export function Lanterns({ you }: { you: string | null }) {
+export function Lanterns({ you, reducedMotion = false }: { you: string | null; reducedMotion?: boolean }) {
   const [sky, setSky] = useState<Lantern[]>([]);
   const [writing, setWriting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -104,7 +112,7 @@ export function Lanterns({ you }: { you: string | null }) {
         <meshStandardMaterial color="#5b564e" roughness={0.9} />
       </mesh>
       {sky.map((lantern) => (
-        <OneLantern key={lantern.id} lantern={lantern} offset={offset} />
+        <OneLantern key={lantern.id} lantern={lantern} offset={offset} reducedMotion={reducedMotion} />
       ))}
       <group position={[0, 1.05, 0]} rotation={[0, facing, 0]}>
         <WristButton label="release a lantern" y={0.05} width={0.44} height={0.08} lines={1} textSize={0.42} tone="live" onTap={() => release("")} />

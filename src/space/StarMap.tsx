@@ -14,7 +14,11 @@ import { space } from "../space-client";
 
 const SKY_STARS = stars();
 
-export function StarMap() {
+export function starMotionTime(seconds: number, reducedMotion = false): number {
+  return reducedMotion ? 0 : seconds;
+}
+
+export function StarMap({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
   const [sky, setSky] = useState<StarSky>(emptySky);
   const current = useRef(sky);
   current.current = sky;
@@ -47,7 +51,7 @@ export function StarMap() {
   useFrame((state) => {
     const mesh = instanced.current;
     if (!mesh) return;
-    const t = state.clock.elapsedTime;
+    const t = starMotionTime(state.clock.elapsedTime, reducedMotion);
     SKY_STARS.forEach((star, index) => {
       const s = star.size * (0.85 + Math.sin(t * 1.3 + twinkle[index]) * 0.15);
       matrix.makeScale(s, s, s).setPosition(star.x, star.y, star.z);

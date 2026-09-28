@@ -1,6 +1,7 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
+import { displayMotionTime, freezeMotionTime } from "./ambient-motion";
 
 /**
  * THE MOON: in tonight's real phase, large over the far side of the room,
@@ -33,11 +34,16 @@ export function moonArc(hour: number): { across: number; bright: number } {
   return since <= 12 ? { across: since / 12, bright: 1 } : { across: (since - 12) / 12, bright: 0.3 };
 }
 
+export function moonDisplayHour(hour: number, frozenHour: number | null, reducedMotion = false): number {
+  return displayMotionTime(hour, frozenHour, reducedMotion);
+}
+
 const DISTANCE = 22;
 const SIZE = 1.3;
 
-export function Moon() {
+export function Moon({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
   const group = useRef<THREE.Group>(null);
+  const frozenHour = useRef<number | null>(null);
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -51,6 +57,8 @@ export function Moon() {
 
   useFrame(() => {
     const now = new Date();
+    const hour = now.getHours() + now.getMinutes() / 60;
+    frozenHour.current = freezeMotionTime(hour, frozenHour.current, reducedMotion);
     const phase = moonPhase(now.getTime());
     // Repaint the lit part only when the phase moves on noticeably.
     if (Math.abs(phase - painted.current) > 0.002) {
@@ -78,7 +86,7 @@ export function Moon() {
       }
       texture.made.needsUpdate = true;
     }
-    const arc = moonArc(now.getHours() + now.getMinutes() / 60);
+    const arc = moonArc(moonDisplayHour(hour, frozenHour.current, reducedMotion));
     const node = group.current;
     if (!node) return;
     if (face.current) face.current.opacity = arc.bright;

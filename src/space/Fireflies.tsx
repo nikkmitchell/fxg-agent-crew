@@ -35,9 +35,13 @@ export function fireflyAt(index: number, seconds: number): { x: number; y: numbe
   };
 }
 
+export function fireflyMotionTime(seconds: number, reducedMotion = false): number {
+  return reducedMotion ? 0 : seconds;
+}
+
 type Hand = { x: number; y: number; z: number };
 
-export function Fireflies({ peopleRef, you }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null }) {
+export function Fireflies({ peopleRef, you, reducedMotion = false }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null; reducedMotion?: boolean }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const colours = useMemo(() => new Float32Array(COUNT * 3), []);
   const matrix = useMemo(() => new THREE.Matrix4(), []);
@@ -50,7 +54,7 @@ export function Fireflies({ peopleRef, you }: { peopleRef: MutableRefObject<Wire
 
   useFrame((_, delta) => {
     const now = performance.now();
-    const seconds = Date.now() / 1000;
+    const seconds = fireflyMotionTime(Date.now() / 1000, reducedMotion);
 
     // Every hand in the room, keyed.
     const hands = new Map<string, Hand>();
@@ -106,11 +110,12 @@ export function Fireflies({ peopleRef, you }: { peopleRef: MutableRefObject<Wire
       const land = landed.current.get(i);
       if (land) {
         const hand = still.get(land.hand)!;
-        land.progress = Math.min(1, land.progress + delta / 2.5);
+        land.progress = reducedMotion ? 1 : Math.min(1, land.progress + delta / 2.5);
         target.lerp(new THREE.Vector3(hand.x, hand.y + 0.04, hand.z), land.progress);
-        blink = 0.5 + Math.sin(seconds * 2.2) * 0.35;
+        blink = reducedMotion ? 0.5 : 0.5 + Math.sin(seconds * 2.2) * 0.35;
       }
-      shown.current[i].lerp(target, Math.min(1, delta * 4));
+      if (reducedMotion) shown.current[i].copy(target);
+      else shown.current[i].lerp(target, Math.min(1, delta * 4));
       const size = 0.012 + blink * 0.01;
       matrix.makeScale(size, size, size).setPosition(shown.current[i]);
       node.setMatrixAt(i, matrix);

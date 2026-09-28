@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moonArc, moonPhase } from "./Moon";
+import { moonArc, moonDisplayHour, moonPhase } from "./Moon";
 
 describe("the moon", () => {
   it("knows a new moon and a full moon", () => {
@@ -12,5 +12,11 @@ describe("the moon", () => {
     expect(moonArc(0).across).toBeCloseTo(0.5);
     expect(moonArc(6)).toEqual({ across: 1, bright: 1 });
     expect(moonArc(12).bright).toBeLessThan(0.5);
+  });
+
+  it("freezes its current place when reduced motion is enabled", () => {
+    expect(moonDisplayHour(22.5, 22.5, true)).toBe(22.5);
+    expect(moonDisplayHour(23.5, 22.5, true)).toBe(22.5);
+    expect(moonDisplayHour(23.5, null, false)).toBe(23.5);
   });
 });

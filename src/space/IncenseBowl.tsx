@@ -17,7 +17,11 @@ export const INCENSE_AT = { x: 0, z: 3.75, height: 0.8 } as const;
 const STICK_LENGTH = 0.24;
 const SMOKE = 60;
 
-function Smoke({ from }: { from: THREE.Vector3 }) {
+export function smokeMotionTime(seconds: number, reducedMotion = false): number {
+  return reducedMotion ? 0 : seconds;
+}
+
+function Smoke({ from, reducedMotion }: { from: THREE.Vector3; reducedMotion: boolean }) {
   const points = useRef<THREE.Points>(null);
   const seeds = useMemo(() => Array.from({ length: SMOKE }, () => Math.random()), []);
   const geometry = useMemo(() => {
@@ -28,7 +32,7 @@ function Smoke({ from }: { from: THREE.Vector3 }) {
   useEffect(() => () => geometry.dispose(), [geometry]);
   useFrame((state) => {
     const position = geometry.getAttribute("position") as THREE.BufferAttribute;
-    const t = state.clock.elapsedTime;
+    const t = smokeMotionTime(state.clock.elapsedTime, reducedMotion);
     seeds.forEach((seed, i) => {
       const age = (t * 0.25 + seed) % 1;
       const rise = age * 0.7;
@@ -50,7 +54,7 @@ function Smoke({ from }: { from: THREE.Vector3 }) {
   );
 }
 
-export function IncenseBowl() {
+export function IncenseBowl({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
   const [sticks, setSticks] = useState<Stick[]>([]);
   const [note, setNote] = useState<string | null>(null);
   const offset = useRef(0);
@@ -112,7 +116,7 @@ export function IncenseBowl() {
               <sphereGeometry args={[0.004, 8, 6]} />
               <meshBasicMaterial color="#ff6a1a" toneMapped={false} />
             </mesh>
-            <Smoke from={tip} />
+            <Smoke from={tip} reducedMotion={reducedMotion} />
           </group>
         );
       })}

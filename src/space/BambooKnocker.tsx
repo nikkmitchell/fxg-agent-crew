@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { POND_AT } from "./KoiPond";
 import { audio } from "./breath-sound";
+import { displayMotionTime, freezeMotionTime } from "./ambient-motion";
 
 /**
  * THE SHISHI-ODOSHI at the edge of the koi pond: a bamboo pipe trickles into a
@@ -37,6 +38,10 @@ export function tiltAt(seconds: number): number {
 /** The moment in each cycle the tube strikes the stone. */
 export const KNOCK_AT = CYCLE_SECONDS - 1.6 + 0.9 + 0.25;
 
+export function knockerMotionSeconds(seconds: number, frozenSeconds: number | null, reducedMotion = false): number {
+  return displayMotionTime(seconds, frozenSeconds, reducedMotion);
+}
+
 function knock(level: number): void {
   const ctx = audio();
   if (!ctx || level <= 0) return;
@@ -59,17 +64,20 @@ function knock(level: number): void {
 
 const KNOCKER_AT = { x: POND_AT.x + 0.55, z: POND_AT.z + 0.62 } as const;
 
-export function BambooKnocker() {
+export function BambooKnocker({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
   const tube = useRef<THREE.Group>(null);
   const stream = useRef<THREE.Mesh>(null);
   const lastCycle = useRef<number | null>(null);
+  const frozenMotionSeconds = useRef<number | null>(null);
   const eye = useRef(new THREE.Vector3());
 
   useFrame((state) => {
     const seconds = Date.now() / 1000;
-    if (tube.current) tube.current.rotation.z = tiltAt(seconds);
+    frozenMotionSeconds.current = freezeMotionTime(seconds, frozenMotionSeconds.current, reducedMotion);
+    const shownSeconds = knockerMotionSeconds(seconds, frozenMotionSeconds.current, reducedMotion);
+    if (tube.current) tube.current.rotation.z = tiltAt(shownSeconds);
     const phase = seconds % CYCLE_SECONDS;
-    if (stream.current) stream.current.visible = phase > CYCLE_SECONDS - 1.1 && phase < CYCLE_SECONDS - 0.7;
+    if (stream.current) stream.current.visible = !reducedMotion && phase > CYCLE_SECONDS - 1.1 && phase < CYCLE_SECONDS - 0.7;
     const cycle = Math.floor((seconds - KNOCK_AT) / CYCLE_SECONDS);
     if (lastCycle.current !== null && cycle > lastCycle.current) {
       state.camera.getWorldPosition(eye.current);

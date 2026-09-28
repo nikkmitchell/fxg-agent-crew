@@ -29,19 +29,25 @@ const noRaycast = () => null;
 
 type Burning = { id: number; word: string; by: string; start: number; seeds: number[] };
 
-function Flame({ index }: { index: number }) {
-  const mesh = useRef<THREE.Mesh>(null);
-  const phase = useMemo(() => Math.random() * 10, []);
+export function flameFrame(elapsed: number, phase: number, index: number, reducedMotion = false): { scale: number; rotation: number; x: number; z: number } {
   const angle = (index / 5) * Math.PI * 2;
   const offset = index === 0 ? 0 : 0.07;
+  if (reducedMotion) return { scale: index === 0 ? 1.125 : 0.765, rotation: 0, x: Math.cos(angle) * offset, z: Math.sin(angle) * offset };
+  const t = elapsed + phase;
+  const flicker = 0.85 + Math.sin(t * 9.1) * 0.08 + Math.sin(t * 13.7) * 0.06 + Math.sin(t * 3.3) * 0.05;
+  return { scale: flicker * (index === 0 ? 1.25 : 0.85), rotation: t * 0.7, x: Math.cos(angle) * offset + Math.sin(t * 5) * 0.006, z: Math.sin(angle) * offset };
+}
+
+function Flame({ index, reducedMotion }: { index: number; reducedMotion: boolean }) {
+  const mesh = useRef<THREE.Mesh>(null);
+  const phase = useMemo(() => Math.random() * 10, []);
   useFrame((state) => {
-    const t = state.clock.elapsedTime + phase;
-    const flicker = 0.85 + Math.sin(t * 9.1) * 0.08 + Math.sin(t * 13.7) * 0.06 + Math.sin(t * 3.3) * 0.05;
+    const frame = flameFrame(state.clock.elapsedTime, phase, index, reducedMotion);
     if (mesh.current) {
-      mesh.current.scale.set(1, flicker * (index === 0 ? 1.25 : 0.85), 1);
-      mesh.current.rotation.y = t * 0.7;
-      mesh.current.position.x = Math.cos(angle) * offset + Math.sin(t * 5) * 0.006;
-      mesh.current.position.z = Math.sin(angle) * offset;
+      mesh.current.scale.set(1, frame.scale, 1);
+      mesh.current.rotation.y = frame.rotation;
+      mesh.current.position.x = frame.x;
+      mesh.current.position.z = frame.z;
     }
   });
   const height = index === 0 ? 0.42 : 0.28;
@@ -62,7 +68,7 @@ function Flame({ index }: { index: number }) {
 }
 
 /** Embers always drifting up from the fire, and every word's burst of sparks. */
-function Sparks({ burning }: { burning: Burning[] }) {
+function Sparks({ burning, reducedMotion }: { burning: Burning[]; reducedMotion: boolean }) {
   const points = useRef<THREE.Points>(null);
   const capacity = IDLE_SPARKS + SPARKS_PER_WORD * 6;
   const geometry = useMemo(() => {
@@ -76,7 +82,7 @@ function Sparks({ burning }: { burning: Burning[] }) {
   useFrame((state) => {
     const position = geometry.getAttribute("position") as THREE.BufferAttribute;
     const colour = geometry.getAttribute("color") as THREE.BufferAttribute;
-    const now = state.clock.elapsedTime;
+    const now = reducedMotion ? 0 : state.clock.elapsedTime;
     let n = 0;
     const put = (x: number, y: number, z: number, glow: number) => {
       if (n >= capacity) return;
@@ -91,7 +97,7 @@ function Sparks({ burning }: { burning: Burning[] }) {
       put(spark.x * 0.5, 0.15 + spark.y * 0.9, spark.z * 0.5, spark.glow * 0.8);
     });
     for (const burn of burning) {
-      const age = (performance.now() - burn.start) / 1000 - 0.8;
+      const age = reducedMotion ? 0 : (performance.now() - burn.start) / 1000 - 0.8;
       if (age < 0) continue;
       for (const seed of burn.seeds) {
         const spark = sparkAt(seed, age);
@@ -135,14 +141,14 @@ function FireStones() {
 }
 
 /** One word, rising out of the fire and burning away. */
-function BurningWord({ burn }: { burn: Burning }) {
+function BurningWord({ burn, reducedMotion }: { burn: Burning; reducedMotion: boolean }) {
   const text = useRef<THREE.Mesh & { fillOpacity?: number; color?: THREE.Color | string }>(null);
   const lift = useRef<THREE.Group>(null);
   useFrame(() => {
     const age = (performance.now() - burn.start) / 1000;
     const node = text.current;
     if (!node) return;
-    if (lift.current) lift.current.position.y = 0.35 + Math.min(age, 1.2) * 0.5 + Math.max(0, age - 1.2) * 0.08;
+    if (lift.current) lift.current.position.y = reducedMotion ? 0.35 : 0.35 + Math.min(age, 1.2) * 0.5 + Math.max(0, age - 1.2) * 0.08;
     const fade = age < 0.4 ? age / 0.4 : Math.max(0, 1 - (age - 0.9) / 1.4);
     node.fillOpacity = fade;
     const hot = Math.min(1, Math.max(0, (age - 0.5) / 0.8));
@@ -160,7 +166,7 @@ function BurningWord({ burn }: { burn: Burning }) {
   );
 }
 
-export function EmberFire({ you }: { you: string | null }) {
+export function EmberFire({ you, reducedMotion = false }: { you: string | null; reducedMotion?: boolean }) {
   const [burning, setBurning] = useState<Burning[]>([]);
   const [writing, setWriting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -212,7 +218,7 @@ export function EmberFire({ you }: { you: string | null }) {
     level.current = fireLevel(Math.hypot(listener.x - FIRE_AT.x, listener.z - FIRE_AT.z));
     if (light.current) {
       const t = state.clock.elapsedTime;
-      light.current.intensity = 2.2 + Math.sin(t * 11) * 0.3 + Math.sin(t * 17.3) * 0.25 + burning.length * 0.6;
+      light.current.intensity = reducedMotion ? 2.2 + burning.length * 0.6 : 2.2 + Math.sin(t * 11) * 0.3 + Math.sin(t * 17.3) * 0.25 + burning.length * 0.6;
     }
   });
 
@@ -237,11 +243,11 @@ export function EmberFire({ you }: { you: string | null }) {
         <meshBasicMaterial color="#ff5a14" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
       </mesh>
       {[0, 1, 2, 3, 4].map((index) => (
-        <Flame key={index} index={index} />
+        <Flame key={index} index={index} reducedMotion={reducedMotion} />
       ))}
-      <Sparks burning={burning} />
+      <Sparks burning={burning} reducedMotion={reducedMotion} />
       {burning.map((one) => (
-        <BurningWord key={one.id} burn={one} />
+        <BurningWord key={one.id} burn={one} reducedMotion={reducedMotion} />
       ))}
 
       {/* THE SIGN: a few words to tap, or your own. */}

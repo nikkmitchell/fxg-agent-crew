@@ -38,6 +38,10 @@ export function inCircle(x: number, z: number): boolean {
   return Math.hypot(x - RIBBONS_AT.x, z - RIBBONS_AT.z) <= RIBBONS_AT.radius;
 }
 
+export function ribbonRingOpacity(seconds: number, reducedMotion = false): number {
+  return reducedMotion ? 0.35 : 0.35 + Math.sin(seconds * 0.8) * 0.12;
+}
+
 type Trail = { points: { x: number; y: number; z: number; at: number }[]; colour: THREE.Color; mesh: THREE.Mesh };
 
 function makeTrailMesh(): THREE.Mesh {
@@ -65,7 +69,7 @@ function makeTrailMesh(): THREE.Mesh {
   return mesh;
 }
 
-export function LightRibbons({ peopleRef, you }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null }) {
+export function LightRibbons({ peopleRef, you, reducedMotion = false }: { peopleRef: MutableRefObject<WirePerson[] | null> | { current: WirePerson[] | null }; you: string | null; reducedMotion?: boolean }) {
   const group = useRef<THREE.Group>(null);
   const trails = useRef(new Map<string, Trail>());
   const lastSample = useRef(0);
@@ -99,7 +103,7 @@ export function LightRibbons({ peopleRef, you }: { peopleRef: MutableRefObject<W
 
   useFrame((state) => {
     const now = performance.now();
-    if (ring.current) ring.current.opacity = 0.35 + Math.sin(state.clock.elapsedTime * 0.8) * 0.12;
+    if (ring.current) ring.current.opacity = ribbonRingOpacity(state.clock.elapsedTime, reducedMotion);
 
     // SAMPLE every hand that is inside the circle.
     if (now - lastSample.current >= SAMPLE_MS) {

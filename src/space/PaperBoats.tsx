@@ -7,6 +7,7 @@ import { POND_AT } from "./KoiPond";
 import { WristButton } from "./Backdrop";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
+import { displayMotionTime, freezeMotionTime } from "./ambient-motion";
 
 /**
  * PAPER BOATS (shared/boats.ts) on the koi pond: a small sign at the pond's
@@ -33,10 +34,11 @@ function boatGeometry(): THREE.BufferGeometry {
   return geometry;
 }
 
-export function PaperBoats() {
+export function PaperBoats({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
   const [boats, setBoats] = useState<Boat[]>([]);
   const offset = useRef(0);
   const nodes = useRef(new Map<string, THREE.Mesh>());
+  const frozenAges = useRef(new Map<string, number>());
   const geometry = useMemo(boatGeometry, []);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
@@ -58,13 +60,20 @@ export function PaperBoats() {
 
   useFrame((state) => {
     const now = Date.now() + offset.current;
+    const active = new Set(boats.map((boat) => boat.id));
+    for (const id of frozenAges.current.keys()) if (!active.has(id)) frozenAges.current.delete(id);
     for (const boat of boats) {
       const node = nodes.current.get(boat.id);
       if (!node) continue;
-      const at = boatAt(boat.seed, (now - boat.at) / 1000);
-      const bob = Math.sin(state.clock.elapsedTime * 1.6 + boat.seed * 10) * 0.003;
+      const age = (now - boat.at) / 1000;
+      const frozenAge = freezeMotionTime(age, frozenAges.current.get(boat.id) ?? null, reducedMotion);
+      if (frozenAge === null) frozenAges.current.delete(boat.id);
+      else frozenAges.current.set(boat.id, frozenAge);
+      const shownAge = displayMotionTime(age, frozenAges.current.get(boat.id) ?? null, reducedMotion);
+      const at = boatAt(boat.seed, shownAge);
+      const bob = reducedMotion ? 0 : Math.sin(state.clock.elapsedTime * 1.6 + boat.seed * 10) * 0.003;
       node.position.set(POND_AT.x + at.x * POND_AT.radius, WATER + bob - at.sink * 0.03, POND_AT.z + at.z * POND_AT.radius);
-      node.rotation.set(Math.sin(state.clock.elapsedTime + boat.seed) * 0.06, at.heading + Math.PI / 2, 0);
+      node.rotation.set(reducedMotion ? 0 : Math.sin(state.clock.elapsedTime + boat.seed) * 0.06, at.heading + Math.PI / 2, 0);
     }
   });
 

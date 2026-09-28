@@ -118,7 +118,12 @@ function startPad(): { set: (level: number) => void; stop: () => void } {
   };
 }
 
-export function KaleidoscopeDome({ meditation, peopleRef, you }: { meditation: Meditation | null; peopleRef?: { current: WirePerson[] | null }; you?: string | null }) {
+export function domeVisualState(seconds: number, fullness: number, breathing: boolean, reducedMotion = false): { time: number; breath: number } {
+  if (reducedMotion) return { time: 0, breath: 0.5 };
+  return { time: seconds, breath: breathing ? fullness : 0.5 + Math.sin(seconds * 0.35) * 0.2 };
+}
+
+export function KaleidoscopeDome({ meditation, peopleRef, you, reducedMotion = false }: { meditation: Meditation | null; peopleRef?: { current: WirePerson[] | null }; you?: string | null; reducedMotion?: boolean }) {
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -141,10 +146,12 @@ export function KaleidoscopeDome({ meditation, peopleRef, you }: { meditation: M
   const breath = useRef(0);
 
   useFrame((state, delta) => {
-    material.uniforms.uTime.value = state.clock.elapsedTime;
+    const seconds = state.clock.elapsedTime;
     const now = meditation ? breathAt(meditation, Date.now()) : { state: "idle" as const };
-    const target = now.state === "breathing" ? now.fullness : 0.5 + Math.sin(state.clock.elapsedTime * 0.35) * 0.2;
-    breath.current += (target - breath.current) * Math.min(1, delta * 3);
+    const visual = domeVisualState(seconds, now.state === "breathing" ? now.fullness : 0.5, now.state === "breathing", reducedMotion);
+    material.uniforms.uTime.value = visual.time;
+    if (reducedMotion) breath.current = visual.breath;
+    else breath.current += (visual.breath - breath.current) * Math.min(1, delta * 3);
     material.uniforms.uBreath.value = breath.current;
 
     state.camera.getWorldPosition(eye);
@@ -158,7 +165,8 @@ export function KaleidoscopeDome({ meditation, peopleRef, you }: { meditation: M
       if (Math.hypot(person.at.x - centre.x, person.at.z - centre.z) < DOME_AT.radius - 0.1) together += 1;
     }
     const shared = together >= 2 ? 1 : 0;
-    material.uniforms.uTogether.value += (shared - material.uniforms.uTogether.value) * Math.min(1, delta * 0.8);
+    if (reducedMotion) material.uniforms.uTogether.value = shared;
+    else material.uniforms.uTogether.value += (shared - material.uniforms.uTogether.value) * Math.min(1, delta * 0.8);
     if (inside && !pad.current) pad.current = startPad();
     pad.current?.set(inside ? 0.6 + breath.current * 0.4 : 0);
   });
