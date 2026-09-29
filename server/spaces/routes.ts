@@ -153,7 +153,7 @@ const STARTER = (space: string, by: string) => [
       if (source.handedness === "right") {
         // Snap turns, 30 degrees a flick: smooth turning makes people sick.
         if (Math.abs(x) > 0.7 && !turned) {
-          player.rotation.y -= Math.sign(x) * Math.PI / 6;
+          player.rotation.y -= (x > 0 ? 1 : -1) * Math.PI / 6;
           turned = true;
         } else if (Math.abs(x) < 0.3) turned = false;
       }
