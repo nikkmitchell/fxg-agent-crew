@@ -220,7 +220,16 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
     const mic = document.createElement("button");
     mic.style.cssText = "border:0;border-radius:999px;padding:3px 9px;background:#2d6cdf;color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer";
     mic.addEventListener("click", () => void toggleTalking());
-    tag.append(text, ...(voice ? [mic] : []), back);
+    // A guest (a reload, a pasted link) is one click from being themselves:
+    // /go/<space> makes a fresh ticket when they are signed in to saha.ing.
+    // The ticket is kept out of the address bar on purpose, so a copied link
+    // never carries who you are (connect.ts takeTicket).
+    const enter = document.createElement("a");
+    enter.textContent = "Enter as yourself";
+    enter.href = `${server}/go/${encodeURIComponent(room.space)}`;
+    enter.target = "_top";
+    enter.style.cssText = "color:#9cc3ff;text-decoration:none";
+    tag.append(text, ...(voice ? [mic] : []), enter, back);
     const show = () => {
       const count = room.people.size;
       const talkers = [...room.people.values()].filter((person) => person.voice).length;
@@ -230,6 +239,7 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
           ? `saha.ing · watching · ${count} here`
           : `saha.ing · ${count} here${talkers ? ` · ${talkers} talking` : ""}${voiceNote ? ` · ${voiceNote}` : ""}`;
       mic.hidden = room.guest || !room.connected;
+      enter.hidden = !room.guest;
       mic.textContent = voice?.talking() ? "Mic off" : "Mic on";
       mic.title = voice?.blocked() ?? "";
     };
