@@ -12,8 +12,14 @@
  *   { "pieces": [
  *       { "id": "orb",   "name": "Meditation orb", "model": "models/orb.glb", "spin": true },
  *       { "id": "sky",   "name": "Sky study",      "image": "art/sky.png" },
- *       { "id": "bell",  "name": "Bell instrument", "page": "bell/" }
+ *       { "id": "bell",  "name": "Bell instrument", "page": "bell/" },
+ *       { "id": "marimba", "name": "Marimba", "code": "pieces/marimba.js" }
  *   ] }
+ *
+ * A CODE piece is a JavaScript module other spaces import by URL
+ * (import { createMarimba } from "/s/xr.instruments/pieces/marimba.js"). The
+ * bench does not run it; public spaces' pieces are listed for everyone at
+ * GET /bff/spaces/pieces, the catalogue (Nikk, 2026-09-29: build once, use anywhere).
  *
  * MODELS AND PICTURES COME INTO THE ROOM; PAGES DO NOT. A .glb is data: the
  * room can load it safely. A page is somebody's code, and running it inside
@@ -26,7 +32,7 @@
 export type BenchPiece = {
   id: string;
   name: string;
-  kind: "model" | "image" | "page";
+  kind: "model" | "image" | "page" | "code";
   /** The file or folder, relative to the published site. */
   path: string;
   /** Model only: turn slowly on the bench. */
@@ -40,6 +46,7 @@ export const BENCH_LIMITS = {
 } as const;
 
 const MODEL = /\.(glb|gltf)$/i;
+const CODE = /\.m?js$/i;
 const IMAGE = /\.(png|jpe?g|webp)$/i;
 const ID = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 
@@ -80,9 +87,9 @@ export function readPieces(text: string, published: ReadonlyMap<string, number>)
       continue;
     }
     const name = typeof item.name === "string" && item.name.trim() ? item.name.trim().slice(0, 40) : item.id;
-    const kinds = (["model", "image", "page"] as const).filter((kind) => item[kind] !== undefined);
+    const kinds = (["model", "image", "page", "code"] as const).filter((kind) => item[kind] !== undefined);
     if (kinds.length !== 1) {
-      problems.push(`${label}: give exactly one of "model", "image" or "page".`);
+      problems.push(`${label}: give exactly one of "model", "image", "page" or "code".`);
       continue;
     }
     const kind = kinds[0];
@@ -107,6 +114,11 @@ export function readPieces(text: string, published: ReadonlyMap<string, number>)
         problems.push(`${label}: ${path} is ${Math.round(size / 1048576)} MB; the bench takes up to ${limit / 1048576} MB.`);
         continue;
       }
+    } else if (kind === "code") {
+      if (!CODE.test(path) || !published.has(path)) {
+        problems.push(`${label}: "code" must be a .js file that was published; ${path} is not.`);
+        continue;
+      }
     } else {
       const page = path.endsWith("/") ? `${path}index.html` : path;
       if (!published.has(page) && !published.has(`${path}/index.html`)) {
@@ -118,6 +130,14 @@ export function readPieces(text: string, published: ReadonlyMap<string, number>)
     pieces.push({ id: item.id, name, kind, path, spin: item.spin === true });
   }
   return { pieces, problems };
+}
+
+/** One entry in the catalogue of every public space's pieces. */
+export type CataloguePiece = { space: string; id: string; name: string; kind: BenchPiece["kind"]; url: string };
+
+/** A public space's live pieces as catalogue entries; URLs are stable (no deploy id) so other spaces can import them. */
+export function catalogueOf(space: string, pieces: readonly BenchPiece[]): CataloguePiece[] {
+  return pieces.map((piece) => ({ space, id: piece.id, name: piece.name, kind: piece.kind, url: `/s/${space}/${piece.path}` }));
 }
 
 /** Where the bench stands in a room: behind and to the right of where people arrive, clear of every piece and panel. */

@@ -29,7 +29,9 @@ describe("moving your settings menu (Nikk, 5903)", () => {
   });
 
   it("keeps the menu within reach, and a bad saved value is no offset at all", () => {
-    expect(clampOffset({ x: 9, y: -9, z: 0.1 })).toEqual({ x: MENU_REACH.x, y: -MENU_REACH.y, z: 0.1 });
+    // Free to go anywhere sensible (Nikk, 6213); only the absurd is held back.
+    expect(clampOffset({ x: 9, y: -3, z: 4 })).toEqual({ x: 9, y: -3, z: 4 });
+    expect(clampOffset({ x: 900, y: -900, z: 0.1 })).toEqual({ x: MENU_REACH.x, y: -MENU_REACH.y, z: 0.1 });
     expect(clampOffset({ x: Number.NaN, y: 0, z: 0 }).x).toBe(0);
     expect(loadOffset({ getItem: () => "not json" })).toEqual(NO_OFFSET);
     expect(loadOffset({ getItem: () => null })).toEqual(NO_OFFSET);
