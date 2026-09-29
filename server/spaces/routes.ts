@@ -603,6 +603,13 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       .send({ iceServers: iceServersFrom(process.env) });
   });
 
+  /** Close every seat you hold in every space, on every device (live.ts, leaveEverywhere). */
+  app.post("/bff/spaces/leave-everywhere", async (request, reply) => {
+    const me = signedIn(request, reply);
+    if (!me) return reply;
+    return reply.header("cache-control", "no-store").send({ left: deps.live.leaveEverywhere(me.username) });
+  });
+
   /** The published spaces: the lobby's doors. Anyone may ask. */
   app.get("/bff/spaces/public", async (_request, reply) =>
     reply.header("cache-control", "no-store").send({

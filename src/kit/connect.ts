@@ -231,6 +231,12 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
       room.connected = false;
       if (was) emit("connection", false);
       // 4403/4404: not public, or no such space. Trying again will not help.
+      // 4001: you pressed "Leave every space" on saha.ing; staying away is the point.
+      if (event.code === 4001) {
+        left = true;
+        emit("refused", "You left this space from saha.ing. Enter again to come back.");
+        return;
+      }
       if (left || event.code === 4403 || event.code === 4404 || event.code === 4000) return;
       setTimeout(connect, RECONNECT_MS[Math.min(attempt++, RECONNECT_MS.length - 1)]);
     };

@@ -118,3 +118,22 @@ describe("a seat whose page has gone, gone (3 ghost seats in xr.instruments, 202
     expect(closed.log).toEqual([]);
   });
 });
+
+describe("leave every space (Baiwei, 6395: \"Can you kick my presence out of that room?\")", () => {
+  it("closes every seat of that person in every space with 4001, and nobody else's", () => {
+    const live = new SpaceLive(store, () => null);
+    const tabs = [socket(), socket(), socket()];
+    live.join("xr.instruments", tabs[0].live, { ...nikk, username: "baiwei2" }, { page: "page-aaaaaaaa" });
+    live.join("xr.instruments", tabs[1].live, { ...nikk, username: "baiwei2" }, { page: "page-bbbbbbbb" });
+    live.join("meditation.ar", tabs[2].live, { ...nikk, username: "Baiwei2", space: "meditation.ar" }, { page: "page-cccccccc" });
+    const someoneElse = socket();
+    live.join("xr.instruments", someoneElse.live, nikk, { page: "page-dddddddd" });
+    expect(live.leaveEverywhere("BAIWEI2")).toBe(3);
+    expect(tabs.map((tab) => tab.closed)).toEqual([[4001], [4001], [4001]]);
+    expect(someoneElse.closed).toEqual([]);
+    expect(live.count("xr.instruments")).toBe(1);
+    expect(live.count("meditation.ar")).toBe(0);
+    live.stop();
+  });
+});
+

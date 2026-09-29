@@ -158,6 +158,30 @@ export class SpaceLive {
     };
   }
 
+  /**
+   * LEAVE EVERY SPACE (Baiwei, 6395: "Can you kick my presence out of that
+   * room?"). Every seat this person holds, in every space, on every device,
+   * is closed with 4001, which the kit takes as "do not come back on your
+   * own". Returns how many seats went.
+   */
+  leaveEverywhere(username: string): number {
+    const who = username.toLowerCase();
+    let left = 0;
+    for (const [space, room] of [...this.rooms]) {
+      for (const member of [...room.members]) {
+        if (member.person?.name.toLowerCase() !== who) continue;
+        this.drop(space, room, member);
+        left += 1;
+        try {
+          member.socket.close(4001, "left every space from saha.ing");
+        } catch {
+          // Already gone.
+        }
+      }
+    }
+    return left;
+  }
+
   private drop(space: string, room: Room, member: Member): void {
     if (member.renewing) clearInterval(member.renewing);
     member.renewing = null;

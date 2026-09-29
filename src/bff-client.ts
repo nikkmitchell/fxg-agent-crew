@@ -64,6 +64,9 @@ export const bff = {
   space: (name: string, signal?: AbortSignal) =>
     requestJson<SpaceDetail>(`${bffRoot}/spaces/${encodeURIComponent(name)}`, { signal }),
 
+  /** Close every seat you hold in every space, on every device (Baiwei, 6395). */
+  leaveEverySpace: () => requestJson<{ left: number }>(`${bffRoot}/spaces/leave-everywhere`, { method: "POST", body: "{}" }),
+
   /** The published spaces: the lobby's space doors. */
   publicSpaces: (signal?: AbortSignal) =>
     requestJson<{ spaces: { name: string; title: string; sitePath: string; here: number }[] }>(`${bffRoot}/spaces/public`, { signal }),

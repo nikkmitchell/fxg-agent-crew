@@ -44,6 +44,16 @@ export function SpacesPage() {
   const [published, setPublished] = useState<{ name: string; title: string; here: number }[]>([]);
   const [pieces, setPieces] = useState<{ space: string; id: string; name: string; kind: string; url: string }[]>([]);
   const [kind, setKind] = useState<"vr" | "flat" | "webxr">("vr");
+  const [leftNote, setLeftNote] = useState<string | null>(null);
+  // A seat you can no longer see (a headset asleep, a background tab) still
+  // counts you as there; this takes every one of them away (Baiwei, 6395).
+  const leaveEverywhere = () =>
+    bff.leaveEverySpace()
+      .then((answer) => {
+        setLeftNote(answer.left ? `You left ${answer.left} seat${answer.left === 1 ? "" : "s"} in spaces.` : "You were not in any space.");
+        load();
+      })
+      .catch((error) => setProblem(error instanceof Error ? error.message : "Could not leave the spaces."));
 
   const load = useCallback(() => {
     bff.spaces().then((answer) => {
@@ -103,6 +113,12 @@ export function SpacesPage() {
           {open === space.name ? <SpaceDetails name={space.name} /> : null}
         </article>
       ))}
+
+      <p className="muted-note">
+        Still shown in a space you have closed?{" "}
+        <button type="button" className="text-button" onClick={() => void leaveEverywhere()}>Leave every space</button>
+        {leftNote ? <> · {leftNote}</> : null}
+      </p>
 
       {published.length > 0 ? (
         <>

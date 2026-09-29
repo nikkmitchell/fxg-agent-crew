@@ -299,6 +299,13 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     expect((await ticketFor("baiwei")).statusCode).toBe(403);
   });
 
+  it("lets only a signed-in person leave every space, and says how many seats went (Baiwei, 6395)", async () => {
+    expect((await app.inject({ method: "POST", url: "/bff/spaces/leave-everywhere" })).statusCode).toBe(401);
+    const answer = await app.inject({ method: "POST", url: "/bff/spaces/leave-everywhere", headers: { cookie: "who=baiwei" } });
+    expect(answer.statusCode).toBe(200);
+    expect(answer.json()).toEqual({ left: 0 });
+  });
+
   it("lists the kit's own pieces in the catalogue, first, for anyone (Sill, 6289)", async () => {
     const answer = await app.inject({ method: "GET", url: "/bff/spaces/pieces" });
     expect(answer.statusCode).toBe(200);
