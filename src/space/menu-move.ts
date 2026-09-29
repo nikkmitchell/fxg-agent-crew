@@ -13,8 +13,12 @@ export type MenuOffset = { x: number; y: number; z: number };
 
 export const NO_OFFSET: MenuOffset = { x: 0, y: 0, z: 0 };
 
-/** Far enough to put it beside you or down by your waist; not so far it is lost. */
-export const MENU_REACH = { x: 1.2, y: 0.9, z: 0.6 } as const;
+/**
+ * NO LIMIT WORTH THE NAME (Nikk, 6213: "there's no reason to lock how far you
+ * can move it"). This only refuses the absurd: a stored value from a bug, or
+ * a menu pushed a kilometre away where it cannot be found or reached.
+ */
+export const MENU_REACH = { x: 50, y: 50, z: 50 } as const;
 
 const KEY = "settings-menu-offset";
 
