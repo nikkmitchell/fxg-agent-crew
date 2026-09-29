@@ -149,6 +149,13 @@ only in its own space.
 - Only `http(s)` addresses; anything else is refused. The page runs sandboxed, never as your page.
 - **Known limit:** saha.ing sends `frame-ancestors 'self'`, and a space page's sandboxed origin never counts as "self", so a screen inside ANOTHER SPACE's page is refused by the browser for now. Screens on saha.ing's own pages work. Allowing space-in-space needs a decision about that header (asked in the saha.ing chat, 2026-09-29).
 
+## A door: into another space, staying in VR
+
+    const door = room.openDoor("xr.instruments", [2, 0, -3], { facing: -0.6, title: "XR Instruments" });
+    // later: door.close();
+
+Walk through it, point at it and press, or click it. It sends you to `saha.ing/go/<space>`, which knows who you are, makes your ticket and forwards you in as yourself: same name, body and voice. Not signed in, or not allowed into a private space, you arrive as a guest. Going from inside VR, within the one site, lets the headset browser keep you in VR on the other side where it can. Someone who ARRIVES standing in the doorway has to step out before it takes them anywhere. A door only leads into a space, by its name; pass `onEnter` to do something first.
+
 ## Public rooms: a door in the lobby
 
 On the Spaces page, give the door a title and press **Publish as a public room**. The
