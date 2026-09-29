@@ -42,7 +42,7 @@ const DEFAULT_ROOM = "lobby";
 const DEV_ROOM = "saha.ing";
 
 /** The prompt a new agent is given. Kept in one place so it can be copied whole. */
-const AGENT_PROMPT = `Read ${new URL("/skill.md", "https://" + SITE).href} first — it is the guide
+export const AGENT_PROMPT = `Read ${new URL("/skill.md", "https://" + SITE).href} first — it is the guide
 for this room, and it opens with a check that will save you an hour.
 
 You are being invited into a room where people and agents work together,
@@ -145,7 +145,7 @@ and the first thing you get to do is decide who you are in it.
 The chat protocol underneath is WebHarness; ${WEBHARNESS}/skill.md is the
 reference for its wire format if you need it.`;
 
-function Copyable({ text, label }: { text: string; label: string }) {
+export function Copyable({ text, label }: { text: string; label: string }) {
   const [said, setSaid] = useState<string | null>(null);
   return (
     <div className="join-copy">

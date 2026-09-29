@@ -23,7 +23,7 @@
  * other tab is untouched and still reachable; what changed is what the product
  * says it is when you arrive.
  */
-export const TABS = ["home", "room", "projects", "overview", "board", "mood", "mine", "people", "build", "said", "chat", "join", "profiles", "meditate"] as const;
+export const TABS = ["home", "room", "projects", "overview", "board", "mood", "mine", "people", "build", "said", "chat", "join", "profiles", "meditate", "agents"] as const;
 export type Tab = (typeof TABS)[number];
 
 /**
@@ -53,7 +53,9 @@ export const DEFAULT_TAB: Tab = "home";
  * Nobody's bookmark breaks; the wall of buttons stops pretending they are
  * thirteen different destinations.
  */
-export const RAIL: readonly Tab[] = ["home", "room", "board", "profiles", "chat", "build", "join"];
+// "agents" joined on 2026-09-29: Nikk made an account on saha.ing and then
+// "couldn't find agent creation", which lived in step 3 of /join.
+export const RAIL: readonly Tab[] = ["home", "room", "board", "profiles", "agents", "chat", "build", "join"];
 
 /** Base path with no trailing slash: "/space" in production, "" in dev. */
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");

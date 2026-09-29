@@ -1,3 +1,4 @@
+import { AgentsPage } from "./AgentsPage";
 import { useEffect, useState } from "react";
 import { LiveRoomPanel } from "./LiveRoomPanel";
 import { Home } from "./Home";
@@ -76,6 +77,7 @@ const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" |
   join: { label: "Joining", glyph: "room" },
   profiles: { label: "People", glyph: "grid" },
   meditate: { label: "Meditate", glyph: "clock" },
+  agents: { label: "My agents", glyph: "cog" },
 };
 
 /**
@@ -141,6 +143,8 @@ function TabContent({
       {tab === "build" ? <BuildPanel /> : null}
       {/* The guided meditations without a headset (shared/guided.ts). */}
       {tab === "meditate" ? <MeditatePage /> : null}
+      {/* Make and list your agents (Nikk, 6142). */}
+      {tab === "agents" ? <AgentsPage /> : null}
 
       {tab === "said" ? <SaidPanel /> : null}
 
