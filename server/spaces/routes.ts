@@ -7,6 +7,8 @@ import type { Readable } from "node:stream";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   LIVE_BRANCH,
+  starterKind,
+  type StarterKind,
   isPreviewableBranch,
   siteFile,
   spaceKey,
@@ -50,10 +52,84 @@ import { SpaceStore, type StoredDeploy } from "./store.js";
 export const SITE_SANDBOX =
   "sandbox allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads allow-pointer-lock allow-presentation allow-orientation-lock";
 
-const STARTER = (space: string, by: string) => [
+const FLAT_PAGE = (space: string, by: string) => `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${space}</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #14171c; color: #eef0f3; font-family: system-ui, sans-serif; }
+  main { max-width: 36rem; margin: 0 auto; padding: 2rem 1rem; line-height: 1.5; }
+  button { font: inherit; padding: .6rem 1.2rem; border: 0; border-radius: 999px; background: #2d6cdf; color: #fff; cursor: pointer; }
+  code { background: #232830; padding: .05rem .3rem; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>${space}</h1>
+  <p>A flat web page, made by ${by}: a game, a tool, anything. No VR needed. Change it with
+  <code>git clone</code>, edit <code>index.html</code>, <code>git push</code>.</p>
+  <p><button id="tap">Tapped 0 times</button></p>
+</main>
+<script>
+  let taps = 0;
+  document.getElementById("tap").addEventListener("click", (event) => {
+    event.target.textContent = \`Tapped \${++taps} times\`;
+  });
+</script>
+</body>
+</html>
+`;
+
+const WEBXR_PAGE = (space: string, by: string) => `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${space}</title>
+<style>html, body { margin: 0; height: 100%; background: #101318; }</style>
+<!-- three.js from saha.ing; swap in any engine you like (A-Frame, Babylon…). -->
+<script type="importmap">
+{ "imports": { "three": "/kit/three/three.module.js", "three/addons/": "/kit/three/addons/" } }
+</script>
+</head>
+<body>
+<script type="module">
+  // ${space}, made by ${by}: plain WebXR with no saha.ing kit. Add
+  // import { joinSaha } from "/kit/saha.js" later if you want other people in it.
+  import * as THREE from "three";
+  import { VRButton } from "three/addons/webxr/VRButton.js";
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.xr.enabled = true;
+  document.body.append(renderer.domElement, VRButton.createButton(renderer));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 100);
+  camera.position.set(0, 1.6, 2);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x333344, 2));
+  const cube = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshStandardMaterial({ color: 0xe0a060 }));
+  cube.position.set(0, 1.4, 0);
+  scene.add(cube);
+  addEventListener("resize", () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+  renderer.setAnimationLoop((time) => {
+    cube.rotation.set(time / 3000, time / 2000, 0);
+    renderer.render(scene, camera);
+  });
+</script>
+</body>
+</html>
+`;
+
+const STARTER = (space: string, by: string, kind: StarterKind = "vr") => [
   {
     path: "index.html",
-    content: `<!doctype html>
+    content: kind === "flat" ? FLAT_PAGE(space, by) : kind === "webxr" ? WEBXR_PAGE(space, by) : `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -345,7 +421,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     return reply.header("cache-control", "no-store").send({ spaces, rooms: withoutSpace });
   });
 
-  app.post<{ Body: { room?: unknown } }>("/bff/spaces", async (request, reply) => {
+  app.post<{ Body: { room?: unknown; kind?: unknown } }>("/bff/spaces", async (request, reply) => {
     const me = signedIn(request, reply);
     if (!me) return reply;
     const room = typeof request.body?.room === "string" ? spaceKey(request.body.room) : "";
@@ -359,7 +435,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     }
     if (store.exists(room)) return reply.code(409).send({ code: "SPACE_EXISTS", error: `${room} already has a space.` });
     const at = now().toISOString();
-    const commit = await createRepo(root, room, STARTER(room, me.username), me.username);
+    const commit = await createRepo(root, room, STARTER(room, me.username, starterKind(request.body?.kind)), me.username);
     store.create(room, me.username, at);
     await deployFor(room, LIVE_BRANCH, commit, me.username);
     return reply.send(summary(room, me.username, at));

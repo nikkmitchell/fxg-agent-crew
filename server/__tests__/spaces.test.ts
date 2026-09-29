@@ -537,3 +537,13 @@ describe("what saha-pieces.json may say", () => {
     expect(many.pieces).toHaveLength(8);
   });
 });
+
+describe("starter kinds", () => {
+  it("defaults to the saha.ing room and accepts only known kinds", async () => {
+    const { starterKind } = await import("../../shared/spaces");
+    expect(starterKind("flat")).toBe("flat");
+    expect(starterKind("webxr")).toBe("webxr");
+    expect(starterKind(undefined)).toBe("vr");
+    expect(starterKind("../evil")).toBe("vr");
+  });
+});

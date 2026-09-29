@@ -48,7 +48,11 @@ export const bff = {
   /** Your spaces, and your rooms that have none yet (shared/spaces.ts). */
   spaces: (signal?: AbortSignal) => requestJson<{ spaces: SpaceListing[]; rooms: string[] }>(`${bffRoot}/spaces`, { signal }),
 
-  makeSpace: (room: string) => requestJson<SpaceListing>(`${bffRoot}/spaces`, { method: "POST", body: JSON.stringify({ room }) }),
+  makeSpace: (room: string, kind?: "vr" | "flat" | "webxr") => requestJson<SpaceListing>(`${bffRoot}/spaces`, { method: "POST", body: JSON.stringify({ room, kind }) }),
+
+  /** Every public space's pieces, for anyone to use (shared/space-bench.ts catalogueOf). */
+  pieces: (signal?: AbortSignal) =>
+    requestJson<{ pieces: { space: string; id: string; name: string; kind: string; url: string }[] }>(`${bffRoot}/spaces/pieces`, { signal }),
 
   space: (name: string, signal?: AbortSignal) =>
     requestJson<SpaceDetail>(`${bffRoot}/spaces/${encodeURIComponent(name)}`, { signal }),

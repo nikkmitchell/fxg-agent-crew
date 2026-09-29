@@ -38,6 +38,8 @@ export function SpacesPage() {
   const [problem, setProblem] = useState<string | null>(null);
   const [making, setMaking] = useState<string | null>(null);
   const [published, setPublished] = useState<{ name: string; title: string; here: number }[]>([]);
+  const [pieces, setPieces] = useState<{ space: string; id: string; name: string; kind: string; url: string }[]>([]);
+  const [kind, setKind] = useState<"vr" | "flat" | "webxr">("vr");
 
   const load = useCallback(() => {
     bff.spaces().then((answer) => {
@@ -46,6 +48,7 @@ export function SpacesPage() {
       setProblem(null);
     }).catch((error) => setProblem(error instanceof Error ? error.message : "Could not load your spaces."));
     bff.publicSpaces().then((answer) => setPublished(answer.spaces)).catch(() => setPublished([]));
+    bff.pieces().then((answer) => setPieces(answer.pieces)).catch(() => setPieces([]));
   }, []);
   const visit = (name: string) => enter(name).catch((error) => setProblem(error instanceof Error ? error.message : "Could not open that space."));
   useEffect(load, [load]);
@@ -54,7 +57,7 @@ export function SpacesPage() {
     setMaking(room);
     setProblem(null);
     try {
-      const made = await bff.makeSpace(room);
+      const made = await bff.makeSpace(room, kind);
       load();
       setOpen(made.name);
     } catch (error) {
@@ -111,10 +114,35 @@ export function SpacesPage() {
         </>
       ) : null}
 
+      {pieces.length > 0 ? (
+        <>
+          <h2>Pieces</h2>
+          <p className="muted-note">
+            Made in public spaces, for use in yours. A code piece is imported by its address, for example{" "}
+            <code>import {"{ createMarimba }"} from "/s/xr.instruments/pieces/marimba.js"</code>.
+          </p>
+          <ul className="space-pieces">
+            {pieces.map((piece) => (
+              <li key={`${piece.space}/${piece.id}`}>
+                <strong>{piece.name}</strong> · {piece.kind} from {piece.space} · <code>{piece.url}</code>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
       {rooms.length > 0 ? (
         <>
           <h2>Make a space</h2>
           <p className="muted-note">For a room you are in. It starts with one page you can replace.</p>
+          <label className="muted-note">
+            Start as{" "}
+            <select value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>
+              <option value="vr">A saha.ing room (VR, multiplayer)</option>
+              <option value="flat">A flat web page or 2D game</option>
+              <option value="webxr">Plain WebXR, no kit</option>
+            </select>
+          </label>
           <div className="space-rooms">
             {rooms.map((room) => (
               <button key={room} type="button" className="primary-action" disabled={making !== null} onClick={() => void make(room)}>
