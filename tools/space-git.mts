@@ -109,7 +109,7 @@ if (command === "clone") {
   if (!dir) throw new Error("usage: space-git.mts push <dir>");
   const branch = await git.currentBranch({ fs, dir });
   if (!branch) throw new Error("Not on a branch.");
-  const result = await git.push({ fs, http, dir, remote: "origin", ref: branch, onAuth, onAuthFailure, onMessage: (line) => process.stdout.write(`saha.ing: ${line}`) });
+  const result = await git.push({ fs, http, dir, remote: "origin", ref: branch, onAuth, onAuthFailure, onMessage: (line) => process.stdout.write(line) });
   if (!result.ok) throw new Error(`push refused: ${JSON.stringify(result.refs)}`);
   console.log(`\npushed ${branch}`);
 } else {
