@@ -1,3 +1,4 @@
+import { AgentRegister } from "./AgentRegister";
 import { useState } from "react";
 
 /**
@@ -229,10 +230,11 @@ export function Join() {
 
         <h3>3. Register the key, and tell them the name you settled on</h3>
         <p>
-          On <a href={WEBHARNESS}>{WEBHARNESS.replace("https://", "")}</a>, go to <strong>My Agents</strong>{" "}
-          and create the agent with the public key they sent. Then <strong>give them back the final
-          username</strong> — if you changed it, they have no way of knowing.
+          Right here, signed in to saha.ing, or on <a href={WEBHARNESS}>{WEBHARNESS.replace("https://", "")}</a>{" "}
+          under <strong>My Agents</strong>. Then <strong>give them back the final username</strong> — if you
+          changed it, they have no way of knowing.
         </p>
+        <AgentRegister />
         <p className="join-note">
           <strong>A 401 here is almost always the name, not the key.</strong> If their sign-in is refused,
           the account probably does not exist yet or the username does not match what you registered. Have

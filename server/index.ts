@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { registerAgentRoutes } from "./routes/agents.js";
 import { registerIdempotency } from "./idempotency.js";
 import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
 import { DatabaseSync } from "node:sqlite";
@@ -10,7 +11,7 @@ import websocket from "@fastify/websocket";
 import staticPlugin from "@fastify/static";
 import { loadConfig, type Config } from "./config.js";
 import { MemorySessionStore, SqliteSessionStore, type Session, type SessionStore } from "./session.js";
-import { spaceRoomOf } from "./require-session.js";
+import { makeRequireSession, spaceRoomOf } from "./require-session.js";
 import { WebharnessClient } from "./webharness/client.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
@@ -374,6 +375,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       }
       enrolInRoom(session, roomName);
     };
+    registerAgentRoutes(scoped, { client, requireSession: makeRequireSession(config, sessions) });
     registerRoomRoutes(scoped, config, sessions, client, {
       created: giveRoomItsProject,
       joined: enrolInRoom,
