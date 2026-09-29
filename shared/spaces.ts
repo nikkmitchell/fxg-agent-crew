@@ -135,3 +135,15 @@ export function gitUrl(origin: string, space: string): string {
 export function siteUrl(origin: string, space: string, branch = LIVE_BRANCH): string {
   return branch === LIVE_BRANCH ? `${origin}/s/${space}/` : `${origin}/s/${space}/@${branch}/`;
 }
+
+/**
+ * WHAT A NEW SPACE STARTS AS (Nikk, 2026-09-29: a space can be anything, not
+ * only a saha.ing room): "vr" is a three.js room with the saha.ing kit; "flat"
+ * is a plain 2D web page (a game, a tool), shown on a screen in rooms; "webxr"
+ * is a bare WebXR page with no kit, for any other engine or experiment.
+ */
+export const STARTER_KINDS = ["vr", "flat", "webxr"] as const;
+export type StarterKind = (typeof STARTER_KINDS)[number];
+export function starterKind(raw: unknown): StarterKind {
+  return STARTER_KINDS.includes(raw as StarterKind) ? (raw as StarterKind) : "vr";
+}
