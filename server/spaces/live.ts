@@ -52,7 +52,10 @@ export class SpaceLive {
     this.rooms.set(space, room);
     let person: KitPerson | null = null;
     if (holder) {
-      // A second tab of the same person is a second figure, named the same.
+      // A SECOND DEVICE (or tab) OF THE SAME PERSON IS A SECOND FIGURE, named
+      // the same (Nikk, 6173: "it should show multiple if you join on multiple
+      // devices ... instead you should have doubled avatar"), rather than one
+      // figure flipping between two places.
       const taken = new Set([...room.members].map((member) => member.person?.id));
       let id = holder.username;
       for (let n = 2; taken.has(id); n += 1) id = `${holder.username}~${n}`;

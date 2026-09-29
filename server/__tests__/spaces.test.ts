@@ -307,6 +307,22 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     }
   });
 
+  it("shows a person on two devices twice, rather than one figure flipping between them (Nikk, 6173)", async () => {
+    const phone = await join((await ticketFor("nikk")).json().ticket);
+    const headset = await join((await ticketFor("nikk")).json().ticket);
+    try {
+      await until(() => phone.connected && headset.connected);
+      phone.pose([0, 1.6, 0], [0, 0, 0, 1]);
+      headset.pose([2, 1.6, 0], [0, 0, 0, 1]);
+      await until(() => phone.people.size === 2 && [...phone.people.values()].every((person) => person.p !== null));
+      expect([...phone.people.values()].map((person) => [person.id, person.name, person.p?.[0]]).sort()).toEqual([["nikk", "nikk", 0], ["nikk~2", "nikk", 2]]);
+      expect(phone.guest || headset.guest).toBe(false);
+    } finally {
+      phone.leave();
+      headset.leave();
+    }
+  });
+
   it("shares values every visitor sees, remembered for the next one, and says lines out loud", async () => {
     const nikk = await join((await ticketFor("nikk")).json().ticket);
     const sill = await join((await ticketFor("sill")).json().ticket);
