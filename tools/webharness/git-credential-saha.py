@@ -27,8 +27,12 @@ def main() -> None:
     action = sys.argv[1] if len(sys.argv) > 1 else ""
     asked = dict(line.split("=", 1) for line in sys.stdin.read().splitlines() if "=" in line)
     # Only ever answer for saha.ing: a helper that hands this token to any host
-    # git asks about would give it to whoever runs that host.
-    if action != "get" or asked.get("host", "").split(":")[0] != "saha.ing":
+    # git asks about would give it to whoever runs that host. The one other
+    # host is tools/saha-git-bridge.mjs on this machine, which relays to
+    # saha.ing where the route resets git's own TLS (Sill, 6307).
+    host = asked.get("host", "")
+    bridge = f"127.0.0.1:{os.environ.get('SAHA_BRIDGE_PORT', '18480')}"
+    if action != "get" or (host.split(":")[0] != "saha.ing" and not (host == bridge and asked.get("protocol") == "http")):
         return
     me, token = inbox.login()
     sys.stdout.write(f"username={me}\npassword={token}\n")

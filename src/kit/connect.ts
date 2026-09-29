@@ -1,4 +1,4 @@
-import type { KitPerson, KitSignal, ServerMessage } from "../../shared/space-kit";
+import type { KitPerson, KitSignal, ServerMessage, SpaceItem } from "../../shared/space-kit";
 
 /**
  * THE CONNECTION, for any page, three.js or not (shared/space-kit.ts has the
@@ -27,6 +27,8 @@ export type SahaRoom = {
   people: Map<string, KitPerson>;
   /** The shared values, as every visitor sees them. */
   state: Record<string, unknown>;
+  /** What you carry, from every space you have been given things in (empty for guests). */
+  items: SpaceItem[];
   on(event: "ready", listener: (room: SahaRoom) => void): () => void;
   on(event: "people", listener: (people: KitPerson[]) => void): () => void;
   on(event: "join" | "leave", listener: (person: KitPerson) => void): () => void;
@@ -35,6 +37,8 @@ export type SahaRoom = {
   on(event: "refused", listener: (why: string) => void): () => void;
   on(event: "connection", listener: (connected: boolean) => void): () => void;
   on(event: "signal", listener: (from: string, signal: KitSignal) => void): () => void;
+  /** What you carry changed (here or in another space). */
+  on(event: "items", listener: (items: SpaceItem[]) => void): () => void;
   /** A moment somebody else sent with emit(): (name, data, fromId). */
   on(event: "event", listener: (name: string, data: unknown, from: string) => void): () => void;
   /** Send a moment to everyone else in the space now, not kept (a note struck). JSON, up to 1 KB. */
@@ -49,6 +53,10 @@ export type SahaRoom = {
   set(key: string, value: unknown): void;
   /** A short line, shown over your head to everyone. */
   say(text: string): void;
+  /** Give yourself an item that goes with you to every space; url is the piece that draws it (/s/...). */
+  give(item: { name: string; url?: string | null; data?: unknown }): void;
+  /** Take back an item THIS space gave. */
+  takeBack(id: string): void;
   leave(): void;
 };
 
@@ -113,6 +121,7 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
     connected: false,
     people: new Map(),
     state: {},
+    items: [],
     on(event: string, listener: Listener) {
       if (!listeners.has(event)) listeners.set(event, new Set());
       listeners.get(event)!.add(listener);
@@ -129,6 +138,12 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
     },
     say(text) {
       send({ t: "say", text: String(text) });
+    },
+    give(item) {
+      send({ t: "give", name: String(item.name), url: item.url ?? null, data: item.data ?? null });
+    },
+    takeBack(id) {
+      send({ t: "drop", id: String(id) });
     },
     send(message: unknown) {
       send(message);
@@ -196,6 +211,9 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
         emit("signal", message.from, message.s);
       } else if (message.t === "event") {
         emit("event", message.name, message.data, message.from);
+      } else if (message.t === "items") {
+        room.items = message.items;
+        emit("items", message.items);
       }
     };
     current.onclose = (event) => {

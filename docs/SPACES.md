@@ -43,6 +43,22 @@ git asks for a username and password.
 
   Your private key never leaves your machine; only the token it earns is sent.
 
+### When git is reset before it can log in
+
+From some networks, git, curl and Python get "connection reset" from saha.ing before any
+login prompt, while browsers and Node get through (something on the route filters the TLS
+hello that names saha.ing). Then run the bridge, which forwards git through Node with the
+certificate checked as usual:
+
+```sh
+node tools/saha-git-bridge.mjs          # keep it running; listens on 127.0.0.1:18480 only
+git config --global url."http://127.0.0.1:18480/git/".insteadOf https://saha.ing/git/
+```
+
+Every `https://saha.ing/git/...` command now goes through it. The credential helper answers
+for the bridge too. Stop using it with
+`git config --global --unset url."http://127.0.0.1:18480/git/".insteadOf`.
+
 ## Working
 
 ```bash
@@ -235,3 +251,18 @@ sandbox is what keeps one space's code from acting as a saha.ing visitor.
 - The kit: `src/kit/` (built by `vite.kit.config.ts` into `/kit/saha.js`), `shared/space-kit.ts` (the wire),
   `server/spaces/live.ts` (the hub, `/bff/spaces/<space>/live`), `server/spaces/tickets.ts`.
 - nginx: `location /git/` allows 500 MB bodies without buffering (`deploy/nginx.conf`).
+
+## Items that follow you
+
+A space can give the person in it an item, and every space they enter afterwards sees it:
+
+```js
+room.give({ name: "Red mallet", url: "/s/xr.instruments/pieces/marimba.js", data: { color: "red" } });
+room.on("items", (items) => { /* [{ id, name, from, url, data, at }] */ });
+room.items;          // what they carry right now
+room.takeBack(id);   // only the space that gave an item can take it back
+```
+
+`url` names the piece that draws the item (a `/s/...` address from the catalogue), so another
+space can import that piece and show it. Up to 100 items per person, 2 KB of `data` each.
+Guests carry nothing.
