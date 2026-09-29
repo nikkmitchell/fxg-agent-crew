@@ -39,7 +39,12 @@ export type KitSignal =
   | { kind: "answer"; sdp: string }
   | { kind: "candidate"; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null };
 export type SignalMessage = { t: "signal"; to: string; s: KitSignal };
-export type ClientMessage = PoseMessage | SetMessage | SayMessage | VoiceMessage | SignalMessage;
+/**
+ * A MOMENT, for everyone in the space right now and never kept: a note
+ * struck, a door opened, a ball thrown. Instruments are made of these.
+ */
+export type EmitMessage = { t: "emit"; name: string; data: unknown };
+export type ClientMessage = PoseMessage | SetMessage | SayMessage | VoiceMessage | SignalMessage | EmitMessage;
 
 export type KitPerson = {
   id: string;
@@ -63,7 +68,8 @@ export type ServerMessage =
   | { t: "set"; k: string; v: unknown; by: string }
   | { t: "say"; id: string; name: string; text: string; at: number }
   | { t: "refused"; why: string }
-  | { t: "signal"; from: string; s: KitSignal };
+  | { t: "signal"; from: string; s: KitSignal }
+  | { t: "event"; from: string; name: string; data: unknown };
 
 export const KIT_LIMITS = {
   /** Poses beyond this rate are dropped, not queued. */
@@ -76,6 +82,9 @@ export const KIT_LIMITS = {
   totalBytes: 256 * 1024,
   sayLength: 280,
   setsPerSecond: 10,
+  /** Moments: a fast player strikes a lot of notes. */
+  eventsPerSecond: 30,
+  eventBytes: 1024,
   /** A ticket is good for this long after it is made. */
   ticketMs: 30 * 60_000,
   /** Nobody in a room can stand further than this from its middle. */
@@ -101,6 +110,11 @@ export function readClientMessage(raw: unknown): ClientMessage | null {
     return { t: "set", k: message.k, v: message.v ?? null };
   }
   if (message.t === "voice") return { t: "voice", on: message.on === true };
+  if (message.t === "emit") {
+    if (typeof message.name !== "string" || !/^[A-Za-z0-9_.:-]{1,32}$/.test(message.name)) return null;
+    if (bytesOf(message.data ?? null) > KIT_LIMITS.eventBytes) return null;
+    return { t: "emit", name: message.name, data: message.data ?? null };
+  }
   if (message.t === "signal") {
     const signal = message.s as Record<string, unknown> | undefined;
     if (typeof message.to !== "string" || message.to.length > 80 || !signal || typeof signal !== "object") return null;

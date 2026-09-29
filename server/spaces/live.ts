@@ -21,6 +21,7 @@ type Member = {
   person: KitPerson | null;
   poses: number[];
   writes: number[];
+  events: number[];
 };
 
 type Room = { members: Set<Member>; dirty: boolean; quietSince: number };
@@ -72,7 +73,7 @@ export class SpaceLive {
         voice: false,
       };
     }
-    const member: Member = { socket, person, poses: [], writes: [] };
+    const member: Member = { socket, person, poses: [], writes: [], events: [] };
     room.members.add(member);
     room.dirty = true;
     this.send(member, { t: "hello", you: person, guest: person === null, space, state: this.store.state(space), people: this.people(room) });
@@ -116,6 +117,22 @@ export class SpaceLive {
     if (message.t === "voice") {
       member.person.voice = message.on;
       room.dirty = true;
+      return;
+    }
+    if (message.t === "emit") {
+      member.events = member.events.filter((when) => at - when < 1000);
+      if (member.events.length >= KIT_LIMITS.eventsPerSecond) return;
+      member.events.push(at);
+      // To everyone else: the sender already played it.
+      const text = JSON.stringify({ t: "event", from: member.person.id, name: message.name, data: message.data } satisfies ServerMessage);
+      for (const other of room.members) {
+        if (other === member) continue;
+        try {
+          other.socket.send(text);
+        } catch {
+          /* closing */
+        }
+      }
       return;
     }
     if (message.t === "signal") {

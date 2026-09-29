@@ -35,6 +35,10 @@ export type SahaRoom = {
   on(event: "refused", listener: (why: string) => void): () => void;
   on(event: "connection", listener: (connected: boolean) => void): () => void;
   on(event: "signal", listener: (from: string, signal: KitSignal) => void): () => void;
+  /** A moment somebody else sent with emit(): (name, data, fromId). */
+  on(event: "event", listener: (name: string, data: unknown, from: string) => void): () => void;
+  /** Send a moment to everyone else in the space now, not kept (a note struck). JSON, up to 1 KB. */
+  emit(name: string, data?: unknown): void;
   /** For the kit's own parts (voice): any message the wire takes. */
   send(message: unknown): void;
   /** Everyone but you. */
@@ -129,6 +133,9 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
     send(message: unknown) {
       send(message);
     },
+    emit(name: string, data: unknown = null) {
+      send({ t: "emit", name, data });
+    },
     leave() {
       left = true;
       socket?.close();
@@ -187,6 +194,8 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
         emit("refused", message.why);
       } else if (message.t === "signal") {
         emit("signal", message.from, message.s);
+      } else if (message.t === "event") {
+        emit("event", message.name, message.data, message.from);
       }
     };
     current.onclose = (event) => {

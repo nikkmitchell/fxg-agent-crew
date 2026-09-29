@@ -276,6 +276,7 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     set: (key: string, value: unknown) => void;
     say: (text: string) => void;
     send: (message: unknown) => void;
+    emit: (name: string, data?: unknown) => void;
     leave: () => void;
   };
   const until = async (check: () => boolean, ms = 4000) => {
@@ -414,6 +415,28 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
       nikk.leave();
       sill.leave();
       baiwei?.leave();
+    }
+  });
+
+  it("sends a moment (a note struck) to everyone else, not back to the sender, and caps a flood", async () => {
+    const nikk = await join((await ticketFor("nikk")).json().ticket);
+    const sill = await join((await ticketFor("sill")).json().ticket);
+    const bySill: unknown[][] = [];
+    const byNikk: unknown[][] = [];
+    sill.on("event", (...args) => bySill.push(args));
+    nikk.on("event", (...args) => byNikk.push(args));
+    try {
+      await until(() => nikk.connected && sill.connected);
+      nikk.emit("note", { bar: 3, velocity: 0.8 });
+      await until(() => bySill.length === 1);
+      expect(bySill[0]).toEqual(["note", { bar: 3, velocity: 0.8 }, nikk.you!.id]);
+      for (let i = 0; i < 60; i += 1) nikk.emit("note", { bar: i });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(bySill.length).toBeLessThanOrEqual(31);
+      expect(byNikk).toEqual([]);
+    } finally {
+      nikk.leave();
+      sill.leave();
     }
   });
 

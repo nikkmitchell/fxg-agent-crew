@@ -128,6 +128,7 @@ three.js on the page.
 | `room.people` | everyone in the space: `{ id, name, color, body, bodyUrl, p, q, hl, hr }` |
 | `room.on("join" / "leave" / "people", fn)` | people arriving, going, moving |
 | `room.player` | the rig that carries the camera: move it to move people |
+| `room.emit(name, data)` / `room.on("event", (name, data, from) => …)` | a moment for everyone else in the space right now, never kept: a note struck, a door opened (1 KB, 30 a second) |
 
 **Who you are in a space.** Enter it from saha.ing (a lobby door, or **Enter as
 yourself** on the Spaces page) and you arrive with a ticket for that one space, in the
