@@ -75,7 +75,7 @@ export function drawOthers(
   room: SahaRoom,
   scene: THREE.Scene,
   /** A body's URL as the page must fetch it (absolute, with the ticket where needed). */
-  bodyUrl: (url: string) => string,
+  bodyUrl: (url: string) => string | null,
 ): { update: (now: number) => void; figures: Map<string, Figure> } {
   const figures = new Map<string, Figure>();
   const pendingSay = new Map<string, { text: string; until: number }>();
@@ -113,8 +113,11 @@ export function drawOthers(
   loader.register((parser) => new VRMLoaderPlugin(parser));
   const dress = (figure: Figure, url: string) => {
     figure.avatarUrl = url;
+    // null: this page may not fetch that body (a guest has no ticket); keep the stand-in figure.
+    const source = bodyUrl(url);
+    if (!source) return;
     loader.load(
-      bodyUrl(url),
+      source,
       (gltf) => {
         const vrm = gltf.userData.vrm as VRM | undefined;
         if (!vrm || figure.avatarUrl !== url || !figures.has(figure.root.name.slice(5))) {

@@ -151,7 +151,9 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
   const others = drawOthers(room, scene, (url) => {
     const absolute = url.startsWith("/") ? `${server}${url}` : url;
     const ticket = ticketOf();
-    return url.startsWith("/bff/") && ticket ? `${absolute}?ticket=${encodeURIComponent(ticket)}` : absolute;
+    if (!url.startsWith("/bff/")) return absolute;
+    // Catalogue bodies need this space's ticket; a guest draws stand-ins instead of asking and being refused.
+    return ticket ? `${absolute}?ticket=${encodeURIComponent(ticket)}` : null;
   });
   const movement = options.movement === false ? null : createMovement({ renderer, player, camera, comfort: options.comfort });
   const voice = options.voice === false ? null : createVoice(room, { server, send: (message) => room.send(message), onSignal: (listener) => room.on("signal", listener) });
