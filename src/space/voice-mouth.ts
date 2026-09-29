@@ -81,6 +81,47 @@ export function meterVoices(streams: ReadonlyMap<string, MediaStream>, you: stri
   }
 }
 
+/** How open this person's mouth should be from their voice right now, uneased; null when not metered. */
+export function voiceTarget(actorId: string): number | null {
+  const meter = meters.get(key(actorId));
+  return meter ? mouthFor(rmsOf(meter.analyser, meter.samples)) : null;
+}
+
+function rmsOf(analyser: AnalyserNode, samples: Float32Array<ArrayBuffer>): number {
+  analyser.getFloatTimeDomainData(samples);
+  let sum = 0;
+  for (const sample of samples) sum += sample * sample;
+  return Math.sqrt(sum / samples.length);
+}
+
+/**
+ * A meter on one stream on its own, for the avatar recorder's microphone,
+ * which is not a call. `read` is the mouth for right now, uneased.
+ */
+export function streamMouth(stream: MediaStream): { read: () => number; stop: () => void } {
+  const context = audio();
+  if (!context || stream.getAudioTracks().length === 0) return { read: () => 0, stop: () => {} };
+  try {
+    const source = context.createMediaStreamSource(stream);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    const samples = new Float32Array(analyser.fftSize);
+    return {
+      read: () => mouthFor(rmsOf(analyser, samples)),
+      stop: () => {
+        try {
+          source.disconnect();
+        } catch {
+          // Already disconnected.
+        }
+      },
+    };
+  } catch {
+    return { read: () => 0, stop: () => {} };
+  }
+}
+
 /**
  * How open this person's mouth should be now, eased over `seconds` since the
  * last frame; null when they are not being metered (not in a call), so the
@@ -89,10 +130,6 @@ export function meterVoices(streams: ReadonlyMap<string, MediaStream>, you: stri
 export function voiceMouth(actorId: string, seconds: number): number | null {
   const meter = meters.get(key(actorId));
   if (!meter) return null;
-  meter.analyser.getFloatTimeDomainData(meter.samples);
-  let sum = 0;
-  for (const sample of meter.samples) sum += sample * sample;
-  const rms = Math.sqrt(sum / meter.samples.length);
-  meter.shown = easeMouth(meter.shown, mouthFor(rms), seconds);
+  meter.shown = easeMouth(meter.shown, mouthFor(rmsOf(meter.analyser, meter.samples)), seconds);
   return meter.shown;
 }

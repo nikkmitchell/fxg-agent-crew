@@ -11,7 +11,7 @@ import { headOf } from "./Avatar3D";
 import type { AvatarRecipe } from "../avatar";
 import type { WirePerson } from "../../shared/space-wire";
 import { agentMotionFrame, PROCEDURAL_ARM, type Rotation } from "./agent-motion";
-import { voiceMouth } from "./voice-mouth";
+import { easeMouth, voiceMouth } from "./voice-mouth";
 import {
   agentAnimationSelection,
   createAgentAnimationPlayer,
@@ -72,6 +72,7 @@ export function VrmBody({
   speaking,
   agent,
   exact = false,
+  mouth,
 }: {
   /** Whose body this is, which decides which model they wear. */
   actorId: string;
@@ -104,8 +105,14 @@ export function VrmBody({
    * feet in place, which is how Nikk's legs stood still in the mirror (5289).
    */
   exact?: boolean;
+  /**
+   * A recorded mouth (0 to 1) to replay instead of a live call's: see
+   * AvatarReplay. Null for a moment with none recorded.
+   */
+  mouth?: () => number | null;
 }) {
   const [vrm, setVrm] = useState<VRM | null>(null);
+  const mouthShown = useRef(0);
   const arms = useRef<ArmSpec | null>(null);
   /** The model's own head height, so it can be scaled to the person's. */
   const modelHead = useRef(1.34);
@@ -405,7 +412,7 @@ export function VrmBody({
         // NOT `exact`: that means no easing, and the feet still step.
         snap: reducedMotion || !shown.settled,
       });
-      talkingMouth(vrm, person.kind, actorId, delta);
+      talkingMouth(vrm, person.kind, actorId, delta, mouth, mouthShown);
       vrm.update(delta);
       return;
     }
@@ -545,7 +552,7 @@ export function VrmBody({
       aimSegment(lower, arm.lowerRest, scratch.target);
     }
 
-    talkingMouth(vrm, person.kind, actorId, delta);
+    talkingMouth(vrm, person.kind, actorId, delta, mouth, mouthShown);
     // Spring bones and look-at. Cheap, and without it nothing on the model
     // settles: hair and clothing stay frozen mid-swing.
     vrm.update(delta);
@@ -567,7 +574,14 @@ export function VrmBody({
  * idle set, and only while their call is metered. Agents' mouths already
  * follow their spoken lines.
  */
-function talkingMouth(vrm: VRM, kind: string | null, actorId: string, delta: number): void {
+function talkingMouth(vrm: VRM, kind: string | null, actorId: string, delta: number, recorded: (() => number | null) | undefined, shown: { current: number }): void {
+  if (recorded) {
+    const target = recorded();
+    if (target === null) return;
+    shown.current = easeMouth(shown.current, target, delta);
+    vrm.expressionManager?.setValue("aa", shown.current);
+    return;
+  }
   if (kind === "agent") return;
   const open = voiceMouth(actorId, delta);
   if (open !== null) vrm.expressionManager?.setValue("aa", open);

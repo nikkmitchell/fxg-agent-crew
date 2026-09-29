@@ -13,7 +13,8 @@ vi.mock("./breath-sound", () => ({
   }),
 }));
 
-import { easeMouth, meterVoices, MOUTH_LOUD_RMS, MOUTH_QUIET_RMS, mouthFor, voiceMouth } from "./voice-mouth";
+import { easeMouth, meterVoices, MOUTH_LOUD_RMS, MOUTH_QUIET_RMS, mouthFor, streamMouth, voiceMouth, voiceTarget } from "./voice-mouth";
+import { mouthField } from "./useAvatarRecorder";
 
 const stream = (id: string) => ({ id, getAudioTracks: () => [{}] }) as unknown as MediaStream;
 
@@ -54,5 +55,25 @@ describe("a mouth that follows a voice (Nikk, 6222)", () => {
     expect(voiceMouth("baiwei2", 1 / 60)).toBeLessThan(0.01);
     meterVoices(new Map(), null, null);
     expect(voiceMouth("baiwei2", 1 / 60)).toBeNull();
+  });
+
+  it("records the recorder's own mouth, and others' from their calls (Nikk, 6240)", () => {
+    const mic = streamMouth(stream("recorder"));
+    level = 0.2;
+    expect(mic.read()).toBe(1);
+    level = 0;
+    expect(mic.read()).toBe(0);
+    mic.stop();
+    expect(disconnected).toContain("recorder");
+
+    meterVoices(new Map([["Baiwei2", stream("b")]]), null, null);
+    level = (MOUTH_QUIET_RMS + MOUTH_LOUD_RMS) / 2;
+    expect(voiceTarget("baiwei2")).toBeCloseTo(0.5);
+    expect(voiceTarget("Sill")).toBeNull();
+    meterVoices(new Map(), null, null);
+
+    expect(mouthField(null)).toEqual({});
+    expect(mouthField(0.456)).toEqual({ mouth: 0.46 });
+    expect(mouthField(3)).toEqual({ mouth: 1 });
   });
 });

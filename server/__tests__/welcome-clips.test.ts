@@ -26,6 +26,24 @@ describe("multipart welcome clips", () => {
     await app.close();
   });
 
+  it("keeps a recorded mouth, and refuses one outside 0 to 1 (Nikk, 6240)", async () => {
+    const { app, as } = boot();
+    const cookie = as("Nikk2");
+    const start = async () => (await app.inject({ method: "POST", url: "/bff/space/welcome/uploads", headers: { cookie }, payload: meta(2) })).json().id as string;
+    const put = (id: string, frames: unknown[]) => app.inject({ method: "PUT", url: `/bff/space/welcome/uploads/${id}/frames/0`, headers: { cookie }, payload: frames });
+    const good = await start();
+    expect((await put(good, [{ ...frame(0), mouth: 0 }, { ...frame(40), mouth: 0.75 }])).statusCode).toBe(200);
+    await app.inject({ method: "PUT", url: `/bff/space/welcome/uploads/${good}/audio/0`, headers: { cookie, "content-type": "application/octet-stream" }, payload: Buffer.from("voice") });
+    expect((await app.inject({ method: "POST", url: `/bff/space/welcome/uploads/${good}/complete`, headers: { cookie } })).statusCode).toBe(200);
+    const take = (await app.inject({ method: "GET", url: `/bff/space/welcome/clips/${good}/take`, headers: { cookie } })).json();
+    expect(take.frames[1].mouth).toBe(0.75);
+    for (const mouth of [1.5, -0.1, "open"]) {
+      expect((await put(await start(), [{ ...frame(0), mouth }, frame(40)])).statusCode).toBe(400);
+    }
+    expect((await put(await start(), [frame(0), frame(40, [{ ...person, mouth: 2 }])])).statusCode).toBe(400);
+    await app.close();
+  });
+
   it("accepts out-of-order parts, rejects missing parts and a timeline that moves backwards", async () => {
     const { app, as } = boot();
     const cookie = as("Nikk2");

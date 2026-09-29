@@ -125,7 +125,7 @@ function PlayingTake({ take, recorder }: { take: AvatarTake; recorder: AvatarRec
   return (
     <group>
       {failed ? <Control sample={() => { const head = refresh()?.head; return head ? { p: head.p } : null; }} kind="left" /> : (
-        <VrmBody actorId={take.actorId} body={take.body} live={live} recipe={recipe} reducedMotion={false} exact onFailed={() => setFailed(true)} speaking agent={false} />
+        <VrmBody actorId={take.actorId} body={take.body} live={live} recipe={recipe} reducedMotion={false} exact onFailed={() => setFailed(true)} speaking agent={false} mouth={() => current.current?.mouth ?? null} />
       )}
       <Control sample={control("left")} kind="left" />
       <Control sample={control("leftShadow")} kind="shadow" />
@@ -150,5 +150,5 @@ function ReplayCompanion({ person, sample }: { person: RecordedPerson; sample: (
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion(head.q.x, head.q.y, head.q.z, head.q.w));
     return { actorId: current.actorId, kind: current.kind, at: { x: head.p.x, y: 0, z: head.p.z }, moving: false, facing: Math.atan2(-forward.x, -forward.z), because: "recorded tutorial", connected: true, head, hands: current.hands, attending: null, avatar: current.avatar, body: current.body };
   }, [sample]);
-  return <group ref={group}>{failed ? <Control sample={() => { const head = sample()?.head; return head ? { p: head.p } : null; }} kind="left" /> : <VrmBody actorId={person.actorId} body={person.body} live={live} recipe={recipe} reducedMotion={false} exact onFailed={() => setFailed(true)} speaking={false} agent={person.kind === "agent"} />}</group>;
+  return <group ref={group}>{failed ? <Control sample={() => { const head = sample()?.head; return head ? { p: head.p } : null; }} kind="left" /> : <VrmBody actorId={person.actorId} body={person.body} live={live} recipe={recipe} reducedMotion={false} exact onFailed={() => setFailed(true)} speaking={false} agent={person.kind === "agent"} mouth={() => sample()?.mouth ?? null} />}</group>;
 }

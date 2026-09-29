@@ -3,7 +3,7 @@ import type { Vec3 } from "../../shared/space-layout";
 import type { AvatarState } from "../../shared/avatar-motion";
 
 export type RecordedControl = { p: Vec3; q?: Quat } | null;
-export type RecordedPerson = { actorId: string; kind: "human" | "agent"; body: string | null; head: Pose; hands: { left: HandPose | null; right: HandPose | null }; avatar: AvatarState };
+export type RecordedPerson = { actorId: string; kind: "human" | "agent"; body: string | null; head: Pose; hands: { left: HandPose | null; right: HandPose | null }; avatar: AvatarState; mouth?: number };
 export type AvatarFrame = {
   t: number;
   head: Pose;
@@ -12,6 +12,8 @@ export type AvatarFrame = {
   micBar: RecordedControl;
   personalUi: RecordedControl;
   others?: RecordedPerson[];
+  /** How open the recorder's mouth was, 0 to 1, from their microphone (voice-mouth.ts). Older takes have none. */
+  mouth?: number;
 };
 
 export type AvatarTake = {

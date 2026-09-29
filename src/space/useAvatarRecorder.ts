@@ -5,15 +5,21 @@ import {
 } from "./avatar-recording";
 import { avatarMicrophone } from "./avatar-microphone";
 import { avatarAudioMix } from "./avatar-audio-mix";
+import { streamMouth, voiceTarget } from "./voice-mouth";
 import { base } from "../router";
 import type { WirePerson } from "../../shared/space-wire";
 
 const SAMPLE_MS = 50;
 type Capture = Omit<AvatarFrame, "t">;
-type Pending = { startAt: number; recordedAt: number; lastAt: number; frames: AvatarFrame[]; stream: MediaStream; mix: ReturnType<typeof avatarAudioMix>; media: MediaRecorder; chunks: Blob[]; ownMedia: MediaRecorder | null; ownChunks: Blob[]; revoked: Set<string>; actorId: string; body: string | null; showPersonalUi: boolean; includeHumans: boolean; includeAgents: boolean };
+type Pending = { mouth: ReturnType<typeof streamMouth>; startAt: number; recordedAt: number; lastAt: number; frames: AvatarFrame[]; stream: MediaStream; mix: ReturnType<typeof avatarAudioMix>; media: MediaRecorder; chunks: Blob[]; ownMedia: MediaRecorder | null; ownChunks: Blob[]; revoked: Set<string>; actorId: string; body: string | null; showPersonalUi: boolean; includeHumans: boolean; includeAgents: boolean };
 type PublishedTake = { id: string; actorId: string; durationMs: number; publishedAt: string };
 type UploadedTake = Pick<PublishedTake, "actorId" | "publishedAt">;
 type UploadedClip = { id: string; actorId: string; title: string; durationMs: number; uploadedAt: string; active: boolean };
+
+/** A recorded mouth, to two places: nothing at all when it was not measured. */
+export function mouthField(open: number | null): { mouth?: number } {
+  return open === null ? {} : { mouth: Math.round(Math.min(1, Math.max(0, open)) * 100) / 100 };
+}
 
 export type AvatarRecorder = ReturnType<typeof useAvatarRecorder>;
 
@@ -130,6 +136,7 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
     const [mixedAudio, ownAudio] = await Promise.all([finishAudio(session.media, session.chunks), session.ownMedia ? finishAudio(session.ownMedia, session.ownChunks) : Promise.resolve(undefined)]);
     const audio = session.revoked.size ? ownAudio ?? mixedAudio : mixedAudio;
     session.mix.stop();
+    session.mouth.stop();
     session.stream.getTracks().forEach((track) => track.stop());
     try {
       if (session.frames.length < 2 || audio.size === 0) throw new Error("No movement or audio was captured. Try again.");
@@ -174,10 +181,11 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
         head: structuredClone(person.head ?? { p: { x: person.at.x, y: person.kind === "agent" ? 1.55 : 1.65, z: person.at.z }, q: { x: 0, y: Math.sin(angle), z: 0, w: Math.cos(angle) } }),
         hands: structuredClone(person.hands),
         avatar: structuredClone(person.avatar),
+        ...mouthField(person.kind === "human" ? voiceTarget(person.actorId) : null),
       };
     });
     session.mix.update(remoteAudio(), mutedAudio());
-    session.frames.push({ ...frame, others, t: now - session.startAt });
+    session.frames.push({ ...frame, others, t: now - session.startAt, ...mouthField(session.mouth.read()) });
   }, [consentingPeople, remoteAudio, mutedAudio]);
 
   const start = useCallback(async (actorId: string, body: string | null) => {
@@ -205,7 +213,7 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
       media.onerror = () => { setNotice("The microphone recording failed."); void stop(); };
       media.start(250);
       ownMedia?.start(250);
-      pending.current = { startAt: performance.now(), recordedAt: Date.now(), lastAt: -Infinity, frames: [], stream, mix, media, chunks, ownMedia, ownChunks, revoked: new Set(), actorId, body, showPersonalUi, includeHumans, includeAgents };
+      pending.current = { mouth: streamMouth(stream), startAt: performance.now(), recordedAt: Date.now(), lastAt: -Infinity, frames: [], stream, mix, media, chunks, ownMedia, ownChunks, revoked: new Set(), actorId, body, showPersonalUi, includeHumans, includeAgents };
       setStatus("recording");
     } catch (error) {
       mix?.stop();

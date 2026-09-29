@@ -16,7 +16,8 @@ const hand = (value: any): boolean => value === null || (pose(value) && (value.f
 const validFrame = (frame: any, index: number, frames: any[], durationMs: number): boolean =>
   frame && finite(frame.t) && frame.t >= 0 && frame.t <= durationMs + 100 && (index === 0 || frame.t >= frames[index - 1].t) &&
   pose(frame.head) && frame.hands && hand(frame.hands.left) && hand(frame.hands.right) && frame.balls &&
-  [frame.balls.left, frame.balls.leftShadow, frame.balls.right, frame.balls.rightShadow, frame.micBar, frame.personalUi].every(control);
+  [frame.balls.left, frame.balls.leftShadow, frame.balls.right, frame.balls.rightShadow, frame.micBar, frame.personalUi].every(control) &&
+  (frame.mouth === undefined || (finite(frame.mouth) && frame.mouth >= 0 && frame.mouth <= 1));
 
 export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessions: SessionStore, db: Db): void {
   const requireSession = makeRequireSession(config, sessions);
