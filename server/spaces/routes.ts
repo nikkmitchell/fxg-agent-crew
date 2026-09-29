@@ -24,7 +24,7 @@ import type { SpaceTickets } from "./tickets.js";
 import { WebharnessError } from "../webharness/client.js";
 import { SpaceAuth, parseBasic, type GitIdentity } from "./auth.js";
 import { DeployQueue, deployCommit, siteDir } from "./deploy.js";
-import { branches, createRepo, gitEnv } from "./git.js";
+import { branches, createRepo, gitEnv, GitError, mergeInto } from "./git.js";
 import { SpaceStore, type StoredDeploy } from "./store.js";
 
 /**
@@ -491,6 +491,30 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     store.setLive(found.space, deploy.branch, deploy.id);
     if (deploy.branch === store.benchBranch(found.space)) deps.benchChanged?.(found.space);
     return reply.send({ branch: deploy.branch, live: publicDeploy(deploy) });
+  });
+
+  /** Merge a branch into another (main unless said), then deploy the result. Members only. */
+  app.post<{ Params: { space: string }; Body: { from?: unknown; into?: unknown } }>("/bff/spaces/:space/merge", async (request, reply) => {
+    const found = await memberSpace(request, reply);
+    if (!found) return reply;
+    const from = typeof request.body?.from === "string" ? request.body.from : "";
+    const into = typeof request.body?.into === "string" ? request.body.into : LIVE_BRANCH;
+    if (!isPreviewableBranch(from) || !isPreviewableBranch(into) || from === into) {
+      return reply.code(400).send({ code: "BAD_BRANCH", error: "Say which branch to merge, into a different one." });
+    }
+    let result;
+    try {
+      result = await queue.run(found.space, () => mergeInto(root, found.space, into, from, found.me.username));
+    } catch (error) {
+      if (error instanceof GitError) return reply.code(409).send({ code: "MERGE_FAILED", error: error.stderr.trim() || error.message });
+      throw error;
+    }
+    if (!result.ok) {
+      return reply.code(409).send({ code: "CONFLICT", error: `${from} and ${into} both changed the same lines in ${result.conflicts.join(", ") || "some files"}. Merge them with git (git merge ${into} on ${from}), then push and try again.`, conflicts: result.conflicts });
+    }
+    if (result.how === "already") return reply.send({ how: result.how, commit: result.commit, deploy: null });
+    const deploy = await deployFor(found.space, into, result.commit, found.me.username);
+    return reply.send({ how: result.how, commit: result.commit, deploy: publicDeploy(deploy) });
   });
 
   // ---------------------------------------------------------------- the multiplayer kit

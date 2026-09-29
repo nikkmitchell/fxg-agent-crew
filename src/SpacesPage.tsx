@@ -253,6 +253,22 @@ function SpaceDetails({ name }: { name: string }) {
     }
   };
 
+  const [merging, setMerging] = useState<string | null>(null);
+  const [merged, setMerged] = useState<string | null>(null);
+  const merge = async (from: string) => {
+    setMerging(from);
+    setMerged(null);
+    try {
+      const result = await bff.mergeBranch(name, from);
+      setMerged(result.how === "already" ? `main already has everything in ${from}.` : `${from} is merged into main, which is deploying now.`);
+      load();
+    } catch (error) {
+      setMerged(error instanceof Error ? error.message : "Could not merge.");
+    } finally {
+      setMerging(null);
+    }
+  };
+
   if (problem) return <p className="signin-refusal" role="alert">{problem}</p>;
   if (!detail) return <p className="muted-note">Loading…</p>;
   const liveIds = new Set(detail.branches.map((branch) => branch.live?.id).filter(Boolean));
@@ -266,9 +282,18 @@ function SpaceDetails({ name }: { name: string }) {
           <li key={branch.branch}>
             <strong>{branch.branch}</strong>{branch.branch === "main" ? " (the space itself)" : " (preview)"}:{" "}
             {branch.live ? <a href={branch.sitePath} target="_blank" rel="noreferrer">{branch.sitePath}</a> : "not deployed"}
+            {branch.branch !== "main" ? (
+              <>
+                {" "}
+                <button type="button" className="text-button" disabled={merging !== null} onClick={() => void merge(branch.branch)}>
+                  {merging === branch.branch ? "Merging…" : "Merge into main"}
+                </button>
+              </>
+            ) : null}
           </li>
         ))}
       </ul>
+      {merged ? <p className="muted-note" role="status">{merged}</p> : null}
       <h3>Deploys</h3>
       <ol className="space-deploys">
         {detail.deploys.map((deploy) => (

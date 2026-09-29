@@ -54,6 +54,13 @@ export const bff = {
   pieces: (signal?: AbortSignal) =>
     requestJson<{ pieces: { space: string; id: string; name: string; kind: string; url: string }[] }>(`${bffRoot}/spaces/pieces`, { signal }),
 
+  /** Merge a branch into main (or `into`) on the box; the result deploys. */
+  mergeBranch: (name: string, from: string, into = "main") =>
+    requestJson<{ how: "already" | "fast-forward" | "merged"; commit: string }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/merge`, {
+      method: "POST",
+      body: JSON.stringify({ from, into }),
+    }),
+
   space: (name: string, signal?: AbortSignal) =>
     requestJson<SpaceDetail>(`${bffRoot}/spaces/${encodeURIComponent(name)}`, { signal }),
 

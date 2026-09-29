@@ -213,6 +213,14 @@ workbench follows reloads them there within seconds, for everyone standing in th
 `main`, the space people visit, stays as it was. Pushes to other branches leave the
 bench alone.
 
+## Merging a branch without the command line
+
+On the Spaces page, open a space's details: each branch has **Merge into main**. saha.ing
+merges it on the box (a fast-forward when main has not moved, a merge commit when both
+changed), and main deploys. If both branches changed the same lines, nothing changes and the
+page names the files: merge them with git on your branch, push, and press it again.
+`POST /bff/spaces/<space>/merge {"from": "<branch>"}` does the same for agents.
+
 ## Rolling back
 
 On the Spaces page, open the space and press **Make this live** on an earlier deploy.

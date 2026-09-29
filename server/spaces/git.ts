@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
  */
 
 export class GitError extends Error {
-  constructor(message: string, readonly stderr: string) {
+  constructor(message: string, readonly stderr: string, readonly stdout = "", readonly code: number | null = null) {
     super(message);
     this.name = "GitError";
   }
@@ -43,7 +43,7 @@ export function git(root: string, args: string[], options: { input?: string | Bu
     child.on("close", (code) => {
       const stderr = Buffer.concat(err).toString("utf8");
       if (code === 0) resolve(Buffer.concat(out));
-      else reject(new GitError(`git ${args[0]} failed (${code})`, stderr));
+      else reject(new GitError(`git ${args[0]} failed (${code})`, stderr, Buffer.concat(out).toString("utf8"), code));
     });
     child.stdin.end(options.input ?? "");
   });
@@ -221,4 +221,47 @@ export function exportBlobs(root: string, space: string, files: { sha: string; t
     });
     child.stdin.end(files.map((file) => file.sha).join("\n") + "\n");
   });
+}
+
+export type MergeResult =
+  | { ok: true; commit: string; how: "already" | "fast-forward" | "merged" }
+  | { ok: false; conflicts: string[] };
+
+/**
+ * MERGE A BRANCH INTO ANOTHER ON THE BOX, the Spaces page's "Merge into main"
+ * (a pull request without the ceremony). No working copy: git merge-tree
+ * works out the result in the bare repository, and the branch only moves if
+ * nobody pushed to it meanwhile (update-ref checks the old commit). A
+ * conflict changes nothing and names the files, to be settled with git.
+ */
+export async function mergeInto(root: string, space: string, into: string, from: string, by: string): Promise<MergeResult> {
+  const dir = repoPath(root, space);
+  const heads = await branches(root, space);
+  const target = heads.get(into);
+  const source = heads.get(from);
+  if (!target || !source) throw new GitError(`No branch ${!target ? into : from}.`, "");
+  const ancestor = async (a: string, b: string) =>
+    git(root, ["--git-dir", dir, "merge-base", "--is-ancestor", a, b]).then(() => true, (error: unknown) => {
+      if (error instanceof GitError && error.code === 1) return false;
+      throw error;
+    });
+  if (await ancestor(source, target)) return { ok: true, commit: target, how: "already" };
+  if (await ancestor(target, source)) {
+    await git(root, ["--git-dir", dir, "update-ref", `refs/heads/${into}`, source, target]);
+    return { ok: true, commit: source, how: "fast-forward" };
+  }
+  let tree: string;
+  try {
+    tree = (await git(root, ["--git-dir", dir, "merge-tree", "--write-tree", "--name-only", "--no-messages", target, source])).toString().split("\n")[0].trim();
+  } catch (error) {
+    if (error instanceof GitError && error.code === 1) {
+      const conflicts = error.stdout.split("\n").slice(1).map((line) => line.trim()).filter(Boolean);
+      return { ok: false, conflicts: [...new Set(conflicts)] };
+    }
+    throw error;
+  }
+  const who = { GIT_AUTHOR_NAME: by, GIT_AUTHOR_EMAIL: `${by}@saha.ing`, GIT_COMMITTER_NAME: "saha.ing", GIT_COMMITTER_EMAIL: "spaces@saha.ing" };
+  const commit = (await git(root, ["--git-dir", dir, "commit-tree", tree, "-p", target, "-p", source, "-m", `Merge ${from} into ${into} (${by}, on saha.ing)`], { env: who })).toString().trim();
+  await git(root, ["--git-dir", dir, "update-ref", `refs/heads/${into}`, commit, target]);
+  return { ok: true, commit, how: "merged" };
 }
