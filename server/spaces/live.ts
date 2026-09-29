@@ -19,6 +19,9 @@ export type LiveSocket = { send(text: string): void; close(code?: number, reason
 
 type Member = {
   socket: LiveSocket;
+  /** The page it came from (the kit makes one per page), so a reconnect replaces rather than adds. */
+  page: string | null;
+  renewing: NodeJS.Timeout | null;
   person: KitPerson | null;
   poses: number[];
   writes: number[];
@@ -26,6 +29,9 @@ type Member = {
 };
 
 type Room = { members: Set<Member>; dirty: boolean; quietSince: number };
+
+/** How often a person in a space gets a fresh ticket: well inside KIT_LIMITS.ticketMs. */
+export const RENEW_MS = 10 * 60_000;
 
 export class SpaceLive {
   private readonly rooms = new Map<string, Room>();
@@ -49,8 +55,33 @@ export class SpaceLive {
     return [...(this.rooms.get(space)?.members ?? [])].filter((member) => member.person).length;
   }
 
-  join(space: string, socket: LiveSocket, holder: TicketHolder | null): { receive: (text: string) => void; leave: () => void } {
+  /**
+   * `page`: the kit's id for this page. THE SAME PAGE COMING BACK replaces its
+   * old seat instead of taking another (Mica, 6319: two tabs showed "6 here",
+   * because every reconnect added name~2, ~3 while old sockets lingered). A
+   * second tab or device has its own page id, so it is still a second figure.
+   *
+   * `renew`: makes a fresh ticket for this person; sent every RENEW_MS so a
+   * visit outlives its first ticket, and a restart reconnects as you.
+   */
+  join(space: string, socket: LiveSocket, holder: TicketHolder | null, options: { page?: string | null; renew?: () => string } = {}): { receive: (text: string) => void; leave: () => void } {
     const room = this.rooms.get(space) ?? { members: new Set<Member>(), dirty: false, quietSince: this.now() };
+    this.rooms.set(space, room);
+    const page = options.page && /^[A-Za-z0-9_-]{8,64}$/.test(options.page) ? options.page : null;
+    let reuse: string | null = null;
+    if (holder && page) {
+      for (const old of room.members) {
+        if (old.page !== page || old.person?.name !== holder.username) continue;
+        reuse = old.person.id;
+        this.drop(space, room, old);
+        try {
+          old.socket.close(4000, "replaced by the same page");
+        } catch {
+          // Already gone.
+        }
+      }
+    }
+    // Dropping the page's old seat may have emptied, and so forgotten, the room.
     this.rooms.set(space, room);
     let person: KitPerson | null = null;
     if (holder) {
@@ -59,7 +90,7 @@ export class SpaceLive {
       // devices ... instead you should have doubled avatar"), rather than one
       // figure flipping between two places.
       const taken = new Set([...room.members].map((member) => member.person?.id));
-      let id = holder.username;
+      let id = reuse ?? holder.username;
       for (let n = 2; taken.has(id); n += 1) id = `${holder.username}~${n}`;
       person = {
         id,
@@ -74,7 +105,12 @@ export class SpaceLive {
         voice: false,
       };
     }
-    const member: Member = { socket, person, poses: [], writes: [], events: [] };
+    const member: Member = { socket, page, renewing: null, person, poses: [], writes: [], events: [] };
+    if (person && options.renew) {
+      const renew = options.renew;
+      member.renewing = setInterval(() => this.send(member, { t: "ticket", ticket: renew() }), RENEW_MS);
+      member.renewing.unref?.();
+    }
     room.members.add(member);
     room.dirty = true;
     this.send(member, { t: "hello", you: person, guest: person === null, space, state: this.store.state(space), people: this.people(room) });
@@ -82,12 +118,16 @@ export class SpaceLive {
 
     return {
       receive: (text) => this.receive(space, room, member, text),
-      leave: () => {
-        room.members.delete(member);
-        room.dirty = true;
-        if (room.members.size === 0) this.rooms.delete(space);
-      },
+      leave: () => this.drop(space, room, member),
     };
+  }
+
+  private drop(space: string, room: Room, member: Member): void {
+    if (member.renewing) clearInterval(member.renewing);
+    member.renewing = null;
+    room.members.delete(member);
+    room.dirty = true;
+    if (room.members.size === 0 && this.rooms.get(space) === room) this.rooms.delete(space);
   }
 
   private receive(space: string, room: Room, member: Member, text: string): void {

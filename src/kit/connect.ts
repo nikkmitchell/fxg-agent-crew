@@ -90,7 +90,11 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
   const server = (options.server ?? page.origin).replace(/\/$/, "");
   const space = options.space ?? (/^\/s\/([^/]+)/.exec(page.pathname) ?? [])[1];
   if (!space) throw new Error("saha.js: not inside a space (/s/<space>/); pass { space }");
-  const ticket = options.ticket !== undefined ? options.ticket : typeof location !== "undefined" ? takeTicket(href) : null;
+  // `let`: the live socket sends fresh ones while you stay (server/spaces/live.ts).
+  let ticket = options.ticket !== undefined ? options.ticket : typeof location !== "undefined" ? takeTicket(href) : null;
+  // This page's own id, so when it reconnects the server replaces its seat
+  // rather than adding another figure (Mica, 6319: "6 here" with two tabs).
+  const pageId = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) => byte.toString(16).padStart(2, "0")).join("");
   const Socket = options.WebSocket ?? globalThis.WebSocket;
 
   const listeners = new Map<string, Set<Listener>>();
@@ -176,7 +180,7 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
 
   const connect = () => {
     if (left) return;
-    const url = `${server.replace(/^http/, "ws")}/bff/spaces/${encodeURIComponent(space)}/live${ticket ? `?ticket=${encodeURIComponent(ticket)}` : ""}`;
+    const url = `${server.replace(/^http/, "ws")}/bff/spaces/${encodeURIComponent(space)}/live?page=${pageId}${ticket ? `&ticket=${encodeURIComponent(ticket)}` : ""}`;
     const current = new Socket(url);
     socket = current;
     current.onopen = () => {
@@ -214,14 +218,20 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
       } else if (message.t === "items") {
         room.items = message.items;
         emit("items", message.items);
+      } else if (message.t === "ticket") {
+        ticket = message.ticket;
+        room.ticket = message.ticket;
       }
     };
     current.onclose = (event) => {
+      // A socket this page has already replaced: its closing is not ours to act on,
+      // or the page would reconnect a second time and grow a second figure.
+      if (socket !== current) return;
       const was = room.connected;
       room.connected = false;
       if (was) emit("connection", false);
       // 4403/4404: not public, or no such space. Trying again will not help.
-      if (left || event.code === 4403 || event.code === 4404) return;
+      if (left || event.code === 4403 || event.code === 4404 || event.code === 4000) return;
       setTimeout(connect, RECONNECT_MS[Math.min(attempt++, RECONNECT_MS.length - 1)]);
     };
     current.onerror = () => undefined;

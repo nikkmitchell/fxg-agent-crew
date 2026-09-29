@@ -81,7 +81,9 @@ export type ServerMessage =
   | { t: "signal"; from: string; s: KitSignal }
   | { t: "event"; from: string; name: string; data: unknown }
   /** Everything you carry, sent when you arrive and whenever it changes. */
-  | { t: "items"; items: SpaceItem[] };
+  | { t: "items"; items: SpaceItem[] }
+  /** A fresh ticket for you, so a long visit, or a restart, keeps you as yourself. */
+  | { t: "ticket"; ticket: string };
 
 export const KIT_LIMITS = {
   /** Poses beyond this rate are dropped, not queued. */

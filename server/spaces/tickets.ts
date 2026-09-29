@@ -1,4 +1,6 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { KIT_LIMITS } from "../../shared/space-kit.js";
 
 /**
@@ -6,34 +8,67 @@ import { KIT_LIMITS } from "../../shared/space-kit.js";
  * knows who you are from your cookie, hands a space page a ticket naming you
  * and that one space. The page shows it to the live socket; that is the only
  * thing it can do with it. It cannot sign in to saha.ing, act in another space,
- * or outlive half an hour.
+ * or outlive half an hour (the live socket hands out fresh ones while you stay).
  *
- * Kept in memory: a restart only means entering the space again from saha.ing.
+ * SEALED, NOT REMEMBERED. They used to be kept in memory, so every release
+ * restarted the box and turned everybody in a space into a guest (Mica, 6319:
+ * both tabs fell back to "watching · 0 here" right after a deploy). A ticket
+ * now carries who, which body, which space and until when, sealed with an HMAC
+ * under a key the box made once (Sill, 6326: in a file beside the spaces, mode
+ * 600, never in the repo). Any restart can still open it; nobody without the
+ * key can make or change one.
  */
 export type TicketHolder = { username: string; body: string | null; space: string };
 
-export class SpaceTickets {
-  private readonly tickets = new Map<string, TicketHolder & { until: number }>();
+type Sealed = { u: string; b: string | null; s: string; e: number };
 
-  constructor(private readonly now: () => number = Date.now) {}
+/** The box's ticket key: read, or made once, at `path`. */
+export function ticketKey(path: string): Buffer {
+  if (existsSync(path)) {
+    const key = Buffer.from(readFileSync(path, "utf8").trim(), "base64url");
+    if (key.length >= 32) return key;
+  }
+  mkdirSync(dirname(path), { recursive: true });
+  const key = randomBytes(32);
+  writeFileSync(path, key.toString("base64url"), { mode: 0o600 });
+  chmodSync(path, 0o600);
+  return key;
+}
+
+export class SpaceTickets {
+  private readonly key: Buffer;
+
+  /** `key`: the box's (ticketKey); a fresh one when none is given (tests). */
+  constructor(key?: Buffer, private readonly now: () => number = Date.now) {
+    this.key = key ?? randomBytes(32);
+  }
+
+  private mac(payload: string): Buffer {
+    return createHmac("sha256", this.key).update(payload).digest();
+  }
 
   issue(holder: TicketHolder): string {
-    this.sweep();
-    const ticket = randomBytes(24).toString("base64url");
-    this.tickets.set(ticket, { ...holder, until: this.now() + KIT_LIMITS.ticketMs });
-    return ticket;
+    const sealed: Sealed = { u: holder.username, b: holder.body, s: holder.space, e: this.now() + KIT_LIMITS.ticketMs };
+    const payload = Buffer.from(JSON.stringify(sealed)).toString("base64url");
+    return `${payload}.${this.mac(payload).toString("base64url")}`;
   }
 
   /** Who a ticket is, for this space only; null for anything else. */
   read(ticket: string | null | undefined, space: string): TicketHolder | null {
-    if (!ticket) return null;
-    const held = this.tickets.get(ticket);
-    if (!held || held.until < this.now() || held.space !== space) return null;
-    return { username: held.username, body: held.body, space: held.space };
-  }
-
-  private sweep(): void {
-    if (this.tickets.size < 1000) return;
-    for (const [ticket, held] of this.tickets) if (held.until < this.now()) this.tickets.delete(ticket);
+    if (!ticket || ticket.length > 2048) return null;
+    const [payload, given, extra] = ticket.split(".");
+    if (!payload || !given || extra !== undefined) return null;
+    const expected = this.mac(payload);
+    const presented = Buffer.from(given, "base64url");
+    if (presented.length !== expected.length || !timingSafeEqual(presented, expected)) return null;
+    let sealed: Sealed;
+    try {
+      sealed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Sealed;
+    } catch {
+      return null;
+    }
+    if (typeof sealed.u !== "string" || typeof sealed.s !== "string" || typeof sealed.e !== "number") return null;
+    if (sealed.e < this.now() || sealed.s !== space) return null;
+    return { username: sealed.u, body: typeof sealed.b === "string" ? sealed.b : null, space: sealed.s };
   }
 }
