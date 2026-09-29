@@ -2,8 +2,30 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { migrate, openDatabase } from "../db/open.js";
 import { MIGRATIONS } from "../db/schema.js";
+import { RoomMindfulnessCards } from "../space/mindfulness.js";
 
 const fresh = () => openDatabase(":memory:", DatabaseSync);
+
+// Live had 42 (lobby welcome takes) before 41 existed, so this is every
+// migration except 41: the upgrade the live database actually makes.
+function databaseBeforeMindfulnessShareLedger() {
+  const db = new DatabaseSync(":memory:");
+  db.exec(`
+    CREATE TABLE schema_migrations (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    );
+  `);
+  for (const migration of MIGRATIONS.filter((entry) => entry.id !== 41)) {
+    db.exec("BEGIN");
+    db.exec(migration.sql);
+    db.prepare("INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)")
+      .run(migration.id, migration.name, "2026-09-28T00:00:00.000Z");
+    db.exec("COMMIT");
+  }
+  return db;
+}
 
 describe("migrations", () => {
   it("brings an empty database up to date", () => {
@@ -17,6 +39,33 @@ describe("migrations", () => {
     const db = fresh();
 
     expect(migrate(db)).toBe(0);
+  });
+
+  it("backfills only recent author/timestamp metadata when upgrading the mindfulness quota ledger", () => {
+    const db = databaseBeforeMindfulnessShareLedger();
+    const now = Date.now();
+    const insertCard = db.prepare(
+      "INSERT INTO space_mindfulness_cards (id, room, text, created_by, created_at) VALUES (?, ?, ?, ?, ?)",
+    );
+    for (let i = 0; i < 8; i += 1) {
+      insertCard.run(`recent-${i}`, "meditation.ar", `private reflection ${i}`, "inkstone", new Date(now - i * 60_000).toISOString());
+    }
+    insertCard.run("other-author", "meditation.ar", "another reflection", "sill", new Date(now - 60_000).toISOString());
+    insertCard.run("other-room", "quiet-garden", "room-local reflection", "inkstone", new Date(now - 60_000).toISOString());
+    insertCard.run("expired", "meditation.ar", "old reflection", "inkstone", new Date(now - 25 * 60 * 60_000).toISOString());
+
+    expect(migrate(db)).toBe(1);
+    const events = db.prepare(
+      "SELECT room, created_by, created_at FROM space_mindfulness_share_events ORDER BY room, created_by, created_at",
+    ).all() as Array<{ room: string; created_by: string; created_at: string }>;
+    expect(events).toHaveLength(10);
+    expect(JSON.stringify(events)).not.toContain("reflection");
+    expect(events.some((event) => event.created_at === new Date(now - 25 * 60 * 60_000).toISOString())).toBe(false);
+
+    const cards = new RoomMindfulnessCards(db);
+    expect("refused" in cards.share("meditation.AR", "Inkstone", "One more", Date.now())).toBe(true);
+    expect("refused" in cards.share("meditation.AR", "Sill", "Within remaining quota", Date.now())).toBe(false);
+    expect("refused" in cards.share("quiet-garden", "Inkstone", "A different room", Date.now())).toBe(false);
   });
 
   it("enforces foreign keys, which SQLite does NOT do by default", () => {

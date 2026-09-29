@@ -45,6 +45,8 @@ export function MindfulnessPanel({ subscribe }: {
   const [writing, setWriting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [hoveredTarget, setHoveredTarget] = useState<string | null>(null);
+  const [pressedTarget, setPressedTarget] = useState<string | null>(null);
   const pressed = useRef<string | null>(null);
   const plate = useRef<THREE.Mesh>(null);
   const invalidate = useThree((state) => state.invalidate);
@@ -60,7 +62,9 @@ export function MindfulnessPanel({ subscribe }: {
     hasOlder: older !== null || index < cards.length - 1,
     hasNewer: index > 0,
     notice,
-  }), [canvas, cards, index, notice, older, screen, view]);
+    hoveredTarget,
+    pressedTarget,
+  }), [canvas, cards, hoveredTarget, index, notice, older, pressedTarget, screen, view]);
 
   useEffect(() => {
     drawInk(canvas, painted.ink);
@@ -222,27 +226,40 @@ export function MindfulnessPanel({ subscribe }: {
       <mesh
         ref={plate}
         position={[0, 1.39, 0.014]}
+        onPointerMove={(event) => {
+          event.stopPropagation();
+          const next = pointTarget(event);
+          setHoveredTarget((current) => current === next ? current : next);
+        }}
         onPointerDown={(event) => {
           event.stopPropagation();
           claimPointer(event.nativeEvent);
-          pressed.current = pointTarget(event);
+          const target = pointTarget(event);
+          pressed.current = target;
+          setPressedTarget(target);
         }}
         onPointerUp={(event) => {
           event.stopPropagation();
           claimPointer(event.nativeEvent);
           const from = pressed.current;
           pressed.current = null;
+          setPressedTarget(null);
           const to = pointTarget(event);
+          setHoveredTarget(to);
           if (from && from === to) onTarget(from);
         }}
-        onPointerLeave={() => { pressed.current = null; }}
+        onPointerLeave={() => {
+          pressed.current = null;
+          setPressedTarget(null);
+          setHoveredTarget(null);
+        }}
       >
         <planeGeometry args={[PANEL_WIDTH, PANEL_HEIGHT]} />
         <meshBasicMaterial map={texture} toneMapped={false} />
       </mesh>
       {writing && (
         <Typing3D
-          prompt="Write one sentence. It stays private unless you review and confirm sharing."
+          prompt="Write a short reflection. It stays private unless you review and confirm sharing."
           initial={view.note}
           limit={240}
           position={[0, 0.88, 0.72]}

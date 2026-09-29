@@ -23,6 +23,34 @@ describe("the room's optional mindfulness practices", () => {
     expect(MINDFULNESS_PRACTICES.flatMap((practice) => practice.steps).join(" ")).toContain("You may pass");
   });
 
+  it("offers an opt-out visual-awareness practice with four separate, reachable choice targets", () => {
+    const practice = MINDFULNESS_PRACTICES.find((candidate) => candidate.id === "wide-frame");
+    expect(practice?.steps.join(" ")).toContain("sound or point of contact");
+    expect(practice?.steps.join(" ")).toContain("stop whenever you like");
+
+    const targets = paintMindfulness(EMPTY_MINDFULNESS, measure).targets.filter((target) => target.id.startsWith("choose:"));
+    expect(targets.map((target) => target.id)).toEqual([
+      "choose:grounding",
+      "choose:notice",
+      "choose:bright-spot",
+      "choose:wide-frame",
+    ]);
+    for (const target of targets) {
+      expect(target.x).toBeGreaterThanOrEqual(0);
+      expect(target.y).toBeGreaterThanOrEqual(0);
+      expect(target.x + target.width).toBeLessThanOrEqual(1024);
+      expect(target.y + target.height).toBeLessThanOrEqual(640);
+    }
+    for (let i = 0; i < targets.length; i++) {
+      for (let j = i + 1; j < targets.length; j++) {
+        const a = targets[i]!;
+        const b = targets[j]!;
+        const overlaps = a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+        expect(overlaps, `${a.id} overlaps ${b.id}`).toBe(false);
+      }
+    }
+  });
+
   it("advances synchronously without a clock and ends instead of recording a score", () => {
     let view: MindfulnessView = chooseMindfulness(EMPTY_MINDFULNESS, "notice");
     view = nextMindfulness(view);
@@ -37,8 +65,11 @@ describe("the room's optional mindfulness practices", () => {
   it("requires a second, explicit share-confirm action and explains room visibility and retention", () => {
     const preview = texts({ id: "bright-spot", step: 2, complete: false, note: "tea with a friend" }, "share-preview").join(" ");
     expect(preview).toContain("tea with a friend");
-    expect(preview).toContain("Everyone in this room can read this card");
-    expect(preview).toContain("stays here between sessions");
+    expect(preview).toContain("Everyone here can read this card");
+    expect(preview).toContain("until you remove it");
+    expect(preview).toContain("does not expire");
+    expect(preview).toContain("private record of who shared and when");
+    expect(preview).toContain("removal will not reset it");
     const painted = paintMindfulness(EMPTY_MINDFULNESS, measure, { screen: "share-preview" });
     expect(painted.targets.map((target) => target.id)).toEqual(["cancel-share", "confirm-share"]);
   });
@@ -57,9 +88,20 @@ describe("the room's optional mindfulness practices", () => {
     });
     const ink = painted.ink.flatMap((item) => item.kind === "text" ? [item.text] : []).join(" ");
     expect(ink).toContain("A quiet cup of tea");
-    expect(ink).toContain("kept between sessions");
+    expect(ink).toContain("no expiry");
     expect(ink).not.toContain("false");
     expect(painted.targets.some((target) => target.id === "remove-card")).toBe(false);
+    const stamp = painted.ink.find((item) => item.kind === "text" && item.text.startsWith("Shared ·"));
+    expect(stamp?.kind === "text" ? stamp.text : "").not.toContain(":");
+  });
+
+  it("gives XR pointer users a visible hover and pressed state", () => {
+    const base = paintMindfulness(EMPTY_MINDFULNESS, measure);
+    const hovered = paintMindfulness(EMPTY_MINDFULNESS, measure, { hoveredTarget: "choose:grounding" });
+    const pressed = paintMindfulness(EMPTY_MINDFULNESS, measure, { pressedTarget: "choose:grounding" });
+    expect(base.ink.some((item) => item.kind === "rect" && item.fill === "#b2c4de")).toBe(false);
+    expect(hovered.ink.some((item) => item.kind === "rect" && item.fill === "#b2c4de")).toBe(true);
+    expect(pressed.ink.some((item) => item.kind === "rect" && item.fill === "#8ca8cb")).toBe(true);
   });
 
   it("previews the exact card again before its writer removes it", () => {
