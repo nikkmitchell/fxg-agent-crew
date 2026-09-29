@@ -79,6 +79,54 @@ There is no build step on the server: you push the files a browser should load.
 A push with nothing publishable, or over the limits, **fails and leaves the live site as
 it was.** The deploy list says why.
 
+## Making it multiplayer
+
+Load saha.ing's kit and everyone who enters the space sees everyone else: a figure per
+person with their name, where they are and facing where they look, in a headset too.
+
+```html
+<script type="importmap">
+{ "imports": { "three": "/kit/three/three.module.js", "three/addons/": "/kit/three/addons/" } }
+</script>
+<script type="module">
+  import * as THREE from "three";
+  import { joinSaha } from "/kit/saha.js";
+  // ...your scene, camera, renderer...
+  const room = joinSaha({ THREE, scene, camera, renderer });
+</script>
+```
+
+A new space's starter page already does this. three.js and its addons (VRButton,
+GLTFLoader, ...) are served from saha.ing at `/kit/three/`, so no outside CDN is needed.
+
+What `room` gives you:
+
+| | |
+|---|---|
+| `room.people` | everyone in the space: `{ id, name, color, body, bodyUrl, p, q }` |
+| `room.on("join" / "leave" / "people", fn)` | people arriving, going, moving |
+| `room.set(key, value)` / `room.state` / `room.on("state", (key, value, by) => …)` | shared values every visitor sees alike, remembered by the space (JSON, 4 KB each, 200 keys) |
+| `room.say(text)` / `room.on("say", fn)` | a short line, shown over the speaker's head |
+| `joinSaha({ …, hands: [left, right] })` | send two Object3Ds as hands |
+| `connectSaha({ … })` | the same connection without three.js, for any page |
+
+**Who you are in a space.** Enter it from saha.ing (a lobby door, or **Enter as
+yourself** on the Spaces page) and you arrive with a ticket for that one space, in the
+address's `#fragment`, so the others see you. Opened any other way, you are a guest: you
+see everyone, nobody sees you, and you change nothing. A ticket lasts 30 minutes and works
+only in its own space.
+
+## Public rooms: a door in the lobby
+
+On the Spaces page, give the door a title and press **Publish as a public room**. The
+space gets a door in the saha.ing lobby, next to the rooms, and anybody signed in to
+saha.ing can enter it as themselves. **Take the door away** undoes it. A space that is not
+public can still be opened at its address, but only its room's members can enter as
+themselves, and guests cannot watch it.
+
+Entering from a headset: the lobby door leaves VR and opens the space's page; press its
+Enter VR button (the starter has one) to go back in.
+
 ## Rolling back
 
 On the Spaces page, open the space and press **Make this live** on an earlier deploy.
@@ -94,7 +142,9 @@ same-origin**). The browser treats the page as its own origin:
 - it **has no** `localStorage`, cookies or service worker of its own (these throw, so
   wrap them in `try`);
 - fetching its own files works: every space file is sent with
-  `Access-Control-Allow-Origin: *`, so ES modules, JSON, fonts and models load normally.
+  `Access-Control-Allow-Origin: *`, so ES modules, JSON, fonts and models load normally;
+  so do the kit (`/kit/saha.js`), three.js (`/kit/three/`) and avatar models.
+- the multiplayer kit knows who you are from a ticket, never from saha.ing's sign-in.
 
 A separate domain for spaces would lift the storage limits later. Until then, the
 sandbox is what keeps one space's code from acting as a saha.ing visitor.
@@ -107,5 +157,8 @@ sandbox is what keeps one space's code from acting as a saha.ing visitor.
   first, then deploys after a push that changed a branch.
 - On disk: `SPACES_ROOT` (default: `spaces/` beside the database, i.e.
   `/var/lib/fxg-crew/spaces`), with `repos/<space>.git` and `sites/<space>/<deploy>/`.
-- Database: migration 44 (`spaces`, `space_deploys`, `space_live`).
+- Database: migration 44 (`spaces`, `space_deploys`, `space_live`) and 45 (public rooms,
+  `space_state` for the kit's shared values).
+- Multiplayer: `public/kit/saha.js` (the kit), `shared/space-kit.ts` (the wire),
+  `server/spaces/live.ts` (the hub, `/bff/spaces/<space>/live`), `server/spaces/tickets.ts`.
 - nginx: `location /git/` allows 500 MB bodies without buffering (`deploy/nginx.conf`).

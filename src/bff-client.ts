@@ -53,6 +53,18 @@ export const bff = {
   space: (name: string, signal?: AbortSignal) =>
     requestJson<SpaceDetail>(`${bffRoot}/spaces/${encodeURIComponent(name)}`, { signal }),
 
+  /** The published spaces: the lobby's space doors. */
+  publicSpaces: (signal?: AbortSignal) =>
+    requestJson<{ spaces: { name: string; title: string; sitePath: string; here: number }[] }>(`${bffRoot}/spaces/public`, { signal }),
+
+  /** A ticket into a space as yourself; open `path` to arrive with it. */
+  spaceTicket: (name: string) =>
+    requestJson<{ ticket: string; path: string }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/ticket`, { method: "POST" }),
+
+  /** Publish a space as a public room with a lobby door, or take it back. */
+  publishSpace: (name: string, isPublic: boolean, title?: string) =>
+    requestJson<SpaceListing>(`${bffRoot}/spaces/${encodeURIComponent(name)}/public`, { method: "POST", body: JSON.stringify({ public: isPublic, title }) }),
+
   /** Serve an earlier (or later) deploy on its branch: rolling back. */
   makeLive: (name: string, deployId: string) =>
     requestJson<{ branch: string; live: DeployRecord }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/live`, { method: "POST", body: JSON.stringify({ deployId }) }),
@@ -105,7 +117,7 @@ export const bff = {
     }),
 };
 
-export type SpaceListing = { name: string; createdBy: string; createdAt: string; gitPath: string; sitePath: string; live: DeployRecord | null };
+export type SpaceListing = { name: string; createdBy: string; createdAt: string; gitPath: string; sitePath: string; live: DeployRecord | null; public: boolean; title: string | null; here: number };
 export type SpaceDetail = {
   space: SpaceListing;
   branches: { branch: string; head: string | null; sitePath: string; live: DeployRecord | null }[];

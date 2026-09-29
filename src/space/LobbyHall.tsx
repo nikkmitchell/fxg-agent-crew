@@ -6,7 +6,7 @@ import type { RoomSummary } from "../../shared/contracts";
 import type { WirePerson } from "../../shared/space-wire";
 import { ROOM } from "../../shared/space-layout";
 import { bodyKey, thumbPath } from "../../shared/avatar-choice";
-import { lobbyDoors, pageOf, wearables, type LobbyDoor, type Wearable } from "../../shared/lobby-hall";
+import { lobbyDoors, pageOf, wearables, type LobbyDoor, type PublicSpaceDoor, type Wearable } from "../../shared/lobby-hall";
 import { bodiesFromCatalogue } from "../profile-view";
 import { requestJson } from "../api-request";
 import { bff } from "../bff-client";
@@ -85,6 +85,7 @@ export function LobbyHall({
 }) {
   const [mine, setMine] = useState<RoomSummary[] | null>(null);
   const [open, setOpen] = useState<RoomSummary[] | null>(null);
+  const [spaces, setSpaces] = useState<PublicSpaceDoor[] | null>(null);
   const [wardrobe, setWardrobe] = useState<Wearable[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [going, setGoing] = useState<string | null>(null);
@@ -97,6 +98,7 @@ export function LobbyHall({
     setOpen(null);
     bff.rooms(signal).then(setMine).catch(() => { if (!signal?.aborted) setMine([]); });
     bff.publicRooms(signal).then(setOpen).catch(() => { if (!signal?.aborted) setOpen([]); });
+    bff.publicSpaces(signal).then((answer) => setSpaces(answer.spaces)).catch(() => { if (!signal?.aborted) setSpaces([]); });
   }, []);
   useEffect(() => {
     const controller = new AbortController();
@@ -116,7 +118,7 @@ export function LobbyHall({
     return () => controller.abort();
   }, [loadRooms]);
 
-  const doors = useMemo(() => lobbyDoors(mine, open, currentRoom), [mine, open, currentRoom]);
+  const doors = useMemo(() => lobbyDoors(mine, open, currentRoom, spaces), [mine, open, currentRoom, spaces]);
   const doorsShown = pageOf(doors, DOORS.columns * DOORS.rows, doorPage);
   const me = you ? roster.find((person) => person.actorId.toLowerCase() === you.toLowerCase()) ?? null : null;
   const worn = me?.body ? bodyKey(me.body) : null;
@@ -124,6 +126,20 @@ export function LobbyHall({
 
   const go = (door: LobbyDoor) => {
     if (going || door.kind === "here") return;
+    if (door.kind === "space" && door.space) {
+      // A space is its own page: ask for a ticket that says who you are there,
+      // then go (a headset leaves VR here; the space has its own Enter VR).
+      const name = door.space;
+      setGoing(door.room);
+      setNotice(`Going to ${door.room}…`);
+      bff.spaceTicket(name)
+        .then((answer) => window.location.assign(`${base}${answer.path}`))
+        .catch((error: unknown) => {
+          setNotice(error instanceof Error ? error.message : `Could not open ${door.room}.`);
+          setGoing(null);
+        });
+      return;
+    }
     setGoing(door.room);
     setNotice(door.kind === "join" ? `Joining ${door.room}…` : `Going to ${door.room}…`);
     (door.kind === "join" ? bff.joinRoom(door.room).then(() => onSwitchRoom(door.room)) : onSwitchRoom(door.room))
@@ -150,10 +166,10 @@ export function LobbyHall({
         {doorsShown.items.map((door, index) => {
           const column = index % DOORS.columns;
           const row = Math.floor(index / DOORS.columns);
-          const action = door.kind === "here" ? "you are here" : door.kind === "join" ? "JOIN + ENTER" : "ENTER";
+          const action = door.kind === "here" ? "you are here" : door.kind === "join" ? "JOIN + ENTER" : door.kind === "space" ? "VISIT" : "ENTER";
           return (
             <WristButton
-              key={door.room}
+              key={door.kind === "space" ? `space:${door.space}` : door.room}
               label={`${going === door.room ? "…" : ""}${door.room}\n${door.detail || " "}\n${action}`}
               x={(column - (DOORS.columns - 1) / 2) * (DOORS.width + DOORS.gap)}
               y={DOORS.top - row * (DOORS.height + DOORS.gap)}

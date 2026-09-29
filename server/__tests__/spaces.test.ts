@@ -6,6 +6,9 @@ import { promisify } from "node:util";
 import { DatabaseSync } from "node:sqlite";
 import Fastify, { type FastifyInstance } from "fastify";
 import staticPlugin from "@fastify/static";
+import websocket from "@fastify/websocket";
+import { SpaceLive } from "../spaces/live.js";
+import { SpaceTickets } from "../spaces/tickets.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { openDatabase } from "../db/open.js";
 import { SpaceAuth, parseBasic } from "../spaces/auth.js";
@@ -50,6 +53,7 @@ let root = "";
 let work = "";
 let queue: DeployQueue;
 let store: SpaceStore;
+let live: SpaceLive;
 
 const gitAs = (user: string, pass: string, cwd: string, ...args: string[]) =>
   run("git", ["-c", "credential.helper=", "-c", "user.name=Test", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main", ...args], {
@@ -66,17 +70,23 @@ beforeAll(async () => {
   store = new SpaceStore(db as unknown as DatabaseSync);
   app = Fastify();
   await app.register(staticPlugin, { root: work, serve: false });
+  await app.register(websocket);
+  live = new SpaceLive(store, (body) => `/avatars/${body}.vrm`);
   const session: Session = { username: "nikk", token: "nikk-session" } as Session;
   ({ queue } = registerSpacesHosting(app, {
     spacesRoot: root,
     store,
     auth: new SpaceAuth(fakeClient),
-    sessionOf: (request) => (request.headers.cookie === "who=nikk" ? session : request.headers.cookie === "who=baiwei" ? ({ username: "baiwei", token: "baiwei-session" } as Session) : undefined),
+    sessionOf: (request) => (request.headers.cookie === "who=nikk" ? session : request.headers.cookie === "who=baiwei" ? ({ username: "baiwei", token: "baiwei-session" } as Session) : request.headers.cookie === "who=sill" ? ({ username: "Sill", token: "sill-token" } as Session) : undefined),
+    tickets: new SpaceTickets(),
+    live,
+    bodyOf: (username) => (username === "nikk" ? "lotus" : null),
   }));
   base = await app.listen({ port: 0, host: "127.0.0.1" });
 }, 30_000);
 
 afterAll(async () => {
+  live?.stop();
   await app?.close();
   await rm(root, { recursive: true, force: true });
   await rm(work, { recursive: true, force: true });
@@ -89,7 +99,7 @@ describe("spaces: our own git and deploy, one per room (Nikk, 6148)", () => {
     expect(made.json()).toMatchObject({ name: "meditation.ar", gitPath: "/git/meditation.ar.git", sitePath: "/s/meditation.ar/" });
     const live = await page("/s/meditation.ar/");
     expect(live.status).toBe(200);
-    expect(await live.text()).toContain("This space is live");
+    expect(await live.text()).toContain("This page is multiplayer");
     expect(live.headers.get("content-security-policy")).toBe(SITE_SANDBOX);
     expect((await page("/s/meditation.ar")).status).toBe(302);
   });
@@ -157,7 +167,7 @@ describe("spaces: our own git and deploy, one per room (Nikk, 6148)", () => {
     const starter = detail.deploys.find((deploy: { branch: string; message: string }) => deploy.branch === "main" && deploy.message.startsWith("A new space"));
     const back = await app.inject({ method: "POST", url: "/bff/spaces/meditation.ar/live", headers: { cookie: "who=nikk" }, payload: { deployId: starter.id } });
     expect(back.statusCode).toBe(200);
-    expect(await (await page("/s/meditation.ar/")).text()).toContain("This space is live");
+    expect(await (await page("/s/meditation.ar/")).text()).toContain("This page is multiplayer");
   });
 
   it("asks git for a login, and refuses wrong passwords and people outside the room", async () => {
@@ -232,9 +242,140 @@ describe("spaces inside the real server", () => {
       expect(repo.statusCode).toBe(404);
       expect(repo.body).toContain("no space called");
       expect((await built.app.inject({ method: "GET", url: "/bff/spaces" })).statusCode).toBe(401);
+      // The kit itself, loadable from a sandboxed space page (dist is built by the suite's setup or earlier).
+      const kitFile = await built.app.inject({ method: "GET", url: "/kit/saha.js" });
+      if (kitFile.statusCode === 200) expect(kitFile.headers["access-control-allow-origin"]).toBe("*");
+      expect((await built.app.inject({ method: "GET", url: "/bff/spaces/public" })).json()).toEqual({ spaces: [] });
     } finally {
       await built.app.close();
       await rm(spacesRoot, { recursive: true, force: true });
     }
+  });
+});
+
+
+describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29)", () => {
+  // The very script space pages load, run here against the test server.
+  const kit = () => import("../../public/kit/saha.js") as Promise<{ connectSaha: (options: Record<string, unknown>) => KitRoom }>;
+  type KitRoom = {
+    you: { id: string } | null;
+    guest: boolean;
+    connected: boolean;
+    people: Map<string, { id: string; name: string; body: string | null; bodyUrl: string | null; p: number[] | null }>;
+    state: Record<string, unknown>;
+    on: (event: string, listener: (...args: unknown[]) => void) => () => void;
+    pose: (p: number[], q: number[]) => void;
+    set: (key: string, value: unknown) => void;
+    say: (text: string) => void;
+    leave: () => void;
+  };
+  const until = async (check: () => boolean, ms = 4000) => {
+    const start = Date.now();
+    while (!check()) {
+      if (Date.now() - start > ms) throw new Error("timed out waiting");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  };
+  const ticketFor = async (who: string, space = "meditation.ar") => app.inject({ method: "POST", url: `/bff/spaces/${space}/ticket`, headers: { cookie: `who=${who}` } });
+  const join = async (ticket: string | null) => {
+    const { connectSaha } = await kit();
+    return connectSaha({ server: base, space: "meditation.ar", ticket, href: `${base}/s/meditation.ar/` });
+  };
+
+  it("gives members a ticket into the space, and nobody else while it is not public", async () => {
+    const mine = await ticketFor("nikk");
+    expect(mine.statusCode).toBe(200);
+    expect(mine.json().path).toMatch(/^\/s\/meditation\.ar\/#saha=/);
+    expect((await ticketFor("baiwei")).statusCode).toBe(403);
+  });
+
+  it("shows each person to the other: pose, name and chosen body", async () => {
+    const nikk = await join((await ticketFor("nikk")).json().ticket);
+    const sill = await join((await ticketFor("sill")).json().ticket);
+    try {
+      await until(() => nikk.connected && sill.connected);
+      expect(nikk.guest).toBe(false);
+      nikk.pose([1, 1.6, 2], [0, 0, 0, 1]);
+      await until(() => sill.people.get("nikk")?.p?.[0] === 1);
+      expect(sill.people.get("nikk")).toMatchObject({ name: "nikk", body: "lotus", bodyUrl: "/avatars/lotus.vrm", p: [1, 1.6, 2] });
+      expect([...nikk.people.keys()].sort()).toEqual(["Sill", "nikk"]);
+    } finally {
+      nikk.leave();
+      sill.leave();
+    }
+  });
+
+  it("shares values every visitor sees, remembered for the next one, and says lines out loud", async () => {
+    const nikk = await join((await ticketFor("nikk")).json().ticket);
+    const sill = await join((await ticketFor("sill")).json().ticket);
+    const heard: unknown[] = [];
+    sill.on("say", (message) => heard.push(message));
+    try {
+      await until(() => nikk.connected && sill.connected);
+      nikk.set("lamp", { on: true });
+      nikk.say("  hello   everyone ");
+      await until(() => JSON.stringify(sill.state.lamp) === JSON.stringify({ on: true }) && heard.length === 1);
+      expect(heard[0]).toMatchObject({ name: "nikk", text: "hello everyone" });
+      const later = await join((await ticketFor("sill")).json().ticket);
+      await until(() => later.connected);
+      expect(later.state.lamp).toEqual({ on: true });
+      later.leave();
+    } finally {
+      nikk.leave();
+      sill.leave();
+    }
+  });
+
+  it("keeps guests out of a private space, and lets them watch a public one without changing it", async () => {
+    const shut = await join(null);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(shut.connected).toBe(false);
+    shut.leave();
+
+    const published = await app.inject({ method: "POST", url: "/bff/spaces/meditation.ar/public", headers: { cookie: "who=nikk" }, payload: { public: true, title: "Meditation room" } });
+    expect(published.json()).toMatchObject({ public: true, title: "Meditation room" });
+    const doors = (await app.inject({ method: "GET", url: "/bff/spaces/public" })).json();
+    expect(doors.spaces).toEqual([expect.objectContaining({ name: "meditation.ar", title: "Meditation room", sitePath: "/s/meditation.ar/" })]);
+    // Public: anybody signed in may now have a ticket.
+    expect((await ticketFor("baiwei")).statusCode).toBe(200);
+
+    const nikk = await join((await ticketFor("nikk")).json().ticket);
+    const guest = new WebSocket(`${base.replace("http", "ws")}/bff/spaces/meditation.ar/live`);
+    const said: Array<{ t: string; guest?: boolean; people?: unknown[]; why?: string }> = [];
+    guest.onmessage = (event) => said.push(JSON.parse(String(event.data)));
+    try {
+      await until(() => nikk.connected && said.some((message) => message.t === "hello"));
+      expect(said.find((message) => message.t === "hello")).toMatchObject({ guest: true });
+      guest.send(JSON.stringify({ t: "set", k: "lamp", v: "off" }));
+      await until(() => said.some((message) => message.t === "refused"));
+      expect(nikk.state.lamp).toEqual({ on: true });
+      // Guests are not people: they are not in anyone's list.
+      expect([...nikk.people.keys()]).toEqual(["nikk"]);
+    } finally {
+      guest.close();
+      nikk.leave();
+    }
+  });
+
+  it("serves three.js and its addons from saha.ing, to any origin, and nothing outside them", async () => {
+    const three = await page("/kit/three/three.module.js");
+    expect(three.status).toBe(200);
+    expect(three.headers.get("access-control-allow-origin")).toBe("*");
+    expect((await page("/kit/three/addons/webxr/VRButton.js")).status).toBe(200);
+    expect((await page("/kit/three/%2e%2e/package.json")).status).toBe(404);
+    expect((await page("/kit/three/addons/../../package.json")).status).toBe(404);
+  });
+});
+
+describe("what the kit accepts on the wire", () => {
+  it("takes poses, values and lines of a sane size, and nothing else", async () => {
+    const { readClientMessage } = await import("../../shared/space-kit.js");
+    expect(readClientMessage({ t: "pose", p: [0, 1.6, 0], q: [0, 0, 0, 1] })).toMatchObject({ t: "pose" });
+    expect(readClientMessage({ t: "pose", p: [0, 1e9, 0], q: [0, 0, 0, 1] })).toBeNull();
+    expect(readClientMessage({ t: "pose", p: [0, Number.NaN, 0], q: [0, 0, 0, 1] })).toBeNull();
+    expect(readClientMessage({ t: "set", k: "lamp", v: "x".repeat(5000) })).toBeNull();
+    expect(readClientMessage({ t: "set", k: "bad key!", v: 1 })).toBeNull();
+    expect(readClientMessage({ t: "say", text: "   " })).toBeNull();
+    expect(readClientMessage({ t: "exec", code: "x" })).toBeNull();
   });
 });

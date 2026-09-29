@@ -22,13 +22,21 @@ export const LOBBY_ROOM = "lobby";
 export const isLobby = (room: string | null | undefined): boolean =>
   typeof room === "string" && roomKey(room) === LOBBY_ROOM;
 
-/** One door: a room you are in (enter), are standing in (here), or could join. */
+/**
+ * One door: a room you are in (enter), are standing in (here), or could join,
+ * or a PUBLIC SPACE (shared/spaces.ts): a room a team built on its own, which
+ * opens as its own page with the saha.ing multiplayer kit (shared/space-kit.ts).
+ */
 export type LobbyDoor = {
   room: string;
-  kind: "here" | "enter" | "join";
+  kind: "here" | "enter" | "join" | "space";
   /** A short second line: whose it is, or that it is private. */
   detail: string;
+  /** For a space door: the space to enter (room is its title). */
+  space?: string;
 };
+
+export type PublicSpaceDoor = { name: string; title: string; here: number };
 
 /**
  * Every room you belong to, then every public room you do not, each once.
@@ -40,6 +48,7 @@ export function lobbyDoors(
   mine: readonly RoomSummary[] | null,
   publicRooms: readonly RoomSummary[] | null,
   current: string | null,
+  spaces: readonly PublicSpaceDoor[] | null = [],
 ): LobbyDoor[] {
   const here = current === null ? null : roomKey(current);
   const detail = (room: RoomSummary) =>
@@ -53,6 +62,10 @@ export function lobbyDoors(
     if (seen.has(key)) continue;
     seen.add(key);
     doors.push({ room: room.roomName, kind: key === here ? "here" : "enter", detail: detail(room) });
+  }
+  // Published spaces after your own rooms: places anyone can walk into.
+  for (const space of [...(spaces ?? [])].sort((a, b) => a.title.localeCompare(b.title))) {
+    doors.push({ room: space.title, kind: "space", space: space.name, detail: space.here ? `space · ${space.here} here` : "space" });
   }
   for (const room of [...(publicRooms ?? [])].sort(byName)) {
     const key = roomKey(room.roomName);

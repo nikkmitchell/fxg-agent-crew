@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import { readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Readable } from "node:stream";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
@@ -12,6 +13,9 @@ import {
   type DeployRecord,
 } from "../../shared/spaces.js";
 import type { Session } from "../session.js";
+import { doorTitle, spaceEntryPath } from "../../shared/space-kit.js";
+import type { SpaceLive } from "./live.js";
+import type { SpaceTickets } from "./tickets.js";
 import { WebharnessError } from "../webharness/client.js";
 import { SpaceAuth, parseBasic, type GitIdentity } from "./auth.js";
 import { DeployQueue, deployCommit, siteDir } from "./deploy.js";
@@ -53,18 +57,67 @@ const STARTER = (space: string, by: string) => [
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${space}</title>
 <style>
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, sans-serif; background: #14171c; color: #eef0f3; }
-  main { max-width: 36rem; padding: 2rem; line-height: 1.6; }
-  code { background: #232830; padding: .1rem .35rem; border-radius: 4px; }
+  html, body { margin: 0; height: 100%; background: #14171c; color: #eef0f3; font-family: system-ui, sans-serif; }
+  #about { position: fixed; top: 12px; left: 12px; right: 12px; max-width: 30rem; padding: 10px 14px; border-radius: 10px; background: rgba(20,23,28,.72); line-height: 1.5; }
+  code { background: #232830; padding: .05rem .3rem; border-radius: 4px; }
 </style>
+<!-- three.js comes from saha.ing itself, so no outside CDN is needed. -->
+<script type="importmap">
+{ "imports": { "three": "/kit/three/three.module.js", "three/addons/": "/kit/three/addons/" } }
+</script>
 </head>
 <body>
-<main>
-  <h1>${space}</h1>
-  <p>This space is live. It was made by ${by}.</p>
-  <p>Change this page: <code>git clone</code> the space, edit <code>index.html</code>, then <code>git push</code>.
-  It is live here a few seconds later. See README.md in the repository.</p>
-</main>
+<div id="about">
+  <strong>${space}</strong>, made by ${by}. This page is multiplayer: everyone who enters it from
+  saha.ing sees everyone else. Change it with <code>git clone</code>, edit <code>index.html</code>,
+  <code>git push</code>. See README.md.
+</div>
+<script type="module">
+  import * as THREE from "three";
+  import { VRButton } from "three/addons/webxr/VRButton.js";
+  import { joinSaha } from "/kit/saha.js";
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.xr.enabled = true;
+  document.body.appendChild(renderer.domElement);
+  document.body.appendChild(VRButton.createButton(renderer));
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1b2028);
+  const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 200);
+  camera.position.set(0, 1.6, 3);
+  scene.add(new THREE.HemisphereLight(0xdde6ff, 0x30281f, 1.4));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+  sun.position.set(3, 6, 2);
+  scene.add(sun);
+  scene.add(new THREE.GridHelper(20, 20, 0x556070, 0x2c3440));
+  const stone = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 1), new THREE.MeshStandardMaterial({ color: 0x8fb3a4, flatShading: true }));
+  stone.position.set(0, 1, 0);
+  scene.add(stone);
+
+  // One line makes it multiplayer. room.set / room.on("state") share things.
+  const room = joinSaha({ THREE, scene, camera, renderer });
+
+  // Walk with the arrow keys on a computer; a headset walks by itself.
+  const keys = new Set();
+  addEventListener("keydown", (event) => keys.add(event.key));
+  addEventListener("keyup", (event) => keys.delete(event.key));
+  addEventListener("resize", () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+  renderer.setAnimationLoop((time) => {
+    stone.rotation.y = time / 4000;
+    if (keys.has("ArrowUp")) camera.translateZ(-0.05);
+    if (keys.has("ArrowDown")) camera.translateZ(0.05);
+    if (keys.has("ArrowLeft")) camera.rotation.y += 0.03;
+    if (keys.has("ArrowRight")) camera.rotation.y -= 0.03;
+    renderer.render(scene, camera);
+  });
+</script>
 </body>
 </html>
 `,
@@ -81,20 +134,23 @@ This is the source of the space **${space}** on saha.ing.
 Anyone in the WebHarness room \`${space}\` can clone and push, with their saha.ing login
 (people: WebHarness password; agents: their WebHarness token — see docs/SPACES.md in saha.ing).
 
-## How it deploys
+## Multiplayer
+
+\`index.html\` loads saha.ing's kit and calls \`joinSaha({ THREE, scene, camera, renderer })\`:
+everyone who enters the space from saha.ing sees everyone else. \`room.set(key, value)\` and
+\`room.on("state", ...)\` share values every visitor sees; \`room.say(text)\` shows a line
+over your head. People who open the address directly watch as guests.
+
+## Publishing
 
 Every push deploys. \`main\` is the space itself; any other branch is a preview at
-\`/s/${space}/@<branch>/\`. What is published:
+\`/s/${space}/@<branch>/\`. Make it a PUBLIC ROOM on the Spaces page and it gets a door
+in the saha.ing lobby.
 
-- \`dist/\` if it has an index.html (push your build output), otherwise
-- the top of the repo if it has an index.html, or
-- the folder named in \`saha-space.json\`: \`{ "publish": "public" }\`.
-
-Add \`"spa": true\` to \`saha-space.json\` to serve index.html for unknown paths (client-side routing).
-Nothing runs on the server: a space is files a browser loads.
-
-The page runs sandboxed: it cannot read saha.ing or use its sign-in, and has no
-localStorage or cookies of its own.
+What is published: \`dist/\` if it has an index.html, else the top of the repo, or the
+folder named in \`saha-space.json\` (\`{ "publish": "public", "spa": true }\`).
+Nothing runs on the server. The page runs sandboxed: it cannot read saha.ing or use its
+sign-in, and has no localStorage or cookies of its own.
 `,
   },
 ];
@@ -104,6 +160,11 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   store: SpaceStore;
   auth: SpaceAuth;
   sessionOf: (request: FastifyRequest) => Session | undefined;
+  /** The multiplayer kit (shared/space-kit.ts). */
+  tickets: SpaceTickets;
+  live: SpaceLive;
+  /** The body a person chose in saha.ing, if any. */
+  bodyOf: (username: string) => string | null;
   queue?: DeployQueue;
   now?: () => Date;
 }): { queue: DeployQueue } {
@@ -118,14 +179,20 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     return local && typeof real === "string" && real ? real : request.ip;
   };
 
-  const summary = (name: string, createdBy: string, createdAt: string) => ({
-    name,
-    createdBy,
-    createdAt,
-    gitPath: `/git/${name}.git`,
-    sitePath: `/s/${name}/`,
-    live: publicDeploy(store.live(name, LIVE_BRANCH)),
-  });
+  const summary = (name: string, createdBy: string, createdAt: string) => {
+    const shown = store.publicInfo(name);
+    return {
+      name,
+      createdBy,
+      createdAt,
+      gitPath: `/git/${name}.git`,
+      sitePath: `/s/${name}/`,
+      live: publicDeploy(store.live(name, LIVE_BRANCH)),
+      public: shown.public,
+      title: shown.title,
+      here: deps.live.count(name),
+    };
+  };
 
   const deployFor = (space: string, branch: string, commit: string, pushedBy: string) =>
     queue.run(space, () => deployCommit({ root, store, space, branch, commit, pushedBy, now }));
@@ -341,6 +408,86 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     if (deploy.status !== "ready") return reply.code(409).send({ code: "NOT_SERVABLE", error: deploy.status === "failed" ? "That deploy failed; there is nothing to serve." : "That deploy's files have been cleared; push it again." });
     store.setLive(found.space, deploy.branch, deploy.id);
     return reply.send({ branch: deploy.branch, live: publicDeploy(deploy) });
+  });
+
+  // ---------------------------------------------------------------- the multiplayer kit
+
+  /**
+   * A TICKET INTO A SPACE, for the person signed in here: the lobby door and
+   * the Spaces page ask for one, then open /s/<space>/#saha=<ticket>. Members
+   * of the room always; anybody signed in when the team has made it public.
+   */
+  app.post<{ Params: { space: string } }>("/bff/spaces/:space/ticket", async (request, reply) => {
+    const me = signedIn(request, reply);
+    if (!me) return reply;
+    const space = spaceKey(request.params.space);
+    if (!store.exists(space)) return reply.code(404).send({ code: "NO_SPACE", error: `There is no space called ${space}.` });
+    if (!store.publicInfo(space).public) {
+      try {
+        if (!(await auth.isMember(me, space))) return reply.code(403).send({ code: "NOT_A_MEMBER", error: `${space} is not public, and you are not in its room.` });
+      } catch (error) {
+        return upstream(reply, error);
+      }
+    }
+    const ticket = deps.tickets.issue({ username: me.username, body: deps.bodyOf(me.username), space });
+    return reply.header("cache-control", "no-store").send({ ticket, path: spaceEntryPath(space, ticket) });
+  });
+
+  /** The published spaces: the lobby's doors. Anyone may ask. */
+  app.get("/bff/spaces/public", async (_request, reply) =>
+    reply.header("cache-control", "no-store").send({
+      spaces: store.publicSpaces().map((space) => ({ name: space.name, title: doorTitle(space.title, space.name), sitePath: `/s/${space.name}/`, here: deps.live.count(space.name) })),
+    }));
+
+  /** Publish a space as a public room (a door in the lobby), or take it back. Members only. */
+  app.post<{ Params: { space: string }; Body: { public?: unknown; title?: unknown } }>("/bff/spaces/:space/public", async (request, reply) => {
+    const found = await memberSpace(request, reply);
+    if (!found) return reply;
+    const isPublic = request.body?.public === true;
+    const title = typeof request.body?.title === "string" ? doorTitle(request.body.title, found.space) : store.publicInfo(found.space).title;
+    store.setPublic(found.space, isPublic, title === found.space ? null : title);
+    return reply.send(summary(found.record.name, found.record.createdBy, found.record.createdAt));
+  });
+
+  // The live socket needs the websocket plugin loaded, so it lives in a plugin
+  // of its own (a route added straight onto `app` would be registered before it).
+  app.register(async (scope) => {
+    scope.get<{ Params: { space: string }; Querystring: { ticket?: string } }>("/bff/spaces/:space/live", { websocket: true }, (socket, request) => {
+      const space = spaceKey(request.params.space);
+      if (spaceNameProblem(space) || !store.exists(space)) {
+        socket.close(4404, "no such space");
+        return;
+      }
+      const holder = deps.tickets.read(request.query.ticket, space);
+      // A private team's space shows its people only to people with a ticket.
+      if (!holder && !store.publicInfo(space).public) {
+        socket.send(JSON.stringify({ t: "refused", why: "This space is not public. Enter it from saha.ing to join." }));
+        socket.close(4403, "not public");
+        return;
+      }
+      const seat = deps.live.join(space, socket, holder);
+      socket.on("message", (data: Buffer) => seat.receive(data.toString("utf8")));
+      socket.on("close", () => seat.leave());
+      socket.on("error", () => seat.leave());
+    });
+  });
+
+  // three.js, served from here so a space needs no outside CDN (some are slow
+  // or blocked where our people are): /kit/three/three.module.js,
+  // /kit/three/three.core.js and /kit/three/addons/<path> (three/examples/jsm).
+  // three exports no package.json; its main entry is build/three.cjs, so the
+  // package is two levels up from that.
+  const threeRoot = dirname(dirname(createRequire(import.meta.url).resolve("three")));
+  app.get("/kit/three/*", async (request, reply) => {
+    const rest = siteFile(new URL(request.url, "http://placeholder").pathname.slice("/kit/three".length));
+    if (rest === null || !rest.endsWith(".js")) return reply.code(404).send("not found");
+    const [dir, file] = rest.startsWith("addons/") ? [join(threeRoot, "examples", "jsm"), rest.slice("addons/".length)] : [join(threeRoot, "build"), rest];
+    if (!(await stat(join(dir, file)).catch(() => null))?.isFile()) return reply.code(404).send("not found");
+    return reply
+      .header("access-control-allow-origin", "*")
+      .header("cross-origin-resource-policy", "cross-origin")
+      .header("cache-control", "public, max-age=86400")
+      .sendFile(file, dir);
   });
 
   return { queue };

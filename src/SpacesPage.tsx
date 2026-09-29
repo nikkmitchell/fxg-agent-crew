@@ -25,12 +25,19 @@ function DeployLine({ deploy }: { deploy: DeployRecord }) {
   );
 }
 
+/** Open a space as yourself: a ticket, then the page, in a new tab. */
+async function enter(name: string): Promise<void> {
+  const answer = await bff.spaceTicket(name);
+  window.open(`${origin}${answer.path}`, "_blank", "noopener");
+}
+
 export function SpacesPage() {
   const [spaces, setSpaces] = useState<SpaceListing[] | null>(null);
   const [rooms, setRooms] = useState<string[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [making, setMaking] = useState<string | null>(null);
+  const [published, setPublished] = useState<{ name: string; title: string; here: number }[]>([]);
 
   const load = useCallback(() => {
     bff.spaces().then((answer) => {
@@ -38,7 +45,9 @@ export function SpacesPage() {
       setRooms(answer.rooms);
       setProblem(null);
     }).catch((error) => setProblem(error instanceof Error ? error.message : "Could not load your spaces."));
+    bff.publicSpaces().then((answer) => setPublished(answer.spaces)).catch(() => setPublished([]));
   }, []);
+  const visit = (name: string) => enter(name).catch((error) => setProblem(error instanceof Error ? error.message : "Could not open that space."));
   useEffect(load, [load]);
 
   const make = async (room: string) => {
@@ -61,6 +70,7 @@ export function SpacesPage() {
       <p>
         A space is a room's own website, with its own git repository: <strong>push to it and it is live</strong>, without
         touching saha.ing. Everyone in the room can clone and push, people and agents, with their saha.ing login.
+        Load saha.ing's multiplayer kit and everyone who enters sees everyone else; publish it and it gets a door in the lobby.
         The details, for agents especially, are in docs/SPACES.md in the saha.ing repository.
       </p>
       {problem ? <p className="signin-refusal" role="alert">{problem}</p> : null}
@@ -74,13 +84,32 @@ export function SpacesPage() {
           </header>
           <p className="muted-note">
             {space.live ? <>Live: <DeployLine deploy={space.live} /></> : "Nothing live yet."}
+            {space.here ? ` · ${space.here} in it now` : ""}
           </p>
-          <button type="button" className="text-button" onClick={() => setOpen(open === space.name ? null : space.name)}>
-            {open === space.name ? "Hide details" : "Clone, previews and deploys"}
-          </button>
+          <div className="space-actions">
+            <button type="button" className="primary-action" onClick={() => void visit(space.name)}>Enter as yourself</button>
+            <button type="button" className="text-button" onClick={() => setOpen(open === space.name ? null : space.name)}>
+              {open === space.name ? "Hide details" : "Clone, previews and deploys"}
+            </button>
+          </div>
+          <Publish space={space} onChanged={load} />
           {open === space.name ? <SpaceDetails name={space.name} /> : null}
         </article>
       ))}
+
+      {published.length > 0 ? (
+        <>
+          <h2>Public rooms</h2>
+          <p className="muted-note">Spaces their teams have opened to everyone. Each also has a door in the lobby.</p>
+          <div className="space-rooms">
+            {published.map((space) => (
+              <button key={space.name} type="button" className="text-button" onClick={() => void visit(space.name)}>
+                {space.title}{space.here ? ` · ${space.here} here` : ""}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
 
       {rooms.length > 0 ? (
         <>
@@ -97,6 +126,51 @@ export function SpacesPage() {
       ) : null}
       {spaces && spaces.length === 0 && rooms.length === 0 ? <p>You are not in any room yet. Join one first; its space belongs to its members.</p> : null}
     </section>
+  );
+}
+
+/**
+ * PUBLISH AS A PUBLIC ROOM: a door in the saha.ing lobby, and anybody signed
+ * in may enter as themselves. Taking it back removes the door; the site itself
+ * stays at its address, as every space's does.
+ */
+function Publish({ space, onChanged }: { space: SpaceListing; onChanged: () => void }) {
+  const [title, setTitle] = useState(space.title ?? "");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const save = async (isPublic: boolean) => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await bff.publishSpace(space.name, isPublic, title.trim() || undefined);
+      onChanged();
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : "Could not change that.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="space-publish">
+      {space.public ? (
+        <p>
+          <strong>Public room</strong>: its lobby door reads “{space.title ?? space.name}”.{" "}
+          <button type="button" className="text-button" disabled={busy} onClick={() => void save(false)}>Take the door away</button>
+        </p>
+      ) : (
+        <p>
+          <label>
+            Door title{" "}
+            <input value={title} maxLength={48} placeholder={space.name} onChange={(event) => setTitle(event.target.value)} />
+          </label>{" "}
+          <button type="button" className="text-button" disabled={busy || !space.live} onClick={() => void save(true)}>
+            Publish as a public room
+          </button>
+          {!space.live ? <span className="muted-note"> (push something live first)</span> : null}
+        </p>
+      )}
+      {problem ? <p className="signin-refusal" role="alert">{problem}</p> : null}
+    </div>
   );
 }
 

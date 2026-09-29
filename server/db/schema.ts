@@ -1269,4 +1269,23 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 45,
+    name: "spaces: public rooms in the lobby, and shared state for the multiplayer kit",
+    sql: `
+      -- A space its team has published: it gets a door in the saha.ing lobby.
+      ALTER TABLE spaces ADD COLUMN public INTEGER NOT NULL DEFAULT 0 CHECK (public IN (0,1));
+      ALTER TABLE spaces ADD COLUMN title TEXT;
+      -- What every visitor of a space sees alike (shared/space-kit.ts): small
+      -- JSON values the space's own page sets through the kit.
+      CREATE TABLE space_state (
+        space TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (space, key)
+      );
+    `,
+  },
 ];

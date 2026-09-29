@@ -2,6 +2,9 @@ import { fileURLToPath } from "node:url";
 import { registerSpacesHosting } from "./spaces/routes.js";
 import { SpaceStore } from "./spaces/store.js";
 import { SpaceAuth } from "./spaces/auth.js";
+import { SpaceLive } from "./spaces/live.js";
+import { SpaceTickets } from "./spaces/tickets.js";
+import { bodyPath } from "../shared/avatar-choice.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerIdempotency } from "./idempotency.js";
 import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
@@ -696,13 +699,30 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     prefix: basePath ? `${basePath}/` : "/",
     wildcard: false,
   });
-  // SPACES: a git repository and a deployed site per room (shared/spaces.ts).
+  // SPACES: a git repository and a deployed site per room (shared/spaces.ts),
+  // and the multiplayer kit their pages can load (shared/space-kit.ts).
+  const spaceStore = new SpaceStore(database);
+  const spaceLive = new SpaceLive(spaceStore, (body) => bodyPath(body));
   registerSpacesHosting(app, {
     spacesRoot: config.spacesRoot,
-    store: new SpaceStore(database),
+    store: spaceStore,
     auth: new SpaceAuth(client),
     sessionOf: (request) => sessions.get(request.cookies[config.cookieName]),
+    tickets: new SpaceTickets(),
+    live: spaceLive,
+    bodyOf: (username) => agentBodies.get(username),
   });
+  // A space page is sandboxed, so to it saha.ing is another origin: the kit
+  // (/kit/saha.js) and the avatar models it may load need saying they can be
+  // loaded from anywhere. Both are public files already.
+  app.addHook("onSend", async (request, reply, payload) => {
+    const path = request.url.split("?", 1)[0];
+    if (path.startsWith("/kit/") || path.startsWith("/avatars/")) {
+      reply.header("access-control-allow-origin", "*").header("cross-origin-resource-policy", "cross-origin");
+    }
+    return payload;
+  });
+  app.addHook("onClose", async () => spaceLive.stop());
 
   app.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith(`${basePath}/bff/`)) return reply.code(404).send({ error: "not found" });

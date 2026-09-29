@@ -113,4 +113,57 @@ export class SpaceStore {
   retire(id: string): void {
     this.db.prepare("UPDATE space_deploys SET status = 'retired' WHERE id = ?").run(id);
   }
+
+  // ------------------------------------------------ public rooms (migration 45)
+
+  publicInfo(name: string): { public: boolean; title: string | null } {
+    const row = this.db.prepare("SELECT public, title FROM spaces WHERE name = ?").get(name) as { public: number; title: string | null } | undefined;
+    return { public: row?.public === 1, title: row?.title ?? null };
+  }
+
+  setPublic(name: string, isPublic: boolean, title: string | null): void {
+    this.db.prepare("UPDATE spaces SET public = ?, title = ? WHERE name = ?").run(isPublic ? 1 : 0, title, name);
+  }
+
+  /** Every published space, for the lobby's doors. Only those with something live. */
+  publicSpaces(): { name: string; title: string | null }[] {
+    return (this.db.prepare(
+      "SELECT s.name, s.title FROM spaces s JOIN space_live l ON l.space = s.name AND l.branch = 'main' WHERE s.public = 1 ORDER BY s.name",
+    ).all() as { name: string; title: string | null }[]).map((row) => ({ name: row.name, title: row.title }));
+  }
+
+  // ------------------------------------------------ shared state (shared/space-kit.ts)
+
+  state(space: string): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const row of this.db.prepare("SELECT key, value FROM space_state WHERE space = ?").all(space) as { key: string; value: string }[]) {
+      try {
+        out[row.key] = JSON.parse(row.value);
+      } catch {
+        /* a value that no longer parses is left out, not fatal */
+      }
+    }
+    return out;
+  }
+
+  stateSize(space: string): { keys: number; bytes: number } {
+    const row = this.db.prepare("SELECT count(*) AS keys, coalesce(sum(length(value)), 0) AS bytes FROM space_state WHERE space = ?").get(space) as { keys: number; bytes: number };
+    return { keys: row.keys, bytes: row.bytes };
+  }
+
+  setState(space: string, key: string, value: unknown, by: string, at: string): void {
+    if (value === null) {
+      this.db.prepare("DELETE FROM space_state WHERE space = ? AND key = ?").run(space, key);
+      return;
+    }
+    this.db.prepare(
+      `INSERT INTO space_state (space, key, value, updated_by, updated_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(space, key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+    ).run(space, key, JSON.stringify(value), by, at);
+  }
+
+  stateValueBytes(space: string, key: string): number {
+    const row = this.db.prepare("SELECT length(value) AS bytes FROM space_state WHERE space = ? AND key = ?").get(space, key) as { bytes: number } | undefined;
+    return row?.bytes ?? 0;
+  }
 }

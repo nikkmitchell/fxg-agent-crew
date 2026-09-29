@@ -29,6 +29,20 @@ describe("the lobby's doors", () => {
     expect(doors[3].detail).toBe("public");
   });
 
+  it("puts published spaces after your rooms and before rooms you would have to join", () => {
+    const doors = lobbyDoors([room("saha.ing")], [room("Art")], "saha.ing", [
+      { name: "meditation.ar", title: "Meditation room", here: 2 },
+      { name: "garden", title: "A garden", here: 0 },
+    ]);
+    expect(doors.map((door) => [door.room, door.kind, door.space ?? null])).toEqual([
+      ["saha.ing", "here", null],
+      ["A garden", "space", "garden"],
+      ["Meditation room", "space", "meditation.ar"],
+      ["Art", "join", null],
+    ]);
+    expect(doors[2].detail).toBe("space · 2 here");
+  });
+
   it("draws no doors until the lists arrive, rather than claiming you are in nothing", () => {
     expect(lobbyDoors(null, null, "lobby")).toEqual([]);
     expect(lobbyDoors([room("saha.ing")], null, "lobby").map((door) => door.room)).toEqual(["saha.ing"]);

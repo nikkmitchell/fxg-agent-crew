@@ -1302,3 +1302,6 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-deploys li[data-status="retired"] { color: var(--muted); }
 .space-deploy-branch { font-weight: 700; }
 .space-deploy-problem { margin: 2px 0 0; color: var(--vermilion); }
+.space-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.space-publish { font-size: 14px; }
+.space-publish input { min-height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--canvas); font: inherit; }
