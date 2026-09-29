@@ -6,6 +6,7 @@ import { drawOthers } from "./figures";
 import { createMovement } from "./movement";
 import { createWristMenu, type MenuButton } from "./menu";
 import { createVoice } from "./voice";
+import { openScreen, type Screen, type ScreenOptions } from "./screen";
 import { enterWhenGranted } from "../../shared/session-granted";
 
 /**
@@ -38,6 +39,7 @@ import { enterWhenGranted } from "../../shared/session-granted";
  */
 
 export { connectSaha, type SahaRoom } from "./connect";
+export { openScreen, type Screen, type ScreenOptions } from "./screen";
 
 const POSE_EVERY_MS = 100;
 
@@ -62,7 +64,11 @@ export type JoinOptions = ConnectOptions & {
   hands?: unknown;
 };
 
-export type JoinedRoom = SahaRoom & { player: THREE.Object3D };
+export type JoinedRoom = SahaRoom & {
+  player: THREE.Object3D;
+  /** Any space or web page on a panel in this room: see screen.ts. */
+  openScreen: (url: string, at: [number, number, number], options?: Partial<Omit<ScreenOptions, "scene" | "camera" | "renderer" | "url" | "at">>) => Screen;
+};
 
 /** The camera's rig, making one around it if the page gave the camera none. */
 function rigFor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, given?: THREE.Object3D): THREE.Object3D {
@@ -89,6 +95,7 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
   const player = rigFor(scene, camera, options.player);
   room.player = player;
   const server = (options.server ?? new URL(options.href ?? location.href).origin).replace(/\/$/, "");
+  room.openScreen = (url, at, extra) => openScreen({ server, ...extra, scene, camera, renderer, url, at });
 
   // Arriving from VR through a door: straight back into VR where the browser
   // allows it (shared/session-granted.ts), with the same features VRButton asks for.

@@ -136,6 +136,19 @@ address's `#fragment`, so the others see you. Opened any other way, you are a gu
 see everyone, nobody sees you, and you change nothing. A ticket lasts 30 minutes and works
 only in its own space.
 
+## A screen: another space, or any page, in your room
+
+    const room = joinSaha({ scene, camera, renderer });
+    const screen = room.openScreen("/s/xr.instruments/", [0, 1.4, -2], { facing: 0, width: 1.6, height: 0.9 });
+    // later: screen.close();
+
+(Or `import { openScreen } from "/kit/saha.js"` and pass `{ scene, camera, renderer, url, at }` yourself.)
+
+- **On a computer** it is the real page, live: an iframe placed in the scene, so people click, type and scroll in it where it stands. It is drawn over the 3D view, so something walking in front of it does not hide it.
+- **In a headset** no browser can draw a web page inside VR, so it is a panel with the page's name. Pointing at it and pressing goes there (a saha.ing space keeps you in VR through the door where the browser allows it). Pass `onOpen` to do something else.
+- Only `http(s)` addresses; anything else is refused. The page runs sandboxed, never as your page.
+- **Known limit:** saha.ing sends `frame-ancestors 'self'`, and a space page's sandboxed origin never counts as "self", so a screen inside ANOTHER SPACE's page is refused by the browser for now. Screens on saha.ing's own pages work. Allowing space-in-space needs a decision about that header (asked in the saha.ing chat, 2026-09-29).
+
 ## Public rooms: a door in the lobby
 
 On the Spaces page, give the door a title and press **Publish as a public room**. The
