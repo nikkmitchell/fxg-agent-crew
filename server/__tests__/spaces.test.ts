@@ -56,7 +56,7 @@ let store: SpaceStore;
 let live: SpaceLive;
 const benchCalls: string[] = [];
 
-const gitAs = (user: string, pass: string, cwd: string, ...args: string[]) =>
+const gitAs = (_user: string, _pass: string, cwd: string, ...args: string[]) =>
   run("git", ["-c", "credential.helper=", "-c", "user.name=Test", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main", ...args], {
     cwd,
     env: { PATH: process.env.PATH, HOME: work, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1" },
@@ -269,7 +269,7 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     you: { id: string } | null;
     guest: boolean;
     connected: boolean;
-    people: Map<string, { id: string; name: string; body: string | null; bodyUrl: string | null; p: number[] | null }>;
+    people: Map<string, { id: string; name: string; body: string | null; bodyUrl: string | null; p: number[] | null; voice?: boolean }>;
     state: Record<string, unknown>;
     on: (event: string, listener: (...args: unknown[]) => void) => () => void;
     pose: (p: number[], q: number[]) => void;

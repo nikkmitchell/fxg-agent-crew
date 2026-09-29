@@ -19,7 +19,7 @@ import type { Session } from "../session.js";
 import { doorTitle, spaceEntryPath } from "../../shared/space-kit.js";
 import { catalogueOf, KIT_PIECES, pieceUrl } from "../../shared/space-bench.js";
 import { iceServersFrom } from "../space/ice.js";
-import type { SpaceLive } from "./live.js";
+import { keepAlive, type SpaceLive } from "./live.js";
 import type { SpaceTickets } from "./tickets.js";
 import { WebharnessError } from "../webharness/client.js";
 import { SpaceAuth, parseBasic, type GitIdentity } from "./auth.js";
@@ -687,9 +687,16 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
         page: request.query.page ?? null,
         renew: holder ? () => deps.tickets.issue(holder) : undefined,
       });
+      const stopBeating = keepAlive(socket);
       socket.on("message", (data: Buffer) => seat.receive(data.toString("utf8")));
-      socket.on("close", () => seat.leave());
-      socket.on("error", () => seat.leave());
+      socket.on("close", () => {
+        stopBeating();
+        seat.leave();
+      });
+      socket.on("error", () => {
+        stopBeating();
+        seat.leave();
+      });
     });
   });
 

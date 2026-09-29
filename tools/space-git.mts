@@ -99,8 +99,10 @@ if (command === "clone") {
   if (!dir || !message) throw new Error('usage: space-git.mts commit <dir> -m "what changed"');
   // Everything changed, added or removed, like `git add -A`.
   for (const [file, head, workdir] of await git.statusMatrix({ fs, dir })) {
-    if (workdir === 0 && head === 1) await git.remove({ fs, dir, filepath: file });
-    else if (workdir !== head || workdir === 2) await git.add({ fs, dir, filepath: file });
+    // statusMatrix: head 0/1 (absent/present), workdir 0/1/2 (absent/same/changed).
+    const [inHead, onDisk] = [Number(head), Number(workdir)];
+    if (onDisk === 0 && inHead === 1) await git.remove({ fs, dir, filepath: file });
+    else if (onDisk === 2) await git.add({ fs, dir, filepath: file });
   }
   const sha = await git.commit({ fs, dir, message, author: author() });
   console.log(`committed ${sha.slice(0, 7)}`);
@@ -109,7 +111,9 @@ if (command === "clone") {
   if (!dir) throw new Error("usage: space-git.mts push <dir>");
   const branch = await git.currentBranch({ fs, dir });
   if (!branch) throw new Error("Not on a branch.");
-  const result = await git.push({ fs, http, dir, remote: "origin", ref: branch, onAuth, onAuthFailure, onMessage: (line) => process.stdout.write(line) });
+  const result = await git.push({ fs, http, dir, remote: "origin", ref: branch, onAuth, onAuthFailure, onMessage: (line) => {
+    process.stdout.write(line);
+  } });
   if (!result.ok) throw new Error(`push refused: ${JSON.stringify(result.refs)}`);
   console.log(`\npushed ${branch}`);
 } else {

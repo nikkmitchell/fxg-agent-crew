@@ -24,6 +24,7 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     logLevel: "silent",
     bodyCacheRoot: "",
     speechCacheRoot: "",
+    spacesRoot: "",
     ...overrides,
   };
 }

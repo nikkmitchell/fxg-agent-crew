@@ -30,6 +30,42 @@ type Member = {
 
 type Room = { members: Set<Member>; dirty: boolean; quietSince: number };
 
+/** How often the server asks each space socket whether it is still there. */
+export const HEARTBEAT_MS = 30_000;
+
+type Pingable = { ping(): void; terminate(): void; on(event: "pong", listener: () => void): unknown };
+
+/**
+ * A SEAT WHOSE PAGE HAS GONE, GONE. A tab closed on a sleeping laptop, or a
+ * network that dropped, never sends a close, so its seat stayed: two hours
+ * after Mica closed three tabs, xr.instruments still counted "3 here", all
+ * baiwei2, all standing where they arrived. Every HEARTBEAT_MS the socket is
+ * pinged (browsers answer on their own); one that has not answered the
+ * previous ping is ended, and its seat leaves with it. Returns the stop.
+ */
+export function keepAlive(socket: Pingable, everyMs = HEARTBEAT_MS): () => void {
+  let answered = true;
+  socket.on("pong", () => {
+    answered = true;
+  });
+  const timer = setInterval(() => {
+    if (!answered) {
+      clearInterval(timer);
+      socket.terminate();
+      return;
+    }
+    answered = false;
+    try {
+      socket.ping();
+    } catch {
+      clearInterval(timer);
+      socket.terminate();
+    }
+  }, everyMs);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
 /** How often a person in a space gets a fresh ticket: well inside KIT_LIMITS.ticketMs. */
 export const RENEW_MS = 10 * 60_000;
 

@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { KIT_LIMITS } from "../../shared/space-kit.js";
-import { RENEW_MS, SpaceLive, type LiveSocket } from "../spaces/live.js";
+import { HEARTBEAT_MS, keepAlive, RENEW_MS, SpaceLive, type LiveSocket } from "../spaces/live.js";
 import { SpaceTickets, ticketKey } from "../spaces/tickets.js";
 import { tempDir } from "./test-config.js";
 
@@ -57,7 +57,7 @@ describe("one seat per page (Mica, 6319: two tabs showed \"6 here\")", () => {
     live.join("xr.instruments", again.live, nikk, { page: "page-aaaaaaaa" });
     expect(first.closed).toEqual([4000]);
     expect(live.count("xr.instruments")).toBe(1);
-    expect((again.sent.find((m) => m.t === "hello") as { you: { id: string } }).you.id).toBe("Nikk2");
+    expect((again.sent.find((m) => m.t === "hello") as unknown as { you: { id: string } }).you.id).toBe("Nikk2");
     live.stop();
   });
 
@@ -67,7 +67,7 @@ describe("one seat per page (Mica, 6319: two tabs showed \"6 here\")", () => {
     const other = socket();
     live.join("xr.instruments", other.live, nikk, { page: "page-bbbbbbbb" });
     expect(live.count("xr.instruments")).toBe(2);
-    expect((other.sent.find((m) => m.t === "hello") as { you: { id: string } }).you.id).toBe("Nikk2~2");
+    expect((other.sent.find((m) => m.t === "hello") as unknown as { you: { id: string } }).you.id).toBe("Nikk2~2");
     live.stop();
   });
 
@@ -83,5 +83,38 @@ describe("one seat per page (Mica, 6319: two tabs showed \"6 here\")", () => {
     vi.advanceTimersByTime(RENEW_MS * 2);
     expect(made).toBe(2);
     live.stop();
+  });
+});
+
+describe("a seat whose page has gone, gone (3 ghost seats in xr.instruments, 2026-09-30)", () => {
+  const pingable = () => {
+    let onPong: () => void = () => {};
+    const log: string[] = [];
+    return { log, pong: () => onPong(), socket: { ping: () => log.push("ping"), terminate: () => log.push("terminate"), on: (_: "pong", listener: () => void) => (onPong = listener) } };
+  };
+
+  it("keeps a socket that answers, and ends one that does not", () => {
+    vi.useFakeTimers();
+    const alive = pingable();
+    keepAlive(alive.socket);
+    for (let beat = 0; beat < 4; beat += 1) {
+      vi.advanceTimersByTime(HEARTBEAT_MS);
+      alive.pong();
+    }
+    expect(alive.log).toEqual(["ping", "ping", "ping", "ping"]);
+
+    const gone = pingable();
+    keepAlive(gone.socket);
+    vi.advanceTimersByTime(HEARTBEAT_MS * 3);
+    expect(gone.log).toEqual(["ping", "terminate"]);
+  });
+
+  it("stops asking once the socket has closed", () => {
+    vi.useFakeTimers();
+    const closed = pingable();
+    const stop = keepAlive(closed.socket);
+    stop();
+    vi.advanceTimersByTime(HEARTBEAT_MS * 3);
+    expect(closed.log).toEqual([]);
   });
 });

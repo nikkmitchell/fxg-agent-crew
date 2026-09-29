@@ -22,7 +22,7 @@ function app(upstream: Partial<WebharnessClient> = {}) {
   return { server, calls, tick: (ms: number) => { clock += ms; } };
 }
 
-const form = { username: "lotus", password: "calm-water", channel: "email", target: "lotus@example.com", code: "123456" };
+const form = { username: "lotus", password: "calm-water", channel: "email" as const, target: "lotus@example.com", code: "123456" };
 
 describe("signing up on saha.ing (Nikk, 6130)", () => {
   it("creates the WebHarness account, then signs in by the ordinary path", async () => {
