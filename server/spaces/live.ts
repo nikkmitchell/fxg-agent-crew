@@ -52,12 +52,17 @@ export class SpaceLive {
     this.rooms.set(space, room);
     let person: KitPerson | null = null;
     if (holder) {
-      // A second tab of the same person is a second figure, named the same.
-      const taken = new Set([...room.members].map((member) => member.person?.id));
-      let id = holder.username;
-      for (let n = 2; taken.has(id); n += 1) id = `${holder.username}~${n}`;
+      // ONE FIGURE PER PERSON (Baiwei, 6171: a second tab showed "3 of us (2
+      // baiweis)"). The newest tab is you; an older one keeps watching, as a
+      // guest, and is told why.
+      for (const other of room.members) {
+        if (other.person?.name.toLowerCase() !== holder.username.toLowerCase()) continue;
+        other.person = null;
+        this.send(other, { t: "refused", why: "You entered this space in another tab or window; this one is now only watching." });
+        this.send(other, { t: "hello", you: null, guest: true, space, state: this.store.state(space), people: [] });
+      }
       person = {
-        id,
+        id: holder.username,
         name: holder.username,
         body: holder.body,
         bodyUrl: holder.body ? this.bodyUrl(holder.body) : null,
