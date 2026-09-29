@@ -26,9 +26,13 @@ function DeployLine({ deploy }: { deploy: DeployRecord }) {
 }
 
 /** Open a space as yourself: a ticket, then the page, in a new tab. */
+/**
+ * Open a space as yourself. /go/<space> makes the ticket on the server and
+ * forwards in, so the tab opens straight from the click: opening it after
+ * awaiting a ticket here was a popup the browser blocked (Mica, 6316).
+ */
 async function enter(name: string): Promise<void> {
-  const answer = await bff.spaceTicket(name);
-  window.open(`${origin}${answer.path}`, "_blank", "noopener");
+  window.open(`${origin}/go/${encodeURIComponent(name)}`, "_blank", "noopener");
 }
 
 export function SpacesPage() {
