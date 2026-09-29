@@ -257,6 +257,9 @@ export function joinSaha(options) {
       if (!figure) {
         figure = figureFor(person);
         figures.set(person.id, figure);
+        const said = pendingSay.get(person.id);
+        pendingSay.delete(person.id);
+        if (said && said.until > performance.now()) showSay(figure, said.text, said.until);
       }
       if (person.p) figure.target = new THREE.Vector3(...person.p);
       if (person.q) figure.quat = new THREE.Quaternion(...person.q);
@@ -271,17 +274,25 @@ export function joinSaha(options) {
     }
   });
 
-  room.on("say", (message) => {
-    const figure = figures.get(message.id);
-    if (!figure) return;
+  // A line can arrive before its speaker's figure does (somebody speaks the
+  // moment they arrive): keep it, and show it when the figure appears.
+  const pendingSay = new Map();
+  const SAY_MS = 9000;
+  function showSay(figure, text, until) {
     if (figure.bubble) {
       figure.root.remove(figure.bubble);
       figure.bubble.material.map.dispose();
       figure.bubble.material.dispose();
     }
-    figure.bubble = label(message.text.length > 40 ? `${message.text.slice(0, 39)}…` : message.text, "rgba(255,255,255,.92)");
+    figure.bubble = label(text.length > 40 ? `${text.slice(0, 39)}…` : text, "rgba(255,255,255,.92)");
     figure.root.add(figure.bubble);
-    figure.bubbleUntil = performance.now() + 6000;
+    figure.bubbleUntil = until;
+  }
+  room.on("say", (message) => {
+    const until = performance.now() + SAY_MS;
+    const figure = figures.get(message.id);
+    if (figure) showSay(figure, message.text, until);
+    else pendingSay.set(message.id, { text: message.text, until });
   });
 
   function update() {
