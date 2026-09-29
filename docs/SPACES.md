@@ -235,3 +235,18 @@ sandbox is what keeps one space's code from acting as a saha.ing visitor.
 - The kit: `src/kit/` (built by `vite.kit.config.ts` into `/kit/saha.js`), `shared/space-kit.ts` (the wire),
   `server/spaces/live.ts` (the hub, `/bff/spaces/<space>/live`), `server/spaces/tickets.ts`.
 - nginx: `location /git/` allows 500 MB bodies without buffering (`deploy/nginx.conf`).
+
+## Items that follow you
+
+A space can give the person in it an item, and every space they enter afterwards sees it:
+
+```js
+room.give({ name: "Red mallet", url: "/s/xr.instruments/pieces/marimba.js", data: { color: "red" } });
+room.on("items", (items) => { /* [{ id, name, from, url, data, at }] */ });
+room.items;          // what they carry right now
+room.takeBack(id);   // only the space that gave an item can take it back
+```
+
+`url` names the piece that draws the item (a `/s/...` address from the catalogue), so another
+space can import that piece and show it. Up to 100 items per person, 2 KB of `data` each.
+Guests carry nothing.

@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { DeployRecord } from "../../shared/spaces.js";
 import type { BenchPiece } from "../../shared/space-bench.js";
+import type { SpaceItem } from "../../shared/space-kit.js";
 
 /**
  * What saha.ing remembers about spaces (migration 44): that a space exists,
@@ -199,5 +200,36 @@ export class SpaceStore {
   stateValueBytes(space: string, key: string): number {
     const row = this.db.prepare("SELECT length(value) AS bytes FROM space_state WHERE space = ? AND key = ?").get(space, key) as { bytes: number } | undefined;
     return row?.bytes ?? 0;
+  }
+
+  // ------------------------------------------------ items that follow you (migration 47)
+
+  items(username: string): SpaceItem[] {
+    const rows = this.db.prepare("SELECT id, from_space, name, url, data, created_at FROM carried_items WHERE username = ? ORDER BY created_at, id").all(username) as {
+      id: string; from_space: string; name: string; url: string | null; data: string; created_at: string;
+    }[];
+    return rows.map((row) => {
+      let data: unknown = null;
+      try {
+        data = JSON.parse(row.data);
+      } catch {
+        /* unreadable data is shown as none */
+      }
+      return { id: row.id, name: row.name, from: row.from_space, url: row.url, data, at: row.created_at };
+    });
+  }
+
+  itemCount(username: string): number {
+    return (this.db.prepare("SELECT count(*) AS n FROM carried_items WHERE username = ?").get(username) as { n: number }).n;
+  }
+
+  addItem(username: string, item: SpaceItem): void {
+    this.db.prepare("INSERT INTO carried_items (id, username, from_space, name, url, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(item.id, username, item.from, item.name, item.url, JSON.stringify(item.data ?? null), item.at);
+  }
+
+  /** Take an item back: only the space that gave it may. True when one went. */
+  removeItem(username: string, id: string, space: string): boolean {
+    return Number(this.db.prepare("DELETE FROM carried_items WHERE username = ? AND id = ? AND from_space = ?").run(username, id, space).changes) > 0;
   }
 }
