@@ -9,7 +9,7 @@ import { registerAgentRoutes } from "./routes/agents.js";
 import { registerIdempotency } from "./idempotency.js";
 import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
 import { DatabaseSync } from "node:sqlite";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
@@ -711,7 +711,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     auth: new SpaceAuth(client),
     sessionOf: (request) => sessions.get(request.cookies[config.cookieName]),
     // Beside the spaces, never in the repo; made once (server/spaces/tickets.ts).
-    tickets: new SpaceTickets(ticketKey(join(dirname(config.spacesRoot), "space-tickets.key"))),
+    // `<spaces root>.tickets-key`: beside the spaces on the box, and matched by
+    // .gitignore wherever a checkout runs the server (tests, dev).
+    tickets: new SpaceTickets(ticketKey(`${config.spacesRoot.replace(/[\\/]+$/, "")}.tickets-key`)),
     live: spaceLive,
     bodyOf: (username) => agentBodies.get(username),
     bodyFile: (slug) => bodyFiles.want(slug),
