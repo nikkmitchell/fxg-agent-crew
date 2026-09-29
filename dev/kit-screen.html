@@ -10,6 +10,7 @@
 <script type="module">
   import * as THREE from "three";
   import { openScreen } from "/src/kit/screen.ts";
+  import { openDoor } from "/src/kit/door.ts";
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(innerWidth, innerHeight);
   document.body.appendChild(renderer.domElement);
@@ -26,9 +27,15 @@
   cube.position.set(-1.2, 1, -1);
   scene.add(cube);
   const screen = openScreen({ scene, camera, renderer, url: params.get("url") ?? "/dev/dawn-preview.html", at: [0, 1.4, -1.5], facing: 0.25, title: "A space" });
-  Object.assign(window, { screen, scene, camera, renderer });
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 2));
+  const player = new THREE.Group();
+  scene.add(player);
+  window.entered = null;
+  const door = openDoor({ scene, camera, renderer, player, space: "xr.instruments", at: [1.6, 0, -1.2], facing: -0.5, onEnter: (to) => (window.entered = to) });
+  Object.assign(window, { screen, door, player, scene, camera, renderer });
   renderer.setAnimationLoop(() => {
     cube.rotation.y += 0.01;
+    door.update();
     renderer.render(scene, camera);
   });
 </script>

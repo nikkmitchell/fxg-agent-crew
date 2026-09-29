@@ -7,6 +7,7 @@ import { createMovement } from "./movement";
 import { createWristMenu, type MenuButton } from "./menu";
 import { createVoice } from "./voice";
 import { openScreen, type Screen, type ScreenOptions } from "./screen";
+import { openDoor, type Door, type DoorOptions } from "./door";
 import { enterWhenGranted } from "../../shared/session-granted";
 
 /**
@@ -40,6 +41,7 @@ import { enterWhenGranted } from "../../shared/session-granted";
 
 export { connectSaha, type SahaRoom } from "./connect";
 export { openScreen, type Screen, type ScreenOptions } from "./screen";
+export { openDoor, type Door, type DoorOptions } from "./door";
 
 const POSE_EVERY_MS = 100;
 
@@ -68,6 +70,8 @@ export type JoinedRoom = SahaRoom & {
   player: THREE.Object3D;
   /** Any space or web page on a panel in this room: see screen.ts. */
   openScreen: (url: string, at: [number, number, number], options?: Partial<Omit<ScreenOptions, "scene" | "camera" | "renderer" | "url" | "at">>) => Screen;
+  /** A door to another space, walked through or pointed at: see door.ts. */
+  openDoor: (space: string, at: [number, number, number], options?: Partial<Omit<DoorOptions, "scene" | "camera" | "renderer" | "player" | "space" | "at">>) => Door;
 };
 
 /** The camera's rig, making one around it if the page gave the camera none. */
@@ -96,6 +100,14 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
   room.player = player;
   const server = (options.server ?? new URL(options.href ?? location.href).origin).replace(/\/$/, "");
   room.openScreen = (url, at, extra) => openScreen({ server, ...extra, scene, camera, renderer, url, at });
+  const doors = new Set<Door>();
+  room.openDoor = (space, at, extra) => {
+    const door = openDoor({ server, ...extra, scene, camera, renderer, player, space, at });
+    const close = door.close;
+    const kept: Door = { ...door, close: () => { doors.delete(kept); close(); } };
+    doors.add(kept);
+    return kept;
+  };
 
   // Arriving from VR through a door: straight back into VR where the browser
   // allows it (shared/session-granted.ts), with the same features VRButton asks for.
@@ -186,6 +198,7 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
       room.pose([position.x, position.y, position.z], [quaternion.x, quaternion.y, quaternion.z, quaternion.w], handAt(handOf.get("left")), handAt(handOf.get("right")));
     }
     others.update(now);
+    for (const door of doors) door.update();
   };
 
   // Run every frame the page draws, in a headset too.

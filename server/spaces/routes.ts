@@ -517,6 +517,36 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   });
 
   /**
+   * A DOOR BETWEEN SPACES (src/kit/door.ts, Sill's plan C). A space page is
+   * sandboxed and carries no saha.ing sign-in, so it cannot ask for a ticket
+   * itself; its door sends you HERE, a saha.ing page of the same site, which
+   * has your sign-in, makes the ticket and forwards you in. A navigation made
+   * from inside VR, and forwarded within the site, is what lets the headset
+   * browser keep you in VR through the door (shared/session-granted.ts).
+   *
+   * Not signed in, or not allowed in: you arrive as a guest, and the space
+   * says what it says to guests. The ticket travels in the #fragment, which
+   * no browser sends anywhere.
+   */
+  app.get<{ Params: { space: string } }>("/go/:space", async (request, reply) => {
+    const space = spaceKey(request.params.space);
+    if (!store.exists(space)) return reply.code(404).send({ code: "NO_SPACE", error: `There is no space called ${space}.` });
+    reply.header("cache-control", "no-store");
+    const session = deps.sessionOf(request);
+    if (!session) return reply.redirect(`/s/${space}/`, 302);
+    const me = { username: session.username, token: session.token };
+    if (!store.publicInfo(space).public) {
+      try {
+        if (!(await auth.isMember(me, space))) return reply.redirect(`/s/${space}/`, 302);
+      } catch {
+        return reply.redirect(`/s/${space}/`, 302);
+      }
+    }
+    const ticket = deps.tickets.issue({ username: me.username, body: deps.bodyOf(me.username), space });
+    return reply.redirect(spaceEntryPath(space, ticket), 302);
+  });
+
+  /**
    * A SAHA.ING BODY, FOR A SPACE PAGE. Catalogue bodies are CC0 but fetched
    * and cached on demand, so saha.ing only serves them to somebody signed in;
    * a space page has no sign-in, so its ticket for this space stands in for

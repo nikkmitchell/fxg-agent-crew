@@ -299,6 +299,23 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     expect((await ticketFor("baiwei")).statusCode).toBe(403);
   });
 
+  it("walks you through a door: a member gets a ticket in the fragment, anybody else arrives as a guest (plan C)", async () => {
+    const go = (who: string | null, space = "meditation.ar") => app.inject({ method: "GET", url: `/go/${space}`, headers: who ? { cookie: `who=${who}` } : {} });
+    const member = await go("nikk");
+    expect(member.statusCode).toBe(302);
+    expect(member.headers.location).toMatch(/^\/s\/meditation\.ar\/#saha=.+/);
+    expect(member.headers["cache-control"]).toBe("no-store");
+    const ticket = decodeURIComponent(String(member.headers.location).split("#saha=")[1]);
+    const walkedIn = await join(ticket);
+    await until(() => walkedIn.connected);
+    expect(walkedIn.guest).toBe(false);
+    walkedIn.leave();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect((await go("baiwei")).headers.location).toBe("/s/meditation.ar/");
+    expect((await go(null)).headers.location).toBe("/s/meditation.ar/");
+    expect((await go("nikk", "no-such-space")).statusCode).toBe(404);
+  });
+
   it("shows each person to the other: pose, name and chosen body", async () => {
     const nikk = await join((await ticketFor("nikk")).json().ticket);
     const sill = await join((await ticketFor("sill")).json().ticket);
