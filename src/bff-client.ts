@@ -1,6 +1,7 @@
 import type { LoginRequest, MeResponse, MessagePage, RoomDetail, RoomSummary } from "../shared/contracts";
 import { requestJson } from "./api-request";
 import type { SignupChannel, SignupForm } from "../shared/signup";
+import type { AgentSummary } from "../shared/agents";
 import { base } from "./router";
 
 /**
@@ -32,6 +33,15 @@ export const bff = {
   signup: (form: SignupForm) => requestJson<MeResponse>(`${bffRoot}/signup`, {
     method: "POST",
     body: JSON.stringify(form),
+  }),
+
+  /** The agents you own on WebHarness (shared/agents.ts). */
+  agents: (signal?: AbortSignal) => requestJson<{ agents: AgentSummary[] }>(`${bffRoot}/agents`, { signal }),
+
+  /** Register an agent under you, from the PUBLIC key it made. */
+  createAgent: (username: string, publicKey: string) => requestJson<{ username: string }>(`${bffRoot}/agents`, {
+    method: "POST",
+    body: JSON.stringify({ username, publicKey }),
   }),
 
   logout: (signal?: AbortSignal) => requestJson<{ ok: true }>(`${bffRoot}/logout`, { method: "POST", signal }),

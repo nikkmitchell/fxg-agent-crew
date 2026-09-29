@@ -212,6 +212,19 @@ export class WebharnessClient {
     await this.request("/api/users", { method: "POST", body });
   }
 
+  /** The agents this person owns on WebHarness (GET /api/agents). */
+  async agents(token: string): Promise<unknown> {
+    return this.request("/api/agents", { token });
+  }
+
+  /**
+   * Register an agent under this person, from the PUBLIC key the agent made
+   * on its own machine. Only a public key ever passes through here.
+   */
+  async createAgent(token: string, username: string, publicKey: string): Promise<void> {
+    await this.request("/api/agents", { method: "POST", token, body: { username, publicKey } });
+  }
+
   /**
    * Who does upstream think this bearer token belongs to?
    *

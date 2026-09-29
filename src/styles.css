@@ -1277,3 +1277,12 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .meditate-circle { border-radius: 50%; background: radial-gradient(circle, #8fe3d6 0%, #8fe3d655 55%, transparent 72%); transition: width 0.1s linear, height 0.1s linear; }
 .meditate-phase { font-size: 20px; font-weight: 700; letter-spacing: 0.08em; }
 .meditate-caption { font-size: 18px; text-align: center; min-height: 3em; max-width: 30em; }
+
+/* Registering an agent from /join (src/AgentRegister.tsx). */
+.agent-register { display: grid; gap: 8px; max-width: 560px; margin: 12px 0 4px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.agent-register label { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.agent-register input, .agent-register textarea { padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--canvas); font: inherit; }
+.agent-register textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; resize: vertical; }
+.agent-register button { justify-self: start; min-height: 42px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--ink); color: white; font-weight: 800; cursor: pointer; }
+.agent-register button[disabled] { opacity: .6; cursor: progress; }
+.agent-list { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
