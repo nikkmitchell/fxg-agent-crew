@@ -5,6 +5,7 @@ import { connectSaha, type ConnectOptions, type SahaRoom } from "./connect";
 import { drawOthers } from "./figures";
 import { createMovement } from "./movement";
 import { createWristMenu, type MenuButton } from "./menu";
+import { createVoice } from "./voice";
 
 /**
  * saha.ing FOR SPACES.   https://saha.ing/kit/saha.js
@@ -48,6 +49,8 @@ export type JoinOptions = ConnectOptions & {
   movement?: boolean;
   menu?: boolean;
   vrButton?: boolean;
+  /** Voice chat (listening automatic, microphone by choice). */
+  voice?: boolean;
   badge?: boolean;
   comfort?: Comfort;
   /** Extra wrist-menu buttons, after the kit's own. */
@@ -125,12 +128,25 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
     return url.startsWith("/bff/") && ticket ? `${absolute}?ticket=${encodeURIComponent(ticket)}` : absolute;
   });
   const movement = options.movement === false ? null : createMovement({ renderer, player, camera, comfort: options.comfort });
+  const voice = options.voice === false ? null : createVoice(room, { server, send: (message) => room.send(message), onSignal: (listener) => room.on("signal", listener) });
   const menu = options.menu === false ? null : createWristMenu({ renderer, player, camera });
-  menu?.setButtons([
-    { label: "Back to saha.ing", onPress: backToSaha },
-    { label: "Leave VR", onPress: leaveVr },
-    ...(options.buttons ?? []),
-  ]);
+  let voiceNote: string | null = null;
+  const toggleTalking = async () => {
+    if (!voice) return;
+    const result = await voice.setTalking(!voice.talking());
+    voiceNote = result.ok ? null : result.why;
+    buttons();
+    showBadge();
+  };
+  const buttons = () =>
+    menu?.setButtons([
+      { label: "Back to saha.ing", onPress: backToSaha },
+      ...(voice && !voice.blocked() ? [{ label: voice.talking() ? "Microphone off" : "Microphone on", onPress: () => void toggleTalking() }] : []),
+      { label: "Leave VR", onPress: leaveVr },
+      ...(options.buttons ?? []),
+    ]);
+  buttons();
+  let showBadge = () => undefined as void;
 
   const position = new THREE.Vector3();
   const quaternion = new THREE.Quaternion();
@@ -174,15 +190,23 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
     back.href = `${server}/`;
     back.target = "_top";
     back.style.cssText = "color:#9cc3ff;text-decoration:none";
-    tag.append(text, back);
+    const mic = document.createElement("button");
+    mic.style.cssText = "border:0;border-radius:999px;padding:3px 9px;background:#2d6cdf;color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer";
+    mic.addEventListener("click", () => void toggleTalking());
+    tag.append(text, ...(voice ? [mic] : []), back);
     const show = () => {
       const count = room.people.size;
+      const talkers = [...room.people.values()].filter((person) => person.voice).length;
       text.textContent = !room.connected
         ? "saha.ing · connecting…"
         : room.guest
           ? `saha.ing · watching · ${count} here`
-          : `saha.ing · ${count} here`;
+          : `saha.ing · ${count} here${talkers ? ` · ${talkers} talking` : ""}${voiceNote ? ` · ${voiceNote}` : ""}`;
+      mic.hidden = room.guest || !room.connected;
+      mic.textContent = voice?.talking() ? "Mic off" : "Mic on";
+      mic.title = voice?.blocked() ?? "";
     };
+    showBadge = show;
     for (const event of ["people", "connection", "ready"] as const) room.on(event as "ready", show);
     room.on("refused", (why) => {
       text.textContent = `saha.ing · ${why}`;

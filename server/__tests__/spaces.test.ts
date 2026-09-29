@@ -275,6 +275,7 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     pose: (p: number[], q: number[]) => void;
     set: (key: string, value: unknown) => void;
     say: (text: string) => void;
+    send: (message: unknown) => void;
     leave: () => void;
   };
   const until = async (check: () => boolean, ms = 4000) => {
@@ -396,6 +397,26 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     expect((await page(`/bff/spaces/meditation.ar/body/nobody.vrm?ticket=${ticket}`)).status).toBe(404);
   });
 
+  it("passes a call's setup to the one person it is for, and shows who has their microphone on", async () => {
+    const nikk = await join((await ticketFor("nikk")).json().ticket);
+    const sill = await join((await ticketFor("sill")).json().ticket);
+    const baiwei = await join((await ticketFor("baiwei")).json().ticket).catch(() => null);
+    const heardBySill: unknown[][] = [];
+    sill.on("signal", (...args) => heardBySill.push(args));
+    try {
+      await until(() => nikk.connected && sill.connected);
+      nikk.send({ t: "voice", on: true });
+      await until(() => sill.people.get(nikk.you!.id)?.voice === true);
+      nikk.send({ t: "signal", to: sill.you!.id, s: { kind: "offer", sdp: "v=0 fake" } });
+      await until(() => heardBySill.length === 1);
+      expect(heardBySill[0]).toEqual([nikk.you!.id, { kind: "offer", sdp: "v=0 fake" }]);
+    } finally {
+      nikk.leave();
+      sill.leave();
+      baiwei?.leave();
+    }
+  });
+
   it("serves three.js and its addons from saha.ing, to any origin, and nothing outside them", async () => {
     const three = await page("/kit/three/three.module.js");
     expect(three.status).toBe(200);
@@ -416,6 +437,9 @@ describe("what the kit accepts on the wire", () => {
     expect(readClientMessage({ t: "set", k: "bad key!", v: 1 })).toBeNull();
     expect(readClientMessage({ t: "say", text: "   " })).toBeNull();
     expect(readClientMessage({ t: "exec", code: "x" })).toBeNull();
+    expect(readClientMessage({ t: "signal", to: "nikk", s: { kind: "offer", sdp: "x".repeat(20_000) } })).toBeNull();
+    expect(readClientMessage({ t: "signal", to: "nikk", s: { kind: "hack" } })).toBeNull();
+    expect(readClientMessage({ t: "voice", on: "yes" })).toEqual({ t: "voice", on: false });
   });
 });
 

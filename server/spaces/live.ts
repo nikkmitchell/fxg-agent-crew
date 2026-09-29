@@ -69,6 +69,7 @@ export class SpaceLive {
         q: null,
         hl: null,
         hr: null,
+        voice: false,
       };
     }
     const member: Member = { socket, person, poses: [], writes: [] };
@@ -110,6 +111,24 @@ export class SpaceLive {
       member.person.hl = message.hl ?? null;
       member.person.hr = message.hr ?? null;
       room.dirty = true;
+      return;
+    }
+    if (message.t === "voice") {
+      member.person.voice = message.on;
+      room.dirty = true;
+      return;
+    }
+    if (message.t === "signal") {
+      // Passed to the one person it is for, never to anyone else; not kept.
+      const text = JSON.stringify({ t: "signal", from: member.person.id, s: message.s } satisfies ServerMessage);
+      for (const other of room.members) {
+        if (other.person?.id !== message.to) continue;
+        try {
+          other.socket.send(text);
+        } catch {
+          /* closing */
+        }
+      }
       return;
     }
     member.writes = member.writes.filter((when) => at - when < 1000);

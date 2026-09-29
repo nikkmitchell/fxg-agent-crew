@@ -16,6 +16,7 @@ import {
 import type { Session } from "../session.js";
 import { doorTitle, spaceEntryPath } from "../../shared/space-kit.js";
 import { pieceUrl } from "../../shared/space-bench.js";
+import { iceServersFrom } from "../space/ice.js";
 import type { SpaceLive } from "./live.js";
 import type { SpaceTickets } from "./tickets.js";
 import { WebharnessError } from "../webharness/client.js";
@@ -457,6 +458,19 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       .header("cross-origin-resource-policy", "cross-origin")
       .header("cache-control", "public, max-age=31536000, immutable")
       .send(createReadStream(result.path));
+  });
+
+  /**
+   * WHERE CALLS GO THROUGH, for a space page's voice: the same STUN and TURN
+   * relay as saha.ing's own calls (server/space/ice.ts), for a ticket holder.
+   */
+  app.get<{ Params: { space: string }; Querystring: { ticket?: string } }>("/bff/spaces/:space/ice", async (request, reply) => {
+    const space = spaceKey(request.params.space);
+    if (!deps.tickets.read(request.query.ticket, space)) return reply.code(401).send({ code: "NO_TICKET", error: "Enter the space from saha.ing to talk." });
+    return reply
+      .header("access-control-allow-origin", "*")
+      .header("cache-control", "no-store")
+      .send({ iceServers: iceServersFrom(process.env) });
   });
 
   /** The published spaces: the lobby's doors. Anyone may ask. */

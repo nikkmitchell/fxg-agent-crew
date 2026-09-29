@@ -28,7 +28,18 @@ export type PoseMessage = { t: "pose"; p: Vec3; q: Quat; hl?: Vec3 | null; hr?: 
 export type SetMessage = { t: "set"; k: string; v: unknown };
 /** A short line, shown to everyone as a bubble over the speaker. */
 export type SayMessage = { t: "say"; text: string };
-export type ClientMessage = PoseMessage | SetMessage | SayMessage;
+/** Voice: whether my microphone is on (so others know to call me). */
+export type VoiceMessage = { t: "voice"; on: boolean };
+/**
+ * Setting up a call to one person (WebRTC offer/answer/candidate), passed on
+ * as it is. The same shape saha.ing's own calls use (shared/space-wire.ts).
+ */
+export type KitSignal =
+  | { kind: "offer"; sdp: string }
+  | { kind: "answer"; sdp: string }
+  | { kind: "candidate"; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null };
+export type SignalMessage = { t: "signal"; to: string; s: KitSignal };
+export type ClientMessage = PoseMessage | SetMessage | SayMessage | VoiceMessage | SignalMessage;
 
 export type KitPerson = {
   id: string;
@@ -42,6 +53,8 @@ export type KitPerson = {
   q: Quat | null;
   hl: Vec3 | null;
   hr: Vec3 | null;
+  /** Their microphone is on. */
+  voice?: boolean;
 };
 
 export type ServerMessage =
@@ -49,7 +62,8 @@ export type ServerMessage =
   | { t: "people"; people: KitPerson[] }
   | { t: "set"; k: string; v: unknown; by: string }
   | { t: "say"; id: string; name: string; text: string; at: number }
-  | { t: "refused"; why: string };
+  | { t: "refused"; why: string }
+  | { t: "signal"; from: string; s: KitSignal };
 
 export const KIT_LIMITS = {
   /** Poses beyond this rate are dropped, not queued. */
@@ -85,6 +99,27 @@ export function readClientMessage(raw: unknown): ClientMessage | null {
     if (typeof message.k !== "string" || !stateKeyOk(message.k)) return null;
     if (message.v !== null && bytesOf(message.v) > KIT_LIMITS.valueBytes) return null;
     return { t: "set", k: message.k, v: message.v ?? null };
+  }
+  if (message.t === "voice") return { t: "voice", on: message.on === true };
+  if (message.t === "signal") {
+    const signal = message.s as Record<string, unknown> | undefined;
+    if (typeof message.to !== "string" || message.to.length > 80 || !signal || typeof signal !== "object") return null;
+    if ((signal.kind === "offer" || signal.kind === "answer") && typeof signal.sdp === "string" && signal.sdp.length <= 16_000) {
+      return { t: "signal", to: message.to, s: { kind: signal.kind, sdp: signal.sdp } };
+    }
+    if (signal.kind === "candidate" && typeof signal.candidate === "string" && signal.candidate.length <= 2000) {
+      return {
+        t: "signal",
+        to: message.to,
+        s: {
+          kind: "candidate",
+          candidate: signal.candidate,
+          sdpMid: typeof signal.sdpMid === "string" ? signal.sdpMid.slice(0, 64) : null,
+          sdpMLineIndex: typeof signal.sdpMLineIndex === "number" ? signal.sdpMLineIndex : null,
+        },
+      };
+    }
+    return null;
   }
   if (message.t === "say") {
     if (typeof message.text !== "string") return null;

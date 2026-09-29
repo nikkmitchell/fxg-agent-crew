@@ -1,4 +1,4 @@
-import type { KitPerson, ServerMessage } from "../../shared/space-kit";
+import type { KitPerson, KitSignal, ServerMessage } from "../../shared/space-kit";
 
 /**
  * THE CONNECTION, for any page, three.js or not (shared/space-kit.ts has the
@@ -34,6 +34,9 @@ export type SahaRoom = {
   on(event: "say", listener: (message: { id: string; name: string; text: string; at: number }) => void): () => void;
   on(event: "refused", listener: (why: string) => void): () => void;
   on(event: "connection", listener: (connected: boolean) => void): () => void;
+  on(event: "signal", listener: (from: string, signal: KitSignal) => void): () => void;
+  /** For the kit's own parts (voice): any message the wire takes. */
+  send(message: unknown): void;
   /** Everyone but you. */
   others(): KitPerson[];
   /** Where you are: p [x,y,z] metres, q [x,y,z,w]; hands optional. */
@@ -123,6 +126,9 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
     say(text) {
       send({ t: "say", text: String(text) });
     },
+    send(message: unknown) {
+      send(message);
+    },
     leave() {
       left = true;
       socket?.close();
@@ -179,6 +185,8 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
         emit("say", message);
       } else if (message.t === "refused") {
         emit("refused", message.why);
+      } else if (message.t === "signal") {
+        emit("signal", message.from, message.s);
       }
     };
     current.onclose = (event) => {
