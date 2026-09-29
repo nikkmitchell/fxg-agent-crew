@@ -38,6 +38,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^6.0.1",
+    "isomorphic-git": "^1.42.3",
     "jsdom": "^30.1.1",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
