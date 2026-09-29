@@ -361,7 +361,8 @@ placeholder=$("${SSH[@]}" "$TARGET" "grep -c SERVER_NAME_HERE /etc/nginx/sites-a
 # running, because they drift — that is how an unsubstituted template sat on
 # disk for half an hour, and how a 2m body limit sat under a 12MB app limit for
 # a day while every test passed.
-NGINX_LIMIT=$("${SSH[@]}" "$TARGET" "grep -o 'client_max_body_size [0-9]*m' /etc/nginx/sites-available/fxg-crew | grep -o '[0-9]*'" || true)
+# The FIRST limit is the site-wide one; /git/ has a bigger one of its own later.
+NGINX_LIMIT=$("${SSH[@]}" "$TARGET" "grep -o 'client_max_body_size [0-9]*m' /etc/nginx/sites-available/fxg-crew | head -1 | grep -o '[0-9]*'" || true)
 APP_LIMIT=$(grep -o 'MAX_BYTES = [0-9]*' server/db/blobs.ts | grep -o '[0-9]*')
 if [ -z "$NGINX_LIMIT" ] || [ "$NGINX_LIMIT" -le "$APP_LIMIT" ]; then
   fail "nginx accepts ${NGINX_LIMIT:-?}m but the app accepts ${APP_LIMIT}m — nginx would refuse uploads the app would take, in its own words rather than ours"

@@ -27,6 +27,11 @@ export type Config = {
   databasePath: string;
   /** Where uploaded bytes live. The one thing here that cannot be rebuilt. */
   blobRoot: string;
+  /**
+   * Each space's git repository and its deployed sites (shared/spaces.ts).
+   * Like the blobs, not rebuildable: the repositories ARE the teams' source.
+   */
+  spacesRoot: string;
   /** Pino level. "silent" exists so tests that bind a port stay readable. */
   logLevel: string;
   /** Where the still renderer writes its PNGs, and the app reads them from. */
@@ -126,5 +131,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     logLevel: env.LOG_LEVEL ?? "info",
     bodyCacheRoot: env.BODY_CACHE_ROOT ?? beside(databasePath, "bodies", "./.dev-bodies"),
     speechCacheRoot: env.SPEECH_CACHE_ROOT ?? beside(databasePath, "speech", "./.dev-speech"),
+    spacesRoot: env.SPACES_ROOT ?? beside(databasePath, "spaces", "./.dev-spaces"),
   };
 }

@@ -1231,4 +1231,42 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 44,
+    name: "spaces: a git repository and deploys per room",
+    sql: `
+      -- One row per space. The repository itself is on disk (spacesRoot);
+      -- this says who made it and when.
+      CREATE TABLE spaces (
+        name TEXT PRIMARY KEY,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      -- Every deploy of every branch, kept so a team can see what went out
+      -- and roll back. The files of a retired deploy are deleted; its row stays.
+      CREATE TABLE space_deploys (
+        id TEXT PRIMARY KEY,
+        space TEXT NOT NULL,
+        branch TEXT NOT NULL,
+        commit_sha TEXT NOT NULL,
+        message TEXT NOT NULL,
+        author TEXT NOT NULL,
+        pushed_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('ready','failed','retired')),
+        problem TEXT,
+        files INTEGER NOT NULL DEFAULT 0,
+        bytes INTEGER NOT NULL DEFAULT 0,
+        spa INTEGER NOT NULL DEFAULT 0 CHECK (spa IN (0,1))
+      );
+      CREATE INDEX space_deploys_by_branch ON space_deploys(space, branch, created_at);
+      -- Which deploy each branch serves. Rolling back moves this pointer.
+      CREATE TABLE space_live (
+        space TEXT NOT NULL,
+        branch TEXT NOT NULL,
+        deploy_id TEXT NOT NULL,
+        PRIMARY KEY (space, branch)
+      );
+    `,
+  },
 ];

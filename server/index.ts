@@ -1,4 +1,7 @@
 import { fileURLToPath } from "node:url";
+import { registerSpacesHosting } from "./spaces/routes.js";
+import { SpaceStore } from "./spaces/store.js";
+import { SpaceAuth } from "./spaces/auth.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerIdempotency } from "./idempotency.js";
 import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
@@ -693,6 +696,14 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     prefix: basePath ? `${basePath}/` : "/",
     wildcard: false,
   });
+  // SPACES: a git repository and a deployed site per room (shared/spaces.ts).
+  registerSpacesHosting(app, {
+    spacesRoot: config.spacesRoot,
+    store: new SpaceStore(database),
+    auth: new SpaceAuth(client),
+    sessionOf: (request) => sessions.get(request.cookies[config.cookieName]),
+  });
+
   app.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith(`${basePath}/bff/`)) return reply.code(404).send({ error: "not found" });
     // /api/ IS RESERVED, and stays reserved now that the app owns `/`.

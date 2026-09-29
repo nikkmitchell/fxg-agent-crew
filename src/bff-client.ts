@@ -2,6 +2,7 @@ import type { LoginRequest, MeResponse, MessagePage, RoomDetail, RoomSummary } f
 import { requestJson } from "./api-request";
 import type { SignupChannel, SignupForm } from "../shared/signup";
 import type { AgentSummary } from "../shared/agents";
+import type { DeployRecord } from "../shared/spaces";
 import { base } from "./router";
 
 /**
@@ -43,6 +44,18 @@ export const bff = {
     method: "POST",
     body: JSON.stringify({ username, publicKey }),
   }),
+
+  /** Your spaces, and your rooms that have none yet (shared/spaces.ts). */
+  spaces: (signal?: AbortSignal) => requestJson<{ spaces: SpaceListing[]; rooms: string[] }>(`${bffRoot}/spaces`, { signal }),
+
+  makeSpace: (room: string) => requestJson<SpaceListing>(`${bffRoot}/spaces`, { method: "POST", body: JSON.stringify({ room }) }),
+
+  space: (name: string, signal?: AbortSignal) =>
+    requestJson<SpaceDetail>(`${bffRoot}/spaces/${encodeURIComponent(name)}`, { signal }),
+
+  /** Serve an earlier (or later) deploy on its branch: rolling back. */
+  makeLive: (name: string, deployId: string) =>
+    requestJson<{ branch: string; live: DeployRecord }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/live`, { method: "POST", body: JSON.stringify({ deployId }) }),
 
   logout: (signal?: AbortSignal) => requestJson<{ ok: true }>(`${bffRoot}/logout`, { method: "POST", signal }),
 
@@ -90,4 +103,11 @@ export const bff = {
       signal,
       ...(key ? { headers: { "idempotency-key": key } } : {}),
     }),
+};
+
+export type SpaceListing = { name: string; createdBy: string; createdAt: string; gitPath: string; sitePath: string; live: DeployRecord | null };
+export type SpaceDetail = {
+  space: SpaceListing;
+  branches: { branch: string; head: string | null; sitePath: string; live: DeployRecord | null }[];
+  deploys: DeployRecord[];
 };
