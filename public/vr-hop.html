@@ -1,0 +1,137 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VR hop test</title>
+<!--
+  DOES THIS HEADSET KEEP YOU IN VR ACROSS A LINK? (Sill and Nightjar, 2026-09-30)
+  Two pages of saha.ing's own origin, no sandbox: /vr-hop.html?hop=a and ?hop=b.
+  Enter VR on one, point at the door and pull the trigger. If you arrive in VR
+  on the other without pressing anything, the browser hands sessions over, and
+  it is spaces' sandbox (an opaque origin) that stops it there. If not, it is
+  the browser itself (its version, or a setting).
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #fff; font: 16px system-ui, sans-serif; overflow: hidden; }
+  #note { position: fixed; left: 12px; top: 12px; right: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,.7); line-height: 1.4; }
+  #note a { color: #9cc3ff; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "/kit/three/three.module.js", "three/addons/": "/kit/three/addons/" } }
+</script>
+</head>
+<body>
+<div id="note"></div>
+<script type="module">
+  import * as THREE from "three";
+  import { VRButton } from "three/addons/webxr/VRButton.js";
+
+  const here = new URLSearchParams(location.search).get("hop") === "b" ? "b" : "a";
+  const there = here === "a" ? "b" : "a";
+  const next = `/vr-hop.html?hop=${there}`;
+  const colour = here === "a" ? 0x2d6cdf : 0x2f9e5b;
+
+  // What this visit found, shown on the page and in the headset.
+  const found = { granted: false, sessionEvent: "not seen", ua: navigator.userAgent };
+  const note = document.getElementById("note");
+  const show = () => {
+    note.innerHTML =
+      `<strong>Page ${here.toUpperCase()}</strong> · go to <a href="${next}">page ${there.toUpperCase()}</a><br>` +
+      `sessiongranted: <strong>${found.sessionEvent}</strong>${found.granted ? " · entered VR by itself" : ""}<br>` +
+      `<small>${found.ua}</small>`;
+  };
+  show();
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.xr.enabled = true;
+  document.body.appendChild(renderer.domElement);
+  document.body.appendChild(VRButton.createButton(renderer));
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(colour);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 2));
+  const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 50);
+  camera.position.set(0, 1.6, 0);
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+  floor.rotation.x = -Math.PI / 2;
+  scene.add(floor);
+
+  // The door: a big panel in front of you with where it goes and what was found.
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 512;
+  const paint = () => {
+    const c = canvas.getContext("2d");
+    c.fillStyle = "#0b0d12";
+    c.fillRect(0, 0, 1024, 512);
+    c.fillStyle = "#fff";
+    c.textAlign = "center";
+    c.font = "700 72px system-ui, sans-serif";
+    c.fillText(`PAGE ${here.toUpperCase()}`, 512, 110);
+    c.font = "400 40px system-ui, sans-serif";
+    c.fillText(`Point here and pull the trigger: go to page ${there.toUpperCase()}`, 512, 210);
+    c.fillStyle = found.granted ? "#6fdc8c" : "#ffb86b";
+    c.font = "600 44px system-ui, sans-serif";
+    c.fillText(found.granted ? "Arrived IN VR by itself (session handed over)" : `sessiongranted: ${found.sessionEvent}`, 512, 320);
+    c.fillStyle = "#9aa4b2";
+    c.font = "400 24px system-ui, sans-serif";
+    const browser = /OculusBrowser\/[\d.]+/.exec(found.ua)?.[0] ?? /Chrome\/[\d.]+/.exec(found.ua)?.[0] ?? "browser unknown";
+    c.fillText(browser, 512, 420);
+    texture.needsUpdate = true;
+  };
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(2, 1), new THREE.MeshBasicMaterial({ map: texture }));
+  door.position.set(0, 1.5, -2);
+  scene.add(door);
+  paint();
+
+  // Pointing and pulling the trigger goes, from INSIDE the session, which is
+  // what a browser needs to hand the session to the next page.
+  const raycaster = new THREE.Raycaster();
+  for (const index of [0, 1]) {
+    const ray = renderer.xr.getController(index);
+    scene.add(ray);
+    ray.addEventListener("select", () => {
+      const origin = new THREE.Vector3();
+      ray.getWorldPosition(origin);
+      raycaster.set(origin, new THREE.Vector3(0, 0, -1).applyQuaternion(ray.getWorldQuaternion(new THREE.Quaternion())));
+      if (raycaster.intersectObject(door).length) location.assign(next);
+    });
+  }
+
+  // Arriving: if the browser hands the session over, take it.
+  if (navigator.xr?.addEventListener) {
+    navigator.xr.addEventListener("sessiongranted", async () => {
+      found.sessionEvent = "FIRED";
+      show();
+      paint();
+      try {
+        const session = await navigator.xr.requestSession("immersive-vr", { optionalFeatures: ["local-floor"] });
+        await renderer.xr.setSession(session);
+        found.granted = true;
+      } catch (error) {
+        found.sessionEvent = `fired, but entering failed: ${error?.message ?? error}`;
+      }
+      show();
+      paint();
+    });
+    found.sessionEvent = "waiting (not fired yet)";
+  } else {
+    found.sessionEvent = "no navigator.xr here";
+  }
+  show();
+  paint();
+
+  addEventListener("resize", () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+  renderer.setAnimationLoop(() => renderer.render(scene, camera));
+</script>
+</body>
+</html>
