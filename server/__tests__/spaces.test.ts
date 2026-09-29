@@ -314,8 +314,12 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
       await until(() => phone.connected && headset.connected);
       phone.pose([0, 1.6, 0], [0, 0, 0, 1]);
       headset.pose([2, 1.6, 0], [0, 0, 0, 1]);
-      await until(() => phone.people.size === 2 && [...phone.people.values()].every((person) => person.p !== null));
-      expect([...phone.people.values()].map((person) => [person.id, person.name, person.p?.[0]]).sort()).toEqual([["nikk", "nikk", 0], ["nikk~2", "nikk", 2]]);
+      // Both of this person's figures, wherever an earlier connection still closing left the ids.
+      const mine = () => [...phone.people.values()].filter((person) => person.id === phone.you?.id || person.id === headset.you?.id);
+      await until(() => mine().length === 2 && mine().every((person) => person.p !== null));
+      expect(mine().map((person) => person.name)).toEqual(["nikk", "nikk"]);
+      expect(new Set(mine().map((person) => person.id)).size).toBe(2);
+      expect(mine().map((person) => person.p?.[0]).sort()).toEqual([0, 2]);
       expect(phone.guest || headset.guest).toBe(false);
     } finally {
       phone.leave();
