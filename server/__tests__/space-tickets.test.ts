@@ -30,6 +30,20 @@ describe("tickets that survive a restart (Mica, 6319; Sill, 6326)", () => {
     expect(tickets.read(ticket, "xr.instruments")).toBeNull();
   });
 
+  it("stop working for you once you leave every space, and a fresh one works again (Baiwei, 6414)", () => {
+    let now = 10_000;
+    const tickets = new SpaceTickets(undefined, () => now);
+    const old = tickets.issue({ ...nikk, username: "baiwei2" });
+    const someoneElses = tickets.issue(nikk);
+    now += 1_000;
+    tickets.revokeUntilNow("Baiwei2");
+    expect(tickets.read(old, "xr.instruments")).toBeNull();
+    expect(tickets.read(someoneElses, "xr.instruments")).toEqual(nikk);
+    now += 1_000;
+    const fresh = tickets.issue({ ...nikk, username: "baiwei2" });
+    expect(tickets.read(fresh, "xr.instruments")?.username).toBe("baiwei2");
+  });
+
   it("keep their key in a file only the server can read, made once and reused", () => {
     const path = join(tempDir("tickets-"), "nested", "space-tickets.key");
     const first = ticketKey(path);

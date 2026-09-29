@@ -607,6 +607,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   app.post("/bff/spaces/leave-everywhere", async (request, reply) => {
     const me = signedIn(request, reply);
     if (!me) return reply;
+    // First the tickets, so nothing that reconnects in between comes back as you.
+    deps.tickets.revokeUntilNow(me.username);
     return reply.header("cache-control", "no-store").send({ left: deps.live.leaveEverywhere(me.username) });
   });
 

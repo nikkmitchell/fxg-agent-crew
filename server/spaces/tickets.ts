@@ -37,10 +37,25 @@ export function ticketKey(path: string): Buffer {
 
 export class SpaceTickets {
   private readonly key: Buffer;
+  /**
+   * TICKETS MADE BEFORE YOU LEFT EVERY SPACE ARE NO LONGER YOURS TO USE
+   * (Baiwei, 6414: after "Leave every space" two seats came straight back,
+   * because whatever held them reconnected with the ticket it already had).
+   * By person: tickets issued before this moment are refused. Entering again
+   * from saha.ing makes a new one, after it. Kept for a ticket's lifetime.
+   */
+  private readonly leftAt = new Map<string, number>();
 
   /** `key`: the box's (ticketKey); a fresh one when none is given (tests). */
   constructor(key?: Buffer, private readonly now: () => number = Date.now) {
     this.key = key ?? randomBytes(32);
+  }
+
+  /** Refuse every ticket this person was given before now. */
+  revokeUntilNow(username: string): void {
+    const at = this.now();
+    this.leftAt.set(username.toLowerCase(), at);
+    for (const [who, when] of this.leftAt) if (when < at - KIT_LIMITS.ticketMs) this.leftAt.delete(who);
   }
 
   private mac(payload: string): Buffer {
@@ -69,6 +84,8 @@ export class SpaceTickets {
     }
     if (typeof sealed.u !== "string" || typeof sealed.s !== "string" || typeof sealed.e !== "number") return null;
     if (sealed.e < this.now() || sealed.s !== space) return null;
+    const left = this.leftAt.get(sealed.u.toLowerCase());
+    if (left !== undefined && sealed.e - KIT_LIMITS.ticketMs <= left) return null;
     return { username: sealed.u, body: typeof sealed.b === "string" ? sealed.b : null, space: sealed.s };
   }
 }
