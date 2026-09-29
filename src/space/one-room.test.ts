@@ -45,6 +45,8 @@ const ALLOWED: Record<string, string> = {
     "where the buttons are: a wrist panel in a headset, the badge's link in a window (kit/index.ts); both take you back to saha.ing",
   "kit/index.ts":
     "sends hand positions only when there are tracked hands to send",
+  "kit/screen.ts":
+    "how a screen is DRAWN: no browser can draw a web page inside a WebXR session, so a headset gets a panel you point at to open the page, a window gets the page live in place; in both you reach the page",
 };
 
 const readAll = (dir: string): string[] =>
