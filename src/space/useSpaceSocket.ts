@@ -382,6 +382,8 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
           return;
         }
         if (message.type === "mindfulnessPageChanged") return;
+        // The room's workbench refetches itself (SpaceBench.tsx).
+        if (message.type === "benchChanged") return;
         if (message.type === "bowl") {
           // Somebody struck the singing bowl: ring it here (SingingBowl.tsx).
           bowlStruck(message.strike);

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { DEPLOY_LIMITS, parseSettings, publishDir } from "../../shared/spaces.js";
+import { readPieces } from "../../shared/space-bench.js";
 import { commitInfo, exportBlobs, readBlob, treeFiles } from "./git.js";
 import type { SpaceStore, StoredDeploy } from "./store.js";
 
@@ -61,7 +62,18 @@ export async function deployCommit(options: {
     return failed(`Could not write the files: ${(error as Error).message}`);
   }
 
-  const deploy: StoredDeploy = { ...base, status: "ready", problem: null, files: shipped.length, bytes, spa: settings?.spa === true };
+  // THE WORKBENCH (shared/space-bench.ts): saha-pieces.json at the top of the
+  // repo, or at the top of the published folder. A bad list never fails the
+  // deploy; its problems are recorded beside it.
+  const piecesFile = byPath.get("saha-pieces.json") ?? byPath.get(`${prefix}saha-pieces.json`);
+  const bench = piecesFile
+    ? readPieces((await readBlob(root, space, piecesFile.sha)).toString("utf8"), new Map(shipped.map((file) => [file.to, file.size])))
+    : { pieces: [], problems: [] };
+
+  const deploy: StoredDeploy = {
+    ...base, status: "ready", problem: null, files: shipped.length, bytes, spa: settings?.spa === true,
+    pieces: bench.pieces, piecesProblems: bench.problems,
+  };
   store.record(deploy);
   store.setLive(space, branch, id);
 

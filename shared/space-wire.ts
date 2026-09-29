@@ -276,6 +276,8 @@ export type ServerMessage =
   | { type: "garden"; event: GardenEvent }
   /** A shared mindfulness card changed; clients refetch with their own delete rights. */
   | { type: "mindfulnessPageChanged" }
+  /** This room's space pushed or rolled back what its bench shows: refetch it (shared/space-bench.ts). */
+  | { type: "benchChanged"; space: string }
   /** Somebody gave the ember fire a word: see shared/fire.ts. Not kept. */
   | { type: "fire"; offering: Offering }
   /** A word written on driftwood at the shore: see shared/driftwood.ts. Not kept. */

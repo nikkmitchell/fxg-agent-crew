@@ -711,6 +711,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     tickets: new SpaceTickets(),
     live: spaceLive,
     bodyOf: (username) => agentBodies.get(username),
+    // The room of the same name refetches its bench (src/space/SpaceBench.tsx).
+    benchChanged: (space) => hubFor(space).broadcast({ type: "benchChanged", space }),
   });
   // A space page is sandboxed, so to it saha.ing is another origin: the kit
   // (/kit/saha.js) and the avatar models it may load need saying they can be

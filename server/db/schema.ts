@@ -1288,4 +1288,16 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 46,
+    name: "spaces: the workbench (pieces per deploy, and the branch the room follows)",
+    sql: `
+      -- What saha-pieces.json listed in each deploy (shared/space-bench.ts),
+      -- and what was wrong with it, so the room can show a space's pieces.
+      ALTER TABLE space_deploys ADD COLUMN pieces_json TEXT;
+      ALTER TABLE space_deploys ADD COLUMN pieces_problems TEXT;
+      -- The branch the room's bench follows; null is main.
+      ALTER TABLE spaces ADD COLUMN bench_branch TEXT;
+    `,
+  },
 ];

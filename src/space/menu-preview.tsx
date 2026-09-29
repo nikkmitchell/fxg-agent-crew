@@ -66,6 +66,7 @@ import { HourglassStand, HOURGLASS_AT } from "./HourglassStand";
 import { SETTINGS_TABS, settingsBadge, settingsSections, tabOfView, type ArrangeMode, type SettingsView } from "./settings-menu-model";
 import { roomMenuRows } from "../../shared/room-switch";
 import { VrmBody } from "./VrmBody";
+import { SpaceBench } from "./SpaceBench";
 import { avatarRecipe } from "../avatar";
 import type { ActiveAvatarGesture } from "../../shared/avatar-motion";
 
@@ -87,6 +88,32 @@ function PreviewBody({ body, gesture }: { body: string; gesture: ActiveAvatarGes
     avatar: { mood: "neutral", gesture, gestureStartedAt: started, gestureHoldMs: 60_000, posture: "resting" },
   }), [gesture, started]);
   return <VrmBody actorId="preview-agent" body={body} live={live} recipe={recipe} reducedMotion={false} onFailed={() => console.error("preview body failed")} speaking={false} agent />;
+}
+
+/**
+ * ?bench=1: the workbench (SpaceBench.tsx) with a made-up space's pieces:
+ * two saha.ing avatars as models, a picture, a page, and one problem.
+ */
+if (new URLSearchParams(window.location.search).get("bench") === "1") {
+  const real = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const url = String(input instanceof Request ? input.url : input);
+    if (/\/bff\/spaces\/[^/]+\/bench$/.test(url)) {
+      return new Response(JSON.stringify({
+        space: "meditation.ar", branch: "wip",
+        deploy: { id: "d1", commit: "c6cb6738f00", message: "the orb, rounder", pushedBy: "Sill", createdAt: new Date(Date.now() - 120000).toISOString() },
+        pieces: [
+          { id: "orb", name: "Meditation orb", kind: "model", path: "m.glb", spin: true, url: "/avatars/chillpenguin.vrm" },
+          { id: "sky", name: "Sky study", kind: "image", path: "p.jpg", spin: false, url: "/avatars/thumbs/aesthetica.jpg" },
+          { id: "bell", name: "Bell instrument", kind: "page", path: "bell/", spin: false, url: "/s/x/bell/" },
+          { id: "teen", name: "Walker", kind: "model", path: "b.glb", spin: false, url: "/avatars/alienteen.vrm" },
+          { id: "chill", name: "Second row", kind: "model", path: "c.glb", spin: false, url: "/avatars/chill.vrm" },
+        ],
+        problems: ["ghost: models/ghost.glb is not in what was published."],
+      }), { headers: { "content-type": "application/json" } });
+    }
+    return real(input, init);
+  };
 }
 
 function Preview() {
@@ -394,12 +421,13 @@ function Preview() {
           </group>
         </>
       ) : null}
+      {params.get("bench") === "1" ? <SpaceBench room="meditation.ar" subscribe={() => () => undefined} /> : null}
       {params.get("welcome") === "1" ? (
         <group position={[0, 0, -2.4]}>
           <LobbyWelcome />
         </group>
       ) : null}
-      {params.get("welcome") === "1" || params.get("bowls") === "1" || params.get("garden") === "1" || params.get("fire") === "1" || params.get("dome") || params.get("ribbons") || params.get("pond") || params.get("mandala") || params.get("wheel") || params.get("gong") || params.get("rain") || params.get("incense") || params.get("vase") || params.get("fireflies") || params.get("mala") || params.get("moon") || params.get("nebula") || params.get("hourglass") || params.get("shore") || params.get("pool") || params.get("conch") || params.get("bench") || params.get("cranes") || params.get("fog") || params.get("flower") || params.get("silence") || params.get("silk") || params.get("sign") || params.get("body") ? null : <SettingsMenu3D
+      {params.get("bench") === "1" || params.get("welcome") === "1" || params.get("bowls") === "1" || params.get("garden") === "1" || params.get("fire") === "1" || params.get("dome") || params.get("ribbons") || params.get("pond") || params.get("mandala") || params.get("wheel") || params.get("gong") || params.get("rain") || params.get("incense") || params.get("vase") || params.get("fireflies") || params.get("mala") || params.get("moon") || params.get("nebula") || params.get("hourglass") || params.get("shore") || params.get("pool") || params.get("conch") || params.get("bench") || params.get("cranes") || params.get("fog") || params.get("flower") || params.get("silence") || params.get("silk") || params.get("sign") || params.get("body") ? null : <SettingsMenu3D
         position={[0, 1.6, -1.95]}
         model={{
           title: "Settings",

@@ -174,6 +174,40 @@ function Publish({ space, onChanged }: { space: SpaceListing; onChanged: () => v
   );
 }
 
+/**
+ * THE WORKBENCH (shared/space-bench.ts): which branch the saha.ing room of
+ * this space's name shows on its bench. A work branch lets the team see
+ * pieces in the room while main, the public space, stays as it is.
+ */
+function BenchBranch({ name, current, branches, onChanged }: { name: string; current: string; branches: string[]; onChanged: () => void }) {
+  const [problem, setProblem] = useState<string | null>(null);
+  const choose = async (branch: string) => {
+    try {
+      await bff.benchBranch(name, branch);
+      onChanged();
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : "Could not change that.");
+    }
+  };
+  const options = [...new Set(["main", ...branches, current])];
+  return (
+    <div className="space-publish">
+      <h3>Workbench in the room</h3>
+      <p className="muted-note">
+        List pieces in <code>saha-pieces.json</code> (3D models, pictures, pages) and they stand on a bench in the {name} room
+        on saha.ing, updated within seconds of every push to the branch you pick here. See docs/SPACES.md.
+      </p>
+      <label>
+        Follows{" "}
+        <select value={current} onChange={(event) => void choose(event.target.value)}>
+          {options.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+        </select>
+      </label>
+      {problem ? <p className="signin-refusal" role="alert">{problem}</p> : null}
+    </div>
+  );
+}
+
 function SpaceDetails({ name }: { name: string }) {
   const [detail, setDetail] = useState<SpaceDetail | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -197,6 +231,7 @@ function SpaceDetails({ name }: { name: string }) {
   return (
     <div className="space-details">
       <Copyable label="Clone it (people: your saha.ing password; agents: see docs/SPACES.md)" text={`git clone ${origin}${detail.space.gitPath}`} />
+      <BenchBranch name={name} current={detail.space.benchBranch ?? "main"} branches={detail.branches.map((branch) => branch.branch)} onChanged={load} />
       <h3>Branches</h3>
       <ul>
         {detail.branches.map((branch) => (

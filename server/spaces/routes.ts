@@ -14,6 +14,7 @@ import {
 } from "../../shared/spaces.js";
 import type { Session } from "../session.js";
 import { doorTitle, spaceEntryPath } from "../../shared/space-kit.js";
+import { pieceUrl } from "../../shared/space-bench.js";
 import type { SpaceLive } from "./live.js";
 import type { SpaceTickets } from "./tickets.js";
 import { WebharnessError } from "../webharness/client.js";
@@ -165,6 +166,11 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   live: SpaceLive;
   /** The body a person chose in saha.ing, if any. */
   bodyOf: (username: string) => string | null;
+  /**
+   * What a room's bench shows may have changed (a deploy, a rollback, a
+   * different branch followed): tell the saha.ing room of that name.
+   */
+  benchChanged?: (space: string) => void;
   queue?: DeployQueue;
   now?: () => Date;
 }): { queue: DeployQueue } {
@@ -190,12 +196,17 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       live: publicDeploy(store.live(name, LIVE_BRANCH)),
       public: shown.public,
       title: shown.title,
+      benchBranch: store.benchBranch(name),
       here: deps.live.count(name),
     };
   };
 
   const deployFor = (space: string, branch: string, commit: string, pushedBy: string) =>
-    queue.run(space, () => deployCommit({ root, store, space, branch, commit, pushedBy, now }));
+    queue.run(space, async () => {
+      const deploy = await deployCommit({ root, store, space, branch, commit, pushedBy, now });
+      if (deploy.status === "ready" && branch === store.benchBranch(space)) deps.benchChanged?.(space);
+      return deploy;
+    });
 
   // ---------------------------------------------------------------- git
   app.register(async (scope) => {
@@ -407,6 +418,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     if (!deploy || deploy.space !== found.space) return reply.code(404).send({ code: "NO_DEPLOY", error: "No such deploy in this space." });
     if (deploy.status !== "ready") return reply.code(409).send({ code: "NOT_SERVABLE", error: deploy.status === "failed" ? "That deploy failed; there is nothing to serve." : "That deploy's files have been cleared; push it again." });
     store.setLive(found.space, deploy.branch, deploy.id);
+    if (deploy.branch === store.benchBranch(found.space)) deps.benchChanged?.(found.space);
     return reply.send({ branch: deploy.branch, live: publicDeploy(deploy) });
   });
 
@@ -447,6 +459,48 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     const title = typeof request.body?.title === "string" ? doorTitle(request.body.title, found.space) : store.publicInfo(found.space).title;
     store.setPublic(found.space, isPublic, title === found.space ? null : title);
     return reply.send(summary(found.record.name, found.record.createdBy, found.record.createdAt));
+  });
+
+  // ---------------------------------------------------------------- the workbench
+
+  /**
+   * WHAT THE ROOM'S BENCH SHOWS (shared/space-bench.ts): the pieces of the
+   * branch the team follows, as it is live right now, with URLs that change
+   * on every deploy so the room loads the new version. For the room's members,
+   * or anybody signed in when the space is public.
+   */
+  app.get<{ Params: { space: string } }>("/bff/spaces/:space/bench", async (request, reply) => {
+    const me = signedIn(request, reply);
+    if (!me) return reply;
+    const space = spaceKey(request.params.space);
+    if (spaceNameProblem(space) || !store.exists(space)) return reply.code(404).send({ code: "NO_SPACE", error: `There is no space called ${space}.` });
+    if (!store.publicInfo(space).public) {
+      try {
+        if (!(await auth.isMember(me, space))) return reply.code(403).send({ code: "NOT_A_MEMBER", error: `You are not in the room ${space}.` });
+      } catch (error) {
+        return upstream(reply, error);
+      }
+    }
+    const branch = store.benchBranch(space);
+    const live = store.live(space, branch);
+    return reply.header("cache-control", "no-store").send({
+      space,
+      branch,
+      deploy: live ? { id: live.id, commit: live.commit, message: live.message, pushedBy: live.pushedBy, createdAt: live.createdAt } : null,
+      pieces: (live?.pieces ?? []).map((piece) => ({ ...piece, url: pieceUrl(space, branch, piece.path, live!.id) })),
+      problems: live?.piecesProblems ?? [],
+    });
+  });
+
+  /** Which branch the room's bench follows. Members only. */
+  app.post<{ Params: { space: string }; Body: { branch?: unknown } }>("/bff/spaces/:space/bench", async (request, reply) => {
+    const found = await memberSpace(request, reply);
+    if (!found) return reply;
+    const branch = typeof request.body?.branch === "string" ? request.body.branch.trim() : "";
+    if (!isPreviewableBranch(branch)) return reply.code(400).send({ code: "BAD_BRANCH", error: "That is not a branch name." });
+    store.setBenchBranch(found.space, branch);
+    deps.benchChanged?.(found.space);
+    return reply.send({ branch });
   });
 
   // The live socket needs the websocket plugin loaded, so it lives in a plugin

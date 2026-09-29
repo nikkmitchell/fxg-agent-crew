@@ -54,6 +54,7 @@ let work = "";
 let queue: DeployQueue;
 let store: SpaceStore;
 let live: SpaceLive;
+const benchCalls: string[] = [];
 
 const gitAs = (user: string, pass: string, cwd: string, ...args: string[]) =>
   run("git", ["-c", "credential.helper=", "-c", "user.name=Test", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main", ...args], {
@@ -81,6 +82,7 @@ beforeAll(async () => {
     tickets: new SpaceTickets(),
     live,
     bodyOf: (username) => (username === "nikk" ? "lotus" : null),
+    benchChanged: (space) => benchCalls.push(space),
   }));
   base = await app.listen({ port: 0, host: "127.0.0.1" });
 }, 30_000);
@@ -377,5 +379,77 @@ describe("what the kit accepts on the wire", () => {
     expect(readClientMessage({ t: "set", k: "bad key!", v: 1 })).toBeNull();
     expect(readClientMessage({ t: "say", text: "   " })).toBeNull();
     expect(readClientMessage({ t: "exec", code: "x" })).toBeNull();
+  });
+});
+
+
+describe("the workbench: a space's pieces, live in its saha.ing room (Nikk, 2026-09-29)", () => {
+  it("records the pieces a push lists, follows the branch the team picks, and tells the room each time", async () => {
+    const agent = join(work, "agent");
+    await gitAs("Sill", "sill-token", agent, "checkout", "-q", "-B", "wip", "origin/main");
+    await mkdir(join(agent, "dist", "models"), { recursive: true });
+    await writeFile(join(agent, "dist", "index.html"), "<h1>wip</h1>");
+    await writeFile(join(agent, "dist", "models", "orb.glb"), "glTF-not-really");
+    await mkdir(join(agent, "dist", "bell"), { recursive: true });
+    await writeFile(join(agent, "dist", "bell", "index.html"), "<h1>bell</h1>");
+    await writeFile(join(agent, "saha-pieces.json"), JSON.stringify({ pieces: [
+      { id: "orb", name: "Meditation orb", model: "models/orb.glb", spin: true },
+      { id: "bell", name: "Bell instrument", page: "bell/" },
+      { id: "ghost", name: "Missing", model: "models/ghost.glb" },
+    ] }));
+    await gitAs("Sill", "sill-token", agent, "add", "-A");
+    await gitAs("Sill", "sill-token", agent, "commit", "-qm", "pieces");
+
+    const follow = await app.inject({ method: "POST", url: "/bff/spaces/meditation.ar/bench", headers: { cookie: "who=nikk" }, payload: { branch: "wip" } });
+    expect(follow.statusCode).toBe(200);
+    benchCalls.length = 0;
+    await gitAs("Sill", "sill-token", agent, "push", "-q", "origin", "wip");
+    await queue.idle();
+    expect(benchCalls).toEqual(["meditation.ar"]);
+
+    const bench = (await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/bench", headers: { cookie: "who=nikk" } })).json();
+    expect(bench.branch).toBe("wip");
+    expect(bench.pieces.map((piece: { id: string; kind: string }) => [piece.id, piece.kind])).toEqual([["orb", "model"], ["bell", "page"]]);
+    expect(bench.pieces[0].url).toBe(`/s/meditation.ar/@wip/models/orb.glb?v=${encodeURIComponent(bench.deploy.id)}`);
+    expect(bench.problems).toEqual(["ghost: models/ghost.glb is not in what was published."]);
+    // The model is really there, at the URL the room will load.
+    expect(await (await page(bench.pieces[0].url)).text()).toBe("glTF-not-really");
+    // A push to main does not disturb a bench that follows wip.
+    benchCalls.length = 0;
+    await gitAs("Sill", "sill-token", agent, "push", "-q", "origin", "wip:main");
+    await queue.idle();
+    expect(benchCalls).toEqual([]);
+  }, 60_000);
+
+  it("shows the bench only to the room, or to anyone when the space is public", async () => {
+    await app.inject({ method: "POST", url: "/bff/spaces/meditation.ar/public", headers: { cookie: "who=nikk" }, payload: { public: false } });
+    expect((await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/bench", headers: { cookie: "who=baiwei" } })).statusCode).toBe(403);
+    expect((await app.inject({ method: "POST", url: "/bff/spaces/meditation.ar/bench", headers: { cookie: "who=baiwei" }, payload: { branch: "main" } })).statusCode).toBe(403);
+    expect((await app.inject({ method: "GET", url: "/bff/spaces/nowhere/bench", headers: { cookie: "who=nikk" } })).statusCode).toBe(404);
+  });
+});
+
+describe("what saha-pieces.json may say", () => {
+  it("keeps good pieces, names every bad one, and never lets a path leave the site", async () => {
+    const { readPieces } = await import("../../shared/space-bench.js");
+    const published = new Map<string, number>([["m/a.glb", 10], ["m/huge.glb", 60 * 1024 * 1024], ["pic.png", 5], ["ui/index.html", 3]]);
+    const { pieces, problems } = readPieces(JSON.stringify({ pieces: [
+      { id: "a", model: "m/a.glb" },
+      { id: "a", model: "m/a.glb" },
+      { id: "huge", model: "m/huge.glb" },
+      { id: "pic", name: "A picture", image: "pic.png" },
+      { id: "ui", page: "ui/" },
+      { id: "up", model: "../secret.glb" },
+      { id: "two", model: "m/a.glb", image: "pic.png" },
+      { id: "txt", image: "ui/index.html" },
+    ] }), published);
+    expect(pieces.map((piece) => piece.id)).toEqual(["a", "pic", "ui"]);
+    expect(problems).toHaveLength(5);
+    expect(problems.join(" ")).toMatch(/unique "id"/);
+    expect(problems.join(" ")).toMatch(/60 MB/);
+    expect(problems.join(" ")).toMatch(/inside the published site/);
+    expect(readPieces("{", published).problems).toEqual(["saha-pieces.json is not valid JSON."]);
+    const many = readPieces(JSON.stringify({ pieces: Array.from({ length: 10 }, (_, i) => ({ id: `p${i}`, model: "m/a.glb" })) }), published);
+    expect(many.pieces).toHaveLength(8);
   });
 });

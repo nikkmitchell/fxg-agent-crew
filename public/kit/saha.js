@@ -361,6 +361,10 @@ export function joinSaha(options) {
           : `saha.ing · ${count} here`;
     };
     for (const event of ["people", "connection", "ready"]) room.on(event, show);
+    // Refused (a private space, or too many changes): say why, not "connecting…" for ever.
+    room.on("refused", (why) => {
+      tag.textContent = `saha.ing · ${why}`;
+    });
     show();
     (document.body ? Promise.resolve() : new Promise((resolve) => addEventListener("DOMContentLoaded", resolve, { once: true }))).then(() => document.body.appendChild(tag));
   }

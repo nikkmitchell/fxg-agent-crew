@@ -127,6 +127,36 @@ themselves, and guests cannot watch it.
 Entering from a headset: the lobby door leaves VR and opens the space's page; press its
 Enter VR button (the starter has one) to go back in.
 
+## The workbench: see your pieces in the saha.ing room while you build
+
+List a space's pieces in `saha-pieces.json` at the top of the repo, and the saha.ing room
+with the space's name (for `meditation.ar`, the meditation.AR room) shows them on a
+workbench, behind and to the right of where people arrive. Every push to the branch the
+workbench follows reloads them there within seconds, for everyone standing in the room.
+
+```json
+{ "pieces": [
+    { "id": "orb",  "name": "Meditation orb",  "model": "models/orb.glb", "spin": true },
+    { "id": "sky",  "name": "Sky study",       "image": "art/sky.png" },
+    { "id": "bell", "name": "Bell instrument", "page":  "bell/" }
+] }
+```
+
+- `model`: a `.glb` or `.gltf` (meshopt compression works; Draco does not yet), up to
+  50 MB, fitted onto its pedestal. `spin: true` turns it slowly.
+- `image`: `.png`, `.jpg` or `.webp`, up to 10 MB, on a small stand.
+- `page`: a folder or `.html` in the site. **Pages are portals, not loaded into the room**:
+  a page is your code, and code never runs inside saha.ing's own page. Tap it to go
+  there as yourself.
+- Paths are inside the **published** folder, like any URL of the space. Up to 8 pieces.
+- A bad entry never fails a deploy: the good pieces show, and the problem is written along
+  the front of the bench.
+
+**Which branch.** On the Spaces page, open the space and pick what the workbench
+**follows**. Point it at a work branch (`wip`) and the room shows work in progress while
+`main`, the space people visit, stays as it was. Pushes to other branches leave the
+bench alone.
+
 ## Rolling back
 
 On the Spaces page, open the space and press **Make this live** on an earlier deploy.
@@ -157,8 +187,11 @@ sandbox is what keeps one space's code from acting as a saha.ing visitor.
   first, then deploys after a push that changed a branch.
 - On disk: `SPACES_ROOT` (default: `spaces/` beside the database, i.e.
   `/var/lib/fxg-crew/spaces`), with `repos/<space>.git` and `sites/<space>/<deploy>/`.
-- Database: migration 44 (`spaces`, `space_deploys`, `space_live`) and 45 (public rooms,
-  `space_state` for the kit's shared values).
+- Database: migration 44 (`spaces`, `space_deploys`, `space_live`), 45 (public rooms,
+  `space_state` for the kit's shared values) and 46 (the workbench: pieces per deploy, and
+  the branch each bench follows).
+- Workbench: `shared/space-bench.ts` (the rules), `src/space/SpaceBench.tsx` (the bench),
+  `/bff/spaces/<space>/bench`; a `benchChanged` message on the room's socket reloads it.
 - Multiplayer: `public/kit/saha.js` (the kit), `shared/space-kit.ts` (the wire),
   `server/spaces/live.ts` (the hub, `/bff/spaces/<space>/live`), `server/spaces/tickets.ts`.
 - nginx: `location /git/` allows 500 MB bodies without buffering (`deploy/nginx.conf`).

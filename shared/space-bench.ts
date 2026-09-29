@@ -1,0 +1,144 @@
+/**
+ * THE WORKBENCH: A SPACE'S PIECES, LIVE IN ITS SAHA.ING ROOM (Nikk,
+ * 2026-09-29: "as they are working on one of the pieces, we can see it inside
+ * of the saha.ing group ... as it's been adjusted on the git, it can be seen
+ * live in the saha.ing space").
+ *
+ * A space's repo lists its pieces in saha-pieces.json. The saha.ing room of
+ * the same name shows them on a bench, from the branch the team picks (main,
+ * or a work branch like wip), and every push to that branch reloads them in
+ * the room for everyone standing there.
+ *
+ *   { "pieces": [
+ *       { "id": "orb",   "name": "Meditation orb", "model": "models/orb.glb", "spin": true },
+ *       { "id": "sky",   "name": "Sky study",      "image": "art/sky.png" },
+ *       { "id": "bell",  "name": "Bell instrument", "page": "bell/" }
+ *   ] }
+ *
+ * MODELS AND PICTURES COME INTO THE ROOM; PAGES DO NOT. A .glb is data: the
+ * room can load it safely. A page is somebody's code, and running it inside
+ * saha.ing's own page would let it act as whoever is looking, so a page
+ * piece is a portal: tap it and you go to that page (multiplayer, as
+ * yourself). Paths are inside the published folder, like every URL of the
+ * space.
+ */
+
+export type BenchPiece = {
+  id: string;
+  name: string;
+  kind: "model" | "image" | "page";
+  /** The file or folder, relative to the published site. */
+  path: string;
+  /** Model only: turn slowly on the bench. */
+  spin: boolean;
+};
+
+export const BENCH_LIMITS = {
+  pieces: 8,
+  modelBytes: 50 * 1024 * 1024,
+  imageBytes: 10 * 1024 * 1024,
+} as const;
+
+const MODEL = /\.(glb|gltf)$/i;
+const IMAGE = /\.(png|jpe?g|webp)$/i;
+const ID = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+
+/** A path inside the site: no leading slash, no .., no dot-files (which are never published). */
+function sitePath(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const parts = raw.replace(/\\/g, "/").split("/").filter((part) => part !== "" && part !== ".");
+  if (parts.length === 0 || parts.some((part) => part === ".." || part.startsWith("."))) return null;
+  return parts.join("/") + (raw.endsWith("/") ? "/" : "");
+}
+
+/**
+ * Read saha-pieces.json against the files a deploy actually published
+ * (path -> bytes, relative to the site). Every problem is named, and one bad
+ * piece does not hide the others: good pieces are kept, bad ones listed.
+ */
+export function readPieces(text: string, published: ReadonlyMap<string, number>): { pieces: BenchPiece[]; problems: string[] } {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { pieces: [], problems: ["saha-pieces.json is not valid JSON."] };
+  }
+  const list = (raw as { pieces?: unknown })?.pieces;
+  if (!Array.isArray(list)) return { pieces: [], problems: ['saha-pieces.json needs a "pieces" list.'] };
+  const pieces: BenchPiece[] = [];
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  for (const [index, entry] of list.entries()) {
+    const item = (entry ?? {}) as Record<string, unknown>;
+    const label = typeof item.id === "string" ? item.id : `piece ${index + 1}`;
+    if (pieces.length >= BENCH_LIMITS.pieces) {
+      problems.push(`Only ${BENCH_LIMITS.pieces} pieces fit on the bench; ${label} and after are left off.`);
+      break;
+    }
+    if (typeof item.id !== "string" || !ID.test(item.id) || seen.has(item.id)) {
+      problems.push(`${label}: needs a unique "id" of lower-case letters, digits, - or _.`);
+      continue;
+    }
+    const name = typeof item.name === "string" && item.name.trim() ? item.name.trim().slice(0, 40) : item.id;
+    const kinds = (["model", "image", "page"] as const).filter((kind) => item[kind] !== undefined);
+    if (kinds.length !== 1) {
+      problems.push(`${label}: give exactly one of "model", "image" or "page".`);
+      continue;
+    }
+    const kind = kinds[0];
+    const path = sitePath(item[kind]);
+    if (path === null) {
+      problems.push(`${label}: "${kind}" must be a path inside the published site.`);
+      continue;
+    }
+    if (kind === "model" || kind === "image") {
+      const pattern = kind === "model" ? MODEL : IMAGE;
+      const limit = kind === "model" ? BENCH_LIMITS.modelBytes : BENCH_LIMITS.imageBytes;
+      const size = published.get(path);
+      if (!pattern.test(path)) {
+        problems.push(`${label}: a ${kind} must be ${kind === "model" ? ".glb or .gltf" : ".png, .jpg or .webp"}.`);
+        continue;
+      }
+      if (size === undefined) {
+        problems.push(`${label}: ${path} is not in what was published.`);
+        continue;
+      }
+      if (size > limit) {
+        problems.push(`${label}: ${path} is ${Math.round(size / 1048576)} MB; the bench takes up to ${limit / 1048576} MB.`);
+        continue;
+      }
+    } else {
+      const page = path.endsWith("/") ? `${path}index.html` : path;
+      if (!published.has(page) && !published.has(`${path}/index.html`)) {
+        problems.push(`${label}: there is no page at ${path}.`);
+        continue;
+      }
+    }
+    seen.add(item.id);
+    pieces.push({ id: item.id, name, kind, path, spin: item.spin === true });
+  }
+  return { pieces, problems };
+}
+
+/** Where the bench stands in a room: behind and to the right of where people arrive, clear of every piece and panel. */
+export const BENCH_AT = { x: 3.4, z: 9.4 } as const;
+/** Pedestals per row, and their spacing, in metres. */
+export const BENCH_ROW = { perRow: 4, gap: 0.85, rowGap: 0.9 } as const;
+
+/** Each piece's spot on the bench, in the bench's own frame (x across, z back). */
+export function benchSlot(index: number): { x: number; z: number; height: number } {
+  const row = Math.floor(index / BENCH_ROW.perRow);
+  const column = index % BENCH_ROW.perRow;
+  return {
+    x: (column - (BENCH_ROW.perRow - 1) / 2) * BENCH_ROW.gap,
+    z: row * BENCH_ROW.rowGap,
+    // The back row stands taller, so it shows over the front.
+    height: 0.8 + row * 0.25,
+  };
+}
+
+/** The URL of a piece in a deploy, with the deploy id so a new push is a new URL (no stale cache). */
+export function pieceUrl(space: string, branch: string, path: string, deployId: string): string {
+  const root = branch === "main" ? `/s/${space}/` : `/s/${space}/@${branch}/`;
+  return `${root}${path}?v=${encodeURIComponent(deployId)}`;
+}

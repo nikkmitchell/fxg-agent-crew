@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { DeployRecord } from "../../shared/spaces.js";
+import type { BenchPiece } from "../../shared/space-bench.js";
 
 /**
  * What saha.ing remembers about spaces (migration 44): that a space exists,
@@ -21,9 +22,27 @@ type DeployRow = {
   files: number;
   bytes: number;
   spa: number;
+  pieces_json?: string | null;
+  pieces_problems?: string | null;
 };
 
-export type StoredDeploy = Omit<DeployRecord, "status"> & { status: DeployRow["status"]; spa: boolean };
+export type StoredDeploy = Omit<DeployRecord, "status"> & {
+  status: DeployRow["status"];
+  spa: boolean;
+  /** What saha-pieces.json listed (shared/space-bench.ts); empty when it had none. */
+  pieces?: BenchPiece[];
+  piecesProblems?: string[];
+};
+
+const parseList = <T>(text: string | null | undefined): T[] => {
+  if (!text) return [];
+  try {
+    const value = JSON.parse(text) as unknown;
+    return Array.isArray(value) ? (value as T[]) : [];
+  } catch {
+    return [];
+  }
+};
 
 const toDeploy = (row: DeployRow): StoredDeploy => ({
   id: row.id,
@@ -39,6 +58,8 @@ const toDeploy = (row: DeployRow): StoredDeploy => ({
   files: row.files,
   bytes: row.bytes,
   spa: row.spa === 1,
+  pieces: parseList<BenchPiece>(row.pieces_json),
+  piecesProblems: parseList<string>(row.pieces_problems),
 });
 
 export class SpaceStore {
@@ -65,10 +86,12 @@ export class SpaceStore {
 
   record(deploy: StoredDeploy): void {
     this.db.prepare(
-      `INSERT INTO space_deploys (id, space, branch, commit_sha, message, author, pushed_by, created_at, status, problem, files, bytes, spa)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO space_deploys (id, space, branch, commit_sha, message, author, pushed_by, created_at, status, problem, files, bytes, spa, pieces_json, pieces_problems)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(deploy.id, deploy.space, deploy.branch, deploy.commit, deploy.message, deploy.author, deploy.pushedBy, deploy.createdAt,
-      deploy.status, deploy.problem, deploy.files, deploy.bytes, deploy.spa ? 1 : 0);
+      deploy.status, deploy.problem, deploy.files, deploy.bytes, deploy.spa ? 1 : 0,
+      deploy.pieces?.length ? JSON.stringify(deploy.pieces) : null,
+      deploy.piecesProblems?.length ? JSON.stringify(deploy.piecesProblems) : null);
   }
 
   deploy(id: string): StoredDeploy | null {
@@ -130,6 +153,17 @@ export class SpaceStore {
     return (this.db.prepare(
       "SELECT s.name, s.title FROM spaces s JOIN space_live l ON l.space = s.name AND l.branch = 'main' WHERE s.public = 1 ORDER BY s.name",
     ).all() as { name: string; title: string | null }[]).map((row) => ({ name: row.name, title: row.title }));
+  }
+
+  // ------------------------------------------------ the workbench (migration 46)
+
+  benchBranch(name: string): string {
+    const row = this.db.prepare("SELECT bench_branch FROM spaces WHERE name = ?").get(name) as { bench_branch: string | null } | undefined;
+    return row?.bench_branch ?? "main";
+  }
+
+  setBenchBranch(name: string, branch: string): void {
+    this.db.prepare("UPDATE spaces SET bench_branch = ? WHERE name = ?").run(branch === "main" ? null : branch, name);
   }
 
   // ------------------------------------------------ shared state (shared/space-kit.ts)

@@ -65,6 +65,10 @@ export const bff = {
   publishSpace: (name: string, isPublic: boolean, title?: string) =>
     requestJson<SpaceListing>(`${bffRoot}/spaces/${encodeURIComponent(name)}/public`, { method: "POST", body: JSON.stringify({ public: isPublic, title }) }),
 
+  /** Which branch the room's workbench follows (shared/space-bench.ts). */
+  benchBranch: (name: string, branch: string) =>
+    requestJson<{ branch: string }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/bench`, { method: "POST", body: JSON.stringify({ branch }) }),
+
   /** Serve an earlier (or later) deploy on its branch: rolling back. */
   makeLive: (name: string, deployId: string) =>
     requestJson<{ branch: string; live: DeployRecord }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/live`, { method: "POST", body: JSON.stringify({ deployId }) }),
@@ -117,7 +121,7 @@ export const bff = {
     }),
 };
 
-export type SpaceListing = { name: string; createdBy: string; createdAt: string; gitPath: string; sitePath: string; live: DeployRecord | null; public: boolean; title: string | null; here: number };
+export type SpaceListing = { name: string; createdBy: string; createdAt: string; gitPath: string; sitePath: string; live: DeployRecord | null; public: boolean; title: string | null; here: number; benchBranch?: string };
 export type SpaceDetail = {
   space: SpaceListing;
   branches: { branch: string; head: string | null; sitePath: string; live: DeployRecord | null }[];
