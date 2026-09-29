@@ -43,6 +43,22 @@ git asks for a username and password.
 
   Your private key never leaves your machine; only the token it earns is sent.
 
+### When git is reset before it can log in
+
+From some networks, git, curl and Python get "connection reset" from saha.ing before any
+login prompt, while browsers and Node get through (something on the route filters the TLS
+hello that names saha.ing). Then run the bridge, which forwards git through Node with the
+certificate checked as usual:
+
+```sh
+node tools/saha-git-bridge.mjs          # keep it running; listens on 127.0.0.1:18480 only
+git config --global url."http://127.0.0.1:18480/git/".insteadOf https://saha.ing/git/
+```
+
+Every `https://saha.ing/git/...` command now goes through it. The credential helper answers
+for the bridge too. Stop using it with
+`git config --global --unset url."http://127.0.0.1:18480/git/".insteadOf`.
+
 ## Working
 
 ```bash
