@@ -1,13 +1,25 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { VRMLoaderPlugin, VRMUtils, type VRM } from "@pixiv/three-vrm";
 import type { KitPerson } from "../../shared/space-kit";
 import type { SahaRoom } from "./connect";
 
 /**
  * EVERYONE ELSE, DRAWN: a figure per person with their name, where they
  * stand and facing where they look, their hands when they send them, and a
- * bubble for what they say. Simple shapes on purpose, in each person's own
- * colour: they read at any distance and cost a handful of draws.
+ * bubble for what they say.
+ *
+ * IN THEIR OWN saha.ing BODY when they chose one (the VRM from the wardrobe),
+ * loaded the way saha.ing loads it; until it arrives, or if it cannot, a
+ * simple figure in their colour stands in, so nobody is ever invisible.
  */
+
+/** Which way a VRM's face points out of the file: VRM 0 faces -Z, VRM 1 +Z (as src/space/vrm-model.ts). */
+function faceFrontZOf(vrm: VRM): number {
+  const stated = vrm.lookAt?.faceFront.z;
+  if (stated !== undefined && Math.abs(stated) > 0.01) return stated;
+  return vrm.meta?.metaVersion === "0" ? -1 : 1;
+}
 
 const SAY_MS = 9000;
 
@@ -26,6 +38,9 @@ type Figure = {
   quat: THREE.Quaternion | null;
   hl: THREE.Vector3 | null;
   hr: THREE.Vector3 | null;
+  /** Their saha.ing body, once loaded; stands at their feet, not their head. */
+  avatar: { vrm: VRM; holder: THREE.Group } | null;
+  avatarUrl: string | null;
 };
 
 export function label(text: string, background = "rgba(20,23,28,.72)"): THREE.Sprite {
@@ -56,7 +71,12 @@ function disposeSprite(sprite: THREE.Sprite): void {
   sprite.material.dispose();
 }
 
-export function drawOthers(room: SahaRoom, scene: THREE.Scene): { update: (now: number) => void; figures: Map<string, Figure> } {
+export function drawOthers(
+  room: SahaRoom,
+  scene: THREE.Scene,
+  /** A body's URL as the page must fetch it (absolute, with the ticket where needed). */
+  bodyUrl: (url: string) => string,
+): { update: (now: number) => void; figures: Map<string, Figure> } {
   const figures = new Map<string, Figure>();
   const pendingSay = new Map<string, { text: string; until: number }>();
   const forward = new THREE.Vector3();
@@ -86,11 +106,50 @@ export function drawOthers(room: SahaRoom, scene: THREE.Scene): { update: (now: 
     left.visible = right.visible = false;
     root.add(head, body, name, left, right);
     scene.add(root);
-    return { root, head, body, torso, legs, name, left, right, bubble: null, bubbleUntil: 0, target: null, quat: null, hl: null, hr: null };
+    return { root, head, body, torso, legs, name, left, right, bubble: null, bubbleUntil: 0, target: null, quat: null, hl: null, hr: null, avatar: null, avatarUrl: null };
+  };
+
+  const loader = new GLTFLoader();
+  loader.register((parser) => new VRMLoaderPlugin(parser));
+  const dress = (figure: Figure, url: string) => {
+    figure.avatarUrl = url;
+    loader.load(
+      bodyUrl(url),
+      (gltf) => {
+        const vrm = gltf.userData.vrm as VRM | undefined;
+        if (!vrm || figure.avatarUrl !== url || !figures.has(figure.root.name.slice(5))) {
+          if (vrm) VRMUtils.deepDispose(vrm.scene);
+          return;
+        }
+        VRMUtils.removeUnnecessaryVertices(vrm.scene);
+        VRMUtils.combineSkeletons(vrm.scene);
+        vrm.scene.rotation.y = faceFrontZOf(vrm) > 0 ? Math.PI : 0;
+        // Arms down, relaxed, rather than the file's T-pose.
+        const bone = (name: "leftUpperArm" | "rightUpperArm") => vrm.humanoid.getNormalizedBoneNode(name);
+        const left = bone("leftUpperArm");
+        const right = bone("rightUpperArm");
+        if (left) left.rotation.z = 1.2;
+        if (right) right.rotation.z = -1.2;
+        const holder = new THREE.Group();
+        holder.add(vrm.scene);
+        scene.add(holder);
+        figure.avatar = { vrm, holder };
+        // The body is the figure now: the stand-in shapes step aside.
+        figure.head.visible = false;
+        figure.body.visible = false;
+      },
+      undefined,
+      () => undefined, // the stand-in stays; nobody is left invisible
+    );
   };
 
   const dispose = (figure: Figure) => {
     scene.remove(figure.root);
+    if (figure.avatar) {
+      scene.remove(figure.avatar.holder);
+      VRMUtils.deepDispose(figure.avatar.vrm.scene);
+      figure.avatar = null;
+    }
     figure.root.traverse((object) => {
       const mesh = object as THREE.Mesh;
       mesh.geometry?.dispose();
@@ -124,6 +183,7 @@ export function drawOthers(room: SahaRoom, scene: THREE.Scene): { update: (now: 
         pendingSay.delete(person.id);
         if (said && said.until > performance.now()) showSay(figure, said.text, said.until);
       }
+      if (person.bodyUrl && figure.avatarUrl !== person.bodyUrl) dress(figure, person.bodyUrl);
       if (person.p) figure.target = new THREE.Vector3(...person.p);
       if (person.q) figure.quat = new THREE.Quaternion(...person.q);
       figure.hl = person.hl ? new THREE.Vector3(...person.hl) : null;
@@ -144,7 +204,10 @@ export function drawOthers(room: SahaRoom, scene: THREE.Scene): { update: (now: 
     else pendingSay.set(message.id, { text: message.text, until });
   });
 
+  let last = performance.now();
   const update = (now: number) => {
+    const delta = Math.min(0.1, (now - last) / 1000);
+    last = now;
     for (const figure of figures.values()) {
       if (!figure.target) {
         figure.root.visible = false;
@@ -168,6 +231,19 @@ export function drawOthers(room: SahaRoom, scene: THREE.Scene): { update: (now: 
       figure.legs.scale.y = legs;
       figure.legs.position.set(0, -torso - legs / 2, 0);
       figure.name.position.set(0, 0.3, 0);
+      if (figure.avatar) {
+        // Feet on the floor under the head, turned the way the head faces.
+        const { vrm, holder } = figure.avatar;
+        holder.position.set(figure.root.position.x, 0, figure.root.position.z);
+        holder.rotation.y = figure.body.rotation.y;
+        const neck = vrm.humanoid.getNormalizedBoneNode("head");
+        if (neck && figure.quat) {
+          // Only the nod: the body already turns with the head.
+          const tilt = new THREE.Euler().setFromQuaternion(figure.head.quaternion, "YXZ").x;
+          neck.rotation.x = Math.max(-0.6, Math.min(0.6, tilt)) * (vrm.scene.rotation.y === 0 ? 1 : -1);
+        }
+        vrm.update(delta);
+      }
       for (const [mesh, at] of [[figure.left, figure.hl], [figure.right, figure.hr]] as const) {
         mesh.visible = at !== null;
         if (at) mesh.position.copy(at).sub(figure.root.position);

@@ -16,6 +16,8 @@ type Listener = (...args: never[]) => void;
 
 export type SahaRoom = {
   space: string;
+  /** The ticket this page entered with (null for a guest): for the kit's own requests. */
+  ticket: string | null;
   /** You, as others see you; null while connecting and for guests. */
   you: KitPerson | null;
   /** True when watching without a ticket. */
@@ -98,6 +100,7 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
 
   const room: SahaRoom = {
     space,
+    ticket,
     you: null,
     guest: ticket === null,
     connected: false,

@@ -31,7 +31,7 @@ export class SpaceLive {
 
   constructor(
     private readonly store: SpaceStore,
-    private readonly bodyUrl: (body: string) => string | null,
+    private readonly bodyUrl: (body: string, space: string) => string | null,
     private readonly now: () => number = Date.now,
   ) {
     this.timer = setInterval(() => this.tick(), 1000 / KIT_LIMITS.broadcastHz);
@@ -63,7 +63,7 @@ export class SpaceLive {
         id,
         name: holder.username,
         body: holder.body,
-        bodyUrl: holder.body ? this.bodyUrl(holder.body) : null,
+        bodyUrl: holder.body ? this.bodyUrl(holder.body, space) : null,
         color: colorFor(holder.username),
         p: null,
         q: null,

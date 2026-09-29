@@ -9,6 +9,8 @@ import { defineConfig } from "vite";
 export default defineConfig({
   // Not public/ again: the app build already copied it into dist/.
   publicDir: false,
+  // Kit code imports three's examples as three/addons/..., the name a space
+  // page's import map gives them; never three/examples/jsm/..., which it does not.
   build: {
     outDir: "dist/kit",
     emptyOutDir: false,

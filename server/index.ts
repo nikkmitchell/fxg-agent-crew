@@ -4,7 +4,7 @@ import { SpaceStore } from "./spaces/store.js";
 import { SpaceAuth } from "./spaces/auth.js";
 import { SpaceLive } from "./spaces/live.js";
 import { SpaceTickets } from "./spaces/tickets.js";
-import { bodyPath } from "../shared/avatar-choice.js";
+import { bodyPath, isOnHand } from "../shared/avatar-choice.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerIdempotency } from "./idempotency.js";
 import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
@@ -702,7 +702,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // SPACES: a git repository and a deployed site per room (shared/spaces.ts),
   // and the multiplayer kit their pages can load (shared/space-kit.ts).
   const spaceStore = new SpaceStore(database);
-  const spaceLive = new SpaceLive(spaceStore, (body) => bodyPath(body));
+  // Bodies that ship with saha.ing are plain public files; catalogue bodies come
+  // through the space's own ticketed route (spaces/routes.ts).
+  const spaceLive = new SpaceLive(spaceStore, (body, space) => (isOnHand(body) ? bodyPath(body) : `/bff/spaces/${space}/body/${body}.vrm`));
   registerSpacesHosting(app, {
     spacesRoot: config.spacesRoot,
     store: spaceStore,
@@ -711,6 +713,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     tickets: new SpaceTickets(),
     live: spaceLive,
     bodyOf: (username) => agentBodies.get(username),
+    bodyFile: (slug) => bodyFiles.want(slug),
     // The room of the same name refetches its bench (src/space/SpaceBench.tsx).
     benchChanged: (space) => hubFor(space).broadcast({ type: "benchChanged", space }),
   });

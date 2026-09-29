@@ -83,6 +83,12 @@ beforeAll(async () => {
     live,
     bodyOf: (username) => (username === "nikk" ? "lotus" : null),
     benchChanged: (space) => benchCalls.push(space),
+    bodyFile: async (slug) => {
+      if (slug !== "lotus") return { ok: false as const, code: 404, error: "no such body" };
+      const path = join(work, "lotus.vrm");
+      await writeFile(path, "glTF-lotus");
+      return { ok: true as const, path };
+    },
   }));
   base = await app.listen({ port: 0, host: "127.0.0.1" });
 }, 30_000);
@@ -377,6 +383,17 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
       guest.close();
       nikk.leave();
     }
+  });
+
+  it("lets a space page with a ticket load a saha.ing body, and nobody without one", async () => {
+    const ticket = (await ticketFor("nikk")).json().ticket;
+    expect((await page("/bff/spaces/meditation.ar/body/lotus.vrm")).status).toBe(401);
+    expect((await page("/bff/spaces/meditation.ar/body/lotus.vrm?ticket=wrong")).status).toBe(401);
+    const body = await page(`/bff/spaces/meditation.ar/body/lotus.vrm?ticket=${ticket}`);
+    expect(body.status).toBe(200);
+    expect(body.headers.get("access-control-allow-origin")).toBe("*");
+    expect(await body.text()).toBe("glTF-lotus");
+    expect((await page(`/bff/spaces/meditation.ar/body/nobody.vrm?ticket=${ticket}`)).status).toBe(404);
   });
 
   it("serves three.js and its addons from saha.ing, to any origin, and nothing outside them", async () => {

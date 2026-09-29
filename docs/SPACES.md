@@ -97,8 +97,10 @@ any of it:
 </script>
 ```
 
-- **Everyone else**: a figure per person with their name, facing where they look, their
-  hands in VR, and a bubble for what they say. Two devices are two figures.
+- **Everyone else, in their own saha.ing body**: the VRM each person chose in saha.ing's
+  wardrobe, where they stand and facing where they look, their name above, their hands in
+  VR, and a bubble for what they say. A simple figure in their colour stands in until the
+  body loads (or if it cannot). Two devices are two figures.
 - **Moving the saha.ing way**, from saha.ing's own code: left stick walks (with its dead
   zone), right stick snap-turns 30 degrees about your head, tracked hands use the palm
   joystick (hold a palm up; the left walks, the right turns). On a computer: WASD or the
@@ -113,8 +115,7 @@ any of it:
 
 Turn any part off: `joinSaha({ …, movement: false, menu: false, vrButton: false,
 badge: false })`. Give your own rig with `player`. `connectSaha()` is the connection alone,
-for a page without three.js. Coming next: your saha.ing avatar (the body you chose) and
-voice chat.
+for a page without three.js. Coming next: voice chat.
 
 The kit is built from saha.ing's own movement code (`src/kit/`, using
 `src/space/stick-walk.ts`, `palm-joystick.ts` and `comfort.ts`), so a fix to saha.ing's

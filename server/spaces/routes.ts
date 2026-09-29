@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Readable } from "node:stream";
@@ -157,6 +158,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   live: SpaceLive;
   /** The body a person chose in saha.ing, if any. */
   bodyOf: (username: string) => string | null;
+  /** A catalogue body's file on disk, fetched and cached on first use (server/space/body-files.ts). */
+  bodyFile?: (slug: string) => Promise<{ ok: true; path: string } | { ok: false; code: number; error: string }>;
   /**
    * What a room's bench shows may have changed (a deploy, a rollback, a
    * different branch followed): tell the saha.ing room of that name.
@@ -434,6 +437,26 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     }
     const ticket = deps.tickets.issue({ username: me.username, body: deps.bodyOf(me.username), space });
     return reply.header("cache-control", "no-store").send({ ticket, path: spaceEntryPath(space, ticket) });
+  });
+
+  /**
+   * A SAHA.ING BODY, FOR A SPACE PAGE. Catalogue bodies are CC0 but fetched
+   * and cached on demand, so saha.ing only serves them to somebody signed in;
+   * a space page has no sign-in, so its ticket for this space stands in for
+   * it. (Bodies that ship with saha.ing are plain files at /avatars/.)
+   */
+  app.get<{ Params: { space: string; file: string }; Querystring: { ticket?: string } }>("/bff/spaces/:space/body/:file", async (request, reply) => {
+    const space = spaceKey(request.params.space);
+    if (!deps.tickets.read(request.query.ticket, space)) return reply.code(401).send({ code: "NO_TICKET", error: "Enter the space from saha.ing to load bodies." });
+    if (!deps.bodyFile) return reply.code(404).send({ code: "NO_BODY_FILE", error: "No bodies here." });
+    const result = await deps.bodyFile(request.params.file.replace(/\.vrm$/i, ""));
+    if (!result.ok) return reply.code(result.code).send({ code: "NO_BODY_FILE", error: result.error });
+    return reply
+      .header("content-type", "model/gltf-binary")
+      .header("access-control-allow-origin", "*")
+      .header("cross-origin-resource-policy", "cross-origin")
+      .header("cache-control", "public, max-age=31536000, immutable")
+      .send(createReadStream(result.path));
   });
 
   /** The published spaces: the lobby's doors. Anyone may ask. */

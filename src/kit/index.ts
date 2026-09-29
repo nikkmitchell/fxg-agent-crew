@@ -117,7 +117,13 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
     else go();
   };
 
-  const others = drawOthers(room, scene);
+  // Bodies: plain files at /avatars/, or a space route that needs this page's ticket.
+  const ticketOf = () => room.ticket;
+  const others = drawOthers(room, scene, (url) => {
+    const absolute = url.startsWith("/") ? `${server}${url}` : url;
+    const ticket = ticketOf();
+    return url.startsWith("/bff/") && ticket ? `${absolute}?ticket=${encodeURIComponent(ticket)}` : absolute;
+  });
   const movement = options.movement === false ? null : createMovement({ renderer, player, camera, comfort: options.comfort });
   const menu = options.menu === false ? null : createWristMenu({ renderer, player, camera });
   menu?.setButtons([
