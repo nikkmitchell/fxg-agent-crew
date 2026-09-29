@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { KIT_LIMITS, bytesOf, colorFor, readClientMessage, type KitPerson, type ServerMessage } from "../../shared/space-kit.js";
 import type { SpaceStore } from "./store.js";
 import type { TicketHolder } from "./tickets.js";
@@ -77,6 +78,7 @@ export class SpaceLive {
     room.members.add(member);
     room.dirty = true;
     this.send(member, { t: "hello", you: person, guest: person === null, space, state: this.store.state(space), people: this.people(room) });
+    if (person) this.send(member, { t: "items", items: this.store.items(person.name) });
 
     return {
       receive: (text) => this.receive(space, room, member, text),
@@ -154,6 +156,23 @@ export class SpaceLive {
       return;
     }
     member.writes.push(at);
+    if (message.t === "give" || message.t === "drop") {
+      const username = member.person.name;
+      if (message.t === "give") {
+        if (this.store.itemCount(username) >= KIT_LIMITS.itemsPerPerson) {
+          this.send(member, { t: "refused", why: `You already carry ${KIT_LIMITS.itemsPerPerson} things; a space must take one back first.` });
+          return;
+        }
+        this.store.addItem(username, { id: randomBytes(9).toString("base64url"), name: message.name, from: space, url: message.url, data: message.data, at: new Date(at).toISOString() });
+      } else if (!this.store.removeItem(username, message.id, space)) {
+        this.send(member, { t: "refused", why: "A space can only take back what it gave." });
+        return;
+      }
+      // Every device of this person, in every space, sees the change.
+      const items = this.store.items(username);
+      for (const each of this.rooms.values()) for (const other of each.members) if (other.person?.name === username) this.send(other, { t: "items", items });
+      return;
+    }
     if (message.t === "say") {
       this.broadcast(room, { t: "say", id: member.person.id, name: member.person.name, text: message.text, at });
       return;

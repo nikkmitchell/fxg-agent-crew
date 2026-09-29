@@ -1300,4 +1300,22 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE spaces ADD COLUMN bench_branch TEXT;
     `,
   },
+  {
+    id: 47,
+    name: "spaces: items that follow a person from space to space",
+    sql: `
+      -- What a person carries (shared/space-kit.ts SpaceItem). from_space gave
+      -- it and is the only space that may take it back.
+      CREATE TABLE carried_items (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        from_space TEXT NOT NULL,
+        name TEXT NOT NULL,
+        url TEXT,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX carried_items_by_person ON carried_items (username, created_at);
+    `,
+  },
 ];

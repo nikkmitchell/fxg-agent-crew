@@ -44,7 +44,17 @@ export type SignalMessage = { t: "signal"; to: string; s: KitSignal };
  * struck, a door opened, a ball thrown. Instruments are made of these.
  */
 export type EmitMessage = { t: "emit"; name: string; data: unknown };
-export type ClientMessage = PoseMessage | SetMessage | SayMessage | VoiceMessage | SignalMessage | EmitMessage;
+/**
+ * ITEMS THAT FOLLOW YOU (Nikk, 2026-09-29: things "can be taken across from
+ * spaces"). A space gives you an item; every space you enter afterwards can
+ * see what you carry. An item names the space that gave it and, usually, the
+ * piece that draws it (a /s/... URL from the catalogue), so another space can
+ * import that piece and show it. A space can take back only what it gave.
+ */
+export type SpaceItem = { id: string; name: string; from: string; url: string | null; data: unknown; at: string };
+export type GiveMessage = { t: "give"; name: string; url: string | null; data: unknown };
+export type DropMessage = { t: "drop"; id: string };
+export type ClientMessage = PoseMessage | SetMessage | SayMessage | VoiceMessage | SignalMessage | EmitMessage | GiveMessage | DropMessage;
 
 export type KitPerson = {
   id: string;
@@ -69,7 +79,9 @@ export type ServerMessage =
   | { t: "say"; id: string; name: string; text: string; at: number }
   | { t: "refused"; why: string }
   | { t: "signal"; from: string; s: KitSignal }
-  | { t: "event"; from: string; name: string; data: unknown };
+  | { t: "event"; from: string; name: string; data: unknown }
+  /** Everything you carry, sent when you arrive and whenever it changes. */
+  | { t: "items"; items: SpaceItem[] };
 
 export const KIT_LIMITS = {
   /** Poses beyond this rate are dropped, not queued. */
@@ -85,6 +97,10 @@ export const KIT_LIMITS = {
   /** Moments: a fast player strikes a lot of notes. */
   eventsPerSecond: 30,
   eventBytes: 1024,
+  /** Items one person can carry, across every space. */
+  itemsPerPerson: 100,
+  itemNameLength: 40,
+  itemDataBytes: 2048,
   /** A ticket is good for this long after it is made. */
   ticketMs: 30 * 60_000,
   /** Nobody in a room can stand further than this from its middle. */
@@ -134,6 +150,18 @@ export function readClientMessage(raw: unknown): ClientMessage | null {
       };
     }
     return null;
+  }
+  if (message.t === "give") {
+    if (typeof message.name !== "string") return null;
+    const name = message.name.replace(/\s+/g, " ").trim().slice(0, KIT_LIMITS.itemNameLength);
+    if (!name) return null;
+    const url = message.url === undefined || message.url === null ? null : message.url;
+    if (url !== null && (typeof url !== "string" || !/^\/s\/[a-z0-9._-]+\/[A-Za-z0-9._\/-]*$/.test(url) || url.includes(".."))) return null;
+    if (bytesOf(message.data ?? null) > KIT_LIMITS.itemDataBytes) return null;
+    return { t: "give", name, url, data: message.data ?? null };
+  }
+  if (message.t === "drop") {
+    return typeof message.id === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(message.id) ? { t: "drop", id: message.id } : null;
   }
   if (message.t === "say") {
     if (typeof message.text !== "string") return null;
