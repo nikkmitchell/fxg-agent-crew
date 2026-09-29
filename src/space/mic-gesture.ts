@@ -6,8 +6,8 @@ export const MIC_GESTURE_TILT_RADIANS = (30 * Math.PI) / 180;
 export const MIC_GESTURE_FIST_HOLD_MS = 250;
 export const MIC_GESTURE_TRACKING_GRACE_MS = 900;
 const MIC_GESTURE_START_TIMEOUT_MS = 8_000;
-/** Fingers within this of straight up. Was 40°, which let a hand at rest count. */
-const START_UP_CONE_RADIANS = (25 * Math.PI) / 180;
+/** Fingers within this of straight up. Was 40°, which let a hand at rest count; then 25°, still a few false starts (Nikk, 6216). */
+const START_UP_CONE_RADIANS = (21 * Math.PI) / 180;
 /** In front of the face: within this of where the head faces, sideways. */
 const START_FRONT_DEGREES = 45;
 /** And at a reach, not across the room, and between chest and a little over the head. */

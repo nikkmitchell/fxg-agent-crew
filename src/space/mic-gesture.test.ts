@@ -211,6 +211,21 @@ describe("mic hand gesture", () => {
       expect(fingersStraight(joints)).toBe(false);
     });
 
+    it("turns away a finger only a little bent, which used to count (Nikk, 6216)", () => {
+      const joints: ({ x: number; y: number; z: number } | null)[] = Array.from({ length: 25 }, () => null);
+      const finger = (base: number, x: number, slightly: boolean) => {
+        joints[base] = { x, y: 0, z: 0 };
+        joints[base + 1] = { x, y: 0.06, z: 0 };
+        joints[base + 2] = slightly ? { x, y: 0.095, z: -0.012 } : { x, y: 0.1, z: 0 };
+        // About 0.93 straight: over the old 0.9, under the new 0.94.
+        joints[base + 4] = slightly ? { x, y: 0.115, z: -0.038 } : { x, y: 0.13, z: 0 };
+      };
+      [5, 10, 15, 20].forEach((base, i) => finger(base, i * 0.02, false));
+      expect(fingersStraight(joints)).toBe(true);
+      finger(10, 0.02, true);
+      expect(fingersStraight(joints)).toBe(false);
+    });
+
     it("starts only with the palm facing IN, like half of praying hands, on either hand (Nikk, 5117)", () => {
       // Thumb toward you, little finger away, fingers up, in front of the face.
       const joints = (thumbTowardYou: boolean, x: number) => {

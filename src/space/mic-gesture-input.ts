@@ -135,14 +135,16 @@ const length = (v: Point3) => Math.hypot(v.x, v.y, v.z);
  * the straight distance base-to-tip against the length along its joints. A
  * straight finger is ~1; one bent at the knuckles falls well under.
  */
-export const FINGER_STRAIGHT_RATIO = 0.9;
+// 0.94, was 0.9: Nikk (6216, 2026-09-29) still got false starts from a hand
+// that was "a little bit" bent. The little finger keeps its extra give.
+export const FINGER_STRAIGHT_RATIO = 0.94;
 export function fingersStraight(joints: ReadonlyArray<Point3 | null>): boolean {
   for (const [base, proximal, intermediate, tip, need] of [
     [5, 6, 7, 9, FINGER_STRAIGHT_RATIO],
     [10, 11, 12, 14, FINGER_STRAIGHT_RATIO],
     [15, 16, 17, 19, FINGER_STRAIGHT_RATIO],
     // The little finger tracks worst; a little more give.
-    [20, 21, 22, 24, FINGER_STRAIGHT_RATIO - 0.05],
+    [20, 21, 22, 24, FINGER_STRAIGHT_RATIO - 0.04],
   ] as const) {
     const chain = [joints[base], joints[proximal], joints[intermediate], joints[tip]];
     if (chain.some((point) => !point)) return false;
