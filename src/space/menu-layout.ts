@@ -120,6 +120,8 @@ export type MenuLayout = {
   /** The rounded track the tabs sit in. */
   tabTrack: Rect;
   close: Rect;
+  /** The move handle, just left of close: hold it and point to carry the menu (Nikk, 5903). */
+  move: Rect;
   badge: (Rect & { label: string }) | null;
   columns: LaidColumn[];
   targets: MenuTarget[];
@@ -169,6 +171,7 @@ export function layOutMenu(model: MenuModel, size = MENU): MenuLayout {
     height: size.tabHeight,
   }));
   const close = { x: width - size.pad - size.closeSize, y: headerMid - size.closeSize / 2, width: size.closeSize, height: size.closeSize };
+  const move = { ...close, x: close.x - size.closeSize - 16 };
 
   // THE BADGE takes the title's place: an update matters more than a heading
   // telling you that the settings are the settings.
@@ -179,6 +182,8 @@ export function layOutMenu(model: MenuModel, size = MENU): MenuLayout {
   const targets: MenuTarget[] = [
     ...tabs.map((tab) => ({ id: `tab:${tab.id}`, x: tab.x, y: tab.y, width: tab.width, height: tab.height, onTap: () => model.onTab(tab.id) })),
     { id: "close", ...close, onTap: model.onClose },
+    // A tap does nothing: the move is a hold, handled by SettingsMenu3D.
+    { id: "move", ...move, onTap: () => undefined },
     ...(badge && model.badge ? [{ id: "badge", x: badge.x, y: badge.y, width: badge.width, height: badge.height, onTap: model.badge.onTap }] : []),
   ];
 
@@ -199,7 +204,7 @@ export function layOutMenu(model: MenuModel, size = MENU): MenuLayout {
     return laid;
   });
 
-  return { width, height, title: model.title, tabs, tabTrack, close, badge, columns, targets };
+  return { width, height, title: model.title, tabs, tabTrack, close, move, badge, columns, targets };
 }
 
 /** The pressable parts of one row. A note has none. */

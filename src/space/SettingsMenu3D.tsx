@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { useThree, type ThreeEvent } from "@react-three/fiber";
 import { MENU, hitMenu, layOutMenu, menuPixel, menuSignature, type MenuLayout, type MenuModel } from "./menu-layout";
 import { paintMenu } from "./menu-paint";
+import { clampOffset, loadOffset, saveOffset, type MenuOffset } from "./menu-move";
+import { claimPointer } from "./pointer-claim";
 
 /**
  * The headset settings menu, in the room: one plane with the whole menu
@@ -38,6 +40,14 @@ export function SettingsMenu3D({ model, position = [0, 0, 0] }: { model: MenuMod
   const lastPress = useRef<{ id: string; at: number } | null>(null);
   const mesh = useRef<THREE.Mesh>(null);
   const invalidate = useThree((state) => state.invalidate);
+  /** Where you have put the menu, relative to where it opens (menu-move.ts). */
+  const [offset, setOffset] = useState<MenuOffset>(() => loadOffset());
+  /**
+   * A MOVE IN PROGRESS. The ray is met with the plane the menu stood in when
+   * you took hold, and the menu follows the difference: it moves with the
+   * pointer, not to it, so it never jumps to where you happen to be aiming.
+   */
+  const carrying = useRef<{ plane: THREE.Plane; from: THREE.Vector3; start: MenuOffset; pointer: number } | null>(null);
 
   // One canvas per size. The height never changes (5445); the width changes
   // with how many columns a tab has.
@@ -75,9 +85,52 @@ export function SettingsMenu3D({ model, position = [0, 0, 0] }: { model: MenuMod
   return (
     <mesh
       ref={mesh}
-      position={position}
+      position={[position[0] + offset.x, position[1] + offset.y, position[2] + offset.z]}
+      onPointerDown={(event) => {
+        if (targetAt(event)?.id !== "move") return;
+        event.stopPropagation();
+        claimPointer(event.nativeEvent);
+        const node = mesh.current;
+        if (!node) return;
+        const normal = new THREE.Vector3(0, 0, 1).transformDirection(node.matrixWorld);
+        carrying.current = {
+          plane: new THREE.Plane().setFromNormalAndCoplanarPoint(normal, event.point),
+          from: event.point.clone(),
+          start: offset,
+          pointer: event.pointerId,
+        };
+        // Keep the moves coming when the ray slips off the menu mid-carry.
+        (event.target as unknown as Element | null)?.setPointerCapture?.(event.pointerId);
+        setPressed("move");
+      }}
+      onPointerUp={(event) => {
+        const held = carrying.current;
+        if (!held || held.pointer !== event.pointerId) return;
+        event.stopPropagation();
+        claimPointer(event.nativeEvent);
+        carrying.current = null;
+        (event.target as unknown as Element | null)?.releasePointerCapture?.(event.pointerId);
+        setOffset((now) => {
+          saveOffset(now);
+          return now;
+        });
+      }}
       onPointerMove={(event) => {
         event.stopPropagation();
+        const held = carrying.current;
+        const node = mesh.current;
+        if (held && node?.parent && held.pointer === event.pointerId) {
+          const hit = event.ray.intersectPlane(held.plane, new THREE.Vector3());
+          if (hit) {
+            // World movement into the frame the menu is placed in, so it is
+            // the same move whichever way you are facing.
+            const a = node.parent.worldToLocal(held.from.clone());
+            const b = node.parent.worldToLocal(hit);
+            setOffset(clampOffset({ x: held.start.x + b.x - a.x, y: held.start.y + b.y - a.y, z: held.start.z + b.z - a.z }));
+            invalidate();
+          }
+          return;
+        }
         const id = targetAt(event)?.id ?? null;
         if (id !== hover) setHover(id);
       }}
