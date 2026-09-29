@@ -87,8 +87,15 @@ const STARTER = (space: string, by: string) => [
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1b2028);
+  // THE PLAYER: a rig that carries the camera. In a headset your head moves
+  // inside it, so the rig decides where you stand and which way the room
+  // faces; walking moves the rig, not the camera.
+  const player = new THREE.Group();
+  player.position.set(0, 0, 3);
+  scene.add(player);
   const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 200);
-  camera.position.set(0, 1.6, 3);
+  camera.position.set(0, 1.6, 0);
+  player.add(camera);
   scene.add(new THREE.HemisphereLight(0xdde6ff, 0x30281f, 1.4));
   const sun = new THREE.DirectionalLight(0xffffff, 1.2);
   sun.position.set(3, 6, 2);
@@ -98,10 +105,19 @@ const STARTER = (space: string, by: string) => [
   stone.position.set(0, 1, 0);
   scene.add(stone);
 
-  // One line makes it multiplayer. room.set / room.on("state") share things.
-  const room = joinSaha({ THREE, scene, camera, renderer });
+  // Controllers: a small sphere for each hand, carried by the rig.
+  const hands = [0, 1].map((index) => {
+    const grip = renderer.xr.getControllerGrip(index);
+    grip.add(new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), new THREE.MeshStandardMaterial({ color: 0xeef0f3 })));
+    player.add(grip);
+    return grip;
+  });
 
-  // Walk with the arrow keys on a computer; a headset walks by itself.
+  // One line makes it multiplayer (hands too). room.set / room.on("state") share things.
+  const room = joinSaha({ THREE, scene, camera, renderer, hands });
+
+  // Walk: arrow keys on a computer; in a headset, the left stick walks where
+  // you look and the right stick turns. B or Y leaves VR.
   const keys = new Set();
   addEventListener("keydown", (event) => keys.add(event.key));
   addEventListener("keyup", (event) => keys.delete(event.key));
@@ -110,12 +126,39 @@ const STARTER = (space: string, by: string) => [
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
   });
+  const look = new THREE.Vector3();
+  let turned = false;
+  const walk = (forward, sideways) => {
+    camera.getWorldDirection(look);
+    look.y = 0;
+    look.normalize();
+    player.position.addScaledVector(look, forward);
+    player.position.addScaledVector(new THREE.Vector3(-look.z, 0, look.x), sideways);
+  };
+  let last = 0;
   renderer.setAnimationLoop((time) => {
+    const delta = Math.min(0.1, (time - last) / 1000);
+    last = time;
     stone.rotation.y = time / 4000;
-    if (keys.has("ArrowUp")) camera.translateZ(-0.05);
-    if (keys.has("ArrowDown")) camera.translateZ(0.05);
-    if (keys.has("ArrowLeft")) camera.rotation.y += 0.03;
-    if (keys.has("ArrowRight")) camera.rotation.y -= 0.03;
+    if (keys.has("ArrowUp")) walk(2 * delta, 0);
+    if (keys.has("ArrowDown")) walk(-2 * delta, 0);
+    if (keys.has("ArrowLeft")) player.rotation.y += 1.5 * delta;
+    if (keys.has("ArrowRight")) player.rotation.y -= 1.5 * delta;
+    const session = renderer.xr.getSession();
+    for (const source of session?.inputSources ?? []) {
+      const pad = source.gamepad;
+      if (!pad) continue;
+      const [, , x = 0, y = 0] = pad.axes;
+      if (source.handedness === "left" && Math.hypot(x, y) > 0.15) walk(-y * 2 * delta, x * 2 * delta);
+      if (source.handedness === "right") {
+        // Snap turns, 30 degrees a flick: smooth turning makes people sick.
+        if (Math.abs(x) > 0.7 && !turned) {
+          player.rotation.y -= Math.sign(x) * Math.PI / 6;
+          turned = true;
+        } else if (Math.abs(x) < 0.3) turned = false;
+      }
+      if (pad.buttons[5]?.pressed) session.end();
+    }
     renderer.render(scene, camera);
   });
 </script>
