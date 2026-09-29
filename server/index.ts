@@ -28,6 +28,7 @@ import { SpaceHub, registerSpaceEntryRoute, registerSpaceRoutes } from "./space/
 import { Presence } from "./space/presence.js";
 import { DeclaredPostures } from "./space/postures.js";
 import { AgentHomes, registerHomeRoutes } from "./space/homes.js";
+import { redactUrl } from "./log-redact.js";
 import { AgentBodies, registerBodyRoutes } from "./space/bodies.js";
 import { AgentVoices, registerVoiceRoutes } from "./space/voices.js";
 import { registerIceRoutes } from "./space/ice.js";
@@ -115,7 +116,15 @@ function findUiRoot(start: string): string {
 
 export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const config = loadConfig(env);
-  const app = Fastify({ logger: { level: config.logLevel } });
+  const app = Fastify({
+    logger: {
+      level: config.logLevel,
+      // A space ticket rides in the live socket's query string (a browser
+      // WebSocket cannot send headers); it names a person, so it never goes
+      // into the log (server/log-redact.ts).
+      serializers: { req: (request: { method?: string; url?: string; hostname?: string; ip?: string }) => ({ method: request.method, url: redactUrl(request.url ?? ""), host: request.hostname, remoteAddress: request.ip }) },
+    },
+  });
   const sessions = createSessionStore(config);
 
   // saha.ing's own database. Opened once per process and migrated on the way
