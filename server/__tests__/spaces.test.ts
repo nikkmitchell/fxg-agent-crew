@@ -299,6 +299,14 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     expect((await ticketFor("baiwei")).statusCode).toBe(403);
   });
 
+  it("lists the kit's own pieces in the catalogue, first, for anyone (Sill, 6289)", async () => {
+    const answer = await app.inject({ method: "GET", url: "/bff/spaces/pieces" });
+    expect(answer.statusCode).toBe(200);
+    const kit = (answer.json().pieces as Array<{ space: string; id: string; kind: string; url: string }>).filter((piece) => piece.space === "saha.ing kit");
+    expect(kit.map((piece) => piece.id)).toEqual(["openScreen", "openDoor"]);
+    expect(kit.every((piece) => piece.kind === "code" && piece.url === "/kit/saha.js")).toBe(true);
+  });
+
   it("walks you through a door: a member gets a ticket in the fragment, anybody else arrives as a guest (plan C)", async () => {
     const go = (who: string | null, space = "meditation.ar") => app.inject({ method: "GET", url: `/go/${space}`, headers: who ? { cookie: `who=${who}` } : {} });
     const member = await go("nikk");

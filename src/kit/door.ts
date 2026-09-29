@@ -43,10 +43,18 @@ export const WALK_THROUGH = 0.35;
 
 const SPACE_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 
-/** Where a door to `space` sends you. Only a space's name is accepted, so a door can only ever lead into a space. */
+/** The one door that is not into a space: back to saha.ing's lobby. */
+export const LOBBY = "lobby";
+
+/**
+ * Where a door to `space` sends you. Only a space's name is accepted (or
+ * "lobby", back to saha.ing), so a door can only ever lead into a space.
+ */
 export function doorAddress(space: string, server: string): string {
+  const root = server.replace(/\/$/, "");
+  if (space.toLowerCase() === LOBBY) return `${root}/`;
   if (!SPACE_NAME.test(space)) throw new Error(`saha.js: openDoor needs a space's name, like "xr.instruments", not ${JSON.stringify(space)}`);
-  return `${server.replace(/\/$/, "")}/go/${encodeURIComponent(space.toLowerCase())}`;
+  return `${root}/go/${encodeURIComponent(space.toLowerCase())}`;
 }
 
 /**
@@ -89,7 +97,7 @@ export function openDoor(options: DoorOptions): Door {
   const server = options.server ?? (typeof location !== "undefined" ? location.origin : "https://saha.ing");
   const address = doorAddress(options.space, server);
   const facing = options.facing ?? 0;
-  const title = options.title ?? options.space;
+  const title = options.title ?? (options.space.toLowerCase() === LOBBY ? "saha.ing lobby" : options.space);
 
   const group = new THREE.Group();
   group.name = `saha:door ${options.space}`;

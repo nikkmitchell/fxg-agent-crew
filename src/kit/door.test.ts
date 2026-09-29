@@ -5,6 +5,7 @@ describe("a door between spaces (Sill's plan for spaces, C)", () => {
   it("leads only into a space, by its name, through saha.ing so your ticket comes too", () => {
     expect(doorAddress("xr.instruments", "https://saha.ing")).toBe("https://saha.ing/go/xr.instruments");
     expect(doorAddress("Meditation.AR", "https://saha.ing/")).toBe("https://saha.ing/go/meditation.ar");
+    expect(doorAddress("lobby", "https://saha.ing")).toBe("https://saha.ing/");
     for (const bad of ["", "../../bff/x", "https://evil.example", "a b", "x/y"]) {
       expect(() => doorAddress(bad, "https://saha.ing")).toThrow(/space's name/);
     }

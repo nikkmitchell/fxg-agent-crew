@@ -17,7 +17,7 @@ import {
 } from "../../shared/spaces.js";
 import type { Session } from "../session.js";
 import { doorTitle, spaceEntryPath } from "../../shared/space-kit.js";
-import { catalogueOf, pieceUrl } from "../../shared/space-bench.js";
+import { catalogueOf, KIT_PIECES, pieceUrl } from "../../shared/space-bench.js";
 import { iceServersFrom } from "../space/ice.js";
 import type { SpaceLive } from "./live.js";
 import type { SpaceTickets } from "./tickets.js";
@@ -588,7 +588,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   /** The catalogue: every public space's pieces on its live main, for anyone to use in their own space. */
   app.get("/bff/spaces/pieces", async (_request, reply) =>
     reply.header("cache-control", "no-store").send({
-      pieces: store.publicSpaces().flatMap((space) => catalogueOf(space.name, store.live(space.name, LIVE_BRANCH)?.pieces ?? [])),
+      pieces: [...KIT_PIECES, ...store.publicSpaces().flatMap((space) => catalogueOf(space.name, store.live(space.name, LIVE_BRANCH)?.pieces ?? []))],
     }));
 
   /** Publish a space as a public room (a door in the lobby), or take it back. Members only. */

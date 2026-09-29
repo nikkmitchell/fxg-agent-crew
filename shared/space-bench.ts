@@ -140,6 +140,16 @@ export function catalogueOf(space: string, pieces: readonly BenchPiece[]): Catal
   return pieces.map((piece) => ({ space, id: piece.id, name: piece.name, kind: piece.kind, url: `/s/${space}/${piece.path}` }));
 }
 
+/**
+ * THE KIT'S OWN PIECES, listed with every space's, so they are found where
+ * people look for things to use (Sill, 6289). They live in /kit/saha.js and
+ * are imported by name: import { openDoor } from "/kit/saha.js".
+ */
+export const KIT_PIECES: readonly CataloguePiece[] = [
+  { space: "saha.ing kit", id: "openScreen", name: "Screen: any space or web page on a panel (openScreen)", kind: "code", url: "/kit/saha.js" },
+  { space: "saha.ing kit", id: "openDoor", name: "Door: into another space or the lobby, staying in VR (openDoor)", kind: "code", url: "/kit/saha.js" },
+];
+
 /** Where the bench stands in a room: behind and to the right of where people arrive, clear of every piece and panel. */
 export const BENCH_AT = { x: 3.4, z: 9.4 } as const;
 /** Pedestals per row, and their spacing, in metres. */
