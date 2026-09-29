@@ -44,7 +44,7 @@ const ALLOWED: Record<string, string> = {
   "kit/menu.ts":
     "where the buttons are: a wrist panel in a headset, the badge's link in a window (kit/index.ts); both take you back to saha.ing",
   "kit/index.ts":
-    "sends hand positions only when there are tracked hands to send, and ends a session before leaving if one is running",
+    "sends hand positions only when there are tracked hands to send",
 };
 
 const readAll = (dir: string): string[] =>

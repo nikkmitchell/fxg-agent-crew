@@ -1,4 +1,5 @@
 import { createXRStore, type XRStore } from "@react-three/xr";
+import { enterWhenGranted } from "../../shared/session-granted";
 import { TwoToneCursorMaterial, TwoToneRayMaterial } from "./pointer-materials";
 import { roomPreferences } from "./room-preferences";
 
@@ -159,6 +160,8 @@ const pointerOptions = {
 const handPointerOptions = { ...pointerOptions, touchPointer: { cursorModel: cursor } } as const;
 
 export function getXRStore(): XRStore {
+  // Arriving through a door from VR: go straight back in (shared/session-granted.ts).
+  if (!store) enterWhenGranted(() => enterRoom());
   store ??= createXRStore({
     /**
      * TELEPORT ON THE LEFT HAND AND THE LEFT CONTROLLER.

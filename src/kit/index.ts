@@ -6,6 +6,7 @@ import { drawOthers } from "./figures";
 import { createMovement } from "./movement";
 import { createWristMenu, type MenuButton } from "./menu";
 import { createVoice } from "./voice";
+import { enterWhenGranted } from "../../shared/session-granted";
 
 /**
  * saha.ing FOR SPACES.   https://saha.ing/kit/saha.js
@@ -89,8 +90,17 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
   room.player = player;
   const server = (options.server ?? new URL(options.href ?? location.href).origin).replace(/\/$/, "");
 
+  // Arriving from VR through a door: straight back into VR where the browser
+  // allows it (shared/session-granted.ts), with the same features VRButton asks for.
+  renderer.xr.enabled = true;
+  enterWhenGranted(async () => {
+    const xr = navigator.xr;
+    if (!xr) return;
+    const session = await xr.requestSession("immersive-vr", { optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking", "layers"] });
+    await renderer.xr.setSession(session);
+  });
+
   if (options.vrButton !== false) {
-    renderer.xr.enabled = true;
     const add = () => document.body.appendChild(VRButton.createButton(renderer));
     if (document.body) add();
     else addEventListener("DOMContentLoaded", add, { once: true });
@@ -113,12 +123,9 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
   }
 
   const leaveVr = () => renderer.xr.getSession()?.end();
-  const backToSaha = () => {
-    const go = () => location.assign(`${server}/`);
-    const session = renderer.xr.getSession();
-    if (session) session.end().finally(go);
-    else go();
-  };
+  // Leave WHILE STILL IN VR: a browser that hands the headset to the next page
+  // only does so for a navigation made from inside a session.
+  const backToSaha = () => location.assign(`${server}/`);
 
   // Bodies: plain files at /avatars/, or a space route that needs this page's ticket.
   const ticketOf = () => room.ticket;
