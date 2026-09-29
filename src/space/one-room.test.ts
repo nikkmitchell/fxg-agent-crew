@@ -39,6 +39,12 @@ const ALLOWED: Record<string, string> = {
   "space/Scene.tsx":
     "the camera (a session drives its own), the opaque backdrop and the void (either would cover a passthrough view of the real room), and how hard the feeds poll",
   "space/SpacePanel.tsx": "holds the flag, and hands it to the three above",
+  "kit/movement.ts":
+    "which INPUT moves you (thumbsticks and hands in a headset, keys and drag in a window); you can walk and turn in both",
+  "kit/menu.ts":
+    "where the buttons are: a wrist panel in a headset, the badge's link in a window (kit/index.ts); both take you back to saha.ing",
+  "kit/index.ts":
+    "sends hand positions only when there are tracked hands to send, and ends a session before leaving if one is running",
 };
 
 const readAll = (dir: string): string[] =>

@@ -258,7 +258,7 @@ describe("spaces inside the real server", () => {
 
 describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29)", () => {
   // The very script space pages load, run here against the test server.
-  const kit = () => import("../../public/kit/saha.js") as Promise<{ connectSaha: (options: Record<string, unknown>) => KitRoom }>;
+  const kit = () => import("../../src/kit/connect.js") as unknown as Promise<{ connectSaha: (options: Record<string, unknown>) => KitRoom }>;
   type KitRoom = {
     you: { id: string } | null;
     guest: boolean;

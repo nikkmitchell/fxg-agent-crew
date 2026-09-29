@@ -79,10 +79,10 @@ There is no build step on the server: you push the files a browser should load.
 A push with nothing publishable, or over the limits, **fails and leaves the live site as
 it was.** The deploy list says why.
 
-## Making it multiplayer
+## saha.ing in your space: one line
 
-Load saha.ing's kit and everyone who enters the space sees everyone else: a figure per
-person with their name, where they are and facing where they look, in a headset too.
+Load saha.ing's kit and your space gets what saha.ing's own room has, without rebuilding
+any of it:
 
 ```html
 <script type="importmap">
@@ -91,24 +91,42 @@ person with their name, where they are and facing where they look, in a headset 
 <script type="module">
   import * as THREE from "three";
   import { joinSaha } from "/kit/saha.js";
-  // ...your scene, camera, renderer...
-  const room = joinSaha({ THREE, scene, camera, renderer });
+  // ...your scene, camera (where people start), renderer...
+  const room = joinSaha({ scene, camera, renderer });
+  renderer.setAnimationLoop(() => renderer.render(scene, camera));
 </script>
 ```
 
-A new space's starter page already does this. three.js and its addons (VRButton,
-GLTFLoader, ...) are served from saha.ing at `/kit/three/`, so no outside CDN is needed.
+- **Everyone else**: a figure per person with their name, facing where they look, their
+  hands in VR, and a bubble for what they say. Two devices are two figures.
+- **Moving the saha.ing way**, from saha.ing's own code: left stick walks (with its dead
+  zone), right stick snap-turns 30 degrees about your head, tracked hands use the palm
+  joystick (hold a palm up; the left walks, the right turns). On a computer: WASD or the
+  arrows walk, Q/E turn, drag to look.
+- **Enter VR**, with a player rig made around your camera so a headset starts you where
+  the camera was, facing the same way.
+- **A wrist menu in VR** (turn your left wrist toward you): Back to saha.ing, Leave VR,
+  plus your own buttons (`buttons: [{ label, onPress }]`). On a computer the badge has a
+  Back to saha.ing link.
+- **Shared values and lines**: `room.set(key, value)`, `room.state`,
+  `room.on("state", …)`, `room.say(text)`, `room.on("say", …)`.
 
-What `room` gives you:
+Turn any part off: `joinSaha({ …, movement: false, menu: false, vrButton: false,
+badge: false })`. Give your own rig with `player`. `connectSaha()` is the connection alone,
+for a page without three.js. Coming next: your saha.ing avatar (the body you chose) and
+voice chat.
+
+The kit is built from saha.ing's own movement code (`src/kit/`, using
+`src/space/stick-walk.ts`, `palm-joystick.ts` and `comfort.ts`), so a fix to saha.ing's
+movement reaches every space. three.js and its addons are served from saha.ing at
+`/kit/three/`; the kit uses the page's copy through the import map, so there is one
+three.js on the page.
 
 | | |
 |---|---|
-| `room.people` | everyone in the space: `{ id, name, color, body, bodyUrl, p, q }` |
+| `room.people` | everyone in the space: `{ id, name, color, body, bodyUrl, p, q, hl, hr }` |
 | `room.on("join" / "leave" / "people", fn)` | people arriving, going, moving |
-| `room.set(key, value)` / `room.state` / `room.on("state", (key, value, by) => …)` | shared values every visitor sees alike, remembered by the space (JSON, 4 KB each, 200 keys) |
-| `room.say(text)` / `room.on("say", fn)` | a short line, shown over the speaker's head |
-| `joinSaha({ …, hands: [left, right] })` | send two Object3Ds as hands |
-| `connectSaha({ … })` | the same connection without three.js, for any page |
+| `room.player` | the rig that carries the camera: move it to move people |
 
 **Who you are in a space.** Enter it from saha.ing (a lobby door, or **Enter as
 yourself** on the Spaces page) and you arrive with a ticket for that one space, in the
@@ -192,6 +210,6 @@ sandbox is what keeps one space's code from acting as a saha.ing visitor.
   the branch each bench follows).
 - Workbench: `shared/space-bench.ts` (the rules), `src/space/SpaceBench.tsx` (the bench),
   `/bff/spaces/<space>/bench`; a `benchChanged` message on the room's socket reloads it.
-- Multiplayer: `public/kit/saha.js` (the kit), `shared/space-kit.ts` (the wire),
+- The kit: `src/kit/` (built by `vite.kit.config.ts` into `/kit/saha.js`), `shared/space-kit.ts` (the wire),
   `server/spaces/live.ts` (the hub, `/bff/spaces/<space>/live`), `server/spaces/tickets.ts`.
 - nginx: `location /git/` allows 500 MB bodies without buffering (`deploy/nginx.conf`).

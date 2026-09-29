@@ -62,7 +62,7 @@ const STARTER = (space: string, by: string) => [
   #about { position: fixed; top: 12px; left: 12px; right: 12px; max-width: 30rem; padding: 10px 14px; border-radius: 10px; background: rgba(20,23,28,.72); line-height: 1.5; }
   code { background: #232830; padding: .05rem .3rem; border-radius: 4px; }
 </style>
-<!-- three.js comes from saha.ing itself, so no outside CDN is needed. -->
+<!-- three.js comes from saha.ing itself, so no outside CDN is needed; the kit uses the same copy. -->
 <script type="importmap">
 { "imports": { "three": "/kit/three/three.module.js", "three/addons/": "/kit/three/addons/" } }
 </script>
@@ -75,27 +75,17 @@ const STARTER = (space: string, by: string) => [
 </div>
 <script type="module">
   import * as THREE from "three";
-  import { VRButton } from "three/addons/webxr/VRButton.js";
   import { joinSaha } from "/kit/saha.js";
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
-  renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
-  document.body.appendChild(VRButton.createButton(renderer));
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1b2028);
-  // THE PLAYER: a rig that carries the camera. In a headset your head moves
-  // inside it, so the rig decides where you stand and which way the room
-  // faces; walking moves the rig, not the camera.
-  const player = new THREE.Group();
-  player.position.set(0, 0, 3);
-  scene.add(player);
   const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 200);
-  camera.position.set(0, 1.6, 0);
-  player.add(camera);
+  camera.position.set(0, 1.6, 3);
   scene.add(new THREE.HemisphereLight(0xdde6ff, 0x30281f, 1.4));
   const sun = new THREE.DirectionalLight(0xffffff, 1.2);
   sun.position.set(3, 6, 2);
@@ -105,60 +95,18 @@ const STARTER = (space: string, by: string) => [
   stone.position.set(0, 1, 0);
   scene.add(stone);
 
-  // Controllers: a small sphere for each hand, carried by the rig.
-  const hands = [0, 1].map((index) => {
-    const grip = renderer.xr.getControllerGrip(index);
-    grip.add(new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), new THREE.MeshStandardMaterial({ color: 0xeef0f3 })));
-    player.add(grip);
-    return grip;
-  });
+  // One line brings saha.ing: everyone else, moving the saha.ing way (sticks,
+  // snap turn, palm joystick; WASD and drag on a computer), Enter VR, hands,
+  // and a wrist menu. room.set / room.on("state") share things; room.say talks.
+  const room = joinSaha({ scene, camera, renderer });
 
-  // One line makes it multiplayer (hands too). room.set / room.on("state") share things.
-  const room = joinSaha({ THREE, scene, camera, renderer, hands });
-
-  // Walk: arrow keys on a computer; in a headset, the left stick walks where
-  // you look and the right stick turns. B or Y leaves VR.
-  const keys = new Set();
-  addEventListener("keydown", (event) => keys.add(event.key));
-  addEventListener("keyup", (event) => keys.delete(event.key));
   addEventListener("resize", () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
   });
-  const look = new THREE.Vector3();
-  let turned = false;
-  const walk = (forward, sideways) => {
-    camera.getWorldDirection(look);
-    look.y = 0;
-    look.normalize();
-    player.position.addScaledVector(look, forward);
-    player.position.addScaledVector(new THREE.Vector3(-look.z, 0, look.x), sideways);
-  };
-  let last = 0;
   renderer.setAnimationLoop((time) => {
-    const delta = Math.min(0.1, (time - last) / 1000);
-    last = time;
     stone.rotation.y = time / 4000;
-    if (keys.has("ArrowUp")) walk(2 * delta, 0);
-    if (keys.has("ArrowDown")) walk(-2 * delta, 0);
-    if (keys.has("ArrowLeft")) player.rotation.y += 1.5 * delta;
-    if (keys.has("ArrowRight")) player.rotation.y -= 1.5 * delta;
-    const session = renderer.xr.getSession();
-    for (const source of session?.inputSources ?? []) {
-      const pad = source.gamepad;
-      if (!pad) continue;
-      const [, , x = 0, y = 0] = pad.axes;
-      if (source.handedness === "left" && Math.hypot(x, y) > 0.15) walk(-y * 2 * delta, x * 2 * delta);
-      if (source.handedness === "right") {
-        // Snap turns, 30 degrees a flick: smooth turning makes people sick.
-        if (Math.abs(x) > 0.7 && !turned) {
-          player.rotation.y -= (x > 0 ? 1 : -1) * Math.PI / 6;
-          turned = true;
-        } else if (Math.abs(x) < 0.3) turned = false;
-      }
-      if (pad.buttons[5]?.pressed) session.end();
-    }
     renderer.render(scene, camera);
   });
 </script>
