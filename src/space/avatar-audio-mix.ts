@@ -20,37 +20,44 @@ export function avatarAudioMix(
   const own = context.createMediaStreamSource(microphone);
   own.connect(destination);
   const connected = new Map<string, { stream: MediaStream; node: MediaStreamAudioSourceNode }>();
-  const speech = new Map<MediaElementAudioSourceNode, string>();
-  const speechRecorded = new Set<MediaElementAudioSourceNode>();
+  /**
+   * AGENTS' SPOKEN LINES ARE COPIED IN, NOT TAPPED. This used to reroute the
+   * playing <audio> element through this context (createMediaElementSource).
+   * In Nikk's headset that failed without a word (6253: "I heard you when you
+   * spoke but I didn't hear you in the recording"), and a tap that half-works
+   * can also silence the room. Now the same sound file is decoded here and
+   * played into the recording only, starting where the room's playback is,
+   * while the room plays it exactly as it always did.
+   */
+  const speech = new Map<AudioBufferSourceNode, string>();
   let stopped = false;
   const eligible = (actorId: string) => !mutedNow().has(actorId.toLowerCase()) && people().some((person) => person.actorId.toLowerCase() === actorId.toLowerCase() && (person.kind === "human" && includeHumans || person.kind === "agent" && includeAgents));
-  const clearSpeech = (node: MediaElementAudioSourceNode) => {
-    try { node.disconnect(destination); } catch { /* already disconnected */ }
-    try { node.disconnect(context.destination); } catch { /* already disconnected */ }
+  const clearSpeech = (node: AudioBufferSourceNode) => {
+    try { node.stop(); } catch { /* not started, or already stopped */ }
+    try { node.disconnect(); } catch { /* already disconnected */ }
     speech.delete(node);
-    speechRecorded.delete(node);
-    if (stopped && speech.size === 0) void context.close();
   };
   const unlisten = listenForRecordedSpeech((speaker, element) => {
-    if (stopped || !eligible(speaker)) return;
-    try {
-      const node = context.createMediaElementSource(element);
+    if (stopped || !eligible(speaker) || !element.src) return;
+    const decoded = fetch(element.src).then((answer) => answer.arrayBuffer()).then((bytes) => context.decodeAudioData(bytes));
+    const begin = () => void decoded.then((buffer) => {
+      if (stopped || !eligible(speaker) || element.ended) return;
+      const node = context.createBufferSource();
+      node.buffer = buffer;
       node.connect(destination);
-      node.connect(context.destination);
       speech.set(node, speaker);
-      speechRecorded.add(node);
-      element.addEventListener("ended", () => clearSpeech(node), { once: true });
-      element.addEventListener("error", () => clearSpeech(node), { once: true });
-    } catch { /* Keep ordinary room playback working if this browser cannot tap it. */ }
+      node.onended = () => clearSpeech(node);
+      node.start(0, Math.min(Math.max(0, element.currentTime), buffer.duration));
+      element.addEventListener("pause", () => clearSpeech(node), { once: true });
+    }).catch((error: unknown) => console.warn("the recording could not copy a spoken line", error));
+    if (!element.paused && element.currentTime > 0) begin();
+    else element.addEventListener("playing", begin, { once: true });
   });
   return {
     stream: destination.stream,
     update: (remote, muted) => {
       if (stopped) return;
-      for (const [node, speaker] of speech) if (speechRecorded.has(node) && !eligible(speaker)) {
-        node.disconnect(destination);
-        speechRecorded.delete(node);
-      }
+      for (const [node, speaker] of speech) if (!eligible(speaker)) clearSpeech(node);
       for (const [actorId, attached] of connected) {
         if (!eligible(actorId) || muted.has(actorId.toLowerCase()) || remote.get(actorId) !== attached.stream) {
           attached.node.disconnect(destination);
@@ -71,10 +78,9 @@ export function avatarAudioMix(
       own.disconnect(destination);
       for (const { node } of connected.values()) node.disconnect(destination);
       connected.clear();
-      for (const node of speechRecorded) node.disconnect(destination);
-      speechRecorded.clear();
+      for (const node of [...speech.keys()]) clearSpeech(node);
       destination.stream.getTracks().forEach((track) => track.stop());
-      if (!speech.size) void context.close();
+      void context.close();
     },
   };
 }
