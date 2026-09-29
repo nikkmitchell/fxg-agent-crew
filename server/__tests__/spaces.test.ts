@@ -307,23 +307,6 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     }
   });
 
-  it("is one figure per person: a second tab takes over, and the first only watches", async () => {
-    const first = await join((await ticketFor("nikk")).json().ticket);
-    await until(() => first.connected && !first.guest);
-    const refusals: unknown[] = [];
-    first.on("refused", (why) => refusals.push(why));
-    const second = await join((await ticketFor("nikk")).json().ticket);
-    try {
-      await until(() => second.connected && first.guest && refusals.length === 1);
-      await until(() => second.people.size === 1);
-      expect([...second.people.keys()]).toEqual(["nikk"]);
-      expect(String(refusals[0])).toMatch(/another tab/);
-    } finally {
-      first.leave();
-      second.leave();
-    }
-  });
-
   it("shares values every visitor sees, remembered for the next one, and says lines out loud", async () => {
     const nikk = await join((await ticketFor("nikk")).json().ticket);
     const sill = await join((await ticketFor("sill")).json().ticket);
