@@ -1,5 +1,6 @@
 import type { LoginRequest, MeResponse, MessagePage, RoomDetail, RoomSummary } from "../shared/contracts";
 import { requestJson } from "./api-request";
+import type { SignupChannel, SignupForm } from "../shared/signup";
 import { base } from "./router";
 
 /**
@@ -19,6 +20,18 @@ export const bff = {
     method: "POST",
     body: JSON.stringify(credentials),
     signal,
+  }),
+
+  /** Ask WebHarness, through saha.ing, to send a sign-up code (shared/signup.ts). */
+  signupCode: (channel: SignupChannel, target: string) => requestJson<{ sent: true }>(`${bffRoot}/signup/code`, {
+    method: "POST",
+    body: JSON.stringify({ channel, target }),
+  }),
+
+  /** Create a WebHarness account and sign in to it, in one step. */
+  signup: (form: SignupForm) => requestJson<MeResponse>(`${bffRoot}/signup`, {
+    method: "POST",
+    body: JSON.stringify(form),
   }),
 
   logout: (signal?: AbortSignal) => requestJson<{ ok: true }>(`${bffRoot}/logout`, { method: "POST", signal }),

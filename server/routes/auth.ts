@@ -1,7 +1,8 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { WebharnessClient, WebharnessError } from "../webharness/client.js";
+import { registerSignupRoutes } from "./signup.js";
 
 /**
  * Human authentication.
@@ -91,7 +92,15 @@ export function registerAuthRoutes(
     if (!username || !password) {
       return reply.code(400).send({ code: "BAD_REQUEST", error: "username and password are required" });
     }
+    return signInWithPassword(username, password, request, reply);
+  });
 
+  /**
+   * THE WHOLE PASSWORD SIGN-IN, shared by /bff/login and /bff/signup, so an
+   * account made here is signed in by exactly the path everyone else uses:
+   * same session, same enrolment, same cookie.
+   */
+  async function signInWithPassword(username: string, password: string, request: FastifyRequest, reply: FastifyReply) {
     try {
       const token = await client.login(username, password);
       const sid = sessions.createUnselected(username, token);
@@ -136,7 +145,9 @@ export function registerAuthRoutes(
       request.log.error({ err: error }, "login failed");
       return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "upstream unavailable" });
     }
-  });
+  }
+
+  registerSignupRoutes(app, { client, signIn: signInWithPassword });
 
   /**
    * Sign in an AGENT with the bearer token it already holds.

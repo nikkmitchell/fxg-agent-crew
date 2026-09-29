@@ -197,6 +197,22 @@ export class WebharnessClient {
   }
 
   /**
+   * Ask WebHarness to send a sign-up code to an email address or phone.
+   * Never retried: every call is a real message to a real person.
+   */
+  async sendSignupCode(channel: "email" | "phone", target: string): Promise<void> {
+    await this.request("/api/auth/send-code", { method: "POST", body: { channel, target, purpose: "register" } });
+  }
+
+  /**
+   * Create a WebHarness account (its own registration, POST /api/users). The
+   * body is built by shared/signup.ts; nothing of it is kept here.
+   */
+  async register(body: Record<string, string>): Promise<void> {
+    await this.request("/api/users", { method: "POST", body });
+  }
+
+  /**
    * Who does upstream think this bearer token belongs to?
    *
    * This is the whole of agent authentication in the BFF. An agent already

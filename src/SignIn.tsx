@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { bff } from "./bff-client";
 import { signInRefusal } from "./viewer";
+import { signupProblem, type SignupChannel } from "../shared/signup";
 
 /**
  * The sign-in page, shown instead of the app when nobody is signed in.
@@ -21,10 +22,18 @@ import { signInRefusal } from "./viewer";
  * the length of one submit and never puts it anywhere else — no localStorage,
  * no URL, no retry buffer.
  *
- * It is deliberately not a registration form. Accounts are WebHarness's, and
- * offering to create one here would be a claim this app cannot honour.
+ * SIGNING UP HAPPENS HERE TOO NOW (Nikk, 6130). It used to be deliberately
+ * absent, because accounts are WebHarness's and this app could not make one.
+ * It can: the form below goes straight through to WebHarness's own
+ * registration (server/routes/signup.ts), and the account is still theirs.
  */
 export default function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  if (mode === "signup") return <SignUp onSignedIn={onSignedIn} onBack={() => setMode("signin")} />;
+  return <PasswordSignIn onSignedIn={onSignedIn} onSignUp={() => setMode("signup")} />;
+}
+
+function PasswordSignIn({ onSignedIn, onSignUp }: { onSignedIn: () => void; onSignUp: () => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -106,7 +115,114 @@ export default function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           one that was never written.
         */}
         <p className="signin-aside">
-          Not signed up yet, or setting up an agent? <a href="/join">How to join</a>.
+          New here?{" "}
+          <button type="button" className="signin-link" onClick={onSignUp}>Create an account</button>
+          {" · "}Setting up an agent? <a href="/join">How to join</a>.
+        </p>
+      </form>
+    </main>
+  );
+}
+
+/**
+ * CREATE AN ACCOUNT: name, password, an email or phone to verify, the code
+ * WebHarness sends there, and done. Signed in straight afterwards. Like the
+ * sign-in, the password lives in component state for one submit and nowhere
+ * else, and is cleared on the way out.
+ */
+function SignUp({ onSignedIn, onBack }: { onSignedIn: () => void; onBack: () => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [channel, setChannel] = useState<SignupChannel>("email");
+  const [target, setTarget] = useState("");
+  const [code, setCode] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const sendCode = async () => {
+    setRefusal(null);
+    setNote(null);
+    if (!target.trim()) {
+      setRefusal(channel === "email" ? "Fill in your email address first." : "Fill in your phone number first.");
+      return;
+    }
+    try {
+      await bff.signupCode(channel, target.trim());
+      setNote(`A code is on its way to ${target.trim()}.`);
+    } catch (error) {
+      setRefusal(signInRefusal(error));
+    }
+  };
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (sending) return;
+    const form = { username: username.trim(), password, channel, target: target.trim(), code: code.trim() };
+    const problem = signupProblem(form);
+    if (problem) {
+      setRefusal(problem);
+      return;
+    }
+    setSending(true);
+    setRefusal(null);
+    try {
+      await bff.signup(form);
+      setPassword("");
+      onSignedIn();
+    } catch (error) {
+      setRefusal(signInRefusal(error));
+      setSending(false);
+    }
+  };
+
+  return (
+    <main className="signin" id="workroom">
+      <form className="signin-card" onSubmit={submit}>
+        <header>
+          <h1>Create an account</h1>
+          <p className="eyebrow">saha / mission control</p>
+        </header>
+        <p className="signin-lede">
+          This makes a <strong>WebHarness</strong> account, the same one the chat uses, and signs you in here.
+        </p>
+
+        <label htmlFor="signup-username">Name</label>
+        <input id="signup-username" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false} required
+          value={username} onChange={(event) => setUsername(event.target.value)} />
+
+        <label htmlFor="signup-password">Password</label>
+        <input id="signup-password" name="new-password" type="password" autoComplete="new-password" required
+          value={password} onChange={(event) => setPassword(event.target.value)} />
+
+        <fieldset className="signup-channel">
+          <legend>Verify with</legend>
+          {(["email", "phone"] as const).map((one) => (
+            <label key={one}>
+              <input type="radio" name="channel" value={one} checked={channel === one} onChange={() => setChannel(one)} />
+              {one === "email" ? "Email" : "Phone"}
+            </label>
+          ))}
+        </fieldset>
+
+        <label htmlFor="signup-target">{channel === "email" ? "Email address" : "Phone number"}</label>
+        <div className="signup-row">
+          <input id="signup-target" name={channel === "email" ? "email" : "tel"} type={channel === "email" ? "email" : "tel"}
+            autoComplete={channel === "email" ? "email" : "tel"} required value={target} onChange={(event) => setTarget(event.target.value)} />
+          <button type="button" className="signup-send" onClick={() => void sendCode()}>Send code</button>
+        </div>
+
+        <label htmlFor="signup-code">Code</label>
+        <input id="signup-code" name="one-time-code" autoComplete="one-time-code" inputMode="numeric" required
+          value={code} onChange={(event) => setCode(event.target.value)} />
+
+        {note ? <p className="signin-note" role="status">{note}</p> : null}
+        {refusal ? <p className="signin-refusal" role="alert">{refusal}</p> : null}
+
+        <button type="submit" disabled={sending}>{sending ? "Creating…" : "Create account"}</button>
+
+        <p className="signin-aside">
+          Already have one? <button type="button" className="signin-link" onClick={onBack}>Sign in</button>
         </p>
       </form>
     </main>
