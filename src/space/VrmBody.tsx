@@ -11,6 +11,7 @@ import { headOf } from "./Avatar3D";
 import type { AvatarRecipe } from "../avatar";
 import type { WirePerson } from "../../shared/space-wire";
 import { agentMotionFrame, PROCEDURAL_ARM, type Rotation } from "./agent-motion";
+import { voiceMouth } from "./voice-mouth";
 import {
   agentAnimationSelection,
   createAgentAnimationPlayer,
@@ -404,6 +405,7 @@ export function VrmBody({
         // NOT `exact`: that means no easing, and the feet still step.
         snap: reducedMotion || !shown.settled,
       });
+      talkingMouth(vrm, person.kind, actorId, delta);
       vrm.update(delta);
       return;
     }
@@ -543,6 +545,7 @@ export function VrmBody({
       aimSegment(lower, arm.lowerRest, scratch.target);
     }
 
+    talkingMouth(vrm, person.kind, actorId, delta);
     // Spring bones and look-at. Cheap, and without it nothing on the model
     // settles: hair and clothing stay frozen mid-swing.
     vrm.update(delta);
@@ -557,6 +560,17 @@ export function VrmBody({
       </group>
     </group>
   );
+}
+
+/**
+ * A PERSON'S MOUTH FOLLOWS THEIR VOICE (voice-mouth.ts), over whatever the
+ * idle set, and only while their call is metered. Agents' mouths already
+ * follow their spoken lines.
+ */
+function talkingMouth(vrm: VRM, kind: string | null, actorId: string, delta: number): void {
+  if (kind === "agent") return;
+  const open = voiceMouth(actorId, delta);
+  if (open !== null) vrm.expressionManager?.setValue("aa", open);
 }
 
 function rotateToward(

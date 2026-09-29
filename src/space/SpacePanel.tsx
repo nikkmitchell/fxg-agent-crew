@@ -11,6 +11,7 @@ import { usePanelChoices } from "./usePanelChoices";
 import { usePanelArrange } from "./usePanelArrange";
 import { placeOf, savePlacement } from "./panel-placement";
 import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
+import { meterVoices } from "./voice-mouth";
 import { useVoiceChat } from "./useVoiceChat";
 import { ProjectChooser } from "../ProjectChooser";
 import { base, pathForTab } from "../router";
@@ -198,6 +199,13 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
     // no ears in a browser.
     connection.roster.filter((person) => person.connected && person.kind !== "agent").map((person) => person.actorId),
   );
+  // Mouths move with voices: meter every call, and your own microphone while
+  // it is on (voice-mouth.ts).
+  const meYou = connection.status.state === "open" ? connection.status.you : null;
+  useEffect(() => {
+    meterVoices(voice.streams, meYou, voice.on ? voice.microphone() : null);
+  }, [voice.streams, voice.on, voice.microphone, meYou]);
+  useEffect(() => () => meterVoices(new Map(), null, null), []);
   /**
    * VOICE ON FROM THE START (Nikk): see voice-default.ts. Once per page, as
    * soon as the room knows who you are, and asked here on the flat page —
