@@ -44,6 +44,7 @@ export class RainRetreatView {
       }`,
     });
     const rain = new THREE.Mesh(geometry, this.drops);
+    rain.renderOrder = 2;
     rain.frustumCulled = false; rain.raycast = () => {};
     this.group.add(rain);
 
@@ -61,6 +62,7 @@ export class RainRetreatView {
         }`,
     });
     const patch = new THREE.Mesh(patchGeometry, this.patch);
+    patch.renderOrder = -2;
     patch.rotation.x = -Math.PI / 2; patch.position.y = .009; patch.raycast = () => {};
     this.group.add(patch);
     const rippleBase = new THREE.PlaneGeometry(1, 1);
@@ -91,6 +93,7 @@ export class RainRetreatView {
         }`,
     });
     const ripples = new THREE.Mesh(rippleGeometry, this.ripples);
+    ripples.renderOrder = 1;
     ripples.frustumCulled = false; ripples.raycast = () => {}; this.group.add(ripples);
     const seat = createRainStone();
     this.seat = seat.material;

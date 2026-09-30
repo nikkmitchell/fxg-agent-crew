@@ -8,7 +8,8 @@ const profiles = {
   ]],
   rain: ['Rain retreat', [
     'Approach and leave: rain and sound arrive and fade smoothly.',
-    'The raised, bare sitting stone feels welcoming and stays dry.',
+    'The raised, mostly flat stone feels welcoming; side moss, companion stones and wet grass feel natural.',
+    'Rain is visible in front of the stone; its body hides only drops that fall behind it.',
     'Droplets reach the ground with gentle, readable splashes.',
     'Listen still for a minute: the rain varies gently without an obvious repeating loop.',
     'Try Quiet and reduced motion: sound stops and the rain holds still comfortably.',
