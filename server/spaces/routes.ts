@@ -24,7 +24,7 @@ import type { SpaceTickets } from "./tickets.js";
 import { WebharnessError } from "../webharness/client.js";
 import { SpaceAuth, parseBasic, type GitIdentity } from "./auth.js";
 import { DeployQueue, deployCommit, siteDir } from "./deploy.js";
-import { branches, createRepo, gitEnv, GitError, mergeInto, resolveCommit, commitLog, commitChanges, viewFile, treeFiles } from "./git.js";
+import { branches, createRepo, gitEnv, GitError, mergeInto, prepareAllRepos, resolveCommit, commitLog, commitChanges, viewFile, treeFiles } from "./git.js";
 import { SpaceStore, type StoredDeploy } from "./store.js";
 
 /**
@@ -248,6 +248,14 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   const { spacesRoot: root, store, auth } = deps;
   const queue = deps.queue ?? new DeployQueue();
   const now = deps.now ?? (() => new Date());
+
+  // Every repo gets its push settings and hook back, as a restored one needs (prepareRepo).
+  if (root) {
+    void prepareAllRepos(root).then(({ prepared, failed }) => {
+      if (failed.length) app.log.error({ failed }, "spaces: could not prepare these repos; pushes to them may be refused");
+      else if (prepared.length) app.log.info({ count: prepared.length }, "spaces: repos prepared");
+    });
+  }
 
   /** The visitor, for limits: nginx's X-Real-IP, believed only from the local proxy. */
   const visitor = (request: FastifyRequest): string => {

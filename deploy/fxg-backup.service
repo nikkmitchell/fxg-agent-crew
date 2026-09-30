@@ -1,5 +1,5 @@
 [Unit]
-Description=Back up saha.ing's database and blobs
+Description=Back up saha.ing's database, blobs and spaces' git repositories
 After=fxg-crew.service
 
 [Service]
@@ -9,4 +9,5 @@ Type=oneshot
 ExecStart=/opt/fxg-crew/deploy/backup.sh --verify
 Environment=DATABASE_PATH=/var/lib/fxg-crew/saha.db
 Environment=BLOB_ROOT=/var/lib/fxg-crew/blobs
+Environment=SPACES_ROOT=/var/lib/fxg-crew/spaces
 Environment=BACKUP_ROOT=/var/backups/fxg-crew

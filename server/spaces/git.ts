@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync, writeSync } from "node:fs";
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { spaceNameProblem } from "../../shared/spaces.js";
 
 /**
  * The git side of spaces: bare repositories on disk, driven through the git
@@ -76,6 +77,49 @@ echo "saha.ing: every deploy and its result: /spaces"
 export type StarterFile = { path: string; content: string };
 
 /**
+ * What makes a bare repository a space's: pushes over HTTPS allowed, a size
+ * limit, and the hook. Applied when a space is made, and again to every repo
+ * each time the server starts (prepareAllRepos), because none of it travels in
+ * a backup: a bundle carries branches and history, not config or hooks, so a
+ * restored repo would refuse every push (Sill, 6468). It also means a changed
+ * hook reaches the spaces made before it.
+ */
+export async function prepareRepo(root: string, space: string): Promise<void> {
+  const path = repoPath(root, space);
+  await git(root, ["--git-dir", path, "config", "http.receivepack", "true"]);
+  // Pushes are what deploy, so a push of a huge history should say so early.
+  await git(root, ["--git-dir", path, "config", "receive.maxInputSize", String(500 * 1024 * 1024)]);
+  const hook = join(path, "hooks", "post-receive");
+  await mkdir(dirname(hook), { recursive: true });
+  await writeFile(hook, postReceiveHook(space), "utf8");
+  await chmod(hook, 0o755);
+}
+
+/** prepareRepo for every space repository on disk; names that are not spaces are left alone. */
+export async function prepareAllRepos(root: string): Promise<{ prepared: string[]; failed: string[] }> {
+  const prepared: string[] = [];
+  const failed: string[] = [];
+  let entries: string[] = [];
+  try {
+    entries = await readdir(join(root, "repos"));
+  } catch {
+    return { prepared, failed };
+  }
+  for (const entry of entries.sort()) {
+    if (!entry.endsWith(".git")) continue;
+    const space = entry.slice(0, -".git".length);
+    if (spaceNameProblem(space)) continue;
+    try {
+      await prepareRepo(root, space);
+      prepared.push(space);
+    } catch {
+      failed.push(space);
+    }
+  }
+  return { prepared, failed };
+}
+
+/**
  * A new bare repository with main as its branch and one first commit, so the
  * very first clone has something in it and the space has a page from the start.
  */
@@ -83,12 +127,7 @@ export async function createRepo(root: string, space: string, starter: StarterFi
   const path = repoPath(root, space);
   await mkdir(dirname(path), { recursive: true });
   await git(root, ["init", "--bare", "--quiet", "--initial-branch=main", path]);
-  await git(root, ["--git-dir", path, "config", "http.receivepack", "true"]);
-  // Pushes are what deploy, so a push of a huge history should say so early.
-  await git(root, ["--git-dir", path, "config", "receive.maxInputSize", String(500 * 1024 * 1024)]);
-  const hook = join(path, "hooks", "post-receive");
-  await writeFile(hook, postReceiveHook(space), "utf8");
-  await chmod(hook, 0o755);
+  await prepareRepo(root, space);
 
   const lines: string[] = [];
   for (const file of starter) {

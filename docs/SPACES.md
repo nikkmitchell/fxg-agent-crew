@@ -258,6 +258,33 @@ sandbox is what keeps one space's code from acting as a saha.ing visitor.
   first, then deploys after a push that changed a branch.
 - On disk: `SPACES_ROOT` (default: `spaces/` beside the database, i.e.
   `/var/lib/fxg-crew/spaces`), with `repos/<space>.git` and `sites/<space>/<deploy>/`.
+- Backups: `deploy/backup.sh` (the `fxg-backup` timer, four times a day) makes one
+  `git bundle --all` per repo, every branch and its whole history, into
+  `/var/backups/fxg-crew/spaces/<stamp>/<space>.bundle`. It keeps 28 runs (seven days),
+  and `--verify` checks every bundle. A repo that won't bundle is named, and the run
+  fails, but the other repos are still bundled. Sites aren't backed up because a push
+  rebuilds them. `deploy/backup-spaces.test.sh` tests the round trip.
+
+  **To restore one space**, as root (the example restores `xr.instruments`):
+
+  ```bash
+  ls -1dt /var/backups/fxg-crew/spaces/*/ | head -3      # the newest runs
+  B=/var/backups/fxg-crew/spaces/<stamp>/xr.instruments.bundle
+  R=/var/lib/fxg-crew/spaces/repos/xr.instruments.git
+  [ -e "$R" ] && mv "$R" "$R.broken-$(date +%s)"         # keep whatever was there
+  git clone --mirror "$B" "$R"                            # a bare repo, every branch
+  git --git-dir="$R" remote remove origin                 # it should not point at the bundle
+  chown -R fxgcrew:fxgcrew "$R"
+  systemctl restart fxg-crew
+  ```
+
+  A bundle carries branches and history but not the repo's config or hook, so on
+  every start the server gives each repo its push settings and hook again
+  (`prepareAllRepos` in `server/spaces/git.ts`). Without that restart, pushes to the
+  restored repo are refused. The space's row in the database is untouched. If the
+  sites were lost too, the next push to a branch deploys it again; an empty commit
+  (`git commit --allow-empty -m redeploy`) is enough. To look inside a bundle without
+  touching the box, `git clone <bundle> somewhere`.
 - Database: migration 44 (`spaces`, `space_deploys`, `space_live`), 45 (public rooms,
   `space_state` for the kit's shared values) and 46 (the workbench: pieces per deploy, and
   the branch each bench follows).

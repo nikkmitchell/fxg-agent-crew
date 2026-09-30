@@ -69,8 +69,44 @@ LATEST="$DEST/blobs/latest"
 # warning people learn to ignore.
 LINK=()
 [ -d "$LATEST" ] && LINK=(--link-dest="$LATEST")
-rsync -a --delete "${LINK[@]}" "$BLOBS/" "$DEST/blobs/$STAMP/"
+rsync -a --delete ${LINK[@]+"${LINK[@]}"} "$BLOBS/" "$DEST/blobs/$STAMP/"
 ln -sfn "$DEST/blobs/$STAMP" "$LATEST"
+
+# SPACES' GIT REPOSITORIES (server/spaces/, docs/SPACES.md). Like the blobs,
+# they are not rebuildable: a team's pushes live there and nowhere else (Sill,
+# 6468: "people's work lives only there"). Each repo becomes one `git bundle
+# --all` per run: every branch and its whole history in a single file, which
+# `git clone` restores directly. Kept for SEVEN DAYS: 28 runs at four a day.
+#
+# safe.directory: this runs as root over repos owned by the service's user, and
+# git refuses that by default ("dubious ownership"). Reading them to bundle is
+# exactly what we want, so it is allowed here and nowhere else.
+SPACES=${SPACES_ROOT:-/var/lib/fxg-crew/spaces}
+KEEP_SPACES=${BACKUP_KEEP_SPACES:-28}
+#
+# One repo that will not bundle does not stop the others, or the database's
+# copy leaving the host: it is named, the run carries on, and the run fails at
+# the very end so the timer shows it.
+SPACE_COUNT=0
+SPACE_FAILED=0
+if [ -d "$SPACES/repos" ]; then
+  mkdir -p "$DEST/spaces/$STAMP"
+  for repo in "$SPACES"/repos/*.git; do
+    [ -d "$repo" ] || continue
+    name=$(basename "$repo" .git)
+    # A repo with no branches yet has nothing to bundle (and git refuses to try).
+    [ -n "$(git -c safe.directory='*' --git-dir="$repo" for-each-ref --count=1 refs/heads 2>/dev/null)" ] || continue
+    if git -c safe.directory='*' --git-dir="$repo" bundle create "$DEST/spaces/$STAMP/$name.bundle" --all 2>/dev/null; then
+      SPACE_COUNT=$((SPACE_COUNT + 1))
+    else
+      echo "FAILED: could not bundle the space $name" >&2
+      rm -f "$DEST/spaces/$STAMP/$name.bundle"
+      SPACE_FAILED=$((SPACE_FAILED + 1))
+    fi
+  done
+  echo "bundled $SPACE_COUNT space repo(s)"
+  ls -1dt "$DEST"/spaces/*/ 2>/dev/null | tail -n +$((KEEP_SPACES + 1)) | xargs -r rm -rf
+fi
 
 # Prune by count, oldest first.
 ls -1dt "$DEST"/db/saha-*.db.gz 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -f
@@ -105,7 +141,9 @@ if [ -n "${BACKUP_REMOTE:-}" ]; then
   command -v age >/dev/null || { echo "age is not installed; refusing to fall back to unauthenticated encryption" >&2; exit 1; }
 
   BUNDLE="$DEST/offsite-$STAMP.tar.gz.age"
-  tar -czf - -C "$DEST" "db/saha-$STAMP.db.gz" -C "$DEST/blobs" "$STAMP" \
+  SPACE_PART=()
+  [ -d "$DEST/spaces/$STAMP" ] && SPACE_PART=(-C "$DEST" "spaces/$STAMP")
+  tar -czf - -C "$DEST" "db/saha-$STAMP.db.gz" ${SPACE_PART[@]+"${SPACE_PART[@]}"} -C "$DEST/blobs" "$STAMP" \
     | age -r "$BACKUP_RECIPIENT" -o "$BUNDLE"
   rsync -a --remove-source-files "$BUNDLE" "$BACKUP_REMOTE/" \
     && echo "shipped authenticated encrypted copy to $BACKUP_REMOTE"
@@ -157,4 +195,21 @@ if [ "${1:-}" = "--verify" ]; then
     exit 1
   fi
   echo "every blob referenced by the database is present in the backup"
+
+  # Every space bundle must be a whole repository that git can clone from.
+  if [ -d "$DEST/spaces/$STAMP" ]; then
+    git init -q "$TMP/verify-repo"
+    BAD=0
+    for bundle in "$DEST/spaces/$STAMP"/*.bundle; do
+      [ -f "$bundle" ] || continue
+      git -C "$TMP/verify-repo" bundle verify -q "$bundle" >/dev/null 2>&1 || { echo "FAILED: $(basename "$bundle") does not verify" >&2; BAD=$((BAD + 1)); }
+    done
+    [ "$BAD" -gt 0 ] && exit 1
+    echo "every space bundle verifies ($SPACE_COUNT)"
+  fi
+fi
+
+if [ "$SPACE_FAILED" -gt 0 ]; then
+  echo "FAILED: $SPACE_FAILED space repo(s) could not be bundled (named above)" >&2
+  exit 1
 fi
