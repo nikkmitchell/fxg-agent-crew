@@ -15,6 +15,9 @@ if (review === "rain") {
   camera.position.set(AT.x, 1.6, AT.z + 2.3); camera.rotation.set(-.15, 0, 0);
 }
 if (review === "seat") { camera.position.set(AT.x, 1.1, AT.z); camera.rotation.set(-.35, .7, 0); }
+if (review === "stone") {
+  camera.position.set(.95, .88, 1.35); camera.lookAt(.1, .11, -.04);
+}
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 const status = document.querySelector<HTMLElement>("#status")!;
 const sound = document.querySelector<HTMLButtonElement>("#sound")!;

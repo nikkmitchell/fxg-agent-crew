@@ -5,11 +5,15 @@ individually now, then arrange them along a path later. This page loads no sky,
 star catalogue or astronomy code. It does not change meditation.AR's scene,
 existing RainCurtain, Dawn or shared session state.
 
-The sitting stone is a flat, irregular slab, with beveled broken edges, procedural
-dark stone grain, broader moss coverage and two thin moss cushions atop. Three
-touching pebbles and 90 grass blades in nine fuller tufts share its single draw
-(534 triangles total); no textures are downloaded. The approach edge stays open.
-All stay inside the dry central radius of 0.85 m, so drops cannot fall on them.
+The sitting stone is a bare, flat, irregular near-black slab with mineral grain,
+restrained flecks and broken strata. Moss lies in low, uneven pockets under the
+edge, with only 14 sparse grass blades in three unequal clusters. A small broken,
+decaying log nestles along one side: rough bark, exposed end grain, a recessed
+rotten core, patchy moss and three tiny chestnut-red fungi. Two muted curled
+leaves and three touching pebbles finish the asymmetric composition. All share
+one draw (1,120 triangles total); no textures or models are downloaded.
+The broad sitting surface stays clear, and all details remain inside the dry
+central radius of 0.85 m (measured maximum 0.84744 m).
 Four separate irregular stepping stones lead in, in one additional draw. There
 is no paved path or broad floor plane: only the rain's own local wet patch.
 420 drops fall in the surrounding
@@ -38,13 +42,13 @@ https://saha.ing/go/meditation.ar?branch=mica-retreat . The guest badge preserve
 the branch when entering. No ticket or credential needs copying.
 
 Build: pnpm exec vite build -c vite.retreat.config.ts . It uses the site's cached
-Three instance with an import map. Its own module is about 18 KB raw / 7 KB
+Three instance with an import map. Its own module is about 21 KB raw / 8 KB
 gzip, plus a roughly 2 KB audio worklet downloaded only when sound is enabled,
 and the shared kit, Three and visitors' bodies (often cached). No star catalogue,
 textures, audio recordings or new dependencies are downloaded by this piece.
 
 Local entry: /rain-preview.html; ?review=rain shows the approach and
-?review=seat starts at the center. Local preview skips live kit connections.
+?review=seat starts at the center; ?review=stone shows the composition up close. Local preview skips live kit connections.
 
 ## Later placement
 
