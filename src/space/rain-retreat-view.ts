@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { easeSky } from "../../shared/earth-sky";
 import { RAIN_RETREAT, retreatDrops } from "../../shared/rain-retreat";
 import { createRainStone } from "./rain-stone";
+import { RainAudio } from "./rain-audio";
 
 /** A preview variant of the existing rain curtain; no room state or model calls. */
 export class RainRetreatView {
@@ -14,10 +15,8 @@ export class RainRetreatView {
   private readonly seat: THREE.ShaderMaterial;
   private opacity = 0;
   private time = 0;
-  private sound: { ctx: AudioContext; source: AudioBufferSourceNode; gain: GainNode; filters: BiquadFilterNode[] } | null = null;
-  private soundEnabled = false;
+  private readonly sound = new RainAudio();
   private disposed = false;
-  private lastSoundLevel = -1;
 
   constructor(at: { x: number; z: number }) {
     this.group.position.set(at.x, 0, at.z);
@@ -102,26 +101,10 @@ export class RainRetreatView {
   }
 
   /** Called from an explicit sound button or XR-entry gesture, never from a model. */
-  async enableSound(): Promise<boolean> {
-    if (this.disposed) return false;
-    try {
-      if (!this.sound) {
-        const ctx = new AudioContext();
-        const buffer = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-        const source = ctx.createBufferSource(); source.buffer = buffer; source.loop = true;
-        const band = ctx.createBiquadFilter(); band.type = "bandpass"; band.frequency.value = 2400; band.Q.value = .6;
-        const low = ctx.createBiquadFilter(); low.type = "lowpass"; low.frequency.value = 6000;
-        const gain = ctx.createGain(); gain.gain.value = 0;
-        source.connect(band).connect(low).connect(gain).connect(ctx.destination);
-        source.start(); this.sound = { ctx, source, gain, filters: [band, low] };
-      }
-      await this.sound.ctx.resume(); this.soundEnabled = !this.disposed && this.sound.ctx.state === "running";
-      return this.soundEnabled;
-    } catch { return false; }
+  enableSound(): Promise<boolean> {
+    return this.disposed ? Promise.resolve(false) : this.sound.enable();
   }
-  mute(): void { this.soundEnabled = false; this.lastSoundLevel = 0; this.sound?.gain.gain.setTargetAtTime(0, this.sound.ctx.currentTime, .5); }
+  mute(): void { this.sound.mute(); }
 
   update(target: number, delta: number, reducedMotion = false): void {
     this.opacity = easeSky(this.opacity, target, delta);
@@ -135,21 +118,14 @@ export class RainRetreatView {
     this.ripples.uniforms.uFade.value = this.opacity;
     this.seat.uniforms.uFade.value = this.opacity;
     // One viewer's local sound; approach and departure follow the same fade.
-    const level = this.soundEnabled && !document.hidden ? this.opacity * .055 : 0;
-    if (this.sound && (Math.abs(level - this.lastSoundLevel) > .0005 || level === 0 && this.lastSoundLevel !== 0)) {
-      this.sound.gain.gain.setTargetAtTime(level, this.sound.ctx.currentTime, .5); this.lastSoundLevel = level;
-    }
+    this.sound.update(this.opacity);
   }
 
   dispose(): void {
     this.disposed = true;
     for (const geometry of this.geometries) geometry.dispose();
     for (const material of this.materials) material.dispose();
-    if (this.sound) {
-      this.sound.source.stop(); this.sound.source.disconnect(); this.sound.gain.disconnect();
-      for (const filter of this.sound.filters) filter.disconnect();
-      void this.sound.ctx.close(); this.sound = null;
-    }
+    this.sound.dispose();
     this.group.removeFromParent();
   }
 }

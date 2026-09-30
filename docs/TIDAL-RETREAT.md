@@ -20,9 +20,17 @@ Rain has four draws total: drops, landings, wet surface, stone. Reduced motion
 freezes drop and ripple clocks. The piece fades locally with distance, becoming
 fully visible within 1.6 m and hidden/silent beyond 4.6 m.
 
-Audio is optional, local filtered noise, generated only after an explicit
-Listen button or XR-entry gesture. The wrist menu can silence it. Hidden pages
-are silent. Nothing records audio or requests a microphone.
+Audio is optional and local, generated only after an explicit Listen button or
+XR-entry gesture. An AudioWorklet generates fresh stereo noise continuously,
+instead of repeating a three-second recording. Gentle changes in the wash and
+frequency balance unfold over 3-11 seconds, smoothed over 2.5 seconds. Quiet,
+noise-only water impacts have random spacing, size, duration and stereo position;
+four reusable voices cap their cost. There are no tonal chimes or dramatic events.
+The detail is intended to reward sitting and listening; it does not detect or
+require stillness. A fresh local seed makes each visit different.
+The wrist menu can silence it. Leaving the area or hiding the page fades sound
+out; synthesis stops after the quiet tail even if a hidden page stops drawing.
+Unmounting closes the audio context. Nothing records audio or requests a microphone.
 
 The page uses joinSaha for figures, walking/palm joystick, snap turns and wrist
 menu. Direct links are guests. Enter the review branch as yourself through
@@ -30,9 +38,10 @@ https://saha.ing/go/meditation.ar?branch=mica-retreat . The guest badge preserve
 the branch when entering. No ticket or credential needs copying.
 
 Build: pnpm exec vite build -c vite.retreat.config.ts . It uses the site's cached
-Three instance with an import map. Its own module is about 17 KB raw / 6.5 KB
-gzip, plus the shared kit, Three and visitors' bodies (often cached). No star
-catalogue, textures, audio files or new dependencies are downloaded by this piece.
+Three instance with an import map. Its own module is about 18 KB raw / 7 KB
+gzip, plus a roughly 2 KB audio worklet downloaded only when sound is enabled,
+and the shared kit, Three and visitors' bodies (often cached). No star catalogue,
+textures, audio recordings or new dependencies are downloaded by this piece.
 
 Local entry: /rain-preview.html; ?review=rain shows the approach and
 ?review=seat starts at the center. Local preview skips live kit connections.
