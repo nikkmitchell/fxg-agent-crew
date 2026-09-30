@@ -11,14 +11,14 @@ const referenceNote = document.querySelector<HTMLElement>("#reference")!;
 const note = document.querySelector<HTMLElement>("#note")!;
 window.addEventListener("error", (event) => { document.querySelector("#error")!.textContent = event.message; });
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+export const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.xr.enabled = true;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
-const scene = new THREE.Scene();
+export const scene = new THREE.Scene();
 scene.background = new THREE.Color("#0b1520");
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 150);
 const rig = new THREE.Group();
@@ -61,6 +61,14 @@ const shell = [floor, path, circle, boundary];
 for (const mesh of shell) {
   mesh.renderOrder = 0;
   (mesh.material as THREE.MeshBasicMaterial).transparent = true;
+}
+/** Independent preview extensions share the same movement and XR session. */
+export const previewTicks = new Set<(eye: THREE.Vector3, delta: number, skyVisibility: number) => void>();
+export function addPreviewShell(mesh: THREE.Mesh): void {
+  mesh.renderOrder = 0;
+  (mesh.material as THREE.MeshBasicMaterial).transparent = true;
+  scene.add(mesh);
+  shell.push(mesh as typeof floor);
 }
 
 const keys = new Set<string>();
@@ -143,6 +151,7 @@ renderer.setAnimationLoop(() => {
   }
   const message = distance <= 1.8 ? "You are in the sky clearing. Look around and above." : distance < 5 ? "The sky is beginning to appear." : "The sky waits at the clearing.";
   if (message !== lastStatus) { status.textContent = lastStatus = message; }
+  for (const tick of previewTicks) tick(eye, delta, clock.view.visibility);
   renderer.render(scene, camera);
   if (timer.getElapsed() - lastMetrics > 1) {
     lastMetrics = timer.getElapsed();
