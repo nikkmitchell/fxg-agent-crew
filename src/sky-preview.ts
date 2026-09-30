@@ -93,6 +93,15 @@ renderer.xr.addEventListener("sessionstart", () => { note.hidden = true; keys.cl
 renderer.xr.addEventListener("sessionend", () => { note.hidden = false; });
 
 const eye = new THREE.Vector3(), forward = new THREE.Vector3(), right = new THREE.Vector3(), move = new THREE.Vector3();
+const skyForward = new THREE.Vector3();
+const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+for (const [selector, kind] of [["#meteor", "meteor"], ["#bolide", "bolide"]] as const) {
+  document.querySelector(selector)?.addEventListener("click", () => {
+    const active = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+    active.getWorldDirection(skyForward);
+    clock.view.previewMeteor(kind, skyForward);
+  });
+}
 const up = new THREE.Vector3(0, 1, 0);
 const yawRotation = new THREE.Quaternion();
 const timer = new THREE.Timer();
@@ -134,7 +143,8 @@ renderer.setAnimationLoop(() => {
   activeCamera.getWorldPosition(eye);
   const distance = Math.hypot(eye.x - CLEARING.x, eye.z - CLEARING.z);
   const target = skyProximity(distance);
-  clock.view.update(eye, target, delta, clock.advance());
+  activeCamera.getWorldDirection(skyForward);
+  clock.view.update(eye, target, delta, clock.advance(), reduced.matches, skyForward);
   // A local, immersive clearing. The path fades back in as you leave, without
   // navigating, moving the person, or changing anything for another viewer.
   for (const mesh of shell) {

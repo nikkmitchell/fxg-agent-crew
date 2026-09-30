@@ -5,12 +5,13 @@ import { SKY_REFERENCE, skyProximity, type SkyReference } from "../../shared/ear
 import { EarthSkyClock } from "./earth-sky-clock";
 
 /** Opt-in backdrop; never reads or writes the room's shared constellation state. */
-export function EarthSky({ at, reference = SKY_REFERENCE, panorama = false, enabled = true, live = true }: {
-  at: { x: number; z: number }; reference?: SkyReference; panorama?: boolean; enabled?: boolean; live?: boolean;
+export function EarthSky({ at, reference = SKY_REFERENCE, panorama = false, enabled = true, live = true, reducedMotion = false }: {
+  at: { x: number; z: number }; reference?: SkyReference; panorama?: boolean; enabled?: boolean; live?: boolean; reducedMotion?: boolean;
 }) {
   const root = useRef<THREE.Group>(null);
   const clock = useRef<EarthSkyClock | null>(null);
   const eye = useMemo(() => new THREE.Vector3(), []);
+  const forward = useMemo(() => new THREE.Vector3(), []);
   useEffect(() => {
     const made = new EarthSkyClock(reference, live);
     clock.current = made;
@@ -23,7 +24,8 @@ export function EarthSky({ at, reference = SKY_REFERENCE, panorama = false, enab
     const camera = state.gl.xr.isPresenting ? state.gl.xr.getCamera() : state.camera;
     camera.getWorldPosition(eye);
     const target = !enabled ? 0 : panorama ? 1 : skyProximity(Math.hypot(eye.x - at.x, eye.z - at.z));
-    current.view.update(eye, target, delta, current.advance());
+    camera.getWorldDirection(forward);
+    current.view.update(eye, target, delta, current.advance(), reducedMotion, forward);
   });
   return <group ref={root} />;
 }

@@ -41,6 +41,15 @@ describe("an Earth sky in an XR room", () => {
     expect(Math.abs(lit(a) - lit(b))).toBeGreaterThan(.3);
     expect(a.moon).not.toEqual(b.moon);
   });
+  it("places the five naked-eye planets independently of stars and the Moon", () => {
+    const sky = makeEarthSky([], SKY_REFERENCE);
+    expect(sky.planets.map((planet) => planet.name)).toEqual(["Mercury", "Venus", "Mars", "Jupiter", "Saturn"]);
+    for (const planet of sky.planets) {
+      expect(Math.hypot(...planet.direction)).toBeCloseTo(1, 10);
+      expect(Number.isFinite(planet.magnitude)).toBe(true);
+      expect(planet.direction).not.toEqual(sky.moon);
+    }
+  });
   it("is fully revealed only inside the clearing and absent outside the approach", () => {
     expect(skyProximity(1.8)).toBe(1);
     expect(skyProximity(1.81)).toBeLessThan(1);

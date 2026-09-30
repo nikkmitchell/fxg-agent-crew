@@ -33,14 +33,25 @@ repeatable night-time review use `/sky-preview.html?night=reference`:
 - Stars rotate at Earth's natural rate. Moon position, phase, and orientation
   of its lit side follow the Sun and Moon ephemerides at that place/time.
   The moon can pass beneath the viewer as it circles naturally, and remains
-  visible there. There is no fast-forward, twinkling animation or star flight.
+  visible there. There is no fast-forward or star flight. Catalogue stars have
+  independent, slow brightness scintillation, capped at 4%; planets stay steady.
 - The moon's diameter is deliberately 1 degree, approximately twice its real
   apparent size for XR readability. Its surface is procedural, not a lunar
-  terrain map. No planets, Milky Way texture or constellation labels yet.
+  terrain map. Mercury, Venus, Mars, Jupiter and Saturn appear as small steady
+  points at their calculated positions and approximate apparent magnitudes.
+  No Milky Way texture or constellation labels yet.
 - Three sky draw calls: backdrop, one points buffer, moon. Positions are computed
   locally once per minute; shader interpolation avoids minute-boundary jumps.
   Only fade, centering and one moon transform update each frame. No model calls,
   data-service calls, textures to download or per-star CPU frame loop.
+- Shooting stars are visual accents, not predictions of real meteor arrivals:
+  random directions/scales, average roughly two minutes between attempts, soft
+  fade at both ends, and no sound or camera shake. A 0.1% chance per event selects
+  a bolide, crossing 150–170 degrees through the spawn-time field of view over
+  3–4 seconds. With that rarity, many visits will never contain one. Events do
+  not accumulate while you are away. Each active streak adds one small ribbon
+  draw call, with at most two active. Scintillation and meteors are disabled for
+  reduced motion. Natural celestial motion continues at its very slow real pace.
 - Camera-relative centering prevents nearby-object parallax. The sky is
   non-interactive and does not intercept room rays.
 
@@ -53,7 +64,7 @@ local scene within the same WebXR session, rather than navigate between pages.
 `src/space/EarthSky.tsx` is an opt-in React Three Fiber component:
 
 ```tsx
-<EarthSky at={{ x: clearingX, z: clearingZ }} enabled={skyEnabled} />
+<EarthSky at={{ x: clearingX, z: clearingZ }} enabled={skyEnabled} reducedMotion={reducedMotion} />
 ```
 
 `reference` selects latitude/longitude; `live` defaults to true. For a reference
