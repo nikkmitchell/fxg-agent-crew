@@ -266,10 +266,10 @@ node tools/polyhaven-fetch.mjs get fern_02 --to ./scans     # glTF + textures at
 Push what you fetched to your space and load it from the page with three's GLTFLoader; nothing in
 saha.ing changes. Start at **1k** textures for a headset (about 0.3 to 1.2 MB a map; 8k is 20 MB or
 more). Meshes come as one level of detail, so a lighter one is made by decimating it yourself.
-`src/space/scan-rock.ts` shows one way to repaint a scan (keeping its shape and surface detail)
-to match a dark scene, a forest floor under grass, and a whole scene from several assets; the
-rain and firefly previews on the meditation.ar space's `sill-stone` and `sill-fireflies`
-branches (`?assets=1`) are built that way.
+One way to repaint a scan (keeping its shape and surface detail) to match a dark scene, with a
+forest floor under grass and a whole scene from several assets, is in `src/space/scan-rock.ts`,
+kept as a patch in `source/rock-and-grass.patch` on the meditation.ar space's `sill-stone` and
+`sill-fireflies` branches (their `?assets=1` previews are built that way).
 
 ## Rolling back
 
