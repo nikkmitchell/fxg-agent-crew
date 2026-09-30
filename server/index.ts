@@ -13,6 +13,7 @@ import { dirname, resolve } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
+import { registerRequestTrust } from "./request-trust.js";
 import websocket from "@fastify/websocket";
 import staticPlugin from "@fastify/static";
 import { loadConfig, type Config } from "./config.js";
@@ -157,6 +158,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const client = new WebharnessClient(config.webharnessUrl);
 
   app.register(cookie);
+  // Another page's request is nobody's, whatever cookie it carries (request-trust.ts).
+  registerRequestTrust(app);
   // A write sent twice with the same idempotency key is answered once (idempotency.ts).
   // Scoped to the session that sent it.
   // Read from the raw header: this hook may run before the cookie plugin's.
