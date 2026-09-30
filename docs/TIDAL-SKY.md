@@ -117,10 +117,14 @@ The source package's license is retained by the dependency installation.
 
 The whole meteor (head and trail) now rises to its per-event peak, then burns
 out during continued travel. There is no constant-brightness trail plateau.
-The path and glow continue beyond the nominal sweep during the final decay;
-neither position nor curvature is clamped at the fade boundary. A rendered
-geometry regression checks that a bolide moves over 30 world units during its
-last fade segment, grows clearly brighter at peak, and disposes when invisible.
+Travel spans the complete event lifetime, including the final decay; the head
+reaches its endpoint only when completely invisible. Neither position nor
+curvature is clamped at the fade boundary. The head's light is normalized to
+avoid clipping a tiny point to constant white; its luminous area grows at the
+peak. A rendered geometry regression for both shooting stars and bolides checks
+late-fade movement, the brightness peak and disposal when invisible. Desktop
+frame capture also confirms a moving brightening/dimming head, rather than a
+fixed fading point. Headset appearance still needs the user's retest.
 The sky preview remains independent of the rain retreat. Reload an already-open
 preview to pick up its new content-hashed module.
 
