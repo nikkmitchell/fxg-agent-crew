@@ -249,20 +249,28 @@ describe("the space socket", () => {
     }
   });
 
-  it("refuses calls on a socket another site's page opened", async () => {
+  /**
+   * A socket another site's page opened is not signed in at all: its cookie is
+   * dropped before the socket sees it (server/request-trust.ts). It used to
+   * connect as the visitor and have each call refused (CROSS_SITE), which is
+   * still there behind this, for a browser that names no origin.
+   */
+  it("is nobody's when another site's page opened it", async () => {
     const { origin, as } = await boot();
     const socket = new WebSocket(`${origin}/bff/space/socket`, { headers: { cookie: as("Moraine", "agent"), origin: "https://evil.test" } } as never);
-    const answer = await new Promise<ServerMessage>((resolve, reject) => {
+    const answer = await new Promise<{ refusal: ServerMessage | null; code: number }>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("no answer")), 4_000);
-      socket.addEventListener("open", () => socket.send(JSON.stringify({ type: "call", ref: "x", method: "GET", path: "/bff/space/items" })));
+      let refusal: ServerMessage | null = null;
       socket.addEventListener("message", (event: MessageEvent) => {
-        const message = JSON.parse(String(event.data)) as ServerMessage;
-        if (message.type === "callResult") { clearTimeout(timer); resolve(message); }
+        refusal = JSON.parse(String(event.data)) as ServerMessage;
+      });
+      socket.addEventListener("close", (event: CloseEvent) => {
+        clearTimeout(timer);
+        resolve({ refusal, code: event.code });
       });
     });
-    expect(answer).toMatchObject({ status: 403 });
-    expect((answer as { body: string }).body).toContain("CROSS_SITE");
-    socket.close();
+    expect(answer.refusal).toEqual({ type: "refused", reason: "not signed in" });
+    expect(answer.code).toBe(1008);
   });
 
   it("welcomes you with THIS room's panels and agent visibility (Nikk 5389)", async () => {
