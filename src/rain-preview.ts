@@ -19,9 +19,11 @@ for (let i = 0; i <= 24; i++) {
 geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); geometry.setIndex(triangles);
 const branch = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: "#283239", side: THREE.DoubleSide }));
 addPreviewShell(branch);
-if (new URLSearchParams(location.search).get("review") === "rain") {
+const review = new URLSearchParams(location.search).get("review");
+if (review === "rain") {
   camera.position.set(AT.x, 1.6, AT.z + 2.3); camera.rotation.set(-.15, 0, 0);
 }
+if (review === "seat") { camera.position.set(AT.x, 1.1, AT.z); camera.rotation.set(-.35, .7, 0); }
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 const status = document.querySelector<HTMLElement>("#status")!;
 const sound = document.querySelector<HTMLButtonElement>("#sound")!;
