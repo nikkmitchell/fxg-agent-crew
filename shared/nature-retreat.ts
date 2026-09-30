@@ -1,5 +1,5 @@
 export type NatureKind = "sakura" | "fireflies";
-export const NATURE_COUNTS = { blossoms: 280, petals: 112, fallen: 64, fireflies: 72 } as const;
+export const NATURE_COUNTS = { blossoms: 1200, petals: 112, fallen: 0, fireflies: 72 } as const;
 export function natureRandom(seed: number) {
   let value = seed >>> 0 || 1;
   return () => {

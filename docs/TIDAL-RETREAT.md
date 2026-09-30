@@ -5,10 +5,14 @@ individually now, then arrange them along a path later. This page loads no sky,
 star catalogue or astronomy code. It does not change meditation.AR's scene,
 existing RainCurtain, Dawn or shared session state.
 
-Baiwei's final direction is raw and zen: one bare, dark stone with no texture,
-moss, grass, log, fungi, leaves or surrounding pebbles. Its flat sitting surface
-is 0.45 m high. Broken edges give it a natural outline without surface decoration.
-It is one draw and 60 triangles, entirely inside the 0.85 m dry radius.
+The current stone is a visual handoff for Sill or Nightjar, following Baiwei's
+updated review. It has a mostly flat sitting surface 0.45 m high, an irregular
+outline and procedural slate grain, side moss, three companion stones and
+uneven dark grass toward its base. The earlier bare-stone direction is superseded.
+Mica has stopped composition iterations while the team chooses a modeling owner.
+Keep the dry center and the rain depth fix: stone draws before the depth-tested
+rain, so drops in front remain visible while the stone hides drops behind it.
+The seat composition is one merged draw, under 1,400 triangles.
 Four separate irregular stepping stones lead in, in one additional draw. There
 is no paved path or broad floor plane: only the rain's own local wet patch.
 420 drops fall in the surrounding

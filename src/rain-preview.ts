@@ -34,11 +34,23 @@ const toggleRain = async () => {
 sound.addEventListener("click", () => { void toggleRain(); });
 // XR entry is a user gesture. The wrist menu can quiet the rain at any time.
 renderer.xr.addEventListener("sessionstart", () => { if (!audible) void toggleRain(); });
+// Local reveal starts immediately; joining the optional shared room must not hold it up.
+previewTicks.add((eye, delta) => {
+  const distance = Math.hypot(eye.x - AT.x, eye.z - AT.z);
+  retreat.update(retreatLevel(distance), delta, reduced.matches);
+  const message = distance <= 1.6 ? "A dry place in the rain. Take your time."
+      : distance < 4.6 ? "The rain is gently coming into view."
+        : "Follow the short path into the rain.";
+  if (status.textContent !== message) status.textContent = message;
+});
 let room: JoinedRoom | null = null;
-if (location.pathname.startsWith("/s/")) {
+let previewLeft = false;
+async function connectPreview() {
+  if (!location.pathname.startsWith("/s/")) return;
   try {
     const kitURL = "/kit/saha.js";
     const { joinSaha } = await import(/* @vite-ignore */ kitURL) as { joinSaha: (options: JoinOptions) => JoinedRoom };
+    if (previewLeft) return;
     room = joinSaha({ scene, camera, renderer, player: rig, voice: false, vrButton: false,
       buttons: [{ label: "Rain sound on / off", onPress: () => { void toggleRain(); } }] });
     // The generic guest badge goes to main. Keep this review branch on entry.
@@ -56,14 +68,9 @@ if (location.pathname.startsWith("/s/")) {
     document.querySelector("#error")!.textContent = `The shared room could not connect. This preview still works locally: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
-previewTicks.add((eye, delta) => {
-  const distance = Math.hypot(eye.x - AT.x, eye.z - AT.z);
-  retreat.update(retreatLevel(distance), delta, reduced.matches);
-  const message = distance <= 1.6 ? "A dry place in the rain. Take your time."
-      : distance < 4.6 ? "The rain is gently coming into view."
-        : "Follow the short path into the rain.";
-  if (status.textContent !== message) status.textContent = message;
-});
+
+void connectPreview();
 window.addEventListener("pagehide", () => {
+  previewLeft = true;
   room?.leave(); retreat.dispose(); approach.geometry.dispose(); approach.material.dispose();
 }, { once: true });

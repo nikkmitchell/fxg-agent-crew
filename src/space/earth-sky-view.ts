@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { easeSky, type EarthSkySnapshot } from "../../shared/earth-sky";
+import type { EarthSkySnapshot } from "../../shared/earth-sky";
+import { easeSky } from "../../shared/sky-easing";
 import { SkyMeteorView } from "./sky-meteor-view";
 
 const RADIUS = 80;
@@ -50,7 +51,7 @@ export class EarthSkyView {
     const positions = new Float32Array(total * 3);
     const sizes = new Float32Array(total);
     const colors = new Float32Array(total * 3);
-    const twinkle = new Float32Array(total * 2);
+    const twinkle = new Float32Array(total * 3);
     const color = new THREE.Color();
     sky.stars.forEach((star, i) => {
       positions.set(star.direction.map((v) => v * RADIUS), i * 3);
@@ -59,8 +60,12 @@ export class EarthSkyView {
       color.set(star.colorIndex < .15 ? "#d0e2ff" : star.colorIndex > 1 ? "#ffdbb5" : "#f5f1e8");
       const brightness = Math.max(.14, Math.min(1, Math.pow(10, -.16 * (star.magnitude + 1.5))));
       colors.set([color.r * brightness, color.g * brightness, color.b * brightness], i * 3);
-      // Stable, unrelated phases: no synchronized blinking of the whole sky.
-      twinkle.set([(star.id * 2.399963) % (Math.PI * 2), .7 + (star.id % 17) * .037], i * 2);
+      // A gentle visual interpretation of atmospheric scintillation, rather
+      // than switching stars off. Each has its own phase, rate and strength.
+      const scatter = (Math.sin(star.id * 127.1) * 43758.5453) % 1;
+      const variation = scatter - Math.floor(scatter);
+      twinkle.set([(star.id * 2.399963) % (Math.PI * 2), 1.1 + variation * 1.6,
+        .45 + ((star.id * .618034) % 1) * .55], i * 3);
     });
     sky.planets.forEach((planet, n) => {
       const i = sky.stars.length + n;
@@ -77,18 +82,21 @@ export class EarthSkyView {
     starGeometry.setAttribute("nextPosition", new THREE.BufferAttribute(positions.slice(), 3));
     starGeometry.setAttribute("pointSize", new THREE.BufferAttribute(sizes, 1));
     starGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    starGeometry.setAttribute("twinkle", new THREE.BufferAttribute(twinkle, 2));
+    starGeometry.setAttribute("twinkle", new THREE.BufferAttribute(twinkle, 3));
     this.starMaterial = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending,
-      uniforms: { uFade: { value: 0 }, uResolution: { value: 1 }, uAdvance: { value: 0 }, uTime: { value: 0 }, uTwinkle: { value: .04 } },
-      vertexShader: `attribute float pointSize; attribute vec3 color; attribute vec3 nextPosition; attribute vec2 twinkle;
+      uniforms: { uFade: { value: 0 }, uResolution: { value: 1 }, uAdvance: { value: 0 }, uTime: { value: 0 }, uTwinkle: { value: .2 } },
+      vertexShader: `attribute float pointSize; attribute vec3 color; attribute vec3 nextPosition; attribute vec3 twinkle;
         uniform float uResolution; uniform float uAdvance; uniform float uTime; uniform float uTwinkle; varying vec3 vColor;
         void main() {
           vec3 direction=normalize(mix(position,nextPosition,uAdvance));
-          float shimmer=.6*sin(uTime*twinkle.y+twinkle.x)+.4*sin(uTime*twinkle.y*.73+twinkle.x*1.7);
-          vColor=color*(1.+uTwinkle*shimmer);
+          float shimmer=.55*sin(uTime*twinkle.y+twinkle.x)
+            +.3*sin(uTime*twinkle.y*1.731+twinkle.x*2.41)
+            +.15*sin(uTime*twinkle.y*.417+twinkle.x*3.13);
+          float breathe=uTwinkle*twinkle.z*shimmer;
+          vColor=color*(1.+breathe);
           gl_Position=projectionMatrix*modelViewMatrix*vec4(direction*80.,1.);
-          gl_PointSize=pointSize*uResolution;
+          gl_PointSize=pointSize*uResolution*(1.+breathe*.08);
         }`,
       fragmentShader: `uniform float uFade; varying vec3 vColor;
         void main() {
@@ -168,7 +176,7 @@ export class EarthSkyView {
   update(eye: THREE.Vector3, target: number, delta: number, advance = 0, reducedMotion = false, forward?: THREE.Vector3): void {
     if (!reducedMotion) this.accentsTime += Math.min(delta, .1);
     this.starMaterial.uniforms.uTime.value = this.accentsTime;
-    this.starMaterial.uniforms.uTwinkle.value = reducedMotion ? 0 : .04;
+    this.starMaterial.uniforms.uTwinkle.value = reducedMotion ? 0 : .2;
     const fraction = THREE.MathUtils.clamp(advance, 0, 1);
     this.starMaterial.uniforms.uAdvance.value = fraction;
     this.direction.set(...this.current.moon).lerp(this.endpoint.set(...this.next.moon), fraction).normalize();

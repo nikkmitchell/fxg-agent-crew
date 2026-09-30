@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { easeSky } from "../../shared/earth-sky";
+import { easeSky } from "../../shared/sky-easing";
 import { NATURE_COUNTS, natureRandom, natureSeeds, type NatureKind } from "../../shared/nature-retreat";
 import { RainAudio } from "./rain-audio";
 import workletURL from "./nature-audio-worklet.ts?worker&url";
@@ -13,6 +13,13 @@ export class NatureRetreatView {
   private opacity = 0;
   private time = 0;
   private disposed = false;
+  private petalTime = 0;
+  private emitting = false;
+  private emissionStart = 1e6;
+  private emissionEnd = -1;
+  private previousStart = 1e6;
+  private previousEnd = -1;
+  private lightReveal = 0;
   private readonly materials: THREE.ShaderMaterial[] = [];
   private readonly geometries: THREE.BufferGeometry[] = [];
   private readonly sound: RainAudio;
@@ -59,53 +66,23 @@ export class NatureRetreatView {
     return geometry;
   }
   private sakura() {
-    // A slender asymmetric bough, not a heavy full-tree model.
-    const parts: THREE.BufferGeometry[] = [];
-    const branch = (a: number[], b: number[], r1: number, r2: number) => {
-      const from = new THREE.Vector3(...a), to = new THREE.Vector3(...b), direction = to.clone().sub(from);
-      const geometry = new THREE.CylinderGeometry(r2, r1, direction.length(), 7);
-      geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize()));
-      geometry.translate(...from.add(to).multiplyScalar(.5).toArray()); parts.push(geometry);
-    };
-    branch([-1.85, 0, -.65], [-1.7, 1.6, -.65], .09, .052);
-    branch([-1.7, 1.6, -.65], [-1.05, 2.65, -.8], .052, .027);
-    branch([-1.05, 2.65, -.8], [-.1, 3.10, -.55], .027, .013);
-    branch([-.1, 3.10, -.55], [.95, 3.25, -.85], .013, .003);
-    branch([-1.6, 1.83, -.65], [-1.8, 2.65, -.1], .027, .003);
-    branch([-1.05, 2.65, -.8], [-.28, 2.82, -1.48], .025, .003);
-    branch([-.28, 2.82, -1.48], [.65, 2.73, -1.4], .013, .002);
-    const positions: number[] = [], normals: number[] = [];
-    for (const part of parts) {
-      const plain = part.toNonIndexed();
-      for (const [name, target] of [["position", positions], ["normal", normals]] as const) {
-        const attr = plain.getAttribute(name);
-        for (let i = 0; i < attr.count; i++) target.push(attr.getX(i), attr.getY(i), attr.getZ(i));
-      }
-      plain.dispose(); part.dispose();
-    }
-    const wood = new THREE.BufferGeometry();
-    wood.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    wood.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
-    this.add(wood, new THREE.ShaderMaterial({
-      transparent: true, side: THREE.DoubleSide,
-      vertexShader: `varying vec3 vNormal;void main(){vNormal=normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-      fragmentShader: `varying vec3 vNormal; ${FADE} void main(){float light=.6+.4*max(vNormal.y,0.);
-        gl_FragColor=vec4(vec3(.042,.030,.032)*light,uFade); ${COLORSPACE} }`,
-    }));
-    const blossom = this.seeds(NATURE_COUNTS.blossoms), starts = blossom.getAttribute("start") as THREE.InstancedBufferAttribute;
+    const blossom = this.seeds(NATURE_COUNTS.blossoms);
+    const starts = blossom.getAttribute("start") as THREE.InstancedBufferAttribute;
     const random = natureRandom(0x626c6f6d);
-    const clusters = [[-1.75, 2.58, -.09], [-1.12, 2.84, -.76], [-.12, 3.14, -.55], [.82, 3.26, -.85], [.50, 2.8, -1.4], [-.35, 2.88, -1.35]];
+    // A circular ceiling of blossoms. No trunk, branches or imported model.
     for (let i = 0; i < starts.count; i++) {
-      const center = clusters[i % clusters.length];
-      const angle = random() * Math.PI * 2, radius = Math.sqrt(random()) * .47;
-      starts.setXYZ(i, center[0] + Math.cos(angle) * radius, center[1] + (random() - .5) * .37, center[2] + Math.sin(angle) * radius * .6);
+      const angle = random() * Math.PI * 2, radius = Math.sqrt(random()) * 2.4;
+      const height = 2.85 + .24 * (1. - radius / 2.4) + (random() - .5) * .36;
+      starts.setXYZ(i, Math.cos(angle) * radius, height, Math.sin(angle) * radius);
     }
     this.add(blossom, this.blossomMaterial());
-    this.add(this.seeds(NATURE_COUNTS.petals), this.petalMaterial(false));
-    const fallen = this.seeds(NATURE_COUNTS.fallen);
-    const floor = fallen.getAttribute("start") as THREE.InstancedBufferAttribute;
-    for (let i = 0; i < floor.count; i++) floor.setY(i, .014);
-    this.add(fallen, this.petalMaterial(true));
+    const petals = this.seeds(NATURE_COUNTS.petals);
+    const origins = petals.getAttribute("start") as THREE.InstancedBufferAttribute;
+    for (let i = 0; i < origins.count; i++) {
+      const angle = random() * Math.PI * 2, radius = Math.sqrt(random()) * 2.15;
+      origins.setXYZ(i, Math.cos(angle) * radius, 2.7 + random() * .45, Math.sin(angle) * radius);
+    }
+    this.add(petals, this.petalMaterial());
   }
   private blossomMaterial() {
     return new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
@@ -113,7 +90,7 @@ export class NatureRetreatView {
         void main(){vUv=uv;vTint=motion.w;vec3 at=start;
           at.x+=sin(uTime*.18+start.x*2.)*.012;
           vec2 p=mat2(cos(motion.x*6.28),-sin(motion.x*6.28),sin(motion.x*6.28),cos(motion.x*6.28))*position.xy;
-          vec4 view=modelViewMatrix*vec4(at,1.);view.xy+=p*.072*motion.z;
+          vec4 view=modelViewMatrix*vec4(at,1.);view.xy+=p*.18*motion.z;
           gl_Position=projectionMatrix*view;}`,
       fragmentShader: `varying vec2 vUv;varying float vTint;${FADE}
         void main(){vec2 p=(vUv-.5)*2.;float a=atan(p.y,p.x), r=length(p);
@@ -123,24 +100,39 @@ export class NatureRetreatView {
           gl_FragColor=vec4(color,alpha*uFade*.9);${COLORSPACE}}`,
     });
   }
-  private petalMaterial(fallen: boolean) {
+  private petalMaterial() {
     return new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
-      uniforms: { uFallen: { value: Number(fallen) } },
-      vertexShader: `attribute vec3 start;attribute vec4 motion;uniform float uTime;uniform float uFallen;uniform float uReduced;
+      uniforms: { uPetalTime: { value: 0 }, uEmissionStart: { value: 1e6 }, uEmissionEnd: { value: -1 },
+        uPreviousStart: { value: 1e6 }, uPreviousEnd: { value: -1 } },
+      vertexShader: `attribute vec3 start;attribute vec4 motion;uniform float uPetalTime;
+        uniform float uEmissionStart;uniform float uEmissionEnd;uniform float uPreviousStart;uniform float uPreviousEnd;
         varying vec2 vUv;varying float vTint;varying float vLife;
         float hash(float x){return fract(sin(x*127.1)*43758.5453);}
-        void main(){vUv=uv;vTint=motion.w;float t=uTime,fall=t*.035*motion.y+motion.x;
-          float cycle=floor(fall),phase=fract(fall);vec3 at=start;
-          float change=hash(cycle+motion.x*191.);
-          at.y=mix(3.65*(1.-phase)-.08,start.y,uFallen);
-          at.x+=(sin(t*.22*motion.y+motion.x*31.)*.22+(change-.5)*.45)*(1.-uFallen);
-          at.z+=cos(t*.17*motion.y+motion.x*17.)*.16*(1.-uFallen);
-          float angle=motion.x*6.28+t*.20*motion.y*(1.-uFallen),c=cos(angle),s=sin(angle);
-          vec2 p=mat2(c,-s,s,c)*position.xy*.052*motion.z;
-          float yaw=t*.15*motion.y+motion.x*6.28;
-          vec3 petal=vec3(p.x*cos(yaw),p.y,p.x*sin(yaw));
-          if(uFallen>.5)petal=vec3(p.x,.002,p.y);
-          vLife=uFallen>.5?1.:smoothstep(0.,.15,at.y)*(1.-smoothstep(3.35,3.65,at.y));
+        float wind(float t,float seed){float k=floor(t),f=fract(t);f=f*f*(3.-2.*f);return mix(hash(k+seed),hash(k+1.+seed),f)*2.-1.;}
+        void main(){vUv=uv;vTint=motion.w;
+          float fallTime=6.5+motion.y*1.8,restTime=4.+motion.w*2.5;
+          float cycleTime=fallTime+restTime+2.+motion.x*3.;
+          float elapsed=uPetalTime-motion.x*8.;float cycle=floor(elapsed/cycleTime);
+          float born=cycle*cycleTime+motion.x*8.,age=elapsed-cycle*cycleTime;
+          float released=step(0.,cycle)*max(step(uEmissionStart,born)*step(born,uEmissionEnd),
+            step(uPreviousStart,born)*step(born,uPreviousEnd));
+          float progress=clamp(age/fallTime,0.,1.),air=1.-smoothstep(.92,1.,progress);
+          float phase=motion.x*31.+cycle*2.13;
+          vec3 at=start;
+          float flutterAge=min(age,fallTime),flightClock=born+flutterAge;
+          vec2 gust=vec2(wind(flightClock*.19,3.7),wind(flightClock*.13,17.3));
+          vec2 swing=vec2(sin(flutterAge*(1.7+motion.w)+phase),cos(flutterAge*(1.25+motion.x)+phase*1.3));
+          at.xz+=progress*(gust*(.38+motion.w*.18)+swing*(.16+motion.x*.13))
+            +vec2(hash(cycle+phase),hash(cycle+phase+17.))*.24-.12;
+          at.y=max(.017,start.y*(1.-progress)+sin(age*4.3+phase)*.024*air);
+          float roll=phase+sin(flutterAge*2.8+phase)*.85+flutterAge*.35;
+          float yaw=phase+flutterAge*(2.3+motion.w*1.6)+gust.x*.6;
+          vec2 p=mat2(cos(roll),-sin(roll),sin(roll),cos(roll))*position.xy*.065*motion.z;
+          vec3 flying=vec3(p.x*cos(yaw),p.y,p.x*sin(yaw));
+          vec3 resting=vec3(p.x,.002,p.y);
+          vec3 petal=mix(resting,flying,air);
+          float birth=smoothstep(0.,.45,age),landing=1.-smoothstep(.5,restTime,age-fallTime);
+          vLife=released*birth*landing;
           gl_Position=projectionMatrix*modelViewMatrix*vec4(at+petal,1.);}`,
       fragmentShader: `varying vec2 vUv;varying float vTint;varying float vLife;${FADE}
         void main(){vec2 p=(vUv-.5)*2.;float body=length(p*vec2(.85,1.2));
@@ -150,39 +142,56 @@ export class NatureRetreatView {
     });
   }
   private fireflies() {
-    this.add(this.seeds(NATURE_COUNTS.fireflies), new THREE.ShaderMaterial({
+    const lights = this.seeds(NATURE_COUNTS.fireflies);
+    const guide = new Float32Array(NATURE_COUNTS.fireflies); guide[0] = 1;
+    lights.setAttribute("guide", new THREE.InstancedBufferAttribute(guide, 1));
+    (lights.getAttribute("start") as THREE.InstancedBufferAttribute).setXYZ(0, .24, 1.35, .12);
+    this.add(lights, new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
-      vertexShader: `attribute vec3 start;attribute vec4 motion;uniform float uTime;uniform float uReduced;
-        varying vec2 vUv;varying float vGlow;varying float vTint;
+      uniforms: { uNear: { value: 0 } },
+      vertexShader: `attribute vec3 start;attribute vec4 motion;attribute float guide;uniform float uTime;uniform float uReduced;uniform float uNear;
+        varying vec2 vUv;varying float vGlow;varying float vTint;varying float vReveal;
         void main(){vUv=uv;vTint=motion.w;float t=uTime,p=motion.x*41.;
           vec3 at=start+vec3(sin(t*.17*motion.y+p)*.27+sin(t*.43+p*.6)*.055,
             sin(t*.21*motion.y+p*1.3)*.15,cos(t*.14*motion.y+p)*.24+sin(t*.37+p)*.04);
           float cycle=t*(.12+motion.w*.12)+motion.x+sin(t*.037+p)*.07,phase=fract(cycle);
           float pulse=smoothstep(.03,.27,phase)*(1.-smoothstep(.33,.64,phase));
           float strength=.62+.38*fract(sin(floor(cycle)*127.1+motion.x*311.7)*43758.5453);
-          vGlow=.035+pulse*.965*strength;
-          vec4 view=modelViewMatrix*vec4(at,1.);view.xy+=position.xy*.12*motion.z;
+          vGlow=mix(.035,.24,guide)+pulse*.85*strength;
+          vReveal=mix(uNear,1.,guide);
+          vec4 view=modelViewMatrix*vec4(at,1.);view.xy+=position.xy*.12*motion.z*(1.+guide*.6);
           gl_Position=projectionMatrix*view;}`,
-      fragmentShader: `varying vec2 vUv;varying float vGlow;varying float vTint;${FADE}
+      fragmentShader: `varying vec2 vUv;varying float vGlow;varying float vTint;varying float vReveal;${FADE}
         void main(){float r=length((vUv-.5)*2.);
           float halo=exp(-r*r*7.)*.12,core=exp(-r*r*180.)*.95;
           vec3 color=mix(vec3(.51,.75,.16),vec3(.88,.72,.25),vTint);
-          gl_FragColor=vec4(color,(halo+core)*vGlow*uFade);${COLORSPACE}}`,
+          gl_FragColor=vec4(color,(halo+core)*vGlow*vReveal);${COLORSPACE}}`,
     }));
-    const random = natureRandom(0x72656564), vertices: number[] = [];
-    // Five uneven pockets of grass frame empty standing space. No per-blade motion.
-    for (const [x, z, count] of [[-1.8, -.7, 16], [.9, -1.7, 12], [1.7, .2, 8], [-.6, 1.7, 7], [-1.2, -1.8, 9]]) {
-      for (let i = 0; i < count; i++) {
-        const bx = x + (random() - .5) * .28, bz = z + (random() - .5) * .28;
-        const height = .13 + random() * .27, lean = (random() - .5) * .16, width = .006 + random() * .006;
+    const random = natureRandom(0x72656564), vertices: number[] = [], kinds: number[] = [];
+    // Sparse at the edge, progressively denser inside; unequal low/high patches.
+    for (let i = 0; i < 440; i++) {
+        const angle = random() * Math.PI * 2, radius = 2.65 * Math.pow(random(), .82);
+        const bx = Math.cos(angle) * radius, bz = Math.sin(angle) * radius;
+        const patch = .5 + .25 * Math.sin(bx * 3.1 + bz * 1.8) + .25 * Math.sin(bz * 4.7 - bx * 2.3);
+        const height = (.05 + patch * .24) * (.65 + random() * .65), lean = (random() - .5) * .17, width = .006 + random() * .007;
         vertices.push(bx-width,.012,bz,bx+width,.012,bz,bx+lean,height*.63,bz+.015);
         vertices.push(bx+width,.012,bz,bx+lean,height*.63,bz+.015,bx+lean*1.8,height,bz+.035);
+        kinds.push(0,0,0,0,0,0);
+    }
+    for (const [x,z,size] of [[.9,-.6,.12],[-.4,.8,.085],[-1.1,-1.3,.095]]) {
+      const stone = new THREE.IcosahedronGeometry(size,0);
+      const positions = stone.getAttribute("position");
+      for(let i=0;i<positions.count;i++) {
+        vertices.push(x+positions.getX(i)*1.3,.04+positions.getY(i)*.5,z+positions.getZ(i)); kinds.push(1);
       }
+      stone.dispose();
     }
     const grass = new THREE.BufferGeometry(); grass.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-    this.add(grass, new THREE.ShaderMaterial({ transparent: true, side: THREE.DoubleSide,
-      vertexShader: `varying float vHeight;void main(){vHeight=position.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-      fragmentShader: `varying float vHeight;${FADE}void main(){vec3 color=mix(vec3(.009,.020,.014),vec3(.032,.051,.024),vHeight*2.);
+    grass.setAttribute("kind", new THREE.Float32BufferAttribute(kinds, 1)); grass.computeVertexNormals();
+    this.add(grass, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      vertexShader: `attribute float kind;uniform float uTime;varying float vKind;varying vec3 vNormal;varying float vHeight;void main(){vKind=kind;vNormal=normal;vHeight=position.y;vec3 at=position;at.x+=sin(uTime*.42+position.z*4.)*.009*position.y/.35*(1.-kind);gl_Position=projectionMatrix*modelViewMatrix*vec4(at,1.);}`,
+      fragmentShader: `varying float vKind;varying vec3 vNormal;varying float vHeight;${FADE}void main(){vec3 color=mix(vec3(.009,.020,.014),vec3(.032,.051,.024),vHeight*2.);
+        if(vKind>.5)color=vec3(.023,.029,.03)*(.55+.45*max(vNormal.y,0.));
         gl_FragColor=vec4(color,uFade);${COLORSPACE}}`,
     }));
   }
@@ -191,10 +200,29 @@ export class NatureRetreatView {
   update(target: number, delta: number, reducedMotion = false) {
     this.opacity = easeSky(this.opacity, target, delta);
     if (!reducedMotion) this.time += Math.min(delta, .1);
-    this.group.visible = this.opacity > .001;
+    this.group.visible = this.opacity > .001 || this.kind === "fireflies";
+    if (this.kind === "fireflies") this.lightReveal = easeSky(this.lightReveal, Math.max(0, Math.min(1, (target - .8) / .2)), delta);
+    if (this.kind === "sakura") {
+      if (!reducedMotion) this.petalTime += Math.min(delta, .1);
+      const beneath = target >= .85 && !reducedMotion;
+      if (beneath && !this.emitting) {
+        this.previousStart = this.emissionStart; this.previousEnd = this.emissionEnd;
+        this.emissionStart = this.petalTime;
+      }
+      if (beneath) this.emissionEnd = this.petalTime;
+      this.emitting = beneath;
+    }
     for (const material of this.materials) {
       material.uniforms.uFade.value = this.opacity; material.uniforms.uTime.value = this.time;
       material.uniforms.uReduced.value = Number(reducedMotion);
+      if (material.uniforms.uNear) material.uniforms.uNear.value = this.lightReveal;
+      if (material.uniforms.uPetalTime) {
+        material.uniforms.uPetalTime.value = this.petalTime;
+        material.uniforms.uEmissionStart.value = this.emissionStart;
+        material.uniforms.uEmissionEnd.value = this.emissionEnd;
+        material.uniforms.uPreviousStart.value = this.previousStart;
+        material.uniforms.uPreviousEnd.value = this.previousEnd;
+      }
     }
     this.sound.update(this.opacity);
   }

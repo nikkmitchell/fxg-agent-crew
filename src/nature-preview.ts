@@ -12,13 +12,13 @@ scene.background = new THREE.Color(kind === "sakura" ? "#151520" : "#060e12");
 const approach = createRainApproach(); approach.material.uniforms.uFade.value = 1; scene.add(approach);
 const review = new URLSearchParams(location.search).get("review");
 if (review === "center") {
-  camera.position.set(0, 1.6, .9); camera.rotation.set(kind === "sakura" ? .22 : -.03, .1, 0);
+  camera.position.set(0, 1.6, .9); camera.rotation.set(kind === "sakura" ? .65 : -.03, .1, 0);
 }
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 const status = document.querySelector<HTMLElement>("#status")!;
 const sound = document.querySelector<HTMLButtonElement>("#sound")!;
 let audible = false, soundBusy = false;
-const soundName = kind === "sakura" ? "the blossom breeze" : "the quiet night";
+const soundName = kind === "sakura" ? "the blossom breeze" : "the summer evening";
 const toggleSound = async () => {
   if (soundBusy) return;
   soundBusy = true;
@@ -28,13 +28,24 @@ const toggleSound = async () => {
 };
 sound.addEventListener("click", () => { void toggleSound(); });
 renderer.xr.addEventListener("sessionstart", () => { if (!audible) void toggleSound(); });
+// Local reveal starts immediately; joining the optional shared room must not hold it up.
+previewTicks.add((eye, delta) => {
+  const distance = Math.hypot(eye.x, eye.z);
+  place.update(natureLevel(distance), delta, reduced.matches);
+  const message = distance <= 1.6 ? kind === "sakura" ? "Blossom above you. Let the petals pass." : "Stand quietly. Let your eyes find the little lights."
+    : distance < 5 ? "The place is gently coming into view." : "Follow the scattered stones. Take your time.";
+  if (status.textContent !== message) status.textContent = message;
+});
 let room: JoinedRoom | null = null;
-if (location.pathname.startsWith("/s/")) {
+let previewLeft = false;
+async function connectPreview() {
+  if (!location.pathname.startsWith("/s/")) return;
   try {
     const kitURL = "/kit/saha.js";
     const { joinSaha } = await import(/* @vite-ignore */ kitURL) as { joinSaha: (options: JoinOptions) => JoinedRoom };
+    if (previewLeft) return;
     room = joinSaha({ scene, camera, renderer, player: rig, voice: false, vrButton: false,
-      buttons: [{ label: `${kind === "sakura" ? "Blossom" : "Night"} sound on / off`, onPress: () => { void toggleSound(); } }] });
+      buttons: [{ label: `${kind === "sakura" ? "Blossom" : "Summer"} sound on / off`, onPress: () => { void toggleSound(); } }] });
     const branch = /^\/s\/[^/]+\/@([^/]+)\//.exec(location.pathname)?.[1];
     if (branch) {
       const entry = new URL(`/go/${encodeURIComponent(room.space)}`, location.origin);
@@ -49,13 +60,9 @@ if (location.pathname.startsWith("/s/")) {
     document.querySelector("#error")!.textContent = `The shared room could not connect. The local experience still works: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
-previewTicks.add((eye, delta) => {
-  const distance = Math.hypot(eye.x, eye.z);
-  place.update(natureLevel(distance), delta, reduced.matches);
-  const message = distance <= 1.6 ? kind === "sakura" ? "Let the petals pass. There is nothing to do." : "Stand quietly. Let your eyes find the little lights."
-    : distance < 5 ? "The place is gently coming into view." : "Follow the scattered stones. Take your time.";
-  if (status.textContent !== message) status.textContent = message;
-});
+
+void connectPreview();
 window.addEventListener("pagehide", () => {
+  previewLeft = true;
   room?.leave(); place.dispose(); approach.geometry.dispose(); approach.material.dispose();
 }, { once: true });

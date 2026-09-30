@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { easeSky } from "../../shared/earth-sky";
+import { easeSky } from "../../shared/sky-easing";
 import { RAIN_RETREAT, retreatDrops } from "../../shared/rain-retreat";
 import { createRainStone } from "./rain-stone";
 import { RainAudio } from "./rain-audio";

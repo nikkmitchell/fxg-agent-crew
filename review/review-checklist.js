@@ -17,16 +17,18 @@ const profiles = {
   ]],
   sakura: ['Sakura pocket', [
     'Approach and leave: blossom, petals and sound reveal and fade smoothly.',
-    'Petals drift naturally without an obvious synchronized pattern.',
+    'The canopy is dense and circular, with no visible branches; petals begin when you stand beneath it.',
+    'Petals swing and flutter on uneven gusts, settle on the ground, then slowly fade.',
     'The separate pocket feels calm at headset scale, including when looking up.',
-    'Listen, then Quiet: the subtle breeze feels right and stops when asked.',
+    'Listen, then Quiet: delicate wind gusts and leaf rustle feel right and stop when asked.',
     'Walking, snap-turning and reduced motion remain comfortable.',
   ]],
   fireflies: ['Firefly clearing', [
-    'Approach and leave: lights and sound reveal and fade smoothly.',
+    'From afar only one light is visible; entering the circle reveals the others smoothly.',
+    'Grass becomes denser toward the middle, with irregular tall and short patches and small stones.',
     'Lights wander and pulse independently, without harsh flashes.',
     'The clearing feels immersive at headset scale, without glare or visual clutter.',
-    'Listen, then Quiet: faint night sounds feel varied and stop when asked.',
+    'Listen, then Quiet: summer cicadas, grass rustle and occasional animal calls are varied and gentle.',
     'Walking, snap-turning and reduced motion remain comfortable.',
   ]],
   bowl: ['Singing bowl', [

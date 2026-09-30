@@ -15,7 +15,7 @@ for (const kind of ["sakura", "fireflies"] as const) {
       triangles += (geometry.index?.count ?? geometry.getAttribute("position").count) / 3 * (geometry.instanceCount ?? 1);
       for (const value of geometry.getAttribute("position").array) expect(Number.isFinite(value)).toBe(true);
     }
-    expect(triangles).toBeLessThan(2000);
+    expect(triangles).toBeLessThan(kind === "sakura" ? 2800 : 1600);
     view.update(1, .1);
     const meshes = view.group.children as THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>[];
     const times = meshes.map(mesh => mesh.material.uniforms.uTime.value);
@@ -23,8 +23,33 @@ for (const kind of ["sakura", "fireflies"] as const) {
     expect(meshes.map(mesh => mesh.material.uniforms.uTime.value)).toEqual(times);
     expect(meshes.every(mesh => mesh.material.uniforms.uReduced.value === 1)).toBe(true);
     for (let i = 0; i < 200; i++) view.update(0, .1);
-    expect(view.group.visible).toBe(false);
+    if (kind === "fireflies") {
+      const lights = meshes.find(mesh => mesh.material.uniforms.uNear)!;
+      expect(lights.material.uniforms.uNear.value).toBeLessThan(.001);
+      const guide = lights.geometry.getAttribute("guide");
+      expect(Array.from(guide.array).filter(value => value === 1)).toHaveLength(1);
+      expect(view.group.visible).toBe(true);
+    } else expect(view.group.visible).toBe(false);
     view.dispose();
     return expect(view.enableSound()).resolves.toBe(false);
   });
 }
+
+test("sakura releases petals only beneath the canopy and lets old falls finish after leaving", () => {
+  const view = new NatureRetreatView("sakura", { x: 0, z: 0 });
+  const petals = (view.group.children as THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>[]).find(mesh => mesh.material.uniforms.uPetalTime)!;
+  const uniforms = petals.material.uniforms;
+  view.update(.5, .1);
+  expect(uniforms.uEmissionEnd.value).toBe(-1);
+  view.update(1, .1);
+  const began = uniforms.uEmissionStart.value;
+  const end = uniforms.uEmissionEnd.value;
+  view.update(.5, .1);
+  expect(uniforms.uEmissionEnd.value).toBe(end);
+  expect(uniforms.uPetalTime.value).toBeGreaterThan(end);
+  view.update(1, .1);
+  expect(uniforms.uPreviousStart.value).toBe(began);
+  expect(uniforms.uPreviousEnd.value).toBe(end);
+  expect(uniforms.uEmissionStart.value).toBeGreaterThan(end);
+  view.dispose();
+});

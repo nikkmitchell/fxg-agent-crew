@@ -50,7 +50,4 @@ export function skyProximity(distance: number, inner = 1.8, outer = 5): number {
   return 1 - t * t * (3 - 2 * t);
 }
 
-/** Seconds-based easing: identical fade duration at 72, 90, or 120 Hz. */
-export function easeSky(current: number, target: number, delta: number): number {
-  return current + (target - current) * (1 - Math.exp(-Math.max(0, Math.min(delta, 0.1)) / 0.75));
-}
+export { easeSky } from "./sky-easing.js";

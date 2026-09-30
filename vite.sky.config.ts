@@ -4,5 +4,8 @@ import { defineConfig } from "vite";
 export default defineConfig({
   base: "./",
   publicDir: false,
-  build: { outDir: "output/sky-preview", emptyOutDir: true, rollupOptions: { input: ["sky-preview.html", "rain-preview.html"] } },
+  build: { outDir: "output/sky-preview", emptyOutDir: true, rollupOptions: {
+    input: ["sky-preview.html", "rain-preview.html"],
+    external: (id) => id === "three" || id.startsWith("three/addons/"),
+  } },
 });
