@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-/** Slab, touching pebbles and sparse grass share one small procedural draw. */
+/** Slab, pebbles, moss cushions and grass share one small procedural draw. */
 export function createRainStone() { return createStonePiece(false); }
 export function createRainApproach() { return createStonePiece(true); }
 function createStonePiece(approach: boolean) {
@@ -39,14 +39,30 @@ function createStonePiece(approach: boolean) {
     slab(-.16, -.63, .15, .13, .9, 1);
   }
 
-  // Short curved ribbons, rooted under two edges. No grass animation or textures.
-  for (const [x, z, count, rotation] of approach ? [] : [[-.4, .57, 6, .8], [.49, -.42, 5, -.7], [-.7, .07, 3, 1.5]]) {
+  if (!approach) {
+    // Thin, soft moss cushions; the broad center remains a flat sitting surface.
+    for (const [x, z, radius] of [[-.18, -.16, .30], [.20, -.19, .19]]) {
+      const center = new THREE.Vector3(x, .258, z);
+      for (let i = 0; i < irregular.length; i++) {
+        const a = i / irregular.length * Math.PI * 2, b = (i + 1) / irregular.length * Math.PI * 2;
+        triangle(center,
+          new THREE.Vector3(x + Math.cos(b) * radius * irregular[(i + 1) % irregular.length], .247, z + Math.sin(b) * radius * .8),
+          new THREE.Vector3(x + Math.cos(a) * radius * irregular[i], .247, z + Math.sin(a) * radius * .8), 3);
+      }
+    }
+  }
+  const tufts = Array.from({ length: 10 }, (_, i) => {
+    const angle = i / 10 * Math.PI * 2 + .12;
+    return [Math.cos(angle) * .73, Math.sin(angle) * .73, 10, angle];
+  }).filter((_, i) => i !== 2); // An open edge toward the stepping stones.
+  // Fuller curved tufts around the base, with no animation or textures.
+  for (const [x, z, count, rotation] of approach ? [] : tufts) {
     for (let i = 0; i < count; i++) {
-      const angle = rotation + i * 2.4, height = .075 + (i % 4) * .022;
-      const base = new THREE.Vector3(x + Math.cos(i * 4) * .025, .014, z + Math.sin(i * 4) * .025);
+      const angle = rotation + i * 2.4, height = .13 + (i % 5) * .028;
+      const base = new THREE.Vector3(x + Math.cos(i * 4) * .035, .014, z + Math.sin(i * 4) * .035);
       const side = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-      const lean = new THREE.Vector3(-side.z, 0, side.x).multiplyScalar(.025 + (i % 3) * .012);
-      const left = base.clone().addScaledVector(side, -.008), right = base.clone().addScaledVector(side, .008);
+      const lean = new THREE.Vector3(-side.z, 0, side.x).multiplyScalar(.035 + (i % 3) * .014);
+      const left = base.clone().addScaledVector(side, -.011), right = base.clone().addScaledVector(side, .011);
       const middle = base.clone().addScaledVector(lean, .45).setY(height * .62);
       const tip = base.clone().add(lean).setY(height);
       triangle(left, right, middle.clone().addScaledVector(side, .004), 2);
@@ -70,16 +86,17 @@ function createStonePiece(approach: boolean) {
       void main(){
         float grain=noise(vAt.xz*48.)*.5+noise(vAt.xz*137.)*.5;
         float shade=.58+.42*max(0.,dot(normalize(vNormal),normalize(vec3(-.4,1.,.6))));
-        vec3 color=mix(vec3(.085,.115,.12),vec3(.15,.18,.18),grain)*shade;
+        vec3 color=mix(vec3(.036,.048,.052),vec3(.08,.10,.105),grain)*shade;
         if(vKind<.5){
           // A broken moss patch wraps one edge, leaving the main sitting area clear.
-          float edge=1.-smoothstep(.18,.42,length((vAt.xz-vec2(-.34,-.27))*vec2(1.,1.25)));
+          float edge=1.-smoothstep(.25,.6,length((vAt.xz-vec2(-.16,-.22))*vec2(1.,1.2)));
           float texture=noise(vAt.xz*19.);
-          float moss=edge*smoothstep(.25,.55,texture)*smoothstep(.08,.2,vAt.y);
-          vec3 mossColor=mix(vec3(.025,.055,.023),vec3(.075,.12,.045),texture);
+          float moss=edge*smoothstep(.12,.45,texture)*smoothstep(.08,.2,vAt.y);
+          vec3 mossColor=mix(vec3(.028,.072,.023),vec3(.095,.16,.05),texture);
           color=mix(color,mossColor*shade,moss*.95);
         }
-        if(vKind>1.5) color=mix(vec3(.025,.055,.025),vec3(.065,.12,.045),clamp(vAt.y/.15,0.,1.));
+        if(vKind>1.5&&vKind<2.5) color=mix(vec3(.025,.06,.025),vec3(.085,.17,.048),clamp(vAt.y/.24,0.,1.));
+        if(vKind>2.5){float soft=noise(vAt.xz*37.); color=mix(vec3(.03,.078,.024),vec3(.10,.175,.052),soft)*shade;}
         gl_FragColor=vec4(color,uFade);
         #include <colorspace_fragment>
       }`,

@@ -6,8 +6,9 @@ star catalogue or astronomy code. It does not change meditation.AR's scene,
 existing RainCurtain, Dawn or shared session state.
 
 The sitting stone is a flat, irregular slab, with beveled broken edges, procedural
-stone grain and moss over one edge. Three touching pebbles and 14 sparse grass
-blades share its single draw (282 triangles total); no textures are downloaded.
+dark stone grain, broader moss coverage and two thin moss cushions atop. Three
+touching pebbles and 90 grass blades in nine fuller tufts share its single draw
+(534 triangles total); no textures are downloaded. The approach edge stays open.
 All stay inside the dry central radius of 0.85 m, so drops cannot fall on them.
 Four separate irregular stepping stones lead in, in one additional draw. There
 is no paved path or broad floor plane: only the rain's own local wet patch.
@@ -29,7 +30,7 @@ https://saha.ing/go/meditation.ar?branch=mica-retreat . The guest badge preserve
 the branch when entering. No ticket or credential needs copying.
 
 Build: pnpm exec vite build -c vite.retreat.config.ts . It uses the site's cached
-Three instance with an import map. Its own module is about 16.5 KB raw / 6.3 KB
+Three instance with an import map. Its own module is about 17 KB raw / 6.5 KB
 gzip, plus the shared kit, Three and visitors' bodies (often cached). No star
 catalogue, textures, audio files or new dependencies are downloaded by this piece.
 
