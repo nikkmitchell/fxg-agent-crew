@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" data-experience="fireflies">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Tidal Stillness · Firefly clearing</title>
+  <script type="importmap">{"imports":{"three":"/kit/three/three.module.js","three/addons/":"/kit/three/addons/"}}</script>
+  <style>
+    html,body { margin:0; height:100%; overflow:hidden; background:#090e15; color:#d6e1ed; font:14px/1.5 system-ui,sans-serif; }
+    canvas { display:block; touch-action:none; }
+    #note { position:fixed; top:20px; left:24px; max-width:390px; pointer-events:none; }
+    h1 { font-size:18px; font-weight:400; letter-spacing:.06em; margin:0 0 8px; }
+    p { margin:4px 0; color:#b0bfcc; }
+    #sound { pointer-events:auto; margin:12px 0 0; border:1px solid #4c626f; border-radius:20px; background:#19252e; color:#d6e1ed; padding:8px 15px; cursor:pointer; }
+    details { margin-top:12px; pointer-events:auto; font-size:12px; } summary { color:#8194a5; cursor:pointer; } a {color:#acc2d7;}
+    #error {color:#efb6a5;}
+  </style>
+</head>
+<body>
+  <div id="note">
+    <h1>Tidal Stillness</h1>
+    <p>A quiet pocket of night. Little lights finding their own way.</p>
+    <p>WASD to walk · drag to look · scroll to look higher</p>
+    <p id="status" aria-live="polite">Follow the scattered stones. Take your time.</p>
+    <button id="sound" aria-pressed="false">Listen to the quiet night</button>
+    <details><summary>About this preview</summary>
+      <p>72 softly glowing fireflies wander independently among sparse grasses. Their pulses are slow and unsynchronized, with no flashing effects. A faint night breeze and rare distant insect phrases are optional; fireflies themselves make no chime sounds.</p>
+      <p>In VR: left stick walks, right stick turns in 30-degree steps. No teleportation. The wrist menu turns sound on or off. Reduced motion holds the scene still.</p>
+      <p>This is a separate review piece. It changes no shared meditation session. Sound is generated locally only after Listen or VR entry, with no microphone or model calls.</p>
+      <p id="metrics"></p>
+    </details>
+    <p id="error" role="alert"></p>
+  </div>
+  <script type="module" src="/src/nature-preview.ts"></script>
+</body>
+</html>

@@ -14,7 +14,9 @@ export class RainAudio {
   private quietTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly visibility = () => { this.update(this.proximity); };
 
-  constructor() { document.addEventListener("visibilitychange", this.visibility); }
+  constructor(private readonly options = {
+    url: workletURL, name: "rain-texture", level: .085, mode: "rain",
+  }) { document.addEventListener("visibilitychange", this.visibility); }
 
   enable(): Promise<boolean> {
     if (this.disposed) return Promise.resolve(false);
@@ -29,11 +31,11 @@ export class RainAudio {
       // Resume while still in the gesture, before waiting for the worklet download.
       await ctx.resume();
       if (!this.source) {
-        await ctx.audioWorklet.addModule(workletURL);
+        await ctx.audioWorklet.addModule(this.options.url);
         if (this.disposed) return false;
         const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-        this.source = new AudioWorkletNode(ctx, "rain-texture", {
-          numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { seed },
+        this.source = new AudioWorkletNode(ctx, this.options.name, {
+          numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { seed, mode: this.options.mode },
         });
         this.gain = ctx.createGain(); this.gain.gain.value = 0;
         this.source.connect(this.gain).connect(ctx.destination);
@@ -48,7 +50,7 @@ export class RainAudio {
   update(proximity: number): void {
     this.proximity = proximity;
     if (!this.ctx || !this.gain || !this.source) return;
-    const level = this.enabled && !document.hidden ? Math.max(0, Math.min(1, proximity)) * .085 : 0;
+    const level = this.enabled && !document.hidden ? Math.max(0, Math.min(1, proximity)) * this.options.level : 0;
     if (Math.abs(level - this.lastLevel) > .0005 || level === 0 && this.lastLevel !== 0) {
       this.gain.gain.setTargetAtTime(level, this.ctx.currentTime, .5);
       this.lastLevel = level;
