@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import * as THREE from "three";
-import { meteorSpec } from "../../shared/sky-meteors";
+import { METEOR_TRAIL_DECAY, meteorSpec } from "../../shared/sky-meteors";
 import { SkyMeteorView } from "./sky-meteor-view";
 
 test.each(["meteor", "bolide"] as const)("a rendered %s moves during burn-out and has a brightness peak", (kind) => {
@@ -24,6 +24,9 @@ test.each(["meteor", "bolide"] as const)("a rendered %s moves during burn-out an
     expect(new THREE.Vector3().fromBufferAttribute(position, 0).distanceTo(before)).toBeGreaterThan(spec.bolide ? 30 : 1);
     expect(mesh.material.uniforms.uAlpha.value).toBeLessThan(brightness * .2);
     view.update(spec.linger * .26, 1, forward, false);
+    // Only the dim afterimage remains after the moving head reaches zero.
+    expect(mesh.material.uniforms.uAlpha.value).toBe(0);
+    view.update(METEOR_TRAIL_DECAY[kind] * 3, 1, forward, false);
     expect(view.group.children).toHaveLength(0);
   } finally { view.dispose(); random.mockRestore(); }
 });

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { meteorHeadGlow, meteorOpacity, meteorSpec, meteorTravel, nextMeteorDelay, type MeteorSpec } from "../../shared/sky-meteors";
+import { METEOR_TRAIL_DECAY, meteorHeadGlow, meteorOpacity, meteorSpec, meteorTravel, nextMeteorDelay, type MeteorSpec } from "../../shared/sky-meteors";
 
 type Streak = { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; start: THREE.Vector3; tangent: THREE.Vector3; spec: MeteorSpec; age: number };
 const SEGMENTS = 24, RADIUS = 79;
@@ -48,12 +48,23 @@ export class SkyMeteorView {
     geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2)); geometry.setIndex(indices);
     const material = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, blending: THREE.AdditiveBlending,
-      uniforms: { uAlpha: { value: 0 }, uFlight: { value: 0 }, uHead: { value: 1 },
-        uPeak: { value: spec.bolide ? 1 : .85 }, uIntensity: { value: spec.strength / (spec.bolide ? 3.6 : 1.6) },
+      uniforms: { uAlpha: { value: 0 }, uHead: { value: 1 }, uVisibility: { value: 0 }, uAge: { value: 0 },
+        uLifetime: { value: spec.duration + spec.linger }, uPeakAt: { value: spec.peak },
+        uTrailTime: { value: spec.trail / spec.sweep * (spec.duration + spec.linger) },
+        uDecay: { value: METEOR_TRAIL_DECAY[spec.bolide ? "bolide" : "meteor"] },
+        uPeak: { value: (spec.bolide ? 1 : .85) * spec.peakBoost }, uIntensity: { value: spec.strength / (spec.bolide ? 3.6 : 1.6) },
         uColor: { value: new THREE.Color(spec.bolide ? "#f4e2c0" : "#d6e4f5") } },
       vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
       fragmentShader: `varying vec2 vUv; uniform float uAlpha; uniform float uIntensity; uniform vec3 uColor;
-        uniform float uHead; uniform float uPeak; uniform float uFlight;
+        uniform float uHead; uniform float uPeak; uniform float uVisibility;
+        uniform float uAge; uniform float uLifetime; uniform float uTrailTime; uniform float uPeakAt; uniform float uDecay;
+        float depositedLight(float at){
+          float phase=at/uLifetime;
+          if(phase<=0.||phase>=1.) return 0.;
+          float t=phase<=uPeakAt?phase/uPeakAt:(1.-phase)/(1.-uPeakAt);
+          float light=t*t*(3.-2.*t);
+          return light*light;
+        }
         void main(){
         if(vUv.x>=2.) {
           float r=length(vec2(vUv.x-2.5,vUv.y-.5))*2.;
@@ -62,12 +73,12 @@ export class SkyMeteorView {
         } else {
         float edge=1.-smoothstep(.1,1.,abs(vUv.y-.5)*2.);
         float head=exp(-vUv.x*45.);
-        // Bright leading head extinguishes while moving; older trail burns out later.
-        float burn=1.-smoothstep(.55,1.,uFlight-vUv.x*.18);
-        // The trail shares the head's rise and burn-out. A dim moving ribbon
-        // must not remain after a saturated white head has disappeared.
+        // Each point remembers the head's light when it passed, then rapidly
+        // decays there. This is an afterimage, not a frozen bright head.
+        float delay=vUv.x*uTrailTime;
+        float trail=depositedLight(uAge-delay)*exp(-delay/uDecay)*.38;
         gl_FragColor=vec4(uColor,
-          uAlpha*uIntensity*(.30*burn+head*uHead*uPeak)*pow(1.-vUv.x,1.4)*edge);
+          uIntensity*(uVisibility*trail+uAlpha*head*uHead*uPeak)*pow(1.-vUv.x,1.4)*edge);
         }
         #include <colorspace_fragment>
       }`,
@@ -87,7 +98,8 @@ export class SkyMeteorView {
     }
     for (let n = this.streaks.length - 1; n >= 0; n--) {
       const streak = this.streaks[n]; streak.age += delta;
-      if (streak.age >= streak.spec.duration + streak.spec.linger) { this.remove(n); continue; }
+      const decay = METEOR_TRAIL_DECAY[streak.spec.bolide ? "bolide" : "meteor"];
+      if (streak.age >= streak.spec.duration + streak.spec.linger + decay * 3) { this.remove(n); continue; }
       // One moving flight spans the complete burn-out, including the fade.
       // Its head never reaches an endpoint and waits for a residual glow.
       const fraction = meteorTravel(streak.age, streak.spec.duration + streak.spec.linger);
@@ -120,10 +132,10 @@ export class SkyMeteorView {
       }
       position.needsUpdate = true;
       streak.mesh.material.uniforms.uAlpha.value = visibility * meteorOpacity(streak.age, streak.spec.duration, streak.spec.linger, streak.spec.peak);
-      // Keep the light below display saturation so its rise and fall remain
-      // visible, rather than clipping to white until almost extinguished.
+      // Avoid prolonged white clipping so the rise and fall remain visible.
       streak.mesh.material.uniforms.uHead.value = headGlow / 1.8;
-      streak.mesh.material.uniforms.uFlight.value = streak.age / (streak.spec.duration + streak.spec.linger);
+      streak.mesh.material.uniforms.uAge.value = streak.age;
+      streak.mesh.material.uniforms.uVisibility.value = visibility;
     }
   }
   private remove(index: number): void {
