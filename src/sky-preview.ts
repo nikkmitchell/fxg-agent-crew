@@ -22,8 +22,11 @@ document.body.appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color("#0b1520");
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 150);
-const rig = new THREE.Group();
+export const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 150);
+export const rig = new THREE.Group();
+let kitMovement = false;
+/** The combined retreat uses the site's shared movement, without doubling input. */
+export function useKitMovement(): void { kitMovement = true; keys.clear(); }
 camera.position.set(0, 1.6, 2);
 // Direct review viewpoint for QA screenshots only; normal entry begins on the path.
 if (clearingReview) camera.position.z = CLEARING.z;
@@ -75,6 +78,7 @@ export function addPreviewShell(mesh: THREE.Mesh): void {
 
 const keys = new Set<string>();
 window.addEventListener("keydown", (event) => {
+  if (kitMovement) return;
   if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) {
     event.preventDefault(); keys.add(event.code);
   }
@@ -83,10 +87,11 @@ window.addEventListener("keyup", (event) => keys.delete(event.code));
 window.addEventListener("blur", () => keys.clear());
 let drag: { x: number; y: number } | null = null;
 renderer.domElement.addEventListener("pointerdown", (event) => {
+  if (kitMovement) return;
   drag = { x: event.clientX, y: event.clientY }; renderer.domElement.setPointerCapture(event.pointerId);
 });
 renderer.domElement.addEventListener("pointermove", (event) => {
-  if (!drag || renderer.xr.isPresenting) return;
+  if (!drag || kitMovement || renderer.xr.isPresenting) return;
   camera.rotation.y -= (event.clientX - drag.x) * .004;
   camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x - (event.clientY - drag.y) * .004, -1.4, 1.4);
   drag = { x: event.clientX, y: event.clientY };
@@ -142,6 +147,7 @@ renderer.setAnimationLoop(() => {
   const activeCamera = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
   activeCamera.getWorldPosition(eye);
   activeCamera.getWorldDirection(forward);
+  if (!kitMovement) {
   forward.y = 0; forward.normalize(); right.crossVectors(forward, up).normalize();
   let walk = Number(keys.has("KeyW")) - Number(keys.has("KeyS"));
   let strafe = Number(keys.has("KeyD")) - Number(keys.has("KeyA"));
@@ -169,6 +175,7 @@ renderer.setAnimationLoop(() => {
   move.copy(forward).multiplyScalar(walk).addScaledVector(right, strafe);
   if (move.lengthSq() > 1) move.normalize();
   rig.position.addScaledVector(move, delta * 1.4);
+  }
   rig.updateMatrixWorld(true);
   activeCamera.getWorldPosition(eye);
   const distance = Math.hypot(eye.x - CLEARING.x, eye.z - CLEARING.z);
