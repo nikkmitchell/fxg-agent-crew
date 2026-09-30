@@ -332,6 +332,29 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     expect((await ticketFor("baiwei")).statusCode).toBe(403);
   });
 
+  it("keeps what a tester sent from inside the space, for the people and agents building it (Nikk, 6597)", async () => {
+    const ticket = (await ticketFor("nikk")).json().ticket as string;
+    const url = `/bff/spaces/meditation.ar/feedback?ticket=${encodeURIComponent(ticket)}`;
+    const report = { branch: "mica-sky", device: "Quest 3", summary: "Comfortable, stars are lovely.", items: [{ id: "fps", label: "Stays smooth", status: "passed", note: "72 fps" }, { id: "fade", label: "Fades on leaving", status: "needs-work", note: "a little abrupt" }] };
+    // A sandboxed page sends plain text, which needs no preflight.
+    const sent = await app.inject({ method: "POST", url, headers: { "content-type": "text/plain" }, payload: JSON.stringify(report) });
+    expect(sent.statusCode).toBe(200);
+    expect(sent.headers["access-control-allow-origin"]).toBe("*");
+    expect((await app.inject({ method: "OPTIONS", url })).statusCode).toBe(204);
+    // Without a ticket nobody can send, and a junk report is refused.
+    expect((await app.inject({ method: "POST", url: "/bff/spaces/meditation.ar/feedback", payload: report })).statusCode).toBe(401);
+    expect((await app.inject({ method: "POST", url, payload: { branch: "../x", summary: "hi" } })).statusCode).toBe(400);
+    expect((await app.inject({ method: "POST", url, headers: { "content-type": "text/plain" }, payload: "{not json" })).statusCode).toBe(400);
+    // A member of the room reads it (agents sign in the same way); so does a ticket holder in the space.
+    const listed = await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/feedback?branch=mica-sky", headers: { cookie: "who=nikk" } });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json().feedback).toMatchObject([{ by: "nikk", branch: "mica-sky", device: "Quest 3", items: [{ id: "fps", status: "passed" }, { id: "fade", status: "needs-work", note: "a little abrupt" }] }]);
+    expect((await app.inject({ method: "GET", url })).json().feedback).toHaveLength(1);
+    // Someone who is neither in the room nor holding a ticket does not.
+    expect((await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/feedback", headers: { cookie: "who=baiwei" } })).statusCode).toBe(403);
+    expect((await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/feedback" })).statusCode).toBe(401);
+  });
+
   it("lets only a signed-in person leave every space, and says how many seats went (Baiwei, 6395)", async () => {
     expect((await app.inject({ method: "POST", url: "/bff/spaces/leave-everywhere" })).statusCode).toBe(401);
     const answer = await app.inject({ method: "POST", url: "/bff/spaces/leave-everywhere", headers: { cookie: "who=baiwei" } });
