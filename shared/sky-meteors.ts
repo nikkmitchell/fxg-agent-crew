@@ -1,5 +1,6 @@
 export const BOLIDE_CHANCE = .001;
-export type MeteorSpec = { bolide: boolean; sweep: number; trail: number; duration: number; width: number; strength: number; inclination: number; curve: number; linger: number; peak: number };
+export const METEOR_TRAIL_DECAY = { meteor: .16, bolide: .25 } as const;
+export type MeteorSpec = { bolide: boolean; sweep: number; trail: number; duration: number; width: number; strength: number; inclination: number; curve: number; linger: number; peak: number; peakBoost: number };
 /** All angles are degrees. Rare accents, not a shower or a jump-scare. */
 export function meteorSpec(random: () => number, force?: "meteor" | "bolide"): MeteorSpec {
   const bolide = force ? force === "bolide" : random() < BOLIDE_CHANCE;
@@ -7,13 +8,14 @@ export function meteorSpec(random: () => number, force?: "meteor" | "bolide"): M
   const shallow = 1 - inclination / 75;
   const sweep = bolide ? 150 + random() * 20 : 12 + shallow * 16 + random() * 4;
   // Shallow entries travel farther, rather than forcing a large speed change.
-  const speed = (bolide ? 42 : 13) * (.9 + random() * .2);
+  const speed = (bolide ? 42 : 13 * 1.15) * (.9 + random() * .2);
   const peak = .3 + random() * .3;
+  const peakBoost = 1.05 + random() * .25;
   return bolide
-    ? { bolide, inclination, peak, curve: .25 + shallow * .9, linger: 1.2 + random() * .4,
+    ? { bolide, inclination, peak, peakBoost, curve: .25 + shallow * .9, linger: 1.2 + random() * .4,
         sweep, trail: 14 + random() * 8, duration: sweep / speed,
         width: .12 + random() * .06, strength: 2 + random() * 1.6 }
-    : { bolide, inclination, peak, curve: .06 + shallow * .5, linger: .35 + random() * .5,
+    : { bolide, inclination, peak, peakBoost, curve: .06 + shallow * .5, linger: (.35 + random() * .5) / 1.15,
         sweep, trail: 2 + random() * 4, duration: sweep / speed,
         width: .09 + random() * .06, strength: .65 + random() * .95 };
 }

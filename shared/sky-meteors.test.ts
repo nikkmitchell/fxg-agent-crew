@@ -26,6 +26,9 @@ test("shallow entries last longer and brighter heads vary between events", () =>
   expect(shallow.duration).toBeGreaterThan(steep.duration);
   expect(shallow.curve).toBeGreaterThan(steep.curve);
   expect(shallow.strength).not.toBe(steep.strength);
+  expect(shallow.peakBoost).toBeCloseTo(1.05);
+  expect(steep.peakBoost).toBeGreaterThan(1.29);
+  expect(steep.peakBoost).toBeLessThanOrEqual(1.30);
   expect(shallow.width).toBeGreaterThan(.03);
   expect(steep.sweep / steep.duration / (shallow.sweep / shallow.duration)).toBeLessThan(1.23);
 });
