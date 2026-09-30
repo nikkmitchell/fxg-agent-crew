@@ -115,6 +115,15 @@ The source package's license is retained by the dependency installation.
 
 ## Checks and remaining review
 
+The whole meteor (head and trail) now rises to its per-event peak, then burns
+out during continued travel. There is no constant-brightness trail plateau.
+The path and glow continue beyond the nominal sweep during the final decay;
+neither position nor curvature is clamped at the fade boundary. A rendered
+geometry regression checks that a bolide moves over 30 world units during its
+last fade segment, grows clearly brighter at peak, and disposes when invisible.
+The sky preview remains independent of the rain retreat. Reload an already-open
+preview to pick up its new content-hashed module.
+
 The coordinate-axis, Polaris altitude, independent Moon altitude/azimuth,
 lunar illumination changes, catalogue identity, clearing boundary and
 frame-rate-independent fade tests run in `shared/earth-sky.test.ts`.
