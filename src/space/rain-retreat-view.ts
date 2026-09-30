@@ -68,22 +68,25 @@ export class RainRetreatView {
     rippleGeometry.index = rippleBase.index!.clone();
     for (const [name, attribute] of Object.entries(rippleBase.attributes)) rippleGeometry.setAttribute(name, attribute.clone());
     rippleBase.dispose();
-    rippleGeometry.setAttribute("dropAt", new THREE.InstancedBufferAttribute(starts.slice(0, 140), 2));
-    rippleGeometry.setAttribute("phaseSpeed", new THREE.InstancedBufferAttribute(phases.slice(0, 140), 2));
-    rippleGeometry.instanceCount = 70;
+    rippleGeometry.setAttribute("dropAt", new THREE.InstancedBufferAttribute(starts, 2));
+    rippleGeometry.setAttribute("phaseSpeed", new THREE.InstancedBufferAttribute(phases, 2));
+    rippleGeometry.instanceCount = seeds.length;
     this.ripples = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide,
       uniforms: { uTime: { value: 0 }, uFade: { value: 0 } },
       vertexShader: `attribute vec2 dropAt; attribute vec2 phaseSpeed; uniform float uTime;
         varying vec2 vUv; varying float vLife;
         void main(){vUv=uv; vLife=fract(uTime*phaseSpeed.y*1.45+phaseSpeed.x);
-          float radius=.018+vLife*.18;
+          float radius=.018+min(vLife/.65,1.)*.21;
           gl_Position=projectionMatrix*modelViewMatrix*vec4(dropAt.x+position.x*radius*2.,.012,dropAt.y+position.y*radius*2.,1.);
         }`,
       fragmentShader: `varying vec2 vUv; varying float vLife; uniform float uFade;
         void main(){float r=length(vUv-.5)*2.;
-          float ring=smoothstep(.78,.87,r)*(1.-smoothstep(.9,1.,r));
-          gl_FragColor=vec4(.36,.48,.56,ring*(1.-smoothstep(0.,.5,vLife))*uFade*.12);
+          float ring=smoothstep(.68,.82,r)*(1.-smoothstep(.9,1.,r));
+          float landing=exp(-r*r*24.)*(1.-smoothstep(0.,.09,vLife));
+          float second=smoothstep(.36,.44,r)*(1.-smoothstep(.48,.56,r))*smoothstep(0.,.08,vLife);
+          float fade=1.-smoothstep(.06,.65,vLife);
+          gl_FragColor=vec4(.46,.61,.68,(ring+second*.25+landing*.65)*fade*uFade*.32);
           #include <colorspace_fragment>
         }`,
     });

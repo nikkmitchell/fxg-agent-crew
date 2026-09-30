@@ -1,46 +1,48 @@
-# Tidal Stillness: rain and walking-path review
+# Tidal Stillness: independent rain retreat
 
-This extends Mica's sky slice with a separate rain retreat. It leaves the live
-meditation room and its existing RainCurtain/shared session state unchanged.
+Rain is a separate experience and preview. Baiwei asked to polish the pieces
+individually now, then arrange them along a path later. This page loads no sky,
+star catalogue or astronomy code. It does not change meditation.AR's scene,
+existing RainCurtain, Dawn or shared session state.
 
-The fork leads ahead into the sky clearing, or gently around a bend into rain.
-The rain destination is (8, 2.5), the sky clearing (0, -6), over 11 m apart:
-their proximity fields have a quiet gap. Rain's fade uses only rain distance,
-never sky visibility. They are separate experiences, not modes of one piece.
-Each appears locally as you approach; no room toggle, model call, teleportation,
-new architecture or navigation is needed. The sky takes over the local shell
-only inside its clearing and restores the path on departure.
+The low sitting stone is in a dry central radius of 0.85 m. The stone's base
+radius is 0.65 m, so drops cannot fall on it. 420 drops fall in the surrounding
+annulus, out to 1.6 m. Each landing makes a brief central impact and spreading
+ripples, with a faint second ring. All landings share one GPU-instanced draw;
+their timing matches their own drop's fall. There is no per-drop CPU frame loop.
+Rain has four draws total: drops, landings, wet surface, stone. Reduced motion
+freezes drop and ripple clocks. The piece fades locally with distance, becoming
+fully visible within 1.6 m and hidden/silent beyond 4.6 m.
 
-The retreat keeps the existing RainCurtain's filtered-noise sound and 420-drop
-density, but leaves a dry central radius of 0.85 m around a low sitting stone.
-Drops occupy an annulus out to 1.6 m. Seventy faint ripples start when their
-corresponding drops land. Rain, ripples and sound fade on approach/departure;
-the center is full strength, beyond 4.6 m silent/hidden. Rain has four small
-draws (GPU-instanced drops and ripples, wet surface, stone), with no per-drop
-CPU frame loop. Reduced motion freezes rain and ripple clocks. Audio is local,
-not recorded, and optional: Listen to the rain on desktop, rain toggle in the
-wrist menu. Hidden pages silence their local rain.
+Audio is optional, local filtered noise, generated only after an explicit
+Listen button or XR-entry gesture. The wrist menu can silence it. Hidden pages
+are silent. Nothing records audio or requests a microphone.
 
-The shared preview uses joinSaha for other people's figures, the site's own
-walking/palm joystick/snap turning and wrist menu. It requests no microphone.
-Default celestial time is actual UTC; `night=reference` is deliberately a local
-QA night starting on load, not a promise of synchronization between visitors.
-Direct preview links are guests. Sill's supported route enters this branch as
-oneself: `https://saha.ing/go/meditation.ar?branch=mica-retreat`. The guest
-badge's entry link keeps the preview branch. No credentials or tickets need
-to be copied. Authenticated two-person presence still needs a browser retest.
+The page uses joinSaha for figures, walking/palm joystick, snap turns and wrist
+menu. Direct links are guests. Enter the review branch as yourself through
+https://saha.ing/go/meditation.ar?branch=mica-retreat . The guest badge preserves
+the branch when entering. No ticket or credential needs copying.
 
-Build: `pnpm exec vite build -c vite.retreat.config.ts`. This page shares the
-site's existing Three instance with the kit through an import map, rather than
-shipping a duplicate renderer. Its own module is about 81 KB raw / 33 KB gzip,
-plus the 143 KB star catalogue. The shared kit, Three and any other visitors'
-bodies are additional downloads, often cached; those are not included in that
-size. There are no image textures or audio assets in this slice.
+Build: pnpm exec vite build -c vite.retreat.config.ts . It uses the site's cached
+Three instance with an import map. Its own module is about 14 KB raw / 5.3 KB
+gzip, plus the shared kit, Three and visitors' bodies (often cached). No star
+catalogue, textures, audio files or new dependencies are downloaded by this piece.
 
-For local review: `/rain-preview.html?night=reference` begins at the fork;
-`&review=rain` inspects the approach, `&review=seat` inspects the dry center.
-Local preview intentionally skips live kit connections.
+Local entry: /rain-preview.html; ?review=rain shows the approach and
+?review=seat starts at the center. Local preview skips live kit connections.
 
-Pending: scene-owner review of positions and coexistence with Dawn/old pieces,
-real headset comfort/performance and an actual listening check. This is a
-composition prototype, not a completed replacement for meditation.AR.
+## Later placement
+
+RainRetreatView is a plain Three component. RainRetreat.tsx is the opt-in R3F
+adapter, independent from EarthSky.tsx. Place it with at={{x, z}} and pass the
+room's reduced-motion setting. Attach a RainRetreatHandle ref and call its
+enableSound() from a real visitor button/gesture; call mute() to silence it.
+Unmounting disposes geometry, materials and the audio context, including React
+StrictMode's setup/cleanup cycle. It reads only the viewer's distance and never
+writes shared state. No scene integration has been enabled yet.
+
+Sill reviewed the previous desktop composition successfully. The current rain
+page is intentionally separate following Baiwei's updated direction. Headset
+comfort/performance, actual listening and authenticated two-person presence
+remain to check before any merge into the public space. Placement and the path
+joining the experiences are deferred, not part of this preview.

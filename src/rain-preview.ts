@@ -1,25 +1,11 @@
-import * as THREE from "three";
-import { addPreviewShell, camera, previewTicks, renderer, rig, scene, useKitMovement } from "./sky-preview";
+import { camera, previewTicks, renderer, rig, scene, useKitMovement } from "./preview-room";
 import type { JoinOptions, JoinedRoom } from "./kit";
 import { retreatLevel } from "../shared/rain-retreat";
 import { RainRetreatView } from "./space/rain-retreat-view";
-import { TIDAL_RAIN } from "../shared/tidal-layout";
 
-const AT = TIDAL_RAIN;
+const AT = { x: 0, z: 0 };
 const retreat = new RainRetreatView(AT);
 scene.add(retreat.group);
-const bend = new THREE.CubicBezierCurve3(new THREE.Vector3(0, .004, 1), new THREE.Vector3(2.5, .004, 0),
-  new THREE.Vector3(6.5, .004, 3.5), new THREE.Vector3(AT.x, .004, AT.z));
-const geometry = new THREE.BufferGeometry(), positions: number[] = [], triangles: number[] = [];
-for (let i = 0; i <= 24; i++) {
-  const point = bend.getPoint(i / 24), tangent = bend.getTangent(i / 24);
-  const side = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize().multiplyScalar(.55);
-  positions.push(point.x - side.x, point.y, point.z - side.z, point.x + side.x, point.y, point.z + side.z);
-  if (i < 24) { const p = i * 2; triangles.push(p, p + 2, p + 1, p + 1, p + 2, p + 3); }
-}
-geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); geometry.setIndex(triangles);
-const branch = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: "#283239", side: THREE.DoubleSide }));
-addPreviewShell(branch);
 const review = new URLSearchParams(location.search).get("review");
 if (review === "rain") {
   camera.position.set(AT.x, 1.6, AT.z + 2.3); camera.rotation.set(-.15, 0, 0);
@@ -63,13 +49,12 @@ if (location.pathname.startsWith("/s/")) {
     document.querySelector("#error")!.textContent = `The shared room could not connect. This preview still works locally: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
-previewTicks.add((eye, delta, sky) => {
+previewTicks.add((eye, delta) => {
   const distance = Math.hypot(eye.x - AT.x, eye.z - AT.z);
   retreat.update(retreatLevel(distance), delta, reduced.matches);
-  const message = sky > .99 ? "You are in the sky clearing. Look in every direction."
-    : distance <= 1.6 ? "A dry place in the rain. Take your time."
+  const message = distance <= 1.6 ? "A dry place in the rain. Take your time."
       : distance < 4.6 ? "The rain is gently coming into view."
-        : "One path leads to rain; the other leads to stars.";
+        : "Follow the short path into the rain.";
   if (status.textContent !== message) status.textContent = message;
 });
 window.addEventListener("pagehide", () => { room?.leave(); retreat.dispose(); }, { once: true });
