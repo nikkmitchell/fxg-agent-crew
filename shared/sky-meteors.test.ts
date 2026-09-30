@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { BOLIDE_CHANCE, meteorOpacity, meteorSpec, nextMeteorDelay } from "./sky-meteors";
+import { BOLIDE_CHANCE, meteorHeadGlow, meteorOpacity, meteorSpec, nextMeteorDelay } from "./sky-meteors";
 
 test("ordinary meteors are short varied streaks and bolides have a micro chance", () => {
   const normal = meteorSpec(() => .5);
@@ -27,4 +27,11 @@ test("shallow entries last longer and brighter heads vary between events", () =>
   expect(shallow.curve).toBeGreaterThan(steep.curve);
   expect(shallow.strength).not.toBe(steep.strength);
   expect(shallow.width).toBeGreaterThan(.03);
+  expect(steep.sweep / steep.duration / (shallow.sweep / shallow.duration)).toBeLessThan(1.23);
+});
+test("the head burns out in flight while the residual trail still fades", () => {
+  expect(meteorHeadGlow(1, 2)).toBeGreaterThan(meteorHeadGlow(.2, 2));
+  expect(meteorHeadGlow(1.8, 2)).toBeLessThan(.5);
+  expect(meteorHeadGlow(2, 2)).toBe(0);
+  expect(meteorOpacity(2.1, 2)).toBeGreaterThan(0);
 });

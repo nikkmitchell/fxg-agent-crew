@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { meteorOpacity, meteorSpec, nextMeteorDelay, type MeteorSpec } from "../../shared/sky-meteors";
+import { meteorHeadGlow, meteorOpacity, meteorSpec, nextMeteorDelay, type MeteorSpec } from "../../shared/sky-meteors";
 
 type Streak = { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; start: THREE.Vector3; tangent: THREE.Vector3; spec: MeteorSpec; age: number };
 const SEGMENTS = 24, RADIUS = 79;
@@ -12,6 +12,8 @@ export class SkyMeteorView {
   private readonly direction = new THREE.Vector3();
   private readonly cross = new THREE.Vector3();
   private readonly offset = new THREE.Vector3();
+  private readonly headAt = new THREE.Vector3();
+  private readonly alongHead = new THREE.Vector3();
 
   preview(kind: "meteor" | "bolide", forward: THREE.Vector3): void { this.spawn(forward, kind); }
   private spawn(forward: THREE.Vector3, force?: "meteor" | "bolide"): void {
@@ -30,24 +32,40 @@ export class SkyMeteorView {
     axis.normalize();
     if (spec.bolide || force) start.applyAxisAngle(axis, -THREE.MathUtils.degToRad(spec.sweep / 2));
     const tangent = axis.clone().cross(start).normalize();
-    const positions = new Float32Array((SEGMENTS + 1) * 2 * 3);
-    const uv = new Float32Array((SEGMENTS + 1) * 2 * 2);
+    const headBase = (SEGMENTS + 1) * 2;
+    const positions = new Float32Array((headBase + 4) * 3);
+    const uv = new Float32Array((headBase + 4) * 2);
     const indices: number[] = [];
     for (let i = 0; i <= SEGMENTS; i++) {
       uv.set([i / SEGMENTS, 0, i / SEGMENTS, 1], i * 4);
       if (i < SEGMENTS) { const p = i * 2; indices.push(p, p + 1, p + 2, p + 1, p + 3, p + 2); }
     }
+    // A tiny procedural glow quad shares the ribbon's one draw call.
+    uv.set([2, 0, 3, 0, 2, 1, 3, 1], headBase * 2);
+    indices.push(headBase, headBase + 1, headBase + 2, headBase + 1, headBase + 3, headBase + 2);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2)); geometry.setIndex(indices);
     const material = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, blending: THREE.AdditiveBlending,
-      uniforms: { uAlpha: { value: 0 }, uIntensity: { value: spec.strength }, uColor: { value: new THREE.Color(spec.bolide ? "#f4e2c0" : "#d6e4f5") } },
+      uniforms: { uAlpha: { value: 0 }, uFlight: { value: 0 }, uHead: { value: 1 },
+        uPeak: { value: spec.bolide ? 5 : 2.2 }, uIntensity: { value: spec.strength },
+        uColor: { value: new THREE.Color(spec.bolide ? "#f4e2c0" : "#d6e4f5") } },
       vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
       fragmentShader: `varying vec2 vUv; uniform float uAlpha; uniform float uIntensity; uniform vec3 uColor;
-        void main(){ float edge=1.-smoothstep(.1,1.,abs(vUv.y-.5)*2.);
+        uniform float uHead; uniform float uPeak; uniform float uFlight;
+        void main(){
+        if(vUv.x>=2.) {
+          float r=length(vec2(vUv.x-2.5,vUv.y-.5))*2.;
+          float glow=(exp(-r*r*7.)*.25+exp(-r*r*60.))*(1.-smoothstep(.75,1.,r));
+          gl_FragColor=vec4(uColor*uIntensity*uPeak,uAlpha*uHead*glow);
+        } else {
+        float edge=1.-smoothstep(.1,1.,abs(vUv.y-.5)*2.);
         float head=exp(-vUv.x*45.);
-        gl_FragColor=vec4(uColor*uIntensity*(.6+head*1.7),uAlpha*pow(1.-vUv.x,1.4)*edge);
+        // Bright leading head extinguishes while moving; older trail burns out later.
+        float burn=1.-smoothstep(.65,1.,uFlight-vUv.x*.22);
+        gl_FragColor=vec4(uColor*uIntensity*(.45*burn+head*uHead*uPeak),uAlpha*pow(1.-vUv.x,1.4)*edge);
+        }
         #include <colorspace_fragment>
       }`,
     });
@@ -68,6 +86,7 @@ export class SkyMeteorView {
       const streak = this.streaks[n]; streak.age += delta;
       if (streak.age >= streak.spec.duration + streak.spec.linger) { this.remove(n); continue; }
       const fraction = Math.min(1, streak.age / streak.spec.duration);
+      const headGlow = meteorHeadGlow(streak.age, streak.spec.duration);
       const angle = THREE.MathUtils.degToRad(streak.spec.sweep * fraction);
       const tail = THREE.MathUtils.degToRad(streak.spec.trail);
       const width = THREE.MathUtils.degToRad(streak.spec.width);
@@ -78,14 +97,24 @@ export class SkyMeteorView {
         this.cross.copy(streak.start).cross(streak.tangent).normalize();
         const pathFraction = Math.max(0, Math.min(1, along / THREE.MathUtils.degToRad(streak.spec.sweep)));
         this.direction.addScaledVector(this.cross, Math.sin(pathFraction * Math.PI) * THREE.MathUtils.degToRad(streak.spec.curve)).normalize();
-        const headWidth = 1 + 2.5 * Math.exp(-i / SEGMENTS * 35);
+        if (i === 0) this.headAt.copy(this.direction).multiplyScalar(RADIUS);
+        const headWidth = 1 + headGlow * Math.exp(-i / SEGMENTS * 35);
         for (let side = 0; side < 2; side++) {
           this.offset.copy(this.direction).multiplyScalar(RADIUS).addScaledVector(this.cross, RADIUS * width * headWidth * (side - .5));
           position.setXYZ(i * 2 + side, this.offset.x, this.offset.y, this.offset.z);
         }
       }
+      this.alongHead.copy(streak.start).multiplyScalar(-Math.sin(angle)).addScaledVector(streak.tangent, Math.cos(angle)).normalize();
+      const glowWidth = RADIUS * width * (streak.spec.bolide ? 10 : 5);
+      for (let corner = 0; corner < 4; corner++) {
+        this.offset.copy(this.headAt).addScaledVector(this.cross, glowWidth * ((corner % 2) - .5))
+          .addScaledVector(this.alongHead, glowWidth * (Math.floor(corner / 2) - .5));
+        position.setXYZ((SEGMENTS + 1) * 2 + corner, this.offset.x, this.offset.y, this.offset.z);
+      }
       position.needsUpdate = true;
       streak.mesh.material.uniforms.uAlpha.value = visibility * meteorOpacity(streak.age, streak.spec.duration, streak.spec.linger);
+      streak.mesh.material.uniforms.uHead.value = headGlow;
+      streak.mesh.material.uniforms.uFlight.value = fraction;
     }
   }
   private remove(index: number): void {
