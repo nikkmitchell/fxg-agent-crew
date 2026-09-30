@@ -1,5 +1,7 @@
 import { expect, test } from "vitest";
 import { RAIN_RETREAT, retreatDrops, retreatLevel } from "./rain-retreat";
+import { TIDAL_CLEARING, TIDAL_RAIN } from "./tidal-layout";
+import { skyProximity } from "./earth-sky";
 
 test("rain falls around the sitter without passing through the dry center", () => {
   const drops = retreatDrops();
@@ -10,6 +12,14 @@ test("rain falls around the sitter without passing through the dry center", () =
     expect(distance).toBeLessThanOrEqual(RAIN_RETREAT.outer);
   }
   expect(retreatDrops()).toEqual(drops);
+});
+test("rain and sky are independent places with no overlapping reveal zone", () => {
+  const gap = Math.hypot(TIDAL_RAIN.x - TIDAL_CLEARING.x, TIDAL_RAIN.z - TIDAL_CLEARING.z);
+  expect(gap).toBeGreaterThan(5 + 4.6 + 2);
+  expect(skyProximity(gap)).toBe(0);
+  expect(retreatLevel(gap)).toBe(0);
+  // Even the stone's wider base remains comfortably inside the dry circle.
+  expect(RAIN_RETREAT.inner - .65).toBeGreaterThanOrEqual(.19);
 });
 test("approach and departure keep the sound and visual field local", () => {
   expect(retreatLevel(0)).toBe(1);

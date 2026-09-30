@@ -3,12 +3,13 @@ import { addPreviewShell, camera, previewTicks, renderer, rig, scene, useKitMove
 import type { JoinOptions, JoinedRoom } from "./kit";
 import { retreatLevel } from "../shared/rain-retreat";
 import { RainRetreatView } from "./space/rain-retreat-view";
+import { TIDAL_RAIN } from "../shared/tidal-layout";
 
-const AT = { x: 5, z: .5 };
+const AT = TIDAL_RAIN;
 const retreat = new RainRetreatView(AT);
 scene.add(retreat.group);
-const bend = new THREE.CubicBezierCurve3(new THREE.Vector3(0, .004, 1), new THREE.Vector3(2, .004, -.4),
-  new THREE.Vector3(3.5, .004, 1.5), new THREE.Vector3(AT.x, .004, AT.z));
+const bend = new THREE.CubicBezierCurve3(new THREE.Vector3(0, .004, 1), new THREE.Vector3(2.5, .004, 0),
+  new THREE.Vector3(6.5, .004, 3.5), new THREE.Vector3(AT.x, .004, AT.z));
 const geometry = new THREE.BufferGeometry(), positions: number[] = [], triangles: number[] = [];
 for (let i = 0; i <= 24; i++) {
   const point = bend.getPoint(i / 24), tangent = bend.getTangent(i / 24);
@@ -47,6 +48,16 @@ if (location.pathname.startsWith("/s/")) {
     const { joinSaha } = await import(/* @vite-ignore */ kitURL) as { joinSaha: (options: JoinOptions) => JoinedRoom };
     room = joinSaha({ scene, camera, renderer, player: rig, voice: false, vrButton: false,
       buttons: [{ label: "Rain sound on / off", onPress: () => { void toggleRain(); } }] });
+    // The generic guest badge goes to main. Keep this review branch on entry.
+    const branch = /^\/s\/[^/]+\/@([^/]+)\//.exec(location.pathname)?.[1];
+    if (branch) {
+      const entry = new URL(`/go/${encodeURIComponent(room.space)}`, location.origin);
+      entry.searchParams.set("branch", decodeURIComponent(branch));
+      for (const link of document.querySelectorAll<HTMLAnchorElement>("a")) {
+        const target = new URL(link.href);
+        if (target.origin === entry.origin && target.pathname === entry.pathname) link.href = entry.href;
+      }
+    }
     useKitMovement();
   } catch (error) {
     document.querySelector("#error")!.textContent = `The shared room could not connect. This preview still works locally: ${error instanceof Error ? error.message : String(error)}`;
@@ -54,7 +65,7 @@ if (location.pathname.startsWith("/s/")) {
 }
 previewTicks.add((eye, delta, sky) => {
   const distance = Math.hypot(eye.x - AT.x, eye.z - AT.z);
-  retreat.update(retreatLevel(distance) * (1 - sky), delta, reduced.matches);
+  retreat.update(retreatLevel(distance), delta, reduced.matches);
   const message = sky > .99 ? "You are in the sky clearing. Look in every direction."
     : distance <= 1.6 ? "A dry place in the rain. Take your time."
       : distance < 4.6 ? "The rain is gently coming into view."

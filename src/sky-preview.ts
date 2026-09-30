@@ -3,8 +3,9 @@ import { VRButton } from "three/addons/webxr/VRButton.js";
 import { SKY_REFERENCE, skyProximity } from "../shared/earth-sky";
 import { EarthSkyClock } from "./space/earth-sky-clock";
 import { loadSkyCatalogue } from "./space/sky/load-catalogue";
+import { TIDAL_CLEARING } from "../shared/tidal-layout";
 
-const CLEARING = { x: 0, z: -6 };
+const CLEARING = TIDAL_CLEARING;
 const referenceMode = new URLSearchParams(location.search).get("night") === "reference";
 const clearingReview = new URLSearchParams(location.search).get("review") === "clearing";
 const status = document.querySelector<HTMLElement>("#status")!;

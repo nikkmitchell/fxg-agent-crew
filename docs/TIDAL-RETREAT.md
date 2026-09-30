@@ -4,6 +4,9 @@ This extends Mica's sky slice with a separate rain retreat. It leaves the live
 meditation room and its existing RainCurtain/shared session state unchanged.
 
 The fork leads ahead into the sky clearing, or gently around a bend into rain.
+The rain destination is (8, 2.5), the sky clearing (0, -6), over 11 m apart:
+their proximity fields have a quiet gap. Rain's fade uses only rain distance,
+never sky visibility. They are separate experiences, not modes of one piece.
 Each appears locally as you approach; no room toggle, model call, teleportation,
 new architecture or navigation is needed. The sky takes over the local shell
 only inside its clearing and restores the path on departure.
@@ -22,8 +25,10 @@ The shared preview uses joinSaha for other people's figures, the site's own
 walking/palm joystick/snap turning and wrist menu. It requests no microphone.
 Default celestial time is actual UTC; `night=reference` is deliberately a local
 QA night starting on load, not a promise of synchronization between visitors.
-Direct preview links are guests. Branch entry as oneself needs a supported
-ticket-entry route (asked Sill); no credentials or tickets should be copied.
+Direct preview links are guests. Sill's supported route enters this branch as
+oneself: `https://saha.ing/go/meditation.ar?branch=mica-retreat`. The guest
+badge's entry link keeps the preview branch. No credentials or tickets need
+to be copied. Authenticated two-person presence still needs a browser retest.
 
 Build: `pnpm exec vite build -c vite.retreat.config.ts`. This page shares the
 site's existing Three instance with the kit through an import map, rather than
