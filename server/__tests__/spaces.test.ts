@@ -178,6 +178,39 @@ describe("spaces: our own git and deploy, one per room (Nikk, 6148)", () => {
     expect(await (await page("/s/meditation.ar/")).text()).toContain("This page is multiplayer");
   });
 
+  it("shows members the code: files, one file, commits and a commit's diff (Sill's plan, F)", async () => {
+    const get = (path: string, who = "nikk") => app.inject({ method: "GET", url: `/bff/spaces/meditation.ar/code/${path}`, headers: { cookie: `who=${who}` } });
+    const tree = (await get("tree?ref=rain")).json();
+    const paths = tree.files.map((file: { path: string }) => file.path);
+    expect(paths).toEqual(expect.arrayContaining(["dist/index.html", "dist/models/orb.txt", "README.md"]));
+    // A symlink out of the repo is never listed or read.
+    expect(paths).not.toContain("dist/passwd.txt");
+    expect((await get("file?ref=rain&path=dist/passwd.txt")).statusCode).toBe(404);
+
+    const file = (await get("file?ref=rain&path=dist/index.html")).json();
+    expect(file).toMatchObject({ path: "dist/index.html", binary: false, text: "<h1>rain</h1>" });
+
+    const log = (await get("log?ref=rain")).json();
+    expect(log.commits.map((commit: { message: string }) => commit.message).slice(0, 2)).toEqual(["rain", "the orb"]);
+    expect(log.commits.at(-1).message).toMatch(/^A new space/);
+
+    const change = (await get(`commit?ref=${log.commits[0].sha}`)).json();
+    expect(change).toMatchObject({ message: "rain", author: "Test", cut: false });
+    expect(change.files).toEqual([{ path: "dist/index.html", added: 1, removed: 1 }]);
+    expect(change.patch).toContain("-<h1>breathe</h1>");
+    expect(change.patch).toContain("+<h1>rain</h1>");
+  });
+
+  it("keeps the code to members, and lets no request become a git option", async () => {
+    const get = (path: string, who = "nikk") => app.inject({ method: "GET", url: `/bff/spaces/meditation.ar/code/${path}`, headers: { cookie: `who=${who}` } });
+    expect((await get("tree", "baiwei")).statusCode).toBe(403);
+    expect((await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/code/tree" })).statusCode).toBe(401);
+    for (const ref of ["--output=/tmp/x", "-p", "no-such-branch", "HEAD~1", "main:README.md", "0000000"]) {
+      expect((await get(`log?ref=${encodeURIComponent(ref)}`)).statusCode).toBe(404);
+    }
+    expect((await get("file?ref=main&path=nothing-here.txt")).statusCode).toBe(404);
+  });
+
   it("asks git for a login, and refuses wrong passwords and people outside the room", async () => {
     const none = await page("/git/meditation.ar.git/info/refs?service=git-upload-pack");
     expect(none.status).toBe(401);

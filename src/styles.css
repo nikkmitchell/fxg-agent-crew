@@ -1297,6 +1297,13 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-rooms { display: flex; flex-wrap: wrap; gap: 8px; }
 .space-deploys { padding-left: 20px; font-size: 13px; line-height: 1.6; }
 .space-deploys li { margin-bottom: 6px; overflow-wrap: anywhere; }
+/* The code browser (SpacesPage.tsx, SpaceCode). */
+.space-code-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.space-code-list { list-style: none; padding: 0; margin: 0; max-height: 260px; overflow: auto; font-size: 13px; line-height: 1.6; }
+.space-code-list li { overflow-wrap: anywhere; }
+.space-code-view pre { max-height: 420px; overflow: auto; padding: 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.35); font-size: 12px; line-height: 1.45; white-space: pre; }
+.space-code-diff [data-line="add"] { color: #7ee2a0; }
+.space-code-diff [data-line="del"] { color: #ff9a9a; }
 .space-deploy-status { display: inline-block; min-width: 52px; font-weight: 800; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
 .space-deploys li[data-status="failed"] .space-deploy-status { color: var(--vermilion); }
 .space-deploys li[data-status="retired"] { color: var(--muted); }

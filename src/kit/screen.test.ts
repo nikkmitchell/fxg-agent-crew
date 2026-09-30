@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { screenAddress, screenTitle } from "./screen";
+import { canFrame, screenAddress, screenTitle } from "./screen";
 
 describe("a screen's address (Sill's plan for spaces, B)", () => {
   it("resolves a space's path against the server, and keeps a full address as it is", () => {
@@ -17,5 +17,13 @@ describe("a screen's address (Sill's plan for spaces, B)", () => {
   it("names a space by its space, and anything else by its host", () => {
     expect(screenTitle("https://saha.ing/s/meditation.ar/@wip/")).toBe("meditation.ar");
     expect(screenTitle("https://example.com/app")).toBe("example.com");
+  });
+
+  it("knows before trying that a saha.ing page cannot be framed from inside a space (Sill, 6468)", () => {
+    // Inside a space: the page is sandboxed, its origin is "null".
+    expect(canFrame("https://saha.ing/s/xr.instruments/", "null", "https://saha.ing")).toBe(false);
+    // On saha.ing itself, or for another site, it is worth trying.
+    expect(canFrame("https://saha.ing/s/xr.instruments/", "https://saha.ing", "https://saha.ing")).toBe(true);
+    expect(canFrame("https://example.com/app", "null", "https://saha.ing")).toBe(true);
   });
 });

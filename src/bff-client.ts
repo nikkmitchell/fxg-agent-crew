@@ -61,6 +61,16 @@ export const bff = {
       body: JSON.stringify({ from, into }),
     }),
 
+  /** The code browser (Sill's plan, F): members only, read only. `ref` is a branch or a commit id. */
+  codeTree: (name: string, ref: string) =>
+    requestJson<{ ref: string; commit: string; files: { path: string; size: number }[] }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/code/tree?ref=${encodeURIComponent(ref)}`),
+  codeFile: (name: string, ref: string, path: string) =>
+    requestJson<{ path: string; size: number; binary: boolean; text: string | null }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/code/file?ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}`),
+  codeLog: (name: string, ref: string) =>
+    requestJson<{ ref: string; commits: { sha: string; author: string; at: string; message: string }[] }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/code/log?ref=${encodeURIComponent(ref)}`),
+  codeCommit: (name: string, sha: string) =>
+    requestJson<{ sha: string; author: string; at: string; message: string; files: { path: string; added: number | null; removed: number | null }[]; patch: string; cut: boolean }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/code/commit?ref=${encodeURIComponent(sha)}`),
+
   space: (name: string, signal?: AbortSignal) =>
     requestJson<SpaceDetail>(`${bffRoot}/spaces/${encodeURIComponent(name)}`, { signal }),
 

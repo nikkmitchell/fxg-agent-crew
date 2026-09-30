@@ -139,6 +139,79 @@ export async function treeFiles(root: string, space: string, commit: string): Pr
   return files;
 }
 
+// ------------------------------------------------------------------ the code browser (F)
+
+/** A branch name or a commit id a member may ask to see. Never an option (no leading "-"). */
+const REF = /^[A-Za-z0-9][A-Za-z0-9._\/-]{0,99}$/;
+const SHA = /^[0-9a-f]{7,64}$/;
+
+/**
+ * The commit a member asked for, or null: an existing branch, or a commit id
+ * that really is a commit in this repo. Nothing else ever reaches git.
+ */
+export async function resolveCommit(root: string, space: string, ref: string): Promise<string | null> {
+  const heads = await branches(root, space);
+  const head = heads.get(ref);
+  if (head) return head;
+  if (!SHA.test(ref) || !REF.test(ref)) return null;
+  try {
+    return (await git(root, ["--git-dir", repoPath(root, space), "rev-parse", "--verify", "--quiet", `${ref}^{commit}`])).toString().trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export type LogEntry = { sha: string; author: string; at: string; message: string };
+
+/** The newest commits reachable from `commit`, newest first. */
+export async function commitLog(root: string, space: string, commit: string, limit = 50): Promise<LogEntry[]> {
+  const out = (await git(root, ["--git-dir", repoPath(root, space), "log", `--max-count=${limit}`, "--format=%H%x00%an%x00%aI%x00%s%x1e", commit])).toString("utf8");
+  return out
+    .split("\x1e")
+    .map((line) => line.replace(/^\n/, ""))
+    .filter(Boolean)
+    .map((line) => {
+      const [sha = "", author = "", at = "", message = ""] = line.split("\0");
+      return { sha, author, at, message };
+    });
+}
+
+export type ChangedFile = { path: string; added: number | null; removed: number | null };
+
+/** The largest diff shown in full; beyond it the text is cut and says so. */
+export const DIFF_LIMIT = 200_000;
+
+/** What one commit changed: per file counts, and the patch (cut at DIFF_LIMIT). */
+export async function commitChanges(root: string, space: string, commit: string): Promise<{ files: ChangedFile[]; patch: string; cut: boolean; parent: string | null }> {
+  const dir = ["--git-dir", repoPath(root, space)];
+  const numstat = (await git(root, [...dir, "show", "--format=", "--numstat", "-z", "--no-renames", commit])).toString("utf8");
+  const files: ChangedFile[] = [];
+  for (const entry of numstat.split("\0")) {
+    const match = /^(\d+|-)\t(\d+|-)\t(.+)$/s.exec(entry.replace(/^\n/, ""));
+    if (!match) continue;
+    files.push({ path: match[3], added: match[1] === "-" ? null : Number(match[1]), removed: match[2] === "-" ? null : Number(match[2]) });
+  }
+  const full = (await git(root, [...dir, "show", "--format=", "--no-color", "--no-renames", "--patch", commit])).toString("utf8");
+  const parents = (await git(root, [...dir, "log", "-1", "--format=%P", commit])).toString().trim().split(" ").filter(Boolean);
+  return { files, patch: full.length > DIFF_LIMIT ? full.slice(0, DIFF_LIMIT) : full, cut: full.length > DIFF_LIMIT, parent: parents[0] ?? null };
+}
+
+/** The largest file shown as text in the browser. */
+export const VIEW_LIMIT = 512 * 1024;
+
+/**
+ * One file of a commit, by path, from the same list the deploys use (so a
+ * symlink or submodule is never followed). Binary or too big: said, not shown.
+ */
+export async function viewFile(root: string, space: string, commit: string, path: string): Promise<{ path: string; size: number; binary: boolean; text: string | null } | null> {
+  const file = (await treeFiles(root, space, commit)).find((each) => each.path === path);
+  if (!file) return null;
+  if (file.size > VIEW_LIMIT) return { path, size: file.size, binary: false, text: null };
+  const bytes = await readBlob(root, space, file.sha);
+  const binary = bytes.subarray(0, 8000).includes(0);
+  return { path, size: file.size, binary, text: binary ? null : bytes.toString("utf8") };
+}
+
 export async function readBlob(root: string, space: string, sha: string): Promise<Buffer> {
   return git(root, ["--git-dir", repoPath(root, space), "cat-file", "blob", sha]);
 }

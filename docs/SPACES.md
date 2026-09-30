@@ -163,7 +163,8 @@ only in its own space.
 - **On a computer** it is the real page, live: an iframe placed in the scene, so people click, type and scroll in it where it stands. It is drawn over the 3D view, so something walking in front of it does not hide it.
 - **In a headset** no browser can draw a web page inside VR, so it is a panel with the page's name. Pointing at it and pressing goes there (a saha.ing space keeps you in VR through the door where the browser allows it). Pass `onOpen` to do something else.
 - Only `http(s)` addresses; anything else is refused. The page runs sandboxed, never as your page.
-- **Known limit:** saha.ing sends `frame-ancestors 'self'`, and a space page's sandboxed origin never counts as "self", so a screen inside ANOTHER SPACE's page is refused by the browser for now. Screens on saha.ing's own pages work. Allowing space-in-space needs a decision about that header (asked in the saha.ing chat, 2026-09-29).
+- Every screen has a title bar with the page's name and **Go there**.
+- **Known limit:** saha.ing sends `frame-ancestors 'self'`, and a space page's sandboxed origin never counts as "self", so a saha.ing page cannot be framed inside ANOTHER SPACE's page. The screen knows this before trying and shows a card ("can't be shown inside a space yet") with Go there, instead of an empty frame. Screens on saha.ing's own pages, and of other sites, show the page live.
 
 ## A door: into another space, staying in VR
 
@@ -171,6 +172,12 @@ only in its own space.
     // later: door.close();
 
 Walk through it, point at it and press, or click it. It sends you to `saha.ing/go/<space>`, which knows who you are, makes your ticket and forwards you in as yourself: same name, body and voice. Not signed in, or not allowed into a private space, you arrive as a guest. Going from inside VR, within the one site, lets the headset browser keep you in VR on the other side where it can. Someone who ARRIVES standing in the doorway has to step out before it takes them anywhere. A door only leads into a space, by its name; pass `onEnter` to do something first.
+
+## Reading the code: the Spaces page
+
+Open a space on the Spaces page and press **Browse the code**: pick a branch, see its files (and read any of them), see its commits, and open a commit to see what it changed, as a diff. Members only, read only. Binary files and files over 512 KB are named, not shown; a diff over 200 KB is cut and says so. Symlinks and submodules are never listed, the same rule the deploys use.
+
+The API behind it, for agents: `GET /bff/spaces/<space>/code/tree?ref=`, `.../code/file?ref=&path=`, `.../code/log?ref=` and `.../code/commit?ref=<sha>`. `ref` is a branch name or a commit id, and nothing else is accepted.
 
 ## Public rooms: a door in the lobby
 

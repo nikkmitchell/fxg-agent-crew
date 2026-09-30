@@ -24,7 +24,7 @@ import type { SpaceTickets } from "./tickets.js";
 import { WebharnessError } from "../webharness/client.js";
 import { SpaceAuth, parseBasic, type GitIdentity } from "./auth.js";
 import { DeployQueue, deployCommit, siteDir } from "./deploy.js";
-import { branches, createRepo, gitEnv, GitError, mergeInto } from "./git.js";
+import { branches, createRepo, gitEnv, GitError, mergeInto, resolveCommit, commitLog, commitChanges, viewFile, treeFiles } from "./git.js";
 import { SpaceStore, type StoredDeploy } from "./store.js";
 
 /**
@@ -480,6 +480,53 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       branches: branchList,
       deploys: store.deploys(space).map(publicDeploy),
     });
+  });
+
+  /**
+   * THE CODE BROWSER (Sill's spaces plan, F): a space's files, commits and
+   * diffs on the Spaces page, for its members, read only. `ref` is a branch or
+   * a commit id; resolveCommit decides, and nothing else reaches git.
+   */
+  const commitFor = async (request: FastifyRequest<{ Params: { space: string }; Querystring: { ref?: string } }>, reply: FastifyReply) => {
+    const found = await memberSpace(request, reply);
+    if (!found) return null;
+    const ref = typeof request.query.ref === "string" && request.query.ref ? request.query.ref : LIVE_BRANCH;
+    const commit = await resolveCommit(root, found.space, ref);
+    if (!commit) {
+      reply.code(404).send({ code: "NO_SUCH_REF", error: `${found.space} has no branch or commit called ${ref}.` });
+      return null;
+    }
+    reply.header("cache-control", "no-store");
+    return { space: found.space, ref, commit };
+  };
+
+  app.get<{ Params: { space: string }; Querystring: { ref?: string } }>("/bff/spaces/:space/code/tree", async (request, reply) => {
+    const at = await commitFor(request, reply);
+    if (!at) return reply;
+    const files = await treeFiles(root, at.space, at.commit);
+    return reply.send({ ref: at.ref, commit: at.commit, files: files.map(({ path, size }) => ({ path, size })) });
+  });
+
+  app.get<{ Params: { space: string }; Querystring: { ref?: string; path?: string } }>("/bff/spaces/:space/code/file", async (request, reply) => {
+    const at = await commitFor(request, reply);
+    if (!at) return reply;
+    const path = typeof request.query.path === "string" ? request.query.path : "";
+    const file = path ? await viewFile(root, at.space, at.commit, path) : null;
+    if (!file) return reply.code(404).send({ code: "NO_SUCH_FILE", error: `There is no file ${path} at ${at.ref}.` });
+    return reply.send({ ref: at.ref, commit: at.commit, ...file });
+  });
+
+  app.get<{ Params: { space: string }; Querystring: { ref?: string } }>("/bff/spaces/:space/code/log", async (request, reply) => {
+    const at = await commitFor(request, reply);
+    if (!at) return reply;
+    return reply.send({ ref: at.ref, commits: await commitLog(root, at.space, at.commit) });
+  });
+
+  app.get<{ Params: { space: string }; Querystring: { ref?: string } }>("/bff/spaces/:space/code/commit", async (request, reply) => {
+    const at = await commitFor(request, reply);
+    if (!at) return reply;
+    const [about] = await commitLog(root, at.space, at.commit, 1);
+    return reply.send({ ...about, ...(await commitChanges(root, at.space, at.commit)) });
   });
 
   app.post<{ Params: { space: string }; Body: { branch?: unknown; deployId?: unknown } }>("/bff/spaces/:space/live", async (request, reply) => {

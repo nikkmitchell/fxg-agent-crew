@@ -69,6 +69,20 @@ export function screenTitle(address: string): string {
   return /^\/s\/([^/]+)/.exec(url.pathname)?.[1] ?? url.host;
 }
 
+/**
+ * WHETHER A PAGE CAN BE SHOWN IN A FRAME HERE, decided up front rather than
+ * found out from a blank rectangle. saha.ing's pages refuse to be framed by
+ * anything but saha.ing itself (frame-ancestors 'self'), and a space page runs
+ * sandboxed, with an origin of "null" that is never "self". So from inside a
+ * space, any saha.ing address is refused; from saha.ing itself, or for another
+ * site, it is worth trying.
+ */
+export function canFrame(address: string, pageOrigin: string, server: string): boolean {
+  const target = new URL(address);
+  const saha = new URL(server);
+  return !(pageOrigin === "null" && target.host === saha.host);
+}
+
 /** One CSS layer per renderer, drawn after it, hidden while in a headset. */
 const layers = new WeakMap<THREE.WebGLRenderer, { css: CSS3DRenderer; scene: THREE.Scene; users: number; placers: Set<() => void> }>();
 
@@ -149,16 +163,55 @@ export function openScreen(options: ScreenOptions): Screen {
   panel.name = "saha:screen-panel";
   group.add(panel);
 
-  // The live page, on a computer.
+  // Pointing at it in a headset opens it; so does "Go there" on a computer.
+  const open = options.onOpen ?? ((address: string) => location.assign(address));
+
+  // The live page, on a computer, under a title bar that can always take you
+  // there. Where the page cannot be framed (canFrame), a card says so instead
+  // of an empty rectangle (Sill, 6468: "the page name and a go-there button").
   const layer = layerFor(renderer, camera);
-  const frame = document.createElement("iframe");
-  frame.src = url;
-  frame.title = title;
-  // The page is somebody else's: it runs, but never as this page's origin.
-  frame.setAttribute("sandbox", "allow-scripts allow-forms allow-popups allow-pointer-lock allow-downloads");
-  frame.setAttribute("allow", "xr-spatial-tracking; fullscreen; autoplay");
-  frame.style.cssText = `width:${Math.round(width * PIXELS_PER_METRE)}px;height:${Math.round(height * PIXELS_PER_METRE)}px;border:0;border-radius:12px;background:#fff;pointer-events:auto`;
-  const live = new CSS3DObject(frame);
+  const widthPx = Math.round(width * PIXELS_PER_METRE);
+  const heightPx = Math.round(height * PIXELS_PER_METRE);
+  // Two boxes: CSS3DRenderer rewrites `display` on the element it places every
+  // frame (to show or hide it), which would undo a flex layout on it.
+  const holder = document.createElement("div");
+  holder.style.cssText = `width:${widthPx}px;height:${heightPx}px;pointer-events:auto`;
+  const frame = document.createElement("div");
+  holder.append(frame);
+  frame.style.cssText = `width:${widthPx}px;height:${heightPx}px;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;background:#14171c;pointer-events:auto;font:600 28px system-ui,sans-serif;color:#fff`;
+  const bar = document.createElement("div");
+  bar.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 18px;background:#1f2430";
+  const name = document.createElement("span");
+  name.textContent = title;
+  const go = document.createElement("button");
+  go.type = "button";
+  go.textContent = "Go there";
+  go.style.cssText = "border:0;border-radius:999px;padding:8px 20px;background:#3b82f6;color:#fff;font:600 24px system-ui,sans-serif;cursor:pointer";
+  go.addEventListener("click", () => open(url));
+  bar.append(name, go);
+  frame.append(bar);
+  const pageOrigin = typeof self !== "undefined" ? self.origin : "null";
+  if (canFrame(url, pageOrigin, server)) {
+    const inner = document.createElement("iframe");
+    inner.src = url;
+    inner.title = title;
+    // The page is somebody else's: it runs, but never as this page's origin.
+    inner.setAttribute("sandbox", "allow-scripts allow-forms allow-popups allow-pointer-lock allow-downloads");
+    inner.setAttribute("allow", "xr-spatial-tracking; fullscreen; autoplay");
+    inner.style.cssText = "flex:1;width:100%;border:0;background:#fff";
+    frame.append(inner);
+  } else {
+    const card = document.createElement("div");
+    card.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center";
+    const line = document.createElement("div");
+    line.textContent = "This page can't be shown inside a space yet.";
+    const hint = document.createElement("div");
+    hint.textContent = "Press Go there to visit it.";
+    hint.style.cssText = "font-weight:400;color:#9cc3ff";
+    card.append(line, hint);
+    frame.append(card);
+  }
+  const live = new CSS3DObject(holder);
   live.scale.setScalar(1 / PIXELS_PER_METRE);
   layer.scene.add(live);
   const place = () => {
@@ -169,8 +222,6 @@ export function openScreen(options: ScreenOptions): Screen {
   place();
   layer.placers.add(place);
 
-  // Pointing at it in a headset opens it.
-  const open = options.onOpen ?? ((address: string) => location.assign(address));
   const raycaster = new THREE.Raycaster();
   const origin = new THREE.Vector3();
   const direction = new THREE.Vector3();
@@ -191,7 +242,7 @@ export function openScreen(options: ScreenOptions): Screen {
       layer.placers.delete(place);
       for (const ray of rays) ray.removeEventListener("select", onSelect as never);
       layer.scene.remove(live);
-      frame.remove();
+      holder.remove();
       layer.users -= 1;
       scene.remove(group);
       panel.geometry.dispose();

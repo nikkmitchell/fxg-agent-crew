@@ -314,6 +314,7 @@ function SpaceDetails({ name }: { name: string }) {
         ))}
       </ul>
       {merged ? <p className="muted-note" role="status">{merged}</p> : null}
+      <SpaceCode name={name} branches={detail.branches.map((branch) => branch.branch)} />
       <h3>Deploys</h3>
       <ol className="space-deploys">
         {detail.deploys.map((deploy) => (
@@ -327,6 +328,102 @@ function SpaceDetails({ name }: { name: string }) {
           </li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+/**
+ * THE CODE BROWSER (Sill's plan, F): a space's files, commits and diffs, for
+ * its members, read only (server/spaces/routes.ts, /code/*). Closed until
+ * opened, so the Spaces page stays light.
+ */
+function SpaceCode({ name, branches }: { name: string; branches: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [ref, setRef] = useState(branches.includes("main") ? "main" : branches[0] ?? "main");
+  const [files, setFiles] = useState<{ path: string; size: number }[] | null>(null);
+  const [commits, setCommits] = useState<{ sha: string; author: string; at: string; message: string }[] | null>(null);
+  const [shown, setShown] = useState<{ title: string; body: string; kind: "file" | "diff" } | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const fail = (error: unknown) => setProblem(error instanceof Error ? error.message : "Could not read the code.");
+
+  useEffect(() => {
+    if (!open) return;
+    setProblem(null);
+    setShown(null);
+    bff.codeTree(name, ref).then((answer) => setFiles(answer.files)).catch(fail);
+    bff.codeLog(name, ref).then((answer) => setCommits(answer.commits)).catch(fail);
+  }, [open, name, ref]);
+
+  const showFile = (path: string) =>
+    bff.codeFile(name, ref, path).then((file) =>
+      setShown({
+        title: `${file.path} at ${ref}`,
+        kind: "file",
+        body: file.binary ? `(a binary file, ${file.size} bytes)` : file.text ?? `(too big to show here: ${file.size} bytes; clone the space to read it)`,
+      })).catch(fail);
+  const showCommit = (sha: string) =>
+    bff.codeCommit(name, sha).then((commit) =>
+      setShown({
+        title: `${commit.sha.slice(0, 7)} ${commit.message} (${commit.author})`,
+        kind: "diff",
+        body: (commit.files.map((file) => `${file.path}  +${file.added ?? "bin"} -${file.removed ?? "bin"}`).join("\n") + "\n\n" + commit.patch + (commit.cut ? "\n… (cut: the rest is too long to show here)" : "")),
+      })).catch(fail);
+
+  if (!open) {
+    return (
+      <p>
+        <button type="button" className="text-button" onClick={() => setOpen(true)}>Browse the code</button>
+      </p>
+    );
+  }
+  return (
+    <div className="space-code">
+      <h3>
+        Code{" "}
+        <select value={ref} onChange={(event) => setRef(event.target.value)} aria-label="Branch">
+          {branches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+        </select>{" "}
+        <button type="button" className="text-button" onClick={() => setOpen(false)}>Close</button>
+      </h3>
+      {problem ? <p className="signin-refusal" role="alert">{problem}</p> : null}
+      <div className="space-code-columns">
+        <div>
+          <h4>Files{files ? ` (${files.length})` : ""}</h4>
+          <ul className="space-code-list">
+            {(files ?? []).map((file) => (
+              <li key={file.path}>
+                <button type="button" className="text-button" onClick={() => void showFile(file.path)}>{file.path}</button>{" "}
+                <span className="muted-note">{file.size} B</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h4>Commits</h4>
+          <ul className="space-code-list">
+            {(commits ?? []).map((commit) => (
+              <li key={commit.sha}>
+                <button type="button" className="text-button" onClick={() => void showCommit(commit.sha)}>
+                  <code>{commit.sha.slice(0, 7)}</code> {commit.message}
+                </button>{" "}
+                <span className="muted-note">{commit.author}, {new Date(commit.at).toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      {shown ? (
+        <div className="space-code-view">
+          <h4>{shown.title}</h4>
+          <pre className={shown.kind === "diff" ? "space-code-diff" : undefined}>
+            {shown.kind === "diff"
+              ? shown.body.split("\n").map((line, index) => (
+                  <span key={index} data-line={line.startsWith("+") && !line.startsWith("+++") ? "add" : line.startsWith("-") && !line.startsWith("---") ? "del" : undefined}>{line}{"\n"}</span>
+                ))
+              : shown.body}
+          </pre>
+        </div>
+      ) : null}
     </div>
   );
 }
