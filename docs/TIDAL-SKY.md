@@ -49,9 +49,11 @@ summons a bolide in the direction you are looking. Normal visits keep rare event
 - Shooting stars are visual accents, not predictions of real meteor arrivals:
   random directions/scales, average roughly two minutes between attempts, soft
   luminous heads, slight path curvature, and no sound or camera shake. Shallow
-  entry angles last longer; steep entries are quicker. Width and brightness
+  entry angles travel farther and last longer; steep entries are shorter.
+  Angular speed varies only +/-10% per class. Width and brightness
   vary. A 0.1% chance per event selects a brighter bolide, crossing 150–170 degrees
-  through the spawn-time field of view over 3–4 seconds, then leaving a soft
+  through the spawn-time field of view over about 3–4.5 seconds. Its head flares
+  mid-flight, then burns out while still moving, leaving a soft
   fading trail. With that rarity, many visits will never contain one. Events do
   not accumulate while you are away. Each active streak adds one small ribbon
   draw call, with at most two active. Scintillation and meteors are disabled for
