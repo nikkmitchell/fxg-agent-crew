@@ -12,10 +12,10 @@ export function meteorSpec(random: () => number, force?: "meteor" | "bolide"): M
   return bolide
     ? { bolide, inclination, peak, curve: .25 + shallow * .9, linger: 1.2 + random() * .4,
         sweep, trail: 14 + random() * 8, duration: sweep / speed,
-        width: .09 + random() * .06, strength: 2 + random() * 1.6 }
+        width: .12 + random() * .06, strength: 2 + random() * 1.6 }
     : { bolide, inclination, peak, curve: .06 + shallow * .5, linger: .35 + random() * .5,
         sweep, trail: 2 + random() * 4, duration: sweep / speed,
-        width: .06 + random() * .06, strength: .65 + random() * .95 };
+        width: .09 + random() * .06, strength: .65 + random() * .95 };
 }
 /** Average two minutes, broad intervals; re-entry does not replay missed events. */
 export function nextMeteorDelay(random: () => number): number { return 45 - Math.log(Math.max(.0001, 1 - random())) * 75; }
