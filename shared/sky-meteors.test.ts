@@ -14,9 +14,9 @@ test("ordinary meteors are short varied streaks and bolides have a micro chance"
 test("there is no instantaneous flash at the beginning or end", () => {
   expect(meteorOpacity(0, 2)).toBe(0);
   expect(meteorOpacity(2.8, 2)).toBe(0);
-  expect(meteorOpacity(2, 2)).toBe(1);
-  expect(meteorOpacity(2.4, 2)).toBeCloseTo(.5);
-  expect(meteorOpacity(1, 2)).toBe(1);
+  expect(meteorOpacity(1.4, 2)).toBeCloseTo(1);
+  expect(meteorOpacity(2.4, 2)).toBeLessThan(.25);
+  expect(meteorOpacity(1, 2)).toBeLessThan(meteorOpacity(1.4, 2));
   expect(nextMeteorDelay(() => 0)).toBe(45);
   expect(nextMeteorDelay(() => .5)).toBeGreaterThan(90);
 });
@@ -43,4 +43,6 @@ test("fading events keep travelling and each has a distinct peak along its fligh
   expect(meteorHeadGlow(3 * .6, 2, 1, .6)).toBeCloseTo(1.8);
   expect(meteorHeadGlow(2.4, 2, 1, .3)).toBeGreaterThan(0);
   expect(meteorHeadGlow(3, 2, 1, .3)).toBe(0);
+  expect(meteorOpacity(.3, 2, 1, .3)).toBeLessThan(meteorOpacity(.9, 2, 1, .3));
+  expect(meteorOpacity(2.4, 2, 1, .3)).toBeLessThan(meteorOpacity(.9, 2, 1, .3));
 });
