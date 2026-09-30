@@ -5,11 +5,11 @@ import { EarthSkyView } from "./earth-sky-view";
 export class EarthSkyClock {
   readonly view: EarthSkyView;
   private intervalStart: number;
-  private readonly epoch: number;
-  private readonly started: number;
+  private epoch: number;
+  private started: number;
   private current: EarthSkySnapshot;
   private next: EarthSkySnapshot;
-  constructor(private readonly catalogue: number[][], private readonly reference: SkyReference, private readonly live = true, now = Date.now()) {
+  constructor(private readonly catalogue: number[][], private reference: SkyReference, private live = true, now = Date.now()) {
     this.started = now;
     this.epoch = live ? now : Date.parse(reference.at);
     this.intervalStart = this.epoch;
@@ -20,6 +20,16 @@ export class EarthSkyClock {
   }
   private snapshot(ms: number) {
     return makeEarthSky(this.catalogue, { ...this.reference, at: new Date(ms).toISOString() });
+  }
+  /** Retarget the existing GPU buffers without moving the viewer or restarting XR. */
+  select(reference: SkyReference, live = false, now = Date.now()): void {
+    // Calculate first so an invalid selection leaves the previous sky intact.
+    const epoch = live ? now : Date.parse(reference.at);
+    const current = makeEarthSky(this.catalogue, { ...reference, at: new Date(epoch).toISOString() });
+    const next = makeEarthSky(this.catalogue, { ...reference, at: new Date(epoch + 60_000).toISOString() });
+    this.reference = reference; this.live = live; this.epoch = epoch; this.started = now;
+    this.intervalStart = epoch; this.current = current; this.next = next;
+    this.view.setInterval(current, next);
   }
   private refresh(): void {
     this.current = this.snapshot(this.intervalStart);

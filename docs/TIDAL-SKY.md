@@ -115,6 +115,43 @@ The source package's license is retained by the dependency installation.
 
 ## Checks and remaining review
 
+### Historical-night selection (mica-sky preview)
+
+"Choose a night and place" selects the night before VR entry. It offers a UTC
+date/time, approximate city coordinates or custom latitude/longitude, and a
+place label. Apply retargets the existing GPU buffers and Moon without changing
+the visitor's position, distance fade, XR session or anyone else's scene. Now
+uses actual UTC at the selected place. A selected historical night advances at
+real speed. The URL retains the selection for sharing; no storage, geolocation,
+extra catalogue download, socket or shared-state write is added.
+
+The UI accepts years 0001–3000 as a product bound, not a guarantee of identical
+accuracy throughout that interval. Dates use the proleptic Gregorian calendar.
+HYG proper motion here is a linear angular approximation; historical weather,
+extinction, light pollution and individual visibility are not reconstructed.
+The full sphere remains, including below the viewer: the location determines
+celestial orientation, without clipping a horizon.
+
+Sourced presets and explicit assumptions live in `shared/sky-nights.ts`:
+
+- Galileo, Padua, 7 January 1610: JPL reproduces his first-hour-of-night account.
+  17:00 UTC is an illustrative early-evening choice, not a measured time.
+- Herschel, Bath, 13 March 1781: the museum gives 22:00–23:00 local time. The
+  selected 22:40 UTC approximates 22:30 local mean solar time. Uranus and
+  Jupiter's moons are not drawn in this naked-eye scene.
+- Beethoven's Ninth, Vienna, 7 May 1824: Beethoven-Haus documents the premiere.
+  21:00 UTC is an imagined late-evening viewpoint, not a documented end time
+  or a claim that Beethoven himself saw the sky.
+- Apollo 11, Houston, 21 July 1969 at 02:56:15 UTC: NASA's mission-report time
+  for first lunar contact. This is the approximate Houston viewpoint during
+  the broadcast, not a lunar observer.
+
+Each preset has visible source links and its uncertainty note. Gethsemane has
+no preset pending an explicit historical chronology. Dinosaur-era and earliest-eye
+skies are outside this model: do not extrapolate modern positions millions of
+years backward and label the result historical. Those need a separate, openly
+interpretive experience or much different data/modeling.
+
 The coordinate-axis, Polaris altitude, independent Moon altitude/azimuth,
 lunar illumination changes, catalogue identity, clearing boundary and
 frame-rate-independent fade tests run in `shared/earth-sky.test.ts`.

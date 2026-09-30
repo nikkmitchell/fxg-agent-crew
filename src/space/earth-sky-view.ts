@@ -165,6 +165,19 @@ export class EarthSkyView {
       throw new Error("Sky catalogue changed during a visit");
     this.current = current;
     this.next = next;
+    // Date changes also change a planet's apparent magnitude. Keep its colour
+    // and point size in the existing catalogue draw rather than creating nodes.
+    const color = new THREE.Color();
+    const sizes = this.starGeometry.getAttribute("pointSize") as THREE.BufferAttribute;
+    const colors = this.starGeometry.getAttribute("color") as THREE.BufferAttribute;
+    current.planets.forEach((planet, i) => {
+      const at = current.stars.length + i;
+      sizes.setX(at, Math.max(2.4, Math.min(5.2, 3.8 - planet.magnitude * .4)));
+      color.set(planet.color);
+      const light = Math.max(.25, Math.min(1, Math.pow(10, -.16 * (planet.magnitude + 1.5))));
+      colors.setXYZ(at, color.r * light, color.g * light, color.b * light);
+    });
+    sizes.needsUpdate = true; colors.needsUpdate = true;
     for (const [key, snapshot] of [["position", current], ["nextPosition", next]] as const) {
       const attribute = this.starGeometry.getAttribute(key) as THREE.BufferAttribute;
       snapshot.stars.forEach((star, i) => attribute.setXYZ(i, ...star.direction.map((v) => v * RADIUS) as [number, number, number]));

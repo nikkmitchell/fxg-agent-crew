@@ -3,10 +3,14 @@ import { VRButton } from "three/addons/webxr/VRButton.js";
 import { SKY_REFERENCE, skyProximity } from "../shared/earth-sky";
 import { EarthSkyClock } from "./space/earth-sky-clock";
 import { loadSkyCatalogue } from "./space/sky/load-catalogue";
+import { skyChoiceFromQuery } from "../shared/sky-nights";
+import { installSkyChoice } from "./sky-choice";
 import { TIDAL_CLEARING } from "../shared/tidal-layout";
 
 const CLEARING = TIDAL_CLEARING;
-const referenceMode = new URLSearchParams(location.search).get("night") === "reference";
+let selection = { reference: SKY_REFERENCE, live: true }, selectionError = "";
+try { selection = skyChoiceFromQuery(new URLSearchParams(location.search)); }
+catch (error) { selectionError = (error as Error).message; }
 const clearingReview = new URLSearchParams(location.search).get("review") === "clearing";
 const status = document.querySelector<HTMLElement>("#status")!;
 const metrics = document.querySelector<HTMLElement>("#metrics")!;
@@ -35,11 +39,9 @@ camera.rotation.order = "YXZ";
 camera.rotation.x = .12;
 rig.add(camera);
 scene.add(rig);
-const clock = new EarthSkyClock(await loadSkyCatalogue(), SKY_REFERENCE, !referenceMode);
+const clock = new EarthSkyClock(await loadSkyCatalogue(), selection.reference, selection.live);
 scene.add(clock.view.group);
-referenceNote.textContent = referenceMode
-  ? `${SKY_REFERENCE.label} · reference night advancing at real speed.`
-  : "Hangzhou · actual UTC time · north is straight along the path. This sets celestial orientation; no horizon clips the sphere.";
+installSkyChoice(clock, selection, referenceNote, selectionError);
 
 // Preview shell only: a stable ground plane and an unobtrusive walkable path.
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshBasicMaterial({ color: "#131e23" }));
@@ -80,6 +82,7 @@ export function addPreviewShell(mesh: THREE.Mesh): void {
 const keys = new Set<string>();
 window.addEventListener("keydown", (event) => {
   if (kitMovement) return;
+  if ((event.target as HTMLElement | null)?.closest("input,select,textarea,button")) return;
   if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) {
     event.preventDefault(); keys.add(event.code);
   }

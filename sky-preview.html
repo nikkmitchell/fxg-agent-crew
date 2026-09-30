@@ -16,6 +16,11 @@
     summary { cursor:pointer; color:#8194a5; }
     a { color:#acc2d7; }
     #error { color:#efb6a5; }
+    #sky-controls { max-height:55vh; overflow:auto; background:#0b1520e8; padding:8px 10px; border-radius:8px; }
+    #sky-controls label { display:block; margin:8px 0; }
+    #sky-controls input,#sky-controls select { box-sizing:border-box; display:block; width:100%; margin-top:3px; background:#17242e; color:#d6e1ed; border:1px solid #4c6375; padding:6px; border-radius:4px; }
+    #sky-controls button { background:#233746; color:#d6e1ed; border:1px solid #4c6375; padding:6px 10px; border-radius:4px; }
+    #choice-error { color:#efb6a5; }
     @media(max-width:600px) { #note { left:16px; top:14px; max-width:300px; } }
   </style>
 </head>
@@ -25,6 +30,22 @@
     <p>Follow the path to the open circle.</p>
     <p>WASD to walk · drag to look · scroll to look higher</p>
     <p id="status" aria-live="polite">The sky waits at the clearing.</p>
+    <details id="sky-controls"><summary>Choose a night and place</summary>
+      <p>Choose before Enter VR. Your selection is local; it changes nobody else's sky.</p>
+      <label>Historical night<select id="sky-preset" aria-label="Historical night"></select></label>
+      <p id="night-story"></p><p id="night-sources"></p>
+      <form id="sky-choice">
+        <label>Place<select id="sky-place" aria-label="Place"></select></label>
+        <label>Place name<input id="place-name" maxlength="80" required /></label>
+        <label>Date and time (UTC)<input id="sky-at" type="datetime-local" step="1" min="0001-01-01T00:00:00" max="3000-12-31T23:59:59" required /></label>
+        <label>Latitude<input id="sky-lat" type="number" step="any" min="-90" max="90" required /></label>
+        <label>Longitude<input id="sky-lon" type="number" step="any" min="-180" max="180" required /></label>
+        <button type="submit">Apply this night</button> <button id="sky-now" type="button">Now at this place</button>
+      </form>
+      <p id="choice-error" role="alert"></p>
+      <p>Years 0001–3000; dates use the proleptic Gregorian calendar. Historical skies are approximate reconstructions, without weather or historical light pollution. The full sphere stays visible, including below your feet. Place sets its orientation, not a horizon.</p>
+      <p id="deep-time">Deep-time skies, such as the dinosaur impact or the earliest eyes, are not reconstructed by this catalogue. Gethsemane needs an explicitly chosen chronology; no exact night is asserted here.</p>
+    </details>
     <details><summary>About this preview</summary>
       <p id="reference"></p>
       <p>The entire celestial sphere surrounds you, above and below: no horizon. The moon moves and changes phase at natural speed.</p>
