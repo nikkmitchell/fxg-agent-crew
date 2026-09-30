@@ -2,10 +2,14 @@ import { camera, previewTicks, renderer, rig, scene, useKitMovement } from "./pr
 import type { JoinOptions, JoinedRoom } from "./kit";
 import { retreatLevel } from "../shared/rain-retreat";
 import { RainRetreatView } from "./space/rain-retreat-view";
+import { createRainApproach } from "./space/rain-stone";
 
 const AT = { x: 0, z: 0 };
 const retreat = new RainRetreatView(AT);
 scene.add(retreat.group);
+const approach = createRainApproach();
+approach.material.uniforms.uFade.value = 1;
+scene.add(approach);
 const review = new URLSearchParams(location.search).get("review");
 if (review === "rain") {
   camera.position.set(AT.x, 1.6, AT.z + 2.3); camera.rotation.set(-.15, 0, 0);
@@ -57,4 +61,6 @@ previewTicks.add((eye, delta) => {
         : "Follow the short path into the rain.";
   if (status.textContent !== message) status.textContent = message;
 });
-window.addEventListener("pagehide", () => { room?.leave(); retreat.dispose(); }, { once: true });
+window.addEventListener("pagehide", () => {
+  room?.leave(); retreat.dispose(); approach.geometry.dispose(); approach.material.dispose();
+}, { once: true });

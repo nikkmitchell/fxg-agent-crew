@@ -5,8 +5,13 @@ individually now, then arrange them along a path later. This page loads no sky,
 star catalogue or astronomy code. It does not change meditation.AR's scene,
 existing RainCurtain, Dawn or shared session state.
 
-The low sitting stone is in a dry central radius of 0.85 m. The stone's base
-radius is 0.65 m, so drops cannot fall on it. 420 drops fall in the surrounding
+The sitting stone is a flat, irregular slab, with beveled broken edges, procedural
+stone grain and moss over one edge. Three touching pebbles and 14 sparse grass
+blades share its single draw (282 triangles total); no textures are downloaded.
+All stay inside the dry central radius of 0.85 m, so drops cannot fall on them.
+Four separate irregular stepping stones lead in, in one additional draw. There
+is no paved path or broad floor plane: only the rain's own local wet patch.
+420 drops fall in the surrounding
 annulus, out to 1.6 m. Each landing makes a brief central impact and spreading
 ripples, with a faint second ring. All landings share one GPU-instanced draw;
 their timing matches their own drop's fall. There is no per-drop CPU frame loop.
@@ -24,7 +29,7 @@ https://saha.ing/go/meditation.ar?branch=mica-retreat . The guest badge preserve
 the branch when entering. No ticket or credential needs copying.
 
 Build: pnpm exec vite build -c vite.retreat.config.ts . It uses the site's cached
-Three instance with an import map. Its own module is about 14 KB raw / 5.3 KB
+Three instance with an import map. Its own module is about 16.5 KB raw / 6.3 KB
 gzip, plus the shared kit, Three and visitors' bodies (often cached). No star
 catalogue, textures, audio files or new dependencies are downloaded by this piece.
 

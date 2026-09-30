@@ -17,10 +17,6 @@ camera.rotation.order = "YXZ";
 camera.rotation.x = -.18;
 export const rig = new THREE.Group();
 rig.add(camera); scene.add(rig);
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshBasicMaterial({ color: "#131e23" }));
-floor.rotation.x = -Math.PI / 2; scene.add(floor);
-const path = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 4), new THREE.MeshBasicMaterial({ color: "#283239" }));
-path.rotation.x = -Math.PI / 2; path.position.set(0, .003, 3.7); scene.add(path);
 export const previewTicks = new Set<(eye: THREE.Vector3, delta: number) => void>();
 const keys = new Set<string>();
 let kitMovement = false;
@@ -105,6 +101,5 @@ renderer.setAnimationLoop(() => {
 });
 window.addEventListener("pagehide", () => {
   renderer.setAnimationLoop(null); timer.dispose();
-  for (const mesh of [floor, path]) { mesh.geometry.dispose(); mesh.material.dispose(); }
   renderer.dispose();
 }, { once: true });

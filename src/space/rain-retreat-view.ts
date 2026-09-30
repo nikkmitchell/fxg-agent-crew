@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { easeSky } from "../../shared/earth-sky";
 import { RAIN_RETREAT, retreatDrops } from "../../shared/rain-retreat";
+import { createRainStone } from "./rain-stone";
 
 /** A preview variant of the existing rain curtain; no room state or model calls. */
 export class RainRetreatView {
@@ -10,7 +11,7 @@ export class RainRetreatView {
   private readonly drops: THREE.ShaderMaterial;
   private readonly patch: THREE.ShaderMaterial;
   private readonly ripples: THREE.ShaderMaterial;
-  private readonly seat: THREE.MeshBasicMaterial;
+  private readonly seat: THREE.ShaderMaterial;
   private opacity = 0;
   private time = 0;
   private sound: { ctx: AudioContext; source: AudioBufferSourceNode; gain: GainNode; filters: BiquadFilterNode[] } | null = null;
@@ -92,13 +93,11 @@ export class RainRetreatView {
     });
     const ripples = new THREE.Mesh(rippleGeometry, this.ripples);
     ripples.frustumCulled = false; ripples.raycast = () => {}; this.group.add(ripples);
-    const seatGeometry = new THREE.CylinderGeometry(.52, .65, .22, 7);
-    this.seat = new THREE.MeshBasicMaterial({ color: "#566169", transparent: true, opacity: 0 });
-    const seat = new THREE.Mesh(seatGeometry, this.seat);
-    seat.position.y = .11; seat.raycast = () => {};
+    const seat = createRainStone();
+    this.seat = seat.material;
     this.group.add(seat);
     this.materials.push(this.drops, this.patch, this.ripples, this.seat);
-    this.geometries.push(geometry, patchGeometry, rippleGeometry, seatGeometry);
+    this.geometries.push(geometry, patchGeometry, rippleGeometry, seat.geometry);
     this.group.visible = false;
   }
 
@@ -134,7 +133,7 @@ export class RainRetreatView {
     this.drops.uniforms.uFade.value = this.opacity;
     this.patch.uniforms.uFade.value = this.opacity;
     this.ripples.uniforms.uFade.value = this.opacity;
-    this.seat.opacity = this.opacity;
+    this.seat.uniforms.uFade.value = this.opacity;
     // One viewer's local sound; approach and departure follow the same fade.
     const level = this.soundEnabled && !document.hidden ? this.opacity * .055 : 0;
     if (this.sound && (Math.abs(level - this.lastSoundLevel) > .0005 || level === 0 && this.lastSoundLevel !== 0)) {
