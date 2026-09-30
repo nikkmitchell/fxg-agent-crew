@@ -1,5 +1,5 @@
 export const BOLIDE_CHANCE = .001;
-export type MeteorSpec = { bolide: boolean; sweep: number; trail: number; duration: number; width: number; strength: number; inclination: number; curve: number; linger: number };
+export type MeteorSpec = { bolide: boolean; sweep: number; trail: number; duration: number; width: number; strength: number; inclination: number; curve: number; linger: number; peak: number };
 /** All angles are degrees. Rare accents, not a shower or a jump-scare. */
 export function meteorSpec(random: () => number, force?: "meteor" | "bolide"): MeteorSpec {
   const bolide = force ? force === "bolide" : random() < BOLIDE_CHANCE;
@@ -8,11 +8,12 @@ export function meteorSpec(random: () => number, force?: "meteor" | "bolide"): M
   const sweep = bolide ? 150 + random() * 20 : 12 + shallow * 16 + random() * 4;
   // Shallow entries travel farther, rather than forcing a large speed change.
   const speed = (bolide ? 42 : 13) * (.9 + random() * .2);
+  const peak = .3 + random() * .3;
   return bolide
-    ? { bolide, inclination, curve: .25 + shallow * .9, linger: 1.2 + random() * .4,
+    ? { bolide, inclination, peak, curve: .25 + shallow * .9, linger: 1.2 + random() * .4,
         sweep, trail: 14 + random() * 8, duration: sweep / speed,
         width: .09 + random() * .06, strength: 2 + random() * 1.6 }
-    : { bolide, inclination, curve: .06 + shallow * .5, linger: .35 + random() * .5,
+    : { bolide, inclination, peak, curve: .06 + shallow * .5, linger: .35 + random() * .5,
         sweep, trail: 2 + random() * 4, duration: sweep / speed,
         width: .06 + random() * .06, strength: .65 + random() * .95 };
 }
@@ -25,9 +26,11 @@ export function meteorOpacity(age: number, duration: number, linger = .8): numbe
   const decay = 1 - after * after * (3 - 2 * after);
   return attack * attack * (3 - 2 * attack) * decay;
 }
-/** The moving head flares mid-flight and burns out before it stops. */
-export function meteorHeadGlow(age: number, duration: number): number {
-  const phase = Math.max(0, Math.min(1, age / duration));
-  const t = Math.max(0, Math.min(1, (phase - .65) / .35));
-  return (1 - t * t * (3 - 2 * t)) * (1 + .6 * Math.sin(Math.PI * phase) ** 2);
+/** Every event rises to its chosen peak, then burns out over its remaining flight. */
+export function meteorHeadGlow(age: number, duration: number, linger = 0, peak = .5): number {
+  const phase = Math.max(0, Math.min(1, age / (duration + linger)));
+  const t = phase <= peak ? phase / peak : (1 - phase) / (1 - peak);
+  return 1.8 * t * t * (3 - 2 * t);
 }
+/** Travel continues through the fading tail of the event; never clamp at one. */
+export function meteorTravel(age: number, duration: number): number { return Math.max(0, age / duration); }
