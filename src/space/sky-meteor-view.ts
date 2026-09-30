@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { meteorHeadGlow, meteorOpacity, meteorSpec, nextMeteorDelay, type MeteorSpec } from "../../shared/sky-meteors";
+import { meteorHeadGlow, meteorOpacity, meteorSpec, meteorTravel, nextMeteorDelay, type MeteorSpec } from "../../shared/sky-meteors";
 
 type Streak = { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; start: THREE.Vector3; tangent: THREE.Vector3; spec: MeteorSpec; age: number };
 const SEGMENTS = 24, RADIUS = 79;
@@ -85,8 +85,8 @@ export class SkyMeteorView {
     for (let n = this.streaks.length - 1; n >= 0; n--) {
       const streak = this.streaks[n]; streak.age += delta;
       if (streak.age >= streak.spec.duration + streak.spec.linger) { this.remove(n); continue; }
-      const fraction = Math.min(1, streak.age / streak.spec.duration);
-      const headGlow = meteorHeadGlow(streak.age, streak.spec.duration);
+      const fraction = meteorTravel(streak.age, streak.spec.duration);
+      const headGlow = meteorHeadGlow(streak.age, streak.spec.duration, streak.spec.linger, streak.spec.peak);
       const angle = THREE.MathUtils.degToRad(streak.spec.sweep * fraction);
       const tail = THREE.MathUtils.degToRad(streak.spec.trail);
       const width = THREE.MathUtils.degToRad(streak.spec.width);
@@ -114,7 +114,7 @@ export class SkyMeteorView {
       position.needsUpdate = true;
       streak.mesh.material.uniforms.uAlpha.value = visibility * meteorOpacity(streak.age, streak.spec.duration, streak.spec.linger);
       streak.mesh.material.uniforms.uHead.value = headGlow;
-      streak.mesh.material.uniforms.uFlight.value = fraction;
+      streak.mesh.material.uniforms.uFlight.value = streak.age / (streak.spec.duration + streak.spec.linger);
     }
   }
   private remove(index: number): void {

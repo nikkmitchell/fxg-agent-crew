@@ -53,8 +53,10 @@ summons a bolide in the direction you are looking. Normal visits keep rare event
   Angular speed varies only +/-10% per class. Width and brightness
   vary. A 0.1% chance per event selects a brighter bolide, crossing 150–170 degrees
   through the spawn-time field of view over about 3–4.5 seconds. Its head flares
-  mid-flight, then burns out while still moving, leaving a soft
-  fading trail. With that rarity, many visits will never contain one. Events do
+  at a randomized point 30–60% through its visible lifetime, then burns out while
+  still moving, leaving a soft fading trail. Both head and trail keep travelling
+  throughout the fade; neither parks at the endpoint. With that rarity, many
+  visits will never contain one. Events do
   not accumulate while you are away. Each active streak adds one small ribbon
   draw call, with at most two active. Scintillation and meteors are disabled for
   reduced motion. Natural celestial motion continues at its very slow real pace.
