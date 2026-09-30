@@ -115,6 +115,15 @@ The source package's license is retained by the dependency installation.
 
 ## Checks and remaining review
 
+Latest tuning: ordinary meteors travel 15% faster than the prior preview (both
+their flight and fading-flight interval are shortened together). Bolide speed
+is unchanged. Every event draws an independent 1.05-1.30 peak-light multiplier.
+Each point of the trail remembers the head's light at its passing time and
+decays exponentially: 0.16 s decay for ordinary meteors, 0.25 s for bolides.
+After the moving head is fully extinguished, only that dim residual trail can
+remain, at most 0.48/0.75 s respectively. It shares the existing one draw, with
+no particle history allocation, texture download or extra geometry.
+
 The whole meteor (head and trail) now rises to its per-event peak, then burns
 out during continued travel. There is no constant-brightness trail plateau.
 Travel spans the complete event lifetime, including the final decay; the head
