@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { easeSky, type EarthSkySnapshot } from "../../shared/earth-sky";
+import { SkyMeteorView } from "./sky-meteor-view";
 
 const RADIUS = 80;
 /** Three draw calls: backdrop, catalogue points, moon. No per-star frame work. */
@@ -23,6 +24,8 @@ export class EarthSkyView {
   private readonly sun = new THREE.Vector3();
   private readonly endpoint = new THREE.Vector3();
   private readonly basis = new THREE.Matrix4();
+  private readonly meteors = new SkyMeteorView();
+  private accentsTime = 0;
 
   constructor(readonly sky: EarthSkySnapshot) {
     this.current = sky;
@@ -43,9 +46,11 @@ export class EarthSkyView {
     backdrop.raycast = () => {};
     this.group.add(backdrop);
 
-    const positions = new Float32Array(sky.stars.length * 3);
-    const sizes = new Float32Array(sky.stars.length);
-    const colors = new Float32Array(sky.stars.length * 3);
+    const total = sky.stars.length + sky.planets.length;
+    const positions = new Float32Array(total * 3);
+    const sizes = new Float32Array(total);
+    const colors = new Float32Array(total * 3);
+    const twinkle = new Float32Array(total * 2);
     const color = new THREE.Color();
     sky.stars.forEach((star, i) => {
       positions.set(star.direction.map((v) => v * RADIUS), i * 3);
@@ -54,6 +59,17 @@ export class EarthSkyView {
       color.set(star.colorIndex < .15 ? "#d0e2ff" : star.colorIndex > 1 ? "#ffdbb5" : "#f5f1e8");
       const brightness = Math.max(.14, Math.min(1, Math.pow(10, -.16 * (star.magnitude + 1.5))));
       colors.set([color.r * brightness, color.g * brightness, color.b * brightness], i * 3);
+      // Stable, unrelated phases: no synchronized blinking of the whole sky.
+      twinkle.set([(star.id * 2.399963) % (Math.PI * 2), .7 + (star.id % 17) * .037], i * 2);
+    });
+    sky.planets.forEach((planet, n) => {
+      const i = sky.stars.length + n;
+      positions.set(planet.direction.map((v) => v * RADIUS), i * 3);
+      sizes[i] = Math.max(2.4, Math.min(5.2, 3.8 - planet.magnitude * .4));
+      color.set(planet.color);
+      const brightness = Math.max(.25, Math.min(1, Math.pow(10, -.16 * (planet.magnitude + 1.5))));
+      colors.set([color.r * brightness, color.g * brightness, color.b * brightness], i * 3);
+      // Planets are steady, unlike atmospheric star scintillation.
     });
     const starGeometry = new THREE.BufferGeometry();
     this.starGeometry = starGeometry;
@@ -61,14 +77,16 @@ export class EarthSkyView {
     starGeometry.setAttribute("nextPosition", new THREE.BufferAttribute(positions.slice(), 3));
     starGeometry.setAttribute("pointSize", new THREE.BufferAttribute(sizes, 1));
     starGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    starGeometry.setAttribute("twinkle", new THREE.BufferAttribute(twinkle, 2));
     this.starMaterial = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending,
-      uniforms: { uFade: { value: 0 }, uResolution: { value: 1 }, uAdvance: { value: 0 } },
-      vertexShader: `attribute float pointSize; attribute vec3 color; attribute vec3 nextPosition;
-        uniform float uResolution; uniform float uAdvance; varying vec3 vColor;
+      uniforms: { uFade: { value: 0 }, uResolution: { value: 1 }, uAdvance: { value: 0 }, uTime: { value: 0 }, uTwinkle: { value: .04 } },
+      vertexShader: `attribute float pointSize; attribute vec3 color; attribute vec3 nextPosition; attribute vec2 twinkle;
+        uniform float uResolution; uniform float uAdvance; uniform float uTime; uniform float uTwinkle; varying vec3 vColor;
         void main() {
           vec3 direction=normalize(mix(position,nextPosition,uAdvance));
-          vColor=color;
+          float shimmer=.6*sin(uTime*twinkle.y+twinkle.x)+.4*sin(uTime*twinkle.y*.73+twinkle.x*1.7);
+          vColor=color*(1.+uTwinkle*shimmer);
           gl_Position=projectionMatrix*modelViewMatrix*vec4(direction*80.,1.);
           gl_PointSize=pointSize*uResolution;
         }`,
@@ -127,6 +145,7 @@ export class EarthSkyView {
     moon.renderOrder = -98;
     moon.raycast = () => {};
     this.group.add(moon);
+    this.group.add(this.meteors.group);
     this.materials.push(backdropMaterial, this.starMaterial, moonMaterial);
     this.geometries.push(backdropGeometry, starGeometry, moonGeometry);
     this.group.visible = false;
@@ -141,11 +160,15 @@ export class EarthSkyView {
     for (const [key, snapshot] of [["position", current], ["nextPosition", next]] as const) {
       const attribute = this.starGeometry.getAttribute(key) as THREE.BufferAttribute;
       snapshot.stars.forEach((star, i) => attribute.setXYZ(i, ...star.direction.map((v) => v * RADIUS) as [number, number, number]));
+      snapshot.planets.forEach((planet, i) => attribute.setXYZ(snapshot.stars.length + i, ...planet.direction.map((v) => v * RADIUS) as [number, number, number]));
       attribute.needsUpdate = true;
     }
   }
 
-  update(eye: THREE.Vector3, target: number, delta: number, advance = 0): void {
+  update(eye: THREE.Vector3, target: number, delta: number, advance = 0, reducedMotion = false, forward?: THREE.Vector3): void {
+    if (!reducedMotion) this.accentsTime += Math.min(delta, .1);
+    this.starMaterial.uniforms.uTime.value = this.accentsTime;
+    this.starMaterial.uniforms.uTwinkle.value = reducedMotion ? 0 : .04;
     const fraction = THREE.MathUtils.clamp(advance, 0, 1);
     this.starMaterial.uniforms.uAdvance.value = fraction;
     this.direction.set(...this.current.moon).lerp(this.endpoint.set(...this.next.moon), fraction).normalize();
@@ -164,9 +187,11 @@ export class EarthSkyView {
     this.group.position.copy(this.eye);
     this.group.visible = this.opacity > .001;
     for (const material of this.materials) material.uniforms.uFade.value = this.opacity;
+    this.meteors.update(Math.min(delta, .1), this.opacity, forward ?? this.direction, reducedMotion);
   }
 
   dispose(): void {
+    this.meteors.dispose();
     for (const geometry of this.geometries) geometry.dispose();
     for (const material of this.materials) material.dispose();
     this.group.removeFromParent();
@@ -174,4 +199,6 @@ export class EarthSkyView {
 
   /** Lets the local shell recede in exact sync with this viewer's sky fade. */
   get visibility(): number { return this.opacity; }
+  /** Review-only trigger; production events use their own rare scheduler. */
+  previewMeteor(kind: "meteor" | "bolide", forward: THREE.Vector3): void { this.meteors.preview(kind, forward); }
 }

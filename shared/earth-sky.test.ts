@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Body, Equator, Horizon, Observer } from "astronomy-engine";
 import { easeSky, makeEarthSky, roomDirection, SKY_REFERENCE, skyProximity } from "./earth-sky";
-import catalogue from "../src/space/sky/hyg-bright.json";
+import { readFileSync } from "node:fs";
+import { decodeSkyCatalogue } from "./sky-catalogue";
+const binary = readFileSync(new URL("../src/space/sky/hyg-bright.bin", import.meta.url));
+const catalogue = { stars: decodeSkyCatalogue(binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength)) };
 
 describe("an Earth sky in an XR room", () => {
   it("converts north/west/zenith into the room's north/east/up axes", () => {
@@ -40,6 +43,15 @@ describe("an Earth sky in an XR room", () => {
     expect(lit(a)).toBeGreaterThan(.95);
     expect(Math.abs(lit(a) - lit(b))).toBeGreaterThan(.3);
     expect(a.moon).not.toEqual(b.moon);
+  });
+  it("places the five naked-eye planets independently of stars and the Moon", () => {
+    const sky = makeEarthSky([], SKY_REFERENCE);
+    expect(sky.planets.map((planet) => planet.name)).toEqual(["Mercury", "Venus", "Mars", "Jupiter", "Saturn"]);
+    for (const planet of sky.planets) {
+      expect(Math.hypot(...planet.direction)).toBeCloseTo(1, 10);
+      expect(Number.isFinite(planet.magnitude)).toBe(true);
+      expect(planet.direction).not.toEqual(sky.moon);
+    }
   });
   it("is fully revealed only inside the clearing and absent outside the approach", () => {
     expect(skyProximity(1.8)).toBe(1);

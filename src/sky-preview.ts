@@ -2,9 +2,11 @@ import * as THREE from "three";
 import { VRButton } from "three/addons/webxr/VRButton.js";
 import { SKY_REFERENCE, skyProximity } from "../shared/earth-sky";
 import { EarthSkyClock } from "./space/earth-sky-clock";
+import { loadSkyCatalogue } from "./space/sky/load-catalogue";
 
 const CLEARING = { x: 0, z: -6 };
 const referenceMode = new URLSearchParams(location.search).get("night") === "reference";
+const clearingReview = new URLSearchParams(location.search).get("review") === "clearing";
 const status = document.querySelector<HTMLElement>("#status")!;
 const metrics = document.querySelector<HTMLElement>("#metrics")!;
 const referenceNote = document.querySelector<HTMLElement>("#reference")!;
@@ -24,12 +26,12 @@ const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 15
 const rig = new THREE.Group();
 camera.position.set(0, 1.6, 2);
 // Direct review viewpoint for QA screenshots only; normal entry begins on the path.
-if (new URLSearchParams(location.search).get("review") === "clearing") camera.position.z = CLEARING.z;
+if (clearingReview) camera.position.z = CLEARING.z;
 camera.rotation.order = "YXZ";
 camera.rotation.x = .12;
 rig.add(camera);
 scene.add(rig);
-const clock = new EarthSkyClock(SKY_REFERENCE, !referenceMode);
+const clock = new EarthSkyClock(await loadSkyCatalogue(), SKY_REFERENCE, !referenceMode);
 scene.add(clock.view.group);
 referenceNote.textContent = referenceMode
   ? `${SKY_REFERENCE.label} · reference night advancing at real speed.`
@@ -97,10 +99,39 @@ renderer.domElement.addEventListener("wheel", (event) => {
 window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
 });
-renderer.xr.addEventListener("sessionstart", () => { note.hidden = true; keys.clear(); });
-renderer.xr.addEventListener("sessionend", () => { note.hidden = false; });
+renderer.xr.addEventListener("sessionstart", () => {
+  // XR replaces the desktop camera pose. Carry its starting place into the rig.
+  const entry = camera.position.clone().setY(0).applyQuaternion(rig.quaternion);
+  rig.position.add(entry);
+  camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0);
+  note.hidden = true; keys.clear();
+});
+renderer.xr.addEventListener("sessionend", () => {
+  camera.position.set(0, 1.6, 0); camera.rotation.set(0, 0, 0); note.hidden = false;
+});
 
 const eye = new THREE.Vector3(), forward = new THREE.Vector3(), right = new THREE.Vector3(), move = new THREE.Vector3();
+const skyForward = new THREE.Vector3();
+const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+if (clearingReview) {
+  for (let index = 0; index < 2; index++) {
+    const controller = renderer.xr.getController(index);
+    for (const [event, kind] of [["select", "meteor"], ["squeeze", "bolide"]] as const) {
+      controller.addEventListener(event, () => {
+        renderer.xr.getCamera().getWorldDirection(skyForward);
+        clock.view.previewMeteor(kind, skyForward);
+      });
+    }
+    rig.add(controller);
+  }
+}
+for (const [selector, kind] of [["#meteor", "meteor"], ["#bolide", "bolide"]] as const) {
+  document.querySelector(selector)?.addEventListener("click", () => {
+    const active = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+    active.getWorldDirection(skyForward);
+    clock.view.previewMeteor(kind, skyForward);
+  });
+}
 const up = new THREE.Vector3(0, 1, 0);
 const yawRotation = new THREE.Quaternion();
 const timer = new THREE.Timer();
@@ -142,7 +173,8 @@ renderer.setAnimationLoop(() => {
   activeCamera.getWorldPosition(eye);
   const distance = Math.hypot(eye.x - CLEARING.x, eye.z - CLEARING.z);
   const target = skyProximity(distance);
-  clock.view.update(eye, target, delta, clock.advance());
+  activeCamera.getWorldDirection(skyForward);
+  clock.view.update(eye, target, delta, clock.advance(), reduced.matches, skyForward);
   // A local, immersive clearing. The path fades back in as you leave, without
   // navigating, moving the person, or changing anything for another viewer.
   for (const mesh of shell) {

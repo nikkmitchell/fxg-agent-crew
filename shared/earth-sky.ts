@@ -1,4 +1,4 @@
-import { AstroTime, Body, Equator, Observer, RotateVector, Rotation_EQJ_HOR, Vector } from "astronomy-engine";
+import { AstroTime, Body, Equator, Illumination, Observer, RotateVector, Rotation_EQJ_HOR, Vector } from "astronomy-engine";
 
 export type SkyReference = { latitude: number; longitude: number; at: string; label: string };
 /** A deliberate, frozen night, not the visitor's inferred location or clock. */
@@ -9,7 +9,8 @@ export const SKY_REFERENCE: SkyReference = {
 export type Direction = [number, number, number];
 export type CatalogueStar = number[];
 export type SkyStar = { id: number; direction: Direction; magnitude: number; colorIndex: number };
-export type EarthSkySnapshot = { stars: SkyStar[]; moon: Direction; sun: Direction; reference: SkyReference };
+export type SkyPlanet = { name: string; direction: Direction; magnitude: number; color: string };
+export type EarthSkySnapshot = { stars: SkyStar[]; planets: SkyPlanet[]; moon: Direction; sun: Direction; reference: SkyReference };
 
 /** Astronomy Engine HOR is north/west/up; the room is east/up/south. */
 export function roomDirection(v: { x: number; y: number; z: number }): Direction {
@@ -35,7 +36,11 @@ export function makeEarthSky(rows: CatalogueStar[], reference: SkyReference): Ea
   // Topocentric J2000 coordinates use the SAME rotation as the catalogue.
   // No assumption that the moon always rises in the evening.
   const body = (which: Body) => roomDirection(RotateVector(rotation, Equator(which, time, observer, false, true).vec));
-  return { stars, moon: body(Body.Moon), sun: body(Body.Sun), reference };
+  const planets = ([
+    [Body.Mercury, "#e2dfd6"], [Body.Venus, "#fff5db"], [Body.Mars, "#ffc1a0"],
+    [Body.Jupiter, "#f4e3cc"], [Body.Saturn, "#eadcba"],
+  ] as const).map(([which, color]) => ({ name: which, color, direction: body(which), magnitude: Illumination(which, time).mag }));
+  return { stars, planets, moon: body(Body.Moon), sun: body(Body.Sun), reference };
 }
 
 /** Local floor distance, full within inner, absent beyond outer, continuous in between. */
