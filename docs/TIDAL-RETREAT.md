@@ -5,15 +5,10 @@ individually now, then arrange them along a path later. This page loads no sky,
 star catalogue or astronomy code. It does not change meditation.AR's scene,
 existing RainCurtain, Dawn or shared session state.
 
-The sitting stone is a bare, flat, irregular near-black slab with mineral grain,
-restrained flecks and broken strata. Moss lies in low, uneven pockets under the
-edge, with only 14 sparse grass blades in three unequal clusters. A small broken,
-decaying log nestles along one side: rough bark, exposed end grain, a recessed
-rotten core, patchy moss and three tiny chestnut-red fungi. Two muted curled
-leaves and three touching pebbles finish the asymmetric composition. All share
-one draw (1,120 triangles total); no textures or models are downloaded.
-The broad sitting surface stays clear, and all details remain inside the dry
-central radius of 0.85 m (measured maximum 0.84744 m).
+Baiwei's final direction is raw and zen: one bare, dark stone with no texture,
+moss, grass, log, fungi, leaves or surrounding pebbles. Its flat sitting surface
+is 0.45 m high. Broken edges give it a natural outline without surface decoration.
+It is one draw and 60 triangles, entirely inside the 0.85 m dry radius.
 Four separate irregular stepping stones lead in, in one additional draw. There
 is no paved path or broad floor plane: only the rain's own local wet patch.
 420 drops fall in the surrounding
@@ -42,7 +37,7 @@ https://saha.ing/go/meditation.ar?branch=mica-retreat . The guest badge preserve
 the branch when entering. No ticket or credential needs copying.
 
 Build: pnpm exec vite build -c vite.retreat.config.ts . It uses the site's cached
-Three instance with an import map. Its own module is about 21 KB raw / 8 KB
+Three instance with an import map. Its own module is about 15 KB raw / 6 KB
 gzip, plus a roughly 2 KB audio worklet downloaded only when sound is enabled,
 and the shared kit, Three and visitors' bodies (often cached). No star catalogue,
 textures, audio recordings or new dependencies are downloaded by this piece.
