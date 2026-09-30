@@ -49,7 +49,7 @@ export class SkyMeteorView {
     const material = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, blending: THREE.AdditiveBlending,
       uniforms: { uAlpha: { value: 0 }, uFlight: { value: 0 }, uHead: { value: 1 },
-        uPeak: { value: spec.bolide ? 5 : 2.2 }, uIntensity: { value: spec.strength },
+        uPeak: { value: spec.bolide ? 1 : .85 }, uIntensity: { value: spec.strength / (spec.bolide ? 3.6 : 1.6) },
         uColor: { value: new THREE.Color(spec.bolide ? "#f4e2c0" : "#d6e4f5") } },
       vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
       fragmentShader: `varying vec2 vUv; uniform float uAlpha; uniform float uIntensity; uniform vec3 uColor;
@@ -57,8 +57,8 @@ export class SkyMeteorView {
         void main(){
         if(vUv.x>=2.) {
           float r=length(vec2(vUv.x-2.5,vUv.y-.5))*2.;
-          float glow=(exp(-r*r*7.)*.25+exp(-r*r*60.))*(1.-smoothstep(.75,1.,r));
-          gl_FragColor=vec4(uColor*uIntensity*uPeak,uAlpha*uHead*glow);
+          float glow=(exp(-r*r*7.)*.24+exp(-r*r*32.)*.76)*(1.-smoothstep(.75,1.,r));
+          gl_FragColor=vec4(uColor,uAlpha*uHead*uIntensity*uPeak*glow);
         } else {
         float edge=1.-smoothstep(.1,1.,abs(vUv.y-.5)*2.);
         float head=exp(-vUv.x*45.);
@@ -66,8 +66,8 @@ export class SkyMeteorView {
         float burn=1.-smoothstep(.55,1.,uFlight-vUv.x*.18);
         // The trail shares the head's rise and burn-out. A dim moving ribbon
         // must not remain after a saturated white head has disappeared.
-        gl_FragColor=vec4(uColor*(.38*burn+head*uHead*uPeak),
-          uAlpha*uIntensity*pow(1.-vUv.x,1.4)*edge);
+        gl_FragColor=vec4(uColor,
+          uAlpha*uIntensity*(.30*burn+head*uHead*uPeak)*pow(1.-vUv.x,1.4)*edge);
         }
         #include <colorspace_fragment>
       }`,
@@ -88,7 +88,9 @@ export class SkyMeteorView {
     for (let n = this.streaks.length - 1; n >= 0; n--) {
       const streak = this.streaks[n]; streak.age += delta;
       if (streak.age >= streak.spec.duration + streak.spec.linger) { this.remove(n); continue; }
-      const fraction = meteorTravel(streak.age, streak.spec.duration);
+      // One moving flight spans the complete burn-out, including the fade.
+      // Its head never reaches an endpoint and waits for a residual glow.
+      const fraction = meteorTravel(streak.age, streak.spec.duration + streak.spec.linger);
       const headGlow = meteorHeadGlow(streak.age, streak.spec.duration, streak.spec.linger, streak.spec.peak);
       const angle = THREE.MathUtils.degToRad(streak.spec.sweep * fraction);
       const tail = THREE.MathUtils.degToRad(streak.spec.trail);
@@ -108,7 +110,9 @@ export class SkyMeteorView {
         }
       }
       this.alongHead.copy(streak.start).multiplyScalar(-Math.sin(angle)).addScaledVector(streak.tangent, Math.cos(angle)).normalize();
-      const glowWidth = RADIUS * width * (streak.spec.bolide ? 16 : 6) * (.6 + .4 * headGlow);
+      // Peak energy grows the luminous area, instead of clipping a tiny point
+      // to white. The changing brightness remains legible on ordinary displays.
+      const glowWidth = RADIUS * width * (streak.spec.bolide ? 45 : 14) * (.35 + .65 * headGlow / 1.8);
       for (let corner = 0; corner < 4; corner++) {
         this.offset.copy(this.headAt).addScaledVector(this.cross, glowWidth * ((corner % 2) - .5))
           .addScaledVector(this.alongHead, glowWidth * (Math.floor(corner / 2) - .5));
@@ -116,7 +120,9 @@ export class SkyMeteorView {
       }
       position.needsUpdate = true;
       streak.mesh.material.uniforms.uAlpha.value = visibility * meteorOpacity(streak.age, streak.spec.duration, streak.spec.linger, streak.spec.peak);
-      streak.mesh.material.uniforms.uHead.value = headGlow;
+      // Keep the light below display saturation so its rise and fall remain
+      // visible, rather than clipping to white until almost extinguished.
+      streak.mesh.material.uniforms.uHead.value = headGlow / 1.8;
       streak.mesh.material.uniforms.uFlight.value = streak.age / (streak.spec.duration + streak.spec.linger);
     }
   }
