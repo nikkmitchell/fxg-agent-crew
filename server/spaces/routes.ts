@@ -16,7 +16,7 @@ import {
   type DeployRecord,
 } from "../../shared/spaces.js";
 import type { Session } from "../session.js";
-import { doorTitle, spaceEntryPath } from "../../shared/space-kit.js";
+import { doorTitle, goTarget, spaceEntryPath } from "../../shared/space-kit.js";
 import { catalogueOf, KIT_PIECES, pieceUrl } from "../../shared/space-bench.js";
 import { iceServersFrom } from "../space/ice.js";
 import { keepAlive, type SpaceLive } from "./live.js";
@@ -607,22 +607,23 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
    * says what it says to guests. The ticket travels in the #fragment, which
    * no browser sends anywhere.
    */
-  app.get<{ Params: { space: string } }>("/go/:space", async (request, reply) => {
+  app.get<{ Params: { space: string }; Querystring: { branch?: string; page?: string } }>("/go/:space", async (request, reply) => {
     const space = spaceKey(request.params.space);
     if (!store.exists(space)) return reply.code(404).send({ code: "NO_SPACE", error: `There is no space called ${space}.` });
     reply.header("cache-control", "no-store");
+    const where = goTarget(space, request.query.branch, request.query.page, isPreviewableBranch);
     const session = deps.sessionOf(request);
-    if (!session) return reply.redirect(`/s/${space}/`, 302);
+    if (!session) return reply.redirect(where, 302);
     const me = { username: session.username, token: session.token };
     if (!store.publicInfo(space).public) {
       try {
-        if (!(await auth.isMember(me, space))) return reply.redirect(`/s/${space}/`, 302);
+        if (!(await auth.isMember(me, space))) return reply.redirect(where, 302);
       } catch {
-        return reply.redirect(`/s/${space}/`, 302);
+        return reply.redirect(where, 302);
       }
     }
     const ticket = deps.tickets.issue({ username: me.username, body: deps.bodyOf(me.username), space });
-    return reply.redirect(spaceEntryPath(space, ticket), 302);
+    return reply.redirect(spaceEntryPath(space, ticket, where), 302);
   });
 
   /**

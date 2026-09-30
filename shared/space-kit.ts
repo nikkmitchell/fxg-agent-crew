@@ -193,8 +193,19 @@ export function colorFor(name: string): string {
 }
 
 /** Where a space page is entered from saha.ing: the ticket rides in the #fragment. */
-export function spaceEntryPath(space: string, ticket: string): string {
-  return `/s/${space}/#saha=${encodeURIComponent(ticket)}`;
+export function spaceEntryPath(space: string, ticket: string, where = `/s/${space}/`): string {
+  return `${where}#saha=${encodeURIComponent(ticket)}`;
+}
+
+/**
+ * Where /go/<space> leads: the live site, or a branch preview and a page in it
+ * (/go/meditation.ar?branch=mica-sky&page=rain/index.html). Anything that is not a
+ * plain branch name or a plain path inside the site is ignored, never followed.
+ */
+export function goTarget(space: string, branch: unknown, page: unknown, branchOk: (name: string) => boolean): string {
+  const base = typeof branch === "string" && branch && branch !== "main" && branchOk(branch) ? `/s/${space}/@${branch}/` : `/s/${space}/`;
+  const inside = typeof page === "string" && /^[A-Za-z0-9._\/-]{1,200}$/.test(page) && !page.split("/").some((part) => part === ".." || part.startsWith(".")) ? page.replace(/^\/+/, "") : "";
+  return base + inside;
 }
 
 /** Title shown on a public room's lobby door. */
