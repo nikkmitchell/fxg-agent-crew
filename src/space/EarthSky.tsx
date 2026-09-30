@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { SKY_REFERENCE, skyProximity, type SkyReference } from "../../shared/earth-sky";
 import { EarthSkyClock } from "./earth-sky-clock";
+import { loadSkyCatalogue } from "./sky/load-catalogue";
 
 /** Opt-in backdrop; never reads or writes the room's shared constellation state. */
 export function EarthSky({ at, reference = SKY_REFERENCE, panorama = false, enabled = true, live = true, reducedMotion = false }: {
@@ -13,10 +14,15 @@ export function EarthSky({ at, reference = SKY_REFERENCE, panorama = false, enab
   const eye = useMemo(() => new THREE.Vector3(), []);
   const forward = useMemo(() => new THREE.Vector3(), []);
   useEffect(() => {
-    const made = new EarthSkyClock(reference, live);
-    clock.current = made;
-    root.current?.add(made.view.group);
-    return () => { made.view.dispose(); if (clock.current === made) clock.current = null; };
+    let cancelled = false;
+    let made: EarthSkyClock | null = null;
+    void loadSkyCatalogue().then((rows) => {
+      if (cancelled) return;
+      made = new EarthSkyClock(rows, reference, live);
+      clock.current = made;
+      root.current?.add(made.view.group);
+    }).catch((error) => { if (!cancelled) console.error("Earth sky failed to load", error); });
+    return () => { cancelled = true; made?.view.dispose(); if (clock.current === made) clock.current = null; };
   }, [reference, live]);
   useFrame((state, delta) => {
     const current = clock.current;

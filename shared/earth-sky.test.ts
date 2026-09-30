@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Body, Equator, Horizon, Observer } from "astronomy-engine";
 import { easeSky, makeEarthSky, roomDirection, SKY_REFERENCE, skyProximity } from "./earth-sky";
-import catalogue from "../src/space/sky/hyg-bright.json";
+import { readFileSync } from "node:fs";
+import { decodeSkyCatalogue } from "./sky-catalogue";
+const binary = readFileSync(new URL("../src/space/sky/hyg-bright.bin", import.meta.url));
+const catalogue = { stars: decodeSkyCatalogue(binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength)) };
 
 describe("an Earth sky in an XR room", () => {
   it("converts north/west/zenith into the room's north/east/up axes", () => {

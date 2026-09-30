@@ -42,11 +42,12 @@ export class SkyMeteorView {
     geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2)); geometry.setIndex(indices);
     const material = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, blending: THREE.AdditiveBlending,
-      uniforms: { uAlpha: { value: 0 }, uColor: { value: new THREE.Color(spec.bolide ? "#f4e2c0" : "#d6e4f5") } },
+      uniforms: { uAlpha: { value: 0 }, uIntensity: { value: spec.strength }, uColor: { value: new THREE.Color(spec.bolide ? "#f4e2c0" : "#d6e4f5") } },
       vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-      fragmentShader: `varying vec2 vUv; uniform float uAlpha; uniform vec3 uColor;
+      fragmentShader: `varying vec2 vUv; uniform float uAlpha; uniform float uIntensity; uniform vec3 uColor;
         void main(){ float edge=1.-smoothstep(.1,1.,abs(vUv.y-.5)*2.);
-        gl_FragColor=vec4(uColor,uAlpha*pow(1.-vUv.x,1.4)*edge);
+        float head=exp(-vUv.x*45.);
+        gl_FragColor=vec4(uColor*uIntensity*(.6+head*1.7),uAlpha*pow(1.-vUv.x,1.4)*edge);
         #include <colorspace_fragment>
       }`,
     });
@@ -65,8 +66,9 @@ export class SkyMeteorView {
     }
     for (let n = this.streaks.length - 1; n >= 0; n--) {
       const streak = this.streaks[n]; streak.age += delta;
-      if (streak.age >= streak.spec.duration) { this.remove(n); continue; }
-      const angle = THREE.MathUtils.degToRad(streak.spec.sweep * streak.age / streak.spec.duration);
+      if (streak.age >= streak.spec.duration + streak.spec.linger) { this.remove(n); continue; }
+      const fraction = Math.min(1, streak.age / streak.spec.duration);
+      const angle = THREE.MathUtils.degToRad(streak.spec.sweep * fraction);
       const tail = THREE.MathUtils.degToRad(streak.spec.trail);
       const width = THREE.MathUtils.degToRad(streak.spec.width);
       const position = streak.mesh.geometry.getAttribute("position") as THREE.BufferAttribute;
@@ -74,13 +76,16 @@ export class SkyMeteorView {
         const along = angle - tail * i / SEGMENTS;
         this.direction.copy(streak.start).multiplyScalar(Math.cos(along)).addScaledVector(streak.tangent, Math.sin(along));
         this.cross.copy(streak.start).cross(streak.tangent).normalize();
+        const pathFraction = Math.max(0, Math.min(1, along / THREE.MathUtils.degToRad(streak.spec.sweep)));
+        this.direction.addScaledVector(this.cross, Math.sin(pathFraction * Math.PI) * THREE.MathUtils.degToRad(streak.spec.curve)).normalize();
+        const headWidth = 1 + 2.5 * Math.exp(-i / SEGMENTS * 35);
         for (let side = 0; side < 2; side++) {
-          this.offset.copy(this.direction).multiplyScalar(RADIUS).addScaledVector(this.cross, RADIUS * width * (side - .5));
+          this.offset.copy(this.direction).multiplyScalar(RADIUS).addScaledVector(this.cross, RADIUS * width * headWidth * (side - .5));
           position.setXYZ(i * 2 + side, this.offset.x, this.offset.y, this.offset.z);
         }
       }
       position.needsUpdate = true;
-      streak.mesh.material.uniforms.uAlpha.value = visibility * streak.spec.strength * meteorOpacity(streak.age, streak.spec.duration);
+      streak.mesh.material.uniforms.uAlpha.value = visibility * meteorOpacity(streak.age, streak.spec.duration, streak.spec.linger);
     }
   }
   private remove(index: number): void {

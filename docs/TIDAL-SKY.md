@@ -20,6 +20,8 @@ This is an explicit preview setting, not inferred personal location. For a
 repeatable night-time review use `/sky-preview.html?night=reference`:
 26 September 2026, 22:00 CST, advancing at natural speed from page load.
 `&review=clearing` starts the QA camera in the circle, solely for inspection.
+In that QA mode only, a controller trigger summons a shooting star and grip
+summons a bolide in the direction you are looking. Normal visits keep rare events.
 
 ## Behavior
 
@@ -46,9 +48,11 @@ repeatable night-time review use `/sky-preview.html?night=reference`:
   data-service calls, textures to download or per-star CPU frame loop.
 - Shooting stars are visual accents, not predictions of real meteor arrivals:
   random directions/scales, average roughly two minutes between attempts, soft
-  fade at both ends, and no sound or camera shake. A 0.1% chance per event selects
-  a bolide, crossing 150–170 degrees through the spawn-time field of view over
-  3–4 seconds. With that rarity, many visits will never contain one. Events do
+  luminous heads, slight path curvature, and no sound or camera shake. Shallow
+  entry angles last longer; steep entries are quicker. Width and brightness
+  vary. A 0.1% chance per event selects a brighter bolide, crossing 150–170 degrees
+  through the spawn-time field of view over 3–4 seconds, then leaving a soft
+  fading trail. With that rarity, many visits will never contain one. Events do
   not accumulate while you are away. Each active streak adds one small ribbon
   draw call, with at most two active. Scintillation and meteors are disabled for
   reduced motion. Natural celestial motion continues at its very slow real pace.
@@ -85,11 +89,17 @@ This is a review artifact; the normal app build and live room entry are unchange
 
 ## Data and attribution
 
-The derived file `src/space/sky/hyg-bright.json` is **CC BY-SA 4.0**, attributed
+The derived files `src/space/sky/hyg-bright.bin` and its small JSON metadata are
+**CC BY-SA 4.0**, attributed
 to David Nash / Astronexus, [HYG v4.1](https://github.com/astronexus/HYG-Database).
 It contains 8,920 stars with visual magnitude <= 6.5, excludes the Sun, selects
-seven fields, and encodes empty color/proper motion as zero. The upstream
-commit and source SHA-256 are recorded inside the file. Derived data retains
+seven fields, and encodes empty color/proper motion as zero. Each star uses
+16 packed bytes: RA/declination quantized to about 20/10 arcseconds, magnitude
+to 0.01, color index to 0.001, proper motion to 1 mas/year. That is below the
+display scale of these naked-eye points. The 8,920-star file is 142,736 bytes,
+replacing roughly 605 KB of decimal arrays. A cached loader fetches it once;
+there are no repeated catalogue requests. The upstream commit and source
+SHA-256 are recorded in the metadata. Derived data retains
 the [CC BY-SA 4.0 license](https://creativecommons.org/licenses/by-sa/4.0/).
 `pnpm exec tsx tools/build-sky-catalogue.mts` rebuilds it from the pinned source.
 HYG coordinates are J2000; they are transformed to the local horizon, with
