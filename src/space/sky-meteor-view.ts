@@ -63,8 +63,11 @@ export class SkyMeteorView {
         float edge=1.-smoothstep(.1,1.,abs(vUv.y-.5)*2.);
         float head=exp(-vUv.x*45.);
         // Bright leading head extinguishes while moving; older trail burns out later.
-        float burn=1.-smoothstep(.65,1.,uFlight-vUv.x*.22);
-        gl_FragColor=vec4(uColor*uIntensity*(.45*burn+head*uHead*uPeak),uAlpha*pow(1.-vUv.x,1.4)*edge);
+        float burn=1.-smoothstep(.55,1.,uFlight-vUv.x*.18);
+        // The trail shares the head's rise and burn-out. A dim moving ribbon
+        // must not remain after a saturated white head has disappeared.
+        gl_FragColor=vec4(uColor*(.38*burn+head*uHead*uPeak),
+          uAlpha*uIntensity*pow(1.-vUv.x,1.4)*edge);
         }
         #include <colorspace_fragment>
       }`,
@@ -95,7 +98,7 @@ export class SkyMeteorView {
         const along = angle - tail * i / SEGMENTS;
         this.direction.copy(streak.start).multiplyScalar(Math.cos(along)).addScaledVector(streak.tangent, Math.sin(along));
         this.cross.copy(streak.start).cross(streak.tangent).normalize();
-        const pathFraction = Math.max(0, Math.min(1, along / THREE.MathUtils.degToRad(streak.spec.sweep)));
+        const pathFraction = along / THREE.MathUtils.degToRad(streak.spec.sweep);
         this.direction.addScaledVector(this.cross, Math.sin(pathFraction * Math.PI) * THREE.MathUtils.degToRad(streak.spec.curve)).normalize();
         if (i === 0) this.headAt.copy(this.direction).multiplyScalar(RADIUS);
         const headWidth = 1 + headGlow * Math.exp(-i / SEGMENTS * 35);
@@ -105,14 +108,14 @@ export class SkyMeteorView {
         }
       }
       this.alongHead.copy(streak.start).multiplyScalar(-Math.sin(angle)).addScaledVector(streak.tangent, Math.cos(angle)).normalize();
-      const glowWidth = RADIUS * width * (streak.spec.bolide ? 10 : 5);
+      const glowWidth = RADIUS * width * (streak.spec.bolide ? 16 : 6) * (.6 + .4 * headGlow);
       for (let corner = 0; corner < 4; corner++) {
         this.offset.copy(this.headAt).addScaledVector(this.cross, glowWidth * ((corner % 2) - .5))
           .addScaledVector(this.alongHead, glowWidth * (Math.floor(corner / 2) - .5));
         position.setXYZ((SEGMENTS + 1) * 2 + corner, this.offset.x, this.offset.y, this.offset.z);
       }
       position.needsUpdate = true;
-      streak.mesh.material.uniforms.uAlpha.value = visibility * meteorOpacity(streak.age, streak.spec.duration, streak.spec.linger);
+      streak.mesh.material.uniforms.uAlpha.value = visibility * meteorOpacity(streak.age, streak.spec.duration, streak.spec.linger, streak.spec.peak);
       streak.mesh.material.uniforms.uHead.value = headGlow;
       streak.mesh.material.uniforms.uFlight.value = streak.age / (streak.spec.duration + streak.spec.linger);
     }

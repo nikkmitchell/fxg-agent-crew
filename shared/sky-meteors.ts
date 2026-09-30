@@ -19,12 +19,13 @@ export function meteorSpec(random: () => number, force?: "meteor" | "bolide"): M
 }
 /** Average two minutes, broad intervals; re-entry does not replay missed events. */
 export function nextMeteorDelay(random: () => number): number { return 45 - Math.log(Math.max(.0001, 1 - random())) * 75; }
-export function meteorOpacity(age: number, duration: number, linger = .8): number {
+export function meteorOpacity(age: number, duration: number, linger = .8, peak = .5): number {
   if (age <= 0 || age >= duration + linger) return 0;
-  const attack = Math.min(1, age / .14);
-  const after = Math.max(0, Math.min(1, (age - duration) / linger));
-  const decay = 1 - after * after * (3 - 2 * after);
-  return attack * attack * (3 - 2 * attack) * decay;
+  // Brightness follows the whole flight, not a flat trail followed by a fade.
+  const phase = age / (duration + linger);
+  const rise = Math.min(1, phase / peak);
+  const fall = Math.max(0, (phase - peak) / (1 - peak));
+  return rise * rise * (3 - 2 * rise) * (1 - fall * fall * (3 - 2 * fall));
 }
 /** Every event rises to its chosen peak, then burns out over its remaining flight. */
 export function meteorHeadGlow(age: number, duration: number, linger = 0, peak = .5): number {
