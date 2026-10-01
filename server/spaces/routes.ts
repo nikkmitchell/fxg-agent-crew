@@ -735,7 +735,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   // The live socket needs the websocket plugin loaded, so it lives in a plugin
   // of its own (a route added straight onto `app` would be registered before it).
   app.register(async (scope) => {
-    scope.get<{ Params: { space: string }; Querystring: { ticket?: string; page?: string } }>("/bff/spaces/:space/live", { websocket: true }, (socket, request) => {
+    scope.get<{ Params: { space: string }; Querystring: { ticket?: string; page?: string; seat?: string } }>("/bff/spaces/:space/live", { websocket: true }, (socket, request) => {
       const space = spaceKey(request.params.space);
       if (spaceNameProblem(space) || !store.exists(space)) {
         socket.close(4404, "no such space");
@@ -751,6 +751,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       const seat = deps.live.join(space, socket, holder, {
         page: request.query.page ?? null,
         renew: holder ? () => deps.tickets.issue(holder) : undefined,
+        // A page hosting this space's live pieces elsewhere (live.ts, unseen).
+        unseen: request.query.seat === "unseen",
       });
       const stopBeating = keepAlive(socket);
       socket.on("message", (data: Buffer) => seat.receive(data.toString("utf8")));

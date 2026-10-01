@@ -66,6 +66,12 @@ export type ConnectOptions = {
   space?: string;
   ticket?: string | null;
   WebSocket?: typeof WebSocket;
+  /**
+   * Join unseen: share and hear the space's values and moments without being
+   * a figure in it. For a page hosting the space's live pieces somewhere else
+   * (the saha.ing room of the same name).
+   */
+  unseen?: boolean;
 };
 
 /** The ticket saha.ing put in the #fragment, then taken out of the address bar. */
@@ -180,7 +186,7 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
 
   const connect = () => {
     if (left) return;
-    const url = `${server.replace(/^http/, "ws")}/bff/spaces/${encodeURIComponent(space)}/live?page=${pageId}${ticket ? `&ticket=${encodeURIComponent(ticket)}` : ""}`;
+    const url = `${server.replace(/^http/, "ws")}/bff/spaces/${encodeURIComponent(space)}/live?page=${pageId}${ticket ? `&ticket=${encodeURIComponent(ticket)}` : ""}${options.unseen ? "&seat=unseen" : ""}`;
     const current = new Socket(url);
     socket = current;
     current.onopen = () => {

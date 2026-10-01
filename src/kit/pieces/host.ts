@@ -56,6 +56,8 @@ export type PieceHostOptions = {
   /** What the piece logs, and why it stopped, for whoever is building it. */
   onLog?: (text: string) => void;
   onProblem?: (text: string) => void;
+  /** Something drawn changed, or is moving: a page that draws on demand draws again. */
+  onChange?: () => void;
   /** Tests start the runtime in-process; the page starts a real worker. */
   startWorker?: () => WorkerLike;
   now?: () => number;
@@ -167,6 +169,7 @@ export class PieceHost {
     }
     const op = readPieceOp(raw);
     if (!op) return;
+    if (op.t === "add" || op.t === "set" || op.t === "remove" || op.t === "tween") queueMicrotask(() => this.options.onChange?.());
     switch (op.t) {
       case "add":
         return this.add(op.id, op.spec);
@@ -270,6 +273,7 @@ export class PieceHost {
           }
           part.object.add(model);
           this.aim(part);
+          this.options.onChange?.();
         },
         () => this.options.onProblem?.(`Could not load ${wanted}.`),
       );
@@ -389,7 +393,13 @@ export class PieceHost {
         tween.part.spec = { ...tween.part.spec, ...tween.to };
       }
     }
-    for (const part of this.parts.values()) if (part.spec.spin) part.object.rotation.y += part.spec.spin * seconds;
+    let moving = this.tweens.size > 0;
+    for (const part of this.parts.values()) {
+      if (!part.spec.spin) continue;
+      part.object.rotation.y += part.spec.spin * seconds;
+      moving = true;
+    }
+    if (moving) this.options.onChange?.();
     if (now - this.lastPing >= 1000) {
       this.lastPing = now;
       this.post({ t: "ping", n: ++this.pinged });

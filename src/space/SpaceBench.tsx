@@ -12,6 +12,7 @@ import { requestJson } from "../api-request";
 import { bff } from "../bff-client";
 import { base } from "../router";
 import { WristButton } from "./Backdrop";
+import { LivePiece, useSpaceHub } from "./LivePiece";
 
 /**
  * THE WORKBENCH (shared/space-bench.ts): the pieces a room's space lists in
@@ -19,7 +20,9 @@ import { WristButton } from "./Backdrop";
  * reloaded for everyone here within seconds of each push.
  *
  * Models and pictures are loaded into this room; pages are portals, because a
- * page is the team's code and must never run inside saha.ing's own page.
+ * page is the team's code and must never run inside saha.ing's own page. Live
+ * pieces are the team's code too, and DO run here: in a sandboxed worker that
+ * only describes what to draw (src/space/LivePiece.tsx).
  * Nothing at all is drawn in a room whose space lists no pieces.
  */
 
@@ -163,6 +166,9 @@ export function SpaceBench({ room, subscribe }: {
     if (message.type === "benchChanged" && message.space === space) load();
   }), [subscribe, space, load]);
 
+  // One connection to the space's hub for every live piece on the bench, and none without them.
+  const hub = useSpaceHub(space, bench?.pieces.some((piece) => piece.kind === "live") ?? false);
+
   if (!bench || (bench.pieces.length === 0 && bench.problems.length === 0)) return null;
 
   const openPage = (piece: BenchPiece) => {
@@ -198,6 +204,7 @@ export function SpaceBench({ room, subscribe }: {
             <group position={[0, slot.height, 0]}>
               {piece.kind === "model" ? <BenchModel url={piece.url} spin={piece.spin} /> : null}
               {piece.kind === "image" ? <BenchImage url={piece.url} /> : null}
+              {piece.kind === "live" ? <LivePiece piece={piece} url={piece.url} space={space} hub={hub} /> : null}
               {piece.kind === "page" ? (
                 <WristButton label={`▶ ${piece.name}\nOPEN (a page)`} y={0.2} width={0.62} height={0.26} lines={2} onTap={() => openPage(piece)} />
               ) : null}

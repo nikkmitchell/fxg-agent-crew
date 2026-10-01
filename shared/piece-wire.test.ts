@@ -33,7 +33,8 @@ describe("what a live piece may send", () => {
   it("shares small plain values under plain keys, and nothing bigger", () => {
     expect(readPieceOp({ t: "state", k: "hits", v: { n: 3 } })).toEqual({ t: "state", k: "hits", v: { n: 3 } });
     expect(readPieceOp({ t: "state", k: "bad key!", v: 1 })).toBeNull();
-    expect(readPieceOp({ t: "emit", name: "hit", data: "x".repeat(PIECE_LIMITS.valueBytes) })).toBeNull();
+    expect(readPieceOp({ t: "emit", name: "hit", data: "x".repeat(PIECE_LIMITS.eventBytes) })).toBeNull();
+    expect(readPieceOp({ t: "state", k: "k".repeat(PIECE_LIMITS.key + 1), v: 1 })).toBeNull();
   });
 
   it("is nothing at all when it is not a message a piece may send", () => {

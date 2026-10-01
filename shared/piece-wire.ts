@@ -37,11 +37,17 @@ export const PIECE_LIMITS = {
   reach: 5,
   /** The largest size or scale of any part. */
   size: 5,
-  /** Characters in a text part, a state key, an event name. */
+  /** Characters in a text part. */
   text: 200,
-  key: 64,
-  /** JSON bytes of one shared value or one moment's data. */
+  /**
+   * Characters in a shared value's key or a moment's name. Short, because the
+   * page files them under the piece in the space's hub (p/<piece>/<key>), whose
+   * keys stop at 64 (shared/space-kit.ts).
+   */
+  key: 24,
+  /** JSON bytes of one shared value, and of one moment's data (inside the hub's 4 KB and 1 KB). */
   valueBytes: 2048,
+  eventBytes: 900,
   /** Messages a piece may send per second (a burst up to this, refilled each second). */
   perSecond: 240,
   /** Sounds per second. */
@@ -137,10 +143,10 @@ export function ownPath(value: unknown): string | null {
   return value.replace(/^(\.\/)+/, "");
 }
 
-function json(value: unknown): unknown | undefined {
+function json(value: unknown, bytes: number): unknown | undefined {
   try {
     const encoded = JSON.stringify(value ?? null);
-    return encoded.length <= PIECE_LIMITS.valueBytes ? JSON.parse(encoded) : undefined;
+    return encoded.length <= bytes ? JSON.parse(encoded) : undefined;
   } catch {
     return undefined;
   }
@@ -237,12 +243,12 @@ export function readPieceOp(raw: unknown): PieceOp | null {
     }
     case "state": {
       const k = key(message.k);
-      const v = json(message.v);
+      const v = json(message.v, PIECE_LIMITS.valueBytes);
       return k === null || v === undefined ? null : { t: "state", k, v };
     }
     case "emit": {
       const name = key(message.name);
-      const data = json(message.data);
+      const data = json(message.data, PIECE_LIMITS.eventBytes);
       return name === null || data === undefined ? null : { t: "emit", name, data };
     }
     case "log":

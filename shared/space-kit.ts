@@ -129,7 +129,8 @@ export function readClientMessage(raw: unknown): ClientMessage | null {
   }
   if (message.t === "voice") return { t: "voice", on: message.on === true };
   if (message.t === "emit") {
-    if (typeof message.name !== "string" || !/^[A-Za-z0-9_.:-]{1,32}$/.test(message.name)) return null;
+    // Named like a shared value's key (live pieces file theirs as p/<piece>/<name>).
+    if (typeof message.name !== "string" || !/^[A-Za-z0-9_.:/-]{1,64}$/.test(message.name)) return null;
     if (bytesOf(message.data ?? null) > KIT_LIMITS.eventBytes) return null;
     return { t: "emit", name: message.name, data: message.data ?? null };
   }
