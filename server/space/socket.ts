@@ -1,3 +1,4 @@
+import type { ModuleStates } from "./module-state.js";
 import type { FastifyInstance } from "fastify";
 // The socket type comes from the plugin rather than from `ws` directly: `ws`
 // is the plugin's dependency, not ours, and importing it here would be reaching
@@ -272,6 +273,14 @@ export class SpaceHub {
     }
   }
 
+  /** To everyone in the room but the one socket that sent it (which has already acted). */
+  broadcastRoomExcept(room: string, except: WebSocket, message: ServerMessage): void {
+    const wanted = roomKey(room);
+    for (const sockets of this.sockets.values()) {
+      for (const socket of sockets) if (socket !== except && this.socketRooms.get(socket) === wanted) this.send(socket, message);
+    }
+  }
+
   /** Broadcast shared state only inside the room that owns it. */
   broadcastRoom(room: string, message: ServerMessage): void {
     const wanted = roomKey(room);
@@ -398,6 +407,8 @@ export function registerSpaceRoutes(
   itemAction: ((room: string, username: string, id: string, body: Record<string, unknown>) => { status: number; payload: Record<string, unknown> }) | null = null,
   /** Which panels this room has open, and whether it hides its agents, for the welcome. */
   roomChoicesNow: ((room: string) => { open: string[]; agentsHidden: boolean }) | null = null,
+  /** The shared values of things from spaces (module-state.ts); absent, they are only relayed. */
+  moduleStates: ModuleStates | null = null,
 ): void {
   app.get("/bff/space/room", async (request, reply) => {
     const session = sessions.get(request.cookies[config.cookieName]);
@@ -482,6 +493,8 @@ export function registerSpaceRoutes(
 
     /** When each distinct note was last logged. See the "note" frame below. */
     const noteAt = new Map<string, number>();
+    /** Recent moments and values this socket sent for things from spaces, for the limits below. */
+    const moduleSent: number[] = [];
     socket.on("message", (raw: Buffer | string) => {
       // A frame already queued when a room switch evicted this socket must not
       // write to the room it just left.
@@ -589,6 +602,21 @@ export function registerSpaceRoutes(
         if (socket.readyState === socket.OPEN) {
           socket.send(JSON.stringify({ type: "itemActionResult", ref: message.ref, status: result.status, payload: result.payload }));
         }
+        return;
+      }
+      if (message.type === "moduleEvent" || message.type === "moduleState") {
+        // A THING FROM A SPACE, telling its other copies in this room. The
+        // sender is the session, never the frame; at most 40 a second each.
+        const now = Date.now();
+        while (moduleSent.length && now - moduleSent[0] > 1000) moduleSent.shift();
+        if (moduleSent.length >= 40) return;
+        moduleSent.push(now);
+        const from = liveHub.presence.find(actorId)?.actorId ?? actorId;
+        const out: ServerMessage = message.type === "moduleEvent"
+          ? { type: "moduleEvent", item: message.item, name: message.name, data: message.data, from }
+          : { type: "moduleState", item: message.item, key: message.key, value: message.value, by: from };
+        if (message.type === "moduleState" && moduleStates && !moduleStates.set(room, message.item, message.key, message.value)) return;
+        liveHub.broadcastRoomExcept(room, socket, out);
         return;
       }
       if (message.type === "touch") {

@@ -60,7 +60,80 @@ export type GoRoomItem = {
   /** The colour that ran out of time, which ended the game; else null. */
   timedOut: number | null;
 };
-export type RoomItem = GoRoomItem;
+/**
+ * A THING FROM A SPACE'S GIT, LIVE IN THE ROOM (Nikk, 2026-10-01). Three
+ * kinds of thing are written as modules in a space's repo and listed in its
+ * saha-pieces.json (shared/space-bench.ts), and any of them can be brought
+ * into a room:
+ *
+ *   - an ITEM (a butterfly, an instrument, a video panel): stands where it is
+ *     put, and is moved like the Go table;
+ *   - an ENVIRONMENT (a forest, a nightclub, a theatre): all around the room,
+ *     in place of the room's own scenery;
+ *   - a SPACE (items, an environment and the scripts that tie them together):
+ *     either all around you, full size, or a model on the table to work on.
+ *
+ * The module's code runs in the room's own page (src/space/modules), given the
+ * room's scene, camera and renderer. Which file and export is read from the
+ * space's manifest each time it loads, so a push reloads it for everyone.
+ */
+export type ModuleRole = "item" | "environment" | "space";
+export const MODULE_ROLES: readonly ModuleRole[] = ["item", "environment", "space"];
+export type ModuleView = "placed" | "full";
+export type ModuleRoomItem = {
+  id: string;
+  kind: "module";
+  revision: number;
+  /** Where its code comes from: a space, the branch followed, and the manifest entry's id. */
+  source: { space: string; branch: string; entry: string };
+  name: string;
+  role: ModuleRole;
+  /** placed: stands where it was put and can be moved. full: all around the room, in place of its scenery. */
+  view: ModuleView;
+  position: { x: number; y: number; z: number; rotationY: number };
+  scale: number;
+  addedBy: string;
+};
+
+/** How big a placed thing may be made: a space as a model is small; an item about its own size. */
+export const MODULE_SCALE = { min: 0.01, max: 5, model: 0.05 } as const;
+
+export type RoomItem = GoRoomItem | ModuleRoomItem;
+
+export const isGoItem = (item: RoomItem): item is GoRoomItem => item.kind === "go";
+export const isModuleItem = (item: RoomItem): item is ModuleRoomItem => item.kind === "module";
+
+/** Only an environment, or a space at full size, takes the room's place; a room has one at a time. */
+export const isFullView = (item: RoomItem): item is ModuleRoomItem => item.kind === "module" && item.view === "full";
+
+const ENTRY = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+const SPACE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const BRANCH = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+export function parseModuleItem(value: unknown): ModuleRoomItem | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Partial<ModuleRoomItem>;
+  const source = item.source;
+  if (item.kind !== "module" || typeof item.id !== "string" || !source || typeof source !== "object") return null;
+  if (typeof source.space !== "string" || !SPACE.test(source.space) || typeof source.branch !== "string" || !BRANCH.test(source.branch)) return null;
+  if (typeof source.entry !== "string" || !ENTRY.test(source.entry)) return null;
+  if (!MODULE_ROLES.includes(item.role as ModuleRole) || (item.view !== "placed" && item.view !== "full")) return null;
+  const position = item.position;
+  if (!position || ![position.x, position.y, position.z, position.rotationY].every(Number.isFinite)) return null;
+  const scale = typeof item.scale === "number" && Number.isFinite(item.scale) ? Math.min(MODULE_SCALE.max, Math.max(MODULE_SCALE.min, item.scale)) : 1;
+  return {
+    id: item.id,
+    kind: "module",
+    revision: Number.isInteger(item.revision) ? item.revision! : 0,
+    source: { space: source.space, branch: source.branch, entry: source.entry },
+    name: typeof item.name === "string" && item.name ? item.name.slice(0, 60) : source.entry,
+    role: item.role as ModuleRole,
+    view: item.view,
+    position: { x: position.x, y: position.y, z: position.z, rotationY: position.rotationY },
+    scale,
+    addedBy: typeof item.addedBy === "string" ? item.addedBy : "",
+  };
+}
 
 export function isGoSize(value: unknown): value is GoSize {
   return typeof value === "number" && (GO_SIZES as readonly number[]).includes(value);
@@ -101,6 +174,7 @@ export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
 
 export function parseRoomItem(value: unknown): RoomItem | null {
   if (!value || typeof value !== "object") return null;
+  if ((value as { kind?: unknown }).kind === "module") return parseModuleItem(value);
   const item = value as Partial<GoRoomItem>;
   if (item.kind !== "go" || typeof item.id !== "string" || !isGoSize(item.size)) return null;
   if (!Array.isArray(item.colours) || item.colours.length < 2 || item.colours.length > GO_COLOURS.length) return null;

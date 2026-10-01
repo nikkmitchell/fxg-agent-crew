@@ -39,15 +39,37 @@
 export type BenchPiece = {
   id: string;
   name: string;
-  kind: "model" | "image" | "page" | "code" | "live";
+  kind: "model" | "image" | "page" | "code" | "live" | "item" | "environment" | "space";
   /** The file or folder, relative to the published site. */
   path: string;
   /** Model only: turn slowly on the bench. */
   spin: boolean;
+  /**
+   * An item, environment or space: the module's function to call, when it is
+   * not the default export (Sill's instruments export createDrums and the like).
+   */
+  export?: string;
 };
 
+/**
+ * THE THREE KINDS OF THING A ROOM CAN BRING IN (Nikk, 2026-10-01; see
+ * ModuleRoomItem in shared/room-items.ts), each a JavaScript module of the
+ * space, listed in saha-pieces.json by its kind:
+ *
+ *   { "id": "drums",  "name": "Hand drums", "item": "pieces/drums.js", "export": "createDrums" },
+ *   { "id": "forest", "name": "Forest",     "environment": "env/forest.js" },
+ *   { "id": "grove",  "name": "Grove concert", "space": "grove.js" }
+ *
+ * The module's function is called with { scene, camera, renderer, THREE, room,
+ * at, rotationY, id, saha } and may return { update(dt, t), dispose() }
+ * (src/space/modules/run-module.ts has the whole of it).
+ */
+export const MODULE_KINDS = ["item", "environment", "space"] as const;
+export type ModuleKind = (typeof MODULE_KINDS)[number];
+export const isModuleKind = (kind: BenchPiece["kind"]): kind is ModuleKind => (MODULE_KINDS as readonly string[]).includes(kind);
+
 export const BENCH_LIMITS = {
-  pieces: 8,
+  pieces: 32,
   modelBytes: 50 * 1024 * 1024,
   imageBytes: 10 * 1024 * 1024,
 } as const;
@@ -94,9 +116,9 @@ export function readPieces(text: string, published: ReadonlyMap<string, number>)
       continue;
     }
     const name = typeof item.name === "string" && item.name.trim() ? item.name.trim().slice(0, 40) : item.id;
-    const kinds = (["model", "image", "page", "code", "live"] as const).filter((kind) => item[kind] !== undefined);
+    const kinds = (["model", "image", "page", "code", "live", ...MODULE_KINDS] as const).filter((kind) => item[kind] !== undefined);
     if (kinds.length !== 1) {
-      problems.push(`${label}: give exactly one of "model", "image", "page", "code" or "live".`);
+      problems.push(`${label}: give exactly one of "model", "image", "page", "code", "live", "item", "environment" or "space".`);
       continue;
     }
     const kind = kinds[0];
@@ -121,7 +143,7 @@ export function readPieces(text: string, published: ReadonlyMap<string, number>)
         problems.push(`${label}: ${path} is ${Math.round(size / 1048576)} MB; the bench takes up to ${limit / 1048576} MB.`);
         continue;
       }
-    } else if (kind === "code" || kind === "live") {
+    } else if (kind === "code" || kind === "live" || isModuleKind(kind)) {
       if (!CODE.test(path) || !published.has(path)) {
         problems.push(`${label}: "${kind}" must be a .js file that was published; ${path} is not.`);
         continue;
@@ -133,8 +155,13 @@ export function readPieces(text: string, published: ReadonlyMap<string, number>)
         continue;
       }
     }
+    const exported = item.export;
+    if (exported !== undefined && (typeof exported !== "string" || !/^[A-Za-z_$][\w$]{0,63}$/.test(exported))) {
+      problems.push(`${label}: "export" must be the name of a function the module exports.`);
+      continue;
+    }
     seen.add(item.id);
-    pieces.push({ id: item.id, name, kind, path, spin: item.spin === true });
+    pieces.push({ id: item.id, name, kind, path, spin: item.spin === true, ...(typeof exported === "string" && isModuleKind(kind) ? { export: exported } : {}) });
   }
   return { pieces, problems };
 }
@@ -172,6 +199,16 @@ export function benchSlot(index: number): { x: number; z: number; height: number
     // The back row stands taller, so it shows over the front.
     height: 0.8 + row * 0.25,
   };
+}
+
+/**
+ * A module of one deploy, by a path that names the deploy: /s/<space>/~<deploy>/<path>.
+ * Every file it imports in turn resolves inside the same deploy, so a push
+ * gives every one of them a new address and the room loads the new code whole,
+ * never a fresh entry importing the old version's other files.
+ */
+export function moduleUrl(space: string, deployId: string, path: string): string {
+  return `/s/${space}/~${deployId}/${path}`;
 }
 
 /** The URL of a piece in a deploy, with the deploy id so a new push is a new URL (no stale cache). */

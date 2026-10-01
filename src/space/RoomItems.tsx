@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { RoundedBox, Text } from "@react-three/drei";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import type { GoRoomItem, RoomItem } from "../../shared/room-items";
+import { isGoItem, type GoRoomItem, type RoomItem } from "../../shared/room-items";
 import { legalGoMoves } from "../../shared/go-rules";
 import { GO_PITCH, GO_SURFACE, goExtent, goBoardWidth, goBowlScale, goDeckWidth, goBowl, goPoint, goRadius, goRimReach, goRingArc, goRingCapacity, goRingSlots, goRingSpot, goRingStone, goLabelOffset, GO_RING, goLocal, goTouchBowl, type Point3 } from "../../shared/go-layout";
 import { heldStoneWorld, idleGoTouch, restOnBoard, stepGoTouch } from "../../shared/go-touch";
@@ -732,7 +732,7 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       const point = sample && now - sample.at < 120 ? goLocal(sample.contact, item) : null;
       const holding = item.liftedColour !== null && item.carrier?.by === context.you && item.carrier.hand === side;
       const reservation = context.reservations.current.get(side);
-      const otherTable = context.items.some((table) => table.id !== item.id && table.carrier?.by === context.you && table.carrier.hand === side);
+      const otherTable = context.items.some((table) => isGoItem(table) && table.id !== item.id && table.carrier?.by === context.you && table.carrier.hand === side);
       const canLift = item.liftedColour === null && !item.ended && !pending.current && !otherTable && (!reservation || reservation.until < now || reservation.id === item.id);
       const next = stepGoTouch(contacts.current[side], { point, item, holding, canLift, now, pending: pending.current });
       contacts.current[side] = next.state;
@@ -1174,6 +1174,7 @@ export function RoomItems({ items, reducedMotion, you = null, peopleRef, onItem,
   const emptyPeople = useRef<WirePerson[]>([]), reservations = useRef(new Map<string, { id: string; until: number }>());
   const context = { you, peopleRef: peopleRef ?? emptyPeople, items, reservations, onItem: onItem ?? (() => {}), onRemoved: onRemoved ?? (() => {}) };
   return <group onPointerDown={(event) => { claimPointer(event.nativeEvent); event.stopPropagation(); }}>
-    {items.map((item) => <GoTable key={item.id} item={item} reducedMotion={reducedMotion} context={context} />)}
+    {/* Go tables here; things from spaces are drawn by ModuleItems (src/space/modules). */}
+    {items.filter(isGoItem).map((item) => <GoTable key={item.id} item={item} reducedMotion={reducedMotion} context={context} />)}
   </group>;
 }

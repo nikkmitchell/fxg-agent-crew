@@ -17,7 +17,8 @@ import {
 } from "../../shared/spaces.js";
 import type { Session } from "../session.js";
 import { doorTitle, goTarget, spaceEntryPath } from "../../shared/space-kit.js";
-import { catalogueOf, KIT_PIECES, pieceUrl } from "../../shared/space-bench.js";
+import { threeBridgeSource } from "./three-bridge.js";
+import { catalogueOf, isModuleKind, KIT_PIECES, moduleUrl, pieceUrl, type ModuleKind } from "../../shared/space-bench.js";
 import { iceServersFrom } from "../space/ice.js";
 import { keepAlive, type SpaceLive } from "./live.js";
 import type { SpaceTickets } from "./tickets.js";
@@ -225,6 +226,12 @@ sign-in, and has no localStorage or cookies of its own.
   },
 ];
 
+/** What a space's manifest says one entry is, for this person, on a branch's live deploy (server/space/items.ts). */
+export type DescribeModule = (
+  who: { username: string; token: string },
+  source: { space: string; branch: string; entry: string },
+) => Promise<{ name: string; role: ModuleKind } | { status: number; error: string }>;
+
 export function registerSpacesHosting(app: FastifyInstance, deps: {
   spacesRoot: string;
   store: SpaceStore;
@@ -242,9 +249,14 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
    * different branch followed): tell the saha.ing room of that name.
    */
   benchChanged?: (space: string) => void;
+  /**
+   * A branch of a space has a new live deploy (a push, a merge, a rollback):
+   * tell every room, so things from it that stand there load it again.
+   */
+  spaceDeployed?: (space: string, branch: string, deployId: string) => void;
   queue?: DeployQueue;
   now?: () => Date;
-}): { queue: DeployQueue } {
+}): { queue: DeployQueue; describeModule: DescribeModule } {
   const { spacesRoot: root, store, auth } = deps;
   const queue = deps.queue ?? new DeployQueue();
   const now = deps.now ?? (() => new Date());
@@ -284,6 +296,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     queue.run(space, async () => {
       const deploy = await deployCommit({ root, store, space, branch, commit, pushedBy, now });
       if (deploy.status === "ready" && branch === store.benchBranch(space)) deps.benchChanged?.(space);
+      if (deploy.status === "ready" && store.live(space, branch)?.id === deploy.id) deps.spaceDeployed?.(space, branch, deploy.id);
       return deploy;
     });
 
@@ -363,13 +376,30 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     if (asked !== space || match[2] === undefined) return reply.redirect(`/s/${space}${match[2] ?? "/"}${url.search}`);
     let rest = match[2];
     let branch = LIVE_BRANCH;
-    const preview = /^\/@([^/]+)(\/.*)?$/.exec(rest);
-    if (preview) {
-      branch = decodeURIComponent(preview[1]);
-      if (preview[2] === undefined) return reply.redirect(`/s/${space}/@${branch}/${url.search}`);
-      rest = preview[2];
+    /**
+     * ONE DEPLOY, BY ITS ID: /s/<space>/~<deploy>/... (moduleUrl in
+     * shared/space-bench.ts). A thing from a space loads its code from here,
+     * so a push is new addresses for every file it imports, never last push's
+     * files under this push's entry. Never changes, so it caches.
+     */
+    const pinned = /^\/~([A-Za-z0-9_-]{1,64})(\/.*)?$/.exec(rest);
+    let deploy: StoredDeploy | null;
+    if (pinned) {
+      if (pinned[2] === undefined) return reply.redirect(`/s/${space}/~${pinned[1]}/${url.search}`);
+      const one = spaceNameProblem(space) ? null : store.deploy(pinned[1]);
+      deploy = one && one.space === space && one.status === "ready" ? one : null;
+      rest = pinned[2];
+      if (!deploy) return reply.code(404).type("text/plain; charset=utf-8").send(`${space} has no deploy ${pinned[1]} to serve (it may have been cleared).\n`);
+      reply.header("cache-control", "public, max-age=31536000, immutable");
+    } else {
+      const preview = /^\/@([^/]+)(\/.*)?$/.exec(rest);
+      if (preview) {
+        branch = decodeURIComponent(preview[1]);
+        if (preview[2] === undefined) return reply.redirect(`/s/${space}/@${branch}/${url.search}`);
+        rest = preview[2];
+      }
+      deploy = !spaceNameProblem(space) && isPreviewableBranch(branch) ? store.live(space, branch) : null;
     }
-    const deploy = !spaceNameProblem(space) && isPreviewableBranch(branch) ? store.live(space, branch) : null;
     if (!deploy) {
       return reply.code(404).type("text/plain; charset=utf-8").send(
         branch === LIVE_BRANCH ? `Nothing is published at /s/${space}/ yet.\n` : `Branch ${branch} of ${space} has no preview.\n`,
@@ -383,8 +413,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       .header("content-security-policy", SITE_SANDBOX)
       .header("access-control-allow-origin", "*")
       .header("cross-origin-resource-policy", "cross-origin")
-      .header("x-content-type-options", "nosniff")
-      .header("cache-control", "no-cache");
+      .header("x-content-type-options", "nosniff");
+    if (!pinned) reply.header("cache-control", "no-cache");
     const isFile = async (relative: string) => (await stat(join(dir, relative)).catch(() => null))?.isFile() === true;
 
     if (await isFile(file)) return reply.sendFile(file, dir);
@@ -545,6 +575,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     if (deploy.status !== "ready") return reply.code(409).send({ code: "NOT_SERVABLE", error: deploy.status === "failed" ? "That deploy failed; there is nothing to serve." : "That deploy's files have been cleared; push it again." });
     store.setLive(found.space, deploy.branch, deploy.id);
     if (deploy.branch === store.benchBranch(found.space)) deps.benchChanged?.(found.space);
+    deps.spaceDeployed?.(found.space, deploy.branch, deploy.id);
     return reply.send({ branch: deploy.branch, live: publicDeploy(deploy) });
   });
 
@@ -721,6 +752,74 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     });
   });
 
+  // ---------------------------------------------------------------- things to bring into a room
+
+  /** Its members may use a space's things always; anybody signed in, once it is public. */
+  const mayUse = async (me: GitIdentity, space: string) => store.publicInfo(space).public || (await auth.isMember(me, space));
+
+  /** The items, environments and spaces a branch's live deploy offers, each at its deploy's own address. */
+  const modulesOf = (space: string, branch: string) => {
+    const live = store.live(space, branch);
+    return {
+      deploy: live ? { id: live.id, commit: live.commit, message: live.message, pushedBy: live.pushedBy, createdAt: live.createdAt } : null,
+      modules: (live?.pieces ?? []).flatMap((piece) =>
+        isModuleKind(piece.kind) ? [{ id: piece.id, name: piece.name, kind: piece.kind, export: piece.export ?? null, url: moduleUrl(space, live!.id, piece.path) }] : []),
+      problems: live?.piecesProblems ?? [],
+    };
+  };
+
+  const describeModule: DescribeModule = async (who, source) => {
+    const space = spaceKey(source.space);
+    if (spaceNameProblem(space) || !store.exists(space)) return { status: 404, error: `There is no space called ${space}.` };
+    try {
+      if (!(await mayUse(who, space))) return { status: 403, error: `${space} is not public, and you are not in its room.` };
+    } catch {
+      return { status: 502, error: "WebHarness could not be reached to check your rooms." };
+    }
+    if (!isPreviewableBranch(source.branch)) return { status: 400, error: "That is not a branch name." };
+    const entry = modulesOf(space, source.branch).modules.find((module) => module.id === source.entry);
+    if (!entry) return { status: 404, error: `${space} (${source.branch}) has no item, environment or space called ${source.entry}.` };
+    return { name: entry.name, role: entry.kind };
+  };
+
+  /**
+   * THE LIBRARY: every space this person can bring things in from, their own
+   * rooms' spaces first, then the public ones (Nikk, 2026-10-01: "open in
+   * settings all the spaces that have been made in that project").
+   */
+  app.get("/bff/spaces/library", async (request, reply) => {
+    const me = signedIn(request, reply);
+    if (!me) return reply;
+    let rooms: string[] = [];
+    try {
+      rooms = await auth.roomsOf(me);
+    } catch (error) {
+      return upstream(reply, error);
+    }
+    const mine = new Set(rooms.map(spaceKey).filter((room) => store.exists(room)));
+    const listed = [...mine, ...store.publicSpaces().map((space) => space.name).filter((name) => !mine.has(name))];
+    return reply.header("cache-control", "no-store").send({
+      spaces: listed.map((name) => ({ name, title: doorTitle(store.publicInfo(name).title, name), public: store.publicInfo(name).public, mine: mine.has(name), branch: store.benchBranch(name) })),
+    });
+  });
+
+  /** What one branch of a space offers to bring into a room (the followed branch unless asked). */
+  app.get<{ Params: { space: string }; Querystring: { branch?: string } }>("/bff/spaces/:space/modules", async (request, reply) => {
+    const me = signedIn(request, reply);
+    if (!me) return reply;
+    const space = spaceKey(request.params.space);
+    if (spaceNameProblem(space) || !store.exists(space)) return reply.code(404).send({ code: "NO_SPACE", error: `There is no space called ${space}.` });
+    try {
+      if (!(await mayUse(me, space))) return reply.code(403).send({ code: "NOT_A_MEMBER", error: `${space} is not public, and you are not in its room.` });
+    } catch (error) {
+      return upstream(reply, error);
+    }
+    const branch = typeof request.query.branch === "string" && request.query.branch ? request.query.branch : store.benchBranch(space);
+    if (!isPreviewableBranch(branch)) return reply.code(400).send({ code: "BAD_BRANCH", error: "That is not a branch name." });
+    const branches = [...new Set([LIVE_BRANCH, ...store.liveBranches(space)])];
+    return reply.header("cache-control", "no-store").send({ space, branch, branches, ...modulesOf(space, branch) });
+  });
+
   /** Which branch the room's bench follows. Members only. */
   app.post<{ Params: { space: string }; Body: { branch?: unknown } }>("/bff/spaces/:space/bench", async (request, reply) => {
     const found = await memberSpace(request, reply);
@@ -772,6 +871,11 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   // /kit/three/three.core.js and /kit/three/addons/<path> (three/examples/jsm).
   // three exports no package.json; its main entry is build/three.cjs, so the
   // package is two levels up from that.
+  // The room's own three.js, for modules loaded into the room (three-bridge.ts).
+  const bridge = threeBridgeSource();
+  app.get("/kit/three-bridge.js", async (_request, reply) =>
+    reply.type("text/javascript; charset=utf-8").header("cache-control", "public, max-age=300").header("access-control-allow-origin", "*").send(bridge));
+
   const threeRoot = dirname(dirname(createRequire(import.meta.url).resolve("three")));
   app.get("/kit/three/*", async (request, reply) => {
     const rest = siteFile(new URL(request.url, "http://placeholder").pathname.slice("/kit/three".length));
@@ -785,7 +889,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       .sendFile(file, dir);
   });
 
-  return { queue };
+  return { queue, describeModule };
 }
 
 function publicDeploy(deploy: StoredDeploy | null): DeployRecord | null {

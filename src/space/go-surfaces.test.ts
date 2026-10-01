@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GO_COLOURS, GO_SURFACES, defaultGoItem, parseRoomItem, stepGoSurface, type GoSurface } from "../../shared/room-items.js";
+import { GO_COLOURS, GO_SURFACES, defaultGoItem, parseRoomItem, stepGoSurface, type GoRoomItem, type GoSurface } from "../../shared/room-items.js";
 import { GO_SURFACE_LOOKS, contrast } from "./go-surfaces.js";
 
 /**
@@ -10,15 +10,15 @@ import { GO_SURFACE_LOOKS, contrast } from "./go-surfaces.js";
 describe("board types on the table", () => {
   it("a table made before board types keeps its game and becomes bamboo", () => {
     const { surface: _gone, ...old } = { ...defaultGoItem("t"), stones: [{ x: 2, y: 2, colour: 0 }] };
-    const upgraded = parseRoomItem(old);
+    const upgraded = parseRoomItem(old) as GoRoomItem | null;
     expect(upgraded?.surface).toBe("bamboo");
     expect(upgraded?.stones).toEqual([{ x: 2, y: 2, colour: 0 }]);
   });
 
   it("an unknown board type read back from storage falls back rather than losing the table", () => {
-    expect(parseRoomItem({ ...defaultGoItem("t"), surface: "lava" })?.surface).toBe("bamboo");
+    expect((parseRoomItem({ ...defaultGoItem("t"), surface: "lava" }) as GoRoomItem | null)?.surface).toBe("bamboo");
     // ROOTS, put away (Baiwei, 5118): a table left on it is bamboo again, game and all.
-    const roots = parseRoomItem({ ...defaultGoItem("t"), surface: "rootwood", stones: [{ x: 1, y: 1, colour: 1 }] });
+    const roots = parseRoomItem({ ...defaultGoItem("t"), surface: "rootwood", stones: [{ x: 1, y: 1, colour: 1 }] }) as GoRoomItem | null;
     expect(roots?.surface).toBe("bamboo");
     expect(roots?.stones).toEqual([{ x: 1, y: 1, colour: 1 }]);
   });

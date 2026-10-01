@@ -1,15 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import type { FastifyInstance } from "fastify";
-import { GO_COLOURS, GO_PLAYERS, GO_SURFACES, defaultGoItem, isGoSize, isGoSurface, parseRoomItem, type RoomItem } from "../../shared/room-items.js";
+import type { FastifyInstance, FastifyReply } from "fastify";
+import { GO_COLOURS, GO_PLAYERS, GO_SURFACES, MODULE_SCALE, defaultGoItem, isFullView, isGoSize, isGoSurface, isModuleItem, parseModuleItem, parseRoomItem, type ModuleRole, type ModuleRoomItem, type RoomItem } from "../../shared/room-items.js";
 import type { Config } from "../config.js";
 import { makeRequireSession, spaceRoomOf } from "../require-session.js";
-import type { SessionStore } from "../session.js";
+import type { Session, SessionStore } from "../session.js";
 import { roomKey } from "../../shared/space-room.js";
 import { placeGoStone } from "../../shared/go-rules.js";
 import { CLOCK_PRESETS, clockNow, presetOf, settleTurn, startClock } from "../../shared/go-clock.js";
 import { goTableEntityId } from "./destinations.js";
 import { heldBySentence, type Holds } from "./holds.js";
+import type { ModuleStates } from "./module-state.js";
 
 export class RoomItems {
   constructor(private readonly database: DatabaseSync) {}
@@ -23,10 +24,14 @@ export class RoomItems {
   }
   add(room: string, by: string): RoomItem {
     const item = defaultGoItem(randomUUID(), this.all(room).length);
+    this.insert(room, item, by);
+    return item;
+  }
+  /** Something made elsewhere (a thing from a space's git), put into the room as it is. */
+  insert(room: string, item: RoomItem, by: string): void {
     const now = new Date().toISOString();
     this.database.prepare("INSERT INTO space_items (id, kind, state_json, added_by, added_at, updated_by, updated_at, room) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run(item.id, item.kind, JSON.stringify(item), by, now, by, now, roomKey(room));
-    return item;
   }
   /**
    * A move played through code, written to the business audit — which is what
@@ -56,17 +61,71 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
   config: Config; sessions: SessionStore; items: RoomItems; announce: (room: string, items: RoomItem[], by: string) => void;
   /** Who is carrying which item; moving or resizing one somebody else holds is refused. */
   holds?: Holds;
+  /**
+   * What a space's manifest says an entry is, on the branch's live deploy, if
+   * this person may use that space (server/spaces/routes.ts, describeModule).
+   */
+  describeModule?: (who: { username: string; token: string }, source: { space: string; branch: string; entry: string }) => Promise<{ name: string; role: ModuleRole } | { status: number; error: string }>;
+  /** The shared values of things from spaces (module-state.ts): read when a copy starts, forgotten with the item. */
+  moduleStates?: ModuleStates;
 }) {
   const requireSession = makeRequireSession(options.config, options.sessions);
   const publish = (room: string, by: string) => { const items = options.items.all(room); options.announce(room, items, by); return items; };
   app.get("/bff/space/items", async (request, reply) => {
     const session = requireSession(request, reply); return session ? reply.send({ items: options.items.all(spaceRoomOf(session)) }) : reply;
   });
-  app.post<{ Body: { kind?: unknown } }>("/bff/space/items", async (request, reply) => {
+  app.post<{ Body: { kind?: unknown; source?: unknown; view?: unknown; position?: unknown; scale?: unknown } }>("/bff/space/items", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
-    if (request.body?.kind !== "go") return reply.code(400).send({ code: "BAD_KIND", error: "the first room item is a Go table" });
+    if (request.body?.kind === "module") return addModule(request.body, session, reply);
+    if (request.body?.kind !== "go") return reply.code(400).send({ code: "BAD_KIND", error: "a room item is a Go table, or a module from a space" });
     const room = spaceRoomOf(session); const item = options.items.add(room, session.username); publish(room, session.username); return reply.code(201).send({ item });
   });
+
+  /** What a thing from a space has decided so far, for a copy that is starting. */
+  app.get<{ Params: { id: string } }>("/bff/space/items/:id/state", async (request, reply) => {
+    const session = requireSession(request, reply); if (!session) return reply;
+    const room = spaceRoomOf(session);
+    const item = options.items.one(room, request.params.id);
+    if (!item || item.kind !== "module") return reply.code(404).send({ error: "no such thing from a space in this room" });
+    return reply.header("cache-control", "no-store").send({ state: options.moduleStates?.get(room, item.id) ?? {} });
+  });
+
+  /** A position as the routes accept it: within the room, and within one turn. */
+  const readPosition = (raw: unknown): ModuleRoomItem["position"] | null => {
+    if (!raw || typeof raw !== "object") return null;
+    const p = raw as Record<string, unknown>;
+    if (![p.x, p.y, p.z, p.rotationY].every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+    if (Math.abs(p.x as number) > 100 || Math.abs(p.z as number) > 100 || (p.y as number) < -0.5 || (p.y as number) > 5 || Math.abs(p.rotationY as number) > Math.PI * 2) return null;
+    return { x: p.x as number, y: p.y as number, z: p.z as number, rotationY: p.rotationY as number };
+  };
+  const readScale = (raw: unknown): number | null =>
+    typeof raw === "number" && Number.isFinite(raw) && raw >= MODULE_SCALE.min && raw <= MODULE_SCALE.max ? raw : null;
+
+  /**
+   * BRING A THING FROM A SPACE INTO THE ROOM (shared/room-items.ts, ModuleRoomItem).
+   * The space's manifest says what it is: an item stands where it is put, an
+   * environment surrounds the room, a space is a model unless asked full size.
+   * A room has one thing all around it at a time: a new one replaces the last.
+   */
+  const MODULES_PER_ROOM = 40;
+  const addModule = async (body: { source?: unknown; view?: unknown; position?: unknown; scale?: unknown }, session: Session, reply: FastifyReply) => {
+    const room = spaceRoomOf(session);
+    const given = (body.source ?? {}) as Record<string, unknown>;
+    const draft = parseModuleItem({ id: "draft", kind: "module", source: given, role: "item", view: "placed", position: { x: 0, y: 0, z: 0, rotationY: 0 }, scale: 1 });
+    if (!draft) return reply.code(400).send({ code: "BAD_SOURCE", error: "Say which space, branch and manifest entry: { source: { space, branch, entry } }." });
+    if (!options.describeModule) return reply.code(503).send({ error: "Spaces are not available on this server." });
+    if (options.items.all(room).filter(isModuleItem).length >= MODULES_PER_ROOM) return reply.code(422).send({ error: `A room holds ${MODULES_PER_ROOM} things from spaces; take one away first.` });
+    const described = await options.describeModule({ username: session.username, token: session.token }, draft.source);
+    if ("error" in described) return reply.code(described.status).send({ error: described.error });
+    const view = described.role === "environment" ? "full" : described.role === "space" && body.view === "full" ? "full" : "placed";
+    const position = view === "full" ? { x: 0, y: 0, z: 0, rotationY: 0 } : readPosition(body.position) ?? { x: 0, y: 0, z: 1.5, rotationY: 0 };
+    const scale = view === "full" ? 1 : readScale(body.scale) ?? (described.role === "space" ? MODULE_SCALE.model : 1);
+    const item: ModuleRoomItem = { ...draft, id: randomUUID(), name: described.name, role: described.role, view, position, scale, addedBy: session.username };
+    if (view === "full") for (const other of options.items.all(room).filter(isFullView)) options.items.remove(room, other.id);
+    options.items.insert(room, item, session.username);
+    publish(room, session.username);
+    return reply.code(201).send({ item });
+  };
   /**
    * DELETE THIS BOARD. Nikk (4452): "we need to adjust it so that you can
    * delete a go board, so in settings there should also be a button for delete
@@ -84,6 +143,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     const heldBy = options.holds?.heldByOther(room, `item:${item.id}`, session.username);
     if (heldBy) return reply.code(409).send({ code: "HELD", heldBy, error: heldBySentence(heldBy) });
     options.items.remove(room, item.id);
+    options.moduleStates?.forget(room, item.id);
     return reply.send({ items: publish(room, session.username) });
   });
   app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; players?: unknown; reset?: unknown; position?: unknown; scale?: unknown; revision?: unknown; deskVisible?: unknown; surface?: unknown; territoryShown?: unknown; clock?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
@@ -93,6 +153,44 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (change?.revision !== undefined && change.revision !== item.revision) {
       request.log.info({ tableChangeRefused: { who: session.username, table: item.id, sent: change.revision, now: item.revision } }, "table change refused: stale revision");
       return reply.code(409).send({ code: "TABLE_CHANGED", error: "The table changed. Try again." });
+    }
+    if (isModuleItem(item)) {
+      // A thing from a space: where it stands, how big, and (a space) model or full size.
+      const body = change as { position?: unknown; scale?: unknown; view?: unknown };
+      if (body.position !== undefined || body.scale !== undefined) {
+        const heldBy = options.holds?.heldByOther(room, `item:${item.id}`, session.username);
+        if (heldBy) return reply.code(409).send({ code: "HELD", heldBy, error: heldBySentence(heldBy) });
+      }
+      if (body.view !== undefined) {
+        if (item.role !== "space" || (body.view !== "placed" && body.view !== "full")) return reply.code(400).send({ error: "Only a space can be shown as a model or full size." });
+        if (body.view !== item.view) {
+          item.view = body.view;
+          if (item.view === "full") {
+            for (const other of options.items.all(room).filter(isFullView)) if (other.id !== item.id) options.items.remove(room, other.id);
+            item.position = { x: 0, y: 0, z: 0, rotationY: 0 };
+            item.scale = 1;
+          } else {
+            item.position = { x: 0, y: 0, z: 1.5, rotationY: 0 };
+            item.scale = MODULE_SCALE.model;
+          }
+        }
+      }
+      if (item.view === "placed") {
+        if (body.position !== undefined) {
+          const position = readPosition(body.position);
+          if (!position) return reply.code(400).send({ error: "Keep x/z within 100 m, height offset between −0.5 and 5 m, and rotation within one turn." });
+          item.position = position;
+        }
+        if (body.scale !== undefined) {
+          const scale = readScale(body.scale);
+          if (scale === null) return reply.code(400).send({ error: `Scale must be between ${MODULE_SCALE.min} and ${MODULE_SCALE.max}.` });
+          item.scale = scale;
+        }
+      }
+      item.revision++;
+      options.items.save(room, item, session.username);
+      publish(room, session.username);
+      return reply.send({ item });
     }
     if (change?.deskVisible !== undefined) {
       if (typeof change.deskVisible !== "boolean") return reply.code(400).send({ error: "Desk visibility must be true or false." });
@@ -204,6 +302,8 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
   const act = (room: string, username: string, id: string, body: ItemActionBody): ItemActionAnswer => {
     const answer = (status: number, payload: Record<string, unknown>): ItemActionAnswer => ({ status, payload });
     const item = options.items.one(room, id); if (!item) return answer(404, { error: "room item not found" });
+    // Moves and stones are the Go table's; a thing from a space acts through its own code.
+    if (item.kind !== "go") return answer(400, { code: "NOT_A_GAME", error: "Only a Go table takes moves." });
     if (body.revision !== undefined && body.revision !== item.revision) return answer(409, { code: "TABLE_CHANGED", error: "The table changed. Try again." });
     // Recorded only AFTER the table is saved: the room walks an agent to its
     // seat on this row, and must never do that for a move that did not happen.
@@ -237,7 +337,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       if (item.liftedColour !== null) return answer(409, { error: "A stone is already in flight. Place it or return it first." });
       if (body.colour !== undefined && body.colour !== item.activeColour) return answer(409, { error: "It is the glowing bowl's turn." });
       if (body.hand !== undefined && body.hand !== null && body.hand !== "left" && body.hand !== "right") return answer(400, { error: "Unknown hand." });
-      if (body.hand && options.items.all(room).some((table) => table.carrier?.by === username && table.carrier.hand === body.hand)) return answer(409, { error: "That hand is already carrying a stone at another table." });
+      if (body.hand && options.items.all(room).some((table) => table.kind === "go" && table.carrier?.by === username && table.carrier.hand === body.hand)) return answer(409, { error: "That hand is already carrying a stone at another table." });
       item.liftedColour = item.activeColour;
       item.carrier = { by: username, hand: (body.hand as "left" | "right" | null) ?? null };
     }

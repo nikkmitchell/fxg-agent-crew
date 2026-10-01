@@ -63,7 +63,7 @@ import { microphoneState } from "./mic-permission";
 import { voiceReport } from "./voice-report";
 import { volumeAt } from "./agent-voice";
 import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
-import type { RoomItem } from "../../shared/room-items";
+import { isGoItem, type RoomItem } from "../../shared/room-items";
 import { Typing3D } from "./Typing3D";
 import { endSessionThenReturn } from "./end-session-to-lobby";
 import { sendOutcome, withDeadline } from "./send-timeout";
@@ -1363,7 +1363,7 @@ export function RoomControls({
     switching,
     goRoom,
     toLobby: returnToLobby,
-    goTables: roomItems.map((item) => ({ size: item.size, players: item.colours.length })),
+    goTables: roomItems.filter(isGoItem).map((item) => ({ size: item.size, players: item.colours.length })),
     orbHere: meditation?.shown === true,
     addGoTable: () =>
       void space.addRoomItem().catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add the table.")),

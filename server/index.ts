@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { registerSpacesHosting } from "./spaces/routes.js";
+import { registerSpacesHosting, type DescribeModule } from "./spaces/routes.js";
 import { SpaceStore } from "./spaces/store.js";
 import { SpaceAuth } from "./spaces/auth.js";
 import { SpaceLive } from "./spaces/live.js";
@@ -75,6 +75,7 @@ import { registerTranscribeRoutes } from "./space/transcribe.js";
 import { ScreenFrames, ShareKeys, registerScreenRoutes } from "./space/screens.js";
 import { openDatabase } from "./db/open.js";
 import { RoomItems, registerRoomItemRoutes } from "./space/items.js";
+import { ModuleStates } from "./space/module-state.js";
 import { Holds, registerHoldRoutes } from "./space/holds.js";
 
 /**
@@ -293,6 +294,10 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Agents' helpers, as the agents report them: see space/helpers.ts.
   const roomHelpers = new RoomHelpers();
   const roomItems = new RoomItems(database);
+  // What things from spaces in each room have decided together (module-state.ts).
+  const moduleStates = new ModuleStates();
+  // Late-bound: the spaces' routes, which know the manifests, are registered further down.
+  let describeModule: DescribeModule | null = null;
   // One for the whole server: a panel's hold and the Go table's must be the
   // same registry the place and move routes consult, or the lock locks nothing.
   const holds = new Holds();
@@ -302,7 +307,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     Date.now,
     () => Object.fromEntries(panelPlaces.all(roomAtDefault).map((place) => [place.id, place])),
     (actorId) => agentHomes.get(roomAtDefault, actorId),
-    (id) => roomItems.one(roomAtDefault, id),
+    (id) => { const item = roomItems.one(roomAtDefault, id); return item?.kind === "go" ? item : null; },
     /**
      * NOT IN A ROOM YOU ARE VERIFIABLY NOT IN. Nikk (5316): after going to the
      * lobby he was "still visible in the previous room". Any one of his
@@ -426,6 +431,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (room, username, id, body) =>
         itemRoutes ? itemRoutes.act(room, username, id, body) : { status: 503, payload: { error: "not ready" } },
       (room) => ({ open: roomPanelChoices.open(room), agentsHidden: roomPanelChoices.agentsHidden(room) }),
+      moduleStates,
     );
     registerSpaceEntryRoute(scoped, config, sessions, client,
       evictSessionEverywhere,
@@ -571,6 +577,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       items: roomItems,
       announce: (room, items, by) => hubFor(room).broadcast({ type: "roomItems", items, by }),
       holds,
+      describeModule: (who, source) => (describeModule ? describeModule(who, source) : Promise.resolve({ status: 503, error: "Spaces are not ready yet." })),
+      moduleStates,
     });
     registerUtteranceRoutes(
       scoped,
@@ -717,7 +725,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Bodies that ship with saha.ing are plain public files; catalogue bodies come
   // through the space's own ticketed route (spaces/routes.ts).
   const spaceLive = new SpaceLive(spaceStore, (body, space) => (isOnHand(body) ? bodyPath(body) : `/bff/spaces/${space}/body/${body}.vrm`));
-  registerSpacesHosting(app, {
+  const spacesHosting = registerSpacesHosting(app, {
     spacesRoot: config.spacesRoot,
     store: spaceStore,
     auth: new SpaceAuth(client),
@@ -731,7 +739,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     bodyFile: (slug) => bodyFiles.want(slug),
     // The room of the same name refetches its bench (src/space/SpaceBench.tsx).
     benchChanged: (space) => hubFor(space).broadcast({ type: "benchChanged", space }),
+    // Things from this space may stand in any room: every room hears, and those holding one reload it.
+    spaceDeployed: (space, branch, deployId) => {
+      for (const hub of spaceHubs.values()) hub.broadcast({ type: "spaceDeployed", space, branch, deployId });
+    },
   });
+  describeModule = spacesHosting.describeModule;
   // A space page is sandboxed, so to it saha.ing is another origin: the kit
   // (/kit/saha.js) and the avatar models it may load need saying they can be
   // loaded from anywhere. Both are public files already.

@@ -310,6 +310,16 @@ export type ServerMessage =
   | { type: "helpers"; helpers: Record<string, Helper[]> }
   | { type: "roomItems"; items: RoomItem[]; by: string }
   /**
+   * A THING FROM A SPACE, TALKING TO ITS OTHER COPIES (src/space/modules): a
+   * moment one person's copy sent (a drum struck), stamped by the server with
+   * who sent it, and a shared value one copy set. Every copy of that item in
+   * the room hears them; the sender's own copy has already acted.
+   */
+  | { type: "moduleEvent"; item: string; name: string; data: unknown; from: string }
+  | { type: "moduleState"; item: string; key: string; value: unknown; by: string }
+  /** A space's branch has a new live deploy: things from it in this room load it again. */
+  | { type: "spaceDeployed"; space: string; branch: string; deployId: string }
+  /**
    * Somebody said something.
    *
    * Sent on the SAME socket as positions, but as its own message rather than
@@ -428,6 +438,10 @@ export type ClientMessage =
   | { type: "voicePresence"; on: boolean }
   /** My hand touched this agent, on this part. The server stamps who I am. */
   | { type: "touch"; agentId: string; part: TouchPart }
+  /** A moment for the other copies of a thing from a space (see ServerMessage moduleEvent). */
+  | { type: "moduleEvent"; item: string; name: string; data: unknown }
+  /** A shared value of a thing from a space; null removes it. */
+  | { type: "moduleState"; item: string; key: string; value: unknown }
   /**
    * Something happened in the headset that only the headset can see.
    *
@@ -479,6 +493,10 @@ export function isCallPath(path: unknown): path is string {
   );
 }
 
+/** A thing from a space names its moments and values like this, and keeps each small. */
+export const MODULE_KEY = /^[A-Za-z0-9_.:/-]{1,64}$/;
+export const MODULE_VALUE_BYTES = 4096;
+
 export function parseClientMessage(raw: string): ClientMessage | null {
   let value: unknown;
   try {
@@ -522,6 +540,23 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   if (message.type === "voicePresence") {
     if (typeof message.on !== "boolean") return null;
     return { type: "voicePresence", on: message.on };
+  }
+  if (message.type === "moduleEvent" || message.type === "moduleState") {
+    const name = message.type === "moduleEvent" ? message.name : message.key;
+    if (typeof message.item !== "string" || !/^[A-Za-z0-9-]{1,64}$/.test(message.item)) return null;
+    if (typeof name !== "string" || !MODULE_KEY.test(name)) return null;
+    const payload = message.type === "moduleEvent" ? message.data : message.value;
+    let encoded: string;
+    try {
+      encoded = JSON.stringify(payload ?? null);
+    } catch {
+      return null;
+    }
+    if (encoded.length > MODULE_VALUE_BYTES) return null;
+    const value = JSON.parse(encoded) as unknown;
+    return message.type === "moduleEvent"
+      ? { type: "moduleEvent", item: message.item, name, data: value }
+      : { type: "moduleState", item: message.item, key: name, value };
   }
   if (message.type === "touch") {
     if (typeof message.agentId !== "string" || message.agentId.length === 0 || message.agentId.length > 200) return null;
