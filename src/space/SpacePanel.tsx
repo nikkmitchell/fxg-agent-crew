@@ -1,3 +1,5 @@
+import { LibrarySection } from "./modules/LibrarySection";
+import { inFrontOf, useLibrary } from "./modules/use-library";
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { markInXr } from "../client-errors";
@@ -202,6 +204,15 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
   // Mouths move with voices: meter every call, and your own microphone while
   // it is on (voice-mouth.ts).
   const meYou = connection.status.state === "open" ? connection.status.you : null;
+  // THE LIBRARY (src/space/modules): things from spaces' git, brought into this room.
+  const library = useLibrary({
+    enabled: entered && connection.status.state === "open",
+    roomSpace: spaceRoomName ? spaceRoomName.toLowerCase() : null,
+    roomItems: connection.roomItems,
+    applyRoomItem: connection.applyRoomItem,
+    removeRoomItem: connection.removeRoomItem,
+    inFront: () => inFrontOf(connection.peopleRef.current ?? [], meYou),
+  });
   useEffect(() => {
     meterVoices(voice.streams, meYou, voice.on ? voice.microphone() : null);
   }, [voice.streams, voice.on, voice.microphone, meYou]);
@@ -569,6 +580,8 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
         </section>
 
         <ProjectChooser />
+
+        <LibrarySection library={library} />
 
         <h2>In the room</h2>
         <label className="space-setting">

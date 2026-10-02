@@ -157,6 +157,14 @@ export const space = {
   addRoomItem: () => requestJson<{ item: RoomItem }>(`${root}/items`, {
     method: "POST", body: JSON.stringify({ kind: "go" }),
   }),
+  /** Bring a thing from a space into this room (see ModuleRoomItem in shared/room-items.ts). */
+  bringModule: (source: { space: string; branch: string; entry: string }, extra: { view?: "placed" | "full"; position?: { x: number; y: number; z: number; rotationY: number } } = {}) =>
+    requestJson<{ item: RoomItem }>(`${root}/items`, { method: "POST", body: JSON.stringify({ kind: "module", source, ...extra }) }),
+  /** Move, resize, or (a space) turn between a model and full size. */
+  placeModule: (id: string, change: { position?: { x: number; y: number; z: number; rotationY: number }; scale?: number; view?: "placed" | "full"; revision?: number }) =>
+    requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(change) }),
+  /** What a thing from a space has decided so far, for a copy that is starting. */
+  moduleState: (id: string) => requestJson<{ state: Record<string, unknown> }>(`${root}/items/${encodeURIComponent(id)}/state`),
   configureGo: (id: string, change: { size?: GoSize; addBowl?: true; players?: number; reset?: true; position?: { x: number; y: number; z: number; rotationY: number }; scale?: number; revision?: number; deskVisible?: boolean; surface?: GoSurface; territoryShown?: boolean; clock?: number }) =>
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}`, {
       method: "PATCH", body: JSON.stringify(change),

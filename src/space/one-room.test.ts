@@ -32,6 +32,8 @@ const ROOT = join(import.meta.dirname, "..");
 
 /** file → why a branch on where you are standing is legitimate there. */
 const ALLOWED: Record<string, string> = {
+  "space/modules/ModuleItems.tsx":
+    "hangs three's controllers, grips and hands on the player's origin when a session is already running, so things from spaces read room positions in a headset; the same things, presses and controls in both",
   "space/HeadsetControls.tsx":
     "the button that enters a session, whose own label has to say which side of the door you are on",
   "space/VrmBody.tsx":

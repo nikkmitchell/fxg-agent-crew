@@ -1,3 +1,5 @@
+import { ModuleItems } from "./modules/ModuleItems";
+import { isFullView, isModuleItem } from "../../shared/room-items";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useAgentsHidden } from "./agents-hidden";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -645,6 +647,12 @@ export default function Scene({
   const hiddenPieces = useHiddenPieces(`${connection.status.state}:${spaceRoomName ?? ""}`);
   const on = (name: string) => !hiddenPieces.hidden.has(name);
   /**
+   * AN ENVIRONMENT, OR A SPACE AT FULL SIZE, IS ALL AROUND THE ROOM (src/space/modules):
+   * the room's own scenery is taken away (unmounted, so its sounds stop too),
+   * and people, panels, screens and the things brought in stay.
+   */
+  const surrounded = connection.roomItems.some(isFullView);
+  /**
    * The WebHarness room, read ONCE for the whole scene.
    *
    * It used to be read here for its name and again inside ChatPanel3D for its
@@ -838,9 +846,11 @@ export default function Scene({
         {/* Black void. Left UNSET in a headset so the compositor can show
           passthrough behind the scene where the device supports it; where it
           does not, the session is simply black, which is what was asked for. */}
-        {inHeadset ? null : <color attach="background" args={["#0b0d12"]} />}
+        {/* An environment or a full-size space brings its own sky (src/space/modules). */}
+        {inHeadset || surrounded ? null : <color attach="background" args={["#0b0d12"]} />}
+        <FarEnough surrounded={surrounded} />
         {/* Dawn reuses this room light, so its shared color wash adds no draw call. */}
-        <SharedDawn reducedMotion={reducedMotion} active={connection.meditation?.shown === true && on("Dawn")} />
+        <SharedDawn reducedMotion={reducedMotion} active={!surrounded && connection.meditation?.shown === true && on("Dawn")} />
         <directionalLight position={[3, 6, 4]} intensity={1.4} />
         {/* NOT IN A HEADSET. The grid is there so that somebody moving through
           a featureless void can tell they are moving — which is a real problem
@@ -848,7 +858,7 @@ export default function Scene({
           floor of the actual room is right there. Nikk, on an Aura: "passthrough
           is working, except for the ground, also we don't even need the
           ground". */}
-        {inHeadset ? null : <Void />}
+        {inHeadset || surrounded ? null : <Void />}
         {/* The real tabs, live — replaced in a headset by something that says why
           they are not there. DOM is not composited into an immersive frame, so
           leaving them mounted would keep three copies of the app running to
@@ -914,8 +924,8 @@ export default function Scene({
           agent's sits in front of the agent, only while it is working there.
           Textures on planes, so the same in the window and in a headset. */}
         <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} room={spaceRoomName} />
-        {/* This room's space's pieces, live from its git (shared/space-bench.ts). */}
-        {/* MODULE_ITEMS_MOUNT */}
+        {/* THINGS FROM SPACES' GIT, live: items, environments and spaces (src/space/modules). */}
+        <ModuleItems items={connection.roomItems.filter(isModuleItem)} you={you} send={connection.send} subscribe={connection.subscribe} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         {/* Sparks where an agent reaches a board, as its card change lands. */}
         <ArrivalSparkles peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         {/* Light rising off whoever is speaking, for as long as their line
@@ -953,76 +963,76 @@ export default function Scene({
         {/* Agents' helpers, as the agents report them: spirits, never people. */}
         <SpiritCompanions helpers={connection.helpers} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         {/* The breathing orb, in rooms that have been given one: see shared/meditation.ts. */}
-        {connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation}
+        {!surrounded && connection.meditation?.shown && <MeditationOrb meditation={connection.meditation} onMeditation={connection.setMeditation}
           reducedMotion={reducedMotion} peopleRef={connection.peopleRef} roster={connection.roster} />}
         {/* The singing bowls stand beside the orb, wherever a room has one: see shared/bowl.ts. */}
-        {connection.meditation?.shown && on("Singing bowls") && <Near at={BOWLS_AT}><SingingBowls you={you} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Singing bowls") && <Near at={BOWLS_AT}><SingingBowls you={you} /></Near>}
         {/* And the zen sand garden, on the orb's other side: see shared/garden.ts. */}
-        {connection.meditation?.shown && on("Sand garden") && <Near at={GARDEN_AT}><GardenTray /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Sand garden") && <Near at={GARDEN_AT}><GardenTray /></Near>}
         {/* And the ember fire, to let something go: see shared/fire.ts. */}
-        {connection.meditation?.shown && on("Ember fire") && <Near at={FIRE_AT}><EmberFire you={you} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Ember fire") && <Near at={FIRE_AT}><EmberFire you={you} /></Near>}
         {/* And the kaleidoscope dome, to walk into: see KaleidoscopeDome.tsx. */}
-        {connection.meditation?.shown && on("Kaleidoscope dome") && <KaleidoscopeDome meditation={connection.meditation} peopleRef={connection.peopleRef} you={you} />}
+        {!surrounded && connection.meditation?.shown && on("Kaleidoscope dome") && <KaleidoscopeDome meditation={connection.meditation} peopleRef={connection.peopleRef} you={you} />}
         {/* And the light-ribbon circle, for slow movement: see LightRibbons.tsx. */}
-        {connection.meditation?.shown && on("Light ribbons") && <LightRibbons peopleRef={connection.peopleRef} you={you} />}
+        {!surrounded && connection.meditation?.shown && on("Light ribbons") && <LightRibbons peopleRef={connection.peopleRef} you={you} />}
         {/* And the koi pond: see KoiPond.tsx. */}
-        {connection.meditation?.shown && on("Koi pond") && <Near at={POND_AT}><KoiPond peopleRef={connection.peopleRef} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Koi pond") && <Near at={POND_AT}><KoiPond peopleRef={connection.peopleRef} /></Near>}
         {/* And the sand mandala: see shared/mandala.ts. */}
-        {connection.meditation?.shown && on("Sand mandala") && <Near at={MANDALA_AT}><SandMandala /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Sand mandala") && <Near at={MANDALA_AT}><SandMandala /></Near>}
         {/* And wind chimes by the way in: see WindChimes.tsx. */}
-        {connection.meditation?.shown && on("Wind chimes") && <Near at={CHIMES_AT}><WindChimes peopleRef={connection.peopleRef} you={you} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Wind chimes") && <Near at={CHIMES_AT}><WindChimes peopleRef={connection.peopleRef} you={you} /></Near>}
         {/* And the prayer wheel: see shared/wheel.ts. */}
-        {connection.meditation?.shown && on("Prayer wheel") && <Near at={WHEEL_AT}><PrayerWheel you={you} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Prayer wheel") && <Near at={WHEEL_AT}><PrayerWheel you={you} /></Near>}
         {/* And the gong, for a sound bath: see GongStand.tsx. */}
-        {connection.meditation?.shown && on("Gong") && <Near at={GONG_AT}><GongStand you={you} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Gong") && <Near at={GONG_AT}><GongStand you={you} /></Near>}
         {/* And the rain curtain, to stand in: see RainCurtain.tsx. */}
-        {connection.meditation?.shown && on("Rain curtain") && <Near at={RAIN_AT}><RainCurtain /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Rain curtain") && <Near at={RAIN_AT}><RainCurtain /></Near>}
         {/* And floating lanterns: see shared/lantern.ts. */}
-        {connection.meditation?.shown && on("Lanterns") && <Lanterns you={you} />}
+        {!surrounded && connection.meditation?.shown && on("Lanterns") && <Lanterns you={you} />}
         {/* And the star map overhead: see shared/stars.ts. */}
-        {connection.meditation?.shown && on("Star map") && <StarMap />}
+        {!surrounded && connection.meditation?.shown && on("Star map") && <StarMap />}
         {/* And the bamboo water clock by the pond: see BambooKnocker.tsx. */}
-        {connection.meditation?.shown && on("Water clock") && <Near at={POND_AT}><BambooKnocker /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Water clock") && <Near at={POND_AT}><BambooKnocker /></Near>}
         {/* And incense, a ten-minute timer: see shared/incense.ts. */}
-        {connection.meditation?.shown && on("Incense") && <Near at={INCENSE_AT}><IncenseBowl /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Incense") && <Near at={INCENSE_AT}><IncenseBowl /></Near>}
         {/* And a light to hold between your hands: see HoldTheLight.tsx. */}
-        {connection.meditation?.shown && on("Hold the light") && <Near at={LIGHT_AT}><HoldTheLight peopleRef={connection.peopleRef} you={you} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Hold the light") && <Near at={LIGHT_AT}><HoldTheLight peopleRef={connection.peopleRef} you={you} /></Near>}
         {/* And ikebana: see shared/ikebana.ts. */}
-        {connection.meditation?.shown && on("Ikebana") && <Near at={VASE_AT}><IkebanaVase /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Ikebana") && <Near at={VASE_AT}><IkebanaVase /></Near>}
         {/* And fireflies that land on a still hand: see Fireflies.tsx. */}
-        {connection.meditation?.shown && on("Fireflies") && <Fireflies peopleRef={connection.peopleRef} you={you} />}
+        {!surrounded && connection.meditation?.shown && on("Fireflies") && <Fireflies peopleRef={connection.peopleRef} you={you} />}
         {/* And a mala for counting: see MalaStand.tsx. */}
-        {connection.meditation?.shown && on("Mala") && <Near at={MALA_AT}><MalaStand /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Mala") && <Near at={MALA_AT}><MalaStand /></Near>}
         {/* And a harp you walk across: see FloorHarp.tsx. */}
-        {connection.meditation?.shown && on("Floor harp") && <FloorHarp peopleRef={connection.peopleRef} you={you} />}
+        {!surrounded && connection.meditation?.shown && on("Floor harp") && <FloorHarp peopleRef={connection.peopleRef} you={you} />}
         {/* And tonight's moon, crossing slowly: see Moon.tsx. */}
-        {connection.meditation?.shown && on("Moon") && <Moon />}
+        {!surrounded && connection.meditation?.shown && on("Moon") && <Moon />}
         {/* And cushions to sit on, and who is sitting: see SittingPlaces.tsx. */}
-        {connection.meditation?.shown && <SittingPlaces peopleRef={connection.peopleRef} />}
+        {!surrounded && connection.meditation?.shown && <SittingPlaces peopleRef={connection.peopleRef} />}
         {/* And a sound bath for the whole room, begun by the gong: see SoundBath.tsx. */}
-        {connection.meditation?.shown && on("Sound bath") && <SoundBath />}
+        {!surrounded && connection.meditation?.shown && on("Sound bath") && <SoundBath />}
         {/* And an hourglass by the cushions: see shared/hourglass.ts. */}
-        {connection.meditation?.shown && on("Hourglass") && <Near at={HOURGLASS_AT}><HourglassStand /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Hourglass") && <Near at={HOURGLASS_AT}><HourglassStand /></Near>}
         {/* And paper boats on the koi pond: see shared/boats.ts. */}
-        {connection.meditation?.shown && on("Paper boats") && <Near at={POND_AT}><PaperBoats /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Paper boats") && <Near at={POND_AT}><PaperBoats /></Near>}
         {/* And blossom petals drifting over the garden: see PetalDrift.tsx. */}
-        {connection.meditation?.shown && on("Petals") && <Near at={PETALS_AT} within={9}><PetalDrift /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Petals") && <Near at={PETALS_AT} within={9}><PetalDrift /></Near>}
         {/* And Inkstone's offering light, for two: see OfferingLight.tsx. */}
-        {connection.meditation?.shown && on("Offering light") && <Near at={OFFERING_AT}><OfferingLight peopleRef={connection.peopleRef} you={you} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Offering light") && <Near at={OFFERING_AT}><OfferingLight peopleRef={connection.peopleRef} you={you} /></Near>}
         {/* And a cairn the room builds stone by stone: see shared/cairn.ts. */}
-        {connection.meditation?.shown && on("Cairn") && <Near at={CAIRN_AT}><CairnStones /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Cairn") && <Near at={CAIRN_AT}><CairnStones /></Near>}
         {/* And a shore where small waves come in: see Shore.tsx. */}
         {/* A thousand paper cranes, folded together over days: see PaperCranes.tsx. */}
-        {connection.meditation?.shown && on("Paper cranes") && <Near at={CRANES_AT}><PaperCranes /></Near>}
-        {connection.meditation?.shown && on("Fog mirror") && <Near at={FOG_AT} within={4}><FogMirror /></Near>}
-        {connection.meditation?.shown && on("Still flower") && <Near at={STILL_AT} within={5}><StillFlower /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Paper cranes") && <Near at={CRANES_AT}><PaperCranes /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Fog mirror") && <Near at={FOG_AT} within={4}><FogMirror /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Still flower") && <Near at={STILL_AT} within={5}><StillFlower /></Near>}
         {/* Never behind Near: it listens to the whole room, and you should hear it anywhere. */}
         {/* The silk behind the orb, breathing with the session: see BreathingSilk.tsx. */}
-        {connection.meditation?.shown && on("Breathing silk") && <Near at={SILK_AT} within={9}><BreathingSilk meditation={connection.meditation} /></Near>}
-        {connection.meditation?.shown && on("Silence bell") && <SilenceBell peopleRef={connection.peopleRef} you={you} />}
+        {!surrounded && connection.meditation?.shown && on("Breathing silk") && <Near at={SILK_AT} within={9}><BreathingSilk meditation={connection.meditation} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Silence bell") && <SilenceBell peopleRef={connection.peopleRef} you={you} />}
         {/* The shore corner, all behind one Near (Sill's draw-call count, 5644):
             hidden from the arrival point and anywhere more than 5.5 m away. */}
-        {connection.meditation?.shown && (
+        {!surrounded && connection.meditation?.shown && (
           <Near at={SHORE_CORNER} within={5.5}>
             {on("Shore") && <Shore you={you} />}
             {on("Tide pool") && <TidePool />}
@@ -1033,17 +1043,17 @@ export default function Scene({
           </Near>
         )}
         {/* And a nebula to put your hands in: see Nebula.tsx. */}
-        {connection.meditation?.shown && on("Nebula") && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} /></Near>}
-        {connection.meditation?.shown && on("Stillness tree") && <Near at={floorOf(TREE_AT)}><StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} /></Near>}
-        {connection.meditation?.shown && on("Reading stone") && <Near at={floorOf(READING_AT)}><ReadingStone /></Near>}
-        {connection.meditation?.shown && on("Candle shelf") && <Near at={floorOf(SHELF_AT)}><CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} /></Near>}
-        {connection.meditation?.shown && on("Room's book") && <Near at={floorOf(BOOK_AT)}><RoomBook history={connection.meditation.history} /></Near>}
-        {connection.meditation?.shown && <MindfulnessBell meditation={connection.meditation} />}
-        {connection.meditation?.shown && on("Labyrinth") && <Near at={LABYRINTH} within={9}><Labyrinth /></Near>}
-        {connection.meditation?.shown && on("Tea table") && <Near at={floorOf(TEA_AT)}><TeaTable /></Near>}
-        {connection.meditation?.shown && <RoomGuideSign hidden={hiddenPieces.hidden} />}
+        {!surrounded && connection.meditation?.shown && on("Nebula") && <Near at={NEBULA_AT} within={9}><Nebula peopleRef={connection.peopleRef} you={you} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Stillness tree") && <Near at={floorOf(TREE_AT)}><StillnessTree minutes={connection.meditation.breathedMinutes} fed={connection.meditation.treeColours} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Reading stone") && <Near at={floorOf(READING_AT)}><ReadingStone /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Candle shelf") && <Near at={floorOf(SHELF_AT)}><CandleShelf meditation={connection.meditation} onMeditation={connection.setMeditation} /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Room's book") && <Near at={floorOf(BOOK_AT)}><RoomBook history={connection.meditation.history} /></Near>}
+        {!surrounded && connection.meditation?.shown && <MindfulnessBell meditation={connection.meditation} />}
+        {!surrounded && connection.meditation?.shown && on("Labyrinth") && <Near at={LABYRINTH} within={9}><Labyrinth /></Near>}
+        {!surrounded && connection.meditation?.shown && on("Tea table") && <Near at={floorOf(TEA_AT)}><TeaTable /></Near>}
+        {!surrounded && connection.meditation?.shown && <RoomGuideSign hidden={hiddenPieces.hidden} />}
         {/* Optional practices: drafts stay local; shared cards require confirmation. */}
-        {connection.meditation?.shown && on("Practice panel") && <MindfulnessPanel subscribe={connection.subscribe} />}
+        {!surrounded && connection.meditation?.shown && on("Practice panel") && <MindfulnessPanel subscribe={connection.subscribe} />}
         <RoomItems items={connection.roomItems} reducedMotion={reducedMotion} you={you} peopleRef={connection.peopleRef} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
         <Immersive
           avatarRecorder={avatarRecorder}
@@ -1072,4 +1082,19 @@ export default function Scene({
       </XR>
     </Canvas>
   );
+}
+
+/**
+ * THE CAMERA SEES AS FAR AS THE WORLD GOES. The room ends within 60 m; an
+ * environment's sky need not (Mica's sits at 80 m). In a headset three takes
+ * the session's depth range from this camera too.
+ */
+function FarEnough({ surrounded }: { surrounded: boolean }) {
+  const camera = useThree((state) => state.camera);
+  useEffect(() => {
+    const view = camera as THREE.PerspectiveCamera;
+    view.far = surrounded ? 2000 : 60;
+    view.updateProjectionMatrix();
+  }, [camera, surrounded]);
+  return null;
 }

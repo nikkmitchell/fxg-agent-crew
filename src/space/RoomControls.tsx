@@ -1,3 +1,4 @@
+import { useLibrary } from "./modules/use-library";
 import type { Meditation } from "../../shared/meditation";
 import { agentsHiddenIn, setAgentsHidden, setAgentsHiddenForEveryone, setCurrentRoomForAgents, useAgentsHidden, useAgentsHiddenForEveryone } from "./agents-hidden";
 import { holdAloud } from "./said-aloud";
@@ -1060,6 +1061,19 @@ export function RoomControls({
   const [upVisible, setUpVisible] = useState(false);
   // Which room the scene should hide agents in, if you asked it to.
   useEffect(() => setCurrentRoomForAgents(currentRoom), [currentRoom]);
+  // THE LIBRARY tab (src/space/modules): things from spaces' git, brought in in front of you.
+  const library = useLibrary({
+    enabled: true,
+    roomSpace: currentRoom ? currentRoom.toLowerCase() : null,
+    roomItems,
+    // The room's socket brings the change to everyone, this headset included.
+    applyRoomItem: () => undefined,
+    removeRoomItem: () => undefined,
+    inFront: () => {
+      const me = anchor();
+      return me ? { x: me.at.x - Math.sin(me.yaw) * 1.3, y: 0, z: me.at.z - Math.cos(me.yaw) * 1.3, rotationY: me.yaw } : null;
+    },
+  });
   // Re-read on every change to the store; the personal row shows only YOUR choice.
   useAgentsHidden();
   const agentsHiddenForEveryone = useAgentsHiddenForEveryone();
@@ -1253,6 +1267,7 @@ export function RoomControls({
   const sections = !open ? [] : settingsSections({
     view,
     goTo: setView,
+    library,
     voice: {
       on: voice.on,
       starting: voice.starting,

@@ -81,6 +81,14 @@ export const bff = {
   publicSpaces: (signal?: AbortSignal) =>
     requestJson<{ spaces: { name: string; title: string; sitePath: string; here: number }[] }>(`${bffRoot}/spaces/public`, { signal }),
 
+  /** Every space you can bring things from: your rooms' spaces first, then the public ones. */
+  spaceLibrary: (signal?: AbortSignal) =>
+    requestJson<{ spaces: SpaceShelf[] }>(`${bffRoot}/spaces/library`, { signal }),
+
+  /** The items, environments and spaces a branch of a space offers (its followed branch unless named). */
+  spaceModules: (name: string, branch?: string, signal?: AbortSignal) =>
+    requestJson<SpaceModules>(`${bffRoot}/spaces/${encodeURIComponent(name)}/modules${branch ? `?branch=${encodeURIComponent(branch)}` : ""}`, { signal }),
+
   /** A ticket into a space as yourself; open `path` to arrive with it. */
   spaceTicket: (name: string) =>
     requestJson<{ ticket: string; path: string }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/ticket`, { method: "POST" }),
@@ -150,4 +158,20 @@ export type SpaceDetail = {
   space: SpaceListing;
   branches: { branch: string; head: string | null; sitePath: string; live: DeployRecord | null }[];
   deploys: DeployRecord[];
+};
+
+/** A space the library offers things from (GET /bff/spaces/library). */
+export type SpaceShelf = { name: string; title: string; public: boolean; mine: boolean; branch: string };
+
+/** One thing a space offers to bring into a room. */
+export type SpaceModule = { id: string; name: string; kind: "item" | "environment" | "space"; export: string | null; url: string };
+
+/** What one branch of a space offers (GET /bff/spaces/:space/modules). */
+export type SpaceModules = {
+  space: string;
+  branch: string;
+  branches: string[];
+  deploy: { id: string; commit: string; message: string; pushedBy: string; createdAt: string } | null;
+  modules: SpaceModule[];
+  problems: string[];
 };

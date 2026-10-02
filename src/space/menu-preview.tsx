@@ -128,6 +128,7 @@ function Preview() {
   const sections = settingsSections({
     view,
     goTo: setView,
+    library: null,
     voice: {
       on: voiceOn,
       starting: false,

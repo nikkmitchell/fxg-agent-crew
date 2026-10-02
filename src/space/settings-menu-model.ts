@@ -1,5 +1,6 @@
 import type { RoomMenuRow } from "../../shared/room-switch";
 import type { MenuRow, MenuSection, MenuTab } from "./menu-layout";
+import { describeInRoom, type Library } from "./modules/use-library";
 
 /**
  * WHAT EACH SETTINGS TAB SHOWS, as sections of rows — decided here, without a
@@ -19,13 +20,14 @@ import type { MenuRow, MenuSection, MenuTab } from "./menu-layout";
  * the breathing orb are activities; the boards are the work.
  */
 
-export type SettingsView = "root" | "work" | "mood" | "panels" | "items" | "rooms" | "agents";
-export type SettingsTabId = "me" | "rooms" | "items" | "show" | "agents";
+export type SettingsView = "root" | "work" | "mood" | "panels" | "items" | "rooms" | "agents" | "library";
+export type SettingsTabId = "me" | "rooms" | "items" | "library" | "show" | "agents";
 
 export const SETTINGS_TABS: readonly (MenuTab & { id: SettingsTabId; view: SettingsView })[] = [
   { id: "me", label: "Me", view: "root" },
   { id: "rooms", label: "Rooms", view: "rooms" },
   { id: "items", label: "Activity items", view: "items" },
+  { id: "library", label: "Library", view: "library" },
   { id: "show", label: "Work items", view: "panels" },
   { id: "agents", label: "Agents", view: "agents" },
 ];
@@ -121,6 +123,9 @@ export type SettingsMenuInput = {
   goRoom: (room: string, join: boolean) => void;
   toLobby: () => void;
 
+  // LIBRARY: things from spaces' git (src/space/modules/use-library.ts)
+  library: Library | null;
+
   // ACTIVITY ITEMS
   goTables: readonly { size: number; players: number }[];
   orbHere: boolean;
@@ -167,6 +172,8 @@ export function tabOfView(view: SettingsView): SettingsTabId {
       return "rooms";
     case "items":
       return "items";
+    case "library":
+      return "library";
     case "panels":
     case "work":
     case "mood":
@@ -323,6 +330,62 @@ function activitySections(s: SettingsMenuInput): MenuSection[] {
   ];
 }
 
+/**
+ * THE LIBRARY, in the headset (the window has the same in its sidebar,
+ * LibrarySection.tsx): the spaces you can bring things from, what the open
+ * one offers, and what this room has brought in.
+ */
+function librarySections(s: SettingsMenuInput): MenuSection[] {
+  const library = s.library;
+  if (!library) return [{ title: "Library", rows: [note("The library is not available here.")] }];
+  const sections: MenuSection[] = [];
+  if (library.inRoom.length) {
+    sections.push({
+      title: "In this room",
+      wide: true,
+      rows: library.inRoom.map((item) => ({
+        kind: "buttons" as const,
+        label: describeInRoom(item),
+        buttons: [
+          ...(item.role === "space" ? [{ label: item.view === "full" ? "Model" : "Full size", onTap: () => library.setView(item, item.view === "full" ? "placed" : "full") }] : []),
+          { label: "Take away", onTap: () => library.remove(item) },
+        ],
+      })),
+    });
+  }
+  const open = library.open;
+  if (!open) {
+    sections.push({
+      title: "Spaces",
+      rows: library.spaces === null
+        ? [note("Looking…")]
+        : library.spaces.length === 0
+          ? [note("No spaces yet. Make one on the Spaces page.")]
+          : library.spaces.map((shelf) => ({ kind: "link" as const, label: shelf.title, value: shelf.mine ? "yours" : "public", onTap: () => library.openSpace(shelf.name) })),
+    });
+  } else {
+    const listing = open.listing;
+    const head: MenuRow[] = [{ kind: "link", label: "‹ All spaces", onTap: () => library.openSpace(null) }];
+    if (listing && listing.branches.length > 1) {
+      for (const branch of listing.branches) head.push({ kind: "choice", label: `Branch: ${branch}`, selected: branch === listing.branch, onTap: () => library.openSpace(listing.space, branch) });
+    }
+    if (!listing) head.push(note("Looking…"));
+    else if (!listing.deploy) head.push(note("Nothing is live on this branch yet."));
+    else if (!listing.modules.length) head.push(note("Nothing to bring in yet: list items, environments and spaces in saha-pieces.json."));
+    sections.push({ title: open.name, rows: head });
+    if (listing) {
+      const items = listing.modules.filter((module) => module.kind === "item");
+      const environments = listing.modules.filter((module) => module.kind === "environment");
+      const spaces = listing.modules.filter((module) => module.kind === "space");
+      if (items.length) sections.push({ title: "Items", rows: items.map((module) => ({ kind: "action" as const, label: module.name, tone: "accent" as const, value: "Bring in", onTap: () => library.bring(module) })) });
+      if (environments.length) sections.push({ title: "Environments", rows: environments.map((module) => ({ kind: "action" as const, label: module.name, tone: "accent" as const, value: "Surround the room", onTap: () => library.bring(module) })) });
+      if (spaces.length) sections.push({ title: "Spaces", wide: true, rows: spaces.map((module) => ({ kind: "buttons" as const, label: module.name, buttons: [{ label: "Model", onTap: () => library.bring(module, "placed") }, { label: "Full size", onTap: () => library.bring(module, "full") }] })) });
+    }
+  }
+  if (library.notice) sections.push({ title: "", rows: [note(library.notice)] });
+  return sections;
+}
+
 function workSections(s: SettingsMenuInput): MenuSection[] {
   const showing = s.showing;
   const showRows: MenuRow[] = [
@@ -430,6 +493,8 @@ export function settingsSections(s: SettingsMenuInput): MenuSection[] {
       return roomSections(s);
     case "items":
       return activitySections(s);
+    case "library":
+      return librarySections(s);
     case "panels":
       return workSections(s);
     case "work":

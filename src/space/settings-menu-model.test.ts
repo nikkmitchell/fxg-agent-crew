@@ -9,6 +9,7 @@ function input(view: SettingsView, extra: Partial<SettingsMenuInput> = {}): Sett
   return {
     view,
     goTo: noop,
+    library: null,
     voice: { on: true, starting: false, others: ["baiwei2"], isMuted: () => false, setOn: noop, setMuted: noop },
     voiceExtra: [],
     hearReplies: true,
@@ -58,8 +59,8 @@ const titles = (sections: MenuSection[]) => sections.map((section) => section.ti
 const labels = (sections: MenuSection[]) => sections.flatMap((section) => section.rows.map((row: MenuRow) => row.label));
 
 describe("what each settings tab holds", () => {
-  it("has the five tabs Nikk named, in one row, with activity and work the right way round (5445)", () => {
-    expect(SETTINGS_TABS.map((tab) => tab.label)).toEqual(["Me", "Rooms", "Activity items", "Work items", "Agents"]);
+  it("has Nikk's five tabs and the Library, in one row, with activity and work the right way round (5445)", () => {
+    expect(SETTINGS_TABS.map((tab) => tab.label)).toEqual(["Me", "Rooms", "Activity items", "Library", "Work items", "Agents"]);
     expect(labels(settingsSections(input("items")))).toContain("Add a Go table");
     expect(labels(settingsSections(input("items")))).toContain("Breathing orb");
     expect(labels(settingsSections(input("panels")))).toContain("Work board");
@@ -167,5 +168,40 @@ describe("what each settings tab holds", () => {
     saha.onTap();
     expect(choose).toHaveBeenCalledWith("p", null);
     expect(goTo).toHaveBeenCalledWith("panels");
+  });
+});
+
+describe("the Library tab (Nikk, 2026-10-01: things from spaces' git, brought into the room)", () => {
+  const module = (id: string, kind: "item" | "environment" | "space") => ({ id, name: id, kind, export: null, url: `/s/x/~d/${id}.js` });
+  const library = (extra: Record<string, unknown> = {}) => ({
+    spaces: [{ name: "xr.instruments", title: "XR Instruments", public: true, mine: true, branch: "main" }],
+    open: null,
+    inRoom: [],
+    notice: null,
+    busy: false,
+    refresh: noop,
+    openSpace: vi.fn(),
+    bring: vi.fn(),
+    setView: vi.fn(),
+    remove: vi.fn(),
+    ...extra,
+  });
+
+  it("lists the spaces to open, then what the open one offers, by kind", () => {
+    const shelf = library();
+    const closed = settingsSections(input("library", { library: shelf as never }));
+    expect(labels(closed)).toContain("XR Instruments");
+    const listing = { space: "xr.instruments", branch: "main", branches: ["main"], deploy: { id: "d", commit: "abcdef0", message: "m", pushedBy: "Sill", createdAt: "" }, modules: [module("drums", "item"), module("forest", "environment"), module("grove", "space")], problems: [] };
+    const open = settingsSections(input("library", { library: library({ open: { name: "xr.instruments", listing } }) as never }));
+    expect(open.map((section) => section.title)).toEqual(["xr.instruments", "Items", "Environments", "Spaces"]);
+  });
+
+  it("says what is in the room, and offers model or full size for a space", () => {
+    const grove = { id: "g", kind: "module", revision: 0, source: { space: "xr.instruments", branch: "main", entry: "grove" }, name: "Grove", role: "space", view: "placed", position: { x: 0, y: 0, z: 0, rotationY: 0 }, scale: 0.05, addedBy: "Nikk2" };
+    const sections = settingsSections(input("library", { library: library({ inRoom: [grove] }) as never }));
+    const row = sections[0].rows[0] as { kind: string; label: string; buttons: { label: string }[] };
+    expect(sections[0].title).toBe("In this room");
+    expect(row.label).toContain("Grove · space, as a model");
+    expect(row.buttons.map((button) => button.label)).toEqual(["Full size", "Take away"]);
   });
 });
