@@ -86,13 +86,15 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     const room = spaceRoomOf(session); const item = options.items.add(room, session.username); publish(room, session.username); return reply.code(201).send({ item });
   });
 
-  /** What a thing from a space has decided so far, for a copy that is starting. */
+  /** What a thing from a space (or a part of one: <item>/<key>) has decided so far, for a copy that is starting. */
   app.get<{ Params: { id: string } }>("/bff/space/items/:id/state", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session);
-    const item = options.items.one(room, request.params.id);
+    const id = request.params.id;
+    if (!/^[A-Za-z0-9-]{1,64}(\/[a-z0-9][a-z0-9_-]{0,31}){0,3}$/.test(id)) return reply.code(400).send({ error: "not a thing's id" });
+    const item = options.items.one(room, id.split("/")[0]);
     if (!item || item.kind !== "module") return reply.code(404).send({ error: "no such thing from a space in this room" });
-    return reply.header("cache-control", "no-store").send({ state: options.moduleStates?.get(room, item.id) ?? {} });
+    return reply.header("cache-control", "no-store").send({ state: options.moduleStates?.get(room, id) ?? {} });
   });
 
   /** A position as the routes accept it: within the room, and within one turn. */

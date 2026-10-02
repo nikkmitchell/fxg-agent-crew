@@ -10,11 +10,14 @@ import { WristButton } from "../Backdrop";
 import { moduleRoom } from "./module-room";
 import { runModule, type ModuleMode, type RunningModule } from "./run-module";
 import { useCarry } from "./use-carry";
+import { ThingInstance } from "../../engine/instance";
+import { createRoomEngine, type RoomEngine } from "./room-engine";
 
 /**
  * THINGS FROM SPACES, LIVE IN THE ROOM (shared/room-items.ts, ModuleRoomItem;
- * Nikk, 2026-10-01). Each is a module from a space's git, run right here
- * (run-module.ts) in its own group: an item where it was put, an environment
+ * Nikk, 2026-10-01). Each is a module from a space's git, run right here in
+ * its own group, on the contract (src/engine, docs/things/DESIGN.md) or, for
+ * a module that is not a thing yet, the older way (run-module.ts): an item where it was put, an environment
  * or a full-size space around the room, a space as a model on the table. A
  * push to its branch reloads it for everyone (spaceDeployed).
  *
@@ -141,18 +144,54 @@ function usePressRouter(running: Map<string, RunningModule>, you: { id: string; 
   }, [gl, pressAlong]);
 }
 
-export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved }: {
+export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, reducedMotion = false, people }: {
   items: ModuleRoomItem[];
   you: string | null;
   send: (message: ClientMessage) => void;
   subscribe: (listener: (message: ServerMessage) => void) => () => void;
   onItem: (item: RoomItem) => void;
   onRemoved: (id: string) => void;
+  reducedMotion?: boolean;
+  people?: () => readonly { id: string; name: string; me: boolean; agent: boolean }[];
 }) {
   const sources = useModuleSources(items, subscribe);
   const running = useMemo(() => new Map<string, RunningModule>(), []);
-  const person = useMemo(() => (you ? { id: you, name: you } : null), [you]);
+  const person = useMemo(() => (you ? { id: you, name: you, me: true, agent: false } : null), [you]);
+  const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
+  const get = useThree((state) => state.get);
+  const invalidate = useThree((state) => state.invalidate);
+  const personRef = useRef(person);
+  personRef.current = person;
+  const peopleRef = useRef(people);
+  peopleRef.current = people;
+  // The room socket's send is a new function every render; things must not restart with it.
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const stableSend = useCallback((message: ClientMessage) => sendRef.current(message), []);
+  // ONE ENGINE FOR THE ROOM (src/engine): things on the contract run here; anything else, the older way.
+  const room = useMemo(() => createRoomEngine({
+    scene,
+    camera: () => get().camera,
+    gl,
+    invalidate,
+    occluders: () => get().internal.interaction,
+    me: () => personRef.current,
+    people: () => peopleRef.current?.() ?? (personRef.current ? [personRef.current] : []),
+    send: stableSend,
+    subscribe,
+    reducedMotion,
+  }), [scene, get, gl, invalidate, stableSend, subscribe, reducedMotion]);
+  useEffect(() => () => room.dispose(), [room]);
+  const driven = useMemo(() => new Map<string, { frame(dt: number, t: number): void }>(), []);
   usePressRouter(running, person);
+  useFrame((state, delta, frame) => {
+    // Where the hands are first, then every thing, a space before its parts.
+    const origin = gl.xr.isPresenting ? gl.xr.getCamera().parent : null;
+    room.engine.frame({ frame: frame as XRFrame | undefined, referenceSpace: gl.xr.isPresenting ? gl.xr.getReferenceSpace() : null, origin });
+    const dt = Math.min(delta, 0.1);
+    for (const one of driven.values()) one.frame(dt, state.clock.elapsedTime);
+  });
   return (
     <>
       {items.map((item) => {
@@ -166,9 +205,11 @@ export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved }: 
             entry={entry}
             missing={missing}
             you={person}
-            send={send}
+            send={stableSend}
             subscribe={subscribe}
             running={running}
+            room={room}
+            driven={driven}
             onItem={onItem}
             onRemoved={onRemoved}
           />
@@ -178,7 +219,15 @@ export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved }: 
   );
 }
 
-function ModuleThing({ item, entry, missing, you, send, subscribe, running, onItem, onRemoved }: {
+const describeError = (error: unknown) => (error instanceof Error ? `${error.name}: ${error.message}` : String(error));
+
+/** A space as a model: as many world metres per local metre as fit it on its plinth (about 1.2 m across). */
+function modelFit(size: readonly number[] | undefined): number {
+  const [width, , depth] = size ?? [20, 6, 20];
+  return Math.min(1, 1.2 / Math.max(width, depth, 0.01));
+}
+
+function ModuleThing({ item, entry, missing, you, send, subscribe, running, room, driven, onItem, onRemoved }: {
   item: ModuleRoomItem;
   entry: SpaceModule | null;
   missing: string | null;
@@ -186,68 +235,103 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, onIt
   send: (message: ClientMessage) => void;
   subscribe: (listener: (message: ServerMessage) => void) => () => void;
   running: Map<string, RunningModule>;
+  room: RoomEngine;
+  driven: Map<string, { frame(dt: number, t: number): void }>;
   onItem: (item: RoomItem) => void;
   onRemoved: (id: string) => void;
 }) {
   const place = useRef<THREE.Group>(null);
-  const root = useRef<THREE.Group>(null);
+  const scaled = useRef<THREE.Group>(null);
   const world = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   const invalidate = useThree((state) => state.invalidate);
   const [problem, setProblem] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  /** How wide a model's plinth is: the model's own footprint, measured once it has built itself. */
-  const [footprint, setFootprint] = useState(0.5);
+  /** A thing on the contract says its size: a model is fitted to its plinth from it. */
+  const [size, setSize] = useState<readonly number[] | null>(null);
   const full = item.view === "full";
   const mode: ModuleMode = full ? "full" : item.role === "space" ? "model" : "item";
   const url = entry ? new URL(entry.url, window.location.origin).href : null;
   const exportName = entry?.export ?? null;
+  // World metres per local metre: a model is fitted, then made bigger or smaller from there.
+  const scale = full ? 1 : mode === "model" && size ? modelFit(size) * (item.scale / MODULE_SCALE.model) : item.scale;
+  const current = useRef<ThingInstance | null>(null);
+
+  useEffect(() => room.onProblem(item.id, setProblem), [room, item.id]);
 
   useEffect(() => {
-    if (!url || !root.current) return;
-    const group = root.current;
+    const group = scaled.current;
+    if (!url || !group) return;
     let alive = true;
-    let mine: RunningModule | null = null;
-    let room: ReturnType<typeof moduleRoom> | null = null;
-    setProblem(null);
-    void space.moduleState(item.id)
-      .catch(() => ({ state: {} as Record<string, unknown> }))
-      .then(({ state }) => {
-        if (!alive) return null;
-        room = moduleRoom({ item: item.id, you, send, subscribe, state });
-        return runModule({ url, exportName, id: item.id, mode, root: group, world, camera, renderer: gl, room, scale: full ? 1 : item.scale, onProblem: setProblem });
-      })
-      .then((started) => {
-        if (!started) return;
+    let legacy: RunningModule | null = null;
+    let legacyRoom: ReturnType<typeof moduleRoom> | null = null;
+    room.know(url, { space: item.source.space, branch: item.source.branch });
+    void (async () => {
+      let loaded;
+      try {
+        loaded = await room.engine.load(url);
+      } catch (error) {
+        if (alive) setProblem(`Could not load: ${describeError(error)}`);
+        return;
+      }
+      if (!alive) return;
+      if ("def" in loaded) {
+        // ON THE CONTRACT (src/engine). The version that is running keeps running until the next one has started.
+        const def = loaded.def;
+        if (mode === "model" && !size) {
+          setSize(def.size ?? [20, 6, 20]);
+          return; // the scale changes, and this runs again with it
+        }
+        const next = new ThingInstance(room.engine, { id: item.id, url, def, mode, scale, parent: group, surround: full, hot: current.current?.save() });
+        const ok = await next.start();
         if (!alive) {
-          started.dispose();
+          next.dispose();
           return;
         }
-        mine = started;
-        running.set(item.id, started);
-        invalidate();
-        // A model stands on a plinth as wide as it is (in the room's metres).
-        if (mode === "model") {
-          setTimeout(() => {
-            if (!alive) return;
-            const box = new THREE.Box3().setFromObject(group);
-            if (box.isEmpty()) return;
-            const size = box.getSize(new THREE.Vector3());
-            setFootprint(Math.min(1.5, Math.max(0.25, Math.max(size.x, size.z) / 2 + 0.05)));
-          }, 600);
+        if (!ok) {
+          next.dispose();
+          return;
         }
-      });
+        current.current?.dispose();
+        current.current = next;
+        driven.set(item.id, next);
+        setProblem(null);
+        return;
+      }
+      // THE OLDER WAY: a module that is not a thing (run-module.ts), kept working.
+      current.current?.dispose();
+      current.current = null;
+      const state = await space.moduleState(item.id).then((answer) => answer.state).catch(() => ({}));
+      if (!alive) return;
+      legacyRoom = moduleRoom({ item: item.id, you, send, subscribe, state });
+      legacy = await runModule({ url, exportName, id: item.id, mode, root: group, world, camera, renderer: gl, room: legacyRoom, scale, onProblem: setProblem, importModule: async () => loaded.module });
+      if (!alive) {
+        legacy.dispose();
+        return;
+      }
+      running.set(item.id, legacy);
+      driven.set(item.id, { frame: (dt, t) => legacy?.update(dt, t) });
+      invalidate();
+    })();
     return () => {
       alive = false;
-      running.delete(item.id);
-      mine?.dispose();
-      room?.close();
+      if (legacy) {
+        running.delete(item.id);
+        driven.delete(item.id);
+        legacy.dispose();
+      }
+      legacyRoom?.close();
     };
-    // A new deploy is a new url: the thing reloads, for everyone at once.
-  }, [url, exportName, item.id, mode, world, camera, gl, running, invalidate, you, send, subscribe, full, item.scale]);
+    // A new deploy is a new url: the thing swaps to it, for everyone at once.
+  }, [url, exportName, item.id, item.source.space, item.source.branch, mode, scale, size, full, world, camera, gl, running, invalidate, you, send, subscribe, room, driven]);
 
-  useFrame((state, delta) => running.get(item.id)?.update(Math.min(delta, 0.1), state.clock.elapsedTime));
+  // Taken out of the room: the thing on the contract goes with it.
+  useEffect(() => () => {
+    current.current?.dispose();
+    current.current = null;
+    driven.delete(item.id);
+  }, [item.id, driven]);
 
   const save = useCallback(
     (change: { position?: { x: number; y: number; z: number; rotationY: number }; scale?: number }) =>
@@ -266,11 +350,11 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, onIt
 
   const at = full ? { x: 0, y: 0, z: 0, rotationY: 0 } : item.position;
   const words = missing ?? problem ?? notice;
+  // A model's plinth: its footprint in the room, from its size, and never smaller than a hand.
+  const footprint = Math.min(1.5, Math.max(0.25, ((size ? Math.max(size[0], size[2]) : 12) / 2) * scale + 0.05));
   return (
     <group ref={place} position={[at.x, at.y, at.z]} rotation={[0, at.rotationY, 0]}>
-      <group scale={full ? 1 : item.scale}>
-        <group ref={root} name={`thing ${item.source.space}/${item.source.entry}`} />
-      </group>
+      <group ref={scaled} scale={scale} name={`thing ${item.source.space}/${item.source.entry}`} />
       {/* A SPACE AS A MODEL stands on a plinth, like an architect's model on its table. */}
       {mode === "model" ? (
         <mesh position={[0, -at.y / 2 - 0.005, 0]} raycast={noRaycast}>
@@ -279,7 +363,7 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, onIt
         </mesh>
       ) : null}
       {words ? (
-        <Text position={[0, 1.4, 0]} fontSize={0.05} color={missing || problem ? "#f0a0a0" : "#e9edf2"} maxWidth={1.4} textAlign="center" anchorY="bottom" raycast={noRaycast}>
+        <Text position={[0, mode === "model" ? 0.5 : 1.4, 0]} fontSize={0.05} color={missing || problem ? "#f0a0a0" : "#e9edf2"} maxWidth={1.4} textAlign="center" anchorY="bottom" raycast={noRaycast}>
           {`${item.name}: ${words}`}
         </Text>
       ) : null}

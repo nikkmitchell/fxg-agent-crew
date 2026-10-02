@@ -95,3 +95,17 @@ describe("avatar controls on the wire", () => {
     expect(parseClientMessage(JSON.stringify({ type: "avatar", gesture: 7 }))).toBeNull();
   });
 });
+
+describe("what a thing from a space may send its copies (moduleEvent, moduleState)", () => {
+  const read = (message: Record<string, unknown>) => parseClientMessage(JSON.stringify(message));
+  it("names an item, or a part of a space up to three deep", () => {
+    expect(read({ type: "moduleEvent", item: "a1b2", name: "hit", data: { d: 1 } })).toEqual({ type: "moduleEvent", item: "a1b2", name: "hit", data: { d: 1 } });
+    expect(read({ type: "moduleState", item: "a1b2/drums", key: "tuning", value: 2 })).toMatchObject({ item: "a1b2/drums" });
+    expect(read({ type: "moduleState", item: "a1b2/stage/band/drums", key: "k", value: 1 })).not.toBeNull();
+    for (const item of ["a1b2/a/b/c/d", "a1b2/../x", "a1b2//x", "a1b2/Drums", "../x"]) expect(read({ type: "moduleState", item, key: "k", value: 1 })).toBeNull();
+  });
+  it("keeps names and values small", () => {
+    expect(read({ type: "moduleEvent", item: "a", name: "bad name", data: 1 })).toBeNull();
+    expect(read({ type: "moduleState", item: "a", key: "k", value: "x".repeat(5000) })).toBeNull();
+  });
+});

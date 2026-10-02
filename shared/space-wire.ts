@@ -543,7 +543,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   }
   if (message.type === "moduleEvent" || message.type === "moduleState") {
     const name = message.type === "moduleEvent" ? message.name : message.key;
-    if (typeof message.item !== "string" || !/^[A-Za-z0-9-]{1,64}$/.test(message.item)) return null;
+    // An item, or a part of a space: <item>/<key>, up to three deep (docs/things/DESIGN.md).
+    if (typeof message.item !== "string" || !/^[A-Za-z0-9-]{1,64}(\/[a-z0-9][a-z0-9_-]{0,31}){0,3}$/.test(message.item)) return null;
     if (typeof name !== "string" || !MODULE_KEY.test(name)) return null;
     const payload = message.type === "moduleEvent" ? message.data : message.value;
     let encoded: string;

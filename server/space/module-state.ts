@@ -38,8 +38,10 @@ export class ModuleStates {
     return true;
   }
 
-  /** An item left the room: its values go with it. */
+  /** An item left the room: its values go with it, and its parts' (<item>/<key>). */
   forget(room: string, item: string): void {
-    this.rooms.get(roomKey(room))?.delete(item);
+    const items = this.rooms.get(roomKey(room));
+    if (!items) return;
+    for (const key of [...items.keys()]) if (key === item || key.startsWith(`${item}/`)) items.delete(key);
   }
 }

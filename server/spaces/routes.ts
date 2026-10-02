@@ -17,6 +17,7 @@ import {
 } from "../../shared/spaces.js";
 import type { Session } from "../session.js";
 import { doorTitle, goTarget, spaceEntryPath } from "../../shared/space-kit.js";
+import { sahaSdkSource } from "./saha-sdk.js";
 import { threeBridgeSource } from "./three-bridge.js";
 import { catalogueOf, isModuleKind, KIT_PIECES, moduleUrl, pieceUrl, type ModuleKind } from "../../shared/space-bench.js";
 import { iceServersFrom } from "../space/ice.js";
@@ -872,6 +873,11 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   // /kit/three/three.core.js and /kit/three/addons/<path> (three/examples/jsm).
   // three exports no package.json; its main entry is build/three.cjs, so the
   // package is two levels up from that.
+  // "saha": what a thing imports to define itself (saha-sdk.ts).
+  const sdk = sahaSdkSource();
+  app.get("/kit/saha-sdk.js", async (_request, reply) =>
+    reply.type("text/javascript; charset=utf-8").header("cache-control", "public, max-age=300").header("access-control-allow-origin", "*").send(sdk));
+
   // The room's own three.js, for modules loaded into the room (three-bridge.ts).
   const bridge = threeBridgeSource();
   app.get("/kit/three-bridge.js", async (_request, reply) =>

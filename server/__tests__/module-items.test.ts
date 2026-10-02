@@ -136,4 +136,27 @@ describe("what things from spaces keep", () => {
     expect(states.set("saha.ing", "b", "big", "x".repeat(300 * 1024))).toBe(false);
     expect(states.get("lobby", "a")).toEqual({});
   });
+
+  it("forgets a space's parts with it (<item>/<key>), and no other item's", () => {
+    const states = new ModuleStates();
+    states.set("saha.ing", "space-1", "scene", "concert");
+    states.set("saha.ing", "space-1/drums", "tuning", 2);
+    states.set("saha.ing", "space-10", "scene", "arrival");
+    states.forget("saha.ing", "space-1");
+    expect(states.get("saha.ing", "space-1")).toEqual({});
+    expect(states.get("saha.ing", "space-1/drums")).toEqual({});
+    expect(states.get("saha.ing", "space-10")).toEqual({ scene: "arrival" });
+  });
+});
+
+describe("a part of a space keeps its own values", () => {
+  it("reads <item>/<key> under its item, and nothing for an item that is not here", async () => {
+    const { bring, app, as, moduleStates } = boot();
+    const item = (await bring("Nikk2", "grove")).json().item as ModuleRoomItem;
+    moduleStates.set("saha.ing", `${item.id}/drums`, "tuning", 3);
+    const part = await app.inject({ method: "GET", url: `/bff/space/items/${encodeURIComponent(`${item.id}/drums`)}/state`, cookies: as("Nikk2") });
+    expect(part.json()).toEqual({ state: { tuning: 3 } });
+    expect((await app.inject({ method: "GET", url: `/bff/space/items/${encodeURIComponent("nope/drums")}/state`, cookies: as("Nikk2") })).statusCode).toBe(404);
+    expect((await app.inject({ method: "GET", url: `/bff/space/items/${encodeURIComponent(`${item.id}/../x`)}/state`, cookies: as("Nikk2") })).statusCode).toBe(400);
+  });
 });
