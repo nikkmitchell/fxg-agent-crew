@@ -88,7 +88,7 @@ describe("Go actions", () => {
       expect(played.statusCode).toBe(200);
       expect(played.json().item).toMatchObject({ activeColour: 1, liftedColour: null, carrier: null, revision: 1 });
       expect(played.json().item.stones).toEqual([expect.objectContaining({ x: 2, y: 2, colour: 0 })]);
-      expect(items.one("saha.ing", item.id)?.stones).toHaveLength(1);
+      expect(items.goTable("saha.ing", item.id)?.stones).toHaveLength(1);
 
       // A stale revision is refused like every other change.
       expect((await action(agent, { action: "play", x: 3, y: 3, colour: 1, revision: 0 })).statusCode).toBe(409);
@@ -128,16 +128,16 @@ describe("Go actions", () => {
       const same = await app.inject({ method: "PATCH", url: `/bff/space/items/${item.id}`, headers: { cookie: b }, payload: { size: 9 } });
       expect(same.json().item.stones).toHaveLength(2);
       expect(same.json().item.captures).toHaveLength(1);
-      expect(items.one("saha.ing", item.id)?.captures).toHaveLength(1);
+      expect(items.goTable("saha.ing", item.id)?.captures).toHaveLength(1);
       const position = { x: 2, y: 0.3, z: -1, rotationY: 0.5 };
       const transformed = await app.inject({ method: "PATCH", url: `/bff/space/items/${item.id}`, headers: { cookie: b }, payload: { position, scale: 1.4, revision: 3 } });
       expect(transformed.statusCode).toBe(200);
       expect(transformed.json().item).toMatchObject({ position, scale: 1.4, activeColour: 1, captures: [{ by: 0 }] });
-      expect(items.one("saha.ing", item.id)?.stones).toHaveLength(2);
+      expect(items.goTable("saha.ing", item.id)?.stones).toHaveLength(2);
       for (const invalid of [{ scale: 0 }, { scale: 4 }, { position: {} }, { position: { ...position, y: -2 } }, { position: { ...position, x: "2" } }]) {
         expect((await app.inject({ method: "PATCH", url: `/bff/space/items/${item.id}`, headers: { cookie: b }, payload: invalid })).statusCode).toBe(400);
       }
-      expect(items.one("saha.ing", item.id)?.position).toEqual(position);
+      expect(items.goTable("saha.ing", item.id)?.position).toEqual(position);
       const reset = await app.inject({ method: "PATCH", url: `/bff/space/items/${item.id}`, headers: { cookie: b }, payload: { size: 5 } });
       expect(reset.json().item).toMatchObject({ stones: [], captures: [], activeColour: 0, carrier: null });
     } finally { await app.close(); }
@@ -216,7 +216,7 @@ describe("passing, and the end of a game", () => {
       built.app.inject({ method: "POST", url: `/bff/space/items/${table.id}/action`, headers: { cookie }, payload });
     const patch = (payload: object) =>
       built.app.inject({ method: "PATCH", url: `/bff/space/items/${table.id}`, headers: { cookie }, payload });
-    const now = () => items.one("saha.ing", table.id)!;
+    const now = () => items.goTable("saha.ing", table.id)!;
     return { app: built.app, act, patch, now, items, table };
   };
 

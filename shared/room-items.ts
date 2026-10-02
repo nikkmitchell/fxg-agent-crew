@@ -222,7 +222,7 @@ export function parseRoomItem(value: unknown): RoomItem | null {
  * the moment it arrives makes the table's freshness independent of the socket,
  * which is the part of this that the network gets to break.
  */
-export function withFresher(items: RoomItem[], incoming: RoomItem): RoomItem[] {
+export function withFresher<T extends RoomItem>(items: T[], incoming: T): T[] {
   const at = items.findIndex((item) => item.id === incoming.id);
   if (at < 0) return [...items, incoming];
   if ((items[at].revision ?? 0) > (incoming.revision ?? 0)) return items;
@@ -240,7 +240,7 @@ export function withFresher(items: RoomItem[], incoming: RoomItem): RoomItem[] {
  * the next press would be refused for being out of date. Tables missing from
  * the list are gone, and go.
  */
-export function mergeRoomItems(current: RoomItem[], incoming: RoomItem[]): RoomItem[] {
+export function mergeRoomItems<T extends RoomItem>(current: T[], incoming: T[]): T[] {
   const known = new Map(current.map((item) => [item.id, item]));
   return incoming.map((item) => {
     const mine = known.get(item.id);

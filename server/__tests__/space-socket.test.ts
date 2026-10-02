@@ -160,6 +160,22 @@ describe("the space socket", () => {
     fresh.close();
   });
 
+  it("passes a thing from a space's moments and values to its other copies, stamped by the server (Nikk, 2026-10-01)", async () => {
+    const { origin, as } = await boot();
+    const drummer = await connect(origin, as("Moraine"));
+    const listener = await connect(origin, as("Sill"));
+    await drummer.where((m) => m.type === "welcome", "drummer welcome");
+    await listener.where((m) => m.type === "welcome", "listener welcome");
+    drummer.send({ type: "moduleEvent", item: "drums-1", name: "hit", data: { drum: 2, velocity: 0.8 }, from: "somebody else" } as never);
+    expect(await listener.where((m) => m.type === "moduleEvent", "the hit")).toEqual({ type: "moduleEvent", item: "drums-1", name: "hit", data: { drum: 2, velocity: 0.8 }, from: "Moraine" });
+    drummer.send({ type: "moduleState", item: "drums-1", key: "tempo", value: 92 });
+    expect(await listener.where((m) => m.type === "moduleState", "the tempo")).toEqual({ type: "moduleState", item: "drums-1", key: "tempo", value: 92, by: "Moraine" });
+    // A name or value out of bounds is not passed on at all.
+    drummer.send({ type: "moduleEvent", item: "drums-1", name: "bad name!", data: 1 });
+    drummer.send({ type: "moduleEvent", item: "drums-1", name: "ok", data: "after" });
+    expect(await listener.where((m) => m.type === "moduleEvent", "the next moment")).toMatchObject({ name: "ok", data: "after" });
+  });
+
   it("plays a Go move over the socket, with the same checks as the web route (Nikk 5026)", async () => {
     const { origin, as, database } = await boot();
     const store = new RoomItems(database), item = store.add("saha.ing", "Moraine");

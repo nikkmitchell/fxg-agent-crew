@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { GO_COLOURS, GO_PLAYERS, GO_SURFACES, MODULE_SCALE, defaultGoItem, isFullView, isGoSize, isGoSurface, isModuleItem, parseModuleItem, parseRoomItem, type ModuleRole, type ModuleRoomItem, type RoomItem } from "../../shared/room-items.js";
+import { GO_COLOURS, GO_PLAYERS, GO_SURFACES, MODULE_SCALE, defaultGoItem, isFullView, isGoSize, isGoSurface, isModuleItem, parseModuleItem, parseRoomItem, type GoRoomItem, type ModuleRole, type ModuleRoomItem, type RoomItem } from "../../shared/room-items.js";
 import type { Config } from "../config.js";
 import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { Session, SessionStore } from "../session.js";
@@ -22,7 +22,12 @@ export class RoomItems {
     const row = this.database.prepare("SELECT state_json FROM space_items WHERE room = ? AND id = ?").get(roomKey(room), id) as { state_json: string } | undefined;
     return row ? parseRoomItem(JSON.parse(row.state_json)) : null;
   }
-  add(room: string, by: string): RoomItem {
+  /** A Go table by id, or null for anything else (activity and seats only know tables). */
+  goTable(room: string, id: string): GoRoomItem | null {
+    const item = this.one(room, id);
+    return item?.kind === "go" ? item : null;
+  }
+  add(room: string, by: string): GoRoomItem {
     const item = defaultGoItem(randomUUID(), this.all(room).length);
     this.insert(room, item, by);
     return item;

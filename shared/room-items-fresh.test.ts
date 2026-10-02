@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { defaultGoItem, mergeRoomItems, withFresher, type RoomItem } from "./room-items.js";
+import { defaultGoItem, mergeRoomItems, withFresher, type GoRoomItem } from "./room-items.js";
 
-const table = (id: string, revision: number, size = 9): RoomItem => ({ ...defaultGoItem(id), revision, size: size as 9 });
+const table = (id: string, revision: number, size = 9): GoRoomItem => ({ ...defaultGoItem(id), revision, size: size as 9 });
 
 describe("a table's state on the client never goes backwards", () => {
   it("takes the answer to a change the moment it arrives", () => {

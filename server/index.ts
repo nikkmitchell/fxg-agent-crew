@@ -307,7 +307,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     Date.now,
     () => Object.fromEntries(panelPlaces.all(roomAtDefault).map((place) => [place.id, place])),
     (actorId) => agentHomes.get(roomAtDefault, actorId),
-    (id) => { const item = roomItems.one(roomAtDefault, id); return item?.kind === "go" ? item : null; },
+    (id) => roomItems.goTable(roomAtDefault, id),
     /**
      * NOT IN A ROOM YOU ARE VERIFIABLY NOT IN. Nikk (5316): after going to the
      * lobby he was "still visible in the previous room". Any one of his
@@ -737,7 +737,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     live: spaceLive,
     bodyOf: (username) => agentBodies.get(username),
     bodyFile: (slug) => bodyFiles.want(slug),
-    // The room of the same name refetches its bench (src/space/SpaceBench.tsx).
+    // The room of the same name hears its space's followed branch changed.
     benchChanged: (space) => hubFor(space).broadcast({ type: "benchChanged", space }),
     // Things from this space may stand in any room: every room hears, and those holding one reload it.
     spaceDeployed: (space, branch, deployId) => {

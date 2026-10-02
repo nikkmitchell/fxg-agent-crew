@@ -26,7 +26,7 @@ const boot = () => {
   const items = new RoomItems(db);
   const presence = new Presence();
   let clock = 1_000_000;
-  const activity = new Activity(db, presence, () => clock, () => ({}), () => null, (id) => items.one(ROOM, id));
+  const activity = new Activity(db, presence, () => clock, () => ({}), () => null, (id) => items.goTable(ROOM, id));
   activity.catchUp();
   return { db, items, presence, activity, tick: (ms: number) => { clock += ms; }, now: () => clock };
 };
@@ -59,7 +59,7 @@ describe("an agent's Go move walks it to the table", () => {
     const { items } = boot();
     const table = items.add(ROOM, "Moraine");
     const row = (entityId: string) => ({ id: 1, actorId: "Inkstone", action: "play", entity: "go_table", entityId });
-    const lookup = (id: string) => items.one(ROOM, id);
+    const lookup = (id: string) => items.goTable(ROOM, id);
     expect(destinationFor(row(goTableEntityId("no-such-table", 0)), {}, () => null, lookup)).toBeNull();
     expect(destinationFor(row(goTableEntityId(table.id, 5)), {}, () => null, lookup)).toBeNull(); // two seats only
     expect(destinationFor(row(table.id), {}, () => null, lookup)).toBeNull(); // no colour
@@ -113,7 +113,7 @@ describe("staying for the game, not for a move", () => {
     db.prepare("UPDATE audit SET at = ? WHERE entity = 'go_table'").run(new Date(now()).toISOString());
     tick(3 * 60_000); // three minutes into the other player's think: far past a panel's stay
     const presence = new Presence();
-    const rebuilt = new Activity(db, presence, now, () => ({}), () => null, (id) => items.one(ROOM, id));
+    const rebuilt = new Activity(db, presence, now, () => ({}), () => null, (id) => items.goTable(ROOM, id));
     rebuilt.rehydrate();
     expect(presence.find("Inkstone")?.at).toEqual(goSeat(table, 1).at);
     expect(presence.find("Inkstone")?.because).toBe("is playing Go");

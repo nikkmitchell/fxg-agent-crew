@@ -417,7 +417,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     if (!pinned) reply.header("cache-control", "no-cache");
     const isFile = async (relative: string) => (await stat(join(dir, relative)).catch(() => null))?.isFile() === true;
 
-    if (await isFile(file)) return reply.sendFile(file, dir);
+    // One deploy by its id never changes: cache it for good (sendFile sets its own header otherwise).
+    if (await isFile(file)) return pinned ? reply.sendFile(file, dir, { maxAge: 365 * 24 * 3600 * 1000, immutable: true }) : reply.sendFile(file, dir);
     // /s/x/about -> /s/x/about/ when about/index.html exists, so its relative links work.
     if (!/\.[A-Za-z0-9]+$/.test(file) && !rest.endsWith("/") && (await isFile(`${file}/index.html`))) {
       return reply.redirect(`${url.pathname}/${url.search}`);
@@ -834,7 +835,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   // The live socket needs the websocket plugin loaded, so it lives in a plugin
   // of its own (a route added straight onto `app` would be registered before it).
   app.register(async (scope) => {
-    scope.get<{ Params: { space: string }; Querystring: { ticket?: string; page?: string; seat?: string } }>("/bff/spaces/:space/live", { websocket: true }, (socket, request) => {
+    scope.get<{ Params: { space: string }; Querystring: { ticket?: string; page?: string } }>("/bff/spaces/:space/live", { websocket: true }, (socket, request) => {
       const space = spaceKey(request.params.space);
       if (spaceNameProblem(space) || !store.exists(space)) {
         socket.close(4404, "no such space");
@@ -850,8 +851,6 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       const seat = deps.live.join(space, socket, holder, {
         page: request.query.page ?? null,
         renew: holder ? () => deps.tickets.issue(holder) : undefined,
-        // A page hosting this space's live pieces elsewhere (live.ts, unseen).
-        unseen: request.query.seat === "unseen",
       });
       const stopBeating = keepAlive(socket);
       socket.on("message", (data: Buffer) => seat.receive(data.toString("utf8")));

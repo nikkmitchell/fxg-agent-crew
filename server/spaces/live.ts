@@ -23,14 +23,6 @@ type Member = {
   page: string | null;
   renewing: NodeJS.Timeout | null;
   person: KitPerson | null;
-  /**
-   * UNSEEN: a page that hosts this space's live pieces somewhere else (the
-   * saha.ing room of the same name, src/space/LivePiece.tsx). It shares and
-   * hears the space's values and moments as its person, so a piece has one
-   * state wherever it runs, but it is nobody standing IN the space: never
-   * drawn, never counted, no pose.
-   */
-  unseen: boolean;
   poses: number[];
   writes: number[];
   events: number[];
@@ -96,7 +88,7 @@ export class SpaceLive {
 
   /** How many people (not guests) are in a space right now. */
   count(space: string): number {
-    return [...(this.rooms.get(space)?.members ?? [])].filter((member) => member.person && !member.unseen).length;
+    return [...(this.rooms.get(space)?.members ?? [])].filter((member) => member.person).length;
   }
 
   /**
@@ -108,7 +100,7 @@ export class SpaceLive {
    * `renew`: makes a fresh ticket for this person; sent every RENEW_MS so a
    * visit outlives its first ticket, and a restart reconnects as you.
    */
-  join(space: string, socket: LiveSocket, holder: TicketHolder | null, options: { page?: string | null; renew?: () => string; unseen?: boolean } = {}): { receive: (text: string) => void; leave: () => void } {
+  join(space: string, socket: LiveSocket, holder: TicketHolder | null, options: { page?: string | null; renew?: () => string } = {}): { receive: (text: string) => void; leave: () => void } {
     const room = this.rooms.get(space) ?? { members: new Set<Member>(), dirty: false, quietSince: this.now() };
     this.rooms.set(space, room);
     const page = options.page && /^[A-Za-z0-9_-]{8,64}$/.test(options.page) ? options.page : null;
@@ -149,8 +141,7 @@ export class SpaceLive {
         voice: false,
       };
     }
-    const unseen = options.unseen === true && person !== null;
-    const member: Member = { socket, page, renewing: null, person, unseen, poses: [], writes: [], events: [] };
+    const member: Member = { socket, page, renewing: null, person, poses: [], writes: [], events: [] };
     if (person && options.renew) {
       const renew = options.renew;
       member.renewing = setInterval(() => this.send(member, { t: "ticket", ticket: renew() }), RENEW_MS);
@@ -214,7 +205,6 @@ export class SpaceLive {
       return;
     }
     const at = this.now();
-    if (member.unseen && (message.t === "pose" || message.t === "voice" || message.t === "signal" || message.t === "say")) return;
     if (message.t === "pose") {
       member.poses = member.poses.filter((when) => at - when < 1000);
       if (member.poses.length >= KIT_LIMITS.posesPerSecond) return;
@@ -304,7 +294,7 @@ export class SpaceLive {
   }
 
   private people(room: Room): KitPerson[] {
-    return [...room.members].flatMap((member) => (member.person && !member.unseen ? [member.person] : []));
+    return [...room.members].flatMap((member) => (member.person ? [member.person] : []));
   }
 
   private tick(): void {

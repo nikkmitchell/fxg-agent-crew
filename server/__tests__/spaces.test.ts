@@ -55,6 +55,8 @@ let queue: DeployQueue;
 let store: SpaceStore;
 let live: SpaceLive;
 const benchCalls: string[] = [];
+const deployedCalls: Array<[string, string, string]> = [];
+let describeModule: import("../spaces/routes.js").DescribeModule;
 
 const gitAs = (_user: string, _pass: string, cwd: string, ...args: string[]) =>
   run("git", ["-c", "credential.helper=", "-c", "user.name=Test", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main", ...args], {
@@ -74,7 +76,7 @@ beforeAll(async () => {
   await app.register(websocket);
   live = new SpaceLive(store, (body) => `/avatars/${body}.vrm`);
   const session: Session = { username: "nikk", token: "nikk-session" } as Session;
-  ({ queue } = registerSpacesHosting(app, {
+  ({ queue, describeModule } = registerSpacesHosting(app, {
     spacesRoot: root,
     store,
     auth: new SpaceAuth(fakeClient),
@@ -83,6 +85,7 @@ beforeAll(async () => {
     live,
     bodyOf: (username) => (username === "nikk" ? "lotus" : null),
     benchChanged: (space) => benchCalls.push(space),
+    spaceDeployed: (space, branch, deployId) => deployedCalls.push([space, branch, deployId]),
     bodyFile: async (slug) => {
       if (slug !== "lotus") return { ok: false as const, code: 404, error: "no such body" };
       const path = join(work, "lotus.vrm");
@@ -578,6 +581,61 @@ describe("the workbench: a space's pieces, live in its saha.ing room (Nikk, 2026
   });
 });
 
+describe("things to bring into a room: items, environments and spaces (Nikk, 2026-10-01)", () => {
+  it("lists a branch's things, each at its deploy's own address, and tells every room of the deploy", async () => {
+    const agent = join(work, "agent");
+    await gitAs("Sill", "sill-token", agent, "checkout", "-q", "-B", "things", "origin/main");
+    await mkdir(join(agent, "dist", "pieces"), { recursive: true });
+    await mkdir(join(agent, "dist", "env"), { recursive: true });
+    await writeFile(join(agent, "dist", "index.html"), "<h1>things</h1>");
+    await writeFile(join(agent, "dist", "pieces", "drums.js"), 'import { DRUMS } from "./drums-math.js"; export function createDrums() { return DRUMS; }');
+    await writeFile(join(agent, "dist", "pieces", "drums-math.js"), "export const DRUMS = 4;");
+    await writeFile(join(agent, "dist", "env", "forest.js"), "export default function forest() {}");
+    await writeFile(join(agent, "dist", "grove.js"), "export default function grove() {}");
+    await writeFile(join(agent, "saha-pieces.json"), JSON.stringify({ pieces: [
+      { id: "drums", name: "Hand drums", item: "pieces/drums.js", export: "createDrums" },
+      { id: "forest", name: "Forest", environment: "env/forest.js" },
+      { id: "grove", name: "Grove concert", space: "grove.js" },
+      { id: "orb", model: "pieces/drums.js" },
+    ] }));
+    await gitAs("Sill", "sill-token", agent, "add", "-A");
+    await gitAs("Sill", "sill-token", agent, "commit", "-qm", "things to bring into a room");
+    deployedCalls.length = 0;
+    await gitAs("Sill", "sill-token", agent, "push", "-q", "origin", "things");
+    await queue.idle();
+
+    const listed = (await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/modules?branch=things", headers: { cookie: "who=nikk" } })).json();
+    const deploy = listed.deploy.id as string;
+    expect(deployedCalls).toEqual([["meditation.ar", "things", deploy]]);
+    expect(listed.branches).toEqual(expect.arrayContaining(["main", "things"]));
+    expect(listed.modules).toEqual([
+      { id: "drums", name: "Hand drums", kind: "item", export: "createDrums", url: `/s/meditation.ar/~${deploy}/pieces/drums.js` },
+      { id: "forest", name: "Forest", kind: "environment", export: null, url: `/s/meditation.ar/~${deploy}/env/forest.js` },
+      { id: "grove", name: "Grove concert", kind: "space", export: null, url: `/s/meditation.ar/~${deploy}/grove.js` },
+    ]);
+
+    // The module and what it imports, both from that one deploy, cached for good.
+    const drums = await page(listed.modules[0].url);
+    expect(drums.status).toBe(200);
+    expect(drums.headers.get("cache-control")).toContain("immutable");
+    expect(await (await page(`/s/meditation.ar/~${deploy}/pieces/drums-math.js`)).text()).toBe("export const DRUMS = 4;");
+    expect((await page("/s/meditation.ar/~no-such-deploy/pieces/drums.js")).status).toBe(404);
+    expect((await page(`/s/other.space/~${deploy}/pieces/drums.js`)).status).toBe(404);
+
+    expect(await describeModule({ username: "nikk", token: "nikk-session" }, { space: "meditation.ar", branch: "things", entry: "forest" })).toEqual({ name: "Forest", role: "environment" });
+    expect(await describeModule({ username: "nikk", token: "nikk-session" }, { space: "meditation.ar", branch: "things", entry: "orb" })).toMatchObject({ status: 404 });
+    expect(await describeModule({ username: "baiwei", token: "baiwei-session" }, { space: "meditation.ar", branch: "things", entry: "forest" })).toMatchObject({ status: 403 });
+    expect(await describeModule({ username: "nikk", token: "nikk-session" }, { space: "nowhere", branch: "main", entry: "forest" })).toMatchObject({ status: 404 });
+  }, 60_000);
+
+  it("names the spaces a person can bring things from: their rooms' first, then the public ones", async () => {
+    const library = (await app.inject({ method: "GET", url: "/bff/spaces/library", headers: { cookie: "who=nikk" } })).json();
+    expect(library.spaces[0]).toMatchObject({ name: "meditation.ar", mine: true });
+    expect((await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/modules", headers: { cookie: "who=baiwei" } })).statusCode).toBe(403);
+    expect((await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/modules?branch=..%2Fx", headers: { cookie: "who=nikk" } })).statusCode).toBe(400);
+  });
+});
+
 describe("what saha-pieces.json may say", () => {
   it("keeps good pieces, names every bad one, and never lets a path leave the site", async () => {
     const { readPieces } = await import("../../shared/space-bench.js");
@@ -598,8 +656,8 @@ describe("what saha-pieces.json may say", () => {
     expect(problems.join(" ")).toMatch(/60 MB/);
     expect(problems.join(" ")).toMatch(/inside the published site/);
     expect(readPieces("{", published).problems).toEqual(["saha-pieces.json is not valid JSON."]);
-    const many = readPieces(JSON.stringify({ pieces: Array.from({ length: 10 }, (_, i) => ({ id: `p${i}`, model: "m/a.glb" })) }), published);
-    expect(many.pieces).toHaveLength(8);
+    const many = readPieces(JSON.stringify({ pieces: Array.from({ length: 34 }, (_, i) => ({ id: `p${i}`, model: "m/a.glb" })) }), published);
+    expect(many.pieces).toHaveLength(32);
   });
 });
 

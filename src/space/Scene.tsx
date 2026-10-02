@@ -22,7 +22,6 @@ import type { Comfort } from "./comfort";
 import { pointerWasClaimed } from "./pointer-claim";
 import { RoomPanel } from "./RoomPanel";
 import { LobbyHall } from "./LobbyHall";
-import { SpaceBench } from "./SpaceBench";
 import { AvatarReplay } from "./AvatarReplay";
 import type { AvatarRecorder } from "./useAvatarRecorder";
 import { isLobby } from "../../shared/lobby-hall";
@@ -916,7 +915,7 @@ export default function Scene({
           Textures on planes, so the same in the window and in a headset. */}
         <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} room={spaceRoomName} />
         {/* This room's space's pieces, live from its git (shared/space-bench.ts). */}
-        {spaceRoomName && !isLobby(spaceRoomName) ? <SpaceBench room={spaceRoomName} subscribe={connection.subscribe} /> : null}
+        {/* MODULE_ITEMS_MOUNT */}
         {/* Sparks where an agent reaches a board, as its card change lands. */}
         <ArrivalSparkles peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         {/* Light rising off whoever is speaking, for as long as their line

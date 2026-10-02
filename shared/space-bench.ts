@@ -16,13 +16,6 @@
  *       { "id": "marimba", "name": "Marimba", "code": "pieces/marimba.js" }
  *   ] }
  *
- * A LIVE piece is a module that exports default function (saha) {...}: it
- * RUNS on the bench, in the room and in VR, for everyone standing there, in a
- * sandboxed worker (shared/piece-wire.ts). Its values and moments are the
- * space's own, so it is the same piece in the room and in the space.
- *
- *       { "id": "drums", "name": "Hand drums", "live": "pieces/drums.js" }
- *
  * A CODE piece is a JavaScript module other spaces import by URL
  * (import { createMarimba } from "/s/xr.instruments/pieces/marimba.js"). The
  * bench does not run it; public spaces' pieces are listed for everyone at
@@ -39,7 +32,7 @@
 export type BenchPiece = {
   id: string;
   name: string;
-  kind: "model" | "image" | "page" | "code" | "live" | "item" | "environment" | "space";
+  kind: "model" | "image" | "page" | "code" | "item" | "environment" | "space";
   /** The file or folder, relative to the published site. */
   path: string;
   /** Model only: turn slowly on the bench. */
@@ -116,9 +109,9 @@ export function readPieces(text: string, published: ReadonlyMap<string, number>)
       continue;
     }
     const name = typeof item.name === "string" && item.name.trim() ? item.name.trim().slice(0, 40) : item.id;
-    const kinds = (["model", "image", "page", "code", "live", ...MODULE_KINDS] as const).filter((kind) => item[kind] !== undefined);
+    const kinds = (["model", "image", "page", "code", ...MODULE_KINDS] as const).filter((kind) => item[kind] !== undefined);
     if (kinds.length !== 1) {
-      problems.push(`${label}: give exactly one of "model", "image", "page", "code", "live", "item", "environment" or "space".`);
+      problems.push(`${label}: give exactly one of "model", "image", "page", "code", "item", "environment" or "space".`);
       continue;
     }
     const kind = kinds[0];
@@ -143,7 +136,7 @@ export function readPieces(text: string, published: ReadonlyMap<string, number>)
         problems.push(`${label}: ${path} is ${Math.round(size / 1048576)} MB; the bench takes up to ${limit / 1048576} MB.`);
         continue;
       }
-    } else if (kind === "code" || kind === "live" || isModuleKind(kind)) {
+    } else if (kind === "code" || isModuleKind(kind)) {
       if (!CODE.test(path) || !published.has(path)) {
         problems.push(`${label}: "${kind}" must be a .js file that was published; ${path} is not.`);
         continue;
@@ -183,23 +176,6 @@ export const KIT_PIECES: readonly CataloguePiece[] = [
   { space: "saha.ing kit", id: "openScreen", name: "Screen: any space or web page on a panel (openScreen)", kind: "code", url: "/kit/saha.js" },
   { space: "saha.ing kit", id: "openDoor", name: "Door: into another space or the lobby, staying in VR (openDoor)", kind: "code", url: "/kit/saha.js" },
 ];
-
-/** Where the bench stands in a room: behind and to the right of where people arrive, clear of every piece and panel. */
-export const BENCH_AT = { x: 3.4, z: 9.4 } as const;
-/** Pedestals per row, and their spacing, in metres. */
-export const BENCH_ROW = { perRow: 4, gap: 0.85, rowGap: 0.9 } as const;
-
-/** Each piece's spot on the bench, in the bench's own frame (x across, z back). */
-export function benchSlot(index: number): { x: number; z: number; height: number } {
-  const row = Math.floor(index / BENCH_ROW.perRow);
-  const column = index % BENCH_ROW.perRow;
-  return {
-    x: (column - (BENCH_ROW.perRow - 1) / 2) * BENCH_ROW.gap,
-    z: row * BENCH_ROW.rowGap,
-    // The back row stands taller, so it shows over the front.
-    height: 0.8 + row * 0.25,
-  };
-}
 
 /**
  * A module of one deploy, by a path that names the deploy: /s/<space>/~<deploy>/<path>.

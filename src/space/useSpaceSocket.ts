@@ -382,8 +382,10 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
           return;
         }
         if (message.type === "mindfulnessPageChanged") return;
-        // The room's workbench refetches itself (SpaceBench.tsx).
+        // Only the Spaces page cares which branch a space's bench follows.
         if (message.type === "benchChanged") return;
+        // Things from spaces hear these through subscribe (src/space/modules).
+        if (message.type === "moduleEvent" || message.type === "moduleState" || message.type === "spaceDeployed") return;
         if (message.type === "bowl") {
           // Somebody struck the singing bowl: ring it here (SingingBowl.tsx).
           bowlStruck(message.strike);

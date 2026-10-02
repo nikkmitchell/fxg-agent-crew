@@ -19,19 +19,3 @@ describe("code pieces and the catalogue", () => {
     ]);
   });
 });
-
-describe("live pieces on the bench (Nightjar, 2026-10-01)", () => {
-  it("takes a published module as a live piece, which runs on the bench", () => {
-    const published = new Map([["pieces/drums.js", 3000], ["pieces/marimba.js", 4000]]);
-    const read = readPieces(JSON.stringify({ pieces: [
-      { id: "drums", name: "Hand drums", live: "pieces/drums.js" },
-      { id: "marimba", code: "pieces/marimba.js", live: "pieces/marimba.js" },
-      { id: "ghost", live: "pieces/ghost.js" },
-    ] }), published);
-    expect(read.pieces).toEqual([{ id: "drums", name: "Hand drums", kind: "live", path: "pieces/drums.js", spin: false }]);
-    expect(read.problems).toEqual([
-      'marimba: give exactly one of "model", "image", "page", "code" or "live".',
-      'ghost: "live" must be a .js file that was published; pieces/ghost.js is not.',
-    ]);
-  });
-});
