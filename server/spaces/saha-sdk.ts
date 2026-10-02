@@ -30,7 +30,7 @@ function define(kind, def) {
   if (def.size !== undefined && !(Array.isArray(def.size) && def.size.length === 3 && def.size.every((n) => typeof n === "number" && n > 0))) {
     throw problem(kind, "size is [width, height, depth] in metres, e.g. [1.9, 1, 0.7]");
   }
-  return Object.freeze(Object.assign({}, def, { kind, [BRAND]: SAHA_API }));
+  return Object.freeze({ ...def, kind, [BRAND]: SAHA_API });
 }
 
 export const defineItem = (def) => define("item", def);

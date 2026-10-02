@@ -19,8 +19,10 @@ import { createRepo } from "../server/spaces/git.ts";
 import { deployCommit } from "../server/spaces/deploy.ts";
 import { SpaceStore } from "../server/spaces/store.ts";
 import { DEMO_THINGS } from "./dev-demo-things.mts";
-import { readdirSync, rmSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { cpSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildServer } from "../server/index.js";
 import { BoardStore } from "../server/db/store.js";
@@ -194,6 +196,31 @@ if (process.env.HARNESS_SPACE !== "0") {
   store.setPublic(name, true, "Demo things");
   const deploy = await deployCommit({ root: config.spacesRoot, store, space: name, branch: "main", commit, pushedBy: "nikk" });
   console.log(`  demo space ${name}: ${deploy.status}${deploy.status === "ready" ? "" : ` (${JSON.stringify(deploy)})`}`);
+
+  /**
+   * HARNESS_SEED=<space>=<folder>[,...]: a space made from a local folder (a
+   * clone of a real space, say), every file and folder in it, as one commit on
+   * main: try a space's things here before pushing. Plain local git; dev only.
+   */
+  for (const seed of (process.env.HARNESS_SEED ?? "").split(",").filter(Boolean)) {
+    const [space, folder] = seed.split("=");
+    if (!space || !folder) continue;
+    rmSync(join(config.spacesRoot, "repos", `${space}.git`), { recursive: true, force: true });
+    rmSync(join(config.spacesRoot, "sites", space), { recursive: true, force: true });
+    await createRepo(config.spacesRoot, space, [{ path: "README.md", content: `# ${space}\n` }], "nikk");
+    const work = mkdtempSync(join(tmpdir(), "harness-seed-"));
+    const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=nikk", "-c", "user.email=nikk@harness.test", ...args], { cwd: work, stdio: "pipe" }).toString().trim();
+    git("clone", "-q", join(resolve(config.spacesRoot), "repos", `${space}.git`), ".");
+    cpSync(folder, work, { recursive: true, filter: (from) => !from.split("/").includes(".git") });
+    git("add", "-A");
+    git("commit", "-qm", `seeded from ${folder}`);
+    git("push", "-q", "origin", "HEAD:main");
+    const head = git("rev-parse", "HEAD");
+    if (!store.exists(space)) store.create(space, "nikk", new Date().toISOString());
+    store.setPublic(space, true, space);
+    const seeded = await deployCommit({ root: config.spacesRoot, store, space, branch: "main", commit: head, pushedBy: "nikk" });
+    console.log(`  seeded space ${space} from ${folder}: ${seeded.status}`);
+  }
 }
 
 await app.listen({ port: PORT, host: "127.0.0.1" });

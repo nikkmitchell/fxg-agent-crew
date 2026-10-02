@@ -1,0 +1,153 @@
+# Things: items, environments and spaces, live in saha.ing
+
+Things are what you build in a space's git that saha.ing can bring into any room, live. There are
+three kinds:
+
+- An **item** stands where you put it, and people move it, place it and use it, like the Go table.
+  Examples are a butterfly, an instrument or a video panel.
+- An **environment** surrounds the room in place of its own scenery. Examples are a forest, a
+  nightclub or a theatre.
+- A **space** is items, an environment and a script that ties them together. It opens all around
+  you, full size, or as a model on a plinth in front of you.
+
+In a room, open **Settings → Library**, pick a space, and bring a thing in. A push to its branch
+reloads it for everyone within seconds; what it has decided (`ctx.state`) survives the reload.
+
+This page is how to write one. The whole design, with the reasons, is in [DESIGN.md](DESIGN.md)
+(contract `saha/1`).
+
+## The smallest thing
+
+```js
+// things/lamp.js
+import * as THREE from "three";
+import { defineItem } from "saha";
+
+export default defineItem({
+  name: "Lamp",
+  size: [0.3, 1.2, 0.3],                      // metres: its carry handle, and how small a model is made
+  shared: { lit: false },                     // shared values, and their defaults
+  setup(ctx) {
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshStandardMaterial());
+    bulb.position.y = 1;
+    ctx.root.add(bulb);
+    // A click, a trigger along a ray, a pinch or a fingertip: decided once, by whoever pressed.
+    ctx.input.press(bulb, () => ctx.state.set("lit", !ctx.state.get("lit")));
+    // Runs now, then on every change from anyone: right for late arrivals and after a push.
+    ctx.state.watch("lit", (lit) => bulb.material.emissive.set(lit ? "#ffd27a" : "#000"));
+  },
+});
+```
+
+List it in `saha-pieces.json` at the top of the repo:
+
+```json
+{ "pieces": [
+  { "id": "lamp",   "name": "Lamp",         "item": "things/lamp.js" },
+  { "id": "forest", "name": "Forest",       "environment": "things/forest.js" },
+  { "id": "evening","name": "An evening",   "space": "things/evening.js" }
+] }
+```
+
+`"three"` and `"saha"` are given to your module by the page it runs in. In a room, `"three"` is the
+room's own three.js, so your meshes and the room's renderer are one three.js.
+
+## The rules
+
+1. One ES module per thing, `export default defineItem(...)`, `defineEnvironment(...)` or
+   `defineSpace(...)`. It may import only `"three"`, `"three/addons/..."`, `"saha"` and its own
+   files, which load from the same deploy.
+2. Nothing happens at the top of the module: no listeners, no AudioContext, no timers, no fetch.
+   Each push loads a new copy of the module, and anything started at the top would run once per
+   push.
+3. Draw only under `ctx.root`. Never touch the renderer, the camera, the room's scene,
+   `window`/`document` listeners or `setAnimationLoop`. Use `ctx` for all of them.
+4. Positions are your thing's own metres: the floor is y = 0, and +Z points toward whoever placed
+   it. saha.ing places, carries, turns and scales `ctx.root`.
+5. Anything shared or sent is JSON.
+6. What you register through `ctx` is undone for you when the thing goes. Anything else you made
+   goes in the `dispose()` you return from setup.
+7. Never close the AudioContext and never connect to `context.destination`. Play into
+   `ctx.audio.out`, or `ctx.audio.at(object)` for sound that comes from an object.
+
+## What ctx gives you
+
+| | |
+|---|---|
+| `ctx.root` | your place: a THREE.Group |
+| `ctx.mode` | `"item"`, `"model"` (a space as a miniature) or `"full"` (all around you) |
+| `ctx.scale` | world metres per local metre |
+| `ctx.frame(fn(dt, t))` | every frame; dt is at most 0.1 s |
+| `ctx.state.get / set / watch` | shared values, last write wins, kept; `watch` runs at once |
+| `ctx.net.moment(name, data)` / `ctx.net.onMoment(name, fn(data, info))` | a moment for every copy, yours first (`info.mine`), never kept |
+| `ctx.input.press(object, fn, { poke })` | a click, ray, pinch or fingertip; `poke: false` leaves fingertips to strikes |
+| `ctx.input.strike(object, fn(e))` | a hand or controller coming onto it; `e.strength` 0–1; a click counts 0.7 |
+| `ctx.input.keys("1234", fn(key, down))` | keys, only while your thing has focus |
+| `ctx.input.tips` | each hand's tip in your frame: `{ hand, position, previous, velocity }` |
+| `ctx.haptics.pulse(hand, strength, ms)` | a buzz in that controller |
+| `ctx.audio.context / out / at(object) / buffer(url) / workletNode(url, name)` | sound |
+| `ctx.assets.url / texture / gltf / json / bytes` | files beside your module |
+| `ctx.env.set({ background, fog, far })` | the room's surroundings, only while you fill them |
+| `ctx.viewer` | where the person looking is, in your frame, and how far away |
+| `ctx.people.me` | who is looking |
+| `ctx.things.<key>` | a space's parts: `api`, `state`, `onMoment`, `root` |
+| `ctx.problem(text)` | a line on your thing's badge, for whoever is building |
+
+From `setup` you may return `{ api: { ... } }` (what a space can call), `save()` (handed to the next
+version as `ctx.hot.data`) and `dispose()`.
+
+**Who decides.** Input handlers run on the device of the person doing it. A moment runs on every
+copy. So make a shared decision (`ctx.state.set`) in an input handler, or in a moment handler only
+when `info.mine` is true, never in code that runs on every copy.
+
+## An environment
+
+```js
+import * as THREE from "three";
+import { defineEnvironment } from "saha";
+
+export default defineEnvironment({
+  name: "Dusk forest",
+  size: [70, 8, 70],
+  env: { background: "#2b2140", fog: { color: "#2b2140", near: 10, far: 70 }, far: 200 },
+  setup(ctx) {
+    // ...the ground, the trees, its own lights under ctx.root...
+    // In a model (ctx.mode === "model") the sky and fog are left alone: they are only the room's while you surround it.
+  },
+});
+```
+
+## A space: parts, scenes and a script
+
+```js
+import { defineSpace } from "saha";
+
+export default defineSpace({
+  name: "Plaza",
+  size: [70, 8, 70],
+  scenes: { list: ["evening", "night"], initial: "evening" },   // the scene is the shared value "scene"
+  things: {
+    forest: { ref: "dusk", surround: true },                    // its environment
+    drums: { ref: "xr.instruments/drums-thing", at: [0, 0, -1.5], turn: 20 },   // from another space
+    lantern: { ref: "orb", at: [0, 0, -4], in: ["night"] },     // only in that scene
+  },
+  setup(ctx) {
+    // A drum hit by whoever played it moves everyone to night.
+    ctx.things.drums.onMoment("hit", (_, info) => info.mine && ctx.state.set("scene", "night"));
+  },
+});
+```
+
+A `ref` is `"id"` (this space, the same deploy), `"space/id"` (that space's followed branch) or
+`"space/id@branch"`.
+
+## TypeScript and vite
+
+Build each thing as a module with `three` and `saha` left external (`rollupOptions.external`), into
+the folder your space publishes. Keep asset paths relative to the module:
+`new URL("./scans/rock.glb", import.meta.url)` or `ctx.assets.url("scans/rock.glb")`.
+
+## What is next
+
+These are phase 1. Ordered actions and models (`ctx.act`), streams, grab, a thing's own website
+with avatars, and finished rooms come next; see DESIGN.md's build plan.
