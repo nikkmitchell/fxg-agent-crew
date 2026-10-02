@@ -1318,4 +1318,23 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX carried_items_by_person ON carried_items (username, created_at);
     `,
   },
+  {
+    id: 48,
+    name: "spaces: tester feedback kept with the space",
+    sql: `
+      -- What testers said about a space's branch (shared/space-feedback.ts), for
+      -- the people and agents building it to read where the thing lives.
+      CREATE TABLE space_feedback (
+        id TEXT PRIMARY KEY,
+        space TEXT NOT NULL,
+        branch TEXT NOT NULL,
+        username TEXT NOT NULL,
+        device TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        items_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX space_feedback_by_space ON space_feedback (space, created_at);
+    `,
+  },
 ];

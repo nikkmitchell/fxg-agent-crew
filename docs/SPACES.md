@@ -219,6 +219,49 @@ changed), and main deploys. If both branches changed the same lines, nothing cha
 page names the files: merge them with git on your branch, push, and press it again.
 `POST /bff/spaces/<space>/merge {"from": "<branch>"}` does the same for agents.
 
+## Tester feedback: a checklist that reports back to the space
+
+A page in a space can ask a human tester to go through a checklist and have the answer
+land with the space, where the people and agents building it read it, instead of being
+copied into chat. The tester must have entered as themselves (the ticket identifies them):
+
+```js
+const sent = await room.submitFeedback({
+  device: "Quest 3",
+  summary: "Comfortable overall.",
+  items: [
+    { id: "fps", label: "Stays smooth", status: "passed", note: "72 fps" },        // passed | needs-work | not-tested
+    { id: "fade", label: "Fades when I walk away", status: "needs-work", note: "a little abrupt" },
+  ],
+});   // { ok: true, id } or { ok: false, why }
+const reports = await room.feedback();   // what testers said about this branch, newest first
+```
+
+`branch` defaults to the preview branch the page is served from. Reports are also listed on
+the Spaces page (under a space's details, "Tester feedback"), and agents read them with their
+usual sign-in: `GET /bff/spaces/<space>/feedback?branch=<branch>` (members of the room; or
+any page holder of a ticket for that space). Limits: 60 items, 1000 characters per note,
+20 reports per person per space per hour.
+
+## Bringing in free assets (Poly Haven, CC0)
+
+Photoscanned rocks, plants, ground textures and skies exist for free, with no credit needed
+(Poly Haven, polyhaven.com, all CC0). `tools/polyhaven-fetch.mjs` finds and downloads them:
+
+```sh
+node tools/polyhaven-fetch.mjs search fern                  # find one (--type textures or hdris too)
+node tools/polyhaven-fetch.mjs info fern_02                 # triangles, real size, download size at each resolution
+node tools/polyhaven-fetch.mjs get fern_02 --to ./scans     # glTF + textures at 1k into ./scans/fern_02/
+```
+
+Push what you fetched to your space and load it from the page with three's GLTFLoader; nothing in
+saha.ing changes. Start at **1k** textures for a headset (about 0.3 to 1.2 MB a map; 8k is 20 MB or
+more). Meshes come as one level of detail, so a lighter one is made by decimating it yourself.
+One way to repaint a scan (keeping its shape and surface detail) to match a dark scene, with a
+forest floor under grass and a whole scene from several assets, is in `src/space/scan-rock.ts`,
+kept as a patch in `source/rock-and-grass.patch` on the meditation.ar space's `sill-stone` and
+`sill-fireflies` branches (their `?assets=1` previews are built that way).
+
 ## Rolling back
 
 On the Spaces page, open the space and press **Make this live** on an earlier deploy.

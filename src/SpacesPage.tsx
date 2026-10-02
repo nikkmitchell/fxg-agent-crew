@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { bff, type SpaceDetail, type SpaceListing } from "./bff-client";
 import { Copyable } from "./Join";
 import type { DeployRecord } from "../shared/spaces";
+import type { StoredFeedback } from "../shared/space-feedback";
 
 /**
  * SPACES: each room's own git repository and its own deployed site, apart
@@ -256,6 +257,41 @@ function BenchBranch({ name, current, branches, onChanged }: { name: string; cur
   );
 }
 
+const STATUS_WORDS = { passed: "Passed", "needs-work": "Needs work", "not-tested": "Not tested" } as const;
+
+/** What testers said about this space, newest first: the checklist answers and notes they sent from inside it. */
+function TesterFeedback({ name }: { name: string }) {
+  const [reports, setReports] = useState<StoredFeedback[] | null>(null);
+  useEffect(() => {
+    bff.spaceFeedback(name).then((answer) => setReports(answer.feedback)).catch(() => setReports([]));
+  }, [name]);
+  if (reports === null || reports.length === 0) return null;
+  return (
+    <>
+      <h3>Tester feedback</h3>
+      <ul className="space-feedback">
+        {reports.map((report) => (
+          <li key={report.id}>
+            <strong>{report.by}</strong> on <code>{report.branch}</code>
+            {report.device ? ` · ${report.device}` : ""} · {when(report.at.replace(" ", "T") + (report.at.endsWith("Z") ? "" : "Z"))}
+            {report.summary ? <p>{report.summary}</p> : null}
+            {report.items.length > 0 ? (
+              <ul>
+                {report.items.map((item) => (
+                  <li key={item.id} data-status={item.status}>
+                    <span>{STATUS_WORDS[item.status]}</span> {item.label}
+                    {item.note ? <em> — {item.note}</em> : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 function SpaceDetails({ name }: { name: string }) {
   const [detail, setDetail] = useState<SpaceDetail | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -315,6 +351,7 @@ function SpaceDetails({ name }: { name: string }) {
       </ul>
       {merged ? <p className="muted-note" role="status">{merged}</p> : null}
       <SpaceCode name={name} branches={detail.branches.map((branch) => branch.branch)} />
+      <TesterFeedback name={name} />
       <h3>Deploys</h3>
       <ol className="space-deploys">
         {detail.deploys.map((deploy) => (

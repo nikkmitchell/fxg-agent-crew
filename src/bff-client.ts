@@ -3,6 +3,7 @@ import { requestJson } from "./api-request";
 import type { SignupChannel, SignupForm } from "../shared/signup";
 import type { AgentSummary } from "../shared/agents";
 import type { DeployRecord } from "../shared/spaces";
+import type { StoredFeedback } from "../shared/space-feedback";
 import { base } from "./router";
 
 /**
@@ -53,6 +54,10 @@ export const bff = {
   /** Every public space's pieces, for anyone to use (shared/space-bench.ts catalogueOf). */
   pieces: (signal?: AbortSignal) =>
     requestJson<{ pieces: { space: string; id: string; name: string; kind: string; url: string }[] }>(`${bffRoot}/spaces/pieces`, { signal }),
+
+  /** What testers said about a space (newest first), for its room's members. */
+  spaceFeedback: (name: string, branch?: string, signal?: AbortSignal) =>
+    requestJson<{ feedback: StoredFeedback[] }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/feedback${branch ? `?branch=${encodeURIComponent(branch)}` : ""}`, { signal }),
 
   /** Merge a branch into main (or `into`) on the box; the result deploys. */
   mergeBranch: (name: string, from: string, into = "main") =>

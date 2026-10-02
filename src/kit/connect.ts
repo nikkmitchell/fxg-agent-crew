@@ -1,4 +1,5 @@
 import type { KitPerson, KitSignal, ServerMessage, SpaceItem } from "../../shared/space-kit";
+import type { FeedbackReport, StoredFeedback } from "../../shared/space-feedback";
 
 /**
  * THE CONNECTION, for any page, three.js or not (shared/space-kit.ts has the
@@ -57,6 +58,14 @@ export type SahaRoom = {
   give(item: { name: string; url?: string | null; data?: unknown }): void;
   /** Take back an item THIS space gave. */
   takeBack(id: string): void;
+  /**
+   * Send what a tester found to saha.ing, kept with this space and branch for the
+   * people and agents building it (shared/space-feedback.ts). Needs you to have
+   * entered as yourself; `branch` defaults to the preview branch this page is on.
+   */
+  submitFeedback(report: Omit<FeedbackReport, "branch"> & { branch?: string }): Promise<{ ok: true; id: string } | { ok: false; why: string }>;
+  /** What testers said here (this branch by default), newest first. */
+  feedback(branch?: string): Promise<StoredFeedback[]>;
   leave(): void;
 };
 
@@ -88,6 +97,8 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
   const href = options.href ?? (typeof location !== "undefined" ? location.href : "");
   const page = new URL(href);
   const server = (options.server ?? page.origin).replace(/\/$/, "");
+  /** The preview branch this page is served from (/s/<space>/@<branch>/...), or main. */
+  const pageBranch = () => decodeURIComponent((/^\/s\/[^/]+\/@([^/]+)\//.exec(page.pathname) ?? [])[1] ?? "main");
   const space = options.space ?? (/^\/s\/([^/]+)/.exec(page.pathname) ?? [])[1];
   if (!space) throw new Error("saha.js: not inside a space (/s/<space>/); pass { space }");
   // `let`: the live socket sends fresh ones while you stay (server/spaces/live.ts).
@@ -148,6 +159,31 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
     },
     takeBack(id) {
       send({ t: "drop", id: String(id) });
+    },
+    async submitFeedback(report) {
+      if (!room.ticket) return { ok: false, why: "Enter the space as yourself from saha.ing to send feedback." };
+      try {
+        // Plain text, so a sandboxed page's request needs no CORS preflight.
+        const answer = await fetch(`${server}/bff/spaces/${encodeURIComponent(space)}/feedback?ticket=${encodeURIComponent(room.ticket)}`, {
+          method: "POST",
+          headers: { "content-type": "text/plain" },
+          body: JSON.stringify({ ...report, branch: report.branch ?? pageBranch() }),
+        });
+        const body = (await answer.json().catch(() => ({}))) as { id?: string; error?: string };
+        return answer.ok && body.id ? { ok: true, id: body.id } : { ok: false, why: body.error ?? `saha.ing answered ${answer.status}` };
+      } catch (error) {
+        return { ok: false, why: `Could not reach saha.ing: ${(error as Error).message}` };
+      }
+    },
+    async feedback(branch) {
+      if (!room.ticket) return [];
+      const named = branch ?? pageBranch();
+      try {
+        const answer = await fetch(`${server}/bff/spaces/${encodeURIComponent(space)}/feedback?ticket=${encodeURIComponent(room.ticket)}&branch=${encodeURIComponent(named)}`);
+        return answer.ok ? ((await answer.json()) as { feedback: StoredFeedback[] }).feedback : [];
+      } catch {
+        return [];
+      }
     },
     send(message: unknown) {
       send(message);

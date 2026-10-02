@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { DeployRecord } from "../../shared/spaces.js";
 import type { BenchPiece } from "../../shared/space-bench.js";
 import type { SpaceItem } from "../../shared/space-kit.js";
+import type { FeedbackReport, StoredFeedback } from "../../shared/space-feedback.js";
 
 /**
  * What saha.ing remembers about spaces (migration 44): that a space exists,
@@ -231,5 +232,30 @@ export class SpaceStore {
   /** Take an item back: only the space that gave it may. True when one went. */
   removeItem(username: string, id: string, space: string): boolean {
     return Number(this.db.prepare("DELETE FROM carried_items WHERE username = ? AND id = ? AND from_space = ?").run(username, id, space).changes) > 0;
+  }
+
+  // ------------------------------------------------ tester feedback (migration 48)
+
+  addFeedback(space: string, by: string, report: FeedbackReport, id: string, at: string): void {
+    this.db.prepare("INSERT INTO space_feedback (id, space, branch, username, device, summary, items_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, space, report.branch, by, report.device, report.summary, JSON.stringify(report.items), at);
+  }
+
+  /** Newest first; one branch, or every branch when `branch` is null. */
+  feedback(space: string, branch: string | null, limit: number): StoredFeedback[] {
+    const rows = (branch === null
+      ? this.db.prepare("SELECT * FROM space_feedback WHERE space = ? ORDER BY created_at DESC, id DESC LIMIT ?").all(space, limit)
+      : this.db.prepare("SELECT * FROM space_feedback WHERE space = ? AND branch = ? ORDER BY created_at DESC, id DESC LIMIT ?").all(space, branch, limit)) as {
+      id: string; branch: string; username: string; device: string; summary: string; items_json: string; created_at: string;
+    }[];
+    return rows.map((row) => {
+      let items: StoredFeedback["items"] = [];
+      try {
+        items = JSON.parse(row.items_json);
+      } catch {
+        /* unreadable items are shown as none */
+      }
+      return { id: row.id, by: row.username, at: row.created_at, branch: row.branch, device: row.device, summary: row.summary, items };
+    });
   }
 }

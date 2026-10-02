@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { createReadStream } from "node:fs";
@@ -20,6 +21,7 @@ import { doorTitle, goTarget, spaceEntryPath } from "../../shared/space-kit.js";
 import { sahaSdkSource } from "./saha-sdk.js";
 import { threeBridgeSource } from "./three-bridge.js";
 import { catalogueOf, isModuleKind, KIT_PIECES, moduleUrl, pieceUrl, type ModuleKind } from "../../shared/space-bench.js";
+import { FEEDBACK_LIMITS, readFeedback } from "../../shared/space-feedback.js";
 import { iceServersFrom } from "../space/ice.js";
 import { keepAlive, type SpaceLive } from "./live.js";
 import type { SpaceTickets } from "./tickets.js";
@@ -690,6 +692,60 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       .header("access-control-allow-origin", "*")
       .header("cache-control", "no-store")
       .send({ iceServers: iceServersFrom(process.env) });
+  });
+
+  /**
+   * TESTER FEEDBACK (shared/space-feedback.ts). A space page sends its report
+   * with the visitor's entry ticket, as plain text (no CORS preflight from a
+   * sandboxed page); it is kept against the space and branch and listed below
+   * for the people and agents building it.
+   */
+  const feedbackCors = (reply: FastifyReply) =>
+    reply
+      .header("access-control-allow-origin", "*")
+      .header("access-control-allow-methods", "GET, POST, OPTIONS")
+      .header("access-control-allow-headers", "content-type");
+  const feedbackSent = new Map<string, number[]>();
+  app.options<{ Params: { space: string } }>("/bff/spaces/:space/feedback", async (_request, reply) => feedbackCors(reply).code(204).send());
+
+  app.post<{ Params: { space: string }; Querystring: { ticket?: string }; Body: unknown }>("/bff/spaces/:space/feedback", async (request, reply) => {
+    feedbackCors(reply);
+    const space = spaceKey(request.params.space);
+    const holder = deps.tickets.read(request.query.ticket, space);
+    if (!holder) return reply.code(401).send({ code: "NO_TICKET", error: "Enter the space as yourself from saha.ing to send feedback." });
+    let body: unknown = request.body;
+    if (typeof body === "string") {
+      if (body.length > FEEDBACK_LIMITS.body) return reply.code(413).send({ code: "TOO_BIG", error: "That report is too long." });
+      try {
+        body = JSON.parse(body);
+      } catch {
+        return reply.code(400).send({ code: "BAD_FEEDBACK", error: "The report was not readable." });
+      }
+    }
+    const report = readFeedback(body);
+    if (!report) return reply.code(400).send({ code: "BAD_FEEDBACK", error: "A report needs a summary or at least one checked item, on a real branch." });
+    const at = now();
+    const key = `${space}:${holder.username}`;
+    const recent = (feedbackSent.get(key) ?? []).filter((when) => at.getTime() - when < 3_600_000);
+    if (recent.length >= FEEDBACK_LIMITS.perHour) return reply.code(429).send({ code: "TOO_MANY", error: "That is a lot of reports in an hour; try again later." });
+    feedbackSent.set(key, [...recent, at.getTime()]);
+    const id = randomBytes(9).toString("base64url");
+    store.addFeedback(space, holder.username, report, id, at.toISOString());
+    return reply.send({ id, at: at.toISOString() });
+  });
+
+  /** What testers said: anyone in the space (by ticket), or a member of its room (signed in, agents too). */
+  app.get<{ Params: { space: string }; Querystring: { ticket?: string; branch?: string; limit?: string } }>("/bff/spaces/:space/feedback", async (request, reply) => {
+    feedbackCors(reply);
+    const space = spaceKey(request.params.space);
+    if (!store.exists(space)) return reply.code(404).send({ code: "NO_SPACE", error: `There is no space called ${space}.` });
+    if (!deps.tickets.read(request.query.ticket, space)) {
+      const found = await memberSpace(request as unknown as FastifyRequest<{ Params: { space: string } }>, reply);
+      if (!found) return reply;
+    }
+    const branch = request.query.branch && (request.query.branch === "main" || isPreviewableBranch(request.query.branch)) ? request.query.branch : null;
+    const limit = Math.max(1, Math.min(FEEDBACK_LIMITS.list, Number(request.query.limit) || FEEDBACK_LIMITS.list));
+    return reply.header("cache-control", "no-store").send({ feedback: store.feedback(space, branch, limit) });
   });
 
   /** Close every seat you hold in every space, on every device (live.ts, leaveEverywhere). */
