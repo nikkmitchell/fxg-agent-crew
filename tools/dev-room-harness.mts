@@ -15,7 +15,11 @@
  *
  *   pnpm exec tsx tools/dev-room-harness.mts
  */
-import { readdirSync, statSync } from "node:fs";
+import { createRepo } from "../server/spaces/git.ts";
+import { deployCommit } from "../server/spaces/deploy.ts";
+import { SpaceStore } from "../server/spaces/store.ts";
+import { DEMO_THINGS } from "./dev-demo-things.mts";
+import { readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildServer } from "../server/index.js";
@@ -174,6 +178,23 @@ app.get<{ Params: { speaker: string; listener: string } }>(
     return reply.send({ ok: true, speaker: speaker[0], listener: listener[0] });
   },
 );
+
+/**
+ * A PUBLIC DEMO SPACE OF THINGS (dev-demo-things.mts), made fresh each start,
+ * so the room's Library has an item, an environment and a space to bring in
+ * without WebHarness or a push. HARNESS_SPACE=0 leaves it out.
+ */
+if (process.env.HARNESS_SPACE !== "0") {
+  const store = new SpaceStore(database);
+  const name = "demo.things";
+  rmSync(join(config.spacesRoot, "repos", `${name}.git`), { recursive: true, force: true });
+  rmSync(join(config.spacesRoot, "sites", name), { recursive: true, force: true });
+  const commit = await createRepo(config.spacesRoot, name, DEMO_THINGS, "nikk");
+  store.create(name, "nikk", new Date().toISOString());
+  store.setPublic(name, true, "Demo things");
+  const deploy = await deployCommit({ root: config.spacesRoot, store, space: name, branch: "main", commit, pushedBy: "nikk" });
+  console.log(`  demo space ${name}: ${deploy.status}${deploy.status === "ready" ? "" : ` (${JSON.stringify(deploy)})`}`);
+}
 
 await app.listen({ port: PORT, host: "127.0.0.1" });
 

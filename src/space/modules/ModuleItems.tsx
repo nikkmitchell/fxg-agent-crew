@@ -197,6 +197,8 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, onIt
   const invalidate = useThree((state) => state.invalidate);
   const [problem, setProblem] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** How wide a model's plinth is: the model's own footprint, measured once it has built itself. */
+  const [footprint, setFootprint] = useState(0.5);
   const full = item.view === "full";
   const mode: ModuleMode = full ? "full" : item.role === "space" ? "model" : "item";
   const url = entry ? new URL(entry.url, window.location.origin).href : null;
@@ -224,8 +226,17 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, onIt
         }
         mine = started;
         running.set(item.id, started);
-        // Which parts asked to hear presses: the router looks for this mark.
         invalidate();
+        // A model stands on a plinth as wide as it is (in the room's metres).
+        if (mode === "model") {
+          setTimeout(() => {
+            if (!alive) return;
+            const box = new THREE.Box3().setFromObject(group);
+            if (box.isEmpty()) return;
+            const size = box.getSize(new THREE.Vector3());
+            setFootprint(Math.min(1.5, Math.max(0.25, Math.max(size.x, size.z) / 2 + 0.05)));
+          }, 600);
+        }
       });
     return () => {
       alive = false;
@@ -260,6 +271,13 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, onIt
       <group scale={full ? 1 : item.scale}>
         <group ref={root} name={`thing ${item.source.space}/${item.source.entry}`} />
       </group>
+      {/* A SPACE AS A MODEL stands on a plinth, like an architect's model on its table. */}
+      {mode === "model" ? (
+        <mesh position={[0, -at.y / 2 - 0.005, 0]} raycast={noRaycast}>
+          <cylinderGeometry args={[footprint, footprint * 1.04, Math.max(0.01, at.y - 0.01), 48]} />
+          <meshStandardMaterial color="#2a2f38" roughness={0.85} />
+        </mesh>
+      ) : null}
       {words ? (
         <Text position={[0, 1.4, 0]} fontSize={0.05} color={missing || problem ? "#f0a0a0" : "#e9edf2"} maxWidth={1.4} textAlign="center" anchorY="bottom" raycast={noRaycast}>
           {`${item.name}: ${words}`}

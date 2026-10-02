@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { isModuleItem, type ModuleRoomItem, type RoomItem } from "../../../shared/room-items";
+import { MODEL_HEIGHT, isModuleItem, type ModuleRoomItem, type RoomItem } from "../../../shared/room-items";
 import { bff, type SpaceModule, type SpaceModules, type SpaceShelf } from "../../bff-client";
 import { space } from "../../space-client";
 
@@ -77,7 +77,9 @@ export function useLibrary(options: {
     if (!listing) return;
     setBusy(true);
     setNotice(null);
-    const position = module.kind === "environment" || view === "full" ? undefined : options.inFront?.() ?? undefined;
+    const spot = module.kind === "environment" || view === "full" ? null : options.inFront?.() ?? null;
+    // A space as a model goes on a plinth at table height, where it can be worked on.
+    const position = spot ? { ...spot, y: module.kind === "space" ? MODEL_HEIGHT : spot.y } : undefined;
     space.bringModule({ space: listing.space, branch: listing.branch, entry: module.id }, { ...(view ? { view } : {}), ...(position ? { position } : {}) })
       .then((answer) => {
         options.applyRoomItem(answer.item);

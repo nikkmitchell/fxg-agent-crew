@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { GO_COLOURS, GO_PLAYERS, GO_SURFACES, MODULE_SCALE, defaultGoItem, isFullView, isGoSize, isGoSurface, isModuleItem, parseModuleItem, parseRoomItem, type GoRoomItem, type ModuleRole, type ModuleRoomItem, type RoomItem } from "../../shared/room-items.js";
+import { GO_COLOURS, GO_PLAYERS, GO_SURFACES, MODEL_HEIGHT, MODULE_SCALE, defaultGoItem, isFullView, isGoSize, isGoSurface, isModuleItem, parseModuleItem, parseRoomItem, type GoRoomItem, type ModuleRole, type ModuleRoomItem, type RoomItem } from "../../shared/room-items.js";
 import type { Config } from "../config.js";
 import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { Session, SessionStore } from "../session.js";
@@ -123,7 +123,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     const described = await options.describeModule({ username: session.username, token: session.token }, draft.source);
     if ("error" in described) return reply.code(described.status).send({ error: described.error });
     const view = described.role === "environment" ? "full" : described.role === "space" && body.view === "full" ? "full" : "placed";
-    const position = view === "full" ? { x: 0, y: 0, z: 0, rotationY: 0 } : readPosition(body.position) ?? { x: 0, y: 0, z: 1.5, rotationY: 0 };
+    const position = view === "full" ? { x: 0, y: 0, z: 0, rotationY: 0 } : readPosition(body.position) ?? { x: 0, y: described.role === "space" ? MODEL_HEIGHT : 0, z: 1.5, rotationY: 0 };
     const scale = view === "full" ? 1 : readScale(body.scale) ?? (described.role === "space" ? MODULE_SCALE.model : 1);
     const item: ModuleRoomItem = { ...draft, id: randomUUID(), name: described.name, role: described.role, view, position, scale, addedBy: session.username };
     if (view === "full") for (const other of options.items.all(room).filter(isFullView)) options.items.remove(room, other.id);
@@ -175,7 +175,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
             item.position = { x: 0, y: 0, z: 0, rotationY: 0 };
             item.scale = 1;
           } else {
-            item.position = { x: 0, y: 0, z: 1.5, rotationY: 0 };
+            item.position = { x: 0, y: MODEL_HEIGHT, z: 1.5, rotationY: 0 };
             item.scale = MODULE_SCALE.model;
           }
         }

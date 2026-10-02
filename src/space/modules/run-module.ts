@@ -120,7 +120,12 @@ export async function runModule(options: RunOptions): Promise<RunningModule> {
     url: (path: string) => new URL(path, options.url).href,
     onPress: (object: THREE.Object3D, fn: (info: PressInfo) => void) => {
       pressHandlers.set(object, fn);
-      return () => pressHandlers.delete(object);
+      // The room's press router casts only at parts marked so (ModuleItems.tsx).
+      object.userData.sahaPressable = true;
+      return () => {
+        pressHandlers.delete(object);
+        delete object.userData.sahaPressable;
+      };
     },
     onFrame: (fn: (dt: number, t: number) => void) => {
       frameHandlers.add(fn);
@@ -191,6 +196,7 @@ export async function runModule(options: RunOptions): Promise<RunningModule> {
         options.root.remove(child);
         freeObject(child);
       }
+      for (const object of pressHandlers.keys()) delete object.userData.sahaPressable;
       pressHandlers.clear();
       frameHandlers.clear();
       options.world.background = background;

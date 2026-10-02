@@ -795,7 +795,9 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     try {
       rooms = await auth.roomsOf(me);
     } catch (error) {
-      return upstream(reply, error);
+      // WebHarness not answering costs your own rooms' spaces, not the public ones.
+      if (error instanceof WebharnessError && error.status === 401) return upstream(reply, error);
+      request.log.warn({ err: error }, "library: could not ask WebHarness for this person's rooms");
     }
     const mine = new Set(rooms.map(spaceKey).filter((room) => store.exists(room)));
     const listed = [...mine, ...store.publicSpaces().map((space) => space.name).filter((name) => !mine.has(name))];

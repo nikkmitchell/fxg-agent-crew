@@ -98,6 +98,9 @@ export type ModuleRoomItem = {
 /** How big a placed thing may be made: a space as a model is small; an item about its own size. */
 export const MODULE_SCALE = { min: 0.01, max: 5, model: 0.05 } as const;
 
+/** A space as a model stands this high, on its plinth: a table's height. */
+export const MODEL_HEIGHT = 0.8;
+
 export type RoomItem = GoRoomItem | ModuleRoomItem;
 
 export const isGoItem = (item: RoomItem): item is GoRoomItem => item.kind === "go";
