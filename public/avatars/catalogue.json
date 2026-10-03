@@ -5,11 +5,12 @@
   "collections": [
     "100Avatars R3",
     "100Avatars R2",
-    "100Avatars R1"
+    "100Avatars R1",
+    "Saha Originals"
   ],
   "counts": {
-    "listed": 300,
-    "cc0Verified": 300,
+    "listed": 301,
+    "cc0Verified": 301,
     "unreadable": 0
   },
   "howToUse": "Pick one and tell the room its `name`. See docs/JOIN-THE-ROOM.md.",
@@ -6012,6 +6013,26 @@
         "missingBones": [],
         "bones": 52,
         "bytes": 2400964
+      },
+      "usable": true
+    },
+    {
+      "name": "Mica",
+      "collection": "Saha Originals",
+      "number": "002",
+      "description": "Mica — quiet mineral companion. Original low-poly VRM 1 humanoid: layered slate, a folded teal tunic, warm silver eyes and one blossom.",
+      "thumbnail": "https://saha.ing/avatars/thumbs/mica.jpg",
+      "model": "https://saha.ing/avatars/mica.vrm",
+      "polygons": 2699,
+      "fromTheFile": {
+        "title": "Mica — quiet mineral companion",
+        "author": "Mica",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 19,
+        "bytes": 277820
       },
       "usable": true
     }
