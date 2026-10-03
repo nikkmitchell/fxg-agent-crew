@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyInstance } from "fastify";
-import { finishedTitle, type FinishedSpace } from "../../shared/finished-spaces.js";
+import { finishedRoomName, finishedTitle, type FinishedSpace } from "../../shared/finished-spaces.js";
 import { isModuleItem, parseModuleItem, type ModuleRoomItem, type RoomItem } from "../../shared/room-items.js";
 import { roomKey } from "../../shared/space-room.js";
 import type { Config } from "../config.js";
@@ -75,7 +75,8 @@ export function registerFinishedRoutes(app: FastifyInstance, options: {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const title = finishedTitle(request.body?.title);
-    if (!title) return reply.code(400).send({ code: "BAD_TITLE", error: "Give it a title of 2 to 48 characters." });
+    const roomName = title ? finishedRoomName(title) : null;
+    if (!title || !roomName) return reply.code(400).send({ code: "BAD_TITLE", error: "Give it a title of 2 to 48 characters, with some letters or digits in it." });
     const draft = parseModuleItem({ id: "draft", kind: "module", source: request.body?.source ?? {}, role: "space", view: "full", position: { x: 0, y: 0, z: 0, rotationY: 0 }, scale: 1 });
     if (!draft) return reply.code(400).send({ code: "BAD_SOURCE", error: "Say which space, branch and thing: { source: { space, branch, entry } }." });
     const source = { space: draft.source.space, branch: draft.source.branch, entry: draft.source.entry };
@@ -84,18 +85,19 @@ export function registerFinishedRoutes(app: FastifyInstance, options: {
     if (described.role === "item") return reply.code(400).send({ code: "NOT_A_SPACE", error: "A finished space is a space or an environment; an item goes inside one." });
     const deploy = options.liveDeploy(source.space, source.branch);
     if (!deploy) return reply.code(409).send({ code: "NOTHING_LIVE", error: `${source.space} has nothing live on ${source.branch} to pin.` });
-    if (options.finished.has(title)) return reply.code(409).send({ code: "TAKEN", error: `There is already a finished space called ${title}.` });
+    if (options.finished.has(roomName)) return reply.code(409).send({ code: "TAKEN", error: `There is already a finished space called ${title}.` });
 
     // The room itself: public, so everyone can find and enter it; made as the person publishing.
     try {
       const made = await options.client.request<{ created?: boolean; roomName?: string }>("/api/rooms", {
         method: "POST",
         token: session.token,
-        body: { roomName: title, visibility: "public" },
+        body: { roomName, visibility: "public" },
       });
-      if (made?.created === false) return reply.code(409).send({ code: "ROOM_EXISTS", error: `A room called ${title} already exists; pick another title.` });
+      if (made?.created === false) return reply.code(409).send({ code: "ROOM_EXISTS", error: `A room called ${roomName} already exists; pick another title.` });
     } catch (error) {
       if (error instanceof WebharnessError && error.status === 401) return reply.code(401).send({ code: "SESSION_EXPIRED", error: "Sign in again.", reauth: true });
+      if (error instanceof WebharnessError && error.status === 422) return reply.code(400).send({ code: "BAD_TITLE", error: `WebHarness would not name a room ${roomName}.` });
       return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "WebHarness could not make the room." });
     }
 
@@ -110,7 +112,7 @@ export function registerFinishedRoutes(app: FastifyInstance, options: {
       scale: 1,
       addedBy: session.username,
     };
-    const room = roomKey(title);
+    const room = roomKey(roomName);
     for (const other of options.items.all(room)) options.items.remove(room, other.id);
     options.items.insert(room, item, session.username);
     const finished: FinishedSpace = { room, title, ...source, deploy, by: session.username, at: new Date().toISOString() };

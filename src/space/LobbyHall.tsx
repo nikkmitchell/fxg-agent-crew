@@ -196,7 +196,7 @@ export function LobbyHall({
           return (
             <WristButton
               key={door.kind === "space" ? `space:${door.space}` : door.room}
-              label={`${going === door.room ? "…" : ""}${door.room}\n${door.detail || " "}\n${action}`}
+              label={`${going === door.room ? "…" : ""}${door.label ?? door.room}\n${door.detail || " "}\n${action}`}
               x={(column - (DOORS.columns - 1) / 2) * (DOORS.width + DOORS.gap)}
               y={DOORS.top - row * (DOORS.height + DOORS.gap)}
               width={DOORS.width}

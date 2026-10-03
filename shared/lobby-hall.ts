@@ -34,6 +34,8 @@ export type LobbyDoor = {
   detail: string;
   /** For a space door: the space to enter (room is its title). */
   space?: string;
+  /** What the door says, when that is not the room's name (a finished space's title). */
+  label?: string;
 };
 
 export type PublicSpaceDoor = { name: string; title: string; here: number };
@@ -91,12 +93,12 @@ export function splitDoors(doors: readonly LobbyDoor[], finished: readonly { roo
     const key = roomKey(door.room);
     if (door.kind !== "space" && keys.has(key)) {
       seen.add(key);
-      done.push({ ...door, detail: door.kind === "here" ? door.detail : "finished space" });
+      done.push({ ...door, label: keys.get(key), detail: door.kind === "here" ? door.detail : "finished space" });
     } else {
       work.push(door);
     }
   }
-  for (const [key, title] of keys) if (!seen.has(key)) done.push({ room: title, kind: "join", detail: "finished space" });
+  for (const [key, title] of keys) if (!seen.has(key)) done.push({ room: key, label: title, kind: "join", detail: "finished space" });
   return { finished: done, work };
 }
 

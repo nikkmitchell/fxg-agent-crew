@@ -49,32 +49,33 @@ describe("finished spaces", () => {
     const { app, items, rooms, as } = boot();
     const answer = await app.inject({ method: "POST", url: "/bff/finished", cookies: as("Nikk2"), payload: { title: "Desert Camp", source: camp } });
     expect(answer.statusCode).toBe(201);
-    expect(rooms).toEqual([{ roomName: "Desert Camp", visibility: "public" }]);
-    const [thing] = items.all("desert camp") as ModuleRoomItem[];
+    // WebHarness names rooms with letters, digits and _ . - only: the title is what people read.
+    expect(rooms).toEqual([{ roomName: "desert-camp", visibility: "public" }]);
+    const [thing] = items.all("desert-camp") as ModuleRoomItem[];
     expect(thing).toMatchObject({ view: "full", name: "Desert camp", source: { ...camp, deploy: "d1" } });
     const listed = (await app.inject({ method: "GET", url: "/bff/finished", cookies: as("Baiwei") })).json();
-    expect(listed.spaces).toMatchObject([{ title: "Desert Camp", deploy: "d1", by: "Nikk2" }]);
+    expect(listed.spaces).toMatchObject([{ room: "desert-camp", title: "Desert Camp", deploy: "d1", by: "Nikk2" }]);
   });
 
   it("keeps its things as published: nothing is added, moved or taken away inside it", async () => {
     const { app, items, as } = boot();
     await app.inject({ method: "POST", url: "/bff/finished", cookies: as("Nikk2"), payload: { title: "Desert Camp", source: camp } });
-    const inside = as("Baiwei", "Desert Camp");
-    const [thing] = items.all("desert camp");
+    const inside = as("Baiwei", "desert-camp");
+    const [thing] = items.all("desert-camp");
     expect((await app.inject({ method: "DELETE", url: `/bff/space/items/${thing.id}`, cookies: inside })).statusCode).toBe(403);
     expect((await app.inject({ method: "PATCH", url: `/bff/space/items/${thing.id}`, cookies: inside, payload: { scale: 2 } })).statusCode).toBe(403);
     expect((await app.inject({ method: "POST", url: "/bff/space/items", cookies: inside, payload: { kind: "go" } })).statusCode).toBe(403);
-    expect(items.all("desert camp")).toHaveLength(1);
+    expect(items.all("desert-camp")).toHaveLength(1);
   });
 
   it("updates only when asked: a push does not change it, Update pins the newest", async () => {
     const { app, items, as, setLive } = boot();
     await app.inject({ method: "POST", url: "/bff/finished", cookies: as("Nikk2"), payload: { title: "Desert Camp", source: camp } });
     setLive("d2");
-    expect((items.all("desert camp")[0] as ModuleRoomItem).source.deploy).toBe("d1");
-    const updated = await app.inject({ method: "POST", url: "/bff/finished/Desert%20Camp/update", cookies: as("Sill") });
+    expect((items.all("desert-camp")[0] as ModuleRoomItem).source.deploy).toBe("d1");
+    const updated = await app.inject({ method: "POST", url: "/bff/finished/desert-camp/update", cookies: as("Sill") });
     expect(updated.statusCode).toBe(200);
-    expect((items.all("desert camp")[0] as ModuleRoomItem).source.deploy).toBe("d2");
+    expect((items.all("desert-camp")[0] as ModuleRoomItem).source.deploy).toBe("d2");
   });
 
   it("refuses an item (it goes inside a space), a taken title, and a room that already exists", async () => {
@@ -82,7 +83,7 @@ describe("finished spaces", () => {
     expect((await app.inject({ method: "POST", url: "/bff/finished", cookies: as("Nikk2"), payload: { title: "Drums", source: { ...camp, entry: "drums" } } })).statusCode).toBe(400);
     await app.inject({ method: "POST", url: "/bff/finished", cookies: as("Nikk2"), payload: { title: "Desert Camp", source: camp } });
     expect((await app.inject({ method: "POST", url: "/bff/finished", cookies: as("Nikk2"), payload: { title: "desert camp", source: camp } })).statusCode).toBe(409);
-    rooms.push({ roomName: "Lobby Two", visibility: "public" });
+    rooms.push({ roomName: "lobby-two", visibility: "public" });
     expect((await app.inject({ method: "POST", url: "/bff/finished", cookies: as("Nikk2"), payload: { title: "Lobby Two", source: camp } })).statusCode).toBe(409);
   });
 });

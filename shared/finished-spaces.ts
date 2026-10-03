@@ -26,3 +26,12 @@ export function finishedTitle(raw: unknown): string | null {
   const title = raw.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 48);
   return title.length >= 2 ? title : null;
 }
+
+/**
+ * Its room's name, from the title: WebHarness names a room with letters, digits and _ . - only, so
+ * "Plaza at dusk" is the room "plaza-at-dusk" (the title is what people read). Null if nothing is left.
+ */
+export function finishedRoomName(title: string): string | null {
+  const name = title.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+  return name.length >= 2 ? name : null;
+}

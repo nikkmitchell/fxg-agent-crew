@@ -84,11 +84,11 @@ describe("the room selector's two tabs (Nikk, 6940)", () => {
   it("puts finished spaces on their own tab, gives an unlisted one a door, and leaves the rest as work rooms", () => {
     const doors = [
       { room: "saha.ing", kind: "here" as const, detail: "" },
-      { room: "Desert Camp", kind: "join" as const, detail: "public" },
+      { room: "desert-camp", kind: "join" as const, detail: "public" },
       { room: "Things", kind: "space" as const, space: "saha.things", detail: "space" },
     ];
-    const split = splitDoors(doors, [{ room: "desert camp", title: "Desert Camp" }, { room: "rain room", title: "Rain Room" }]);
-    expect(split.finished.map((door) => `${door.room}:${door.kind}:${door.detail}`)).toEqual(["Desert Camp:join:finished space", "Rain Room:join:finished space"]);
+    const split = splitDoors(doors, [{ room: "desert-camp", title: "Desert Camp" }, { room: "rain-room", title: "Rain Room" }]);
+    expect(split.finished.map((door) => `${door.room}:${door.label}:${door.kind}:${door.detail}`)).toEqual(["desert-camp:Desert Camp:join:finished space", "rain-room:Rain Room:join:finished space"]);
     expect(split.work.map((door) => door.room)).toEqual(["saha.ing", "Things"]);
   });
 });
