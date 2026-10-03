@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { keepsOwnColours } from "../../shared/avatar-choice";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { VRM, VRMUtils } from "@pixiv/three-vrm";
@@ -142,7 +143,7 @@ export function VrmBody({
           const rig: Rig = { bone: (name) => loaded.humanoid.getNormalizedBoneNode(name) };
           tracked.current = new TrackedBody(rig, measureRig(rig, loaded.scene), loaded.scene);
         }
-        tint(loaded, recipe);
+        tint(loaded, recipe, body ? keepsOwnColours(body) : false);
         setVrm(loaded);
       })
       .catch(onFailed);
@@ -621,13 +622,13 @@ function rotateToward(
  * A TINT RATHER THAN A REPLACEMENT: the model's own shading is multiplied by
  * the colour rather than overwritten, so the face and features survive.
  */
-function tint(vrm: VRM, recipe: AvatarRecipe): void {
+function tint(vrm: VRM, recipe: AvatarRecipe, ownColours = false): void {
   const colour = new THREE.Color(recipe.paper);
   vrm.scene.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
     const materials = Array.isArray(child.material) ? child.material : [child.material];
     for (const material of materials) {
-      if ("color" in material && material.color instanceof THREE.Color) {
+      if (!ownColours && "color" in material && material.color instanceof THREE.Color) {
         material.color.lerp(colour, 0.45);
       }
 

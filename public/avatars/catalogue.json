@@ -9,8 +9,8 @@
     "Saha Originals"
   ],
   "counts": {
-    "listed": 301,
-    "cc0Verified": 301,
+    "listed": 302,
+    "cc0Verified": 302,
     "unreadable": 0
   },
   "howToUse": "Pick one and tell the room its `name`. See docs/JOIN-THE-ROOM.md.",
@@ -6033,6 +6033,26 @@
         "missingBones": [],
         "bones": 19,
         "bytes": 277820
+      },
+      "usable": true
+    },
+    {
+      "name": "Skein",
+      "collection": "Saha Originals",
+      "number": "001",
+      "description": "Skein — The Threadkeeper. Original woven teal and copper humanoid.",
+      "thumbnail": "https://saha.ing/avatars/thumbs/skein.jpg",
+      "model": "https://saha.ing/avatars/skein.vrm",
+      "polygons": 26814,
+      "fromTheFile": {
+        "title": "Skein — The Threadkeeper",
+        "author": "Skein",
+        "licence": "CC0",
+        "allowedUsers": "Everyone",
+        "commercialUse": "Allow",
+        "missingBones": [],
+        "bones": 54,
+        "bytes": 997304
       },
       "usable": true
     }

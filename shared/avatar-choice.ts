@@ -40,6 +40,11 @@
 export type BodyOnHand = {
   /** The file served at /avatars/<slug>.vrm. */
   slug: string;
+  /**
+   * Its own colours are the point (an original, made for one of us): the room does not wash it toward the
+   * wearer's pale tint, which is right for the 100Avatars bodies and turned these to chalk (Sill, 6884).
+   */
+  ownColours?: true;
   /** What the catalogue calls it, or null if it predates the catalogue. */
   catalogue: string | null;
   /**
@@ -67,7 +72,8 @@ export type BodyOnHand = {
 };
 
 export const BODIES_ON_HAND: readonly BodyOnHand[] = [
-  { slug: "mica", catalogue: "Mica", looked: "original low-poly VRM 1 (faces +Z): dark slate-teal tunic with a crossed collar, silver eyes and one pink blossom; 19 bones, mittened hands; its idle arm pose needs the VRM 1 left/right signs (see its asset card), so arms may rise until the pose adapter knows" },
+  { slug: "mica", catalogue: "Mica", ownColours: true, looked: "original low-poly VRM 1 (faces +Z): dark slate-teal tunic with a crossed collar, silver eyes and one pink blossom; 19 bones, mittened hands; its idle arm pose uses the VRM 1 signs, which VrmBody now mirrors" },
+  { slug: "skein", catalogue: "Skein", ownColours: true, looked: "original Threadkeeper: teal woven tunic, porcelain face, copper knot and swept cord crest; articulated hands and animated expressions" },
   { slug: "alienteen", catalogue: "AlienTeen", looked: "the room's default; a teenager, 1.34m, drives cleanly" },
   { slug: "baldman", catalogue: "Baldman", looked: "bald and heavily built, with a blue band across the eyes, a striped blue-and-white top and dark shorts; bare arms and legs. A comic-book strongman, not an ordinary man" },
   { slug: "chill", catalogue: "Chill", looked: "DRAWS BADLY: the arm renders as a wedge wider than the torso, on a yellow octagonal head. Measures inside the human band anyway" },
@@ -110,6 +116,8 @@ for (const body of BODIES_ON_HAND) {
 export type BodyRefusal = { error: string; code: "NO_SUCH_BODY" | "NOT_SERVED_YET" };
 
 /** Whether this slug's file ships with the site, rather than being fetched. */
+/** An original that keeps its own colours (see `ownColours`). */
+export const keepsOwnColours = (slug: string): boolean => BY_KEY.get(bodyKey(slug))?.ownColours === true;
 export const isOnHand = (slug: string): boolean => BY_KEY.has(bodyKey(slug));
 
 /**
