@@ -334,6 +334,16 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
     };
     room.know(url, { space: item.source.space, branch: item.source.branch }, item.id);
     void (async () => {
+      // One thing at a time loads and sets up (room-engine.ts, turn); released however this ends.
+      const release = await room.turn();
+      try {
+        await bringIn(url, group);
+      } finally {
+        release();
+      }
+    })();
+    async function bringIn(url: string, group: THREE.Group) {
+      if (!alive) return;
       let loaded;
       try {
         loaded = await room.engine.load(url);
@@ -380,7 +390,7 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
       running.set(item.id, legacy);
       driven.set(item.id, { frame: (dt, t) => legacy?.update(dt, t) });
       invalidate();
-    })();
+    }
     return () => {
       alive = false;
       if (legacy) {

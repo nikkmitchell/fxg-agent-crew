@@ -1,5 +1,5 @@
 import type { SpaceModule } from "../../bff-client";
-import { describeInRoom, type Library } from "./use-library";
+import { deploySize, describeInRoom, type Library } from "./use-library";
 
 /**
  * THE LIBRARY IN THE WINDOW'S SIDEBAR (the headset has it as a Library tab;
@@ -51,7 +51,12 @@ export function LibrarySection({ library }: { library: Library }) {
                 </label>
               ) : null}
               {listing.deploy ? (
-                <p className="muted-note">{listing.deploy.commit.slice(0, 7)} by {listing.deploy.pushedBy}: {listing.deploy.message}</p>
+                <>
+                  <p className="muted-note">{listing.deploy.commit.slice(0, 7)} by {listing.deploy.pushedBy}: {listing.deploy.message}{deploySize(listing.deploy.bytes) ? ` · ${deploySize(listing.deploy.bytes)!.text}` : ""}</p>
+                  {deploySize(listing.deploy.bytes)?.heavy ? (
+                    <p role="status">Heavy: everyone near one of these things downloads up to {deploySize(listing.deploy.bytes)!.text}. Fine to try; shrink it before it stays in a busy room.</p>
+                  ) : null}
+                </>
               ) : (
                 <p className="muted-note">Nothing is live on this branch yet.</p>
               )}

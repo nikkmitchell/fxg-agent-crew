@@ -35,6 +35,12 @@ export type RoomEngine = {
   onProblem(rootId: string, fn: (text: string) => void): () => void;
   /** A part this thing uses from another space has a new deploy: load the thing again. */
   onReload(rootId: string, fn: () => void): () => void;
+  /**
+   * A turn to load and set up (Nikk, 6928: "have the objects download be one by one"): things come in one
+   * after another, so a heavy one's files never compete with all the others at once. Call the release when
+   * done; a turn that takes over 20 s lets the next one go anyway, so one stuck thing never blocks the room.
+   */
+  turn(): Promise<() => void>;
   dispose(): void;
 };
 
@@ -208,8 +214,18 @@ export function createRoomEngine(deps: {
     };
   };
 
+  let line: Promise<void> = Promise.resolve();
+  const turn = () => {
+    let release!: () => void;
+    const done = new Promise<void>((resolve) => (release = resolve));
+    const mine = line.then(() => undefined);
+    line = mine.then(() => Promise.race([done, new Promise<void>((resolve) => setTimeout(resolve, 20_000))]));
+    return mine.then(() => release);
+  };
+
   return {
     engine,
+    turn,
     know: (url, source, item) => sources.set(url, { ...source, item }),
     onProblem: subscribeTo(badges as Map<string, Set<never>>),
     onReload: subscribeTo(reloads as Map<string, Set<never>>),

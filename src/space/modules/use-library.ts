@@ -136,6 +136,16 @@ export function useLibrary(options: {
   };
 }
 
+/** Nikk, 6928: no hard limit, but say so above this, because everybody near a thing downloads it. */
+export const HEAVY_BYTES = 20 * 1024 * 1024;
+
+/** A deploy's size, and a warning when it is heavy; null when unknown. */
+export function deploySize(bytes: number | undefined): { text: string; heavy: boolean } | null {
+  if (typeof bytes !== "number") return null;
+  const mb = bytes / (1024 * 1024);
+  return { text: mb >= 1 ? `${mb.toFixed(mb >= 10 ? 0 : 1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`, heavy: bytes > HEAVY_BYTES };
+}
+
 /** How a thing in the room reads in a list. */
 export function describeInRoom(item: ModuleRoomItem): string {
   const what = item.role === "environment" ? "environment" : item.role === "space" ? (item.view === "full" ? "space, full size" : "space, as a model") : "item";

@@ -176,7 +176,8 @@ export type SpaceModules = {
   space: string;
   branch: string;
   branches: string[];
-  deploy: { id: string; commit: string; message: string; pushedBy: string; createdAt: string } | null;
+  /** bytes: everything the deploy holds, which is the most anybody may download for its things. */
+  deploy: { id: string; commit: string; message: string; pushedBy: string; createdAt: string; bytes?: number } | null;
   modules: SpaceModule[];
   problems: string[];
 };

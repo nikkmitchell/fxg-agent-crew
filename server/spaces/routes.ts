@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { Readable } from "node:stream";
+import { pipeline, type Readable } from "node:stream";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   LIVE_BRANCH,
@@ -18,6 +18,7 @@ import {
 } from "../../shared/spaces.js";
 import type { Session } from "../session.js";
 import { doorTitle, goTarget, spaceEntryPath } from "../../shared/space-kit.js";
+import { BIG_FILE_TYPES, fairShare } from "./fair-share.js";
 import { sahaSdkSource } from "./saha-sdk.js";
 import { threeBridgeSource } from "./three-bridge.js";
 import { catalogueOf, isModuleKind, KIT_PIECES, moduleUrl, pieceUrl, type ModuleKind } from "../../shared/space-bench.js";
@@ -263,6 +264,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
    * whoever brought it in was allowed to.
    */
   roomHolds?: (session: Session, space: string) => boolean;
+  /** What big space files may take of the box's uplink together (fair-share.ts); 4 MB/s unless said. */
+  spaceFilesBytesPerSecond?: number;
   queue?: DeployQueue;
   now?: () => Date;
 }): { queue: DeployQueue; describeModule: DescribeModule } {
@@ -376,6 +379,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   });
 
   // ---------------------------------------------------------------- sites
+  const share = fairShare({ bytesPerSecond: deps.spaceFilesBytesPerSecond ?? 4 * 1024 * 1024, smallBytes: 512 * 1024 });
   const serveSite = async (request: FastifyRequest, reply: FastifyReply) => {
     const url = new URL(request.url, "http://placeholder");
     const match = /^\/s\/([^/]+)(\/.*)?$/.exec(url.pathname);
@@ -427,7 +431,16 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     const isFile = async (relative: string) => (await stat(join(dir, relative)).catch(() => null))?.isFile() === true;
 
     // One deploy by its id never changes: cache it for good (sendFile sets its own header otherwise).
-    if (await isFile(file)) return pinned ? reply.sendFile(file, dir, { maxAge: 365 * 24 * 3600 * 1000, immutable: true }) : reply.sendFile(file, dir);
+    if (await isFile(file)) {
+      // A big model, texture or sound shares the space files' budget, so it can never take the whole uplink (fair-share.ts).
+      const type = BIG_FILE_TYPES[file.slice(file.lastIndexOf(".") + 1).toLowerCase()];
+      const size = type ? (await stat(join(dir, file))).size : 0;
+      if (type && size > share.smallBytes && request.headers.range === undefined) {
+        reply.type(type).header("content-length", String(size));
+        return reply.send(pipeline(createReadStream(join(dir, file)), share.throttle(), () => undefined));
+      }
+      return pinned ? reply.sendFile(file, dir, { maxAge: 365 * 24 * 3600 * 1000, immutable: true }) : reply.sendFile(file, dir);
+    }
     // /s/x/about -> /s/x/about/ when about/index.html exists, so its relative links work.
     if (!/\.[A-Za-z0-9]+$/.test(file) && !rest.endsWith("/") && (await isFile(`${file}/index.html`))) {
       return reply.redirect(`${url.pathname}/${url.search}`);
@@ -825,7 +838,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   const modulesOf = (space: string, branch: string, deploy?: StoredDeploy) => {
     const live = deploy ?? store.live(space, branch);
     return {
-      deploy: live ? { id: live.id, commit: live.commit, message: live.message, pushedBy: live.pushedBy, createdAt: live.createdAt } : null,
+      // bytes: the whole deploy, which is what anybody near its things may download (the Library warns above 20 MB).
+      deploy: live ? { id: live.id, commit: live.commit, message: live.message, pushedBy: live.pushedBy, createdAt: live.createdAt, bytes: live.bytes } : null,
       modules: (live?.pieces ?? []).flatMap((piece) =>
         isModuleKind(piece.kind) ? [{ id: piece.id, name: piece.name, kind: piece.kind, export: piece.export ?? null, url: moduleUrl(space, live!.id, piece.path) }] : []),
       problems: live?.piecesProblems ?? [],

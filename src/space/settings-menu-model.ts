@@ -1,6 +1,6 @@
 import type { RoomMenuRow } from "../../shared/room-switch";
 import type { MenuRow, MenuSection, MenuTab } from "./menu-layout";
-import { describeInRoom, type Library } from "./modules/use-library";
+import { deploySize, describeInRoom, type Library } from "./modules/use-library";
 
 /**
  * WHAT EACH SETTINGS TAB SHOWS, as sections of rows — decided here, without a
@@ -372,6 +372,8 @@ function librarySections(s: SettingsMenuInput): MenuSection[] {
     if (!listing) head.push(note("Looking…"));
     else if (!listing.deploy) head.push(note("Nothing is live on this branch yet."));
     else if (!listing.modules.length) head.push(note("Nothing to bring in yet: list items, environments and spaces in saha-pieces.json."));
+    const size = deploySize(listing?.deploy?.bytes);
+    if (size) head.push(note(size.heavy ? `Heavy: ${size.text}. Everyone near these things downloads it; shrink before it stays in a busy room.` : `Size: ${size.text}`));
     sections.push({ title: open.name, rows: head });
     if (listing) {
       const items = listing.modules.filter((module) => module.kind === "item");
