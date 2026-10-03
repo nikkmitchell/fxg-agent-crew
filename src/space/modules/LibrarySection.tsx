@@ -1,5 +1,7 @@
-import type { SpaceModule } from "../../bff-client";
+import { useState } from "react";
+import { ALL_BRANCHES, type SpaceModule } from "../../bff-client";
 import { deploySize, describeInRoom, type Library } from "./use-library";
+import type { ModuleRoomItem } from "../../../shared/room-items";
 
 /**
  * THE LIBRARY IN THE WINDOW'S SIDEBAR (the headset has it as a Library tab;
@@ -30,6 +32,7 @@ export function LibrarySection({ library }: { library: Library }) {
                   </button>
                 ) : null}
                 <button type="button" onClick={() => library.remove(item)}>Take away</button>
+                <Feedback item={item} library={library} />
               </li>
             ))}
           </ul>
@@ -46,11 +49,14 @@ export function LibrarySection({ library }: { library: Library }) {
                 <label className="space-setting">
                   <span>Branch</span>
                   <select value={listing.branch} onChange={(event) => library.openSpace(listing.space, event.currentTarget.value)}>
+                    <option value={ALL_BRANCHES}>All branches</option>
                     {listing.branches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
                   </select>
                 </label>
               ) : null}
-              {listing.deploy ? (
+              {listing.branch === ALL_BRANCHES ? (
+                <p className="muted-note">Everything every live branch offers; a branch with nothing in it is left out.</p>
+              ) : listing.deploy ? (
                 <>
                   <p className="muted-note">{listing.deploy.commit.slice(0, 7)} by {listing.deploy.pushedBy}: {listing.deploy.message}{deploySize(listing.deploy.bytes) ? ` · ${deploySize(listing.deploy.bytes)!.text}` : ""}</p>
                   {deploySize(listing.deploy.bytes)?.heavy ? (
@@ -74,8 +80,11 @@ export function LibrarySection({ library }: { library: Library }) {
                     <h4>{KIND_TITLE[kind]}</h4>
                     <ul className="space-library-list">
                       {modules.map((module) => (
-                        <li key={module.id}>
-                          <span>{module.name}</span>
+                        <li key={`${module.branch ?? listing.branch}/${module.id}`}>
+                          <span>{module.name}{module.branch ? ` · ${module.branch}` : ""}</span>
+                          {module.branch ? (
+                            <button type="button" className="text-button" onClick={() => library.openSpace(listing.space, module.branch)}>Go to branch</button>
+                          ) : null}
                           {kind === "space" ? (
                             <>
                               <Switch on={Boolean(library.present(module, "placed"))} disabled={library.busy} onTap={() => library.toggle(module, "placed")}>Model</Switch>
@@ -126,5 +135,35 @@ function Switch({ on, disabled, onTap, children }: { on: boolean; disabled: bool
     <button type="button" role="switch" aria-checked={on} disabled={disabled} onClick={onTap}>
       {children}: {on ? "on" : "off"}
     </button>
+  );
+}
+
+/** Feedback on one thing in the room: written here, kept with its space for the agents building it (Nikk, 6938). */
+function Feedback({ item, library }: { item: ModuleRoomItem; library: Library }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  if (!open) return <button type="button" onClick={() => setOpen(true)}>Feedback</button>;
+  return (
+    <span className="space-library-feedback">
+      <textarea aria-label={`Feedback on ${item.name}`} value={text} rows={2} maxLength={2000} onChange={(event) => setText(event.currentTarget.value)} />
+      <button
+        type="button"
+        disabled={sending || !text.trim()}
+        onClick={() => {
+          setSending(true);
+          void library.feedback(item, text).then((kept) => {
+            setSending(false);
+            if (kept) {
+              setText("");
+              setOpen(false);
+            }
+          });
+        }}
+      >
+        Send
+      </button>
+      <button type="button" onClick={() => setOpen(false)}>Cancel</button>
+    </span>
   );
 }

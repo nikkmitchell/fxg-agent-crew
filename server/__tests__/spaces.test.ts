@@ -660,6 +660,19 @@ describe("things to bring into a room: items, environments and spaces (Nikk, 202
     expect((await page("/s/meditation.ar/~no-such-deploy/pieces/drums.js")).status).toBe(404);
     expect((await page(`/s/other.space/~${deploy}/pieces/drums.js`)).status).toBe(404);
 
+    // Every live branch at once, each thing saying its branch; branches with nothing in them add nothing (Nikk, 6938).
+    const all = (await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/modules?branch=*", headers: { cookie: "who=nikk" } })).json();
+    expect(all.branch).toBe("*");
+    expect(all.modules.map((module: { id: string; branch: string }) => `${module.branch}/${module.id}`)).toEqual(["things/drums", "things/forest", "things/grove"]);
+
+    // Feedback on a thing, from the room while signed in: kept with its space and branch for the agents (Nikk, 6938).
+    const sent = await app.inject({ method: "POST", url: "/bff/spaces/meditation.ar/feedback", headers: { cookie: "who=nikk", "content-type": "application/json" }, payload: { branch: "things", device: "saha.ing room", summary: "Hand drums (drums): the third skin is quiet", items: [] } });
+    expect(sent.statusCode).toBe(200);
+    const kept = (await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/feedback?branch=things", headers: { cookie: "who=nikk" } })).json();
+    expect(kept.feedback[0]).toMatchObject({ by: "nikk", branch: "things", summary: "Hand drums (drums): the third skin is quiet" });
+    // Not one's to use, and nothing of it in one's room: refused.
+    expect((await app.inject({ method: "POST", url: "/bff/spaces/meditation.ar/feedback", headers: { cookie: "who=baiwei", "content-type": "application/json" }, payload: { summary: "x" } })).statusCode).toBe(403);
+
     expect(await describeModule({ username: "nikk", token: "nikk-session" }, { space: "meditation.ar", branch: "things", entry: "forest" })).toEqual({ name: "Forest", role: "environment" });
     expect(await describeModule({ username: "nikk", token: "nikk-session" }, { space: "meditation.ar", branch: "things", entry: "orb" })).toMatchObject({ status: 404 });
     expect(await describeModule({ username: "baiwei", token: "baiwei-session" }, { space: "meditation.ar", branch: "things", entry: "forest" })).toMatchObject({ status: 403 });

@@ -367,27 +367,30 @@ function librarySections(s: SettingsMenuInput): MenuSection[] {
     const listing = open.listing;
     const head: MenuRow[] = [{ kind: "link", label: "‹ All spaces", onTap: () => library.openSpace(null) }];
     if (listing && listing.branches.length > 1) {
+      head.push({ kind: "choice", label: "All branches", selected: listing.branch === "*", onTap: () => library.openSpace(listing.space) });
       for (const branch of listing.branches) head.push({ kind: "choice", label: `Branch: ${branch}`, selected: branch === listing.branch, onTap: () => library.openSpace(listing.space, branch) });
     }
     if (!listing) head.push(note("Looking…"));
-    else if (!listing.deploy) head.push(note("Nothing is live on this branch yet."));
+    else if (!listing.deploy && listing.branch !== "*") head.push(note("Nothing is live on this branch yet."));
     else if (!listing.modules.length) head.push(note("Nothing to bring in yet: list items, environments and spaces in saha-pieces.json."));
     const size = deploySize(listing?.deploy?.bytes);
     if (size) head.push(note(size.heavy ? `Heavy: ${size.text}. Everyone near these things downloads it; shrink before it stays in a busy room.` : `Size: ${size.text}`));
     sections.push({ title: open.name, rows: head });
     if (listing) {
+      // In the all-branches list, a thing says which branch it is from.
+      const named = (module: { name: string; branch?: string }) => (module.branch ? `${module.name} · ${module.branch}` : module.name);
       const items = listing.modules.filter((module) => module.kind === "item");
       const environments = listing.modules.filter((module) => module.kind === "environment");
       const spaces = listing.modules.filter((module) => module.kind === "space");
-      if (items.length) sections.push({ title: "Items", rows: items.map((module) => ({ kind: "action" as const, label: module.name, tone: "accent" as const, value: "Bring in", onTap: () => library.bring(module) })) });
+      if (items.length) sections.push({ title: "Items", rows: items.map((module) => ({ kind: "action" as const, label: named(module), tone: "accent" as const, value: "Bring in", onTap: () => library.bring(module) })) });
       // Switches (Nikk, 6867): each shows whether it is up, and a press turns it on or off.
-      if (environments.length) sections.push({ title: "Environments", rows: environments.map((module) => ({ kind: "toggle" as const, label: module.name, detail: "Around the room", on: Boolean(library.present(module, "full")), onTap: () => library.toggle(module, "full") })) });
+      if (environments.length) sections.push({ title: "Environments", rows: environments.map((module) => ({ kind: "toggle" as const, label: named(module), detail: "Around the room", on: Boolean(library.present(module, "full")), onTap: () => library.toggle(module, "full") })) });
       if (spaces.length) {
         sections.push({
           title: "Spaces",
           rows: spaces.flatMap((module) => [
-            { kind: "toggle" as const, label: `${module.name}: model`, on: Boolean(library.present(module, "placed")), onTap: () => library.toggle(module, "placed") },
-            { kind: "toggle" as const, label: `${module.name}: full size`, on: Boolean(library.present(module, "full")), onTap: () => library.toggle(module, "full") },
+            { kind: "toggle" as const, label: `${named(module)}: model`, on: Boolean(library.present(module, "placed")), onTap: () => library.toggle(module, "placed") },
+            { kind: "toggle" as const, label: `${named(module)}: full size`, on: Boolean(library.present(module, "full")), onTap: () => library.toggle(module, "full") },
           ]),
         });
       }

@@ -94,6 +94,14 @@ export const bff = {
   spaceModules: (name: string, branch?: string, signal?: AbortSignal, deploy?: string) =>
     requestJson<SpaceModules>(`${bffRoot}/spaces/${encodeURIComponent(name)}/modules${deploy ? `?deploy=${encodeURIComponent(deploy)}` : branch ? `?branch=${encodeURIComponent(branch)}` : ""}`, { signal }),
 
+  /** Feedback about a thing, from the room, kept with its space for the agents building it (Spaces page; GET .../feedback). */
+  thingFeedback: (space: string, report: { branch: string; device: string; summary: string }) =>
+    requestJson<{ id: string; at: string }>(`${bffRoot}/spaces/${encodeURIComponent(space)}/feedback`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...report, items: [] }),
+    }),
+
   /** A ticket into a space as yourself; open `path` to arrive with it. */
   spaceTicket: (name: string) =>
     requestJson<{ ticket: string; path: string }>(`${bffRoot}/spaces/${encodeURIComponent(name)}/ticket`, { method: "POST" }),
@@ -169,7 +177,18 @@ export type SpaceDetail = {
 export type SpaceShelf = { name: string; title: string; public: boolean; mine: boolean; branch: string };
 
 /** One thing a space offers to bring into a room. */
-export type SpaceModule = { id: string; name: string; kind: "item" | "environment" | "space"; export: string | null; url: string };
+export type SpaceModule = {
+  id: string;
+  name: string;
+  kind: "item" | "environment" | "space";
+  export: string | null;
+  url: string;
+  /** In the all-branches list (branch "*"), which branch this one is from. */
+  branch?: string;
+};
+
+/** Every branch at once: `spaceModules(space, ALL_BRANCHES)`. */
+export const ALL_BRANCHES = "*";
 
 /** What one branch of a space offers (GET /bff/spaces/:space/modules). */
 export type SpaceModules = {

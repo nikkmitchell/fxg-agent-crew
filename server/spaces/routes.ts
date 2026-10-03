@@ -734,8 +734,22 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   app.post<{ Params: { space: string }; Querystring: { ticket?: string }; Body: unknown }>("/bff/spaces/:space/feedback", async (request, reply) => {
     feedbackCors(reply);
     const space = spaceKey(request.params.space);
-    const holder = deps.tickets.read(request.query.ticket, space);
-    if (!holder) return reply.code(401).send({ code: "NO_TICKET", error: "Enter the space as yourself from saha.ing to send feedback." });
+    let holder: { username: string } | null = deps.tickets.read(request.query.ticket, space);
+    if (!holder) {
+      // FROM THE ROOM (Nikk, 6938): a thing's Feedback button, signed in, about a thing from this space that one
+      // may use or that stands in one's room. It lands where a space page's report does, for the agents building it.
+      const session = deps.sessionOf(request);
+      if (!session) return reply.code(401).send({ code: "NO_TICKET", error: "Enter the space as yourself from saha.ing to send feedback." });
+      if (!store.exists(space)) return reply.code(404).send({ code: "NO_SPACE", error: `There is no space called ${space}.` });
+      if (!deps.roomHolds?.(session, space)) {
+        try {
+          if (!(await mayUse({ username: session.username, token: session.token }, space))) return reply.code(403).send({ code: "NOT_A_MEMBER", error: `${space} is not public, and you are not in its room.` });
+        } catch (error) {
+          return upstream(reply, error);
+        }
+      }
+      holder = { username: session.username };
+    }
     let body: unknown = request.body;
     if (typeof body === "string") {
       if (body.length > FEEDBACK_LIMITS.body) return reply.code(413).send({ code: "TOO_BIG", error: "That report is too long." });
@@ -907,6 +921,12 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       }
     }
     const branches = [...new Set([LIVE_BRANCH, ...store.liveBranches(space)])];
+    if (request.query.branch === "*") {
+      // EVERY LIVE BRANCH AT ONCE (Nikk, 6938): one list of all a space's things, each saying its branch;
+      // branches with nothing to bring in are simply not in it.
+      const modules = branches.flatMap((branch) => modulesOf(space, branch).modules.map((module) => ({ ...module, branch })));
+      return reply.header("cache-control", "no-store").send({ space, branch: "*", branches, deploy: null, modules, problems: [] });
+    }
     if (typeof request.query.deploy === "string" && request.query.deploy) {
       const one = /^[A-Za-z0-9_-]{1,64}$/.test(request.query.deploy) ? store.deploy(request.query.deploy) : null;
       if (!one || one.space !== space || one.status !== "ready") return reply.code(404).send({ code: "NO_DEPLOY", error: `${space} has no deploy ${request.query.deploy}.` });

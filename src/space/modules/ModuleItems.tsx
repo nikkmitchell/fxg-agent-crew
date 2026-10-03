@@ -7,6 +7,7 @@ import type { ClientMessage, ServerMessage, WirePerson } from "../../../shared/s
 import { bff, type SpaceModule, type SpaceModules } from "../../bff-client";
 import { space } from "../../space-client";
 import { WristButton } from "../Backdrop";
+import { createSystemKeyboard } from "../system-keyboard";
 import { moduleRoom } from "./module-room";
 import { runModule, type ModuleMode, type RunningModule } from "./run-module";
 import { useCarry } from "./use-carry";
@@ -457,6 +458,16 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
           turn={() => void save({ position: { ...item.position, rotationY: (item.position.rotationY + Math.PI / 4) % (Math.PI * 2) } })}
           fullSize={item.role === "space" ? () => void space.placeModule(item.id, { view: "full", revision: item.revision }).then((answer) => onItem(answer.item)).catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not open it full size.")) : null}
           remove={() => void space.removeRoomItem(item.id).then(() => onRemoved(item.id)).catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not take it away."))}
+          feedback={(text) =>
+            bff.thingFeedback(item.source.space, { branch: item.source.branch, device: "saha.ing room", summary: `${item.name} (${item.source.entry}): ${text.trim()}` })
+              .then(() => {
+                setNotice(`Feedback sent to ${item.source.space}.`);
+                return true;
+              })
+              .catch((error: unknown) => {
+                setNotice(error instanceof Error ? error.message : "Could not send the feedback.");
+                return false;
+              })}
         />
       )}
     </group>
@@ -467,7 +478,7 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
  * A THING'S OWN CONTROLS, at its feet: a gear that opens MOVE, smaller,
  * bigger, turn, full size (a space) and take away (pressed twice).
  */
-function ThingControls({ item, carrying, take, steer, drop, resize, turn, fullSize, remove }: {
+function ThingControls({ item, carrying, take, steer, drop, resize, turn, fullSize, remove, feedback }: {
   item: ModuleRoomItem;
   carrying: boolean;
   take: (event: import("@react-three/fiber").ThreeEvent<PointerEvent>) => void;
@@ -477,9 +488,17 @@ function ThingControls({ item, carrying, take, steer, drop, resize, turn, fullSi
   turn: () => void;
   fullSize: (() => void) | null;
   remove: () => void;
+  /** Feedback on this thing for the agents building it (Nikk, 6938). */
+  feedback: (text: string) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState(false);
+  // FEEDBACK, typed or dictated on the headset's own keyboard (system-keyboard.ts), shown here in the room.
+  const [writing, setWriting] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const keyboard = useMemo(() => (typeof document === "undefined" ? null : createSystemKeyboard({ onDraft: setDraft, onShown: () => undefined })), []);
+  useEffect(() => () => keyboard?.dispose(), [keyboard]);
   useEffect(() => {
     if (!armed) return;
     const timer = setTimeout(() => setArmed(false), 4000);
@@ -503,6 +522,18 @@ function ThingControls({ item, carrying, take, steer, drop, resize, turn, fullSi
           <WristButton label="⟲" glyph x={-0.09} y={0} width={0.1} height={0.1} onTap={turn} />
           {fullSize ? <WristButton label="FULL SIZE" x={0.08} y={0} width={0.2} height={0.1} onTap={fullSize} /> : null}
           <WristButton
+            label="FEEDBACK"
+            x={-0.21}
+            y={0.12}
+            width={0.22}
+            height={0.1}
+            onTap={() => {
+              setWriting(true);
+              // Inside the tap: a keyboard opened later is not a gesture the browser honours.
+              keyboard?.open(draft);
+            }}
+          />
+          <WristButton
             label={armed ? "SURE?" : "✕"}
             glyph={!armed}
             tone="danger"
@@ -515,6 +546,32 @@ function ThingControls({ item, carrying, take, steer, drop, resize, turn, fullSi
               else setArmed(true);
             }}
           />
+        </group>
+      ) : null}
+      {writing ? (
+        <group position={[0, 0.5, 0]}>
+          <Text position={[0, 0.09, 0]} fontSize={0.035} color="#e9edf2" maxWidth={0.8} textAlign="center" anchorY="bottom" raycast={noRaycast}>
+            {draft || `Feedback on ${item.name}: type or dictate on the keyboard`}
+          </Text>
+          <WristButton label="WRITE" x={-0.2} y={0} width={0.16} height={0.1} onTap={() => keyboard?.open(draft)} />
+          <WristButton
+            label={sending ? "…" : "SEND"}
+            x={0}
+            y={0}
+            width={0.16}
+            height={0.1}
+            onTap={() => {
+              if (sending || !draft.trim()) return;
+              setSending(true);
+              void feedback(draft).then((kept) => {
+                setSending(false);
+                if (!kept) return;
+                setDraft("");
+                setWriting(false);
+              });
+            }}
+          />
+          <WristButton label="✕" glyph x={0.18} y={0} width={0.1} height={0.1} onTap={() => setWriting(false)} />
         </group>
       ) : null}
     </group>

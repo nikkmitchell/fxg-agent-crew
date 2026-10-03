@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { MODEL_HEIGHT, isModuleItem, type ModuleRoomItem, type RoomItem } from "../../../shared/room-items";
-import { bff, type SpaceModule, type SpaceModules, type SpaceShelf } from "../../bff-client";
+import { ALL_BRANCHES, bff, type SpaceModule, type SpaceModules, type SpaceShelf } from "../../bff-client";
 import { space } from "../../space-client";
 
 /**
@@ -32,6 +32,11 @@ export type Library = {
    * can be up; an environment is one. Turning one on never takes the other away.
    */
   toggle: (module: SpaceModule, view: "placed" | "full") => void;
+  /**
+   * Feedback about a thing in the room (Nikk, 6938), kept with its space and branch where the agents building
+   * it read it (the Spaces page, GET /bff/spaces/<space>/feedback). Resolves true once it is kept.
+   */
+  feedback: (item: ModuleRoomItem, text: string) => Promise<boolean>;
 };
 
 const message = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
@@ -74,7 +79,8 @@ export function useLibrary(options: {
     }
     setOpen({ name, listing: null });
     setNotice(null);
-    bff.spaceModules(name, branch)
+    // Every live branch's things in one list unless a branch is asked for (Nikk, 6938).
+    bff.spaceModules(name, branch ?? ALL_BRANCHES)
       .then((listing) => setOpen((now) => (now?.name === name ? { name, listing } : now)))
       .catch((error: unknown) => setNotice(message(error, `Could not open ${name}.`)));
   }, []);
@@ -87,7 +93,7 @@ export function useLibrary(options: {
     const spot = module.kind === "environment" || view === "full" ? null : options.inFront?.() ?? null;
     // A space as a model goes on a plinth at table height, where it can be worked on.
     const position = spot ? { ...spot, y: module.kind === "space" ? MODEL_HEIGHT : spot.y } : undefined;
-    space.bringModule({ space: listing.space, branch: listing.branch, entry: module.id }, { ...(view ? { view } : {}), ...(position ? { position } : {}) })
+    space.bringModule({ space: listing.space, branch: module.branch ?? listing.branch, entry: module.id }, { ...(view ? { view } : {}), ...(position ? { position } : {}) })
       .then((answer) => {
         options.applyRoomItem(answer.item);
         setNotice(`${module.name} is in the room.`);
@@ -112,7 +118,7 @@ export function useLibrary(options: {
   const listing = open?.listing ?? null;
   const present = (module: SpaceModule, view?: "placed" | "full") =>
     inRoom.find((item) =>
-      listing !== null && item.source.space === listing.space && item.source.branch === listing.branch && item.source.entry === module.id && (view === undefined || item.view === view),
+      listing !== null && item.source.space === listing.space && item.source.branch === (module.branch ?? listing.branch) && item.source.entry === module.id && (view === undefined || item.view === view),
     ) ?? null;
   const toggle = (module: SpaceModule, view: "placed" | "full") => {
     const here = present(module, view);
@@ -120,10 +126,22 @@ export function useLibrary(options: {
     else bring(module, view);
   };
 
+  const feedback = (item: ModuleRoomItem, text: string) =>
+    bff.thingFeedback(item.source.space, { branch: item.source.branch, device: "saha.ing room", summary: `${item.name} (${item.source.entry}): ${text.trim()}` })
+      .then(() => {
+        setNotice(`Feedback on ${item.name} sent to ${item.source.space}.`);
+        return true;
+      })
+      .catch((error: unknown) => {
+        setNotice(message(error, `Could not send feedback on ${item.name}.`));
+        return false;
+      });
+
   return {
     spaces,
     open,
     inRoom,
+    feedback,
     present,
     toggle,
     notice,
