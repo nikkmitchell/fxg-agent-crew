@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
@@ -36,5 +36,8 @@ export default defineConfig({
     // node:sqlite prints an ExperimentalWarning from every worker: forty-odd
     // identical lines a run, which buried any warning that meant something.
     execArgv: ["--disable-warning=ExperimentalWarning"],
+    // The local harness's spaces (.dev-spaces/) hold deployed copies of spaces' repos, with their
+    // OWN tests: a seeded xr.instruments made the release refuse to ship, over Sill's drums test.
+    exclude: [...configDefaults.exclude, ".dev-spaces/**"],
   },
 });
