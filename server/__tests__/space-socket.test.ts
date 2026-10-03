@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
+import type { ModuleRoomItem } from "../../shared/room-items.js";
 import type { ServerMessage } from "../../shared/space-wire.js";
 import { RoomItems } from "../space/items.js";
 import { tempDir } from "./test-config.js";
@@ -161,11 +162,18 @@ describe("the space socket", () => {
   });
 
   it("passes a thing from a space's moments and values to its other copies, stamped by the server (Nikk, 2026-10-01)", async () => {
-    const { origin, as } = await boot();
+    const { origin, as, database } = await boot();
+    const drums: ModuleRoomItem = {
+      id: "drums-1", kind: "module", revision: 0, source: { space: "xr.instruments", branch: "main", entry: "drums" },
+      name: "Hand drums", role: "item", view: "placed", position: { x: 0, y: 0, z: 1.5, rotationY: 0 }, scale: 1, addedBy: "Moraine",
+    };
+    new RoomItems(database).insert("saha.ing", drums, "Moraine");
     const drummer = await connect(origin, as("Moraine"));
     const listener = await connect(origin, as("Sill"));
     await drummer.where((m) => m.type === "welcome", "drummer welcome");
     await listener.where((m) => m.type === "welcome", "listener welcome");
+    // Only for what stands in the room: a thing that is not here (or a made-up id) is never relayed or kept.
+    drummer.send({ type: "moduleState", item: "ghost-1", key: "tempo", value: 1 });
     drummer.send({ type: "moduleEvent", item: "drums-1", name: "hit", data: { drum: 2, velocity: 0.8 }, from: "somebody else" } as never);
     expect(await listener.where((m) => m.type === "moduleEvent", "the hit")).toEqual({ type: "moduleEvent", item: "drums-1", name: "hit", data: { drum: 2, velocity: 0.8 }, from: "Moraine" });
     drummer.send({ type: "moduleState", item: "drums-1", key: "tempo", value: 92 });
@@ -174,6 +182,10 @@ describe("the space socket", () => {
     drummer.send({ type: "moduleEvent", item: "drums-1", name: "bad name!", data: 1 });
     drummer.send({ type: "moduleEvent", item: "drums-1", name: "ok", data: "after" });
     expect(await listener.where((m) => m.type === "moduleEvent", "the next moment")).toMatchObject({ name: "ok", data: "after" });
+    // A space's part travels as its space does.
+    drummer.send({ type: "moduleEvent", item: "drums-1/left", name: "hit", data: 1 });
+    expect(await listener.where((m) => m.type === "moduleEvent", "the part's moment")).toMatchObject({ item: "drums-1/left" });
+    expect(listener.drain().some((m) => m.type === "moduleState" && m.item === "ghost-1")).toBe(false);
   });
 
   it("plays a Go move over the socket, with the same checks as the web route (Nikk 5026)", async () => {
