@@ -64,7 +64,9 @@ room's own three.js, so your meshes and the room's renderer are one three.js.
    `window`/`document` listeners or `setAnimationLoop`. Use `ctx` for all of them.
 4. Positions are your thing's own metres: the floor is y = 0, and +Z points toward whoever placed
    it. saha.ing places, carries, turns and scales `ctx.root`.
-5. Anything shared or sent is JSON.
+5. Anything shared or sent is JSON: a value or a moment's data up to 4096 characters as JSON, under
+   a name of letters, digits and `_ . : / -` (up to 64). Anything bigger belongs in a file
+   (`ctx.assets`). A write that cannot travel is refused, with a line on your badge.
 6. What you register through `ctx` is undone for you when the thing goes. Anything else you made
    goes in the `dispose()` you return from setup.
 7. Never close the AudioContext and never connect to `context.destination`. Play into
@@ -85,9 +87,9 @@ room's own three.js, so your meshes and the room's renderer are one three.js.
 | `ctx.input.keys("1234", fn(key, down))` | keys, only while your thing has focus |
 | `ctx.input.tips` | each hand's tip in your frame: `{ hand, position, previous, velocity }` |
 | `ctx.haptics.pulse(hand, strength, ms)` | a buzz in that controller |
-| `ctx.audio.context / out / at(object) / buffer(url) / workletNode(url, name)` | sound |
-| `ctx.assets.url / texture / gltf / json / bytes` | files beside your module |
-| `ctx.env.set({ background, fog, far })` | the room's surroundings, only while you fill them |
+| `ctx.audio.context / out / at(object) / buffer(url) / workletNode(url, name)` | sound; a url is beside your module, and a worklet may import its own files |
+| `ctx.assets.url / texture / gltf / json / bytes` | files beside your module; glTF may be meshopt-, Draco- or KTX2-compressed |
+| `ctx.env.set({ background, fog, far })` | the room's surroundings, only while you fill them; yours is a layer, taken away with you |
 | `ctx.viewer` | where the person looking is, in your frame, and how far away |
 | `ctx.people.me` | who is looking |
 | `ctx.things.<key>` | a space's parts: `api`, `state`, `onMoment`, `root` |
@@ -139,7 +141,14 @@ export default defineSpace({
 ```
 
 A `ref` is `"id"` (this space, the same deploy), `"space/id"` (that space's followed branch) or
-`"space/id@branch"`.
+`"space/id@branch"`. A part from another space follows that branch: when it deploys, the space
+loads again with it.
+
+A part's key (`forest`, `drums` above) is lowercase letters, digits, `-` and `_`, up to 32, and
+spaces nest three deep at most: each part's id is `<space>/<key>`, and that is what travels.
+
+What the space hears of its parts (`ctx.things.<key>.onMoment`, `.state.watch`) is the space's own:
+it carries on while a part is swapped or remounted, and ends when the space goes.
 
 ## TypeScript and vite
 

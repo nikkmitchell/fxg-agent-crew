@@ -205,6 +205,6 @@ export interface ChildHandle {
   readonly root: THREE.Object3D | null;
   readonly api: Record<string, (...args: never[]) => unknown>;
   readonly state: Ctx["state"];
-  /** These subscriptions survive remounts and reloads. */
+  /** These subscriptions are the space's: they survive the part's remounts and reloads, and end when the space goes. */
   onMoment: Ctx["net"]["onMoment"];
 }

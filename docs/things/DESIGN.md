@@ -881,7 +881,8 @@ Semantics are as in the types. There is exactly one dispatch path per pointer ki
 - A world has one surrounding slot. It holds an environment, or a space at full size, in which case the space's `surround` child fills it.
 - Only the occupant's env.set calls count (env.writable). Items see writable false and get one explanatory warning.
 - The settings are: background, fog, lights, exposure, far, passthrough, ground and transitionMs, plus spawn and player.teleport.
-- Leaving the slot restores everything; run-module.ts already restores background and fog.
+- The surroundings are LAYERS (src/engine/env.ts), one per running thing that fills them, never a snapshot each: the room's own values are captured when the first layer arrives, every change recomposes base plus layers (newest on top, field by field), and the last layer leaving gives back the base, except for a value the room changed meanwhile (its own background colour, its far plane). So a push (the new version's layer arrives, then the old one's leaves) keeps the new sky, and a space's surround part and the space's own env.set compose in any teardown order. Layers belong to each running copy, not to the item id, which two versions share during a push.
+- The room's own background is attached so that leaving clears it only if it is still its own; it never puts back what it covered (a thing's sky, long gone).
 - Changing environment: the next one compiles invisibly, then the host fades through its fog colour over transitionMs, using a veil sphere on the camera, and swaps.
 - Room: settings apply to the R3F scene, camera and renderer.
   - background goes to scene.background. Scene.tsx:850 already drops its <color> while surrounded.
