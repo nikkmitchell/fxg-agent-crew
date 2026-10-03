@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { bodySlug, checkAvatar, DEFAULT_LIMITS, nameFromTitle, REQUIRED_BONES } from "./avatar-validate";
 
@@ -41,6 +41,19 @@ describe("the bodies already shipped are acceptable", () => {
       expect(check.info.licence, name).toBe("CC0");
     }
   });
+});
+
+describe("every body that ships with the site passes", () => {
+  // The default limits claim to cover every body already shipped. That claim was once written without checking
+  // (AlienTeen, the room's default, is 5.6 MB and was refused by a 5 MB limit), so it is a test, not a comment.
+  const shipped = readdirSync(new URL("../public/avatars/", import.meta.url)).filter((name) => name.endsWith(".vrm"));
+  it("finds the bodies", () => { expect(shipped.length).toBeGreaterThanOrEqual(16); });
+  for (const name of shipped) {
+    it(`${name}`, () => {
+      const check = checkAvatar(new Uint8Array(readFileSync(new URL(`../public/avatars/${name}`, import.meta.url))));
+      expect(check.errors, name).toEqual([]);
+    });
+  }
 });
 
 describe("what it refuses, and why, in a sentence", () => {
