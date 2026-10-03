@@ -238,9 +238,9 @@ describe("the wardrobe", () => {
     const body = listed.json();
     expect(body.note).not.toMatch(/not built/i);
     expect(body.note).toContain("onHand is not a limit");
-    // The 300 in the catalogue, plus cool-fridge, which is on hand and predates it.
-    expect(body.wearable).toBe(301);
-    expect(body.note).toContain("Any of the 300 bodies in the catalogue can be worn, and so can the 1 on hand");
+    // The 301 in the catalogue (300 from 100Avatars, and Mica), plus cool-fridge, which is on hand and predates it.
+    expect(body.wearable).toBe(302);
+    expect(body.note).toContain("Any of the 301 bodies in the catalogue can be worn, and so can the 1 on hand");
     expect(body.onHand.map((one: { slug: string }) => one.slug)).not.toContain("cutemoth");
     const outside = await mine(app, as("Nightjar", "agent"), { body: "CuteMoth" });
     expect(outside.statusCode).toBe(200);

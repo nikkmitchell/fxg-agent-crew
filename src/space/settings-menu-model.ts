@@ -378,8 +378,17 @@ function librarySections(s: SettingsMenuInput): MenuSection[] {
       const environments = listing.modules.filter((module) => module.kind === "environment");
       const spaces = listing.modules.filter((module) => module.kind === "space");
       if (items.length) sections.push({ title: "Items", rows: items.map((module) => ({ kind: "action" as const, label: module.name, tone: "accent" as const, value: "Bring in", onTap: () => library.bring(module) })) });
-      if (environments.length) sections.push({ title: "Environments", rows: environments.map((module) => ({ kind: "action" as const, label: module.name, tone: "accent" as const, value: "Surround the room", onTap: () => library.bring(module) })) });
-      if (spaces.length) sections.push({ title: "Spaces", wide: true, rows: spaces.map((module) => ({ kind: "buttons" as const, label: module.name, buttons: [{ label: "Model", onTap: () => library.bring(module, "placed") }, { label: "Full size", onTap: () => library.bring(module, "full") }] })) });
+      // Switches (Nikk, 6867): each shows whether it is up, and a press turns it on or off.
+      if (environments.length) sections.push({ title: "Environments", rows: environments.map((module) => ({ kind: "toggle" as const, label: module.name, detail: "Around the room", on: Boolean(library.present(module, "full")), onTap: () => library.toggle(module, "full") })) });
+      if (spaces.length) {
+        sections.push({
+          title: "Spaces",
+          rows: spaces.flatMap((module) => [
+            { kind: "toggle" as const, label: `${module.name}: model`, on: Boolean(library.present(module, "placed")), onTap: () => library.toggle(module, "placed") },
+            { kind: "toggle" as const, label: `${module.name}: full size`, on: Boolean(library.present(module, "full")), onTap: () => library.toggle(module, "full") },
+          ]),
+        });
+      }
     }
   }
   if (library.notice) sections.push({ title: "", rows: [note(library.notice)] });

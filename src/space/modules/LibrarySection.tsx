@@ -73,13 +73,18 @@ export function LibrarySection({ library }: { library: Library }) {
                           <span>{module.name}</span>
                           {kind === "space" ? (
                             <>
-                              <button type="button" disabled={library.busy} onClick={() => library.bring(module, "placed")}>As a model</button>
-                              <button type="button" disabled={library.busy} onClick={() => library.bring(module, "full")}>Full size</button>
+                              <Switch on={Boolean(library.present(module, "placed"))} disabled={library.busy} onTap={() => library.toggle(module, "placed")}>Model</Switch>
+                              <Switch on={Boolean(library.present(module, "full"))} disabled={library.busy} onTap={() => library.toggle(module, "full")}>Full size</Switch>
                             </>
+                          ) : kind === "environment" ? (
+                            <Switch on={Boolean(library.present(module, "full"))} disabled={library.busy} onTap={() => library.toggle(module, "full")}>Around the room</Switch>
                           ) : (
-                            <button type="button" disabled={library.busy} onClick={() => library.bring(module)}>
-                              {kind === "environment" ? "Surround the room" : "Bring in"}
-                            </button>
+                            <>
+                              <button type="button" disabled={library.busy} onClick={() => library.bring(module)}>Bring in</button>
+                              {library.present(module) ? (
+                                <button type="button" onClick={() => library.remove(library.present(module)!)}>Take one away</button>
+                              ) : null}
+                            </>
                           )}
                         </li>
                       ))}
@@ -107,5 +112,14 @@ export function LibrarySection({ library }: { library: Library }) {
       )}
       {library.notice ? <p role="status">{library.notice}</p> : null}
     </section>
+  );
+}
+
+/** An on/off button: says which it is, and pressing it switches. */
+function Switch({ on, disabled, onTap, children }: { on: boolean; disabled: boolean; onTap: () => void; children: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} disabled={disabled} onClick={onTap}>
+      {children}: {on ? "on" : "off"}
+    </button>
   );
 }

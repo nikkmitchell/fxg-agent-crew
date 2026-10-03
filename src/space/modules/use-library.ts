@@ -25,6 +25,13 @@ export type Library = {
   /** A space between a model and full size. */
   setView: (item: ModuleRoomItem, view: "placed" | "full") => void;
   remove: (item: ModuleRoomItem) => void;
+  /** What of this listed thing is in the room already: as a model, full size, or (no view) either. */
+  present: (module: SpaceModule, view?: "placed" | "full") => ModuleRoomItem | null;
+  /**
+   * On or off (Nikk, 6867): a space's model and its full size are two switches, so either, both or neither
+   * can be up; an environment is one. Turning one on never takes the other away.
+   */
+  toggle: (module: SpaceModule, view: "placed" | "full") => void;
 };
 
 const message = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
@@ -101,10 +108,24 @@ export function useLibrary(options: {
       .catch((error: unknown) => setNotice(message(error, `Could not take ${item.name} away.`)));
   }, [options]);
 
+  const inRoom = options.roomItems.filter(isModuleItem);
+  const listing = open?.listing ?? null;
+  const present = (module: SpaceModule, view?: "placed" | "full") =>
+    inRoom.find((item) =>
+      listing !== null && item.source.space === listing.space && item.source.branch === listing.branch && item.source.entry === module.id && (view === undefined || item.view === view),
+    ) ?? null;
+  const toggle = (module: SpaceModule, view: "placed" | "full") => {
+    const here = present(module, view);
+    if (here) remove(here);
+    else bring(module, view);
+  };
+
   return {
     spaces,
     open,
-    inRoom: options.roomItems.filter(isModuleItem),
+    inRoom,
+    present,
+    toggle,
     notice,
     busy,
     refresh: () => setRevision((n) => n + 1),

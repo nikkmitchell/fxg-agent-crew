@@ -182,6 +182,8 @@ describe("the Library tab (Nikk, 2026-10-01: things from spaces' git, brought in
     refresh: noop,
     openSpace: vi.fn(),
     bring: vi.fn(),
+    present: () => null,
+    toggle: vi.fn(),
     setView: vi.fn(),
     remove: vi.fn(),
     ...extra,
@@ -194,6 +196,20 @@ describe("the Library tab (Nikk, 2026-10-01: things from spaces' git, brought in
     const listing = { space: "xr.instruments", branch: "main", branches: ["main"], deploy: { id: "d", commit: "abcdef0", message: "m", pushedBy: "Sill", createdAt: "" }, modules: [module("drums", "item"), module("forest", "environment"), module("grove", "space")], problems: [] };
     const open = settingsSections(input("library", { library: library({ open: { name: "xr.instruments", listing } }) as never }));
     expect(open.map((section) => section.title)).toEqual(["xr.instruments", "Items", "Environments", "Spaces"]);
+  });
+
+  it("shows a space's model and full size as two switches, each saying whether it is up (Nikk, 6867)", () => {
+    const listing = { space: "xr.instruments", branch: "main", branches: ["main"], deploy: null, modules: [module("grove", "space"), module("forest", "environment")], problems: [] };
+    const toggle = vi.fn();
+    const shelf = library({ open: { name: "xr.instruments", listing }, present: (_m: unknown, view?: string) => (view === "full" ? { id: "g" } : null), toggle });
+    const sections = settingsSections(input("library", { library: shelf as never }));
+    const rows = sections.flatMap((section) => section.rows) as { kind: string; label: string; on?: boolean; onTap?: () => void }[];
+    const model = rows.find((row) => row.label === "grove: model")!;
+    const full = rows.find((row) => row.label === "grove: full size")!;
+    expect([model.kind, model.on, full.on]).toEqual(["toggle", false, true]);
+    model.onTap!();
+    expect(toggle).toHaveBeenCalledWith(expect.objectContaining({ id: "grove" }), "placed");
+    expect(rows.find((row) => row.label === "forest")).toMatchObject({ kind: "toggle", on: true });
   });
 
   it("says what is in the room, and offers model or full size for a space", () => {
