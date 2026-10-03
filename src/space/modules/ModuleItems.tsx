@@ -126,22 +126,15 @@ function usePressRouter(running: Map<string, RunningModule>, you: { id: string; 
     };
   }, [gl, camera, caster, pressAlong]);
 
-  // Hung once the player's origin exists: at sessionstart XROrigin has often not mounted yet, so the frame tries until it has.
-  const hangRef = useRef<(() => void) | null>(null);
-  useFrame(() => hangRef.current?.());
   useEffect(() => {
     const xr = gl.xr;
     const hung: THREE.Object3D[] = [];
     const selects: Array<() => void> = [];
     const start = () => {
       const origin = xr.getCamera().parent;
-      if (!origin) {
-        hangRef.current = () => {
-          if (xr.isPresenting && xr.getCamera().parent) start();
-        };
-        return;
-      }
-      hangRef.current = null;
+      // NOT hung later from the frame: moving three's shared controllers under the origin mid-session put
+      // the speech cube far from the hand (Nikk, 6874). Older modules' headset presses wait for the engine path.
+      if (!origin) return;
       for (const index of [0, 1]) {
         const ray = xr.getController(index);
         for (const object of [ray, xr.getControllerGrip(index), xr.getHand(index)]) {
@@ -162,7 +155,6 @@ function usePressRouter(running: Map<string, RunningModule>, you: { id: string; 
       }
     };
     const end = () => {
-      hangRef.current = null;
       for (const off of selects.splice(0)) off();
       for (const object of hung.splice(0)) object.parent?.remove(object);
     };
