@@ -89,9 +89,13 @@ export function LibrarySection({ library }: { library: Library }) {
                             <>
                               <Switch on={Boolean(library.present(module, "placed"))} disabled={library.busy} onTap={() => library.toggle(module, "placed")}>Model</Switch>
                               <Switch on={Boolean(library.present(module, "full"))} disabled={library.busy} onTap={() => library.toggle(module, "full")}>Full size</Switch>
+                              <Publish module={module} library={library} />
                             </>
                           ) : kind === "environment" ? (
-                            <Switch on={Boolean(library.present(module, "full"))} disabled={library.busy} onTap={() => library.toggle(module, "full")}>Around the room</Switch>
+                            <>
+                              <Switch on={Boolean(library.present(module, "full"))} disabled={library.busy} onTap={() => library.toggle(module, "full")}>Around the room</Switch>
+                              <Publish module={module} library={library} />
+                            </>
                           ) : (
                             <>
                               <button type="button" disabled={library.busy} onClick={() => library.bring(module)}>Bring in</button>
@@ -162,6 +166,33 @@ function Feedback({ item, library }: { item: ModuleRoomItem; library: Library })
         }}
       >
         Send
+      </button>
+      <button type="button" onClick={() => setOpen(false)}>Cancel</button>
+    </span>
+  );
+}
+
+/** Publish a space or an environment as a finished space: its own room, pinned to this version (Nikk, 6940). */
+function Publish({ module, library }: { module: SpaceModule; library: Library }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState(module.name);
+  const [sending, setSending] = useState(false);
+  if (!open) return <button type="button" onClick={() => setOpen(true)}>Publish as finished space</button>;
+  return (
+    <span className="space-library-feedback">
+      <input aria-label="Its title, which is its room's name" value={title} maxLength={48} onChange={(event) => setTitle(event.currentTarget.value)} />
+      <button
+        type="button"
+        disabled={sending || title.trim().length < 2}
+        onClick={() => {
+          setSending(true);
+          void library.publish(module, title).then((done) => {
+            setSending(false);
+            if (done) setOpen(false);
+          });
+        }}
+      >
+        Publish
       </button>
       <button type="button" onClick={() => setOpen(false)}>Cancel</button>
     </span>

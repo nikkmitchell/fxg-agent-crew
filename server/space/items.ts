@@ -74,7 +74,11 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
   describeModule?: (who: { username: string; token: string }, source: { space: string; branch: string; entry: string }) => Promise<{ name: string; role: ModuleRole } | { status: number; error: string }>;
   /** The shared values of things from spaces (module-state.ts): read when a copy starts, forgotten with the item. */
   moduleStates?: ModuleStates;
+  /** A finished space (server/space/finished.ts): its things stay as published; nothing is added, moved or taken away. */
+  locked?: (room: string) => boolean;
 }) {
+  const LOCKED = { code: "FINISHED_SPACE", error: "This is a finished space: its things stay as they were published." };
+  const locked = (room: string) => options.locked?.(room) === true;
   const requireSession = makeRequireSession(options.config, options.sessions);
   const publish = (room: string, by: string) => { const items = options.items.all(room); options.announce(room, items, by); return items; };
   app.get("/bff/space/items", async (request, reply) => {
@@ -82,6 +86,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
   });
   app.post<{ Body: { kind?: unknown; source?: unknown; view?: unknown; position?: unknown; scale?: unknown } }>("/bff/space/items", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
+    if (locked(spaceRoomOf(session))) return reply.code(403).send(LOCKED);
     if (request.body?.kind === "module") return addModule(request.body, session, reply);
     if (request.body?.kind !== "go") return reply.code(400).send({ code: "BAD_KIND", error: "a room item is a Go table, or a module from a space" });
     const room = spaceRoomOf(session); const item = options.items.add(room, session.username); publish(room, session.username); return reply.code(201).send({ item });
@@ -154,6 +159,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
   app.delete<{ Params: { id: string } }>("/bff/space/items/:id", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
     const room = spaceRoomOf(session);
+    if (locked(room)) return reply.code(403).send(LOCKED);
     const item = options.items.one(room, request.params.id);
     if (!item) return reply.code(404).send({ error: "room item not found" });
     const heldBy = options.holds?.heldByOther(room, `item:${item.id}`, session.username);
@@ -164,7 +170,8 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
   });
   app.patch<{ Params: { id: string }; Body: { size?: unknown; addBowl?: unknown; players?: unknown; reset?: unknown; position?: unknown; scale?: unknown; revision?: unknown; deskVisible?: unknown; surface?: unknown; territoryShown?: unknown; clock?: unknown } }>("/bff/space/items/:id", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
-    const room = spaceRoomOf(session); const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
+    const room = spaceRoomOf(session); if (locked(room)) return reply.code(403).send(LOCKED);
+    const item = options.items.one(room, request.params.id); if (!item) return reply.code(404).send({ error: "room item not found" });
     const change = request.body;
     if (change?.revision !== undefined && change.revision !== item.revision) {
       request.log.info({ tableChangeRefused: { who: session.username, table: item.id, sent: change.revision, now: item.revision } }, "table change refused: stale revision");
@@ -316,6 +323,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
    * the same code and cannot drift apart.
    */
   const act = (room: string, username: string, id: string, body: ItemActionBody): ItemActionAnswer => {
+    if (locked(room)) return { status: 403, payload: LOCKED };
     const answer = (status: number, payload: Record<string, unknown>): ItemActionAnswer => ({ status, payload });
     const item = options.items.one(room, id); if (!item) return answer(404, { error: "room item not found" });
     // Moves and stones are the Go table's; a thing from a space acts through its own code.

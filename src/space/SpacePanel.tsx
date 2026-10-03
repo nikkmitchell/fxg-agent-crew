@@ -1,3 +1,5 @@
+import type { FinishedSpace } from "../../shared/finished-spaces";
+import { useFinishedRoom } from "./modules/use-finished";
 import { LibrarySection } from "./modules/LibrarySection";
 import { inFrontOf, useLibrary } from "./modules/use-library";
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
@@ -204,6 +206,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
   // Mouths move with voices: meter every call, and your own microphone while
   // it is on (voice-mouth.ts).
   const meYou = connection.status.state === "open" ? connection.status.you : null;
+  const finished = useFinishedRoom(spaceRoomName);
   // THE LIBRARY (src/space/modules): things from spaces' git, brought into this room.
   const library = useLibrary({
     enabled: entered && connection.status.state === "open",
@@ -581,7 +584,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
 
         <ProjectChooser />
 
-        <LibrarySection library={library} />
+        {finished ? <FinishedNote finished={finished} /> : <LibrarySection library={library} />}
 
         <h2>In the room</h2>
         <label className="space-setting">
@@ -650,6 +653,32 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
           means we have no recent record of them acting, which is not the same as idle.
         </p>
       </aside>
+    </section>
+  );
+}
+
+/** Inside a finished space: what it is, and bringing it up to its branch's newest version (shared/finished-spaces.ts). */
+function FinishedNote({ finished }: { finished: FinishedSpace }) {
+  const [notice, setNotice] = useState<string | null>(null);
+  return (
+    <section className="space-voice" aria-label="Finished space">
+      <h2>{finished.title}</h2>
+      <p className="muted-note">
+        A finished space: {finished.space}&apos;s {finished.entry} ({finished.branch}), as published by {finished.by}. Its work
+        controls are hidden; a push changes it only when it is updated.
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          setNotice("Updating…");
+          bff.updateFinished(finished.room)
+            .then(() => setNotice("Updated to the newest version."))
+            .catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not update it."));
+        }}
+      >
+        Update to the newest version
+      </button>
+      {notice ? <p role="status">{notice}</p> : null}
     </section>
   );
 }

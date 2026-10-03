@@ -76,6 +76,30 @@ export function lobbyDoors(
   return doors;
 }
 
+/**
+ * THE ROOM SELECTOR'S TWO TABS (Nikk, 6940): FINISHED SPACES, the experiences
+ * published to be visited (shared/finished-spaces.ts), and WORK ROOMS, every
+ * other door. A finished space is a public room, so its door is usually among
+ * the public ones already; one not listed yet is still given a door.
+ */
+export function splitDoors(doors: readonly LobbyDoor[], finished: readonly { room: string; title: string }[]): { finished: LobbyDoor[]; work: LobbyDoor[] } {
+  const keys = new Map(finished.map((one) => [roomKey(one.room), one.title]));
+  const done: LobbyDoor[] = [];
+  const work: LobbyDoor[] = [];
+  const seen = new Set<string>();
+  for (const door of doors) {
+    const key = roomKey(door.room);
+    if (door.kind !== "space" && keys.has(key)) {
+      seen.add(key);
+      done.push({ ...door, detail: door.kind === "here" ? door.detail : "finished space" });
+    } else {
+      work.push(door);
+    }
+  }
+  for (const [key, title] of keys) if (!seen.has(key)) done.push({ room: title, kind: "join", detail: "finished space" });
+  return { finished: done, work };
+}
+
 /** One page of a list, with the page clamped into range. */
 export function pageOf<T>(items: readonly T[], perPage: number, page: number): { items: T[]; page: number; pages: number } {
   const pages = Math.max(1, Math.ceil(items.length / perPage));

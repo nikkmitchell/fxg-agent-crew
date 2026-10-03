@@ -151,6 +151,28 @@ spaces nest three deep at most: each part's id is `<space>/<key>`, and that is w
 What the space hears of its parts (`ctx.things.<key>.onMoment`, `.state.watch`) is the space's own:
 it carries on while a part is swapped or remounted, and ends when the space goes.
 
+## A finished space: publish an experience for people to visit
+
+When a space (or an environment) is ready to be visited rather than worked on, publish it. It becomes a
+saha.ing room of its own, on the room selector's first tab, **Finished spaces**, apart from the
+**Work rooms**.
+
+1. Build it as a space: its items, its environment, its script, its scenes. Everything above applies.
+   A finished space is exactly what you see when you bring it in at full size.
+2. Push, and try it at full size from the Library until it is right. Keep it light: everyone who visits
+   downloads all of it (the Library warns above 20 MB).
+3. In the Library, on the space: **Publish as finished space**, and give it a title (its room's name).
+   In the headset the Library's Spaces section has a publish row that uses the space's own name.
+4. It is **pinned to that version**. Pushing again changes the work branch, not the finished space.
+   To bring it up to date, enter it and press **Update to the newest version** in the window's panel
+   (or `POST /bff/finished/<room>/update`); anyone who may use its source can.
+
+Inside a finished space the work controls are gone: no work panels, no Library, no ⚙ on things, and its
+things cannot be moved or taken away. People, avatars, voice and everything your thing does with `ctx`
+work as usual. Feedback sent with a thing's Feedback button lands on its space's page.
+
+`GET /bff/finished` lists them all: `{ room, title, space, branch, entry, deploy, by, at }`.
+
 ## TypeScript and vite
 
 Build each thing as a module with `three` and `saha` left external (`rollupOptions.external`), into

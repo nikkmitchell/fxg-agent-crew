@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoomSummary } from "./contracts.js";
-import { isLobby, lobbyDoors, pageOf, wearables } from "./lobby-hall.js";
+import { isLobby, lobbyDoors, pageOf, splitDoors, wearables } from "./lobby-hall.js";
 
 /** The lobby as a front hall (Nikk, 2026-09-27). */
 const room = (roomName: string, changes: Partial<RoomSummary> = {}): RoomSummary =>
@@ -77,5 +77,18 @@ describe("the wardrobe stand", () => {
       { name: "cool-fridge", key: "coolfridge", pictured: false },
       { name: "Zebra Man", key: "zebraman", pictured: true },
     ]);
+  });
+});
+
+describe("the room selector's two tabs (Nikk, 6940)", () => {
+  it("puts finished spaces on their own tab, gives an unlisted one a door, and leaves the rest as work rooms", () => {
+    const doors = [
+      { room: "saha.ing", kind: "here" as const, detail: "" },
+      { room: "Desert Camp", kind: "join" as const, detail: "public" },
+      { room: "Things", kind: "space" as const, space: "saha.things", detail: "space" },
+    ];
+    const split = splitDoors(doors, [{ room: "desert camp", title: "Desert Camp" }, { room: "rain room", title: "Rain Room" }]);
+    expect(split.finished.map((door) => `${door.room}:${door.kind}:${door.detail}`)).toEqual(["Desert Camp:join:finished space", "Rain Room:join:finished space"]);
+    expect(split.work.map((door) => door.room)).toEqual(["saha.ing", "Things"]);
   });
 });

@@ -391,6 +391,8 @@ function librarySections(s: SettingsMenuInput): MenuSection[] {
           rows: spaces.flatMap((module) => [
             { kind: "toggle" as const, label: `${named(module)}: model`, on: Boolean(library.present(module, "placed")), onTap: () => library.toggle(module, "placed") },
             { kind: "toggle" as const, label: `${named(module)}: full size`, on: Boolean(library.present(module, "full")), onTap: () => library.toggle(module, "full") },
+            // Its own name as the title: typing one is easier in the window, where it can be changed (Nikk, 6940).
+            { kind: "action" as const, label: `${named(module)}: publish as finished space`, value: "Publish", onTap: () => void library.publish(module, module.name) },
           ]),
         });
       }

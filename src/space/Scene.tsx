@@ -1,4 +1,5 @@
 import { ModuleItems } from "./modules/ModuleItems";
+import { useFinishedRoom } from "./modules/use-finished";
 import { isFullView, isModuleItem } from "../../shared/room-items";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useAgentsHidden } from "./agents-hidden";
@@ -654,6 +655,8 @@ export default function Scene({
   const [fullViewFailed, setFullViewFailed] = useState(false);
   // A full view that could not load or start leaves the room as it was, with its badge saying why.
   const surrounded = connection.roomItems.some(isFullView) && !fullViewFailed;
+  // A FINISHED SPACE (shared/finished-spaces.ts): the experience as published, without the work panels.
+  const finishedHere = useFinishedRoom(spaceRoomName) !== null;
   /**
    * The WebHarness room, read ONCE for the whole scene.
    *
@@ -882,7 +885,7 @@ export default function Scene({
             onSwitchRoom={onSwitchRoom}
           /><AvatarReplay recorder={avatarRecorder} /></>
         ) : null}
-        {(isLobby(spaceRoomName) ? [] : openPanels)
+        {(isLobby(spaceRoomName) || finishedHere ? [] : openPanels)
           .map((id) => STATIONS[id])
           .filter((station) => station !== undefined)
           .map((station) => (
@@ -939,6 +942,7 @@ export default function Scene({
           reducedMotion={reducedMotion}
           people={connection.peopleRef}
           onFullViewFailed={setFullViewFailed}
+          locked={finishedHere}
         />
         {/* Sparks where an agent reaches a board, as its card change lands. */}
         <ArrivalSparkles peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />

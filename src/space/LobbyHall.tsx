@@ -6,7 +6,7 @@ import type { RoomSummary } from "../../shared/contracts";
 import type { WirePerson } from "../../shared/space-wire";
 import { ROOM } from "../../shared/space-layout";
 import { bodyKey, thumbPath } from "../../shared/avatar-choice";
-import { lobbyDoors, pageOf, wearables, type LobbyDoor, type PublicSpaceDoor, type Wearable } from "../../shared/lobby-hall";
+import { lobbyDoors, pageOf, splitDoors, wearables, type LobbyDoor, type PublicSpaceDoor, type Wearable } from "../../shared/lobby-hall";
 import { bodiesFromCatalogue } from "../profile-view";
 import { requestJson } from "../api-request";
 import { bff } from "../bff-client";
@@ -91,6 +91,9 @@ export function LobbyHall({
   const [going, setGoing] = useState<string | null>(null);
   const [dressing, setDressing] = useState<string | null>(null);
   const [doorPage, setDoorPage] = useState(0);
+  // The selector's two tabs (Nikk, 6940): finished spaces first, then the work rooms.
+  const [tab, setTab] = useState<"finished" | "work">("finished");
+  const [finished, setFinished] = useState<{ room: string; title: string }[] | null>(null);
   const [bodyPage, setBodyPage] = useState(0);
 
   const loadRooms = useCallback((signal?: AbortSignal) => {
@@ -99,6 +102,7 @@ export function LobbyHall({
     bff.rooms(signal).then(setMine).catch(() => { if (!signal?.aborted) setMine([]); });
     bff.publicRooms(signal).then(setOpen).catch(() => { if (!signal?.aborted) setOpen([]); });
     bff.publicSpaces(signal).then((answer) => setSpaces(answer.spaces)).catch(() => { if (!signal?.aborted) setSpaces([]); });
+    bff.finishedSpaces(signal).then((answer) => setFinished(answer.spaces)).catch(() => { if (!signal?.aborted) setFinished([]); });
   }, []);
   useEffect(() => {
     const controller = new AbortController();
@@ -118,7 +122,11 @@ export function LobbyHall({
     return () => controller.abort();
   }, [loadRooms]);
 
-  const doors = useMemo(() => lobbyDoors(mine, open, currentRoom, spaces), [mine, open, currentRoom, spaces]);
+  const allDoors = useMemo(() => lobbyDoors(mine, open, currentRoom, spaces), [mine, open, currentRoom, spaces]);
+  const split = useMemo(() => splitDoors(allDoors, finished ?? []), [allDoors, finished]);
+  // With nothing finished yet, the work rooms are what there is.
+  const showing = tab === "finished" && split.finished.length ? "finished" : "work";
+  const doors = showing === "finished" ? split.finished : split.work;
   const doorsShown = pageOf(doors, DOORS.columns * DOORS.rows, doorPage);
   const me = you ? roster.find((person) => person.actorId.toLowerCase() === you.toLowerCase()) ?? null : null;
   const worn = me?.body ? bodyKey(me.body) : null;
@@ -162,7 +170,25 @@ export function LobbyHall({
     <group>
       {/* THE DOORS, straight ahead of where people arrive. */}
       <group position={[DOORS.at.x, 0, DOORS.at.z]} rotation={[0, facingSpawn(DOORS.at.x, DOORS.at.z), 0]}>
-        <WristButton label={doorsTitle} y={DOORS.top + 0.44} width={2.2} height={0.12} tone="muted" onTap={() => {}} />
+        <WristButton label={doorsTitle} y={DOORS.top + 0.58} width={2.2} height={0.1} tone="muted" onTap={() => {}} />
+        <WristButton
+          label={`FINISHED SPACES · ${split.finished.length}`}
+          x={-0.56}
+          y={DOORS.top + 0.44}
+          width={1.06}
+          height={0.12}
+          tone={showing === "finished" ? "live" : "normal"}
+          onTap={() => { setTab("finished"); setDoorPage(0); }}
+        />
+        <WristButton
+          label={`WORK ROOMS · ${split.work.length}`}
+          x={0.56}
+          y={DOORS.top + 0.44}
+          width={1.06}
+          height={0.12}
+          tone={showing === "work" ? "live" : "normal"}
+          onTap={() => { setTab("work"); setDoorPage(0); }}
+        />
         {doorsShown.items.map((door, index) => {
           const column = index % DOORS.columns;
           const row = Math.floor(index / DOORS.columns);

@@ -1,3 +1,4 @@
+import { useFinishedRoom } from "./modules/use-finished";
 import { useLibrary } from "./modules/use-library";
 import type { Meditation } from "../../shared/meditation";
 import { agentsHiddenIn, setAgentsHidden, setAgentsHiddenForEveryone, setCurrentRoomForAgents, useAgentsHidden, useAgentsHiddenForEveryone } from "./agents-hidden";
@@ -1061,6 +1062,7 @@ export function RoomControls({
   const [upVisible, setUpVisible] = useState(false);
   // Which room the scene should hide agents in, if you asked it to.
   useEffect(() => setCurrentRoomForAgents(currentRoom), [currentRoom]);
+  const finishedHere = useFinishedRoom(currentRoom) !== null;
   // THE LIBRARY tab (src/space/modules): things from spaces' git, brought in in front of you.
   const library = useLibrary({
     enabled: true,
@@ -1267,7 +1269,8 @@ export function RoomControls({
   const sections = !open ? [] : settingsSections({
     view,
     goTo: setView,
-    library,
+    // In a finished space the Library is a work tool, so it is not offered (use-finished.ts).
+    library: finishedHere ? null : library,
     voice: {
       on: voice.on,
       starting: voice.starting,

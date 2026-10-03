@@ -85,7 +85,8 @@ export type ModuleRoomItem = {
   kind: "module";
   revision: number;
   /** Where its code comes from: a space, the branch followed, and the manifest entry's id. */
-  source: { space: string; branch: string; entry: string };
+  /** deploy: PINNED to one deploy (a finished space, shared/finished-spaces.ts); absent, it follows the branch. */
+  source: { space: string; branch: string; entry: string; deploy?: string };
   name: string;
   role: ModuleRole;
   /** placed: stands where it was put and can be moved. full: all around the room, in place of its scenery. */
@@ -128,7 +129,7 @@ export function parseModuleItem(value: unknown): ModuleRoomItem | null {
     id: item.id,
     kind: "module",
     revision: Number.isInteger(item.revision) ? item.revision! : 0,
-    source: { space: source.space, branch: source.branch, entry: source.entry },
+    source: { space: source.space, branch: source.branch, entry: source.entry, ...(typeof source.deploy === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(source.deploy) ? { deploy: source.deploy } : {}) },
     name: typeof item.name === "string" && item.name ? item.name.slice(0, 60) : source.entry,
     role: item.role as ModuleRole,
     view: item.view,

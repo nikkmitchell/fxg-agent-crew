@@ -1,3 +1,4 @@
+import type { FinishedSpace } from "../shared/finished-spaces";
 import type { LoginRequest, MeResponse, MessagePage, RoomDetail, RoomSummary } from "../shared/contracts";
 import { requestJson } from "./api-request";
 import type { SignupChannel, SignupForm } from "../shared/signup";
@@ -101,6 +102,13 @@ export const bff = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...report, items: [] }),
     }),
+
+  /** Finished spaces (shared/finished-spaces.ts): published experiences, each its own room, pinned. */
+  finishedSpaces: (signal?: AbortSignal) => requestJson<{ spaces: FinishedSpace[] }>(`${bffRoot}/finished`, { signal }),
+  publishFinished: (title: string, source: { space: string; branch: string; entry: string }) =>
+    requestJson<{ finished: FinishedSpace }>(`${bffRoot}/finished`, { method: "POST", body: JSON.stringify({ title, source }) }),
+  updateFinished: (room: string) =>
+    requestJson<{ finished: FinishedSpace }>(`${bffRoot}/finished/${encodeURIComponent(room)}/update`, { method: "POST" }),
 
   /** A ticket into a space as yourself; open `path` to arrive with it. */
   spaceTicket: (name: string) =>

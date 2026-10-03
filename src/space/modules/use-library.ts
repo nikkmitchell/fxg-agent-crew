@@ -37,6 +37,11 @@ export type Library = {
    * it read it (the Spaces page, GET /bff/spaces/<space>/feedback). Resolves true once it is kept.
    */
   feedback: (item: ModuleRoomItem, text: string) => Promise<boolean>;
+  /**
+   * Publish a space or an environment as a FINISHED SPACE (shared/finished-spaces.ts; Nikk, 6940): its own
+   * public room, pinned to this version, found on the room selector's first tab.
+   */
+  publish: (module: SpaceModule, title: string) => Promise<boolean>;
 };
 
 const message = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback);
@@ -137,11 +142,25 @@ export function useLibrary(options: {
         return false;
       });
 
+  const publish = (module: SpaceModule, title: string) => {
+    if (!listing) return Promise.resolve(false);
+    return bff.publishFinished(title.trim(), { space: listing.space, branch: module.branch ?? listing.branch, entry: module.id })
+      .then((answer) => {
+        setNotice(`${answer.finished.title} is a finished space: find it on the room selector's first tab.`);
+        return true;
+      })
+      .catch((error: unknown) => {
+        setNotice(message(error, `Could not publish ${module.name}.`));
+        return false;
+      });
+  };
+
   return {
     spaces,
     open,
     inRoom,
     feedback,
+    publish,
     present,
     toggle,
     notice,

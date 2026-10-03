@@ -29,7 +29,8 @@ import { createRoomEngine, type RoomEngine } from "./room-engine";
 const noRaycast = () => undefined;
 
 type Sources = Map<string, SpaceModules | { error: string }>;
-const sourceKey = (spaceName: string, branch: string) => `${spaceName}@${branch}`;
+/** A branch's live listing, or one pinned deploy's (a finished space never moves with a push). */
+const sourceKey = (spaceName: string, branch: string, deploy?: string) => (deploy ? `${spaceName}~${deploy}` : `${spaceName}@${branch}`);
 
 /** What each space's branch offers now, refetched whenever it deploys, and again a little later when reading it failed. */
 function useModuleSources(items: ModuleRoomItem[], subscribe: (listener: (message: ServerMessage) => void) => () => void): Sources {
@@ -41,10 +42,10 @@ function useModuleSources(items: ModuleRoomItem[], subscribe: (listener: (messag
     for (const timer of timers.current) clearTimeout(timer);
     timers.current.clear();
   }, []);
-  const fetchSource = useCallback((spaceName: string, branch: string) => {
-    const key = sourceKey(spaceName, branch);
+  const fetchSource = useCallback((spaceName: string, branch: string, deploy?: string) => {
+    const key = sourceKey(spaceName, branch, deploy);
     asked.current.add(key);
-    bff.spaceModules(spaceName, branch)
+    bff.spaceModules(spaceName, branch, undefined, deploy)
       .then((listing) => {
         failures.current.delete(key);
         setSources((now) => new Map(now).set(key, listing));
@@ -56,18 +57,18 @@ function useModuleSources(items: ModuleRoomItem[], subscribe: (listener: (messag
         failures.current.set(key, tries);
         const timer = setTimeout(() => {
           timers.current.delete(timer);
-          if (asked.current.has(key)) fetchSource(spaceName, branch);
+          if (asked.current.has(key)) fetchSource(spaceName, branch, deploy);
         }, Math.min(60_000, 5_000 * 2 ** (tries - 1)));
         timers.current.add(timer);
       });
   }, []);
   useEffect(() => {
-    const wanted = new Set(items.map((item) => sourceKey(item.source.space, item.source.branch)));
+    const wanted = new Set(items.map((item) => sourceKey(item.source.space, item.source.branch, item.source.deploy)));
     // Nothing here uses it any more: stop asking (and retrying).
     for (const key of [...asked.current]) if (!wanted.has(key)) asked.current.delete(key);
     for (const item of items) {
-      const key = sourceKey(item.source.space, item.source.branch);
-      if (!asked.current.has(key)) fetchSource(item.source.space, item.source.branch);
+      const key = sourceKey(item.source.space, item.source.branch, item.source.deploy);
+      if (!asked.current.has(key)) fetchSource(item.source.space, item.source.branch, item.source.deploy);
     }
   }, [items, fetchSource]);
   useEffect(() => subscribe((message) => {
@@ -159,7 +160,7 @@ function usePressRouter(running: Map<string, RunningModule>, you: { id: string; 
   }, [gl, pressAlong]);
 }
 
-export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, reducedMotion = false, people, onFullViewFailed }: {
+export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, reducedMotion = false, people, onFullViewFailed, locked = false }: {
   items: ModuleRoomItem[];
   you: string | null;
   send: (message: ClientMessage) => boolean | void;
@@ -171,6 +172,8 @@ export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, re
   people?: { readonly current: readonly WirePerson[] | null };
   /** The thing all around the room could not load or start: the room keeps its own scenery. */
   onFullViewFailed?: (failed: boolean) => void;
+  /** A finished space: the things are as published, so no ⚙, move or take-away controls. */
+  locked?: boolean;
 }) {
   const sources = useModuleSources(items, subscribe);
   const running = useMemo(() => new Map<string, RunningModule>(), []);
@@ -247,7 +250,7 @@ export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, re
   return (
     <>
       {items.map((item) => {
-        const source = sources.get(sourceKey(item.source.space, item.source.branch));
+        const source = sources.get(sourceKey(item.source.space, item.source.branch, item.source.deploy));
         const entry = source && "modules" in source ? source.modules.find((module) => module.id === item.source.entry) ?? null : null;
         const missing = !source ? null : "error" in source ? source.error : entry ? null : `${item.source.space} no longer lists ${item.source.entry} on ${item.source.branch}.`;
         return (
@@ -265,6 +268,7 @@ export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, re
             onItem={onItem}
             onRemoved={onRemoved}
             onFullViewFailed={fullViewFailed}
+            locked={locked}
           />
         );
       })}
@@ -280,7 +284,7 @@ function modelFit(size: readonly number[] | undefined): number {
   return Math.min(1, 1.2 / Math.max(width, depth, 0.01));
 }
 
-function ModuleThing({ item, entry, missing, you, send, subscribe, running, room, driven, onItem, onRemoved, onFullViewFailed }: {
+function ModuleThing({ item, entry, missing, you, send, subscribe, running, room, driven, onItem, onRemoved, onFullViewFailed, locked }: {
   item: ModuleRoomItem;
   entry: SpaceModule | null;
   missing: string | null;
@@ -293,6 +297,7 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
   onItem: (item: RoomItem) => void;
   onRemoved: (id: string) => void;
   onFullViewFailed: (id: string, failed: boolean) => void;
+  locked: boolean;
 }) {
   const place = useRef<THREE.Group>(null);
   const scaled = useRef<THREE.Group>(null);
@@ -447,7 +452,7 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
           {`${item.name}: ${words}`}
         </Text>
       ) : null}
-      {full ? null : (
+      {full || locked ? null : (
         <ThingControls
           item={item}
           carrying={carry.carrying}

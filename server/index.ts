@@ -77,6 +77,7 @@ import { registerTranscribeRoutes } from "./space/transcribe.js";
 import { ScreenFrames, ShareKeys, registerScreenRoutes } from "./space/screens.js";
 import { openDatabase } from "./db/open.js";
 import { RoomItems, registerRoomItemRoutes } from "./space/items.js";
+import { FinishedSpaces, registerFinishedRoutes } from "./space/finished.js";
 import { ModuleStates } from "./space/module-state.js";
 import { Holds, registerHoldRoutes } from "./space/holds.js";
 
@@ -296,6 +297,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Agents' helpers, as the agents report them: see space/helpers.ts.
   const roomHelpers = new RoomHelpers();
   const roomItems = new RoomItems(database);
+  // Finished spaces (server/space/finished.ts): rooms that are one published experience, pinned and locked.
+  const finishedSpaces = new FinishedSpaces(database);
   // What things from spaces in each room have decided together (module-state.ts).
   const moduleStates = new ModuleStates();
   // Late-bound: the spaces' routes, which know the manifests, are registered further down.
@@ -583,6 +586,17 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       holds,
       describeModule: (who, source) => (describeModule ? describeModule(who, source) : Promise.resolve({ status: 503, error: "Spaces are not ready yet." })),
       moduleStates,
+      locked: (room) => finishedSpaces.has(room),
+    });
+    registerFinishedRoutes(scoped, {
+      config,
+      sessions,
+      finished: finishedSpaces,
+      items: roomItems,
+      client,
+      describeModule: (who, source) => (describeModule ? describeModule(who, source) : Promise.resolve({ status: 503, error: "Spaces are not ready yet." })),
+      liveDeploy: (space, branch) => spaceStore.live(space, branch)?.id ?? null,
+      announce: (room, items, by) => hubFor(room).broadcast({ type: "roomItems", items, by }),
     });
     registerUtteranceRoutes(
       scoped,
