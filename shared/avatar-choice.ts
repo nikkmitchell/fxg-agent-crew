@@ -67,6 +67,7 @@ export type BodyOnHand = {
 };
 
 export const BODIES_ON_HAND: readonly BodyOnHand[] = [
+  { slug: "mica", catalogue: "Mica", looked: "original low-poly VRM 1 (faces +Z): dark slate-teal tunic with a crossed collar, silver eyes and one pink blossom; 19 bones, mittened hands; its idle arm pose needs the VRM 1 left/right signs (see its asset card), so arms may rise until the pose adapter knows" },
   { slug: "alienteen", catalogue: "AlienTeen", looked: "the room's default; a teenager, 1.34m, drives cleanly" },
   { slug: "baldman", catalogue: "Baldman", looked: "bald and heavily built, with a blue band across the eyes, a striped blue-and-white top and dark shorts; bare arms and legs. A comic-book strongman, not an ordinary man" },
   { slug: "chill", catalogue: "Chill", looked: "DRAWS BADLY: the arm renders as a wedge wider than the torso, on a yellow octagonal head. Measures inside the human band anyway" },
