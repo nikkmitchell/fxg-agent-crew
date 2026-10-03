@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { EnvStack, type EnvState } from "./env";
 import type { Host, TransportEvent } from "./host";
 import { Engine, ThingInstance } from "./instance";
 import type { Ctx, Json, ThingDefinition } from "./types";
@@ -14,12 +15,17 @@ function world(modules: Record<string, ThingDefinition> = {}, kept: Record<strin
   const problems: string[] = [];
   const env: unknown[] = [];
   const scene = new THREE.Scene();
+  /** The surroundings as a room keeps them: layers over what the room had (env.ts). */
+  const surroundings: EnvState = { background: null, fog: null, far: 60, exposure: 1 };
+  const stack = new EnvStack({ read: () => ({ ...surroundings }), write: (state) => Object.assign(surroundings, state) });
   const host: Host = {
     name: "test",
     final: false,
     transport: {
       values: async (id) => kept[id] ?? {},
-      set: (instance, key, value) => sent.push(["set", instance, key, value]),
+      set: (instance, key, value) => {
+        sent.push(["set", instance, key, value]);
+      },
       moment: (instance, name, data) => sent.push(["moment", instance, name, data]),
       subscribe: (listener) => {
         listeners.add(listener);
@@ -35,9 +41,18 @@ function world(modules: Record<string, ThingDefinition> = {}, kept: Record<strin
     reducedMotion: false,
     resolve: async (ref) => (modules[ref] ? { url: `https://saha.test/s/x/~d1/${ref}.js`, exportName: null, kind: modules[ref].kind } : null),
     importModule: async (url) => ({ default: modules[/\/([^/]+)\.js$/.exec(url)![1]] }),
-    applyEnv: (settings) => {
-      env.push(settings);
-      return () => env.push("undo");
+    envLayer: () => {
+      const layer = stack.layer();
+      return {
+        set: (settings) => {
+          env.push(settings);
+          layer.set(settings);
+        },
+        remove: () => {
+          env.push("undo");
+          layer.remove();
+        },
+      };
     },
     problem: (id, text) => problems.push(`${id}: ${text}`),
     caption: () => undefined,
@@ -49,7 +64,7 @@ function world(modules: Record<string, ThingDefinition> = {}, kept: Record<strin
     const instance = new ThingInstance(engine, { id, url: `https://saha.test/s/x/~d1/${id}.js`, def, mode: "item", scale: 1, parent: scene, surround: false, ...extra });
     return instance;
   };
-  return { host, engine, sent, deliver, problems, env, scene, run };
+  return { host, engine, sent, deliver, problems, env, scene, run, surroundings };
 }
 
 describe("a thing's life", () => {
@@ -125,7 +140,7 @@ describe("a thing's life", () => {
     await flaky.start();
     for (let i = 0; i < 40; i += 1) flaky.frame(0.016, i);
     expect(calls).toBe(20);
-    expect(problems.filter((line) => line.includes("Paused"))).toHaveLength(1);
+    expect(problems.filter((line) => line.includes("paused after 20 errors"))).toHaveLength(1);
   });
 });
 
@@ -235,9 +250,14 @@ describe("input, in the thing's own frame", () => {
     }), { parent: (() => { const g = new THREE.Group(); g.position.set(2, 0, 0); g.updateMatrixWorld(true); return g; })() });
     await drums.start();
     drums.root.updateMatrixWorld(true);
-    const click = (skin as unknown as { _listeners: Record<string, Array<(e: unknown) => void>> })._listeners.click[0];
-    click({ pointerType: "touch", point: new THREE.Vector3(2, 0, 0) });
-    click({ pointerType: "ray", point: new THREE.Vector3(2.1, 0, 0), pointerState: { inputSource: { handedness: "right" } } });
+    // As @pmndrs/pointer-events calls them: a down and an up of one pointer, however long apart.
+    const listeners = (skin as unknown as { _listeners: Record<string, Array<(e: unknown) => void>> })._listeners;
+    const press = (event: Record<string, unknown>) => {
+      listeners.pointerdown[0]({ ...event, stopPropagation: () => undefined });
+      listeners.pointerup[0]({ ...event, stopPropagation: () => undefined });
+    };
+    press({ pointerId: 1, pointerType: "touch", point: new THREE.Vector3(2, 0, 0) });
+    press({ pointerId: 2, pointerType: "ray", point: new THREE.Vector3(2.1, 0, 0), pointerState: { inputSource: { handedness: "right" } } });
     expect(presses).toEqual([["ray", "right", [0.1, 0, 0]]]);
   });
 

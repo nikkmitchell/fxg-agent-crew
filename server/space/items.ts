@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { GO_COLOURS, GO_PLAYERS, GO_SURFACES, MODEL_HEIGHT, MODULE_SCALE, defaultGoItem, isFullView, isGoSize, isGoSurface, isModuleItem, parseModuleItem, parseRoomItem, type GoRoomItem, type ModuleRole, type ModuleRoomItem, type RoomItem } from "../../shared/room-items.js";
+import { GO_COLOURS, GO_PLAYERS, GO_SURFACES, MODEL_HEIGHT, MODULE_SCALE, defaultGoItem, isFullView, isGoItem, isGoSize, isGoSurface, isModuleItem, parseModuleItem, parseRoomItem, type GoRoomItem, type ModuleRole, type ModuleRoomItem, type RoomItem } from "../../shared/room-items.js";
 import type { Config } from "../config.js";
 import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { Session, SessionStore } from "../session.js";
@@ -28,7 +28,8 @@ export class RoomItems {
     return item?.kind === "go" ? item : null;
   }
   add(room: string, by: string): GoRoomItem {
-    const item = defaultGoItem(randomUUID(), this.all(room).length);
+    // The next table's spot follows the tables, not the things from spaces standing about.
+    const item = defaultGoItem(randomUUID(), this.all(room).filter(isGoItem).length);
     this.insert(room, item, by);
     return item;
   }
@@ -115,6 +116,11 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
    * A room has one thing all around it at a time: a new one replaces the last.
    */
   const MODULES_PER_ROOM = 40;
+  /** Out of the room, with what its copies had decided. */
+  const forgetItem = (room: string, id: string) => {
+    options.items.remove(room, id);
+    options.moduleStates?.forget(room, id);
+  };
   const addModule = async (body: { source?: unknown; view?: unknown; position?: unknown; scale?: unknown }, session: Session, reply: FastifyReply) => {
     const room = spaceRoomOf(session);
     const given = (body.source ?? {}) as Record<string, unknown>;
@@ -123,12 +129,15 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (!options.describeModule) return reply.code(503).send({ error: "Spaces are not available on this server." });
     if (options.items.all(room).filter(isModuleItem).length >= MODULES_PER_ROOM) return reply.code(422).send({ error: `A room holds ${MODULES_PER_ROOM} things from spaces; take one away first.` });
     const described = await options.describeModule({ username: session.username, token: session.token }, draft.source);
-    if ("error" in described) return reply.code(described.status).send({ error: described.error });
+    if ("error" in described) {
+      if (described.status === 401) return reply.code(401).send({ code: "SESSION_EXPIRED", error: described.error, reauth: true });
+      return reply.code(described.status).send({ error: described.error });
+    }
     const view = described.role === "environment" ? "full" : described.role === "space" && body.view === "full" ? "full" : "placed";
     const position = view === "full" ? { x: 0, y: 0, z: 0, rotationY: 0 } : readPosition(body.position) ?? { x: 0, y: described.role === "space" ? MODEL_HEIGHT : 0, z: 1.5, rotationY: 0 };
     const scale = view === "full" ? 1 : readScale(body.scale) ?? (described.role === "space" ? MODULE_SCALE.model : 1);
     const item: ModuleRoomItem = { ...draft, id: randomUUID(), name: described.name, role: described.role, view, position, scale, addedBy: session.username };
-    if (view === "full") for (const other of options.items.all(room).filter(isFullView)) options.items.remove(room, other.id);
+    if (view === "full") for (const other of options.items.all(room).filter(isFullView)) forgetItem(room, other.id);
     options.items.insert(room, item, session.username);
     publish(room, session.username);
     return reply.code(201).send({ item });
@@ -163,7 +172,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     }
     if (isModuleItem(item)) {
       // A thing from a space: where it stands, how big, and (a space) model or full size.
-      const body = change as { position?: unknown; scale?: unknown; view?: unknown };
+      const body = (change && typeof change === "object" ? change : {}) as { position?: unknown; scale?: unknown; view?: unknown };
       if (body.position !== undefined || body.scale !== undefined) {
         const heldBy = options.holds?.heldByOther(room, `item:${item.id}`, session.username);
         if (heldBy) return reply.code(409).send({ code: "HELD", heldBy, error: heldBySentence(heldBy) });
@@ -173,7 +182,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
         if (body.view !== item.view) {
           item.view = body.view;
           if (item.view === "full") {
-            for (const other of options.items.all(room).filter(isFullView)) if (other.id !== item.id) options.items.remove(room, other.id);
+            for (const other of options.items.all(room).filter(isFullView)) if (other.id !== item.id) forgetItem(room, other.id);
             item.position = { x: 0, y: 0, z: 0, rotationY: 0 };
             item.scale = 1;
           } else {

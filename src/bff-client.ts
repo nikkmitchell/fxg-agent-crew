@@ -91,8 +91,8 @@ export const bff = {
     requestJson<{ spaces: SpaceShelf[] }>(`${bffRoot}/spaces/library`, { signal }),
 
   /** The items, environments and spaces a branch of a space offers (its followed branch unless named). */
-  spaceModules: (name: string, branch?: string, signal?: AbortSignal) =>
-    requestJson<SpaceModules>(`${bffRoot}/spaces/${encodeURIComponent(name)}/modules${branch ? `?branch=${encodeURIComponent(branch)}` : ""}`, { signal }),
+  spaceModules: (name: string, branch?: string, signal?: AbortSignal, deploy?: string) =>
+    requestJson<SpaceModules>(`${bffRoot}/spaces/${encodeURIComponent(name)}/modules${deploy ? `?deploy=${encodeURIComponent(deploy)}` : branch ? `?branch=${encodeURIComponent(branch)}` : ""}`, { signal }),
 
   /** A ticket into a space as yourself; open `path` to arrive with it. */
   spaceTicket: (name: string) =>

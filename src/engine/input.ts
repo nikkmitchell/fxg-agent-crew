@@ -26,7 +26,12 @@ export const strikeStrength = (speed: number) => Math.max(0, Math.min(1, (speed 
 const ROOMS_KEYS = new Set(["w", "a", "s", "d", "q", "e", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "escape"]);
 const FOCUS_MS = 30_000;
 
-type WorldTip = { id: string; hand: Hand; kind: "controller" | "finger"; position: THREE.Vector3; previous: THREE.Vector3; velocity: THREE.Vector3 };
+/**
+ * A hand's tip this frame and last, both through THIS frame's origin: a snap
+ * turn, a teleport or a recenter moves the origin, never the hand, so it can
+ * never sweep a hand through a drum (Sill's drums would play by themselves).
+ */
+type WorldTip = { id: string; hand: Hand; kind: "controller" | "finger"; position: THREE.Vector3; previous: THREE.Vector3; velocity: THREE.Vector3; reference: THREE.Vector3 };
 
 type Target = { object: THREE.Object3D; instance: InstanceInput; press: ((e: PressEvent) => void) | null; poke: boolean };
 
@@ -38,6 +43,8 @@ export type InputHubOptions = {
   me: () => Person | null;
   claim?: (native: Event) => void;
   invalidate?: () => void;
+  /** A press on a thing is a gesture too: the room's sound may start from it (the room only hears what we let through). */
+  unlockAudio?: () => void;
 };
 
 export type InstanceInput = Input & {
@@ -70,6 +77,8 @@ export class InputHub {
     if (!above || typeof window === "undefined") return;
     const ndc = new THREE.Vector2();
     const down = (event: PointerEvent) => {
+      // Whatever was pending was released somewhere we did not hear: never let it take this press's release.
+      this.pending = null;
       if (event.button !== 0 || !this.targets.size) return;
       const box = (element ?? above).getBoundingClientRect();
       if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) return;
@@ -77,6 +86,7 @@ export class InputHub {
       this.caster.setFromCamera(ndc, this.options.camera());
       const hit = this.nearest(this.caster);
       if (!hit) return;
+      this.options.unlockAudio?.();
       this.options.claim?.(event);
       event.stopPropagation();
       this.pending = { pointerId: event.pointerId, target: hit.target, point: hit.point, x: event.clientX, y: event.clientY };
@@ -89,11 +99,19 @@ export class InputHub {
       if (Math.hypot(event.clientX - pending.x, event.clientY - pending.y) > 8) return;
       this.fire(pending.target, pending.point, "mouse", null);
     };
+    // Released outside the room's element, or taken by the browser: nothing is pending any more.
+    const forget = (event: PointerEvent) => {
+      if (this.pending?.pointerId === event.pointerId) this.pending = null;
+    };
     above.addEventListener("pointerdown", down, true);
     above.addEventListener("pointerup", up, true);
+    window.addEventListener("pointerup", forget);
+    window.addEventListener("pointercancel", forget, true);
     this.off.push(() => {
       above.removeEventListener("pointerdown", down, true);
       above.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointerup", forget);
+      window.removeEventListener("pointercancel", forget, true);
     });
   }
 
@@ -135,25 +153,52 @@ export class InputHub {
 
   /** A press arrived (mouse, ray, poke): world point in, local point out. */
   fire(target: Target, worldPoint: THREE.Vector3, pointer: PressEvent["pointer"], hand: Hand | null): void {
-    target.press?.({ object: target.object, point: target.instance.toLocal(worldPoint.clone()), pointer, hand, by: this.options.me() });
-    (target.instance as InstanceInputImpl).focus();
+    const instance = target.instance as InstanceInputImpl;
+    instance.guard("press", () => target.press?.({ object: target.object, point: target.instance.toLocal(worldPoint.clone()), pointer, hand, by: this.options.me() }));
+    instance.focus();
     this.options.invalidate?.();
   }
 
+  /**
+   * In a headset: pmndrs calls plain three.js listeners (see the top of this
+   * file), bubbling from the object hit up through its parents. A press is a
+   * down and an up of the same pointer on the target, however long it is held
+   * (pmndrs' own "click" gives up after 300 ms, and a deliberate pinch or
+   * trigger often takes longer). The innermost target takes it, as with the
+   * mouse; a target that leaves pokes to strikes keeps them from its parents.
+   */
   register(target: Target): Off {
     this.targets.set(target.object, target);
-    // In a headset: pmndrs calls plain three.js listeners (see the top of this file).
-    const listener = (event: { pointerType?: string; point?: THREE.Vector3; pointerState?: { inputSource?: XRInputSource } }) => {
+    const object = target.object;
+    let downId: number | null = null;
+    type XrPointerEvent = { pointerId?: number; pointerType?: string; point?: THREE.Vector3; pointerState?: { inputSource?: XRInputSource }; stopPropagation?: () => void };
+    const current = () => this.targets.get(object) === target;
+    const onDown = (event: XrPointerEvent) => {
+      if (!current()) return;
+      event.stopPropagation?.();
+      if (event.pointerType === "touch" && !target.poke) return;
+      downId = event.pointerId ?? -1;
+      this.options.unlockAudio?.();
+    };
+    const onUp = (event: XrPointerEvent) => {
+      if (!current()) return;
+      event.stopPropagation?.();
+      const pressed = downId !== null && downId === (event.pointerId ?? -1);
+      downId = null;
+      if (!pressed) return;
       const kind = event.pointerType ?? "ray";
-      if (kind === "touch" && !target.poke) return;
       const hand = event.pointerState?.inputSource?.handedness;
-      const point = event.point ?? target.object.getWorldPosition(new THREE.Vector3());
+      const point = event.point ?? object.getWorldPosition(new THREE.Vector3());
       this.fire(target, point, kind === "touch" ? "poke" : kind === "grab" ? "grab" : "ray", hand === "left" || hand === "right" ? hand : null);
     };
-    target.object.addEventListener("click" as never, listener as never);
+    const onGone = (event: XrPointerEvent) => {
+      if (downId !== null && downId === (event.pointerId ?? -1)) downId = null;
+    };
+    const listeners: Array<[string, (event: XrPointerEvent) => void]> = [["pointerdown", onDown], ["pointerup", onUp], ["pointerleave", onGone], ["pointercancel", onGone]];
+    for (const [type, fn] of listeners) object.addEventListener(type as never, fn as never);
     return () => {
-      target.object.removeEventListener("click" as never, listener as never);
-      if (this.targets.get(target.object) === target) this.targets.delete(target.object);
+      for (const [type, fn] of listeners) object.removeEventListener(type as never, fn as never);
+      if (this.targets.get(object) === target) this.targets.delete(object);
     };
   }
 
@@ -166,6 +211,7 @@ export class InputHub {
     const before = new Map(this.worldTips.map((tip) => [tip.id, tip]));
     const next: WorldTip[] = [];
     const matrix = new THREE.Matrix4();
+    const toRoom = (reference: THREE.Vector3) => (origin ? reference.clone().applyMatrix4(origin.matrixWorld) : reference.clone());
     for (const source of frame.session.inputSources) {
       if (source.handedness !== "left" && source.handedness !== "right") continue;
       const finger = source.hand?.get("index-finger-tip");
@@ -173,12 +219,12 @@ export class InputHub {
       if (!space) continue;
       const pose = finger ? frame.getJointPose?.(finger, referenceSpace) : frame.getPose(space, referenceSpace);
       if (!pose) continue;
-      const position = new THREE.Vector3().setFromMatrixPosition(matrix.fromArray(pose.transform.matrix));
-      if (origin) position.applyMatrix4(origin.matrixWorld);
+      const reference = new THREE.Vector3().setFromMatrixPosition(matrix.fromArray(pose.transform.matrix));
       const id = `${source.handedness}:${finger ? "finger" : "controller"}`;
       const last = before.get(id);
-      const previous = last ? last.position.clone() : position.clone();
-      next.push({ id, hand: source.handedness, kind: finger ? "finger" : "controller", position, previous, velocity: new THREE.Vector3() });
+      const position = toRoom(reference);
+      const previous = toRoom(last ? last.reference : reference);
+      next.push({ id, hand: source.handedness, kind: finger ? "finger" : "controller", position, previous, velocity: new THREE.Vector3(), reference });
     }
     this.worldTips = next;
   }
@@ -206,9 +252,9 @@ export class InputHub {
     }
   }
 
-  /** The input of one instance, rooted at `root`. */
-  forInstance(root: THREE.Object3D, options: { model: boolean }): InstanceInput {
-    const instance = new InstanceInputImpl(this, root, options.model);
+  /** The input of one instance, rooted at `root`. A handler that throws is said through `report`, never thrown into the room's frame. */
+  forInstance(root: THREE.Object3D, options: { model: boolean; report?: (what: string, error: unknown) => void }): InstanceInput {
+    const instance = new InstanceInputImpl(this, root, options.model, options.report ?? ((what, error) => console.error(what, error)));
     this.instances.add(instance);
     instance.onDispose = () => this.instances.delete(instance);
     return instance;
@@ -230,8 +276,18 @@ class InstanceInputImpl implements InstanceInput {
   private readonly caster = new THREE.Raycaster();
   surround = false;
   onDispose: () => void = () => undefined;
+  private disposed = false;
 
-  constructor(private readonly hub: InputHub, private readonly root: THREE.Object3D, private readonly model: boolean) {}
+  constructor(private readonly hub: InputHub, private readonly root: THREE.Object3D, private readonly model: boolean, private readonly report: (what: string, error: unknown) => void) {}
+
+  /** One handler of this thing: its error is this thing's, and every other thing's input goes on. */
+  guard(what: string, fn: () => void): void {
+    try {
+      fn();
+    } catch (error) {
+      this.report(what, error);
+    }
+  }
 
   toLocal(world: THREE.Vector3): THREE.Vector3 {
     return this.root.worldToLocal(world);
@@ -247,10 +303,11 @@ class InstanceInputImpl implements InstanceInput {
 
   key(name: string, down: boolean): void {
     if (!this.focused) return;
-    for (const handler of this.keyHandlers) if (handler.keys.has(name)) handler.fn(name, down);
+    for (const handler of [...this.keyHandlers]) if (handler.keys.has(name)) this.guard(`key ${name}`, () => handler.fn(name, down));
   }
 
   press(target: THREE.Object3D, fn: (e: PressEvent) => void, options: { poke?: boolean } = {}): Off {
+    if (this.disposed) return () => undefined;
     const off = this.hub.register({ object: target, instance: this, press: fn, poke: options.poke !== false });
     this.offs.add(off);
     return () => {
@@ -260,6 +317,7 @@ class InstanceInputImpl implements InstanceInput {
   }
 
   strike(target: THREE.Object3D, fn: (e: StrikeEvent) => void): Off {
+    if (this.disposed) return () => undefined;
     this.strikes.set(target, fn);
     // A click or a ray counts as 0.7; a poke is a strike's own business (below), so not here too.
     const offPress = this.press(target, (e) => fn({ ...e, strength: 0.7 }), { poke: false });
@@ -270,6 +328,7 @@ class InstanceInputImpl implements InstanceInput {
   }
 
   keys(keys: string, fn: (key: string, down: boolean) => void): Off {
+    if (this.disposed) return () => undefined;
     const handler = { keys: new Set(keys.toLowerCase().split("")), fn };
     this.keyHandlers.push(handler);
     return () => {
@@ -310,7 +369,7 @@ class InstanceInputImpl implements InstanceInput {
           this.armed.set(key, false);
           this.lastStrike.set(target, now);
           this.focus();
-          fn({ object: target, point: this.root.worldToLocal(hit.point.clone()), pointer: "poke", hand: tip.hand, by: this.hub.me(), strength: strikeStrength(speed) });
+          this.guard("strike", () => fn({ object: target, point: this.root.worldToLocal(hit.point.clone()), pointer: "poke", hand: tip.hand, by: this.hub.me(), strength: strikeStrength(speed) }));
         } else if (!hit && !armed) {
           // Re-armed once the tip is 3 cm clear of the surface.
           const box = new THREE.Box3().setFromObject(target).expandByScalar(0.03);
@@ -321,6 +380,7 @@ class InstanceInputImpl implements InstanceInput {
   }
 
   dispose(): void {
+    this.disposed = true;
     for (const off of [...this.offs]) off();
     this.offs.clear();
     this.strikes.clear();

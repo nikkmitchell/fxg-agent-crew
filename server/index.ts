@@ -8,6 +8,8 @@ import { bodyPath, isOnHand } from "../shared/avatar-choice.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerIdempotency } from "./idempotency.js";
 import { DEFAULT_SPACE_ROOM, roomKey } from "../shared/space-room.js";
+import { isModuleItem } from "../shared/room-items.js";
+import { spaceKey } from "../shared/spaces.js";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, resolve } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
@@ -432,6 +434,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
         itemRoutes ? itemRoutes.act(room, username, id, body) : { status: 503, payload: { error: "not ready" } },
       (room) => ({ open: roomPanelChoices.open(room), agentsHidden: roomPanelChoices.agentsHidden(room) }),
       moduleStates,
+      // Values and moments only for things that stand in that room (a part: its space does).
+      (room, item) => roomItems.one(room, item.split("/")[0])?.kind === "module",
     );
     registerSpaceEntryRoute(scoped, config, sessions, client,
       evictSessionEverywhere,
@@ -743,6 +747,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     spaceDeployed: (space, branch, deployId) => {
       for (const hub of spaceHubs.values()) hub.broadcast({ type: "spaceDeployed", space, branch, deployId });
     },
+    // Whoever is in a room sees the things in it, whoever's space they came from.
+    roomHolds: (session, space) => roomItems.all(spaceRoomOf(session)).some((item) => isModuleItem(item) && spaceKey(item.source.space) === space),
   });
   describeModule = spacesHosting.describeModule;
   // A space page is sandboxed, so to it saha.ing is another origin: the kit

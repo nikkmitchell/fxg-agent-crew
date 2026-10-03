@@ -1,5 +1,6 @@
 import type * as THREE from "three";
-import type { EnvSettings, Json, Person } from "./types";
+import type { EnvLayer } from "./env";
+import type { Json, Person } from "./types";
 
 /**
  * WHAT THE ENGINE NEEDS FROM WHEREVER IT RUNS (docs/things/DESIGN.md): the
@@ -17,8 +18,11 @@ export type TransportEvent =
 export interface Transport {
   /** What an instance has decided so far, for a copy that is starting. */
   values(instance: string): Promise<Record<string, Json>>;
-  set(instance: string, key: string, value: Json): void;
+  /** False when it could not be sent now (the socket is down): the bus sends it again on resync. */
+  set(instance: string, key: string, value: Json): boolean | void;
   moment(instance: string, name: string, data: Json): void;
+  /** Why this key or name and value cannot travel (the relay's limits), or null. Refused writes stay local to nobody. */
+  check?(instance: string, name: string, value: Json): string | null;
   subscribe(listener: (event: TransportEvent) => void): () => void;
 }
 
@@ -40,8 +44,8 @@ export interface Host {
   /** A ref ("drums", "xr.instruments/drums", "...@branch") from a thing at `from` (its module url). */
   resolve(ref: string, from: string): Promise<Resolved | null>;
   importModule(url: string): Promise<Record<string, unknown>>;
-  /** Put the room's surroundings back as they were before `apply`. Returns the undo. */
-  applyEnv(settings: Partial<EnvSettings>): () => void;
+  /** One thing's layer of the room's surroundings (env.ts): set it, and remove it when the thing goes. */
+  envLayer(): EnvLayer;
   /** A line for whoever is building, on the thing's badge. */
   problem(instance: string, text: string): void;
   caption(instance: string, text: string | null): void;

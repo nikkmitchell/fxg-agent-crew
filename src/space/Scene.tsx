@@ -651,7 +651,9 @@ export default function Scene({
    * the room's own scenery is taken away (unmounted, so its sounds stop too),
    * and people, panels, screens and the things brought in stay.
    */
-  const surrounded = connection.roomItems.some(isFullView);
+  const [fullViewFailed, setFullViewFailed] = useState(false);
+  // A full view that could not load or start leaves the room as it was, with its badge saying why.
+  const surrounded = connection.roomItems.some(isFullView) && !fullViewFailed;
   /**
    * The WebHarness room, read ONCE for the whole scene.
    *
@@ -847,7 +849,9 @@ export default function Scene({
           passthrough behind the scene where the device supports it; where it
           does not, the session is simply black, which is what was asked for. */}
         {/* An environment or a full-size space brings its own sky (src/space/modules). */}
-        {inHeadset || surrounded ? null : <color attach="background" args={["#0b0d12"]} />}
+        {/* The room's own background. Set when shown, and on leaving cleared only if it is still the room's, never put back to what was
+            before it (a thing's sky, long gone): the surroundings' layers (src/engine/env.ts) own the background meanwhile. */}
+        {inHeadset || surrounded ? null : <color attach={roomBackground} args={["#0b0d12"]} />}
         <FarEnough surrounded={surrounded} />
         {/* Dawn reuses this room light, so its shared color wash adds no draw call. */}
         <SharedDawn reducedMotion={reducedMotion} active={!surrounded && connection.meditation?.shown === true && on("Dawn")} />
@@ -925,7 +929,17 @@ export default function Scene({
           Textures on planes, so the same in the window and in a headset. */}
         <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} room={spaceRoomName} />
         {/* THINGS FROM SPACES' GIT, live: items, environments and spaces (src/space/modules). */}
-        <ModuleItems items={connection.roomItems.filter(isModuleItem)} you={you} send={connection.send} subscribe={connection.subscribe} onItem={connection.applyRoomItem} onRemoved={connection.removeRoomItem} />
+        <ModuleItems
+          items={connection.roomItems.filter(isModuleItem)}
+          you={you}
+          send={connection.send}
+          subscribe={connection.subscribe}
+          onItem={connection.applyRoomItem}
+          onRemoved={connection.removeRoomItem}
+          reducedMotion={reducedMotion}
+          people={connection.peopleRef}
+          onFullViewFailed={setFullViewFailed}
+        />
         {/* Sparks where an agent reaches a board, as its card change lands. */}
         <ArrivalSparkles peopleRef={connection.peopleRef} reducedMotion={reducedMotion} />
         {/* Light rising off whoever is speaking, for as long as their line
@@ -1075,6 +1089,7 @@ export default function Scene({
           showingChoices={showingChoices}
           agents={connection.roster.filter((person) => person.kind === "agent").map((person) => person.actorId)}
           roomItems={connection.roomItems}
+          surrounded={surrounded}
           meditation={connection.meditation}
           onMeditation={connection.setMeditation}
           peopleRef={connection.peopleRef}
@@ -1089,6 +1104,14 @@ export default function Scene({
  * environment's sky need not (Mica's sits at 80 m). In a headset three takes
  * the session's depth range from this camera too.
  */
+/** The room's background colour, attached without remembering what it covered (see where it is used). */
+function roomBackground(scene: THREE.Scene, colour: THREE.Color): () => void {
+  scene.background = colour;
+  return () => {
+    if (scene.background === colour) scene.background = null;
+  };
+}
+
 function FarEnough({ surrounded }: { surrounded: boolean }) {
   const camera = useThree((state) => state.camera);
   useEffect(() => {

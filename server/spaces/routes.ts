@@ -257,6 +257,12 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
    * tell every room, so things from it that stand there load it again.
    */
   spaceDeployed?: (space: string, branch: string, deployId: string) => void;
+  /**
+   * The room this person is in holds a thing from this space: they may see
+   * what it offers (and so load it) even when the space is not theirs, since
+   * whoever brought it in was allowed to.
+   */
+  roomHolds?: (session: Session, space: string) => boolean;
   queue?: DeployQueue;
   now?: () => Date;
 }): { queue: DeployQueue; describeModule: DescribeModule } {
@@ -815,9 +821,9 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   /** Its members may use a space's things always; anybody signed in, once it is public. */
   const mayUse = async (me: GitIdentity, space: string) => store.publicInfo(space).public || (await auth.isMember(me, space));
 
-  /** The items, environments and spaces a branch's live deploy offers, each at its deploy's own address. */
-  const modulesOf = (space: string, branch: string) => {
-    const live = store.live(space, branch);
+  /** The items, environments and spaces a deploy offers (a branch's live one unless named), each at its deploy's own address. */
+  const modulesOf = (space: string, branch: string, deploy?: StoredDeploy) => {
+    const live = deploy ?? store.live(space, branch);
     return {
       deploy: live ? { id: live.id, commit: live.commit, message: live.message, pushedBy: live.pushedBy, createdAt: live.createdAt } : null,
       modules: (live?.pieces ?? []).flatMap((piece) =>
@@ -831,7 +837,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     if (spaceNameProblem(space) || !store.exists(space)) return { status: 404, error: `There is no space called ${space}.` };
     try {
       if (!(await mayUse(who, space))) return { status: 403, error: `${space} is not public, and you are not in its room.` };
-    } catch {
+    } catch (error) {
+      if (error instanceof WebharnessError && error.status === 401) return { status: 401, error: "Sign in again." };
       return { status: 502, error: "WebHarness could not be reached to check your rooms." };
     }
     if (!isPreviewableBranch(source.branch)) return { status: 400, error: "That is not a branch name." };
@@ -863,20 +870,33 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     });
   });
 
-  /** What one branch of a space offers to bring into a room (the followed branch unless asked). */
-  app.get<{ Params: { space: string }; Querystring: { branch?: string } }>("/bff/spaces/:space/modules", async (request, reply) => {
+  /**
+   * What one branch of a space offers to bring into a room (the followed
+   * branch unless asked), or what one deploy offered (`deploy`): a space's
+   * parts come from the same deploy as the space, so a push never mixes them.
+   */
+  app.get<{ Params: { space: string }; Querystring: { branch?: string; deploy?: string } }>("/bff/spaces/:space/modules", async (request, reply) => {
     const me = signedIn(request, reply);
     if (!me) return reply;
     const space = spaceKey(request.params.space);
     if (spaceNameProblem(space) || !store.exists(space)) return reply.code(404).send({ code: "NO_SPACE", error: `There is no space called ${space}.` });
-    try {
-      if (!(await mayUse(me, space))) return reply.code(403).send({ code: "NOT_A_MEMBER", error: `${space} is not public, and you are not in its room.` });
-    } catch (error) {
-      return upstream(reply, error);
+    const session = deps.sessionOf(request);
+    if (!(session && deps.roomHolds?.(session, space))) {
+      try {
+        if (!(await mayUse(me, space))) return reply.code(403).send({ code: "NOT_A_MEMBER", error: `${space} is not public, and you are not in its room.` });
+      } catch (error) {
+        return upstream(reply, error);
+      }
+    }
+    const branches = [...new Set([LIVE_BRANCH, ...store.liveBranches(space)])];
+    if (typeof request.query.deploy === "string" && request.query.deploy) {
+      const one = /^[A-Za-z0-9_-]{1,64}$/.test(request.query.deploy) ? store.deploy(request.query.deploy) : null;
+      if (!one || one.space !== space || one.status !== "ready") return reply.code(404).send({ code: "NO_DEPLOY", error: `${space} has no deploy ${request.query.deploy}.` });
+      // One deploy never changes.
+      return reply.header("cache-control", "private, max-age=86400, immutable").send({ space, branch: one.branch, branches, ...modulesOf(space, one.branch, one) });
     }
     const branch = typeof request.query.branch === "string" && request.query.branch ? request.query.branch : store.benchBranch(space);
     if (!isPreviewableBranch(branch)) return reply.code(400).send({ code: "BAD_BRANCH", error: "That is not a branch name." });
-    const branches = [...new Set([LIVE_BRANCH, ...store.liveBranches(space)])];
     return reply.header("cache-control", "no-store").send({ space, branch, branches, ...modulesOf(space, branch) });
   });
 
@@ -942,7 +962,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   const threeRoot = dirname(dirname(createRequire(import.meta.url).resolve("three")));
   app.get("/kit/three/*", async (request, reply) => {
     const rest = siteFile(new URL(request.url, "http://placeholder").pathname.slice("/kit/three".length));
-    if (rest === null || !rest.endsWith(".js")) return reply.code(404).send("not found");
+    // Scripts, and the decoders' WebAssembly beside them (Draco, Basis: compressed glTF).
+    if (rest === null || !(rest.endsWith(".js") || (rest.startsWith("addons/libs/") && rest.endsWith(".wasm")))) return reply.code(404).send("not found");
     const [dir, file] = rest.startsWith("addons/") ? [join(threeRoot, "examples", "jsm"), rest.slice("addons/".length)] : [join(threeRoot, "build"), rest];
     if (!(await stat(join(dir, file)).catch(() => null))?.isFile()) return reply.code(404).send("not found");
     return reply

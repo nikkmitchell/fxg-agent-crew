@@ -1,12 +1,15 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { thingAudio, type ThingAudio } from "./audio";
 import { EngineBus } from "./bus";
+import type { EnvLayer } from "./env";
 import type { Host } from "./host";
 import { InputHub, type InputHubOptions, type InstanceInput } from "./input";
-import type { Child, ChildHandle, Ctx, EnvSettings, Handle, Json, Mode, Off, ThingDefinition } from "./types";
+import type { Child, ChildHandle, Ctx, Handle, Json, Mode, Off, ThingDefinition } from "./types";
 
 /**
  * A THING, RUNNING (docs/things/DESIGN.md, 1): loaded from its pinned
@@ -21,16 +24,51 @@ import type { Child, ChildHandle, Ctx, EnvSettings, Handle, Json, Mode, Off, Thi
 const BRAND = Symbol.for("saha.thing");
 export const isThing = (value: unknown): value is ThingDefinition => Boolean(value) && (value as Record<symbol, unknown>)[BRAND] === 1;
 
-/** Frame callbacks that throw this many times in a row are paused; the room goes on. */
+/** A frame callback that throws this many times in a row is paused; the thing's others and the room go on. */
 const FRAME_FAILURES = 20;
+
+/**
+ * A space's part is <space id>/<key>, and the room's relay carries ids of up
+ * to three parts deep with keys like these (shared/space-wire.ts), so a key
+ * that would not travel is refused here, where the author sees why.
+ */
+const CHILD_KEY = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+const CHILD_DEPTH = 3;
+
+/** Where three's decoders are served (server/spaces/routes.ts, /kit/three/addons/). */
+const DRACO_PATH = "/kit/three/addons/libs/draco/";
+const BASIS_PATH = "/kit/three/addons/libs/basis/";
 
 /** One per page: the host, the shared values and moments, and input. */
 export class Engine {
   readonly bus: EngineBus;
   readonly input: InputHub;
+  private gltf: GLTFLoader | null = null;
+  private draco: DRACOLoader | null = null;
+  private ktx2: KTX2Loader | null = null;
   constructor(readonly host: Host, input: InputHubOptions) {
-    this.bus = new EngineBus(host.transport, (id) => (id === null ? host.me : host.people().find((person) => person.id === id) ?? (id ? { id, name: id, me: false, agent: false } : null)), () => host.now());
+    this.bus = new EngineBus(host.transport, {
+      who: (id) => (id === null ? host.me : host.people().find((person) => person.id === id) ?? (id ? { id, name: id, me: false, agent: false } : null)),
+      now: () => host.now(),
+      arrived: () => host.invalidate(),
+      problem: (id, text) => host.problem(id, text),
+    });
     this.input = new InputHub(input);
+  }
+  /** One glTF loader for the page, with every compression three can read (meshopt, Draco, KTX2). */
+  gltfLoader(): GLTFLoader {
+    if (!this.gltf) {
+      const loader = new GLTFLoader();
+      loader.setMeshoptDecoder(MeshoptDecoder);
+      this.draco = new DRACOLoader().setDecoderPath(DRACO_PATH);
+      loader.setDRACOLoader(this.draco);
+      if (this.host.renderer) {
+        this.ktx2 = new KTX2Loader().setTranscoderPath(BASIS_PATH).detectSupport(this.host.renderer);
+        loader.setKTX2Loader(this.ktx2);
+      }
+      this.gltf = loader;
+    }
+    return this.gltf;
   }
   /** Before things run each frame: where the hands are. */
   frame(xr: { frame?: XRFrame | null; referenceSpace?: XRReferenceSpace | null; origin?: THREE.Object3D | null } = {}): void {
@@ -43,6 +81,8 @@ export class Engine {
   dispose(): void {
     this.bus.dispose();
     this.input.dispose();
+    this.draco?.dispose();
+    this.ktx2?.dispose();
   }
 }
 
@@ -83,12 +123,11 @@ export class ThingInstance {
   handle: Handle | null = null;
   failed: string | null = null;
   private readonly offs = new Set<Off>();
-  private readonly frames = new Set<(dt: number, t: number) => void>();
-  private frameFailures = 0;
+  /** Each frame callback, and how many times in a row it has thrown. */
+  private readonly frames = new Map<(dt: number, t: number) => void, number>();
   private input: InstanceInput | null = null;
   private audio: ThingAudio | null = null;
-  private undoEnv: (() => void) | null = null;
-  private envSettings: Partial<EnvSettings> = {};
+  private envLayer: EnvLayer | null = null;
   private children: SpaceChildren | null = null;
   private disposed = false;
   private started = 0;
@@ -99,7 +138,29 @@ export class ThingInstance {
     this.root.name = `thing ${options.id}`;
   }
 
-  /** Set up and attach. False when setup failed (nothing was attached). */
+  /** Registered through ctx: undone when the thing goes, or at once when it has gone already. */
+  own<T extends Off>(off: T): T {
+    if (this.disposed) {
+      try {
+        off();
+      } catch {
+        // Nothing to undo into.
+      }
+    } else {
+      this.offs.add(off);
+    }
+    return off;
+  }
+
+  get gone(): boolean {
+    return this.disposed;
+  }
+
+  /**
+   * Set up and attach. False when setup failed (nothing was attached), or the
+   * thing was taken away while it was still starting: then whatever its setup
+   * made after that is undone too, and its dispose() is called.
+   */
   async start(): Promise<boolean> {
     const { host, bus } = this.engine;
     const def = this.def;
@@ -107,20 +168,23 @@ export class ThingInstance {
     if (def.model) host.problem(this.id, "This thing declares a model: ordered actions arrive in phase 2. Its shared values (ctx.state) and moments work now.");
     try {
       await bus.load(this.id, def.shared ?? {});
+      if (this.disposed) return false;
       const ctx = this.makeContext();
       if (def.kind === "space") {
         this.children = new SpaceChildren(this.engine, this, def.things ?? {}, def.scenes ?? null, this.options);
         await this.children.mountScene();
+        if (this.disposed) return this.abandon();
       }
       const made = def.setup ? await def.setup(ctx) : undefined;
       this.handle = made && typeof made === "object" ? made : null;
     } catch (error) {
+      if (this.disposed) return this.abandon();
       this.failed = describe(error);
       host.problem(this.id, `${def.name} did not start: ${this.failed}`);
       this.teardown();
       return false;
     }
-    if (this.disposed) return false;
+    if (this.disposed) return this.abandon();
     // Shaders compiled before the thing appears, so bringing it in mid-VR does not stutter.
     const renderer = host.renderer as (THREE.WebGLRenderer & { compileAsync?: (o: THREE.Object3D, c: THREE.Camera, s?: THREE.Scene) => Promise<unknown> }) | null;
     try {
@@ -128,10 +192,22 @@ export class ThingInstance {
     } catch {
       // Compiling ahead is a nicety; drawing it compiles anyway.
     }
-    if (this.disposed) return false;
+    if (this.disposed) return this.abandon();
     this.options.parent.add(this.root);
     host.invalidate();
     return true;
+  }
+
+  /** Taken away mid-start: what setup made after dispose() ran is undone now. */
+  private abandon(): false {
+    try {
+      this.handle?.dispose?.();
+    } catch {
+      // It was never shown; its tidying is best effort.
+    }
+    this.handle = null;
+    this.teardown();
+    return false;
   }
 
   private makeContext(): Ctx {
@@ -139,14 +215,14 @@ export class ThingInstance {
     const options = this.options;
     const id = this.id;
     const root = this.root;
-    const own = <T extends Off>(off: T): T => {
-      this.offs.add(off);
-      return off;
-    };
-    this.input = hub.forInstance(root, { model: options.mode === "model" });
+    const own = <T extends Off>(off: T): T => this.own(off);
+    this.input = hub.forInstance(root, { model: options.mode === "model", report: (what, error) => host.problem(id, `${what} went wrong: ${describe(error)}`) });
     this.input.surround = options.surround;
     // Made on first use: most things never sound, and a test host has no AudioContext.
-    const sound = (): ThingAudio => (this.audio ??= thingAudio(root, { quiet: options.mode === "model" }));
+    const sound = (): ThingAudio => {
+      if (this.disposed) throw new Error(`${this.def.name} has been taken away; its sound has gone with it.`);
+      return (this.audio ??= thingAudio(root, { quiet: options.mode === "model" }));
+    };
     const input = this.input;
     const state = bus.state(id);
     const props: Record<string, Json> = {};
@@ -166,10 +242,14 @@ export class ThingInstance {
       root,
       props: Object.freeze(props),
       host: { name: host.name, final: host.final },
-      prefs: { reducedMotion: host.reducedMotion },
+      prefs: {
+        get reducedMotion() {
+          return host.reducedMotion;
+        },
+      },
       hot: { data: options.hot },
       frame: (fn) => {
-        this.frames.add(fn);
+        if (!this.disposed) this.frames.set(fn, 0);
         return own(() => this.frames.delete(fn));
       },
       state: {
@@ -217,8 +297,9 @@ export class ThingInstance {
           return sound().out;
         },
         at: (where, placement) => sound().at(where, placement),
-        workletNode: (url, processor, nodeOptions) => sound().workletNode(url, processor, nodeOptions),
-        buffer: (url) => sound().buffer(url),
+        // A path is beside the thing's module, as with ctx.assets.
+        workletNode: (url, processor, nodeOptions) => sound().workletNode(new URL(String(url), options.url).href, processor, nodeOptions),
+        buffer: (url) => sound().buffer(new URL(String(url), options.url).href),
         get unlocked() {
           return sound().unlocked;
         },
@@ -239,9 +320,7 @@ export class ThingInstance {
           return loading;
         },
         gltf: async (path) => {
-          const loader = new GLTFLoader();
-          loader.setMeshoptDecoder(MeshoptDecoder);
-          const gltf = await loader.loadAsync(new URL(path, options.url).href);
+          const gltf = await this.engine.gltfLoader().loadAsync(new URL(path, options.url).href);
           return { scene: cloneSkinned(gltf.scene) as THREE.Group, animations: gltf.animations };
         },
         json: async (path) => (await fetch(new URL(path, options.url).href)).json(),
@@ -252,11 +331,10 @@ export class ThingInstance {
         },
       },
       env: {
+        // This thing's own layer of the surroundings (env.ts): a push's new version goes on top, and the old one's leaving changes nothing.
         set: (settings) => {
-          if (!options.surround) return;
-          this.envSettings = { ...this.envSettings, ...settings };
-          this.undoEnv?.();
-          this.undoEnv = host.applyEnv(this.envSettings);
+          if (!options.surround || this.disposed) return;
+          (this.envLayer ??= host.envLayer()).set(settings);
         },
         light: (light) => {
           root.add(light);
@@ -289,15 +367,16 @@ export class ThingInstance {
     if (this.disposed || this.failed) return;
     const step = Math.min(dt, 0.1);
     this.input?.frame(step);
-    if (this.frameFailures < FRAME_FAILURES) {
-      for (const fn of this.frames) {
-        try {
-          fn(step, t);
-          this.frameFailures = 0;
-        } catch (error) {
-          this.frameFailures += 1;
-          if (this.frameFailures === FRAME_FAILURES) this.engine.host.problem(this.id, `Paused after ${FRAME_FAILURES} errors in a row: ${describe(error)}`);
-        }
+    for (const [fn, failures] of this.frames) {
+      if (failures >= FRAME_FAILURES) continue;
+      try {
+        fn(step, t);
+        if (failures) this.frames.set(fn, 0);
+      } catch (error) {
+        const now = failures + 1;
+        if (this.frames.has(fn)) this.frames.set(fn, now);
+        if (failures === 0) console.error(`[${this.id}] a frame callback threw`, error);
+        if (now === FRAME_FAILURES) this.engine.host.problem(this.id, `A frame callback is paused after ${FRAME_FAILURES} errors in a row: ${describe(error)}`);
       }
     }
     this.children?.frame(step, t);
@@ -329,8 +408,8 @@ export class ThingInstance {
     this.input = null;
     this.audio?.dispose();
     this.audio = null;
-    this.undoEnv?.();
-    this.undoEnv = null;
+    this.envLayer?.remove();
+    this.envLayer = null;
     for (const child of [...this.root.children]) {
       this.root.remove(child);
       freeObject(child);
@@ -362,7 +441,10 @@ export class ThingInstance {
 class SpaceChildren {
   readonly handles: Record<string, ChildHandle> = {};
   private readonly running = new Map<string, ThingInstance>();
+  /** Parts on their way in (resolving, importing): never mounted twice. */
+  private readonly arriving = new Set<string>();
   private readonly holders = new Map<string, THREE.Group>();
+  private readonly things: Record<string, Child> = {};
   private current: string | null;
   private stopWatching: Off | null = null;
   private disposed = false;
@@ -370,12 +452,22 @@ class SpaceChildren {
   constructor(
     private readonly engine: Engine,
     private readonly parent: ThingInstance,
-    private readonly things: Record<string, Child>,
+    things: Record<string, Child>,
     private readonly scenes: { list: string[]; initial: string } | null,
     private readonly options: InstanceOptions,
   ) {
     this.current = scenes ? (engine.bus.state(parent.id).get<string>("scene") ?? scenes.initial) : null;
+    const depth = parent.id.split("/").length;
     for (const [key, child] of Object.entries(things)) {
+      if (!CHILD_KEY.test(key)) {
+        engine.host.problem(parent.id, `things.${key}: a part's key is lowercase letters, digits, - and _ (up to 32), so it can travel to everyone. It is left out.`);
+        continue;
+      }
+      if (depth > CHILD_DEPTH) {
+        engine.host.problem(parent.id, `things.${key}: spaces nest ${CHILD_DEPTH} deep at most. It is left out.`);
+        continue;
+      }
+      this.things[key] = child;
       const childId = `${parent.id}/${key}`;
       const holder = new THREE.Group();
       holder.name = `part ${key}`;
@@ -387,6 +479,8 @@ class SpaceChildren {
       this.holders.set(key, holder);
       const running = this.running;
       const bus = engine.bus;
+      const state = bus.state(childId);
+      // What the space hears of its parts is the space's own: it goes when the space goes (a push, or taken away).
       this.handles[key] = {
         get mounted() {
           return running.has(key);
@@ -397,8 +491,8 @@ class SpaceChildren {
         get api() {
           return (running.get(key)?.handle?.api ?? {}) as Record<string, (...args: never[]) => unknown>;
         },
-        state: bus.state(childId),
-        onMoment: (name, fn) => bus.onMoment(childId, name, fn),
+        state: { get: state.get, set: state.set, watch: (keys, fn) => parent.own(state.watch(keys, fn)) },
+        onMoment: (name, fn) => parent.own(bus.onMoment(childId, name, fn)),
       };
     }
   }
@@ -433,9 +527,25 @@ class SpaceChildren {
   }
 
   private async mount(key: string, child: Child): Promise<void> {
+    if (this.arriving.has(key)) return;
+    this.arriving.add(key);
+    try {
+      await this.arrive(key, child);
+    } finally {
+      this.arriving.delete(key);
+    }
+  }
+
+  /** Still wanted, after every wait: the space may have gone, or moved to a scene without this part. */
+  private stillWanted(key: string, child: Child): boolean {
+    return !this.disposed && this.wanted(child) && !this.running.has(key);
+  }
+
+  private async arrive(key: string, child: Child): Promise<void> {
     const { host } = this.engine;
+    if (!this.stillWanted(key, child)) return;
     const resolved = await host.resolve(child.ref, this.options.url);
-    if (this.disposed || !this.wanted(child) || this.running.has(key)) return;
+    if (!this.stillWanted(key, child)) return;
     if (!resolved) {
       host.problem(this.parent.id, `${key}: nothing called ${child.ref} to bring in.`);
       return;
@@ -447,6 +557,7 @@ class SpaceChildren {
       host.problem(this.parent.id, `${key} (${child.ref}) did not load: ${describe(error)}`);
       return;
     }
+    if (!this.stillWanted(key, child)) return;
     if (!("def" in loaded)) {
       host.problem(this.parent.id, `${key} (${child.ref}) is not a thing: it needs export default defineItem(...) or defineEnvironment(...).`);
       return;
@@ -466,7 +577,15 @@ class SpaceChildren {
     });
     this.running.set(key, instance);
     const ok = await instance.start();
-    if (!ok && this.running.get(key) === instance) this.running.delete(key);
+    if (this.running.get(key) !== instance) {
+      // Taken away while it started (a scene change, or the space went): it was disposed then.
+      instance.dispose();
+      return;
+    }
+    if (!ok || this.disposed || !this.wanted(child)) {
+      this.running.delete(key);
+      instance.dispose();
+    }
   }
 
   frame(dt: number, t: number): void {

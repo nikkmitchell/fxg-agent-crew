@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import { MODULE_SCALE, type ModuleRoomItem, type RoomItem } from "../../../shared/room-items";
-import type { ClientMessage, ServerMessage } from "../../../shared/space-wire";
+import type { ClientMessage, ServerMessage, WirePerson } from "../../../shared/space-wire";
 import { bff, type SpaceModule, type SpaceModules } from "../../bff-client";
 import { space } from "../../space-client";
 import { WristButton } from "../Backdrop";
@@ -11,6 +11,7 @@ import { moduleRoom } from "./module-room";
 import { runModule, type ModuleMode, type RunningModule } from "./run-module";
 import { useCarry } from "./use-carry";
 import { ThingInstance } from "../../engine/instance";
+import type { Person } from "../../engine/types";
 import { createRoomEngine, type RoomEngine } from "./room-engine";
 
 /**
@@ -29,18 +30,40 @@ const noRaycast = () => undefined;
 type Sources = Map<string, SpaceModules | { error: string }>;
 const sourceKey = (spaceName: string, branch: string) => `${spaceName}@${branch}`;
 
-/** What each space's branch offers now, refetched whenever it deploys. */
+/** What each space's branch offers now, refetched whenever it deploys, and again a little later when reading it failed. */
 function useModuleSources(items: ModuleRoomItem[], subscribe: (listener: (message: ServerMessage) => void) => () => void): Sources {
   const [sources, setSources] = useState<Sources>(new Map());
   const asked = useRef(new Set<string>());
+  const failures = useRef(new Map<string, number>());
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  useEffect(() => () => {
+    for (const timer of timers.current) clearTimeout(timer);
+    timers.current.clear();
+  }, []);
   const fetchSource = useCallback((spaceName: string, branch: string) => {
     const key = sourceKey(spaceName, branch);
     asked.current.add(key);
     bff.spaceModules(spaceName, branch)
-      .then((listing) => setSources((now) => new Map(now).set(key, listing)))
-      .catch((error: unknown) => setSources((now) => new Map(now).set(key, { error: error instanceof Error ? error.message : `Could not read ${spaceName}.` })));
+      .then((listing) => {
+        failures.current.delete(key);
+        setSources((now) => new Map(now).set(key, listing));
+      })
+      .catch((error: unknown) => {
+        setSources((now) => new Map(now).set(key, { error: error instanceof Error ? error.message : `Could not read ${spaceName}.` }));
+        // A blip heals itself: 5 s, 10 s, 20 s ... up to a minute, while something here still needs it.
+        const tries = (failures.current.get(key) ?? 0) + 1;
+        failures.current.set(key, tries);
+        const timer = setTimeout(() => {
+          timers.current.delete(timer);
+          if (asked.current.has(key)) fetchSource(spaceName, branch);
+        }, Math.min(60_000, 5_000 * 2 ** (tries - 1)));
+        timers.current.add(timer);
+      });
   }, []);
   useEffect(() => {
+    const wanted = new Set(items.map((item) => sourceKey(item.source.space, item.source.branch)));
+    // Nothing here uses it any more: stop asking (and retrying).
+    for (const key of [...asked.current]) if (!wanted.has(key)) asked.current.delete(key);
     for (const item of items) {
       const key = sourceKey(item.source.space, item.source.branch);
       if (!asked.current.has(key)) fetchSource(item.source.space, item.source.branch);
@@ -103,13 +126,22 @@ function usePressRouter(running: Map<string, RunningModule>, you: { id: string; 
     };
   }, [gl, camera, caster, pressAlong]);
 
+  // Hung once the player's origin exists: at sessionstart XROrigin has often not mounted yet, so the frame tries until it has.
+  const hangRef = useRef<(() => void) | null>(null);
+  useFrame(() => hangRef.current?.());
   useEffect(() => {
     const xr = gl.xr;
     const hung: THREE.Object3D[] = [];
     const selects: Array<() => void> = [];
     const start = () => {
       const origin = xr.getCamera().parent;
-      if (!origin) return;
+      if (!origin) {
+        hangRef.current = () => {
+          if (xr.isPresenting && xr.getCamera().parent) start();
+        };
+        return;
+      }
+      hangRef.current = null;
       for (const index of [0, 1]) {
         const ray = xr.getController(index);
         for (const object of [ray, xr.getControllerGrip(index), xr.getHand(index)]) {
@@ -130,6 +162,7 @@ function usePressRouter(running: Map<string, RunningModule>, you: { id: string; 
       }
     };
     const end = () => {
+      hangRef.current = null;
       for (const off of selects.splice(0)) off();
       for (const object of hung.splice(0)) object.parent?.remove(object);
     };
@@ -144,54 +177,91 @@ function usePressRouter(running: Map<string, RunningModule>, you: { id: string; 
   }, [gl, pressAlong]);
 }
 
-export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, reducedMotion = false, people }: {
+export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, reducedMotion = false, people, onFullViewFailed }: {
   items: ModuleRoomItem[];
   you: string | null;
-  send: (message: ClientMessage) => void;
+  send: (message: ClientMessage) => boolean | void;
   subscribe: (listener: (message: ServerMessage) => void) => () => void;
   onItem: (item: RoomItem) => void;
   onRemoved: (id: string) => void;
   reducedMotion?: boolean;
-  people?: () => readonly { id: string; name: string; me: boolean; agent: boolean }[];
+  /** Who is in the room (the socket's people), for ctx.people. */
+  people?: { readonly current: readonly WirePerson[] | null };
+  /** The thing all around the room could not load or start: the room keeps its own scenery. */
+  onFullViewFailed?: (failed: boolean) => void;
 }) {
   const sources = useModuleSources(items, subscribe);
   const running = useMemo(() => new Map<string, RunningModule>(), []);
-  const person = useMemo(() => (you ? { id: you, name: you, me: true, agent: false } : null), [you]);
+  const person = useMemo<Person | null>(() => (you ? { id: you, name: you, me: true, agent: false } : null), [you]);
   const gl = useThree((state) => state.gl);
   const scene = useThree((state) => state.scene);
   const get = useThree((state) => state.get);
   const invalidate = useThree((state) => state.invalidate);
+  // Read when asked, never restarting a thing: who you are drops to nobody while the socket reconnects.
   const personRef = useRef(person);
   personRef.current = person;
   const peopleRef = useRef(people);
   peopleRef.current = people;
+  const motionRef = useRef(reducedMotion);
+  motionRef.current = reducedMotion;
   // The room socket's send is a new function every render; things must not restart with it.
   const sendRef = useRef(send);
   sendRef.current = send;
   const stableSend = useCallback((message: ClientMessage) => sendRef.current(message), []);
-  // ONE ENGINE FOR THE ROOM (src/engine): things on the contract run here; anything else, the older way.
-  const room = useMemo(() => createRoomEngine({
-    scene,
-    camera: () => get().camera,
-    gl,
-    invalidate,
-    occluders: () => get().internal.interaction,
-    me: () => personRef.current,
-    people: () => peopleRef.current?.() ?? (personRef.current ? [personRef.current] : []),
-    send: stableSend,
-    subscribe,
-    reducedMotion,
-  }), [scene, get, gl, invalidate, stableSend, subscribe, reducedMotion]);
-  useEffect(() => () => room.dispose(), [room]);
+  const subscribeRef = useRef(subscribe);
+  subscribeRef.current = subscribe;
+  const stableSubscribe = useCallback((listener: (message: ServerMessage) => void) => subscribeRef.current(listener), []);
+  /**
+   * ONE ENGINE FOR THE ROOM (src/engine): things on the contract run here;
+   * anything else, the older way. Made in an effect and taken down in its
+   * cleanup, so a remount (React's StrictMode does one in development) makes
+   * a fresh one rather than reusing one it has disposed.
+   */
+  const [room, setRoom] = useState<RoomEngine | null>(null);
+  useEffect(() => {
+    const made = createRoomEngine({
+      scene,
+      camera: () => get().camera,
+      gl,
+      invalidate,
+      occluders: () => get().internal.interaction,
+      me: () => personRef.current,
+      people: () => {
+        const me = personRef.current;
+        const here = peopleRef.current?.current;
+        if (!here?.length) return me ? [me] : [];
+        return here.map((one) => ({ id: one.actorId, name: one.actorId, me: one.actorId === me?.id, agent: one.kind === "agent" }));
+      },
+      send: stableSend,
+      subscribe: stableSubscribe,
+      reducedMotion: () => motionRef.current,
+    });
+    setRoom(made);
+    return () => {
+      made.dispose();
+      setRoom(null);
+    };
+  }, [scene, get, gl, invalidate, stableSend, stableSubscribe]);
   const driven = useMemo(() => new Map<string, { frame(dt: number, t: number): void }>(), []);
   usePressRouter(running, person);
+  // Which full views could not run: the room keeps its scenery while none of them is up.
+  const failedFullViews = useRef(new Set<string>());
+  const fullViewFailed = useCallback((id: string, failed: boolean) => {
+    const set = failedFullViews.current;
+    const before = set.size > 0;
+    if (failed) set.add(id);
+    else set.delete(id);
+    if (before !== set.size > 0) onFullViewFailed?.(set.size > 0);
+  }, [onFullViewFailed]);
   useFrame((state, delta, frame) => {
+    if (!room) return;
     // Where the hands are first, then every thing, a space before its parts.
     const origin = gl.xr.isPresenting ? gl.xr.getCamera().parent : null;
     room.engine.frame({ frame: frame as XRFrame | undefined, referenceSpace: gl.xr.isPresenting ? gl.xr.getReferenceSpace() : null, origin });
     const dt = Math.min(delta, 0.1);
     for (const one of driven.values()) one.frame(dt, state.clock.elapsedTime);
   });
+  if (!room) return null;
   return (
     <>
       {items.map((item) => {
@@ -204,14 +274,15 @@ export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, re
             item={item}
             entry={entry}
             missing={missing}
-            you={person}
+            you={personRef}
             send={stableSend}
-            subscribe={subscribe}
+            subscribe={stableSubscribe}
             running={running}
             room={room}
             driven={driven}
             onItem={onItem}
             onRemoved={onRemoved}
+            onFullViewFailed={fullViewFailed}
           />
         );
       })}
@@ -227,23 +298,24 @@ function modelFit(size: readonly number[] | undefined): number {
   return Math.min(1, 1.2 / Math.max(width, depth, 0.01));
 }
 
-function ModuleThing({ item, entry, missing, you, send, subscribe, running, room, driven, onItem, onRemoved }: {
+function ModuleThing({ item, entry, missing, you, send, subscribe, running, room, driven, onItem, onRemoved, onFullViewFailed }: {
   item: ModuleRoomItem;
   entry: SpaceModule | null;
   missing: string | null;
-  you: { id: string; name: string } | null;
-  send: (message: ClientMessage) => void;
+  you: { readonly current: { id: string; name: string } | null };
+  send: (message: ClientMessage) => boolean | void;
   subscribe: (listener: (message: ServerMessage) => void) => () => void;
   running: Map<string, RunningModule>;
   room: RoomEngine;
   driven: Map<string, { frame(dt: number, t: number): void }>;
   onItem: (item: RoomItem) => void;
   onRemoved: (id: string) => void;
+  onFullViewFailed: (id: string, failed: boolean) => void;
 }) {
   const place = useRef<THREE.Group>(null);
   const scaled = useRef<THREE.Group>(null);
   const world = useThree((state) => state.scene);
-  const camera = useThree((state) => state.camera);
+  const get = useThree((state) => state.get);
   const gl = useThree((state) => state.gl);
   const invalidate = useThree((state) => state.invalidate);
   const [problem, setProblem] = useState<string | null>(null);
@@ -257,8 +329,17 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
   // World metres per local metre: a model is fitted, then made bigger or smaller from there.
   const scale = full ? 1 : mode === "model" && size ? modelFit(size) * (item.scale / MODULE_SCALE.model) : item.scale;
   const current = useRef<ThingInstance | null>(null);
+  /** Bumped when a part this thing uses from another space has a new deploy: it loads again, its parts with it. */
+  const [reload, setReload] = useState(0);
 
   useEffect(() => room.onProblem(item.id, setProblem), [room, item.id]);
+  useEffect(() => room.onReload(item.id, () => setReload((n) => n + 1)), [room, item.id]);
+  // A full view that cannot be read (missing, or its listing failed) has failed too.
+  useEffect(() => {
+    if (!full) return;
+    onFullViewFailed(item.id, Boolean(missing));
+    return () => onFullViewFailed(item.id, false);
+  }, [full, missing, item.id, onFullViewFailed]);
 
   useEffect(() => {
     const group = scaled.current;
@@ -266,37 +347,41 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
     let alive = true;
     let legacy: RunningModule | null = null;
     let legacyRoom: ReturnType<typeof moduleRoom> | null = null;
-    room.know(url, { space: item.source.space, branch: item.source.branch });
+    const failed = (text: string) => {
+      setProblem(text);
+      if (full && !current.current) onFullViewFailed(item.id, true);
+    };
+    room.know(url, { space: item.source.space, branch: item.source.branch }, item.id);
     void (async () => {
       let loaded;
       try {
         loaded = await room.engine.load(url);
       } catch (error) {
-        if (alive) setProblem(`Could not load: ${describeError(error)}`);
+        if (alive) failed(`Could not load: ${describeError(error)}`);
         return;
       }
       if (!alive) return;
       if ("def" in loaded) {
         // ON THE CONTRACT (src/engine). The version that is running keeps running until the next one has started.
         const def = loaded.def;
-        if (mode === "model" && !size) {
-          setSize(def.size ?? [20, 6, 20]);
+        const declared = def.size ?? [20, 6, 20];
+        if (mode === "model" && (!size || declared.some((n, i) => n !== size[i]))) {
+          setSize(declared);
           return; // the scale changes, and this runs again with it
         }
+        // This version's problems, from now: a badge from the last one does not linger, and its parts' problems from setup stay.
+        setProblem(null);
         const next = new ThingInstance(room.engine, { id: item.id, url, def, mode, scale, parent: group, surround: full, hot: current.current?.save() });
         const ok = await next.start();
-        if (!alive) {
+        if (!alive || !ok) {
           next.dispose();
-          return;
-        }
-        if (!ok) {
-          next.dispose();
+          if (alive && full && !current.current) onFullViewFailed(item.id, true);
           return;
         }
         current.current?.dispose();
         current.current = next;
         driven.set(item.id, next);
-        setProblem(null);
+        if (full) onFullViewFailed(item.id, false);
         return;
       }
       // THE OLDER WAY: a module that is not a thing (run-module.ts), kept working.
@@ -304,12 +389,13 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
       current.current = null;
       const state = await space.moduleState(item.id).then((answer) => answer.state).catch(() => ({}));
       if (!alive) return;
-      legacyRoom = moduleRoom({ item: item.id, you, send, subscribe, state });
-      legacy = await runModule({ url, exportName, id: item.id, mode, root: group, world, camera, renderer: gl, room: legacyRoom, scale, onProblem: setProblem, importModule: async () => loaded.module });
+      legacyRoom = moduleRoom({ item: item.id, you: you.current, send, subscribe, state });
+      legacy = await runModule({ url, exportName, id: item.id, mode, root: group, world, camera: get().camera, renderer: gl, room: legacyRoom, scale, onProblem: setProblem, importModule: async () => loaded.module });
       if (!alive) {
         legacy.dispose();
         return;
       }
+      if (legacy.failed && full) onFullViewFailed(item.id, true);
       running.set(item.id, legacy);
       driven.set(item.id, { frame: (dt, t) => legacy?.update(dt, t) });
       invalidate();
@@ -323,15 +409,17 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
       }
       legacyRoom?.close();
     };
-    // A new deploy is a new url: the thing swaps to it, for everyone at once.
-  }, [url, exportName, item.id, item.source.space, item.source.branch, mode, scale, size, full, world, camera, gl, running, invalidate, you, send, subscribe, room, driven]);
+    // A new deploy is a new url: the thing swaps to it, for everyone at once. Who you are and which camera draws are read
+    // when needed, never restarting it (a reconnect, or putting the headset on).
+  }, [url, exportName, item.id, item.source.space, item.source.branch, mode, scale, size, full, world, get, gl, running, invalidate, you, send, subscribe, room, driven, reload, onFullViewFailed]);
 
-  // Taken out of the room: the thing on the contract goes with it.
+  // Taken out of the room: the thing on the contract goes with it, and what this page held for it.
   useEffect(() => () => {
     current.current?.dispose();
     current.current = null;
     driven.delete(item.id);
-  }, [item.id, driven]);
+    room.engine.bus.forget(item.id);
+  }, [item.id, driven, room]);
 
   const save = useCallback(
     (change: { position?: { x: number; y: number; z: number; rotationY: number }; scale?: number }) =>

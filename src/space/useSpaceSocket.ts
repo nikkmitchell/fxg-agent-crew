@@ -83,7 +83,7 @@ export type SpaceConnection = {
      */
     body: string | null;
   }[];
-  send: (message: ClientMessage) => void;
+  send: (message: ClientMessage) => boolean;
   /** Bumped whenever a snapshot arrives, for a scene that renders on demand. */
   onSnapshot: RefObject<(() => void) | null>;
   /**
@@ -501,9 +501,12 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
     };
   }, [enabled, room]);
 
-  const send = (message: ClientMessage) => {
+  /** False when the socket is not open and the message went nowhere. */
+  const send = (message: ClientMessage): boolean => {
     const socket = socketRef.current;
-    if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+    socket.send(JSON.stringify(message));
+    return true;
   };
 
   const subscribe = useCallback((listener: (message: ServerMessage) => void) => {

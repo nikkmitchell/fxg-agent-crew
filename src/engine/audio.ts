@@ -28,23 +28,41 @@ export function pageAudio(): { context: AudioContext; master: GainNode } {
   return { context, master };
 }
 
-/** A worklet's processors, renamed per content, so a push never re-registers a name (and two spaces never share one). */
+/**
+ * A WORKLET'S PROCESSORS, RENAMED PER ADDRESS, so a push (a new pinned
+ * address) never re-registers a name, and two spaces never share one. The
+ * module is added from its real address, so its own imports resolve: the
+ * worklet scope's registerProcessor is wrapped just before it (appending
+ * "~<hash>") and put back just after, one worklet at a time.
+ */
 const worklets = new Map<string, Promise<string>>();
+let adding: Promise<unknown> = Promise.resolve();
 function hashOf(text: string): string {
   let h = 2166136261;
   for (let i = 0; i < text.length; i += 1) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
   return (h >>> 0).toString(36);
 }
-async function loadWorklet(context: AudioContext, url: string): Promise<string> {
-  const source = await (await fetch(url)).text();
-  const hash = hashOf(source);
-  const key = `${hash}`;
-  let loading = worklets.get(key);
+const scriptUrl = (source: string) => URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+function loadWorklet(context: AudioContext, url: string): Promise<string> {
+  const absolute = new URL(url, globalThis.location?.href).href;
+  const hash = hashOf(absolute);
+  let loading = worklets.get(hash);
   if (!loading) {
-    const wrapped = `const registerProcessor = (name, processor) => globalThis.registerProcessor(name + "~${hash}", processor);\n${source}`;
-    const blob = URL.createObjectURL(new Blob([wrapped], { type: "text/javascript" }));
-    loading = context.audioWorklet.addModule(blob).then(() => hash);
-    worklets.set(key, loading);
+    const run = adding.catch(() => undefined).then(async () => {
+      const worklet = context.audioWorklet;
+      await worklet.addModule(scriptUrl(`globalThis.__sahaRegisterProcessor ??= globalThis.registerProcessor;
+globalThis.registerProcessor = (name, processor) => globalThis.__sahaRegisterProcessor(name + "~${hash}", processor);`));
+      try {
+        await worklet.addModule(absolute);
+      } finally {
+        await worklet.addModule(scriptUrl("globalThis.registerProcessor = globalThis.__sahaRegisterProcessor;"));
+      }
+      return hash;
+    });
+    adding = run;
+    loading = run;
+    run.catch(() => worklets.delete(hash));
+    worklets.set(hash, loading);
   }
   return loading;
 }

@@ -856,13 +856,12 @@ Semantics are as in the types. There is exactly one dispatch path per pointer ki
 - The engine gives that one instance its own close() that resolves without closing. A thing that calls close(), as Mica's RainAudio.release() does today, can therefore never silence the room's calls. That was the Nikk 5404 bug recorded in RoomVoices.
 - out: one GainNode per thing, into a things master, into the destination. The host applies the gear menu's volume and mute, scales it by 0.3 in a miniature, crossfades it over 200 ms across hot swaps, and disconnects it on dispose.
 - at(where): a GainNode into an HRTF PannerNode. The panner is moved only on frames where its object moved.
-- workletNode(url, processor, options):
-  1. Fetch the worklet once per content hash.
-  2. Prepend `const registerProcessor = (n, c) => globalThis.registerProcessor(n + "~<hash>", c);`.
-  3. Add it from a blob: URL. The room page sends no CSP, so this is allowed.
-  4. Construct the node under the hashed name.
+- workletNode(url, processor, options), with url resolved beside the thing's module:
+  1. Hash the worklet's absolute (pinned) address.
+  2. One worklet at a time: add a tiny blob module that wraps the scope's registerProcessor to append "~<hash>", add the worklet from its REAL address (so its own imports resolve), then a blob that puts registerProcessor back.
+  3. Construct the node under the hashed name.
   The result:
-  - The same content is reused.
+  - The same address is reused.
   - New content after a push gets a new name, instead of throwing NotSupportedError for re-registering "rain-texture".
   - Two repos with the same processor name cannot collide.
 - buffer(url) decodes once per URL. whenUnlocked(fn) runs fn once the context is running and is never awaited inside setup, so a page with no gesture never hangs a thing.

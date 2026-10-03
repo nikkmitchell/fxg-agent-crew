@@ -177,6 +177,7 @@ export function ImmersivePlayer({
   showingChoices,
   agents,
   roomItems,
+  surrounded,
   meditation,
   onMeditation,
   peopleRef,
@@ -213,6 +214,8 @@ export function ImmersivePlayer({
   /** Agents in the room, for placing them from the menu. */
   agents: string[];
   roomItems: RoomItem[];
+  /** A full view is all around the room (Scene.tsx): the void is not drawn over it. */
+  surrounded?: boolean;
   /** The room's breathing orb, for the Items tab. */
   meditation: Meditation | null;
   onMeditation: (session: Meditation) => void;
@@ -1096,7 +1099,7 @@ export function ImmersivePlayer({
         ))}
       </XROrigin>
       {/* Not around an environment or a full-size space: it is its own world (src/space/modules). */}
-      {passthrough || roomItems.some(isFullView) ? null : <VoidSphere />}
+      {passthrough || (surrounded ?? roomItems.some(isFullView)) ? null : <VoidSphere />}
       {/* The controls you need while standing in the room. In front of you at
         body level, not on a hand — see the note at the top of RoomControls. */}
       <RoomControls
@@ -1201,6 +1204,7 @@ export function Immersive({
   showingChoices,
   agents,
   roomItems,
+  surrounded,
   meditation,
   onMeditation,
   peopleRef,
@@ -1225,6 +1229,8 @@ export function Immersive({
   showingChoices: RoomShowingChoices;
   agents: string[];
   roomItems: RoomItem[];
+  /** A full view is all around the room (Scene.tsx). */
+  surrounded?: boolean;
   meditation: Meditation | null;
   onMeditation: (session: Meditation) => void;
   peopleRef: RefObject<WirePerson[]>;
@@ -1294,6 +1300,7 @@ export function Immersive({
       showingChoices={showingChoices}
       agents={agents}
       roomItems={roomItems}
+      surrounded={surrounded}
       meditation={meditation}
       onMeditation={onMeditation}
       peopleRef={peopleRef}

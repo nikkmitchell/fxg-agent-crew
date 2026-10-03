@@ -106,8 +106,16 @@ export async function runModule(options: RunOptions): Promise<RunningModule> {
   const problem = (text: string) => options.onProblem?.(text);
   const pressHandlers = new Map<THREE.Object3D, (info: PressInfo) => void>();
   const frameHandlers = new Set<(dt: number, t: number) => void>();
+  // The room's background and fog before a full-size module, and as it last left them: put back only
+  // when it was all around the room and they are still its own (the room may have taken them back first).
   const background = options.world.background;
   const fog = options.world.fog;
+  let seenBackground = background;
+  let seenFog = fog;
+  const look = () => {
+    seenBackground = options.world.background;
+    seenFog = options.world.fog;
+  };
   let handle: ModuleHandle | null = null;
   let failed: string | null = null;
   let updateFailures = 0;
@@ -155,6 +163,7 @@ export async function runModule(options: RunOptions): Promise<RunningModule> {
     failed = describe(error);
     problem(`Could not start: ${failed}`);
   }
+  look();
 
   const running: RunningModule = {
     get failed() {
@@ -165,6 +174,7 @@ export async function runModule(options: RunOptions): Promise<RunningModule> {
       try {
         handle?.update?.(dt, t);
         for (const fn of frameHandlers) fn(dt, t);
+        look();
         updateFailures = 0;
       } catch (error) {
         updateFailures += 1;
@@ -199,8 +209,10 @@ export async function runModule(options: RunOptions): Promise<RunningModule> {
       for (const object of pressHandlers.keys()) delete object.userData.sahaPressable;
       pressHandlers.clear();
       frameHandlers.clear();
-      options.world.background = background;
-      options.world.fog = fog;
+      if (options.mode === "full") {
+        if (options.world.background === seenBackground) options.world.background = background;
+        if (options.world.fog === seenFog) options.world.fog = fog;
+      }
     },
   };
   return running;

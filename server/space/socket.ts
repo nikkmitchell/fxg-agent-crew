@@ -409,6 +409,8 @@ export function registerSpaceRoutes(
   roomChoicesNow: ((room: string) => { open: string[]; agentsHidden: boolean }) | null = null,
   /** The shared values of things from spaces (module-state.ts); absent, they are only relayed. */
   moduleStates: ModuleStates | null = null,
+  /** Whether a thing from a space (or a part of one) stands in this room; absent, any id is relayed. */
+  moduleHere: ((room: string, item: string) => boolean) | null = null,
 ): void {
   app.get("/bff/space/room", async (request, reply) => {
     const session = sessions.get(request.cookies[config.cookieName]);
@@ -611,6 +613,7 @@ export function registerSpaceRoutes(
         while (moduleSent.length && now - moduleSent[0] > 1000) moduleSent.shift();
         if (moduleSent.length >= 40) return;
         moduleSent.push(now);
+        if (moduleHere && !moduleHere(room, message.item)) return;
         const from = liveHub.presence.find(actorId)?.actorId ?? actorId;
         const out: ServerMessage = message.type === "moduleEvent"
           ? { type: "moduleEvent", item: message.item, name: message.name, data: message.data, from }

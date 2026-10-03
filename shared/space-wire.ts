@@ -496,6 +496,8 @@ export function isCallPath(path: unknown): path is string {
 /** A thing from a space names its moments and values like this, and keeps each small. */
 export const MODULE_KEY = /^[A-Za-z0-9_.:/-]{1,64}$/;
 export const MODULE_VALUE_BYTES = 4096;
+/** A thing from a space in a room, or a part of one, up to three deep: <item id>/<key>/<key>/<key>. */
+export const MODULE_ITEM = /^[A-Za-z0-9-]{1,64}(\/[a-z0-9][a-z0-9_-]{0,31}){0,3}$/;
 
 export function parseClientMessage(raw: string): ClientMessage | null {
   let value: unknown;
@@ -544,7 +546,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   if (message.type === "moduleEvent" || message.type === "moduleState") {
     const name = message.type === "moduleEvent" ? message.name : message.key;
     // An item, or a part of a space: <item>/<key>, up to three deep (docs/things/DESIGN.md).
-    if (typeof message.item !== "string" || !/^[A-Za-z0-9-]{1,64}(\/[a-z0-9][a-z0-9_-]{0,31}){0,3}$/.test(message.item)) return null;
+    if (typeof message.item !== "string" || !MODULE_ITEM.test(message.item)) return null;
     if (typeof name !== "string" || !MODULE_KEY.test(name)) return null;
     const payload = message.type === "moduleEvent" ? message.data : message.value;
     let encoded: string;

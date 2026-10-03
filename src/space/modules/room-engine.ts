@@ -1,32 +1,40 @@
 import * as THREE from "three";
-import type { ClientMessage, ServerMessage } from "../../../shared/space-wire";
+import { MODULE_ITEM, MODULE_KEY, MODULE_VALUE_BYTES, type ClientMessage, type ServerMessage } from "../../../shared/space-wire";
 import { bff, type SpaceModules } from "../../bff-client";
 import { space } from "../../space-client";
+import { EnvStack } from "../../engine/env";
 import type { Host, Resolved, TransportEvent } from "../../engine/host";
 import { Engine } from "../../engine/instance";
-import type { EnvSettings, Json, Person } from "../../engine/types";
+import type { Json, Person } from "../../engine/types";
 import { claimPointer } from "../pointer-claim";
+import { resumeRoomAudio } from "../room-audio";
 
 /**
  * THE SAHA.ING ROOM, AS A HOST FOR THINGS (src/engine/host.ts): what the
  * engine needs, made from what the room already has. Shared values and
  * moments ride the room's own socket (moduleState / moduleEvent), stamped by
- * the server; refs resolve through the Library's listings; surroundings are
- * the room's scene and camera; problems go to the badge of the thing they
- * belong to.
+ * the server; refs resolve through the spaces' listings; surroundings are the
+ * room's scene and camera, in layers (src/engine/env.ts); problems go to the
+ * badge of the thing they belong to.
+ *
+ * A space's own parts ("orb") come from the very deploy the space came from,
+ * so a push never mixes this push's space with last push's parts. A part from
+ * another space ("xr.instruments/drums") follows that space's branch: when it
+ * deploys, the spaces using it are told to load again (onReload).
  */
 
 const REF = /^(?:([a-z0-9][a-z0-9._-]{0,63})\/)?([a-z0-9][a-z0-9_-]{0,31})(?:@([A-Za-z0-9][A-Za-z0-9._-]{0,63}))?$/;
+/** /s/<space>/~<deploy>/...: one deploy of one space (shared/space-bench.ts, moduleUrl). */
+const PINNED = /\/s\/([^/]+)\/~([A-Za-z0-9_-]{1,64})\//;
 
 export type RoomEngine = {
   engine: Engine;
-  /** Where a module came from, so a space's "drums" means its own repo's drums. */
-  know(url: string, source: { space: string; branch: string }): void;
-  /** What a branch offers now (shared with ModuleItems' own listing). */
-  listing(spaceName: string, branch?: string): Promise<SpaceModules>;
+  /** Where a module came from, and which thing in the room it is, so a space's "orb" means its own deploy's orb. */
+  know(url: string, source: { space: string; branch: string }, item: string): void;
   /** A thing's badge: problems for its id and its parts' ids. */
   onProblem(rootId: string, fn: (text: string) => void): () => void;
-  forgetListing(spaceName: string, branch: string): void;
+  /** A part this thing uses from another space has a new deploy: load the thing again. */
+  onReload(rootId: string, fn: () => void): () => void;
   dispose(): void;
 };
 
@@ -38,31 +46,66 @@ export function createRoomEngine(deps: {
   occluders: () => THREE.Object3D[];
   me: () => Person | null;
   people: () => readonly Person[];
-  send: (message: ClientMessage) => void;
+  /** False when the socket was not open. */
+  send: (message: ClientMessage) => boolean | void;
   subscribe: (listener: (message: ServerMessage) => void) => () => void;
-  reducedMotion: boolean;
+  reducedMotion: () => boolean;
 }): RoomEngine {
-  const sources = new Map<string, { space: string; branch: string }>();
+  /** Each module url: its space and branch, and the thing in the room it belongs to. */
+  const sources = new Map<string, { space: string; branch: string; item: string | null }>();
   const listings = new Map<string, Promise<SpaceModules>>();
   const badges = new Map<string, Set<(text: string) => void>>();
-  const listing = (spaceName: string, branch?: string) => {
-    const key = `${spaceName}@${branch ?? ""}`;
+  const reloads = new Map<string, Set<() => void>>();
+  /** For each space@branch, the things in the room with a part from it. */
+  const users = new Map<string, Set<string>>();
+
+  const cached = (key: string, fetch: () => Promise<SpaceModules>) => {
     let found = listings.get(key);
     if (!found) {
-      found = bff.spaceModules(spaceName, branch);
+      found = fetch();
       found.catch(() => listings.delete(key));
       listings.set(key, found);
     }
     return found;
   };
+  /** One deploy's listing never changes. */
+  const ofDeploy = (spaceName: string, deploy: string) => cached(`${spaceName}~${deploy}`, () => bff.spaceModules(spaceName, undefined, undefined, deploy));
+  /** A branch's listing is its live deploy's, until that branch deploys again. */
+  const ofBranch = (spaceName: string, branch?: string) => cached(`${spaceName}@${branch ?? ""}`, () => bff.spaceModules(spaceName, branch));
+
+  const stack = new EnvStack({
+    read: () => {
+      const camera = deps.camera() as THREE.PerspectiveCamera;
+      return { background: deps.scene.background as THREE.Color | THREE.Texture | null, fog: deps.scene.fog as THREE.Fog | THREE.FogExp2 | null, far: camera.far, exposure: deps.gl.toneMappingExposure };
+    },
+    write: (state) => {
+      const camera = deps.camera() as THREE.PerspectiveCamera;
+      deps.scene.background = state.background;
+      deps.scene.fog = state.fog;
+      if (camera.far !== state.far) {
+        camera.far = state.far;
+        camera.updateProjectionMatrix();
+      }
+      deps.gl.toneMappingExposure = state.exposure;
+      deps.invalidate();
+    },
+  });
 
   const host: Host = {
     name: "room",
     final: false,
     transport: {
       values: (id) => space.moduleState(id).then((answer) => answer.state as Record<string, Json>),
-      set: (item, key, value) => deps.send({ type: "moduleState", item, key, value }),
-      moment: (item, name, data) => deps.send({ type: "moduleEvent", item, name, data }),
+      set: (item, key, value) => deps.send({ type: "moduleState", item, key, value }) !== false,
+      moment: (item, name, data) => void deps.send({ type: "moduleEvent", item, name, data }),
+      // What the room's relay carries (shared/space-wire.ts): anything else would change here and nowhere else.
+      check: (item, name, value) => {
+        if (!MODULE_ITEM.test(item)) return `this thing's id (${item}) cannot travel; a part's key is lowercase letters, digits, - and _.`;
+        if (!MODULE_KEY.test(name)) return "a name is 1 to 64 letters, digits and _ . : / -.";
+        const size = JSON.stringify(value ?? null)?.length ?? 0;
+        if (size > MODULE_VALUE_BYTES) return `that is ${size} characters as JSON; ${MODULE_VALUE_BYTES} is the most that travels. Keep big things in files (ctx.assets).`;
+        return null;
+      },
       subscribe: (listener) =>
         deps.subscribe((message) => {
           let event: TransportEvent | null = null;
@@ -81,48 +124,42 @@ export function createRoomEngine(deps: {
     },
     people: deps.people,
     now: () => Date.now(),
-    reducedMotion: deps.reducedMotion,
+    get reducedMotion() {
+      return deps.reducedMotion();
+    },
     async resolve(ref, from): Promise<Resolved | null> {
       const match = REF.exec(ref);
       if (!match) return null;
       const here = sources.get(from);
-      const spaceName = match[1] ?? here?.space;
-      if (!spaceName) return null;
-      const branch = match[3] ?? (match[1] ? undefined : here?.branch);
-      const found = await listing(spaceName, branch).catch(() => null);
+      const pinned = PINNED.exec(new URL(from, window.location.origin).pathname);
+      let found: SpaceModules | null;
+      if (!match[1] && !match[3] && pinned) {
+        // This space's own part: from the same deploy as the space.
+        found = await ofDeploy(decodeURIComponent(pinned[1]), pinned[2]).catch(() => null);
+      } else {
+        const spaceName = match[1] ?? here?.space;
+        if (!spaceName) return null;
+        const branch = match[3] ?? (match[1] ? undefined : here?.branch);
+        found = await ofBranch(spaceName, branch).catch(() => null);
+        if (found && here?.item) {
+          // When that branch deploys again, this thing loads again, and its parts with it.
+          const key = `${found.space}@${found.branch}`;
+          let who = users.get(key);
+          if (!who) {
+            who = new Set();
+            users.set(key, who);
+          }
+          who.add(here.item);
+        }
+      }
       const entry = found?.modules.find((module) => module.id === match[2]);
       if (!found || !entry) return null;
       const url = new URL(entry.url, window.location.origin).href;
-      sources.set(url, { space: found.space, branch: found.branch });
+      sources.set(url, { space: found.space, branch: found.branch, item: here?.item ?? null });
       return { url, exportName: entry.export, kind: entry.kind };
     },
     importModule: (url) => import(/* @vite-ignore */ url) as Promise<Record<string, unknown>>,
-    applyEnv(settings: Partial<EnvSettings>) {
-      const scene = deps.scene;
-      const camera = deps.camera() as THREE.PerspectiveCamera;
-      const before = { background: scene.background, fog: scene.fog, far: camera.far, exposure: deps.gl.toneMappingExposure };
-      if (settings.background !== undefined) {
-        scene.background = settings.background === null ? null : settings.background instanceof THREE.Texture ? settings.background : new THREE.Color(settings.background);
-      }
-      if (settings.fog !== undefined) {
-        const fog = settings.fog;
-        scene.fog = fog === null ? null : "density" in fog ? new THREE.FogExp2(fog.color, fog.density) : new THREE.Fog(fog.color, fog.near, fog.far);
-      }
-      if (settings.far !== undefined) {
-        camera.far = settings.far;
-        camera.updateProjectionMatrix();
-      }
-      if (settings.exposure !== undefined) deps.gl.toneMappingExposure = settings.exposure;
-      deps.invalidate();
-      return () => {
-        scene.background = before.background;
-        scene.fog = before.fog;
-        camera.far = before.far;
-        camera.updateProjectionMatrix();
-        deps.gl.toneMappingExposure = before.exposure;
-        deps.invalidate();
-      };
-    },
+    envLayer: () => stack.layer(),
     problem(id, text) {
       const [rootId, ...part] = id.split("/");
       const line = part.length ? `${part.join("/")}: ${text}` : text;
@@ -143,25 +180,42 @@ export function createRoomEngine(deps: {
     me: deps.me,
     claim: (event) => claimPointer(event),
     invalidate: deps.invalidate,
+    unlockAudio: () => {
+      resumeRoomAudio();
+      const context = THREE.AudioContext.getContext() as unknown as BaseAudioContext & { resume(): Promise<void> };
+      if (context.state === "suspended") void context.resume().catch(() => undefined);
+    },
   });
+
+  const stop = deps.subscribe((message) => {
+    // Back from a dropped socket: what was missed while it was down, and what was set meanwhile.
+    if (message.type === "welcome") void engine.bus.resync();
+    if (message.type !== "spaceDeployed") return;
+    listings.delete(`${message.space}@${message.branch}`);
+    listings.delete(`${message.space}@`);
+    for (const item of users.get(`${message.space}@${message.branch}`) ?? []) for (const fn of reloads.get(item) ?? []) fn();
+  });
+
+  const subscribeTo = (map: Map<string, Set<never>>) => <F>(rootId: string, fn: F) => {
+    let set = map.get(rootId) as Set<F> | undefined;
+    if (!set) {
+      set = new Set();
+      map.set(rootId, set as Set<never>);
+    }
+    set.add(fn);
+    return () => {
+      set!.delete(fn);
+    };
+  };
 
   return {
     engine,
-    know: (url, source) => sources.set(url, source),
-    listing,
-    forgetListing: (spaceName, branch) => {
-      listings.delete(`${spaceName}@${branch}`);
-      listings.delete(`${spaceName}@`);
+    know: (url, source, item) => sources.set(url, { ...source, item }),
+    onProblem: subscribeTo(badges as Map<string, Set<never>>),
+    onReload: subscribeTo(reloads as Map<string, Set<never>>),
+    dispose: () => {
+      stop();
+      engine.dispose();
     },
-    onProblem(rootId, fn) {
-      let set = badges.get(rootId);
-      if (!set) {
-        set = new Set();
-        badges.set(rootId, set);
-      }
-      set.add(fn);
-      return () => set!.delete(fn);
-    },
-    dispose: () => engine.dispose(),
   };
 }
