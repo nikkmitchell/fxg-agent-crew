@@ -48,8 +48,11 @@ export type AvatarCheck = {
 
 export type AvatarLimits = { maxBytes: number; maxTriangles: number };
 
-/** Generous enough for every body already shipped (the largest, Skein, is about 1 MB and 27k triangles). */
-export const DEFAULT_LIMITS: AvatarLimits = { maxBytes: 5 * 1024 * 1024, maxTriangles: 80_000 };
+/**
+ * Generous enough for every body already shipped: the largest files are the 100Avatars ones (GoodKnight 5.8 MB,
+ * AlienTeen, the room's default, 5.6 MB); the most triangles, Skein's 27k.
+ */
+export const DEFAULT_LIMITS: AvatarLimits = { maxBytes: 8 * 1024 * 1024, maxTriangles: 80_000 };
 
 /** The bones the room's pose code drives. Fewer than this and a limb would not move. */
 export const REQUIRED_BONES = [
