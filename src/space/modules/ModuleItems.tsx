@@ -82,9 +82,8 @@ function useModuleSources(items: ModuleRoomItem[], subscribe: (listener: (messag
  * own buttons. A click in the window, or a trigger pulled in a headset, is
  * cast at the pressable parts of every running thing; the nearest hears it.
  *
- * And in a headset, three's controllers, grips and hands are hung on the
- * player's origin, so a thing that reads them (Sill's drums do) gets room
- * positions after you have walked or teleported.
+ * In a headset it listens to the controllers' select, and never moves them
+ * (see start below). Things on the contract get hands from ctx.input.tips.
  */
 function usePressRouter(running: Map<string, RunningModule>, you: { id: string; name: string } | null) {
   const gl = useThree((state) => state.gl);
@@ -128,21 +127,12 @@ function usePressRouter(running: Map<string, RunningModule>, you: { id: string; 
 
   useEffect(() => {
     const xr = gl.xr;
-    const hung: THREE.Object3D[] = [];
     const selects: Array<() => void> = [];
     const start = () => {
-      const origin = xr.getCamera().parent;
-      // NOT hung later from the frame: moving three's shared controllers under the origin mid-session put
-      // the speech cube far from the hand (Nikk, 6874). Older modules' headset presses wait for the engine path.
-      if (!origin) return;
+      // NEVER moves three's controllers: they are shared, and hanging them under the player's origin (at
+      // sessionstart or later) put the speech cube and the hand balls far from the body (Nikk, 6874, 6890).
       for (const index of [0, 1]) {
         const ray = xr.getController(index);
-        for (const object of [ray, xr.getControllerGrip(index), xr.getHand(index)]) {
-          if (object.parent !== origin) {
-            origin.add(object);
-            hung.push(object);
-          }
-        }
         const onSelect = () => {
           const at = new THREE.Vector3();
           const towards = new THREE.Vector3(0, 0, -1);
@@ -156,7 +146,6 @@ function usePressRouter(running: Map<string, RunningModule>, you: { id: string; 
     };
     const end = () => {
       for (const off of selects.splice(0)) off();
-      for (const object of hung.splice(0)) object.parent?.remove(object);
     };
     xr.addEventListener("sessionstart", start);
     xr.addEventListener("sessionend", end);
