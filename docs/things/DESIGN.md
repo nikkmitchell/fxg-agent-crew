@@ -213,6 +213,8 @@ export interface ChildHandle {
   act(action: string, payload?: Json): Promise<{ ok: true } | { ok: false; why: string }>;
   onEvent: Ctx["onEvent"]; onMoment: Ctx["net"]["onMoment"];   // these subscriptions survive remounts and reloads
 }
+// WORKS TODAY (phase 1): press, strike, keys, tips. PLANNED, not in the engine yet: hover, drag, grab,
+// buttons, hands. Calling a planned one fails setup with "is not a function" on the thing's badge.
 export interface Input {
   press(target: THREE.Object3D, fn: (e: PressEvent) => void, options?: { poke?: boolean }): Off;
       // a click, a screen tap, a trigger or pinch along a ray, and (unless poke: false) a fingertip poke

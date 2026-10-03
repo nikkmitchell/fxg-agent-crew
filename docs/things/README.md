@@ -85,6 +85,7 @@ room's own three.js, so your meshes and the room's renderer are one three.js.
 | `ctx.input.press(object, fn, { poke })` | a click, ray, pinch or fingertip; `poke: false` leaves fingertips to strikes |
 | `ctx.input.strike(object, fn(e))` | a hand or controller coming onto it; `e.strength` 0–1; a click counts 0.7 |
 | `ctx.input.keys("1234", fn(key, down))` | keys, only while your thing has focus |
+| (not yet) | `ctx.input.drag`, `grab`, `hover`, `buttons`, `hands` are planned; for now use `press` and `tips` |
 | `ctx.input.tips` | each hand's tip in your frame: `{ hand, position, previous, velocity }` |
 | `ctx.haptics.pulse(hand, strength, ms)` | a buzz in that controller |
 | `ctx.audio.context / out / at(object) / buffer(url) / workletNode(url, name)` | sound; a url is beside your module, and a worklet may import its own files |
