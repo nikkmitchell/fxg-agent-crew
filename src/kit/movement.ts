@@ -25,7 +25,7 @@ import {
  *  - tracked hands: the palm joystick (palm-joystick.ts), left walks, right turns;
  *  - no frame may move you more than believableStep allows (a mislocated hand
  *    is not a reason to fly);
- *  - on a computer: WASD or the arrows walk, Q/E turn, drag to look.
+ *  - on a computer: WASD walk, drag or the left/right arrows turn, E rises and Q sinks.
  *
  * Everything moves the PLAYER rig that carries the camera; in a headset your
  * head moves inside it.
@@ -180,8 +180,11 @@ export function createMovement(options: {
         player.position.x += step.x;
         player.position.z += step.z;
       }
-      const turning = (keys.has("q") || keys.has("arrowleft") ? 1 : 0) - (keys.has("e") || keys.has("arrowright") ? 1 : 0);
+      // The mouse turns; the arrows still do. E rises and Q sinks (Nikk, 6824), never below the floor.
+      const turning = (keys.has("arrowleft") ? 1 : 0) - (keys.has("arrowright") ? 1 : 0);
       if (turning) player.rotation.y += turning * 1.6 * delta;
+      const rising = (keys.has("e") ? 1 : 0) - (keys.has("q") ? 1 : 0);
+      if (rising) player.position.y = Math.min(50, Math.max(0, player.position.y + rising * comfort.speed * delta));
     }
 
     // No frame moves anybody further than a person could walk in it.

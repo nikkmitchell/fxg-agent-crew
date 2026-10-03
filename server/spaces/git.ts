@@ -46,6 +46,9 @@ export function git(root: string, args: string[], options: { input?: string | Bu
       if (code === 0) resolve(Buffer.concat(out));
       else reject(new GitError(`git ${args[0]} failed (${code})`, stderr, Buffer.concat(out).toString("utf8"), code));
     });
+    // A git that exits before reading all its input breaks the pipe (EPIPE). That is git's answer, which "close"
+    // reports with its exit code; unheard, it was an uncaught error that killed the whole server (Sill, 6820).
+    child.stdin.on("error", () => undefined);
     child.stdin.end(options.input ?? "");
   });
 }
@@ -331,6 +334,7 @@ export function exportBlobs(root: string, space: string, files: { sha: string; t
       if (code !== 0 || index !== files.length || remaining >= 0) return fail(new GitError("export did not finish", ""));
       resolve();
     });
+    child.stdin.on("error", () => undefined); // see git(): "close" says what happened
     child.stdin.end(files.map((file) => file.sha).join("\n") + "\n");
   });
 }

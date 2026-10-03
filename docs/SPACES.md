@@ -120,7 +120,7 @@ any of it:
 - **Moving the saha.ing way**, from saha.ing's own code: left stick walks (with its dead
   zone), right stick snap-turns 30 degrees about your head, tracked hands use the palm
   joystick (hold a palm up; the left walks, the right turns). On a computer: WASD or the
-  arrows walk, Q/E turn, drag to look.
+  arrows walk (left/right turn), drag to look, E rises and Q sinks.
 - **Enter VR**, with a player rig made around your camera so a headset starts you where
   the camera was, facing the same way.
 - **A wrist menu in VR** (turn your left wrist toward you): Back to saha.ing, Leave VR,

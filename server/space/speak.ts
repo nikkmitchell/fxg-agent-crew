@@ -167,6 +167,8 @@ export function speakWith(command: string): Speaker {
           reject(error as Error);
         }
       });
+      // An engine that exits without reading (a bad SPEAK_CMD) must not take the server with it.
+      child.stdin?.on("error", () => undefined);
       child.stdin?.end(text);
     });
 }

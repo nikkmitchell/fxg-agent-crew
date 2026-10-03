@@ -1071,6 +1071,8 @@ function runBackend(request: FastifyRequest, reply: FastifyReply, options: {
     });
 
     const body = request.body as Readable | undefined;
+    // git may stop reading (a refused push): the broken pipe must not become an uncaught error (Sill, 6820).
+    child.stdin.on("error", () => undefined);
     if (request.method === "POST" && body && typeof body.pipe === "function") body.pipe(child.stdin);
     else child.stdin.end();
   });
