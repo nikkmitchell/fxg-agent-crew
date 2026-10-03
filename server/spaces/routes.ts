@@ -646,7 +646,11 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       }
     }
     const ticket = deps.tickets.issue({ username: me.username, body: deps.bodyOf(me.username), space });
-    return reply.header("cache-control", "no-store").send({ ticket, path: spaceEntryPath(space, ticket) });
+    // The branch the team follows (set on the Spaces page), when it is live: a door into meditation.ar can open
+    // its mica-nature previews without anybody typing an address in a headset (Mica, 6932).
+    const followed = store.benchBranch(space);
+    const where = followed !== LIVE_BRANCH && isPreviewableBranch(followed) && store.live(space, followed) ? `/s/${space}/@${followed}/` : undefined;
+    return reply.header("cache-control", "no-store").send({ ticket, path: spaceEntryPath(space, ticket, where) });
   });
 
   /**

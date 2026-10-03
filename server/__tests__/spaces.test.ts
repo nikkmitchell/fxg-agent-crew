@@ -335,6 +335,21 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     expect((await ticketFor("baiwei")).statusCode).toBe(403);
   });
 
+  it("opens the branch the team follows, when it is live: a lobby door into its previews (Mica, 6932)", async () => {
+    const main = store.live("meditation.ar", "main")!;
+    store.setLive("meditation.ar", "mica-nature", main.id);
+    store.setBenchBranch("meditation.ar", "mica-nature");
+    try {
+      expect((await ticketFor("nikk")).json().path).toMatch(/^\/s\/meditation\.ar\/@mica-nature\/#saha=/);
+      // A followed branch with nothing live opens the main site, never a dead end.
+      store.clearLive("meditation.ar", "mica-nature");
+      expect((await ticketFor("nikk")).json().path).toMatch(/^\/s\/meditation\.ar\/#saha=/);
+    } finally {
+      store.setBenchBranch("meditation.ar", "main");
+      store.clearLive("meditation.ar", "mica-nature");
+    }
+  });
+
   it("keeps what a tester sent from inside the space, for the people and agents building it (Nikk, 6597)", async () => {
     const ticket = (await ticketFor("nikk")).json().ticket as string;
     const url = `/bff/spaces/meditation.ar/feedback?ticket=${encodeURIComponent(ticket)}`;
