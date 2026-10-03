@@ -386,6 +386,12 @@ export function VrmBody({
           reducedMotion,
         })
       : null;
+    /**
+     * The procedural poses were tuned on VRM 0 bodies. three-vrm imports a VRM 1 body half a turn round from
+     * a VRM 0 one (faceFrontZOf), so the same pose about the bones' X and Z axes comes out mirrored on it: arms
+     * that should hang at the sides rise instead (Mica, 6861). Mirror X and Z for those bodies.
+     */
+    const mirror = faceFrontZOf(vrm) > 0;
 
 
     if (inHeadset && person.head) {
@@ -455,11 +461,11 @@ export function VrmBody({
     }
 
     if (automatic && !authored) {
-      rotateToward(vrm.humanoid.getNormalizedBoneNode("chest"), automatic.chest, delta, reducedMotion, scratch);
-      rotateToward(vrm.humanoid.getNormalizedBoneNode("leftUpperLeg"), automatic.leftUpperLeg, delta, reducedMotion, scratch);
-      rotateToward(vrm.humanoid.getNormalizedBoneNode("leftLowerLeg"), automatic.leftLowerLeg, delta, reducedMotion, scratch);
-      rotateToward(vrm.humanoid.getNormalizedBoneNode("rightUpperLeg"), automatic.rightUpperLeg, delta, reducedMotion, scratch);
-      rotateToward(vrm.humanoid.getNormalizedBoneNode("rightLowerLeg"), automatic.rightLowerLeg, delta, reducedMotion, scratch);
+      rotateToward(vrm.humanoid.getNormalizedBoneNode("chest"), automatic.chest, delta, reducedMotion, scratch, mirror);
+      rotateToward(vrm.humanoid.getNormalizedBoneNode("leftUpperLeg"), automatic.leftUpperLeg, delta, reducedMotion, scratch, mirror);
+      rotateToward(vrm.humanoid.getNormalizedBoneNode("leftLowerLeg"), automatic.leftLowerLeg, delta, reducedMotion, scratch, mirror);
+      rotateToward(vrm.humanoid.getNormalizedBoneNode("rightUpperLeg"), automatic.rightUpperLeg, delta, reducedMotion, scratch, mirror);
+      rotateToward(vrm.humanoid.getNormalizedBoneNode("rightLowerLeg"), automatic.rightLowerLeg, delta, reducedMotion, scratch, mirror);
     }
 
     // Expressions are deliberately layered over authored body motion. They
@@ -500,6 +506,7 @@ export function VrmBody({
             delta,
             reducedMotion || overClip,
             scratch,
+            mirror,
           );
           rotateToward(
             lower,
@@ -507,6 +514,7 @@ export function VrmBody({
             delta,
             reducedMotion || overClip,
             scratch,
+            mirror,
           );
         }
         continue;
@@ -593,9 +601,10 @@ function rotateToward(
   delta: number,
   snap: boolean,
   scratch: { euler: THREE.Euler; targetQuaternion: THREE.Quaternion },
+  mirror = false,
 ): void {
   if (!bone) return;
-  scratch.euler.set(rotation.x, rotation.y, rotation.z, "YXZ");
+  scratch.euler.set(mirror ? -rotation.x : rotation.x, rotation.y, mirror ? -rotation.z : rotation.z, "YXZ");
   scratch.targetQuaternion.setFromEuler(scratch.euler);
   if (snap) bone.quaternion.copy(scratch.targetQuaternion);
   else bone.quaternion.slerp(scratch.targetQuaternion, Math.min(1, delta * 8));
