@@ -56,7 +56,7 @@ import { holdSession } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
 import { RoomControls } from "./RoomControls";
 import type { Meditation } from "../../shared/meditation";
-import { isFullView, type RoomItem } from "../../shared/room-items";
+import type { RoomItem } from "../../shared/room-items";
 import { useHiddenAsStill } from "./useHiddenAsStill";
 import type { RoomFeed } from "./useRoomFeed";
 import type { PanelChoices } from "./usePanelChoices";
@@ -177,7 +177,6 @@ export function ImmersivePlayer({
   showingChoices,
   agents,
   roomItems,
-  surrounded,
   meditation,
   onMeditation,
   peopleRef,
@@ -1098,8 +1097,9 @@ export function ImmersivePlayer({
           </group>
         ))}
       </XROrigin>
-      {/* Not around an environment or a full-size space: it is its own world (src/space/modules). */}
-      {passthrough || (surrounded ?? roomItems.some(isFullView)) ? null : <VoidSphere />}
+      {/* Full environments also respect the viewer's passthrough switch.
+          The clip-space backing draws behind them without clipping scenery. */}
+      {passthrough ? null : <VoidSphere />}
       {/* The controls you need while standing in the room. In front of you at
         body level, not on a hand — see the note at the top of RoomControls. */}
       <RoomControls

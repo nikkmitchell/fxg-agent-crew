@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import * as THREE from "three";
 import { makeLabelTexture } from "./label-texture";
 import { useDisposable } from "./use-disposable";
+import { VOID_VERTEX, VOID_FRAGMENT, VOID_DRAW } from "./void-backdrop";
 
 /**
  * Black void, or the room you are actually standing in.
@@ -19,12 +20,15 @@ import { useDisposable } from "./use-disposable";
  * toggle is instant and costs one draw call.
  */
 export function VoidSphere() {
-  // Inside the camera's far plane (60) and outside the room's far corner
-  // (~15m), so it encloses everything without being clipped away.
+  // A sphere at 26 m hid large environments. Their workaround removed it,
+  // which also made the passthrough switch ineffective. Back every eye in
+  // clip space instead: it draws first and never occludes distant scenery.
+  const uniforms = useMemo(() => ({ colour: { value: new THREE.Color("#0b0d12") } }), []);
   return (
-    <mesh>
-      <sphereGeometry args={[26, 24, 16]} />
-      <meshBasicMaterial color="#0b0d12" side={THREE.BackSide} fog={false} />
+    <mesh frustumCulled={VOID_DRAW.frustumCulled} renderOrder={VOID_DRAW.renderOrder}>
+      <planeGeometry args={[2, 2]} />
+      <shaderMaterial vertexShader={VOID_VERTEX} fragmentShader={VOID_FRAGMENT} uniforms={uniforms}
+        depthTest={VOID_DRAW.depthTest} depthWrite={VOID_DRAW.depthWrite} toneMapped={false} />
     </mesh>
   );
 }
