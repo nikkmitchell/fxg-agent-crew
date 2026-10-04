@@ -173,6 +173,7 @@ function Preview() {
     switching: null,
     goRoom: (room, join) => log(`${join ? "join" : "go"} ${room}`),
     toLobby: () => log("lobby"),
+    toFrontPage: () => log("front page"),
     goTables: [{ size: 9, players: 2 }],
     orbHere: orb,
     addGoTable: () => log("add go"),

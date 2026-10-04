@@ -122,6 +122,8 @@ export type SettingsMenuInput = {
   switching: string | null;
   goRoom: (room: string, join: boolean) => void;
   toLobby: () => void;
+  /** Out of the room to the website's front page (what Go to the lobby did before 6974). */
+  toFrontPage: () => void;
 
   // LIBRARY: things from spaces' git (src/space/modules/use-library.ts)
   library: Library | null;
@@ -306,7 +308,7 @@ function roomSections(s: SettingsMenuInput): MenuSection[] {
   }
   sections.push({
     title: "Somewhere else",
-    rows: [{ kind: "link", label: "Go to the lobby", onTap: s.toLobby }, note("Make a room there, or join one by its name.")],
+    rows: [{ kind: "link", label: "Go to the lobby", onTap: s.toLobby }, note("The lobby room: the mirror, the wardrobe and every door."), { kind: "link", label: "Leave to the website", onTap: s.toFrontPage }],
   });
   return sections;
 }

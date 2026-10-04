@@ -83,6 +83,10 @@ export function lobbyDoors(
  * published to be visited (shared/finished-spaces.ts), and WORK ROOMS, every
  * other door. A finished space is a public room, so its door is usually among
  * the public ones already; one not listed yet is still given a door.
+ *
+ * A published space ("space" door: its own website, like the meditation
+ * nature experience or the things examples) is on neither tab: it is not a
+ * work room (Nikk2, 6974).
  */
 export function splitDoors(doors: readonly LobbyDoor[], finished: readonly { room: string; title: string }[]): { finished: LobbyDoor[]; work: LobbyDoor[] } {
   const keys = new Map(finished.map((one) => [roomKey(one.room), one.title]));
@@ -90,8 +94,9 @@ export function splitDoors(doors: readonly LobbyDoor[], finished: readonly { roo
   const work: LobbyDoor[] = [];
   const seen = new Set<string>();
   for (const door of doors) {
+    if (door.kind === "space") continue;
     const key = roomKey(door.room);
-    if (door.kind !== "space" && keys.has(key)) {
+    if (keys.has(key)) {
       seen.add(key);
       done.push({ ...door, label: keys.get(key), detail: door.kind === "here" ? door.detail : "finished space" });
     } else {
@@ -110,7 +115,10 @@ export function pageOf<T>(items: readonly T[], perPage: number, page: number): {
 }
 
 /** One avatar you could wear: its catalogue name, its key, and whether it has a picture. */
-export type Wearable = { name: string; key: string; pictured: boolean };
+export type Wearable = { name: string; key: string; pictured: boolean; ai?: boolean };
+
+/** The catalogue collection the agents' own bodies are in (Skein, Mica): the wardrobe's AI MADE tab (Nikk2, 6974). */
+export const AI_MADE_COLLECTION = "Saha Originals";
 
 /**
  * What the wardrobe stand offers: every body this server can serve now
@@ -120,14 +128,14 @@ export type Wearable = { name: string; key: string; pictured: boolean };
  */
 export function wearables(
   ready: readonly string[],
-  catalogue: readonly { name: string; thumbnail?: string }[],
+  catalogue: readonly { name: string; thumbnail?: string; collection?: string }[],
   onHand: readonly { slug: string; catalogue: string | null }[] = [],
 ): Wearable[] {
   const canServe = new Set(ready.map(bodyKey).filter((key) => !WITHDRAWN_BODIES.has(key)));
   const found = new Map<string, Wearable>();
   for (const body of catalogue) {
     const key = bodyKey(body.name);
-    if (canServe.has(key) && !found.has(key)) found.set(key, { name: body.name, key, pictured: Boolean(body.thumbnail) });
+    if (canServe.has(key) && !found.has(key)) found.set(key, { name: body.name, key, pictured: Boolean(body.thumbnail), ...(body.collection === AI_MADE_COLLECTION ? { ai: true } : {}) });
   }
   for (const body of onHand) {
     const key = bodyKey(body.slug);

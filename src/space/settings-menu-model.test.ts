@@ -31,6 +31,7 @@ function input(view: SettingsView, extra: Partial<SettingsMenuInput> = {}): Sett
     switching: null,
     goRoom: noop,
     toLobby: noop,
+    toFrontPage: noop,
     goTables: [],
     orbHere: false,
     addGoTable: noop,

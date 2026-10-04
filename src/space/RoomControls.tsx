@@ -1380,7 +1380,12 @@ export function RoomControls({
     roomRows: roomMenuRows(myRooms, openRooms, currentRoom, { project: projectName ?? showing.projectId }),
     switching,
     goRoom,
-    toLobby: returnToLobby,
+    // The lobby ROOM, not the website's front page (Nikk2, 6974); joined first if you are not in it yet.
+    toLobby: () => {
+      if (currentRoom?.toLowerCase() === "lobby") return;
+      goRoom("lobby", !(myRooms ?? []).some((room) => room.roomName.toLowerCase() === "lobby"));
+    },
+    toFrontPage: returnToLobby,
     goTables: roomItems.filter(isGoItem).map((item) => ({ size: item.size, players: item.colours.length })),
     orbHere: meditation?.shown === true,
     addGoTable: () =>

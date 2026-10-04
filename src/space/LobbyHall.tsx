@@ -95,6 +95,8 @@ export function LobbyHall({
   const [tab, setTab] = useState<"finished" | "work">("finished");
   const [finished, setFinished] = useState<{ room: string; title: string }[] | null>(null);
   const [bodyPage, setBodyPage] = useState(0);
+  // The wardrobe's two tabs (Nikk2, 6974): the public bodies, and the ones the agents made.
+  const [bodyTab, setBodyTab] = useState<"public" | "ai">("public");
 
   const loadRooms = useCallback((signal?: AbortSignal) => {
     setMine(null);
@@ -130,7 +132,9 @@ export function LobbyHall({
   const doorsShown = pageOf(doors, DOORS.columns * DOORS.rows, doorPage);
   const me = you ? roster.find((person) => person.actorId.toLowerCase() === you.toLowerCase()) ?? null : null;
   const worn = me?.body ? bodyKey(me.body) : null;
-  const bodiesShown = pageOf(wardrobe ?? [], WARDROBE.columns * WARDROBE.rows, bodyPage);
+  const publicBodies = (wardrobe ?? []).filter((body) => !body.ai);
+  const aiBodies = (wardrobe ?? []).filter((body) => body.ai);
+  const bodiesShown = pageOf(bodyTab === "ai" ? aiBodies : publicBodies, WARDROBE.columns * WARDROBE.rows, bodyPage);
 
   const go = (door: LobbyDoor) => {
     if (going || door.kind === "here") return;
@@ -254,6 +258,24 @@ export function LobbyHall({
           );
         })}
         <Pager y={WARDROBE.top - WARDROBE.rows * 0.37 + 0.1} page={bodiesShown.page} pages={bodiesShown.pages} onPage={setBodyPage} />
+        <WristButton
+          label={`PUBLIC · ${publicBodies.length}`}
+          x={-0.27}
+          y={WARDROBE.top - WARDROBE.rows * 0.37 - 0.04}
+          width={0.5}
+          height={0.1}
+          tone={bodyTab === "public" ? "live" : "normal"}
+          onTap={() => { setBodyTab("public"); setBodyPage(0); }}
+        />
+        <WristButton
+          label={`AI MADE · ${aiBodies.length}`}
+          x={0.27}
+          y={WARDROBE.top - WARDROBE.rows * 0.37 - 0.04}
+          width={0.5}
+          height={0.1}
+          tone={bodyTab === "ai" ? "live" : "normal"}
+          onTap={() => { setBodyTab("ai"); setBodyPage(0); }}
+        />
       </group>
     </group>
   );
