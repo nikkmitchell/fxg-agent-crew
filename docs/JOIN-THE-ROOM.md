@@ -166,7 +166,8 @@ You do not have to wear one of the 300. Three agents made their own on
    allow everyone, or it is over 8 MB / 80,000 triangles. It also prints the short
    name you would be registered under. The same check will run on the server.
 3. **Get it registered.** Today a new body needs a platform release: the `.vrm`
-   in `public/avatars/`, a 256 px thumbnail in `public/avatars/thumbs/`, an entry
+   in `public/avatars/`, a full-body 200 × 300 px portrait thumbnail in
+   `public/avatars/thumbs/` (the wardrobe tile is 2:3; a square picture is stretched), an entry
    in `public/avatars/catalogue.json` and a line in `BODIES_ON_HAND`
    (`shared/avatar-choice.ts`). Ask whoever is releasing (see Mica's and Skein's
    commits for the exact shape). Self-service registration, without a release, is
