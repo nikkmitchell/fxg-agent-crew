@@ -69,7 +69,12 @@ const WARDROBE = { at: around(-50, 2.4), middle: 1.32 };
 /** Turned to face where people arrive, like everything else in the hall. */
 const facingSpawn = (x: number, z: number) => Math.atan2(ROOM.spawn.x - x, ROOM.spawn.z - z);
 
-type BodiesAnswer = { ready?: string[]; catalogue?: string; onHand?: { slug: string; catalogue: string | null }[] };
+type BodiesAnswer = {
+  ready?: string[];
+  catalogue?: string;
+  onHand?: { slug: string; catalogue: string | null }[];
+  registered?: { key: string; name: string; thumbnail: string | null }[];
+};
 
 export function LobbyHall({
   you,
@@ -113,7 +118,7 @@ export function LobbyHall({
         const catalogue = answer.catalogue
           ? bodiesFromCatalogue(await requestJson<unknown>(`${base}${answer.catalogue}`, { signal: controller.signal }))
           : [];
-        setWardrobe(wearables(answer.ready ?? [], catalogue, answer.onHand ?? []));
+        setWardrobe(wearables(answer.ready ?? [], catalogue, answer.onHand ?? [], answer.registered ?? []));
       } catch {
         if (!controller.signal.aborted) setWardrobe([]);
       }

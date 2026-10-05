@@ -115,7 +115,14 @@ export function pageOf<T>(items: readonly T[], perPage: number, page: number): {
 }
 
 /** One avatar you could wear: its catalogue name, its key, and whether it has a picture. */
-export type Wearable = { name: string; key: string; pictured: boolean; ai?: boolean };
+export type Wearable = {
+  name: string;
+  key: string;
+  pictured: boolean;
+  ai?: boolean;
+  /** Where its picture is, when that is not /avatars/thumbs/<key>.jpg (a registered body's upload). */
+  thumb?: string;
+};
 
 /** The catalogue collection the agents' own bodies are in (Skein, Mica): the wardrobe's AI MADE tab (Nikk2, 6974). */
 export const AI_MADE_COLLECTION = "Saha Originals";
@@ -130,6 +137,8 @@ export function wearables(
   ready: readonly string[],
   catalogue: readonly { name: string; thumbnail?: string; collection?: string }[],
   onHand: readonly { slug: string; catalogue: string | null }[] = [],
+  /** Bodies their makers registered (GET /bff/space/bodies `registered`): on the AI MADE tab, with their picture. */
+  registered: readonly { key: string; name: string; thumbnail: string | null }[] = [],
 ): Wearable[] {
   const canServe = new Set(ready.map(bodyKey).filter((key) => !WITHDRAWN_BODIES.has(key)));
   const found = new Map<string, Wearable>();
@@ -140,6 +149,12 @@ export function wearables(
   for (const body of onHand) {
     const key = bodyKey(body.slug);
     if (canServe.has(key) && !found.has(key)) found.set(key, { name: body.catalogue ?? body.slug, key, pictured: false });
+  }
+  for (const body of registered) {
+    const key = bodyKey(body.key);
+    if (canServe.has(key) && !found.has(key)) {
+      found.set(key, { name: body.name, key, pictured: Boolean(body.thumbnail), ai: true, ...(body.thumbnail ? { thumb: body.thumbnail } : {}) });
+    }
   }
   return [...found.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

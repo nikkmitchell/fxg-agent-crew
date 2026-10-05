@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { keepsOwnColours } from "../../shared/avatar-choice";
+import { ownColoursFor } from "./registered-bodies";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { VRM, VRMUtils } from "@pixiv/three-vrm";
@@ -127,8 +127,8 @@ export function VrmBody({
 
   useEffect(() => {
     let dropped = false;
-    void loadVrm(actorId, body)
-      .then((loaded) => {
+    void Promise.all([loadVrm(actorId, body), ownColoursFor(body)])
+      .then(([loaded, ownColours]) => {
         if (dropped) {
           VRMUtils.deepDispose(loaded.scene);
           return;
@@ -143,7 +143,7 @@ export function VrmBody({
           const rig: Rig = { bone: (name) => loaded.humanoid.getNormalizedBoneNode(name) };
           tracked.current = new TrackedBody(rig, measureRig(rig, loaded.scene), loaded.scene);
         }
-        tint(loaded, recipe, body ? keepsOwnColours(body) : false);
+        tint(loaded, recipe, ownColours);
         setVrm(loaded);
       })
       .catch(onFailed);
