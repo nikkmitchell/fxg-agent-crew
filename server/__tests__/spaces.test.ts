@@ -289,6 +289,9 @@ describe("spaces inside the real server", () => {
       // The kit itself, loadable from a sandboxed space page (dist is built by the suite's setup or earlier).
       const kitFile = await built.app.inject({ method: "GET", url: "/kit/saha.js" });
       if (kitFile.statusCode === 200) expect(kitFile.headers["access-control-allow-origin"]).toBe("*");
+      // And the room's animation clips, which the avatar studio plays (dist is built the same way).
+      const clip = await built.app.inject({ method: "GET", url: "/animations/idle.vrma" });
+      if (clip.statusCode === 200) expect(clip.headers["access-control-allow-origin"]).toBe("*");
       expect((await built.app.inject({ method: "GET", url: "/bff/spaces/public" })).json()).toEqual({ spaces: [] });
     } finally {
       await built.app.close();

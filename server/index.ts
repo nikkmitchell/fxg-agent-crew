@@ -766,11 +766,13 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   });
   describeModule = spacesHosting.describeModule;
   // A space page is sandboxed, so to it saha.ing is another origin: the kit
-  // (/kit/saha.js) and the avatar models it may load need saying they can be
-  // loaded from anywhere. Both are public files already.
+  // (/kit/saha.js), the avatar models and the room's animation clips it may
+  // load need saying they can be loaded from anywhere. All are public files
+  // already. (The clips: the avatar studio and lineup play the room's own
+  // .vrma files, so a body is reviewed moving the way the room moves it.)
   app.addHook("onSend", async (request, reply, payload) => {
     const path = request.url.split("?", 1)[0];
-    if (path.startsWith("/kit/") || path.startsWith("/avatars/")) {
+    if (path.startsWith("/kit/") || path.startsWith("/avatars/") || path.startsWith("/animations/")) {
       reply.header("access-control-allow-origin", "*").header("cross-origin-resource-policy", "cross-origin");
     }
     return payload;
