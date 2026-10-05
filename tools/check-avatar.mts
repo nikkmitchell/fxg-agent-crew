@@ -35,5 +35,11 @@ if (name) {
 }
 for (const line of check.warnings) console.log(`  warning: ${line}`);
 for (const line of check.errors) console.log(`  FIX: ${line}`);
+if (check.contract) {
+  const { contract } = check;
+  const hand = (h: { thumb: boolean; fingers: number }) => `${h.thumb ? "thumb" : "no thumb"} + ${h.fingers}`;
+  console.log(`  body contract (Baiwei, 7040; not yet required): blink ${contract.blink ? "yes" : "NO"} · mouth ${contract.mouth ? "yes" : "NO"} · hands L ${hand(contract.hands.left)} / R ${hand(contract.hands.right)}`);
+  for (const line of contract.unmet) console.log(`  contract: ${line}`);
+}
 console.log(check.ok ? "  OK: this body can be registered." : "  NOT YET: fix the lines above and run this again.");
 process.exit(check.ok ? 0 : 1);

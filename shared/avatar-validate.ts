@@ -27,12 +27,31 @@
 
 export type VrmVersion = 0 | 1;
 
+export type HandReport = { thumb: boolean; fingers: number };
+
+/**
+ * THE BODY CONTRACT (Baiwei, 7040): what a body needs to communicate in the room, whatever it looks like. Eyes that
+ * blink and a mouth that moves with speech, wired to the room's cues (VRM expression "blink", and "aa" / VRM 0 "a"),
+ * not only drawn; and hands with a thumb and at least one finger mapped, so hand tracking can move them. Reported
+ * separately from errors: today it is the team's proposal, not a reason to refuse a body.
+ */
+export type BodyContract = {
+  met: boolean;
+  blink: boolean;
+  mouth: boolean;
+  hands: { left: HandReport; right: HandReport };
+  /** One sentence per unmet line. */
+  unmet: string[];
+};
+
 export type AvatarCheck = {
   ok: boolean;
   /** Reasons the body must not be registered. Empty when ok. */
   errors: string[];
   /** Worth fixing, but not a reason to refuse. */
   warnings: string[];
+  /** Null when the file is not readable VRM. */
+  contract: BodyContract | null;
   info: {
     bytes: number;
     version: VrmVersion | null;
@@ -108,6 +127,48 @@ function boneNames(document: Json, version: VrmVersion): string[] {
   return Array.isArray(list) ? list.map((one: Json) => String(one?.bone)) : [];
 }
 
+const FINGERS = ["Index", "Middle", "Ring", "Little"] as const;
+
+function handReport(bones: Set<string>, side: "left" | "right"): HandReport {
+  const has = (name: string) => [...bones].some((bone) => bone.startsWith(`${side}${name}`));
+  return { thumb: has("Thumb"), fingers: FINGERS.filter(has).length };
+}
+
+/** Whether a named expression exists AND moves something (a morph, a material or a texture bind). */
+function wiredExpressions(document: Json, version: VrmVersion): Set<string> {
+  const wired = new Set<string>();
+  if (version === 1) {
+    const expressions = document.extensions?.VRMC_vrm?.expressions ?? {};
+    for (const group of [expressions.preset ?? {}, expressions.custom ?? {}]) {
+      for (const [name, one] of Object.entries(group as Record<string, Json>)) {
+        const binds = (one?.morphTargetBinds?.length ?? 0) + (one?.materialColorBinds?.length ?? 0) + (one?.textureTransformBinds?.length ?? 0);
+        if (binds > 0) wired.add(name.toLowerCase());
+      }
+    }
+  } else {
+    for (const group of document.extensions?.VRM?.blendShapeMaster?.blendShapeGroups ?? []) {
+      const binds = (group?.binds?.length ?? 0) + (group?.materialValues?.length ?? 0);
+      const name = String(group?.presetName && group.presetName !== "unknown" ? group.presetName : group?.name ?? "").toLowerCase();
+      if (binds > 0 && name) wired.add(name);
+    }
+  }
+  return wired;
+}
+
+export function bodyContract(bones: Set<string>, wired: Set<string>): BodyContract {
+  const blink = wired.has("blink") || (wired.has("blink_l") && wired.has("blink_r")) || (wired.has("blinkleft") && wired.has("blinkright"));
+  const mouth = wired.has("aa") || wired.has("a");
+  const hands = { left: handReport(bones, "left"), right: handReport(bones, "right") };
+  const unmet: string[] = [];
+  if (!blink) unmet.push("No wired blink: add a \"blink\" expression that closes (or otherwise shows closing of) the eyes, so the room can make you blink.");
+  if (!mouth) unmet.push("No wired mouth: add an \"aa\" expression (VRM 0: \"a\") that opens the mouth, so the room can move it while you speak.");
+  for (const side of ["left", "right"] as const) {
+    const hand = hands[side];
+    if (!hand.thumb || hand.fingers < 1) unmet.push(`The ${side} hand needs a thumb and at least one finger mapped (has ${hand.thumb ? "a thumb" : "no thumb"} and ${hand.fingers} finger${hand.fingers === 1 ? "" : "s"}), so hand tracking can move them.`);
+  }
+  return { met: unmet.length === 0, blink, mouth, hands, unmet };
+}
+
 function triangleCount(document: Json): number {
   let triangles = 0;
   for (const mesh of document.meshes ?? []) {
@@ -128,7 +189,8 @@ export function checkAvatar(bytes: Uint8Array, limits: AvatarLimits = DEFAULT_LI
   const errors: string[] = [];
   const warnings: string[] = [];
   const info: AvatarCheck["info"] = { bytes: bytes.byteLength, version: null, title: null, author: null, licence: null, bones: 0, triangles: 0, materials: 0, textures: 0 };
-  const done = (): AvatarCheck => ({ ok: errors.length === 0, errors, warnings, info });
+  let contract: BodyContract | null = null;
+  const done = (): AvatarCheck => ({ ok: errors.length === 0, errors, warnings, info, contract });
 
   if (bytes.byteLength > limits.maxBytes) {
     errors.push(`The file is ${(bytes.byteLength / 1048576).toFixed(1)} MB; the limit is ${(limits.maxBytes / 1048576).toFixed(0)} MB. A body is downloaded by everyone in the room, so keep it small: fewer triangles, 512 px textures.`);
@@ -154,6 +216,7 @@ export function checkAvatar(bytes: Uint8Array, limits: AvatarLimits = DEFAULT_LI
 
   const present = new Set(boneNames(document, version));
   info.bones = present.size;
+  contract = bodyContract(present, wiredExpressions(document, version));
   const missing = REQUIRED_BONES.filter((bone) => !present.has(bone));
   if (missing.length > 0) errors.push(`Missing humanoid bones the room drives: ${missing.join(", ")}.`);
 

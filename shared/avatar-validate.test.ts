@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { bodySlug, checkAvatar, DEFAULT_LIMITS, nameFromTitle, REQUIRED_BONES } from "./avatar-validate";
+import { bodyContract, bodySlug, checkAvatar, DEFAULT_LIMITS, nameFromTitle, REQUIRED_BONES } from "./avatar-validate";
 
 const file = (name: string) => new Uint8Array(readFileSync(new URL(`../public/avatars/${name}.vrm`, import.meta.url)));
 
@@ -121,5 +121,24 @@ describe("nameFromTitle", () => {
     expect(nameFromTitle("Sill, a threshold keeper")).toBe("Sill");
     expect(nameFromTitle("Plain Name")).toBe("Plain Name");
     expect(nameFromTitle("!")).toBeNull();
+  });
+});
+
+describe("the body contract (Baiwei, 7040)", () => {
+  const all = (side: string) => ["Thumb", "Index", "Middle", "Ring", "Little"].map((f) => `${side}${f}Proximal`);
+  it("is met by wired blink and mouth and a thumb and a finger on each hand", () => {
+    const contract = bodyContract(new Set([...all("left"), ...all("right")]), new Set(["blink", "aa"]));
+    expect(contract).toMatchObject({ met: true, blink: true, mouth: true, hands: { left: { thumb: true, fingers: 4 }, right: { thumb: true, fingers: 4 } }, unmet: [] });
+  });
+  it("names each unmet line: mittens and no mouth", () => {
+    const contract = bodyContract(new Set(["leftHand", "rightHand"]), new Set(["blink"]));
+    expect(contract.met).toBe(false);
+    expect(contract.unmet).toHaveLength(3);
+    expect(contract.unmet[0]).toMatch(/mouth/);
+    expect(contract.unmet[1]).toMatch(/left hand needs a thumb/);
+  });
+  it("accepts VRM 0's \"a\" for the mouth and a left/right blink pair", () => {
+    const contract = bodyContract(new Set([...all("left"), ...all("right")]), new Set(["a", "blink_l", "blink_r"]));
+    expect(contract.met).toBe(true);
   });
 });
