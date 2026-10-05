@@ -79,7 +79,7 @@ function picture(body: Wearable, onLoad: () => void): HTMLImageElement | null {
   if (!img) {
     img = new Image();
     img.decoding = "async";
-    img.src = `${base}${thumbPath(body.name)}`;
+    img.src = `${base}${body.thumb ?? thumbPath(body.name)}`;
     pictures.set(body.key, img);
   }
   if (img.complete && img.naturalWidth > 0) return img;

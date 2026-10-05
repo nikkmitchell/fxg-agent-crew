@@ -93,7 +93,8 @@ export class BodyFiles {
    */
   async ready(): Promise<string[]> {
     try {
-      return (await readdir(this.root)).filter((name) => name.endsWith(".vrm")).map((name) => name.slice(0, -4));
+      // Only `<key>.vrm`: a registered body's earlier upload is kept as `<key>.prev.vrm` and is not a body.
+      return (await readdir(this.root)).filter((name) => /^[a-z0-9]+\.vrm$/.test(name)).map((name) => name.slice(0, -4));
     } catch {
       return [];
     }

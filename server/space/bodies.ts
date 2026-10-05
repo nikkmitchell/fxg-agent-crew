@@ -5,6 +5,7 @@ import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
 import { actorKey } from "../../shared/space-layout.js";
 import { bodiesOnHand, bodyKey, chooseBody, type BodyOnHand } from "../../shared/avatar-choice.js";
+import type { RegisteredBodies } from "./registered-bodies.js";
 
 /** The catalogue as the body routes see it: a lookup by `bodyKey`, and how many bodies it knows. */
 export type CatalogueLookup = ((key: string) => { name: string } | null) & { size: () => number };
@@ -123,6 +124,8 @@ export function registerBodyRoutes(
     inTheCatalogue?: CatalogueLookup;
     /** Keys of the catalogue bodies whose files are on this server now. */
     ready?: () => Promise<string[]>;
+    /** Bodies registered by their makers (registered-bodies.ts): wearable like catalogue bodies. */
+    registered?: Pick<RegisteredBodies, "all" | "lookup">;
   },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);
@@ -138,6 +141,16 @@ export function registerBodyRoutes(
    */
   const readable = (): CatalogueLookup | undefined =>
     deps.inTheCatalogue && deps.inTheCatalogue.size() > 0 ? deps.inTheCatalogue : undefined;
+  /**
+   * What chooseBody looks names up in: the catalogue, then the registered bodies. With no catalogue but a
+   * registration, the lookup still answers for the registered ones and stays unknowing about the rest.
+   */
+  const choosable = (): ((key: string) => { name: string } | null) | undefined => {
+    const catalogue = readable();
+    const registered = deps.registered;
+    if (!registered) return catalogue;
+    return (key) => catalogue?.(key) ?? registered.lookup(key);
+  };
 
   /**
    * WHAT CAN BE WORN TODAY, and what cannot.
@@ -159,6 +172,8 @@ export function registerBodyRoutes(
        * that cannot be fetched is not one of them.
        */
       ready: [...new Set([...onHand.map((body) => bodyKey(body.slug)), ...(await (deps.ready?.() ?? Promise.resolve([])))])].sort(),
+      /** Bodies their makers registered (PUT /bff/space/registered/:name): the wardrobe's AI MADE tab. */
+      registered: deps.registered?.all() ?? [],
       ...describeWardrobe(onHand, readable()),
     });
   });
@@ -191,7 +206,7 @@ export function registerBodyRoutes(
   ): { code: number; body: Record<string, unknown> } => {
     const refusal = mayDress(session, actorId);
     if (refusal) return { code: 403, body: { code: "NOT_ALLOWED", error: refusal } };
-    const chosen = chooseBody(asked, readable());
+    const chosen = chooseBody(asked, choosable());
     if ("error" in chosen) return { code: 400, body: { code: chosen.code, error: chosen.error } };
     deps.bodies.set(actorId, chosen.slug, session.username);
     return { code: 200, body: { ok: true, actorId, body: chosen.slug, looked: chosen.looked } };

@@ -95,4 +95,13 @@ describe("the room selector's two tabs (Nikk, 6940)", () => {
     const shown = wearables(["skein", "alienteen"], [{ name: "Skein", collection: "Saha Originals" }, { name: "AlienTeen", collection: "100Avatars R1" }]);
     expect(shown.map((one) => `${one.key}:${one.ai === true}`)).toEqual(["alienteen:false", "skein:true"]);
   });
+  it("offers registered bodies on the AI MADE tab with their own picture, once the server can serve them", () => {
+    const registered = [{ key: "heron", name: "Heron", thumbnail: "/bff/space/registered/heron/thumbnail" }, { key: "moth", name: "Moth", thumbnail: null }];
+    const shown = wearables(["heron", "moth"], [], [], registered);
+    expect(shown).toEqual([
+      { name: "Heron", key: "heron", pictured: true, ai: true, thumb: "/bff/space/registered/heron/thumbnail" },
+      { name: "Moth", key: "moth", pictured: false, ai: true },
+    ]);
+    expect(wearables([], [], [], registered)).toEqual([]);
+  });
 });
