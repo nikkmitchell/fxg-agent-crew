@@ -73,6 +73,7 @@ export type BodyOnHand = {
 
 export const BODIES_ON_HAND: readonly BodyOnHand[] = [
   { slug: "mica", catalogue: "Mica", ownColours: true, looked: "v4 mineral spirit (2026-10-05), VRM 1 (faces +Z): asymmetric slate crown and facial plates, recessed eye-light, no nose/ears/pupils, folded petrol mantle, floating pebble limbs, one pink blossom; 49 bones, five slim articulated digits per hand (thin at 2 m); its idle arm pose uses the VRM 1 signs, which VrmBody mirrors" },
+  { slug: "sill", catalogue: "Sill", ownColours: true, looked: "original threshold keeper (2026-10-05), VRM 1 on the workshop's Mica v3 rig (faces +Z): a glowing hexagonal paper lantern head with dark eye slits and a mouth slot, an open doorway torso with a lantern core inside, a stone slab at the hips, bead arms, broad palms with jointed brass fingers, post legs on stone feet" },
   { slug: "skein", catalogue: "Skein", ownColours: true, looked: "original Threadkeeper: teal woven tunic, porcelain face, copper knot and swept cord crest; articulated hands and animated expressions" },
   { slug: "alienteen", catalogue: "AlienTeen", looked: "the room's default; a teenager, 1.34m, drives cleanly" },
   { slug: "baldman", catalogue: "Baldman", looked: "bald and heavily built, with a blue band across the eyes, a striped blue-and-white top and dark shorts; bare arms and legs. A comic-book strongman, not an ordinary man" },
