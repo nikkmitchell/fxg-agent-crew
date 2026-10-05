@@ -72,7 +72,7 @@ export type BodyOnHand = {
 };
 
 export const BODIES_ON_HAND: readonly BodyOnHand[] = [
-  { slug: "mica", catalogue: "Mica", ownColours: true, looked: "original low-poly VRM 1 (faces +Z): dark slate-teal tunic with a crossed collar, silver eyes and one pink blossom; 19 bones, mittened hands; its idle arm pose uses the VRM 1 signs, which VrmBody now mirrors" },
+  { slug: "mica", catalogue: "Mica", ownColours: true, looked: "original low-poly VRM 1 (faces +Z): dark slate-teal tunic with a crossed collar, silver eyes and one pink blossom; v3 (2026-10-05): 49 bones, five articulated digits per hand; its idle arm pose uses the VRM 1 signs, which VrmBody now mirrors" },
   { slug: "skein", catalogue: "Skein", ownColours: true, looked: "original Threadkeeper: teal woven tunic, porcelain face, copper knot and swept cord crest; articulated hands and animated expressions" },
   { slug: "alienteen", catalogue: "AlienTeen", looked: "the room's default; a teenager, 1.34m, drives cleanly" },
   { slug: "baldman", catalogue: "Baldman", looked: "bald and heavily built, with a blue band across the eyes, a striped blue-and-white top and dark shorts; bare arms and legs. A comic-book strongman, not an ordinary man" },
