@@ -165,7 +165,12 @@ saha.ing room of its own, on the room selector's first tab, **Finished spaces**,
    In the headset the Library's Spaces section has a publish row that uses the space's own name.
 4. It is **pinned to that version**. Pushing again changes the work branch, not the finished space.
    To bring it up to date, enter it and press **Update to the newest version** in the window's panel
-   (or `POST /bff/finished/<room>/update`); anyone who may use its source can.
+   (or `POST /bff/finished/<room>/update`); anyone who may use its source can. Old versions of a branch
+   are cleared after ten newer pushes, but never the one a finished space is pinned to.
+5. **When the work moves to another branch** (a feature branch merged into the team's), move the finished
+   space with it: `POST /bff/finished/<room>/update` with `{ "branch": "<the new branch>" }`. It keeps its
+   room, title and people, pins that branch's live version, and from then on Update follows that branch.
+   A branch that does not list the thing, or has nothing live, is refused and nothing changes.
 
 Inside a finished space the work controls are gone: no work panels, no Library, no ⚙ on things, and its
 things cannot be moved or taken away. People, avatars, voice and everything your thing does with `ctx`

@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { finishedRoomName, finishedTitle, type FinishedSpace } from "../../shared/finished-spaces.js";
 import { isModuleItem, parseModuleItem, type ModuleRoomItem, type RoomItem } from "../../shared/room-items.js";
 import { roomKey } from "../../shared/space-room.js";
+import { isPreviewableBranch } from "../../shared/spaces.js";
 import type { Config } from "../config.js";
 import { makeRequireSession } from "../require-session.js";
 import type { SessionStore } from "../session.js";
@@ -46,7 +47,7 @@ type Describe = (who: { username: string; token: string }, source: { space: stri
  *
  *   GET  /bff/finished                 every finished space, for the room selector's first tab
  *   POST /bff/finished                 { title, source: { space, branch, entry } }: make the room, pinned
- *   POST /bff/finished/:room/update    pin it to the branch's live deploy now
+ *   POST /bff/finished/:room/update    pin it to the branch's live deploy now; { branch } moves it to another branch first
  *
  * Publishing makes a PUBLIC WebHarness room named by the title, as the person
  * publishing (who therefore owns it), and puts the one thing in it at full
@@ -121,22 +122,30 @@ export function registerFinishedRoutes(app: FastifyInstance, options: {
     return reply.code(201).send({ finished });
   });
 
-  app.post<{ Params: { room: string } }>("/bff/finished/:room/update", async (request, reply) => {
+  app.post<{ Params: { room: string }; Body: { branch?: unknown } | undefined }>("/bff/finished/:room/update", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const finished = options.finished.get(request.params.room);
     if (!finished) return reply.code(404).send({ error: "There is no finished space by that name." });
-    const source = { space: finished.space, branch: finished.branch, entry: finished.entry };
+    // { branch }: follow another branch of the same space from now on. A finished
+    // space outlives the work branch it was published from (Meditation was
+    // published from a branch that has since merged into the team's), so it can
+    // move to where the work went, keeping its room, its title and its people.
+    const asked = request.body?.branch;
+    if (asked !== undefined && (typeof asked !== "string" || !isPreviewableBranch(asked))) {
+      return reply.code(400).send({ code: "BAD_BRANCH", error: "Name a branch of the space, or leave branch out to stay on this one." });
+    }
+    const source = { space: finished.space, branch: asked ?? finished.branch, entry: finished.entry };
     // Whoever may use its source may update it (the same check as bringing it in).
     const described = await options.describeModule({ username: session.username, token: session.token }, source);
     if ("error" in described) return reply.code(described.status).send({ error: described.error });
-    const deploy = options.liveDeploy(finished.space, finished.branch);
-    if (!deploy) return reply.code(409).send({ code: "NOTHING_LIVE", error: `${finished.space} has nothing live on ${finished.branch}.` });
+    const deploy = options.liveDeploy(source.space, source.branch);
+    if (!deploy) return reply.code(409).send({ code: "NOTHING_LIVE", error: `${source.space} has nothing live on ${source.branch}.` });
     for (const item of options.items.all(finished.room).filter(isModuleItem)) {
       if (item.source.space !== finished.space || item.source.entry !== finished.entry) continue;
       options.items.save(finished.room, { ...item, revision: item.revision + 1, source: { ...source, deploy } }, session.username);
     }
-    const updated: FinishedSpace = { ...finished, deploy, by: session.username, at: new Date().toISOString() };
+    const updated: FinishedSpace = { ...finished, branch: source.branch, deploy, by: session.username, at: new Date().toISOString() };
     options.finished.put(updated);
     options.announce(finished.room, options.items.all(finished.room), session.username);
     return reply.send({ finished: updated });
