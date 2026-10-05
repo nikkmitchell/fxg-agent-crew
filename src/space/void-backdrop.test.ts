@@ -1,15 +1,28 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PlaneGeometry, Matrix4, Vector4 } from 'three';
-import { VOID_DRAW, VOID_VERTEX, VOID_FRAGMENT } from './void-backdrop';
+import { VOID_DRAW, VOID_VERTEX, VOID_FRAGMENT, backgroundIsPicture, voidBacking } from './void-backdrop';
+import { Color, Texture } from 'three';
 
 describe('passthrough off in full environments', () => {
-  it('does not suppress the backing because a shared environment surrounds the viewer', () => {
+  it('in AR, passthrough off means the void even inside a full environment (the bug), and on means the room', () => {
+    expect(voidBacking({ passthrough: false, blendMode: 'alpha-blend', surrounded: true })).toBe(true);
+    expect(voidBacking({ passthrough: false, blendMode: 'alpha-blend', surrounded: false })).toBe(true);
+    expect(voidBacking({ passthrough: true, blendMode: 'alpha-blend', surrounded: true })).toBe(false);
+  });
+  it('in opaque VR, a full environment keeps its own sky; an empty room still has the void', () => {
+    expect(voidBacking({ passthrough: false, blendMode: 'opaque', surrounded: true })).toBe(false);
+    expect(voidBacking({ passthrough: false, blendMode: 'opaque', surrounded: false })).toBe(true);
+    expect(voidBacking({ passthrough: false, blendMode: null, surrounded: true })).toBe(false);
+  });
+  it('stands aside for a picture sky, which is opaque by itself, but not for a colour one', () => {
+    expect(backgroundIsPicture(new Texture())).toBe(true);
+    expect(backgroundIsPicture(new Color('#000'))).toBe(false);
+    expect(backgroundIsPicture(null)).toBe(false);
+  });
+  it('is the rule the room actually uses', () => {
     const source = readFileSync(new URL('./Immersive.tsx', import.meta.url), 'utf8');
-    // Regression boundary: this was gated by surrounded / isFullView, so the
-    // setting flipped successfully but nothing changed on an AR headset.
-    expect(source).toContain('{passthrough ? null : <VoidSphere />}');
-    expect(source).not.toMatch(/passthrough\s*\|\|[^\n]*VoidSphere/);
+    expect(source).toMatch(/voidBacking\(\{ passthrough, blendMode, surrounded: surrounded \?\? roomItems\.some\(isFullView\) \}\) \? <VoidSphere \/> : null/);
   });
   it('covers every eye without depending on the world transform or far plane', () => {
     const geometry = new PlaneGeometry(2, 2);

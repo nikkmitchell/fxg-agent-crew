@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { makeLabelTexture } from "./label-texture";
 import { useDisposable } from "./use-disposable";
-import { VOID_VERTEX, VOID_FRAGMENT, VOID_DRAW } from "./void-backdrop";
+import { VOID_VERTEX, VOID_FRAGMENT, VOID_DRAW, backgroundIsPicture } from "./void-backdrop";
 
 /**
  * Black void, or the room you are actually standing in.
@@ -24,8 +25,13 @@ export function VoidSphere() {
   // which also made the passthrough switch ineffective. Back every eye in
   // clip space instead: it draws first and never occludes distant scenery.
   const uniforms = useMemo(() => ({ colour: { value: new THREE.Color("#0b0d12") } }), []);
+  // An environment's picture sky is already opaque; stand aside for it (void-backdrop.ts).
+  const mesh = useRef<THREE.Mesh>(null);
+  useFrame(({ scene }) => {
+    if (mesh.current) mesh.current.visible = !backgroundIsPicture(scene.background);
+  });
   return (
-    <mesh frustumCulled={VOID_DRAW.frustumCulled} renderOrder={VOID_DRAW.renderOrder}>
+    <mesh ref={mesh} frustumCulled={VOID_DRAW.frustumCulled} renderOrder={VOID_DRAW.renderOrder}>
       <planeGeometry args={[2, 2]} />
       <shaderMaterial vertexShader={VOID_VERTEX} fragmentShader={VOID_FRAGMENT} uniforms={uniforms}
         depthTest={VOID_DRAW.depthTest} depthWrite={VOID_DRAW.depthWrite} toneMapped={false} />
