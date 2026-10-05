@@ -264,6 +264,13 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
    * whoever brought it in was allowed to.
    */
   roomHolds?: (session: Session, space: string) => boolean;
+  /**
+   * Every deploy something is pinned to: a finished space, or any thing in a
+   * room whose source names one. Keeping old deploys is otherwise only for
+   * rolling back, so without this the tenth push to a branch cleared the
+   * files of the version a finished space promised to keep showing.
+   */
+  pinnedDeploys?: () => ReadonlySet<string>;
   /** What big space files may take of the box's uplink together (fair-share.ts); 4 MB/s unless said. */
   spaceFilesBytesPerSecond?: number;
   queue?: DeployQueue;
@@ -306,7 +313,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
 
   const deployFor = (space: string, branch: string, commit: string, pushedBy: string) =>
     queue.run(space, async () => {
-      const deploy = await deployCommit({ root, store, space, branch, commit, pushedBy, now });
+      const deploy = await deployCommit({ root, store, space, branch, commit, pushedBy, now, pinned: deps.pinnedDeploys });
       if (deploy.status === "ready" && branch === store.benchBranch(space)) deps.benchChanged?.(space);
       if (deploy.status === "ready" && store.live(space, branch)?.id === deploy.id) deps.spaceDeployed?.(space, branch, deploy.id);
       return deploy;

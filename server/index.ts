@@ -763,6 +763,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     },
     // Whoever is in a room sees the things in it, whoever's space they came from.
     roomHolds: (session, space) => roomItems.all(spaceRoomOf(session)).some((item) => isModuleItem(item) && spaceKey(item.source.space) === space),
+    // A finished space shows one version for good; its files outlive the branch's rollback window.
+    pinnedDeploys: () => new Set([...roomItems.pinnedDeploys(), ...finishedSpaces.all().map((finished) => finished.deploy)]),
   });
   describeModule = spacesHosting.describeModule;
   // A space page is sandboxed, so to it saha.ing is another origin: the kit

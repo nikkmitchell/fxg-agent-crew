@@ -56,6 +56,7 @@ let store: SpaceStore;
 let live: SpaceLive;
 const benchCalls: string[] = [];
 const deployedCalls: Array<[string, string, string]> = [];
+const pins = new Set<string>();
 let describeModule: import("../spaces/routes.js").DescribeModule;
 
 const gitAs = (_user: string, _pass: string, cwd: string, ...args: string[]) =>
@@ -86,6 +87,7 @@ beforeAll(async () => {
     bodyOf: (username) => (username === "nikk" ? "lotus" : null),
     benchChanged: (space) => benchCalls.push(space),
     spaceDeployed: (space, branch, deployId) => deployedCalls.push([space, branch, deployId]),
+    pinnedDeploys: () => pins,
     bodyFile: async (slug) => {
       if (slug !== "lotus") return { ok: false as const, code: 404, error: "no such body" };
       const path = join(work, "lotus.vrm");
@@ -180,6 +182,29 @@ describe("spaces: our own git and deploy, one per room (Nikk, 6148)", () => {
     expect(back.statusCode).toBe(200);
     expect(await (await page("/s/meditation.ar/")).text()).toContain("This page is multiplayer");
   });
+
+  it("clears old deploys past the rollback window, but never one a finished space is pinned to (Nikk, 6940)", async () => {
+    const agent = join(work, "agent");
+    await gitAs("Sill", "sill-token", agent, "checkout", "rain");
+    await gitAs("Sill", "sill-token", agent, "checkout", "-b", "pinned");
+    const push = async (n: number) => {
+      await writeFile(join(agent, "dist", "index.html"), `<h1>pinned ${n}</h1>`);
+      await gitAs("Sill", "sill-token", agent, "commit", "-am", `pinned ${n}`);
+      await gitAs("Sill", "sill-token", agent, "push", "origin", "pinned");
+      await queue.idle();
+      return store.live("meditation.ar", "pinned")!.id;
+    };
+    const kept = await push(0);
+    pins.add(kept);
+    const dropped = await push(1);
+    // Ten more: both first deploys are now past the window of ten (DEPLOY_LIMITS.keepPerBranch).
+    for (let n = 2; n <= 11; n += 1) await push(n);
+    expect(await (await page(`/s/meditation.ar/~${kept}/`)).text()).toBe("<h1>pinned 0</h1>");
+    expect(store.deploy(kept)?.status).toBe("ready");
+    expect((await page(`/s/meditation.ar/~${dropped}/`)).status).toBe(404);
+    expect(store.deploy(dropped)?.status).toBe("retired");
+    pins.clear();
+  }, 120_000);
 
   it("shows members the code: files, one file, commits and a commit's diff (Sill's plan, F)", async () => {
     const get = (path: string, who = "nikk") => app.inject({ method: "GET", url: `/bff/spaces/meditation.ar/code/${path}`, headers: { cookie: `who=${who}` } });

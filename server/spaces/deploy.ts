@@ -23,6 +23,8 @@ export async function deployCommit(options: {
   commit: string;
   pushedBy: string;
   now?: () => Date;
+  /** Deploys something stands pinned to (a finished space); never retired. */
+  pinned?: () => ReadonlySet<string>;
 }): Promise<StoredDeploy> {
   const { root, store, space, branch, commit, pushedBy } = options;
   const now = options.now ?? (() => new Date());
@@ -77,8 +79,8 @@ export async function deployCommit(options: {
   store.record(deploy);
   store.setLive(space, branch, id);
 
-  // Keep the last few per branch for rolling back; the rest lose their files.
-  for (const old of store.toRetire(space, branch, DEPLOY_LIMITS.keepPerBranch)) {
+  // Keep the last few per branch for rolling back, and whatever is pinned; the rest lose their files.
+  for (const old of store.toRetire(space, branch, DEPLOY_LIMITS.keepPerBranch, options.pinned?.())) {
     await rm(siteDir(root, space, old.id), { recursive: true, force: true });
     store.retire(old.id);
   }

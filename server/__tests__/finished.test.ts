@@ -73,9 +73,12 @@ describe("finished spaces", () => {
     await app.inject({ method: "POST", url: "/bff/finished", cookies: as("Nikk2"), payload: { title: "Desert Camp", source: camp } });
     setLive("d2");
     expect((items.all("desert-camp")[0] as ModuleRoomItem).source.deploy).toBe("d1");
+    // What the deploy clean-up must leave alone (spaces/deploy.ts): the version it shows.
+    expect(items.pinnedDeploys()).toEqual(new Set(["d1"]));
     const updated = await app.inject({ method: "POST", url: "/bff/finished/desert-camp/update", cookies: as("Sill") });
     expect(updated.statusCode).toBe(200);
     expect((items.all("desert-camp")[0] as ModuleRoomItem).source.deploy).toBe("d2");
+    expect(items.pinnedDeploys()).toEqual(new Set(["d2"]));
   });
 
   it("refuses an item (it goes inside a space), a taken title, and a room that already exists", async () => {

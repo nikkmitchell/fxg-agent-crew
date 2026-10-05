@@ -127,12 +127,17 @@ export class SpaceStore {
     this.db.prepare("DELETE FROM space_live WHERE space = ? AND branch = ?").run(space, branch);
   }
 
-  /** Ready deploys of a branch beyond the newest `keep`, never the live one: these lose their files. */
-  toRetire(space: string, branch: string, keep: number): StoredDeploy[] {
+  /**
+   * Ready deploys of a branch beyond the newest `keep`, never the live one and
+   * never one something is PINNED to (a finished space, Nikk 6940): these lose
+   * their files. A pin is a promise that this exact version stays; the tenth
+   * push after it must not quietly break the room that made the promise.
+   */
+  toRetire(space: string, branch: string, keep: number, pinned: ReadonlySet<string> = new Set()): StoredDeploy[] {
     const liveId = this.live(space, branch)?.id ?? "";
     return (this.db.prepare(
       "SELECT * FROM space_deploys WHERE space = ? AND branch = ? AND status = 'ready' AND id != ? ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?",
-    ).all(space, branch, liveId, Math.max(0, keep - 1)) as DeployRow[]).map(toDeploy);
+    ).all(space, branch, liveId, Math.max(0, keep - 1)) as DeployRow[]).map(toDeploy).filter((deploy) => !pinned.has(deploy.id));
   }
 
   retire(id: string): void {

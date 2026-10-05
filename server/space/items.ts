@@ -27,6 +27,15 @@ export class RoomItems {
     const item = this.one(room, id);
     return item?.kind === "go" ? item : null;
   }
+  /** Every deploy a thing in any room is pinned to (a finished space's, today), so none is cleared under it. */
+  pinnedDeploys(): Set<string> {
+    const pinned = new Set<string>();
+    for (const row of this.database.prepare("SELECT state_json FROM space_items WHERE kind = 'module'").all() as { state_json: string }[]) {
+      const item = parseRoomItem(JSON.parse(row.state_json));
+      if (item && isModuleItem(item) && item.source.deploy) pinned.add(item.source.deploy);
+    }
+    return pinned;
+  }
   add(room: string, by: string): GoRoomItem {
     // The next table's spot follows the tables, not the things from spaces standing about.
     const item = defaultGoItem(randomUUID(), this.all(room).filter(isGoItem).length);
