@@ -6040,10 +6040,10 @@
       "name": "Sill",
       "collection": "Saha Originals",
       "number": "003",
-      "description": "Sill — the threshold keeper. Original low-poly VRM 1: a hexagonal paper lantern for a head (eye slits that blink, a mouth slot that opens), an open doorway for a body with a lantern core hanging inside, a stone threshold slab, bead limbs, broad palms with jointed brass fingers.",
+      "description": "Sill — the threshold keeper (v2). Original VRM 1: a hexagonal paper lantern for a head under an upturned roof, with bells on spring bones; a gate for a body with a paper lantern hanging inside; a stone threshold; turned walnut limbs with brass joints and jointed fingers. The lantern's light follows the mood and brightens with speech.",
       "thumbnail": "https://saha.ing/avatars/thumbs/sill.jpg",
       "model": "https://saha.ing/avatars/sill.vrm",
-      "polygons": 2416,
+      "polygons": 7366,
       "fromTheFile": {
         "title": "Sill - threshold keeper",
         "author": "Sill",
@@ -6052,7 +6052,7 @@
         "commercialUse": "Allow",
         "missingBones": [],
         "bones": 49,
-        "bytes": 174684
+        "bytes": 511424
       },
       "usable": true
     },
