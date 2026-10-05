@@ -56,6 +56,7 @@ import { RoomMandalas, registerMandalaRoutes } from "./space/mandala.js";
 import { Memories, registerMemoryRoutes } from "./space/memories.js";
 import { knownToTheCatalogue } from "./space/catalogue.js";
 import { BodyFiles, registerBodyFileRoutes } from "./space/body-files.js";
+import { RegisteredBodies, registerRegisteredBodyRoutes } from "./space/registered-bodies.js";
 import { Touches, registerTouchRoutes } from "./space/touch.js";
 import { Activity } from "./space/activity.js";
 import { BoardReads } from "./db/reads.js";
@@ -215,6 +216,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const inTheCatalogue = knownToTheCatalogue();
   // Bodies pulled from the collection on first use and then served off disk.
   const bodyFiles = new BodyFiles(resolve(config.bodyCacheRoot), inTheCatalogue);
+  // Bodies their makers registered through the room, kept beside that cache so
+  // the same route serves them (server/space/registered-bodies.ts).
+  const registeredBodies = new RegisteredBodies(database, resolve(config.bodyCacheRoot));
   const touches = new Touches(database);
   // Made before the room, which reads it: an agent whose screen is sharing is
   // awake. See Presence.settlePostures.
@@ -706,8 +710,10 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       // told apart from one this server simply cannot check.
       inTheCatalogue,
       ready: () => bodyFiles.ready(),
+      registered: registeredBodies,
     });
     registerBodyFileRoutes(scoped, { config, sessions, files: bodyFiles });
+    registerRegisteredBodyRoutes(scoped, { config, sessions, registry: registeredBodies, inTheCatalogue });
     /**
      * Saying a line aloud, in the speaker's own voice. Read at call time like
      * `canSpeak` above, so a box that gains an engine starts speaking without a

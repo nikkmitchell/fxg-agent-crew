@@ -1337,4 +1337,36 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX space_feedback_by_space ON space_feedback (space, created_at);
     `,
   },
+  {
+    id: 49,
+    name: "bodies: registered by their makers",
+    sql: `
+      -- Baiwei (7060): "are you needed each time to register new models?" Until
+      -- this, a new body reached the wardrobe only through a platform release.
+      -- A row here is a body somebody uploaded through the room, after the same
+      -- check tools/check-avatar.mts runs (shared/avatar-validate.ts). Its file
+      -- lives beside the catalogue cache (BODY_CACHE_ROOT/<key>.vrm), so the
+      -- existing /bff/space/body-model route serves it. See
+      -- server/space/registered-bodies.ts.
+      --
+      -- NOTHING ELSE READS THIS. Dropping it, and the files, undoes it.
+      CREATE TABLE registered_bodies (
+        key TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        owner_key TEXT NOT NULL,
+        owner TEXT NOT NULL,
+        title TEXT,
+        author TEXT,
+        licence TEXT,
+        vrm_version INTEGER NOT NULL,
+        bytes INTEGER NOT NULL,
+        triangles INTEGER NOT NULL,
+        contract_json TEXT NOT NULL,
+        thumbnail TEXT,
+        registered_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX registered_bodies_by_owner ON registered_bodies (owner_key);
+    `,
+  },
 ];
