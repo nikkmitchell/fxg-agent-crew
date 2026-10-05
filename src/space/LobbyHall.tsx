@@ -5,8 +5,9 @@ import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import type { RoomSummary } from "../../shared/contracts";
 import type { WirePerson } from "../../shared/space-wire";
 import { ROOM } from "../../shared/space-layout";
-import { bodyKey, thumbPath } from "../../shared/avatar-choice";
-import { lobbyDoors, pageOf, splitDoors, wearables, type LobbyDoor, type PublicSpaceDoor, type Wearable } from "../../shared/lobby-hall";
+import { bodyKey } from "../../shared/avatar-choice";
+import { lobbyDoors, splitDoors, wearables, type LobbyDoor, type PublicSpaceDoor, type Wearable } from "../../shared/lobby-hall";
+import { DOOR_PANEL } from "../../shared/lobby-panels";
 import { bodiesFromCatalogue } from "../profile-view";
 import { requestJson } from "../api-request";
 import { bff } from "../bff-client";
@@ -16,6 +17,7 @@ import { WristButton } from "./Backdrop";
 import { VrmBody } from "./VrmBody";
 import { selfPose } from "./self-pose";
 import { LobbyWelcome } from "./LobbyWelcome";
+import { DoorsPanel, WardrobePanel } from "./LobbyPanels";
 
 /**
  * THE LOBBY AS A FRONT HALL (shared/lobby-hall.ts has Nikk's words and the
@@ -53,7 +55,8 @@ const around = (degrees: number, metres = 2.5) => ({
 const DOORS_AT = around(55, 2.6);
 /** The welcome and the controls, on the far side of the doors from the mirror (Nikk, 5469). */
 const WELCOME_AT = around(102, 2.4);
-const DOORS = { at: DOORS_AT, columns: 4, rows: 2, width: 0.52, height: 0.56, gap: 0.08, top: 1.72 };
+/** The doors panel hangs with its middle at about chest height, like the settings panel. */
+const DOORS = { at: DOORS_AT, middle: 1.32 };
 const MIRROR = { at: around(0, 2.7), width: 2.2, height: 2.3, bottom: 0.05 };
 /**
  * The layer only the mirror sees: your own body. Your eyes must not see it (in
@@ -61,7 +64,7 @@ const MIRROR = { at: around(0, 2.7), width: 2.2, height: 2.3, bottom: 0.05 };
  * three.js's left and right eye; this is well clear of them.
  */
 const MIRROR_ONLY = 10;
-const WARDROBE = { at: around(-50, 2.4), columns: 4, rows: 3, thumb: { width: 0.16, height: 0.24 }, top: 1.86 };
+const WARDROBE = { at: around(-50, 2.4), middle: 1.32 };
 
 /** Turned to face where people arrive, like everything else in the hall. */
 const facingSpawn = (x: number, z: number) => Math.atan2(ROOM.spawn.x - x, ROOM.spawn.z - z);
@@ -90,13 +93,7 @@ export function LobbyHall({
   const [notice, setNotice] = useState<string | null>(null);
   const [going, setGoing] = useState<string | null>(null);
   const [dressing, setDressing] = useState<string | null>(null);
-  const [doorPage, setDoorPage] = useState(0);
-  // The selector's two tabs (Nikk, 6940): finished spaces first, then the work rooms.
-  const [tab, setTab] = useState<"finished" | "work">("finished");
   const [finished, setFinished] = useState<{ room: string; title: string }[] | null>(null);
-  const [bodyPage, setBodyPage] = useState(0);
-  // The wardrobe's two tabs (Nikk2, 6974): the public bodies, and the ones the agents made.
-  const [bodyTab, setBodyTab] = useState<"public" | "ai">("public");
 
   const loadRooms = useCallback((signal?: AbortSignal) => {
     setMine(null);
@@ -126,15 +123,8 @@ export function LobbyHall({
 
   const allDoors = useMemo(() => lobbyDoors(mine, open, currentRoom, spaces), [mine, open, currentRoom, spaces]);
   const split = useMemo(() => splitDoors(allDoors, finished ?? []), [allDoors, finished]);
-  // With nothing finished yet, the work rooms are what there is.
-  const showing = tab === "finished" && split.finished.length ? "finished" : "work";
-  const doors = showing === "finished" ? split.finished : split.work;
-  const doorsShown = pageOf(doors, DOORS.columns * DOORS.rows, doorPage);
   const me = you ? roster.find((person) => person.actorId.toLowerCase() === you.toLowerCase()) ?? null : null;
   const worn = me?.body ? bodyKey(me.body) : null;
-  const publicBodies = (wardrobe ?? []).filter((body) => !body.ai);
-  const aiBodies = (wardrobe ?? []).filter((body) => body.ai);
-  const bodiesShown = pageOf(bodyTab === "ai" ? aiBodies : publicBodies, WARDROBE.columns * WARDROBE.rows, bodyPage);
 
   const go = (door: LobbyDoor) => {
     if (going || door.kind === "here") return;
@@ -169,56 +159,16 @@ export function LobbyHall({
       .finally(() => setDressing(null));
   };
 
-  const doorsTitle = mine === null || open === null ? "Rooms · finding them…" : `Rooms · ${doors.length} · tap a door to go`;
   return (
     <group>
-      {/* THE DOORS, straight ahead of where people arrive. */}
+      {/* THE DOORS, ahead and to the right of where people arrive: the settings panel's rows (Nikk2, 6974). */}
       <group position={[DOORS.at.x, 0, DOORS.at.z]} rotation={[0, facingSpawn(DOORS.at.x, DOORS.at.z), 0]}>
-        <WristButton label={doorsTitle} y={DOORS.top + 0.58} width={2.2} height={0.1} tone="muted" onTap={() => {}} />
-        <WristButton
-          label={`FINISHED SPACES · ${split.finished.length}`}
-          x={-0.56}
-          y={DOORS.top + 0.44}
-          width={1.06}
-          height={0.12}
-          tone={showing === "finished" ? "live" : "normal"}
-          onTap={() => { setTab("finished"); setDoorPage(0); }}
-        />
-        <WristButton
-          label={`WORK ROOMS · ${split.work.length}`}
-          x={0.56}
-          y={DOORS.top + 0.44}
-          width={1.06}
-          height={0.12}
-          tone={showing === "work" ? "live" : "normal"}
-          onTap={() => { setTab("work"); setDoorPage(0); }}
-        />
-        {doorsShown.items.map((door, index) => {
-          const column = index % DOORS.columns;
-          const row = Math.floor(index / DOORS.columns);
-          const action = door.kind === "here" ? "you are here" : door.kind === "join" ? "JOIN + ENTER" : door.kind === "space" ? "VISIT" : "ENTER";
-          return (
-            <WristButton
-              key={door.kind === "space" ? `space:${door.space}` : door.room}
-              label={`${going === door.room ? "…" : ""}${door.label ?? door.room}\n${door.detail || " "}\n${action}`}
-              x={(column - (DOORS.columns - 1) / 2) * (DOORS.width + DOORS.gap)}
-              y={DOORS.top - row * (DOORS.height + DOORS.gap)}
-              width={DOORS.width}
-              height={DOORS.height}
-              lines={4}
-              tone={door.kind === "here" ? "live" : door.kind === "join" ? "muted" : "normal"}
-              onTap={() => go(door)}
-            />
-          );
-        })}
-        <Pager
-          y={DOORS.top - DOORS.rows * (DOORS.height + DOORS.gap) + 0.12}
-          page={doorsShown.page}
-          pages={doorsShown.pages}
-          onPage={setDoorPage}
-          extra={{ label: "↻ refresh", onTap: () => { setDoorPage(0); loadRooms(); } }}
-        />
-        {notice ? <WristButton label={notice} y={0.28} width={2.2} height={0.1} tone="muted" onTap={() => setNotice(null)} /> : null}
+        <group position={[0, DOORS.middle, 0]}>
+          <DoorsPanel split={split} loading={mine === null || open === null} going={going} onGo={go} onRefresh={() => loadRooms()} />
+        </group>
+        {notice ? (
+          <WristButton label={notice} y={DOORS.middle - DOOR_PANEL.height / 2 - 0.1} width={DOOR_PANEL.width} height={0.1} tone="muted" onTap={() => setNotice(null)} />
+        ) : null}
       </group>
 
       {/* THE WELCOME, beside the doors. */}
@@ -232,156 +182,12 @@ export function LobbyHall({
       </group>
       {me ? <SelfForMirror actorId={me.actorId} body={me.body ?? null} peopleRef={peopleRef} /> : null}
 
-      {/* THE WARDROBE: every body this server can serve. */}
-      <group position={[WARDROBE.at.x, 0, WARDROBE.at.z]} rotation={[0, facingSpawn(WARDROBE.at.x, WARDROBE.at.z), 0]}>
-        <WristButton
-          label={wardrobe === null ? "Your avatar · loading…" : `Your avatar · ${wardrobe.length} · tap one to wear it`}
-          y={WARDROBE.top + 0.3}
-          width={1.05}
-          height={0.1}
-          tone="muted"
-          onTap={() => {}}
-        />
-        {bodiesShown.items.map((body, index) => {
-          const column = index % WARDROBE.columns;
-          const row = Math.floor(index / WARDROBE.columns);
-          return (
-            <BodyTile
-              key={body.key}
-              body={body}
-              x={(column - (WARDROBE.columns - 1) / 2) * 0.235}
-              y={WARDROBE.top - row * 0.37}
-              worn={body.key === worn}
-              busy={dressing === body.key}
-              onWear={() => wear(body)}
-            />
-          );
-        })}
-        <Pager y={WARDROBE.top - WARDROBE.rows * 0.37 + 0.1} page={bodiesShown.page} pages={bodiesShown.pages} onPage={setBodyPage} />
-        <WristButton
-          label={`PUBLIC · ${publicBodies.length}`}
-          x={-0.27}
-          y={WARDROBE.top - WARDROBE.rows * 0.37 - 0.04}
-          width={0.5}
-          height={0.1}
-          tone={bodyTab === "public" ? "live" : "normal"}
-          onTap={() => { setBodyTab("public"); setBodyPage(0); }}
-        />
-        <WristButton
-          label={`AI MADE · ${aiBodies.length}`}
-          x={0.27}
-          y={WARDROBE.top - WARDROBE.rows * 0.37 - 0.04}
-          width={0.5}
-          height={0.1}
-          tone={bodyTab === "ai" ? "live" : "normal"}
-          onTap={() => { setBodyTab("ai"); setBodyPage(0); }}
-        />
+      {/* THE WARDROBE: every body this server can serve, as pictures on the settings panel's paper (Nikk2, 6974). */}
+      <group position={[WARDROBE.at.x, WARDROBE.middle, WARDROBE.at.z]} rotation={[0, facingSpawn(WARDROBE.at.x, WARDROBE.at.z), 0]}>
+        <WardrobePanel bodies={wardrobe} worn={worn} busy={dressing} onWear={wear} />
       </group>
     </group>
   );
-}
-
-/** Back, where you are, forward; and one more button when a list wants it. */
-function Pager({
-  y,
-  page,
-  pages,
-  onPage,
-  extra,
-}: {
-  y: number;
-  page: number;
-  pages: number;
-  onPage: (page: number) => void;
-  extra?: { label: string; onTap: () => void };
-}) {
-  return (
-    <group>
-      <WristButton label="‹" glyph x={-0.34} y={y} width={0.14} height={0.1} tone={page > 0 ? "normal" : "muted"} onTap={() => onPage(Math.max(0, page - 1))} />
-      <WristButton label={`${page + 1} of ${pages}`} x={0} y={y} width={0.4} height={0.1} tone="muted" onTap={() => {}} />
-      <WristButton label="›" glyph x={0.34} y={y} width={0.14} height={0.1} tone={page < pages - 1 ? "normal" : "muted"} onTap={() => onPage(Math.min(pages - 1, page + 1))} />
-      {extra ? <WristButton label={extra.label} x={0.72} y={y} width={0.3} height={0.1} onTap={extra.onTap} /> : null}
-    </group>
-  );
-}
-
-/** One body in the wardrobe: its picture, its name, a ring when you wear it. */
-function BodyTile({
-  body,
-  x,
-  y,
-  worn,
-  busy,
-  onWear,
-}: {
-  body: Wearable;
-  x: number;
-  y: number;
-  worn: boolean;
-  busy: boolean;
-  onWear: () => void;
-}) {
-  const picture = useThumb(body.pictured ? `${base}${thumbPath(body.name)}` : null);
-  const { width, height } = WARDROBE.thumb;
-  return (
-    <group position={[x, y, 0]}>
-      {worn ? (
-        <mesh position={[0, 0, -0.002]} raycast={() => null}>
-          <planeGeometry args={[width + 0.024, height + 0.024]} />
-          <meshBasicMaterial color="#5b74c4" />
-        </mesh>
-      ) : null}
-      <mesh
-        onClick={(event) => {
-          event.stopPropagation();
-          onWear();
-        }}
-      >
-        <planeGeometry args={[width, height]} />
-        {/* A NEW MATERIAL WHEN THE PICTURE ARRIVES: three.js compiles a
-          material once, and one made without a map stays mapless (black)
-          when a map is set on it later. */}
-        {picture
-          ? <meshBasicMaterial key={picture.uuid} map={picture} toneMapped={false} />
-          : <meshBasicMaterial key="none" color="#252a35" />}
-      </mesh>
-      <WristButton
-        label={busy ? "…" : body.name}
-        y={-height / 2 - 0.035}
-        width={0.22}
-        height={0.05}
-        lines={1}
-        textSize={0.55}
-        tone={worn ? "live" : "normal"}
-        onTap={onWear}
-      />
-    </group>
-  );
-}
-
-/** A picture as a texture, freed when the tile goes (a page turn frees twelve). */
-function useThumb(url: string | null): THREE.Texture | null {
-  const [texture, setTexture] = useState<THREE.Texture | null>(null);
-  useEffect(() => {
-    if (!url) return;
-    let alive = true;
-    let loaded: THREE.Texture | null = null;
-    new THREE.TextureLoader().load(url, (made) => {
-      made.colorSpace = THREE.SRGBColorSpace;
-      if (alive) {
-        loaded = made;
-        setTexture(made);
-      } else {
-        made.dispose();
-      }
-    });
-    return () => {
-      alive = false;
-      loaded?.dispose();
-      setTexture(null);
-    };
-  }, [url]);
-  return texture;
 }
 
 /**
