@@ -108,6 +108,6 @@ describe("knownToTheCatalogue", () => {
     // this file and never from a caller.
     expect(known("abissaldude")?.model).toMatch(/^https:\/\//);
     expect(known("shiro")?.name).toBe("Shiro");
-    expect(known.size()).toBe(302); // 300 from 100Avatars, and Skein and Mica (Saha Originals)
+    expect(known.size()).toBe(303); // 300 from 100Avatars, and Skein, Mica and Sill (Saha Originals)
   });
 });
