@@ -72,7 +72,7 @@ import { sendOutcome, withDeadline } from "./send-timeout";
 import { recordedControl, recorderControlVisual } from "./recorder-control-visual";
 import type { AvatarRecorder } from "./useAvatarRecorder";
 import { base } from "../router";
-import { canShareScreen, setMyScreenShown, startScreenShare, stopScreenShare, useScreenShare } from "./screen-share";
+import { canShareScreen, setMyScreen, useMyScreenLive, useScreenShare } from "./screen-share";
 
 /**
  * The room's controls, in front of you at body level.
@@ -312,7 +312,7 @@ export function RoomControls({
   const [open, setOpen] = useState(false);
   // My screen (Nikk, 7227): shared from this page, and shown to me as a panel I can move.
   const screenShare = useScreenShare();
-  const myScreenShown = screenShare.shown;
+  useMyScreenLive(base, you);
   /**
    * SEEING AND FIXING WHAT YOU SAID. Baiwei: "instead of seeing everything I
    * said, I only see an empty bar with a keyboard... I would like to see
@@ -1276,12 +1276,11 @@ export function RoomControls({
     screen: you
       ? {
           canShare: canShareScreen(),
-          sharing: screenShare.sharing,
+          live: screenShare.live || screenShare.sharing,
           starting: screenShare.starting,
           problem: screenShare.problem,
-          setSharing: (on) => void (on ? startScreenShare(base) : stopScreenShare()),
-          shown: myScreenShown,
-          setShown: setMyScreenShown,
+          shown: screenShare.shown,
+          setShown: (on) => setMyScreen(on, base),
         }
       : null,
     goTo: setView,

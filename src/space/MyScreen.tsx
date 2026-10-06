@@ -5,7 +5,7 @@ import { AGENT_SCREEN } from "../../shared/screens";
 import type { Placement } from "../../shared/space-wire";
 import { Movable } from "./Movable";
 import { ScreenFace } from "./ScreenWall";
-import { useScreenShare } from "./screen-share";
+import { useMyScreenLive, useScreenShare } from "./screen-share";
 
 /**
  * MY OWN SCREEN, OPENED FOR ME (Nikk, 7227: "there isn't a way to open it, if I
@@ -97,35 +97,11 @@ export function MyScreen({ base, you, onTrouble }: { base: string; you: string; 
 
 /** My screen, while I have asked to see it (either settings menu: screen-share.ts). */
 export function MyScreenHost({ base, you }: { base: string; you: string | null }) {
-  const { shown, sharing } = useScreenShare();
-  const sharingNow = useSharingNow(base, you, shown) || sharing;
+  const { shown, sharing, live } = useScreenShare();
+  useMyScreenLive(base, you);
+  const sharingNow = live || sharing;
   // Movable says on the panel itself why it would not move; nothing more to show here.
   // Nothing in the space until there is a picture: "not sharing" is said in the settings instead (Nikk, 7241).
   return shown && you && sharingNow ? <MyScreen base={base} you={you} onTrouble={() => undefined} /> : null;
 }
 
-/** Whether a picture of mine is live (shared from this page or share.html), checked every few seconds while wanted. */
-function useSharingNow(base: string, you: string | null, wanted: boolean): boolean {
-  const [live, setLive] = useState(false);
-  useEffect(() => {
-    if (!wanted || !you) return;
-    let cancelled = false;
-    const check = async () => {
-      try {
-        const response = await fetch(`${base}/bff/space/screens`, { credentials: "same-origin", cache: "no-store" });
-        if (!response.ok || cancelled) return;
-        const { screens } = (await response.json()) as { screens: { actorId: string }[] };
-        setLive(screens.some((screen) => screen.actorId.toLowerCase() === you.toLowerCase()));
-      } catch {
-        // Next time.
-      }
-    };
-    void check();
-    const timer = setInterval(() => void check(), 3000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [base, you, wanted]);
-  return live;
-}

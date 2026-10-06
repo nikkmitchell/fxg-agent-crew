@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { SCREEN_LIMITS } from "../../shared/screens";
 
 /**
@@ -17,9 +17,16 @@ export type ScreenShareState = {
   problem: string | null;
   /** My own screen open as a movable panel in the room (MyScreen.tsx). */
   shown: boolean;
+  /**
+   * Whether the room has a live picture of mine, from this page or any other
+   * (saha.ing/share): the server's word, polled by useMyScreenLive. Knowing only
+   * this page's own capture, the settings said "not sharing" while Nikk was
+   * sharing from the share page (7244).
+   */
+  live: boolean;
 };
 
-let state: ScreenShareState = { sharing: false, starting: false, problem: null, shown: false };
+let state: ScreenShareState = { sharing: false, starting: false, problem: null, shown: false, live: false };
 const listeners = new Set<() => void>();
 const set = (next: Partial<ScreenShareState>) => {
   state = { ...state, ...next };
@@ -33,6 +40,44 @@ let base = "";
 
 /** Open or close my own screen in the room, from either menu. */
 export const setMyScreenShown = (shown: boolean) => set({ shown });
+
+/**
+ * ONE TOGGLE, SHOW MY SCREEN (Nikk, 7244: "we have share my screen and show my
+ * screen ... we only need one"). On: open it in front of me, and if nothing of
+ * mine is live yet and this browser can capture, start sharing. Off: close it,
+ * and stop a share this page started.
+ */
+export function setMyScreen(on: boolean, root: string): void {
+  set({ shown: on });
+  if (on) {
+    if (!state.live && !stream && canShareScreen()) void startScreenShare(root);
+  } else void stopScreenShare();
+}
+
+/** Keep `live` up to date while something shows it: every few seconds, from the server's list of screens. */
+export function useMyScreenLive(root: string, you: string | null): void {
+  useEffect(() => {
+    if (!you) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const response = await fetch(`${root}/bff/space/screens`, { credentials: "same-origin", cache: "no-store" });
+        if (!response.ok || cancelled) return;
+        const { screens } = (await response.json()) as { screens: { actorId: string }[] };
+        const live = screens.some((screen) => screen.actorId.toLowerCase() === you.toLowerCase());
+        if (live !== state.live) set({ live });
+      } catch {
+        // Next time.
+      }
+    };
+    void check();
+    const timer = setInterval(() => void check(), 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [root, you]);
+}
 
 /** Whether this browser can share a screen at all (a headset's usually cannot). */
 export const canShareScreen = (): boolean =>

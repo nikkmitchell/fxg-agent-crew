@@ -932,7 +932,7 @@ export default function Scene({
         {/* Shared screens. A person's hangs in the row above the panels; an
           agent's sits in front of the agent, only while it is working there.
           Textures on planes, so the same in the window and in a headset. */}
-        <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} room={spaceRoomName} />
+        <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} room={spaceRoomName} you={you} />
         <MyScreenHost base={base} you={you} />
         {/* THINGS FROM SPACES' GIT, live: items, environments and spaces (src/space/modules). */}
         <ModuleItems

@@ -393,7 +393,7 @@ export default function App() {
         </span>
       </aside>
 
-      {settingsOpen ? <Settings onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsOpen ? <Settings you={session?.username ?? null} onClose={() => setSettingsOpen(false)} /> : null}
 
       <main className="workroom" id="workroom" tabIndex={-1}>
         {/*

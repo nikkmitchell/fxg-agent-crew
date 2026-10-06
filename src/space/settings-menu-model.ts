@@ -85,11 +85,11 @@ export type SettingsMenuInput = {
   screen?: null | {
     /** Whether this browser can capture a screen at all (a headset usually cannot). */
     canShare: boolean;
-    sharing: boolean;
+    /** Whether the room has a live picture of mine, from anywhere. */
+    live: boolean;
     starting: boolean;
     problem: string | null;
-    setSharing: (on: boolean) => void;
-    /** My own screen open as a movable panel in front of me. */
+    /** My own screen open in front of me: the one toggle (Nikk, 7244). */
     shown: boolean;
     setShown: (on: boolean) => void;
   };
@@ -239,19 +239,16 @@ function meSections(s: SettingsMenuInput): MenuSection[] {
     sections.push({
       title: "My screen",
       rows: [
-        sc.canShare
-          ? {
-              kind: "toggle",
-              label: "Share my screen",
-              on: sc.sharing || sc.starting,
-              detail: sc.starting ? "Choose what to share…" : sc.sharing ? "On: your rooms can see it" : "Off",
-              onTap: () => sc.setSharing(!(sc.sharing || sc.starting)),
-            }
-          : { kind: "toggle", label: "Share my screen", detail: "Share from saha.ing in a desktop browser", on: sc.sharing, disabled: !sc.sharing, onTap: () => sc.setSharing(false) },
-        { kind: "toggle", label: "Show my screen", detail: sc.shown ? "Drag its top bar to move it" : "Opens in front of you", on: sc.shown, onTap: () => sc.setShown(!sc.shown) },
+        {
+          kind: "toggle",
+          label: "Show my screen",
+          on: sc.shown,
+          detail: sc.starting ? "Choose what to share…" : sc.live ? "Sharing: your rooms can see it" : sc.canShare ? "Turning it on shares this screen" : "Share it from a computer first",
+          onTap: () => sc.setShown(!sc.shown),
+        },
         ...(sc.problem ? [note(sc.problem)] : []),
         // Not sharing: say how, here, rather than an empty screen in the room (Nikk, 7241).
-        ...(!sc.sharing && !sc.starting ? [note("Not sharing. Go to saha.ing/share to share your screen.")] : []),
+        ...(!sc.live && !sc.starting ? [note("Not sharing. Go to saha.ing/share to share your screen.")] : []),
       ],
     });
   }

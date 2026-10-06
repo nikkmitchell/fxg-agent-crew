@@ -619,19 +619,36 @@ export function Movable({
         the room, where a small gizmo arrow is a test of nerve — and a perfectly
         ordinary thing to click with a mouse.
       */}
-      <mesh
-        position={[0, top, 0.01]}
-        onPointerDown={take("move")}
-        onPointerMove={steer}
-        onPointerUp={letGo}
-      >
-        <boxGeometry args={[size.width, barHeight, 0.06]} />
-        <meshBasicMaterial
-          color={dragging ? "#6f86c9" : "#2b3245"}
-          transparent
-          opacity={dragging ? 0.95 : 0.6}
-        />
-      </mesh>
+      {/*
+        A PERSONAL PANEL MOVES BY A SMALL HANDLE IN ITS TOP-RIGHT CORNER, like the
+        one on the settings panel (Nikk, 7244: the drag bar was way too big; just a
+        little move thing in the top right corner). A room panel keeps its bar.
+      */}
+      {personal ? (
+        <group position={[size.width / 2 - 0.07, size.height / 2 + 0.06, 0.01]}>
+          <mesh onPointerDown={take("move")} onPointerMove={steer} onPointerUp={letGo}>
+            <boxGeometry args={[0.14, 0.09, 0.03]} />
+            <meshBasicMaterial color={dragging ? "#4d86ff" : "#1e2432"} transparent opacity={dragging ? 0.95 : 0.85} />
+          </mesh>
+          <Text position={[0, 0, 0.017]} fontSize={0.06} color="#eef2fa" anchorX="center" anchorY="middle" raycast={noRaycast}>
+            {"::"}
+          </Text>
+        </group>
+      ) : (
+        <mesh
+          position={[0, top, 0.01]}
+          onPointerDown={take("move")}
+          onPointerMove={steer}
+          onPointerUp={letGo}
+        >
+          <boxGeometry args={[size.width, barHeight, 0.06]} />
+          <meshBasicMaterial
+            color={dragging ? "#6f86c9" : "#2b3245"}
+            transparent
+            opacity={dragging ? 0.95 : 0.6}
+          />
+        </mesh>
+      )}
     </group>
   );
 }

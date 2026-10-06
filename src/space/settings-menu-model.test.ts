@@ -223,31 +223,27 @@ describe("the Library tab (Nikk, 2026-10-01: things from spaces' git, brought in
   });
 });
 
-describe("My screen, under Me (Nikk, 7227)", () => {
+describe("My screen, under Me: one toggle (Nikk, 7227, 7244)", () => {
   const screen = (over: Partial<NonNullable<SettingsMenuInput["screen"]>> = {}) => {
     const calls: string[] = [];
-    const value = {
-      canShare: true, sharing: false, starting: false, problem: null, shown: false,
-      setSharing: (on: boolean) => calls.push(`share ${on}`), setShown: (on: boolean) => calls.push(`show ${on}`), ...over,
-    };
+    const value = { canShare: true, live: false, starting: false, problem: null, shown: false, setShown: (on: boolean) => calls.push(`show ${on}`), ...over };
     return { value, calls };
   };
   const rows = (s: NonNullable<SettingsMenuInput["screen"]>) =>
     settingsSections(input("root", { screen: s })).find((section) => section.title === "My screen")?.rows ?? [];
+  const labels = (s: NonNullable<SettingsMenuInput["screen"]>) => rows(s).map((row) => (row as { label: string }).label);
 
-  it("is a toggle to share and a toggle to show it to me, each doing what it says", () => {
+  it("is one toggle, Show my screen, that does what it says", () => {
     const { value, calls } = screen();
-    const [share, show] = rows(value) as Array<{ label: string; on: boolean; onTap: () => void }>;
-    expect([share.label, share.on, show.label, show.on]).toEqual(["Share my screen", false, "Show my screen", false]);
-    share.onTap();
+    const [show] = rows(value) as Array<{ label: string; on: boolean; onTap: () => void }>;
+    expect([show.label, show.on]).toEqual(["Show my screen", false]);
     show.onTap();
-    expect(calls).toEqual(["share true", "show true"]);
+    expect(calls).toEqual(["show true"]);
+    expect(labels(value).filter((label) => /Share my screen/.test(label))).toEqual([]);
   });
 
-  it("can only turn sharing off where the browser cannot capture a screen, and says where it can", () => {
-    const { value } = screen({ canShare: false });
-    const [share] = rows(value) as Array<{ detail?: string; disabled?: boolean }>;
-    expect(share.disabled).toBe(true);
-    expect(share.detail).toMatch(/desktop browser/);
+  it("says how to share only while nothing of mine is live, wherever it is shared from", () => {
+    expect(labels(screen().value)).toContain("Not sharing. Go to saha.ing/share to share your screen.");
+    expect(labels(screen({ live: true }).value)).not.toContain("Not sharing. Go to saha.ing/share to share your screen.");
   });
 });

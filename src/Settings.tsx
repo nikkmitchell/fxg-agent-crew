@@ -13,14 +13,14 @@ import { ProjectChooser } from "./ProjectChooser";
  * selected without opening anything, which is most of what the old dropdown was
  * actually for.
  */
-export function Settings({ onClose }: { onClose: () => void }) {
+export function Settings({ you, onClose }: { you: string | null; onClose: () => void }) {
   return (
     <aside className="settings-panel" aria-label="Settings">
       <header>
         <h2>Settings</h2>
         <button type="button" onClick={onClose} aria-label="Close settings">×</button>
       </header>
-      <MyScreenSettings />
+      <MyScreenSettings you={you} />
       <ProjectChooser />
     </aside>
   );

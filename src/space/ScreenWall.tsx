@@ -306,8 +306,11 @@ export function ScreenWall({
   peopleRef,
   reducedMotion,
   room = null,
+  you = null,
 }: {
   base: string;
+  /** Your own screen is not hung in the row for you: you open it as your own panel (MyScreen; Nikk, 7244). */
+  you?: string | null;
   peopleRef: RefObject<WirePerson[]>;
   /** The room this is drawn in: no agent screens in the lobby. */
   room?: string | null;
@@ -335,9 +338,11 @@ export function ScreenWall({
     (peopleRef.current ?? []).filter((person) => person.kind === "agent").map((person) => person.actorId.toLowerCase()),
   );
   const isAgent = (screen: ScreenSummary) => screen.kind === "agent" || agentIds.has(screen.actorId.toLowerCase());
-  const row = ready.filter((screen) => !isAgent(screen));
+  // Your own screen is yours to open (MyScreen), never hung up a second time for you (Nikk, 7244).
+  const others = ready.filter((screen) => screen.actorId.toLowerCase() !== you?.toLowerCase());
+  const row = others.filter((screen) => !isAgent(screen));
   // AGENTS HIDDEN, THEIR SCREENS TOO (Nikk 5384): for everyone, or just for you.
-  const agents = agentsHidden ? [] : ready.filter((screen) => isAgent(screen) && agentScreenShownIn(room, screen.actorId));
+  const agents = agentsHidden ? [] : others.filter((screen) => isAgent(screen) && agentScreenShownIn(room, screen.actorId));
 
   return (
     <group>
