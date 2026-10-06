@@ -151,7 +151,7 @@ function useSharedScreens(base: string): { screens: ScreenSummary[]; shown: Map<
   return { screens, shown };
 }
 
-function ScreenLabel({ text, width, height = 0.2 }: { text: string; width: number; height?: number }) {
+export function ScreenLabel({ text, width, height = 0.2 }: { text: string; width: number; height?: number }) {
   const texture = useMemo(
     () => makeLabelTexture(text, { pixelsPerLine: 56, lines: 1, aspect: width / height }),
     [text, width, height],
@@ -184,7 +184,7 @@ function ScreenLabel({ text, width, height = 0.2 }: { text: string; width: numbe
  * the rear one turned half a turn, each showing the same picture the right way
  * round to whoever is looking at it.
  */
-function ScreenFace({ texture, width, height }: { texture: THREE.Texture; width: number; height: number }) {
+export function ScreenFace({ texture, width, height }: { texture: THREE.Texture; width: number; height: number }) {
   const front = useRef<THREE.MeshBasicMaterial>(null);
   const back = useRef<THREE.MeshBasicMaterial>(null);
   // Going from no map to a map needs a shader recompile, and nothing else asks

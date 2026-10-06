@@ -222,3 +222,32 @@ describe("the Library tab (Nikk, 2026-10-01: things from spaces' git, brought in
     expect(row.buttons.map((button) => button.label)).toEqual(["Full size", "Take away"]);
   });
 });
+
+describe("My screen, under Me (Nikk, 7227)", () => {
+  const screen = (over: Partial<NonNullable<SettingsMenuInput["screen"]>> = {}) => {
+    const calls: string[] = [];
+    const value = {
+      canShare: true, sharing: false, starting: false, problem: null, shown: false,
+      setSharing: (on: boolean) => calls.push(`share ${on}`), setShown: (on: boolean) => calls.push(`show ${on}`), ...over,
+    };
+    return { value, calls };
+  };
+  const rows = (s: NonNullable<SettingsMenuInput["screen"]>) =>
+    settingsSections(input("root", { screen: s })).find((section) => section.title === "My screen")?.rows ?? [];
+
+  it("is a toggle to share and a toggle to show it to me, each doing what it says", () => {
+    const { value, calls } = screen();
+    const [share, show] = rows(value) as Array<{ label: string; on: boolean; onTap: () => void }>;
+    expect([share.label, share.on, show.label, show.on]).toEqual(["Share my screen", false, "Show my screen", false]);
+    share.onTap();
+    show.onTap();
+    expect(calls).toEqual(["share true", "show true"]);
+  });
+
+  it("can only turn sharing off where the browser cannot capture a screen, and says where it can", () => {
+    const { value } = screen({ canShare: false });
+    const [share] = rows(value) as Array<{ detail?: string; disabled?: boolean }>;
+    expect(share.disabled).toBe(true);
+    expect(share.detail).toMatch(/desktop browser/);
+  });
+});

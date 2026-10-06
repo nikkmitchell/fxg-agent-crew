@@ -30,6 +30,7 @@ import type { AvatarRecorder } from "./useAvatarRecorder";
 import { isLobby } from "../../shared/lobby-hall";
 import { useBoardCards } from "./useBoardCards";
 import { ScreenWall } from "./ScreenWall";
+import { MyScreenHost } from "./MyScreen";
 import { ArrivalSparkles } from "./ArrivalSparkles";
 import { SpeakingMotes } from "./SpeakingMotes";
 import { TouchReactions } from "./TouchReactions";
@@ -931,6 +932,7 @@ export default function Scene({
           agent's sits in front of the agent, only while it is working there.
           Textures on planes, so the same in the window and in a headset. */}
         <ScreenWall base={base} peopleRef={connection.peopleRef} reducedMotion={reducedMotion} room={spaceRoomName} />
+        <MyScreenHost base={base} you={you} />
         {/* THINGS FROM SPACES' GIT, live: items, environments and spaces (src/space/modules). */}
         <ModuleItems
           items={connection.roomItems.filter(isModuleItem)}

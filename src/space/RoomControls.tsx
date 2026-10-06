@@ -71,6 +71,8 @@ import { endSessionThenReturn } from "./end-session-to-lobby";
 import { sendOutcome, withDeadline } from "./send-timeout";
 import { recordedControl, recorderControlVisual } from "./recorder-control-visual";
 import type { AvatarRecorder } from "./useAvatarRecorder";
+import { base } from "../router";
+import { canShareScreen, setMyScreenShown, startScreenShare, stopScreenShare, useScreenShare } from "./screen-share";
 
 /**
  * The room's controls, in front of you at body level.
@@ -308,6 +310,9 @@ export function RoomControls({
 }) {
   const group = useRef<THREE.Group>(null);
   const [open, setOpen] = useState(false);
+  // My screen (Nikk, 7227): shared from this page, and shown to me as a panel I can move.
+  const screenShare = useScreenShare();
+  const myScreenShown = screenShare.shown;
   /**
    * SEEING AND FIXING WHAT YOU SAID. Baiwei: "instead of seeing everything I
    * said, I only see an empty bar with a keyboard... I would like to see
@@ -1268,6 +1273,17 @@ export function RoomControls({
   };
   const sections = !open ? [] : settingsSections({
     view,
+    screen: you
+      ? {
+          canShare: canShareScreen(),
+          sharing: screenShare.sharing,
+          starting: screenShare.starting,
+          problem: screenShare.problem,
+          setSharing: (on) => void (on ? startScreenShare(base) : stopScreenShare()),
+          shown: myScreenShown,
+          setShown: setMyScreenShown,
+        }
+      : null,
     goTo: setView,
     // In a finished space the Library is a work tool, so it is not offered (use-finished.ts).
     library: finishedHere ? null : library,

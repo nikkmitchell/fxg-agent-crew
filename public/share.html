@@ -286,10 +286,38 @@
         asSelect.append(opt(you, "Myself (" + you + ")"));
         try {
           const sharers = await (await fetch("/bff/space/screens/sharers", { credentials: "same-origin", cache: "no-store" })).json();
-          for (const agent of sharers.agents || []) asSelect.append(opt(agent, agent + " (agent)"));
+          for (const agent of sharers.agents || []) asSelect.append(opt(agent, agent + " (your agent)"));
+          // Only you and your agents (Nikk, 7227). Any other agent can be added as yours from here.
+          if ((sharers.others || []).length) {
+            const group = document.createElement("optgroup");
+            group.label = "Add one of my agents…";
+            for (const agent of sharers.others) group.append(opt("add:" + agent, agent));
+            asSelect.append(group);
+          }
         } catch (_) { /* the menu still offers yourself */ }
+        let previous = asSelect.value;
+        asSelect.addEventListener("change", async () => {
+          if (!asSelect.value.startsWith("add:")) { previous = asSelect.value; return; }
+          const agent = asSelect.value.slice(4);
+          asSelect.value = previous;
+          if (!window.confirm("Add " + agent + " as one of your agents? It shows as yours until " + agent + " or you remove it.")) return;
+          const added = await fetch("/bff/board/ownership", {
+            method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ agentId: agent, ownerId: you, action: "declare" }),
+          });
+          if (!added.ok) { say("saha.ing would not add " + agent + " (" + added.status + ").", "problem"); return; }
+          const option = Array.from(asSelect.options).find((o) => o.value === "add:" + agent);
+          if (option) { option.remove(); }
+          const group = asSelect.querySelector("optgroup");
+          const mine = opt(agent, agent + " (your agent)");
+          group ? asSelect.insertBefore(mine, group) : asSelect.append(mine);
+          if (group && !group.children.length) group.remove();
+          asSelect.value = previous = agent;
+          asSelect.dispatchEvent(new Event("change"));
+        });
         const describe = () => {
           const chosen = asSelect.value;
+          if (chosen.startsWith("add:")) return;
           asNote.hidden = false;
           asNote.textContent = chosen === you
             ? "The room will label this: " + you + "'s screen."

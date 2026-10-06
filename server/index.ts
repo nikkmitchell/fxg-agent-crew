@@ -358,7 +358,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       if (!path.startsWith("/bff/space/") || path === "/bff/space/enter") return;
       const personal = /^(?:body(?:\/|$|-model\/)|bodies(?:\/|$)|voice(?:\/|$)|voices(?:\/|$)|memories(?:\/|$)|transcribe(?:\/|$)|touch-preferences(?:\/|$))/.test(path.slice("/bff/space/".length));
       const keyUpload = path === "/bff/space/screens/frame" && request.method === "PUT";
-      const sharers = path === "/bff/space/screens/sharers";
+      // Sharing your screen needs no room entered first (Nikk, 7227): its key, its list and stopping it.
+      const sharers = path === "/bff/space/screens/sharers" || path === "/bff/space/screens/key" || path === "/bff/space/screens/frame";
       if (personal || keyUpload || sharers) return;
       const session = sessions.get(request.cookies[config.cookieName]);
       if (session?.requiresRoomEntry) {
@@ -372,7 +373,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config,
       sessions,
       client,
-      (username, kind) => actorBook.ensureActor(username, kind),
+      (username, kind, ownerName) => {
+        actorBook.ensureActor(username, kind);
+        // Who an agent belongs to, as WebHarness says: which agents' screens that person may share (7227).
+        if (kind === "agent" && ownerName) actorBook.recordUpstreamOwner(username, ownerName);
+      },
       // The room is the claim; the store decides what it is worth. A room with
       // no link, or a link with auto_enrol off, grants nothing.
       (actorId, kind, rooms) => rooms.flatMap((room) => actorBook.enrolFromRoom(actorId, room, kind ?? undefined)),

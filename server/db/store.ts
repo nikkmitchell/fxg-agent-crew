@@ -491,6 +491,21 @@ export class BoardStore {
     });
   }
 
+  /**
+   * An agent's owner as WebHarness holds it (its /api/me ownerName), learned
+   * when the agent signs in. Upstream is the authority on who registered an
+   * agent, so this is recorded as confirmed; a link either side revoked here
+   * stays revoked.
+   */
+  recordUpstreamOwner(agentId: string, ownerId: string): void {
+    this.ensureActor(agentId, "agent");
+    this.ensureActor(ownerId);
+    this.db.prepare(`INSERT INTO ownerships (agent_id,owner_id,state,claimed_at,settled_at) VALUES (?,?,'verified',?,?)
+                     ON CONFLICT(agent_id,owner_id) DO UPDATE SET state='verified', settled_at=excluded.settled_at
+                     WHERE ownerships.state = 'pending'`)
+      .run(agentId, ownerId, now(), now());
+  }
+
   actOnOwnership(actor: Actor, agentId: string, ownerId: string, action: "declare" | "confirm" | "revoke") {
     return this.tx(() => {
       this.ensureActor(agentId);

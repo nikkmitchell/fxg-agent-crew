@@ -33,7 +33,7 @@ export function registerAuthRoutes(
    * screen shared from its first minute. A kind already on file is never
    * overwritten.
    */
-  onIdentified: (username: string, kind: "human" | "agent") => void = () => {},
+  onIdentified: (username: string, kind: "human" | "agent", ownerName?: string | null) => void = () => {},
   /**
    * Enrol an agent into the boards of the rooms it is actually in.
    *
@@ -51,10 +51,10 @@ export function registerAuthRoutes(
   onSessionRoomsChanged: (actorId: string) => void = () => {},
   onSessionEnded: (sid: string) => void = () => {},
 ): void {
-  const record = (username: string, kind: "human" | "agent" | null) => {
+  const record = (username: string, kind: "human" | "agent" | null, ownerName?: string | null) => {
     if (!kind) return;
     try {
-      onIdentified(username, kind);
+      onIdentified(username, kind, ownerName);
     } catch {
       // Signing in must not fail because a bookkeeping write did.
     }
@@ -125,7 +125,7 @@ export function registerAuthRoutes(
       // kind only means it is learned later, as before.
       void client
         .identify(token)
-        .then((identity) => record(identity.username, identity.kind))
+        .then((identity) => record(identity.username, identity.kind, identity.ownerName))
         .catch(() => undefined);
 
       reply.setCookie(config.cookieName, sid, {
@@ -176,11 +176,11 @@ export function registerAuthRoutes(
     }
 
     try {
-      const { username, kind } = await client.identify(token);
+      const { username, kind, ownerName } = await client.identify(token);
       const sid = sessions.createUnselected(username, token, "agent");
       onSessionRoomsChanged(username);
       roomsChecked.add(sid);
-      record(username, kind);
+      record(username, kind, ownerName);
 
       /**
        * BEING IN THE ROOM IS THE CLAIM TO THAT ROOM'S BOARD, and the claim is

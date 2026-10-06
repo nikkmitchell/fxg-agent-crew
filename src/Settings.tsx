@@ -1,7 +1,8 @@
+import { MyScreenSettings } from "./MyScreenSettings";
 import { ProjectChooser } from "./ProjectChooser";
 
 /**
- * Settings, which for now is one thing: which project the board tabs show.
+ * Settings: Me (my screen), and which project the board tabs show.
  *
  * It moved here because it is a setting, not a task. It used to be a dropdown
  * at the top of the Board tab, where it took a line of the page on every visit
@@ -19,6 +20,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
         <h2>Settings</h2>
         <button type="button" onClick={onClose} aria-label="Close settings">×</button>
       </header>
+      <MyScreenSettings />
       <ProjectChooser />
     </aside>
   );

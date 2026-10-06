@@ -296,11 +296,17 @@ describe("sharing a screen for an agent", () => {
   const seed = (database: { prepare(sql: string): { run(...args: unknown[]): unknown } }, id: string, kind: "human" | "agent") =>
     database.prepare("INSERT INTO actors (id, kind, first_seen_at, updated_at) VALUES (?,?,?,?)")
       .run(id, kind, "2026-09-14T00:00:00Z", "2026-09-14T00:00:00Z");
+  /** That `owner` operates `agent` (a claim on the board, or what WebHarness says at the agent's sign-in). */
+  const own = (database: { prepare(sql: string): { run(...args: unknown[]): unknown } }, agent: string, owner: string) => {
+    for (const id of [agent, owner]) database.prepare("INSERT OR IGNORE INTO actors (id, first_seen_at, updated_at) VALUES (?,?,?)").run(id, "2026-09-14T00:00:00Z", "2026-09-14T00:00:00Z");
+    database.prepare("INSERT INTO ownerships (agent_id, owner_id, state, claimed_at) VALUES (?,?,'verified','2026-09-14T00:00:00Z')").run(agent, owner);
+  };
 
   it("lets a signed-in person share for an agent, and labels it with both names", async () => {
     // Nikk: "you can open it and set which agent it is sharing for".
     const { app, as, database } = boot();
     seed(database, "Sill", "agent");
+    own(database, "Sill", "Nikk2");
     const nikk = as("Nikk2");
     const minted = await app.inject({ method: "POST", url: "/bff/space/screens/key", headers: { cookie: nikk }, payload: { for: "sill" } });
     expect(minted.statusCode).toBe(200);
@@ -346,6 +352,7 @@ describe("sharing a screen for an agent", () => {
     const { app, as, database } = boot();
     seed(database, "Sill", "agent");
     seed(database, "Nikk2", "human");
+    own(database, "Sill", "Nikk2");
     const key = (await app.inject({ method: "POST", url: "/bff/space/screens/key", headers: { cookie: as("Nikk2") }, payload: { for: "Sill" } })).json().key;
     await upload(app, { "x-screen-key": key }, webp(1));
     await upload(app, { cookie: as("Nikk2") }, webp(2));
@@ -355,13 +362,29 @@ describe("sharing a screen for an agent", () => {
     await app.close();
   });
 
-  it("offers every agent in the share-as menu, and not yourself twice", async () => {
+  it("offers you and YOUR agents, and any other agent only to add as yours (Nikk, 7227)", async () => {
     const { app, as, database } = boot();
     seed(database, "Sill", "agent");
     seed(database, "Inkstone", "agent");
+    seed(database, "Mica", "agent");
     seed(database, "Nikk2", "human");
-    const response = await app.inject({ method: "GET", url: "/bff/space/screens/sharers", headers: { cookie: as("Inkstone", "agent") } });
-    expect(response.json()).toEqual({ you: "Inkstone", agents: ["Sill"] });
+    own(database, "Sill", "Nikk2");
+    const response = await app.inject({ method: "GET", url: "/bff/space/screens/sharers", headers: { cookie: as("Nikk2") } });
+    expect(response.json()).toEqual({ you: "Nikk2", agents: ["Sill"], others: ["Inkstone", "Mica"] });
+    // Somebody else's agent cannot be shared for until it is yours.
+    const refused = await app.inject({ method: "POST", url: "/bff/space/screens/key", headers: { cookie: as("Nikk2") }, payload: { for: "Mica" } });
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().code).toBe("NOT_YOURS");
+    await app.close();
+  });
+
+  it("starts a share with no room entered yet (Nikk, 7227)", async () => {
+    const { app, config, sessions } = boot();
+    const cookie = `${config.cookieName}=${sessions.createUnselected("Nikk2", "t")}`;
+    expect((await app.inject({ method: "GET", url: "/bff/space/screens/sharers", headers: { cookie } })).statusCode).toBe(200);
+    expect((await app.inject({ method: "POST", url: "/bff/space/screens/key", headers: { cookie } })).statusCode).toBe(200);
+    expect((await upload(app, { cookie }, webp())).json().ok).toBe(true);
+    expect((await app.inject({ method: "DELETE", url: "/bff/space/screens/frame", headers: { cookie } })).statusCode).toBe(200);
     await app.close();
   });
 });

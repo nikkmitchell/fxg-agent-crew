@@ -211,6 +211,20 @@ export class ShareKeys {
       .map((row) => row.id);
   }
 
+  /**
+   * The agents a person has said are theirs (an ownership claimed or
+   * confirmed, not revoked): who they may share a screen for. Nikk, 7227: "I
+   * should only be able to see screenshare for me and my agents".
+   */
+  agentsOf(owner: string): string[] {
+    return (this.database
+      .prepare(`SELECT a.id FROM actors a JOIN ownerships o ON o.agent_id = a.id
+                 WHERE a.kind = 'agent' AND a.retired_at IS NULL AND lower(o.owner_id) = lower(?) AND o.state IN ('pending', 'verified')
+                 ORDER BY a.id`)
+      .all(owner.trim()) as { id: string }[])
+      .map((row) => row.id);
+  }
+
   kindOf(actorId: string): "human" | "agent" | null {
     const row = this.database
       .prepare("SELECT kind FROM actors WHERE lower(id) = lower(?)")
@@ -257,20 +271,23 @@ export function registerScreenRoutes(
   // the route's `bodyLimit`, and the real gate is `sniffImage` on the bytes.
 
   /**
-   * Who you may share a screen as: yourself, or any agent.
+   * Who you may share a screen as: yourself, or one of YOUR agents.
    *
-   * Nikk: "you can open it and set which agent it is sharing for". Any agent,
-   * not only ones you own — the ownerships table "confers nothing", and on the
-   * live service Sill and Inkstone have no owner — because the screen is
-   * labelled with your name as well as theirs. Never another PERSON: putting a
-   * screen up under a human's name is impersonation whatever the label says.
+   * It was any agent, since the screen is labelled with your name as well as
+   * theirs. Nikk (7227): "I should only be able to see screenshare for me and
+   * my agents". Yours means an ownership you claimed and have not revoked
+   * (agentsOf); `others` lets the page offer to add one. Never another PERSON:
+   * a screen under a human's name is impersonation whatever the label says.
    */
   app.get("/bff/space/screens/sharers", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const you = session.username;
-    const agents = deps.keys.agents().filter((id) => id.toLowerCase() !== you.toLowerCase());
-    return reply.header("cache-control", "no-store").send({ you, agents });
+    const agents = deps.keys.agentsOf(you).filter((id) => id.toLowerCase() !== you.toLowerCase());
+    const mine = new Set(agents.map((id) => id.toLowerCase()));
+    // The rest, only so the page can offer "add one of my agents" (a claim on the board's ownerships).
+    const others = deps.keys.agents().filter((id) => id.toLowerCase() !== you.toLowerCase() && !mine.has(id.toLowerCase()));
+    return reply.header("cache-control", "no-store").send({ you, agents, others });
   });
 
   app.post<{ Body: { for?: unknown } | undefined }>("/bff/space/screens/key", async (request, reply) => {
@@ -288,7 +305,10 @@ export function registerScreenRoutes(
     }
     // Spelled as the actors table spells it, so the label matches the name the
     // rest of the room uses for that agent.
-    const canonical = deps.keys.agents().find((id) => id.toLowerCase() === wanted.toLowerCase()) ?? wanted;
+    const canonical = deps.keys.agentsOf(session.username).find((id) => id.toLowerCase() === wanted.toLowerCase());
+    if (!canonical) {
+      return reply.code(403).send({ code: "NOT_YOURS", error: `${wanted} is not one of your agents; add it as yours first` });
+    }
     return reply.send({ ...deps.keys.mint(canonical, session.username, spaceRoomOf(session)), for: canonical });
   });
 

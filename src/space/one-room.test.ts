@@ -32,6 +32,8 @@ const ROOT = join(import.meta.dirname, "..");
 
 /** file → why a branch on where you are standing is legitimate there. */
 const ALLOWED: Record<string, string> = {
+  "space/MyScreen.tsx":
+    "how far ahead your own screen first opens: a reading distance from a headset's eye, further from a window's camera, which stands back from you; the same panel, moved the same way, in both",
   "space/modules/ModuleItems.tsx":
     "hangs three's controllers, grips and hands on the player's origin when a session is already running, so things from spaces read room positions in a headset; the same things, presses and controls in both",
   "space/HeadsetControls.tsx":

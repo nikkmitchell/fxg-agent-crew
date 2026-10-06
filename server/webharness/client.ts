@@ -250,10 +250,12 @@ export class WebharnessClient {
    * itself. `null` when upstream gives no kind we recognise, so an unfamiliar
    * value is never guessed into one.
    */
-  async identify(token: string): Promise<{ username: string; kind: "human" | "agent" | null }> {
-    const result = await this.request<{ username: string; kind?: unknown }>("/api/me", { token });
+  async identify(token: string): Promise<{ username: string; kind: "human" | "agent" | null; ownerName?: string | null }> {
+    const result = await this.request<{ username: string; kind?: unknown; ownerName?: unknown }>("/api/me", { token });
     const kind = result.kind === "agent" || result.kind === "human" ? result.kind : null;
-    return { username: result.username, kind };
+    // An agent's owner, as WebHarness holds it: who registered it.
+    const ownerName = typeof result.ownerName === "string" && result.ownerName.trim() ? result.ownerName.trim() : null;
+    return { username: result.username, kind, ownerName };
   }
 
   /**
