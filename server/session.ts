@@ -86,6 +86,15 @@ function publicViewOf(session: Session): { username: string; kind: SessionKind }
  * cloud platform restarting a container signs every human out with no warning
  * and no way to tell that is what happened.
  */
+/**
+ * A SESSION LASTS AS LONG AS IT IS USED (Nikk, 7227: "lets make it stay logged
+ * in unless the user chooses to log out"). It ended a fixed week after signing
+ * in, however much it was used, which read as saha.ing logging people out at
+ * random. Every use now pushes the end out by the full lifetime again; this is
+ * how much use is let pass before that is written down.
+ */
+export const RENEW_AFTER_MS = 24 * 60 * 60 * 1000;
+
 export class MemorySessionStore implements SessionStore {
   private readonly sessions = new Map<string, Session>();
   private readonly lastRoomByActor = new Map<string, string>();
@@ -112,6 +121,7 @@ export class MemorySessionStore implements SessionStore {
       this.destroy(sid);
       return undefined;
     }
+    if (session.expiresAt - Date.now() < this.ttlMs - RENEW_AFTER_MS) session.expiresAt = Date.now() + this.ttlMs;
     return session;
   }
 
@@ -279,6 +289,11 @@ export class SqliteSessionStore implements SessionStore {
     if (row.expires_at <= Date.now()) {
       this.destroy(sid);
       return undefined;
+    }
+    // In use, so still wanted: push the end out again (at most one write a day).
+    if (row.expires_at - Date.now() < this.ttlMs - RENEW_AFTER_MS) {
+      row.expires_at = Date.now() + this.ttlMs;
+      this.db.prepare("UPDATE sessions SET expires_at = ? WHERE sid = ?").run(row.expires_at, sid);
     }
     // Anything that is not exactly "agent" reads as human. An unrecognised
     // value must not become a third, silently different kind.

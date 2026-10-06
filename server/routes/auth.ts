@@ -237,6 +237,16 @@ export function registerAuthRoutes(
      * signed in — Baiwei included — locked out until they happened to sign out.
      * Once per session, and NOT awaited: nobody's page waits on it.
      */
+    // The cookie's own life is renewed with the session's, on the call every page load makes.
+    if (sid) {
+      reply.setCookie(config.cookieName, sid, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: config.secureCookies,
+        path: "/",
+        maxAge: Math.floor(config.sessionTtlMs / 1000),
+      });
+    }
     if (sid && !roomsChecked.has(sid)) {
       roomsChecked.add(sid);
       void enrolFromToken(session.username, null, session.token, request.log);

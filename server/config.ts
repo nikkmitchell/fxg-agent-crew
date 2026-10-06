@@ -117,7 +117,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     host: env.HOST ?? (production ? "0.0.0.0" : "127.0.0.1"),
     basePath,
     cookieName: env.SESSION_COOKIE_NAME ?? "fxg_sid",
-    sessionTtlMs: Number(env.SESSION_TTL_MS ?? 7 * 24 * 60 * 60 * 1000),
+    // 400 days, the longest a browser keeps a cookie; renewed by use (session.ts RENEW_AFTER_MS).
+    sessionTtlMs: Number(env.SESSION_TTL_MS ?? 400 * 24 * 60 * 60 * 1000),
     secureCookies: production,
     // Production defaults to a file so a container restart does not sign
     // everyone out; development defaults to memory so nobody accumulates

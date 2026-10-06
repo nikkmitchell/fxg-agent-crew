@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MemorySessionStore, SqliteSessionStore, type SessionStore } from "../session.js";
+import { MemorySessionStore, RENEW_AFTER_MS, SqliteSessionStore, type SessionStore } from "../session.js";
 
 /**
  * The point of the SQLite store is surviving a restart, so these tests actually
@@ -170,4 +170,24 @@ describe("both stores honour the same contract", () => {
       expect(store.mayInferInDefaultRoom("Moraine"), name).toBe(true);
     });
   });
+});
+
+describe("a session lasts as long as it is used (Nikk, 7227: stay signed in until you sign out)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  for (const [name, make] of [["memory", (ttl: number) => new MemorySessionStore(ttl)], ["sqlite", (ttl: number) => openStore(ttl)]] as const) {
+    it(`${name}: used every few days, it never ends; left alone past its life, it does`, () => {
+      vi.useFakeTimers({ now: 0, toFake: ["Date"] });
+      const life = 7 * RENEW_AFTER_MS;
+      const store = make(life);
+      const sid = store.create("Nikk2", "t");
+      for (let day = 0; day < 30; day += 3) {
+        vi.setSystemTime((day + 3) * RENEW_AFTER_MS);
+        expect(store.get(sid)?.username, `day ${day + 3}`).toBe("Nikk2");
+      }
+      vi.setSystemTime(30 * RENEW_AFTER_MS + life + 1);
+      expect(store.get(sid)).toBeUndefined();
+      store.close();
+    });
+  }
 });
