@@ -63,11 +63,25 @@ export const FINGER_JOINT_NAMES = [
 const sub = (a: V3, b: V3): V3 => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
 const dot = (a: V3, b: V3) => a.x * b.x + a.y * b.y + a.z * b.z;
 const cross = (a: V3, b: V3): V3 => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
+const add = (a: V3, b: V3): V3 => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
 const scale = (a: V3, s: number): V3 => ({ x: a.x * s, y: a.y * s, z: a.z * s });
 const length = (a: V3) => Math.hypot(a.x, a.y, a.z);
 const unit = (a: V3): V3 => scale(a, 1 / (length(a) || 1));
 /** `a` with its part along the unit `axis` removed. */
 const flatten = (a: V3, axis: V3): V3 => sub(a, scale(axis, dot(a, axis)));
+
+/**
+ * The axis a thumb bone curls about: toward the palm side and toward the index
+ * fingers at once, which is the way a thumb closes. Built the same way from the
+ * headset's joints and from a model's rest bones, so one angle means one curl
+ * on any body. `acrossPalm` runs from the index knuckle to the little one.
+ */
+export function thumbCurlAxis(bone: V3, palm: V3, acrossPalm: V3): V3 {
+  const along = unit(bone);
+  const target = unit(add(unit(palm), unit(acrossPalm)));
+  const axis = cross(along, flatten(target, along));
+  return length(axis) > 1e-9 ? unit(axis) : unit(cross(along, palm));
+}
 
 /** The turn from `a` to `b` about the unit `axis`, looking only across it. */
 function turnAbout(a: V3, b: V3, axis: V3): number {
@@ -99,10 +113,19 @@ export function fingerAngles(joints: ReadonlyArray<V3 | null>, finger: V3, palm:
   const thumb = [sub(at[1], at[0]), sub(at[2], at[1]), sub(at[3], at[2])];
   const thumbBase = unit(thumb[0]);
   out.push(Math.atan2(dot(thumbBase, across), dot(thumbBase, f)), Math.asin(clamp(dot(thumbBase, p), -1, 1)));
+  // Each thumb knuckle's bend is the WHOLE angle between its bones, signed by
+  // whether it curls the tip toward its curl target (thumbCurlAxis). Measured
+  // only square to the palm, as the fingers are, it missed the thumb: the thumb
+  // lies turned across the palm and flexes mostly within its plane, so its top
+  // bone read nearly straight however far it curled (Nikk, 7223: "the top
+  // thumbbone doesn't move anything", on every avatar).
+  // Across the palm, index knuckle to little knuckle: one direction however far the thumb has curled.
+  const acrossPalm = sub(at[20], at[5]);
   for (let i = 0; i < 2; i++) {
-    const thumbAcross = cross(unit(thumb[i]), p);
-    const axis = length(thumbAcross) > 1e-6 ? unit(thumbAcross) : across;
-    out.push(bend(turnAbout(thumb[i], thumb[i + 1], axis)));
+    const a = thumb[i], b = thumb[i + 1];
+    const turn = cross(a, b);
+    const angle = Math.atan2(length(turn), dot(a, b));
+    out.push(bend(dot(turn, thumbCurlAxis(a, p, acrossPalm)) >= 0 ? angle : -angle));
   }
 
   for (let finger = 0; finger < 4; finger++) {

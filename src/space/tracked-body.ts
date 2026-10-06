@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { elbowFor } from "./two-bone-ik";
 import { aimSegment } from "./aim-bone";
+import { thumbCurlAxis } from "../../shared/hand-fingers";
 
 /**
  * A whole body from a headset's three points: head, left hand, right hand.
@@ -155,9 +156,11 @@ export function measureRig(rig: Rig, scene: THREE.Object3D): RigSpec {
     const metacarpal = at(`${side}ThumbMetacarpal`, wrist);
     const proximal = at(`${side}ThumbProximal`, metacarpal);
     const distal = at(`${side}ThumbDistal`, proximal);
+    // The same curl axis the headset's thumb angles are measured about (shared/hand-fingers.ts).
+    const acrossPalm = at(`${side}LittleProximal`, wrist).sub(at(`${side}IndexProximal`, wrist));
     const thumbAxis = (from: THREE.Vector3, to: THREE.Vector3) => {
-      const axis = new THREE.Vector3().crossVectors(to.clone().sub(from).normalize(), palm);
-      return axis.lengthSq() > 1e-8 ? axis.normalize() : new THREE.Vector3().crossVectors(finger, palm).normalize();
+      const a = thumbCurlAxis(to.clone().sub(from), palm, acrossPalm);
+      return new THREE.Vector3(a.x, a.y, a.z);
     };
     const thumbRest = proximal.clone().sub(metacarpal);
     /*

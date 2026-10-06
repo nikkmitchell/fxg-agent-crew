@@ -161,3 +161,25 @@ describe("finger angles on the wire", () => {
     expect(parseFingers({})).toBeUndefined();
   });
 });
+
+describe("the thumb's knuckles (Nikk, 7223: the top thumb bone did not move)", () => {
+  it("reads a thumb that curls across the palm's plane, toward the other fingers, as bent", () => {
+    // A thumb lies turned across the palm and mostly flexes within its plane.
+    // Built here bending about the palm's normal, toward the index side: the
+    // old reading (square to the palm only) saw it as straight.
+    const joints = hand(flat());
+    const base = joints[1];
+    let along = unit({ x: joints[1].x - joints[0].x, y: joints[1].y - joints[0].y, z: joints[1].z - joints[0].z });
+    // Across the palm toward the other fingers is +X on this right hand.
+    const axis = unit(cross(along, { x: 1, y: 0, z: 0 }));
+    let at = base;
+    for (let i = 0; i < 2; i++) {
+      along = turn(along, axis, 0.7);
+      at = add(at, along, [0.032, 0.025][i]);
+      joints[2 + i] = at;
+    }
+    const angles = fingerAngles(joints, FINGER, PALM)!;
+    expect(angles[2]).toBeCloseTo(0.7, 1);
+    expect(angles[3]).toBeCloseTo(0.7, 1);
+  });
+});
