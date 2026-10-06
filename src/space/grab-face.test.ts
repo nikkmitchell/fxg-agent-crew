@@ -21,32 +21,34 @@ import { PANEL } from "../../shared/space-layout.js";
 const source = readFileSync(new URL("./Movable.tsx", import.meta.url), "utf8");
 
 describe("the face you grab an unlocked panel by", () => {
-  it("is built from PANEL rather than from numbers typed twice", () => {
-    expect(source, "the grab face must take its size from PANEL").toMatch(
-      /planeGeometry args=\{\[PANEL\.width, PANEL\.height\]\}/,
-    );
+  it("is built from the panel's size (PANEL unless said) rather than from numbers typed twice", () => {
+    expect(source, "the grab face must take its size from the panel's").toMatch(/planeGeometry args=\{\[size\.width, size\.height\]\}/);
+    expect(source, "a room panel's size is PANEL").toMatch(/size = PANEL,/);
   });
 
   it("is centred on the panel, not hung above it", () => {
     // `[0, 0, z]`: any y offset moves the grabbable area off the panel, and
     // whatever it uncovers stops being draggable without anything saying so.
-    const face = source.match(/position=\{\[0, (-?[\d.]+), [\d.]+\]\}\s*\n\s*onPointerDown[\s\S]*?planeGeometry args=\{\[PANEL/);
+    const face = source.match(/position=\{\[0, (-?[\d.]+), [\d.]+\]\}\s*\n\s*onPointerDown[\s\S]*?planeGeometry args=\{\[size\.width/);
     expect(face, "could not find the grab face's position").not.toBeNull();
     expect(Number(face![1]), "the grab face must be centred on the panel").toBe(0);
   });
 
   const barHeight = () => Number(source.match(/const BAR_HEIGHT = ([\d.]+);/)?.[1]);
 
-  it("does not reach as high as the drag bar, which would steal its presses", () => {
-    // The face sits in FRONT of the bar, so any overlap is the face winning.
-    // Both numbers come from the source: this used to assume a 14cm bar
-    // (`top - 0.07`), which would have gone quietly wrong the day the bar
-    // changed — and it did change.
-    const top = Number(source.match(/const top = ([\d.]+);/)?.[1]);
-    expect(Number.isFinite(top)).toBe(true);
-    expect(Number.isFinite(barHeight())).toBe(true);
-    const barBottom = top - barHeight() / 2;
-    expect(PANEL.height / 2, "the face's top edge overlaps the drag bar").toBeLessThanOrEqual(barBottom);
+  it("does not reach as high as the drag bar, which would steal its presses, at any panel's size", () => {
+    // The face sits in FRONT of the bar, so any overlap is the face winning. The
+    // top and the bar's height are read from the source and worked for a room
+    // panel and for a screen-sized one (MyScreen).
+    const topSource = source.match(/const top = size\.height \/ 2 \+ ([\d.]+);/)?.[1];
+    const barSource = source.match(/const barHeight = Math\.min\(BAR_HEIGHT, Math\.max\(([\d.]+), size\.height \* ([\d.]+)\)\);/);
+    expect(topSource).toBeDefined();
+    expect(barSource).not.toBeNull();
+    for (const height of [PANEL.height, 0.62]) {
+      const top = height / 2 + Number(topSource);
+      const bar = Math.min(barHeight(), Math.max(Number(barSource![1]), height * Number(barSource![2])));
+      expect(height / 2, `the face's top edge overlaps the drag bar at ${height} m`).toBeLessThanOrEqual(top - bar / 2);
+    }
   });
 
   it("is a bar you can actually hit from across the room", () => {
@@ -60,7 +62,7 @@ describe("the face you grab an unlocked panel by", () => {
     expect(atFiveMetres, "the drag bar is a sliver from a normal reading distance").toBeGreaterThan(3);
   });
 
-  it("uses PANEL for the bar's width too, so they cannot drift apart", () => {
-    expect(source).toMatch(/boxGeometry args=\{\[PANEL\.width, BAR_HEIGHT,/);
+  it("uses the panel's size for the bar's width too, so they cannot drift apart", () => {
+    expect(source).toMatch(/boxGeometry args=\{\[size\.width, barHeight,/);
   });
 });

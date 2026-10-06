@@ -82,6 +82,7 @@ export function LobbyHall({
   roster,
   peopleRef,
   onSwitchRoom,
+  onReplayWelcome,
 }: {
   you: string | null;
   currentRoom: string | null;
@@ -90,6 +91,8 @@ export function LobbyHall({
   /** Everybody in full, as of the last snapshot. */
   peopleRef: RefObject<WirePerson[]>;
   onSwitchRoom: (roomName: string) => Promise<void>;
+  /** Play the published welcome tutorials again (Nikk, 7241); absent when there are none. */
+  onReplayWelcome?: () => void;
 }) {
   const [mine, setMine] = useState<RoomSummary[] | null>(null);
   const [open, setOpen] = useState<RoomSummary[] | null>(null);
@@ -179,6 +182,10 @@ export function LobbyHall({
       {/* THE WELCOME, beside the doors. */}
       <group position={[WELCOME_AT.x, 0, WELCOME_AT.z]} rotation={[0, facingSpawn(WELCOME_AT.x, WELCOME_AT.z), 0]}>
         <LobbyWelcome />
+        {onReplayWelcome ? (
+          // Under the sign (its bottom edge is 0.9 m up): the tutorial video, again (Nikk, 7241).
+          <WristButton label="Replay tutorial welcome video" y={0.78} width={0.7} height={0.12} tone="accent" onTap={onReplayWelcome} />
+        ) : null}
       </group>
 
       {/* THE MIRROR, and you, drawn for it alone. */}

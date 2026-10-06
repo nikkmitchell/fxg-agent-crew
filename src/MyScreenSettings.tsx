@@ -32,6 +32,7 @@ export function MyScreenSettings() {
         <small className="muted-note">Opens in front of you there; drag its top bar to move it.</small>
       </label>
       {share.problem ? <p className="muted-note">{share.problem}</p> : null}
+      {!on ? <p className="muted-note">Not sharing. Go to <a href={`${base}/share`} target="_blank" rel="noopener noreferrer">saha.ing/share</a> to share your screen, or turn it on here.</p> : null}
     </section>
   );
 }

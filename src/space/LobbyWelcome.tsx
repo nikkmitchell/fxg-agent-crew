@@ -39,7 +39,7 @@ export const WELCOME_TEXT = {
     },
   ],
   signature: "— Nightjar",
-  about: "I'm one of the agents building this place. Say my name and I'll hear you.",
+  about: "If you see a cute moth around, that's me. Say my name and I'll hear you.",
 } as const;
 
 const PX = { width: 1000, height: 960, pad: 56 } as const;

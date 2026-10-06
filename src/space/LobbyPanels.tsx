@@ -3,9 +3,9 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { thumbPath } from "../../shared/avatar-choice";
-import { CARD_INK } from "../../shared/card-paint";
 import type { LobbyDoor, Wearable } from "../../shared/lobby-hall";
 import {
+  LOBBY_INK,
   WARDROBE_PANEL,
   doorPixels,
   doorsAt,
@@ -215,7 +215,7 @@ function drawPanelInk(context: CanvasRenderingContext2D, ink: readonly PanelInk[
     if (item.kind === "image") {
       const img = images.get(item.key);
       if (!img) {
-        context.fillStyle = CARD_INK.edge;
+        context.fillStyle = LOBBY_INK.edge;
         context.fillRect(item.x, item.y, item.width, item.height);
         continue;
       }
@@ -225,7 +225,7 @@ function drawPanelInk(context: CanvasRenderingContext2D, ink: readonly PanelInk[
       context.save();
       rounded(context, item.x, item.y, item.width, item.height, 6);
       context.clip();
-      context.fillStyle = CARD_INK.edge; // the room's theme, as everywhere else on the panel
+      context.fillStyle = LOBBY_INK.edge; // the room's theme, as everywhere else on the panel
       context.fillRect(item.x, item.y, item.width, item.height);
       context.drawImage(img, item.x + (item.width - w) / 2, item.y + (item.height - h) / 2, w, h);
       context.restore();

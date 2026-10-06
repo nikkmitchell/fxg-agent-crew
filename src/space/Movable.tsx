@@ -106,8 +106,18 @@ export function Movable({
   onPlaced,
   onTrouble,
   children,
+  size = PANEL,
+  personal = false,
 }: {
   place: Placement;
+  /** The panel's own size, for the bar along its top. A room panel's unless said. */
+  size?: { width: number; height: number };
+  /**
+   * Somebody's own panel (their screen, MyScreen.tsx), not one of the room's:
+   * nobody else can hold it, so no hold is asked of the server, and it need not
+   * be one of the room's stations to be put down.
+   */
+  personal?: boolean;
   /**
    * Locked, being moved, or being resized — see usePanelArrange.
    *
@@ -270,8 +280,8 @@ export function Movable({
    */
   const cancelled = useRef<(why: string) => void>(() => undefined);
   const hold = useMemo(
-    () => grabHold({ thing: `panel:${place.id}`, api: space.hold, refused: (why) => cancelled.current(why) }),
-    [place.id],
+    () => grabHold({ thing: `panel:${place.id}`, api: personal ? async () => undefined : space.hold, refused: (why) => cancelled.current(why) }),
+    [place.id, personal],
   );
 
   /** Take hold, along a ray, at the point on the panel the ray struck. */
@@ -409,7 +419,7 @@ export function Movable({
       rotationY: (want?.toward ? facingPoint(at.x, at.z, want.toward) : null) ?? node.rotation.y,
       scale,
     };
-    const refused = placementRefusal(next);
+    const refused = personal ? null : placementRefusal(next);
     if (refused) {
       hold.release();
       // Drop the target as well, or the ease carries on pulling the panel back
@@ -507,7 +517,10 @@ export function Movable({
     invalidate();
   }, [dragging, invalidate, place]);
 
-  const top = 1.42;
+  // A room panel's top edge was 1.42 above its middle: half its height and a little.
+  const top = size.height / 2 + 0.17;
+  // The bar is a room panel's, but never more than a fifth of a small panel's height.
+  const barHeight = Math.min(BAR_HEIGHT, Math.max(0.12, size.height * 0.2));
 
   const take = (kind: "move" | "resize") => (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
@@ -570,7 +583,7 @@ export function Movable({
           onPointerMove={steer}
           onPointerUp={letGo}
         >
-          <planeGeometry args={[PANEL.width, PANEL.height]} />
+          <planeGeometry args={[size.width, size.height]} />
           <meshBasicMaterial
             color={mode === "resize" ? "#c9a86f" : "#6f86c9"}
             transparent
@@ -581,16 +594,16 @@ export function Movable({
       ) : null}
 
       {says ? (
-        <group position={[0, top + BAR_HEIGHT / 2 + 0.22, 0.04]}>
+        <group position={[0, top + barHeight / 2 + 0.22, 0.04]}>
           <mesh raycast={noRaycast}>
-            <planeGeometry args={[PANEL.width * 0.9, 0.34]} />
+            <planeGeometry args={[size.width * 0.9, 0.34]} />
             <meshBasicMaterial color={CARD_INK.paperHeld} toneMapped={false} />
           </mesh>
           <Text
             position={[0, 0, 0.005]}
             // About the size of a panel title: readable from where you stood to grab it.
             fontSize={0.17}
-            maxWidth={PANEL.width * 0.85}
+            maxWidth={size.width * 0.85}
             color={CARD_INK.refused}
             anchorX="center"
             anchorY="middle"
@@ -612,7 +625,7 @@ export function Movable({
         onPointerMove={steer}
         onPointerUp={letGo}
       >
-        <boxGeometry args={[PANEL.width, BAR_HEIGHT, 0.06]} />
+        <boxGeometry args={[size.width, barHeight, 0.06]} />
         <meshBasicMaterial
           color={dragging ? "#6f86c9" : "#2b3245"}
           transparent

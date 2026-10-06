@@ -101,7 +101,8 @@ export function WristButton({
   width?: number;
   height?: number;
   glyph?: boolean;
-  tone?: "normal" | "muted" | "live" | "danger";
+  /** "menu" and "accent": the settings menu's and the welcome sign's panel and accent (MENU_INK). */
+  tone?: "normal" | "muted" | "live" | "danger" | "menu" | "accent";
   lines?: number;
   textSize?: number;
   opacity?: number;
@@ -139,7 +140,8 @@ export function WristButton({
   );
   const shape = useMemo(() => roundedRect(width, height), [width, height]);
   const colour =
-    tone === "live" ? "#4f6fd8" : tone === "danger" ? "#b4433e" : tone === "muted" ? "#1a2030" : "#243049";
+    tone === "live" ? "#4f6fd8" : tone === "danger" ? "#b4433e" : tone === "muted" ? "#1a2030"
+      : tone === "menu" ? "#1e2432" : tone === "accent" ? "#4d86ff" : "#243049";
   return (
     <group position={[x, y, 0]}>
       <mesh

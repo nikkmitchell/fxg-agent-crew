@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { PANEL } from "../../shared/space-layout";
+import { AGENT_SCREEN } from "../../shared/screens";
 import type { Placement } from "../../shared/space-wire";
 import { Movable } from "./Movable";
-import { ScreenFace, ScreenLabel } from "./ScreenWall";
+import { ScreenFace } from "./ScreenWall";
 import { useScreenShare } from "./screen-share";
 
 /**
@@ -14,11 +14,12 @@ import { useScreenShare } from "./screen-share";
  * and moves by its top bar the way the settings panel does. Where it is stays
  * in this page: it is yours, not the room's arrangement.
  */
-const WIDTH = PANEL.width;
-const HEIGHT = (PANEL.width * 9) / 16;
+// The size of an agent's screen (Nikk, 7241: a room panel's size was far too big).
+const WIDTH = AGENT_SCREEN.width;
+const HEIGHT = Math.min(AGENT_SCREEN.maxHeight, (AGENT_SCREEN.width * 9) / 16);
 /** How far ahead of the eye it opens: in a headset, a panel's reading distance; in a window the camera stands back from you. */
-const AHEAD_IN_HEADSET = 3.2;
-const AHEAD_IN_WINDOW = 6;
+const AHEAD_IN_HEADSET = 1.3;
+const AHEAD_IN_WINDOW = 4.5;
 
 export function MyScreen({ base, you, onTrouble }: { base: string; you: string; onTrouble: (why: string | null) => void }) {
   const camera = useThree((state) => state.camera);
@@ -32,7 +33,8 @@ export function MyScreen({ base, you, onTrouble }: { base: string; you: string; 
     // A panel's face is +Z: turned to face back toward you.
     return {
       id: `myscreen-${you.toLowerCase()}`,
-      position: { x: at.x + ahead.x * reach, y: 1.65, z: at.z + ahead.z * reach },
+      // Just below the eye in a headset; at a standing person's eye in a window.
+      position: { x: at.x + ahead.x * reach, y: presenting ? Math.max(1, at.y - 0.12) : 1.45, z: at.z + ahead.z * reach },
       rotationY: Math.atan2(-ahead.x, -ahead.z),
     };
   });
@@ -87,19 +89,43 @@ export function MyScreen({ base, you, onTrouble }: { base: string; you: string; 
   }, [base, you]);
 
   return (
-    <Movable place={place} mode="locked" onPlaced={(next) => setPlace(next)} onTrouble={onTrouble}>
-      {texture ? (
-        <ScreenFace texture={texture} width={WIDTH} height={HEIGHT} />
-      ) : (
-        <ScreenLabel text="Not sharing yet: turn on Share my screen" width={WIDTH} height={0.3} />
-      )}
+    <Movable place={place} mode="locked" size={{ width: WIDTH, height: HEIGHT }} personal onPlaced={(next) => setPlace(next)} onTrouble={onTrouble}>
+      {texture ? <ScreenFace texture={texture} width={WIDTH} height={HEIGHT} /> : null}
     </Movable>
   );
 }
 
 /** My screen, while I have asked to see it (either settings menu: screen-share.ts). */
 export function MyScreenHost({ base, you }: { base: string; you: string | null }) {
-  const { shown } = useScreenShare();
+  const { shown, sharing } = useScreenShare();
+  const sharingNow = useSharingNow(base, you, shown) || sharing;
   // Movable says on the panel itself why it would not move; nothing more to show here.
-  return shown && you ? <MyScreen base={base} you={you} onTrouble={() => undefined} /> : null;
+  // Nothing in the space until there is a picture: "not sharing" is said in the settings instead (Nikk, 7241).
+  return shown && you && sharingNow ? <MyScreen base={base} you={you} onTrouble={() => undefined} /> : null;
+}
+
+/** Whether a picture of mine is live (shared from this page or share.html), checked every few seconds while wanted. */
+function useSharingNow(base: string, you: string | null, wanted: boolean): boolean {
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    if (!wanted || !you) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const response = await fetch(`${base}/bff/space/screens`, { credentials: "same-origin", cache: "no-store" });
+        if (!response.ok || cancelled) return;
+        const { screens } = (await response.json()) as { screens: { actorId: string }[] };
+        setLive(screens.some((screen) => screen.actorId.toLowerCase() === you.toLowerCase()));
+      } catch {
+        // Next time.
+      }
+    };
+    void check();
+    const timer = setInterval(() => void check(), 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [base, you, wanted]);
+  return live;
 }

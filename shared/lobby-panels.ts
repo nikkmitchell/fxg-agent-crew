@@ -1,5 +1,5 @@
 import type { Ink } from "./card-paint.js";
-import { CARD_INK, fitLines } from "./card-paint.js";
+import { fitLines } from "./card-paint.js";
 import type { LobbyDoor, Wearable } from "./lobby-hall.js";
 import { pageOf } from "./lobby-hall.js";
 
@@ -13,6 +13,22 @@ import { pageOf } from "./lobby-hall.js";
  * panel's ink on its paper, with its rule that a near miss does nothing. Both are pure here and tested without a renderer; the components draw
  * them and turn presses into calls.
  */
+
+/**
+ * THE WELCOME SIGN'S AND THE SETTINGS MENU'S COLOURS (Nikk, 7241: "adjust the Ui look for rooms and the avatar to be
+ * the same UI coloring and look as nightjars welcome page (its the same as the settings page)"). The same values as
+ * MENU_INK in src/space/menu-paint.ts, which shared code cannot import; change them together.
+ */
+export const LOBBY_INK = {
+  paper: "#1b202c",
+  paperHeld: "rgba(255, 255, 255, 0.055)",
+  edge: "rgba(255, 255, 255, 0.11)",
+  ink: "#eef2fa",
+  muted: "#8e99b3",
+  accent: "#4d86ff",
+  onAccent: "#ffffff",
+  rim: "rgba(255, 255, 255, 0.13)",
+} as const;
 
 // DOORS ----------------------------------------------------------------------------------------------------------
 
@@ -136,48 +152,52 @@ export function paintDoors(layout: DoorLayout, measure: (text: string, size: num
     width: b.width * scale,
     height: b.height * scale,
   });
-  const ink: PanelInk[] = [{ kind: "rect", x: 0, y: 0, width: px.width, height: px.height, fill: CARD_INK.paper, radius: 20 }];
+  // The welcome sign's panel: dark, with a faint light rim.
+  const ink: PanelInk[] = [
+    { kind: "rect", x: 0, y: 0, width: px.width, height: px.height, fill: LOBBY_INK.rim, radius: 22 },
+    { kind: "rect", x: 2, y: 2, width: px.width - 4, height: px.height - 4, fill: LOBBY_INK.paper, radius: 20 },
+  ];
   const padPx = DOOR_PANEL.padding * scale;
   const head = toPx({ x: 0, y: layout.heading.y, width: layout.width, height: layout.heading.height });
-  ink.push({ kind: "text", x: padPx, y: head.y + head.height * 0.72, text: layout.heading.text.toUpperCase(), size: 22, fill: CARD_INK.muted, weight: "bold" });
+  ink.push({ kind: "text", x: padPx, y: head.y + head.height * 0.72, text: layout.heading.text.toUpperCase(), size: 22, fill: LOBBY_INK.muted, weight: "bold" });
   for (const t of layout.tabs) {
     const b = toPx(t);
-    ink.push({ kind: "rect", x: b.x, y: b.y + 3, width: b.width, height: b.height - 6, fill: t.selected ? CARD_INK.accent : CARD_INK.paperHeld, radius: 10 });
-    ink.push({ kind: "text", x: b.x + 18, y: b.y + b.height * 0.64, text: t.label, size: 26, fill: t.selected ? CARD_INK.paper : CARD_INK.ink, weight: t.selected ? "bold" : undefined });
+    ink.push({ kind: "rect", x: b.x, y: b.y + 3, width: b.width, height: b.height - 6, fill: t.selected ? LOBBY_INK.accent : LOBBY_INK.paperHeld, radius: 10 });
+    ink.push({ kind: "text", x: b.x + 18, y: b.y + b.height * 0.64, text: t.label, size: 26, fill: t.selected ? LOBBY_INK.onAccent : LOBBY_INK.ink, weight: t.selected ? "bold" : undefined });
   }
   for (const tile of layout.tiles) {
     const b = toPx(tile);
     const name = tile.door.label ?? tile.door.room;
     const textHeight = 70;
-    if (tile.here) ink.push({ kind: "rect", x: b.x - 2, y: b.y - 2, width: b.width + 4, height: b.height + 4, fill: CARD_INK.accent, radius: 12 });
-    ink.push({ kind: "rect", x: b.x + 4, y: b.y + 4, width: b.width - 8, height: b.height - 8, fill: CARD_INK.paperHeld, radius: 9 });
+    if (tile.here) ink.push({ kind: "rect", x: b.x - 2, y: b.y - 2, width: b.width + 4, height: b.height + 4, fill: LOBBY_INK.accent, radius: 12 });
+    ink.push({ kind: "rect", x: b.x + 4, y: b.y + 4, width: b.width - 8, height: b.height - 8, fill: LOBBY_INK.paperHeld, radius: 9 });
     const plate = { x: b.x + 8, y: b.y + 8, width: b.width - 16, height: b.height - 16 - textHeight };
     ink.push({ kind: "rect", ...plate, fill: doorColour(tile.door.room), radius: 6 });
     const initial = (name.match(/[\p{L}\p{N}]/u)?.[0] ?? "?").toUpperCase();
     ink.push({ kind: "text", x: plate.x + plate.width / 2, y: plate.y + plate.height * 0.68, text: initial, size: Math.round(plate.height * 0.55), fill: "#ffffff", weight: "bold", align: "center" });
     const [line] = fitLines(measure, name, 24, b.width - 20, 1);
-    ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height - 42, text: line ?? "", size: 24, fill: tile.here ? CARD_INK.accent : CARD_INK.ink, weight: "bold", align: "center" });
+    ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height - 42, text: line ?? "", size: 24, fill: tile.here ? LOBBY_INK.accent : LOBBY_INK.ink, weight: "bold", align: "center" });
     const [sub] = fitLines(measure, tile.going ? "opening…" : [action(tile.door), tile.door.detail].filter(Boolean).join(" · "), 19, b.width - 20, 1);
-    ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height - 14, text: sub ?? "", size: 19, fill: CARD_INK.muted, align: "center" });
+    ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height - 14, text: sub ?? "", size: 19, fill: LOBBY_INK.muted, align: "center" });
   }
   if (layout.note) {
     const top = toPx({ x: 0, y: layout.tabs[0].y - layout.tabs[0].height, width: layout.width, height: 0.1 });
     for (const line of fitLines(measure, layout.note, 24, px.width - padPx * 2, 2)) {
-      ink.push({ kind: "text", x: padPx, y: top.y + 40, text: line, size: 24, fill: CARD_INK.muted });
+      ink.push({ kind: "text", x: padPx, y: top.y + 40, text: line, size: 24, fill: LOBBY_INK.muted });
     }
   }
   if (layout.pager) {
     for (const [glyph, box] of [["‹", layout.pager.less], ["›", layout.pager.more]] as const) {
       const b = toPx(box);
-      ink.push({ kind: "rect", x: b.x + 3, y: b.y + 3, width: b.width - 6, height: b.height - 6, fill: CARD_INK.edge, radius: 8 });
-      ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height * 0.68, text: glyph, size: 34, fill: CARD_INK.ink, weight: "bold", align: "center" });
+      ink.push({ kind: "rect", x: b.x + 3, y: b.y + 3, width: b.width - 6, height: b.height - 6, fill: LOBBY_INK.edge, radius: 8 });
+      ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height * 0.68, text: glyph, size: 34, fill: LOBBY_INK.ink, weight: "bold", align: "center" });
     }
     const after = toPx(layout.pager.more);
-    ink.push({ kind: "text", x: after.x + after.width + 16, y: after.y + after.height * 0.64, text: `${layout.pager.page + 1} of ${layout.pager.pages}`, size: 24, fill: CARD_INK.muted, weight: "bold" });
+    ink.push({ kind: "text", x: after.x + after.width + 16, y: after.y + after.height * 0.64, text: `${layout.pager.page + 1} of ${layout.pager.pages}`, size: 24, fill: LOBBY_INK.muted, weight: "bold" });
   }
   const r = toPx(layout.refresh);
-  ink.push({ kind: "rect", x: r.x + 3, y: r.y + 3, width: r.width - 6, height: r.height - 6, fill: CARD_INK.edge, radius: 8 });
-  ink.push({ kind: "text", x: r.x + r.width / 2, y: r.y + r.height * 0.64, text: "Look again", size: 22, fill: CARD_INK.ink, weight: "bold", align: "center" });
+  ink.push({ kind: "rect", x: r.x + 3, y: r.y + 3, width: r.width - 6, height: r.height - 6, fill: LOBBY_INK.edge, radius: 8 });
+  ink.push({ kind: "text", x: r.x + r.width / 2, y: r.y + r.height * 0.64, text: "Look again", size: 22, fill: LOBBY_INK.ink, weight: "bold", align: "center" });
   return ink;
 }
 
@@ -289,43 +309,47 @@ export function paintWardrobe(layout: WardrobeLayout, measure: (text: string, si
     width: b.width * scale,
     height: b.height * scale,
   });
-  const ink: PanelInk[] = [{ kind: "rect", x: 0, y: 0, width: px.width, height: px.height, fill: CARD_INK.paper, radius: 20 }];
+  // The welcome sign's panel: dark, with a faint light rim.
+  const ink: PanelInk[] = [
+    { kind: "rect", x: 0, y: 0, width: px.width, height: px.height, fill: LOBBY_INK.rim, radius: 22 },
+    { kind: "rect", x: 2, y: 2, width: px.width - 4, height: px.height - 4, fill: LOBBY_INK.paper, radius: 20 },
+  ];
   const padPx = WARDROBE_PANEL.padding * scale;
   const head = toPx({ x: 0, y: layout.heading.y, width: layout.width, height: layout.heading.height });
-  ink.push({ kind: "text", x: padPx, y: head.y + head.height * 0.72, text: layout.heading.text.toUpperCase(), size: 22, fill: CARD_INK.muted, weight: "bold" });
+  ink.push({ kind: "text", x: padPx, y: head.y + head.height * 0.72, text: layout.heading.text.toUpperCase(), size: 22, fill: LOBBY_INK.muted, weight: "bold" });
   for (const t of layout.tabs) {
     const b = toPx(t);
-    ink.push({ kind: "rect", x: b.x, y: b.y + 3, width: b.width, height: b.height - 6, fill: t.selected ? CARD_INK.accent : CARD_INK.paperHeld, radius: 10 });
-    ink.push({ kind: "text", x: b.x + 18, y: b.y + b.height * 0.64, text: t.label, size: 26, fill: t.selected ? CARD_INK.paper : CARD_INK.ink, weight: t.selected ? "bold" : undefined });
+    ink.push({ kind: "rect", x: b.x, y: b.y + 3, width: b.width, height: b.height - 6, fill: t.selected ? LOBBY_INK.accent : LOBBY_INK.paperHeld, radius: 10 });
+    ink.push({ kind: "text", x: b.x + 18, y: b.y + b.height * 0.64, text: t.label, size: 26, fill: t.selected ? LOBBY_INK.onAccent : LOBBY_INK.ink, weight: t.selected ? "bold" : undefined });
   }
   for (const tile of layout.tiles) {
     const b = toPx(tile);
     const nameHeight = 34;
-    if (tile.worn) ink.push({ kind: "rect", x: b.x - 2, y: b.y - 2, width: b.width + 4, height: b.height + 4, fill: CARD_INK.accent, radius: 12 });
-    ink.push({ kind: "rect", x: b.x + 4, y: b.y + 4, width: b.width - 8, height: b.height - 8, fill: CARD_INK.paperHeld, radius: 9 });
+    if (tile.worn) ink.push({ kind: "rect", x: b.x - 2, y: b.y - 2, width: b.width + 4, height: b.height + 4, fill: LOBBY_INK.accent, radius: 12 });
+    ink.push({ kind: "rect", x: b.x + 4, y: b.y + 4, width: b.width - 8, height: b.height - 8, fill: LOBBY_INK.paperHeld, radius: 9 });
     const picture = { x: b.x + 8, y: b.y + 8, width: b.width - 16, height: b.height - 16 - nameHeight };
     if (tile.body.pictured) ink.push({ kind: "image", key: tile.body.key, ...picture });
-    else ink.push({ kind: "rect", ...picture, fill: CARD_INK.edge, radius: 6 });
+    else ink.push({ kind: "rect", ...picture, fill: LOBBY_INK.edge, radius: 6 });
     const [name] = fitLines(measure, tile.busy ? "…" : tile.body.name, 22, b.width - 20, 1);
     ink.push({
       kind: "text", x: b.x + b.width / 2, y: b.y + b.height - 14, text: name ?? "", size: 22,
-      fill: tile.worn ? CARD_INK.accent : CARD_INK.ink, weight: tile.worn ? "bold" : undefined, align: "center",
+      fill: tile.worn ? LOBBY_INK.accent : LOBBY_INK.ink, weight: tile.worn ? "bold" : undefined, align: "center",
     });
   }
   if (layout.note) {
     const top = toPx({ x: 0, y: layout.tabs[0].y - layout.tabs[0].height, width: layout.width, height: 0.1 });
     for (const line of fitLines(measure, layout.note, 24, px.width - padPx * 2, 2)) {
-      ink.push({ kind: "text", x: padPx, y: top.y + 40, text: line, size: 24, fill: CARD_INK.muted });
+      ink.push({ kind: "text", x: padPx, y: top.y + 40, text: line, size: 24, fill: LOBBY_INK.muted });
     }
   }
   if (layout.pager) {
     for (const [glyph, box] of [["‹", layout.pager.less], ["›", layout.pager.more]] as const) {
       const b = toPx(box);
-      ink.push({ kind: "rect", x: b.x + 3, y: b.y + 3, width: b.width - 6, height: b.height - 6, fill: CARD_INK.edge, radius: 8 });
-      ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height * 0.68, text: glyph, size: 34, fill: CARD_INK.ink, weight: "bold", align: "center" });
+      ink.push({ kind: "rect", x: b.x + 3, y: b.y + 3, width: b.width - 6, height: b.height - 6, fill: LOBBY_INK.edge, radius: 8 });
+      ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height * 0.68, text: glyph, size: 34, fill: LOBBY_INK.ink, weight: "bold", align: "center" });
     }
     const mid = toPx({ x: 0, y: layout.pager.y, width: 0, height: layout.pager.height });
-    ink.push({ kind: "text", x: px.width / 2, y: mid.y + mid.height * 0.64, text: `${layout.pager.page + 1} of ${layout.pager.pages}`, size: 24, fill: CARD_INK.muted, weight: "bold", align: "center" });
+    ink.push({ kind: "text", x: px.width / 2, y: mid.y + mid.height * 0.64, text: `${layout.pager.page + 1} of ${layout.pager.pages}`, size: 24, fill: LOBBY_INK.muted, weight: "bold", align: "center" });
   }
   return ink;
 }

@@ -250,6 +250,8 @@ function meSections(s: SettingsMenuInput): MenuSection[] {
           : { kind: "toggle", label: "Share my screen", detail: "Share from saha.ing in a desktop browser", on: sc.sharing, disabled: !sc.sharing, onTap: () => sc.setSharing(false) },
         { kind: "toggle", label: "Show my screen", detail: sc.shown ? "Drag its top bar to move it" : "Opens in front of you", on: sc.shown, onTap: () => sc.setShown(!sc.shown) },
         ...(sc.problem ? [note(sc.problem)] : []),
+        // Not sharing: say how, here, rather than an empty screen in the room (Nikk, 7241).
+        ...(!sc.sharing && !sc.starting ? [note("Not sharing. Go to saha.ing/share to share your screen.")] : []),
       ],
     });
   }

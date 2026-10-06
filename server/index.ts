@@ -792,6 +792,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   });
   app.addHook("onClose", async () => spaceLive.stop());
 
+  // saha.ing/share: the short address for sharing your screen (Nikk, 7241), kept with its query and fragment-free.
+  app.get("/share", (request, reply) => reply.redirect(`/share.html${request.url.slice("/share".length)}`));
+
   app.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith(`${basePath}/bff/`)) return reply.code(404).send({ error: "not found" });
     // /api/ IS RESERVED, and stays reserved now that the app owns `/`.

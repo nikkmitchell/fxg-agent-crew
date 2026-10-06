@@ -884,6 +884,7 @@ export default function Scene({
             roster={connection.roster}
             peopleRef={connection.peopleRef}
             onSwitchRoom={onSwitchRoom}
+            onReplayWelcome={avatarRecorder.published.length ? () => avatarRecorder.playWelcome() : undefined}
           /><AvatarReplay recorder={avatarRecorder} /></>
         ) : null}
         {(isLobby(spaceRoomName) || finishedHere ? [] : openPanels)

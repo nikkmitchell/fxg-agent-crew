@@ -1737,7 +1737,7 @@ export function RoomControls({
         {upVisible && !open ? (
           <>
             {/* Half see-through, and the call button is gone from beside it (Nikk, 5426). */}
-            <WristButton label="⚙" glyph x={0} y={0} width={UP_GEAR_SIZE} height={UP_GEAR_SIZE} opacity={0.5} onTap={openMenu} />
+            <WristButton label="⚙" glyph tone="menu" x={0} y={0} width={UP_GEAR_SIZE} height={UP_GEAR_SIZE} opacity={0.75} onTap={openMenu} />
           </>
         ) : null}
       </group>
