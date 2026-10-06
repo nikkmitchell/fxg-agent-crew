@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { LobbyDoor, Wearable } from "./lobby-hall";
-import { layOutSettings, settingAt } from "./settings-3d";
 import {
   BODIES_PER_PAGE,
   DOOR_PANEL,
   DOORS_PER_PAGE,
   WARDROBE_PANEL,
-  doorItems,
+  doorColour,
+  doorPixels,
+  doorsAt,
+  layOutDoors,
   layOutWardrobe,
+  paintDoors,
   paintWardrobe,
   wardrobeAt,
   wardrobePixels,
@@ -16,50 +19,56 @@ import {
 const door = (room: string, kind: LobbyDoor["kind"] = "enter", detail = ""): LobbyDoor => ({ room, kind, detail });
 const measure = (text: string, size: number) => text.length * size * 0.5;
 
-describe("the doors panel (Nikk2, 6974: the settings template)", () => {
-  const work = [door("saha.ing", "here"), ...Array.from({ length: 8 }, (_, i) => door(`room-${i}`, i % 2 ? "join" : "enter", "public"))];
+describe("the doors panel: thumbnails under tabs, like the wardrobe (Nikk, 7227)", () => {
+  const work = [door("saha.ing", "here"), ...Array.from({ length: 10 }, (_, i) => door(`room-${i}`, i % 2 ? "join" : "enter", "public"))];
   const split = { finished: [{ ...door("desert-camp", "join", "finished space"), label: "Desert Camp" }], work };
 
-  it("is two tabs with their counts, then the doors of the chosen tab, then a pager and a refresh", () => {
-    const { items, pages } = doorItems(split, "work", 0, false);
-    expect(items.slice(0, 3)).toEqual([
-      { kind: "heading", label: "Rooms · tap one to go" },
-      { kind: "choice", id: "tab:finished", label: "Finished spaces · 1", selected: false },
-      { kind: "choice", id: "tab:work", label: "Work rooms · 9", selected: true },
-    ]);
-    expect(pages).toBe(2);
-    expect(items.filter((i) => "id" in i && i.id.startsWith("door:"))).toHaveLength(DOORS_PER_PAGE);
-    expect(items.at(-2)).toEqual({ kind: "stepper", id: "page", label: "Page", value: "1 of 2" });
-    expect(items.at(-1)).toMatchObject({ id: "refresh" });
+  it("puts the two tabs at the top with their counts, then nine doors a page, then a pager and Look again", () => {
+    const layout = layOutDoors(split, "work", 0, false);
+    expect(layout.tabs.map((t) => [t.id, t.label, t.selected])).toEqual([["tab:finished", "Finished spaces · 1", false], ["tab:work", "Work rooms · 11", true]]);
+    expect(layout.tiles).toHaveLength(DOORS_PER_PAGE);
+    expect(layout.pager).toMatchObject({ page: 0, pages: 2 });
+    expect(Math.min(...layout.tabs.map((t) => t.y))).toBeGreaterThan(Math.max(...layout.tiles.map((t) => t.y)));
+    expect(layOutDoors(split, "work", 1, false).tiles).toHaveLength(2);
   });
 
-  it("marks the room you stand in as the chosen one, and says what pressing each other door does", () => {
-    const { items } = doorItems(split, "work", 0, false);
-    expect(items[3]).toEqual({ kind: "choice", id: "door:0", label: "saha.ing · you are here", selected: true });
-    expect(items[4]).toEqual({ kind: "cycle", id: "door:1", label: "room-0 · public", value: "enter" });
-    expect(items[5]).toMatchObject({ value: "join" });
-    const finished = doorItems(split, "finished", 0, false).items;
-    expect(finished[3]).toEqual({ kind: "cycle", id: "door:0", label: "Desert Camp · finished space", value: "join" });
+  it("rings the room you stand in, and says what each other door does", () => {
+    const layout = layOutDoors(split, "work", 0, false);
+    expect(layout.tiles[0]).toMatchObject({ here: true });
+    const ink = paintDoors(layout, measure);
+    expect(ink.some((i) => i.kind === "text" && i.text === "enter · public")).toBe(true);
+    expect(ink.some((i) => i.kind === "text" && i.text === "join · public")).toBe(true);
+    expect(paintDoors(layOutDoors(split, "finished", 0, false), measure).some((i) => i.kind === "text" && i.text === "Desert Camp")).toBe(true);
   });
 
-  it("keeps the pager where it was on a short last page", () => {
-    const first = layOutSettings(doorItems(split, "work", 0, false).items, DOOR_PANEL);
-    const last = layOutSettings(doorItems(split, "work", 1, false).items, DOOR_PANEL);
-    const pagerY = (l: typeof first) => l.targets.find((t) => t.id === "page:more")?.y;
-    expect(pagerY(last)).toBe(pagerY(first));
+  it("gives every room its own colour, always the same, and shows a door opening", () => {
+    expect(doorColour("saha.ing")).toBe(doorColour("SAHA.ING"));
+    expect(new Set(work.map((d) => doorColour(d.room))).size).toBeGreaterThan(3);
+    const ink = paintDoors(layOutDoors(split, "work", 0, false, "room-0"), measure);
+    expect(ink.some((i) => i.kind === "text" && i.text === "opening…")).toBe(true);
   });
 
-  it("fits on its panel with nothing hidden, and every row can be pressed exactly", () => {
-    const layout = layOutSettings(doorItems(split, "work", 0, false).items, DOOR_PANEL);
-    expect(layout.hidden).toBe(0);
-    for (const t of layout.targets) {
-      expect(settingAt(layout, { x: t.x / layout.width + 0.5, y: t.y / layout.height + 0.5 })).toBe(t.id);
+  it("answers a press exactly: a tile goes, a tab switches, the gap between does nothing", () => {
+    const layout = layOutDoors(split, "work", 0, false);
+    const uv = (x: number, y: number) => ({ x: x / layout.width + 0.5, y: y / layout.height + 0.5 });
+    const [first, second] = layout.tiles;
+    expect(doorsAt(layout, uv(second.x, second.y))).toBe("door:1");
+    expect(doorsAt(layout, uv((first.x + first.width / 2 + second.x - second.width / 2) / 2, first.y))).toBeNull();
+    expect(doorsAt(layout, uv(layout.tabs[0].x, layout.tabs[0].y))).toBe("tab:finished");
+    expect(doorsAt(layout, uv(layout.pager!.more.x, layout.pager!.more.y))).toBe("page:more");
+    expect(doorsAt(layout, uv(layout.refresh.x, layout.refresh.y))).toBe("refresh");
+  });
+
+  it("keeps every tile on the panel and apart, and says so when a tab is empty or loading", () => {
+    const layout = layOutDoors(split, "work", 0, false);
+    for (const t of layout.tiles) {
+      expect(Math.abs(t.x) + t.width / 2).toBeLessThanOrEqual(DOOR_PANEL.width / 2);
+      expect(Math.abs(t.y) + t.height / 2).toBeLessThanOrEqual(DOOR_PANEL.height / 2);
     }
-  });
-
-  it("says so when a tab is empty, and while the list is loading", () => {
-    expect(doorItems({ finished: [], work: [] }, "finished", 0, false).items).toContainEqual({ kind: "note", label: "Nothing has been published as a finished space yet." });
-    expect(doorItems({ finished: [], work: [] }, "work", 0, true).items[0]).toEqual({ kind: "heading", label: "Rooms · finding them…" });
+    expect(layOutDoors({ finished: [], work: [] }, "finished", 0, false).note).toMatch(/finished space/);
+    expect(layOutDoors({ finished: [], work: [] }, "work", 0, true).heading.text).toMatch(/finding/);
+    const px = doorPixels();
+    expect(px.width / px.height).toBeCloseTo(DOOR_PANEL.width / DOOR_PANEL.height, 2);
   });
 });
 

@@ -2,7 +2,6 @@ import type { Ink } from "./card-paint.js";
 import { CARD_INK, fitLines } from "./card-paint.js";
 import type { LobbyDoor, Wearable } from "./lobby-hall.js";
 import { pageOf } from "./lobby-hall.js";
-import { SETTINGS, type SettingsItem, type SettingsSize } from "./settings-3d.js";
 
 /**
  * THE LOBBY'S DOORS AND WARDROBE, DRAWN LIKE THE SETTINGS PANEL (Nikk2, 6974):
@@ -10,58 +9,176 @@ import { SETTINGS, type SettingsItem, type SettingsSize } from "./settings-3d.js
  * selector are still the old ugly UI, can you update those to use the same UI
  * template as we have in personal settings".
  *
- * The doors are settings rows, so they ARE the settings panel: the same paper,
- * plates, accent and exact hit-testing (shared/settings-3d.ts). The wardrobe
- * needs pictures, which rows cannot hold, so it is a grid of tiles painted in
- * the same ink on the same paper, with the same rule that a near miss does
- * nothing. Both are pure here and tested without a renderer; the components draw
+ * Both are grids of tiles under tabs (Nikk, 7227), painted in the settings
+ * panel's ink on its paper, with its rule that a near miss does nothing. Both are pure here and tested without a renderer; the components draw
  * them and turn presses into calls.
  */
 
 // DOORS ----------------------------------------------------------------------------------------------------------
 
-export const DOOR_PANEL: SettingsSize = { ...SETTINGS, width: 1.5, height: 1.72 };
-/** How many doors fit under the heading, the two tabs and the pager at that size. */
-export const DOORS_PER_PAGE = 6;
+/**
+ * THE DOORS AS THUMBNAILS, TABS ON TOP, LIKE THE WARDROBE (Nikk, 7227): "now it
+ * is better looking, but its method is bad, it should still be a bunch of
+ * thumbnails, and the tabs should be at the top, like what is done with the
+ * avatars". A room has no picture yet, so its tile is a plate in the room's own
+ * colour with its initial: the same room is always the same colour, which is
+ * what lets a grid be read at a glance.
+ */
+export const DOOR_PANEL = { width: 1.5, height: 1.72, padding: 0.05, columns: 3, rows: 3, gap: 0.022, bar: 0.11 } as const;
+export const DOORS_PER_PAGE = DOOR_PANEL.columns * DOOR_PANEL.rows;
 
 export type DoorTab = "finished" | "work";
 
 const action = (door: LobbyDoor) =>
   door.kind === "here" ? "you are here" : door.kind === "join" ? "join" : door.kind === "space" ? "visit" : "enter";
 
+/** Muted plates that read under the room's light and theme alike, white initials on each. */
+const DOOR_COLOURS = ["#5b6f8f", "#8a5a6e", "#4f7d6b", "#9a6b3f", "#6d5a8f", "#3f7a8c", "#8c4f45", "#5f7f3e"];
+/** The same room is always the same colour. */
+export const doorColour = (room: string): string => {
+  let h = 0;
+  for (const c of room.toLowerCase()) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return DOOR_COLOURS[h % DOOR_COLOURS.length];
+};
+
+export type DoorTile = { door: LobbyDoor; index: number; x: number; y: number; width: number; height: number; here: boolean; going: boolean };
+export type DoorLayout = {
+  width: number;
+  height: number;
+  heading: { y: number; height: number; text: string };
+  tabs: { id: string; label: string; selected: boolean; x: number; y: number; width: number; height: number }[];
+  tiles: DoorTile[];
+  pager: { y: number; height: number; page: number; pages: number; less: Box; more: Box } | null;
+  refresh: Box;
+  note: string | null;
+};
+
 /**
- * The rows of the doors panel. Ids: `tab:finished`, `tab:work`, `door:<index into the shown list>`,
- * `page:less` / `page:more`, `refresh`.
+ * Ids: `tab:finished`, `tab:work`, `door:<index into the shown page>`, `page:less`, `page:more`, `refresh`.
+ * `going` is the room a door is opening to, shown on its tile.
  */
-export function doorItems(
+export function layOutDoors(
   split: { finished: readonly LobbyDoor[]; work: readonly LobbyDoor[] },
   tab: DoorTab,
   page: number,
   loading: boolean,
-): { items: SettingsItem[]; shown: LobbyDoor[]; page: number; pages: number } {
+  going: string | null = null,
+): DoorLayout {
+  const P = DOOR_PANEL;
   const doors = tab === "finished" ? split.finished : split.work;
   const shown = pageOf(doors, DOORS_PER_PAGE, page);
-  const items: SettingsItem[] = [
-    { kind: "heading", label: loading ? "Rooms · finding them…" : "Rooms · tap one to go" },
-    { kind: "choice", id: "tab:finished", label: `Finished spaces · ${split.finished.length}`, selected: tab === "finished" },
-    { kind: "choice", id: "tab:work", label: `Work rooms · ${split.work.length}`, selected: tab === "work" },
-  ];
-  if (!loading && doors.length === 0) {
-    items.push({ kind: "note", label: tab === "finished" ? "Nothing has been published as a finished space yet." : "No rooms yet." });
-  }
-  shown.items.forEach((door, index) => {
-    const name = door.label ?? door.room;
-    const detail = door.detail ? ` · ${door.detail}` : "";
-    // The room you stand in is the chosen one, in the accent; every other door says what pressing it does.
-    if (door.kind === "here") items.push({ kind: "choice", id: `door:${index}`, label: `${name} · you are here`, selected: true });
-    else items.push({ kind: "cycle", id: `door:${index}`, label: `${name}${detail}`, value: action(door) });
+  const left = -P.width / 2 + P.padding;
+  const inner = P.width - P.padding * 2;
+  let y = P.height / 2 - P.padding;
+  const heading = { y: y - P.bar / 2, height: P.bar, text: loading ? "Rooms · finding them…" : "Rooms · tap one to go" };
+  y -= P.bar + P.gap;
+  const tabWidth = (inner - P.gap) / 2;
+  const tabs = [
+    { id: "tab:finished", label: `Finished spaces · ${split.finished.length}`, selected: tab === "finished" },
+    { id: "tab:work", label: `Work rooms · ${split.work.length}`, selected: tab === "work" },
+  ].map((t, i) => ({ ...t, x: left + tabWidth / 2 + i * (tabWidth + P.gap), y: y - P.bar / 2, width: tabWidth, height: P.bar }));
+  y -= P.bar + P.gap;
+  const pagerY = -P.height / 2 + P.padding + P.bar / 2;
+  const gridBottom = -P.height / 2 + P.padding + P.bar + P.gap;
+  const tileWidth = (inner - P.gap * (P.columns - 1)) / P.columns;
+  const tileHeight = (y - gridBottom - P.gap * (P.rows - 1)) / P.rows;
+  const tiles = shown.items.map((door, index) => {
+    const column = index % P.columns, row = Math.floor(index / P.columns);
+    return {
+      door, index,
+      x: left + tileWidth / 2 + column * (tileWidth + P.gap),
+      y: y - tileHeight / 2 - row * (tileHeight + P.gap),
+      width: tileWidth, height: tileHeight,
+      here: door.kind === "here",
+      going: going !== null && door.room === going,
+    };
   });
-  for (let i = shown.items.length; i < DOORS_PER_PAGE && doors.length > DOORS_PER_PAGE; i += 1) {
-    items.push({ kind: "note", label: "" }); // keep the pager where it was on a short last page
+  const stepWidth = inner * 0.14;
+  const refreshWidth = inner * 0.3;
+  const pager = shown.pages > 1
+    ? {
+      y: pagerY, height: P.bar, page: shown.page, pages: shown.pages,
+      less: { x: left + stepWidth / 2, y: pagerY, width: stepWidth, height: P.bar },
+      more: { x: left + stepWidth * 1.5 + P.gap, y: pagerY, width: stepWidth, height: P.bar },
+    }
+    : null;
+  const refresh = { x: left + inner - refreshWidth / 2, y: pagerY, width: refreshWidth, height: P.bar };
+  const note = !loading && doors.length === 0
+    ? tab === "finished" ? "Nothing has been published as a finished space yet." : "No rooms yet."
+    : null;
+  return { width: P.width, height: P.height, heading, tabs, tiles, pager, refresh, note };
+}
+
+/** Which control is under a point, in uv. Exact: a near miss does nothing. */
+export function doorsAt(layout: DoorLayout, uv: { x: number; y: number }): string | null {
+  const p = { x: (uv.x - 0.5) * layout.width, y: (uv.y - 0.5) * layout.height };
+  const inside = (b: Box) => Math.abs(p.x - b.x) <= b.width / 2 && Math.abs(p.y - b.y) <= b.height / 2;
+  for (const t of layout.tabs) if (inside(t)) return t.id;
+  for (const t of layout.tiles) if (inside(t)) return `door:${t.index}`;
+  if (layout.pager) {
+    if (inside(layout.pager.less)) return "page:less";
+    if (inside(layout.pager.more)) return "page:more";
   }
-  if (shown.pages > 1) items.push({ kind: "stepper", id: "page", label: "Page", value: `${shown.page + 1} of ${shown.pages}` });
-  items.push({ kind: "cycle", id: "refresh", label: "Look again for rooms", value: "refresh" });
-  return { items, shown: shown.items, page: shown.page, pages: shown.pages };
+  if (inside(layout.refresh)) return "refresh";
+  return null;
+}
+
+export function doorPixels(): { width: number; height: number } {
+  return { width: 1024, height: Math.round((1024 * DOOR_PANEL.height) / DOOR_PANEL.width) };
+}
+
+export function paintDoors(layout: DoorLayout, measure: (text: string, size: number) => number): PanelInk[] {
+  const px = doorPixels();
+  const scale = px.width / layout.width;
+  const toPx = (b: Box) => ({
+    x: (b.x - b.width / 2 + layout.width / 2) * scale,
+    y: (layout.height / 2 - (b.y + b.height / 2)) * scale,
+    width: b.width * scale,
+    height: b.height * scale,
+  });
+  const ink: PanelInk[] = [{ kind: "rect", x: 0, y: 0, width: px.width, height: px.height, fill: CARD_INK.paper, radius: 20 }];
+  const padPx = DOOR_PANEL.padding * scale;
+  const head = toPx({ x: 0, y: layout.heading.y, width: layout.width, height: layout.heading.height });
+  ink.push({ kind: "text", x: padPx, y: head.y + head.height * 0.72, text: layout.heading.text.toUpperCase(), size: 22, fill: CARD_INK.muted, weight: "bold" });
+  for (const t of layout.tabs) {
+    const b = toPx(t);
+    ink.push({ kind: "rect", x: b.x, y: b.y + 3, width: b.width, height: b.height - 6, fill: t.selected ? CARD_INK.accent : CARD_INK.paperHeld, radius: 10 });
+    ink.push({ kind: "text", x: b.x + 18, y: b.y + b.height * 0.64, text: t.label, size: 26, fill: t.selected ? CARD_INK.paper : CARD_INK.ink, weight: t.selected ? "bold" : undefined });
+  }
+  for (const tile of layout.tiles) {
+    const b = toPx(tile);
+    const name = tile.door.label ?? tile.door.room;
+    const textHeight = 70;
+    if (tile.here) ink.push({ kind: "rect", x: b.x - 2, y: b.y - 2, width: b.width + 4, height: b.height + 4, fill: CARD_INK.accent, radius: 12 });
+    ink.push({ kind: "rect", x: b.x + 4, y: b.y + 4, width: b.width - 8, height: b.height - 8, fill: CARD_INK.paperHeld, radius: 9 });
+    const plate = { x: b.x + 8, y: b.y + 8, width: b.width - 16, height: b.height - 16 - textHeight };
+    ink.push({ kind: "rect", ...plate, fill: doorColour(tile.door.room), radius: 6 });
+    const initial = (name.match(/[\p{L}\p{N}]/u)?.[0] ?? "?").toUpperCase();
+    ink.push({ kind: "text", x: plate.x + plate.width / 2, y: plate.y + plate.height * 0.68, text: initial, size: Math.round(plate.height * 0.55), fill: "#ffffff", weight: "bold", align: "center" });
+    const [line] = fitLines(measure, name, 24, b.width - 20, 1);
+    ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height - 42, text: line ?? "", size: 24, fill: tile.here ? CARD_INK.accent : CARD_INK.ink, weight: "bold", align: "center" });
+    const [sub] = fitLines(measure, tile.going ? "opening…" : [action(tile.door), tile.door.detail].filter(Boolean).join(" · "), 19, b.width - 20, 1);
+    ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height - 14, text: sub ?? "", size: 19, fill: CARD_INK.muted, align: "center" });
+  }
+  if (layout.note) {
+    const top = toPx({ x: 0, y: layout.tabs[0].y - layout.tabs[0].height, width: layout.width, height: 0.1 });
+    for (const line of fitLines(measure, layout.note, 24, px.width - padPx * 2, 2)) {
+      ink.push({ kind: "text", x: padPx, y: top.y + 40, text: line, size: 24, fill: CARD_INK.muted });
+    }
+  }
+  if (layout.pager) {
+    for (const [glyph, box] of [["‹", layout.pager.less], ["›", layout.pager.more]] as const) {
+      const b = toPx(box);
+      ink.push({ kind: "rect", x: b.x + 3, y: b.y + 3, width: b.width - 6, height: b.height - 6, fill: CARD_INK.edge, radius: 8 });
+      ink.push({ kind: "text", x: b.x + b.width / 2, y: b.y + b.height * 0.68, text: glyph, size: 34, fill: CARD_INK.ink, weight: "bold", align: "center" });
+    }
+    const after = toPx(layout.pager.more);
+    ink.push({ kind: "text", x: after.x + after.width + 16, y: after.y + after.height * 0.64, text: `${layout.pager.page + 1} of ${layout.pager.pages}`, size: 24, fill: CARD_INK.muted, weight: "bold" });
+  }
+  const r = toPx(layout.refresh);
+  ink.push({ kind: "rect", x: r.x + 3, y: r.y + 3, width: r.width - 6, height: r.height - 6, fill: CARD_INK.edge, radius: 8 });
+  ink.push({ kind: "text", x: r.x + r.width / 2, y: r.y + r.height * 0.64, text: "Look again", size: 22, fill: CARD_INK.ink, weight: "bold", align: "center" });
+  return ink;
 }
 
 // WARDROBE -------------------------------------------------------------------------------------------------------

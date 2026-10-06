@@ -6,10 +6,12 @@ import { thumbPath } from "../../shared/avatar-choice";
 import { CARD_INK } from "../../shared/card-paint";
 import type { LobbyDoor, Wearable } from "../../shared/lobby-hall";
 import {
-  DOOR_PANEL,
   WARDROBE_PANEL,
-  doorItems,
+  doorPixels,
+  doorsAt,
+  layOutDoors,
   layOutWardrobe,
+  paintDoors,
   paintWardrobe,
   wardrobeAt,
   wardrobePixels,
@@ -20,7 +22,6 @@ import {
 import { base } from "../router";
 import { makeInkCanvas, measureWith } from "./ink-canvas";
 import { claimPointer } from "./pointer-claim";
-import { SettingsPanel3D } from "./SettingsPanel3D";
 
 /**
  * THE LOBBY'S DOORS AND WARDROBE IN THE SETTINGS PANEL'S CLOTHES (Nikk2, 6974).
@@ -44,32 +45,101 @@ export function DoorsPanel({
   const [tab, setTab] = useState<DoorTab>("finished");
   const [page, setPage] = useState(0);
   const showing: DoorTab = tab === "finished" && split.finished.length ? "finished" : "work";
-  const { items, shown, pages } = useMemo(() => {
-    const answer = doorItems(split, showing, page, loading);
-    // While a door is opening, say so on its own row.
-    answer.items = answer.items.map((item) =>
-      item.kind === "cycle" && item.id.startsWith("door:") && going !== null && answer.shown[Number(item.id.slice(5))]?.room === going
-        ? { ...item, value: "…" }
-        : item,
-    );
-    return answer;
-  }, [split, showing, page, loading, going]);
-
+  const layout = useMemo(() => layOutDoors(split, showing, page, loading, going), [split, showing, page, loading, going]);
+  const px = useMemo(() => doorPixels(), []);
   const press = (id: string) => {
     if (id === "tab:finished" || id === "tab:work") {
       setTab(id.slice(4) as DoorTab);
       setPage(0);
     } else if (id === "page:less") setPage((p) => Math.max(0, p - 1));
-    else if (id === "page:more") setPage((p) => Math.min(pages - 1, p + 1));
+    else if (id === "page:more") setPage((p) => Math.min((layout.pager?.pages ?? 1) - 1, p + 1));
     else if (id === "refresh") {
       setPage(0);
       onRefresh();
     } else if (id.startsWith("door:")) {
-      const door = shown[Number(id.slice(5))];
-      if (door) onGo(door);
+      const tile = layout.tiles[Number(id.slice(5))];
+      if (tile) onGo(tile.door);
     }
   };
-  return <SettingsPanel3D items={items} surface={{ width: DOOR_PANEL.width, height: DOOR_PANEL.height }} onPress={press} />;
+  return (
+    <TilePanel
+      width={layout.width}
+      height={layout.height}
+      px={px}
+      paint={(measure) => paintDoors(layout, measure)}
+      repaintKey={layout}
+      at={(uv) => doorsAt(layout, uv)}
+      onPress={press}
+    />
+  );
+}
+
+/**
+ * A panel of tiles under tabs, painted on a canvas and pressed exactly where a
+ * control is drawn: the doors and the wardrobe. `paint` returns the ink;
+ * `pictures` are thumbnails by key, for `{ kind: "image" }` ink.
+ */
+function TilePanel({
+  width,
+  height,
+  px,
+  paint,
+  repaintKey,
+  pictures,
+  at,
+  onPress,
+}: {
+  width: number;
+  height: number;
+  px: { width: number; height: number };
+  paint: (measure: (text: string, size: number) => number) => PanelInk[];
+  repaintKey: unknown;
+  pictures?: ReadonlyMap<string, HTMLImageElement>;
+  at: (uv: { x: number; y: number }) => string | null;
+  onPress: (id: string) => void;
+}) {
+  const { canvas, texture } = useMemo(() => makeInkCanvas(px.width, px.height), [px.width, px.height]);
+  const invalidate = useThree((state) => state.invalidate);
+  const plate = useRef<THREE.Mesh>(null);
+  const pressed = useRef<string | null>(null);
+  useEffect(() => {
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    drawPanelInk(context, paint(measureWith(context)), pictures ?? new Map());
+    texture.needsUpdate = true;
+    invalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvas, texture, invalidate, repaintKey, pictures]);
+  useEffect(() => () => texture.dispose(), [texture]);
+  const hit = (event: ThreeEvent<PointerEvent>): string | null => {
+    const mesh = plate.current;
+    if (!mesh) return null;
+    const local = mesh.worldToLocal(event.point.clone());
+    return at({ x: local.x / width + 0.5, y: local.y / height + 0.5 });
+  };
+  return (
+    <mesh
+      ref={plate}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        claimPointer(event.nativeEvent);
+        pressed.current = hit(event);
+      }}
+      onPointerUp={(event) => {
+        event.stopPropagation();
+        claimPointer(event.nativeEvent);
+        const started = pressed.current;
+        pressed.current = null;
+        if (started && hit(event) === started) onPress(started);
+      }}
+      onPointerLeave={() => {
+        pressed.current = null;
+      }}
+    >
+      <planeGeometry args={[width, height]} />
+      <meshBasicMaterial map={texture} toneMapped={false} />
+    </mesh>
+  );
 }
 
 /** One thumbnail per body, loaded once and kept for the page's life. */
@@ -102,34 +172,17 @@ export function WardrobePanel({
   const [page, setPage] = useState(0);
   const [loaded, setLoaded] = useState(0); // bumps as pictures arrive, to repaint
   const px = useMemo(() => wardrobePixels(), []);
-  const { canvas, texture } = useMemo(() => makeInkCanvas(px.width, px.height), [px.width, px.height]);
-  const invalidate = useThree((state) => state.invalidate);
-  const plate = useRef<THREE.Mesh>(null);
-  const pressed = useRef<string | null>(null);
   const layout = useMemo(() => layOutWardrobe(bodies, tab, page, worn, busy), [bodies, tab, page, worn, busy]);
-
-  useEffect(() => {
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    const images = new Map<string, HTMLImageElement>();
+  const images = useMemo(() => {
+    const found = new Map<string, HTMLImageElement>();
     for (const tile of layout.tiles) {
       if (!tile.body.pictured) continue;
       const img = picture(tile.body, () => setLoaded((n) => n + 1));
-      if (img) images.set(tile.body.key, img);
+      if (img) found.set(tile.body.key, img);
     }
-    drawPanelInk(context, paintWardrobe(layout, measureWith(context)), images);
-    texture.needsUpdate = true;
-    invalidate();
-  }, [canvas, texture, invalidate, layout, loaded]);
-
-  useEffect(() => () => texture.dispose(), [texture]);
-
-  const at = (event: ThreeEvent<PointerEvent>): string | null => {
-    const mesh = plate.current;
-    if (!mesh) return null;
-    const local = mesh.worldToLocal(event.point.clone());
-    return wardrobeAt(layout, { x: local.x / layout.width + 0.5, y: local.y / layout.height + 0.5 });
-  };
+    return found;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, loaded]);
   const press = (id: string) => {
     if (id === "tab:public" || id === "tab:ai") {
       setTab(id.slice(4) as WardrobeTab);
@@ -141,29 +194,17 @@ export function WardrobePanel({
       if (tile) onWear(tile.body);
     }
   };
-
   return (
-    <mesh
-      ref={plate}
-      onPointerDown={(event) => {
-        event.stopPropagation();
-        claimPointer(event.nativeEvent);
-        pressed.current = at(event);
-      }}
-      onPointerUp={(event) => {
-        event.stopPropagation();
-        claimPointer(event.nativeEvent);
-        const started = pressed.current;
-        pressed.current = null;
-        if (started && at(event) === started) press(started);
-      }}
-      onPointerLeave={() => {
-        pressed.current = null;
-      }}
-    >
-      <planeGeometry args={[WARDROBE_PANEL.width, WARDROBE_PANEL.height]} />
-      <meshBasicMaterial map={texture} toneMapped={false} />
-    </mesh>
+    <TilePanel
+      width={WARDROBE_PANEL.width}
+      height={WARDROBE_PANEL.height}
+      px={px}
+      paint={(measure) => paintWardrobe(layout, measure)}
+      repaintKey={layout}
+      pictures={images}
+      at={(uv) => wardrobeAt(layout, uv)}
+      onPress={press}
+    />
   );
 }
 
