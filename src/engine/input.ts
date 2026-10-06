@@ -62,6 +62,7 @@ export class InputHub {
   private readonly targets = new Map<THREE.Object3D, Target>();
   private readonly instances = new Set<InstanceInput>();
   private worldTips: WorldTip[] = [];
+  private worldHands: Array<{ hand: Hand; joints: Partial<Record<XRHandJoint, THREE.Vector3>> }> = [];
   private readonly caster = new THREE.Raycaster();
   private pending: { pointerId: number; target: Target; point: THREE.Vector3; x: number; y: number } | null = null;
   private readonly off: Array<() => void> = [];
@@ -204,6 +205,7 @@ export class InputHub {
 
   /** Every frame, before things run: where each hand's tip is, in the room. */
   readTips(frame: XRFrame | null | undefined, referenceSpace: XRReferenceSpace | null, origin: THREE.Object3D | null): void {
+    this.worldHands = [];
     if (!frame || !referenceSpace) {
       this.worldTips = [];
       return;
@@ -214,6 +216,17 @@ export class InputHub {
     const toRoom = (reference: THREE.Vector3) => (origin ? reference.clone().applyMatrix4(origin.matrixWorld) : reference.clone());
     for (const source of frame.session.inputSources) {
       if (source.handedness !== "left" && source.handedness !== "right") continue;
+      if (source.hand && frame.getJointPose) {
+        const joints: Partial<Record<XRHandJoint, THREE.Vector3>> = {};
+        for (const [name, joint] of source.hand) {
+          const pose = frame.getJointPose(joint, referenceSpace);
+          if (pose) {
+            const value = toRoom(new THREE.Vector3().setFromMatrixPosition(matrix.fromArray(pose.transform.matrix)));
+            if ([value.x, value.y, value.z].every(Number.isFinite)) joints[name] = value;
+          }
+        }
+        if (joints.wrist) this.worldHands.push({ hand: source.handedness, joints });
+      }
       const finger = source.hand?.get("index-finger-tip");
       const space = finger ?? source.gripSpace;
       if (!space) continue;
@@ -228,6 +241,8 @@ export class InputHub {
     }
     this.worldTips = next;
   }
+
+  get hands() { return this.worldHands; }
 
   get tips(): readonly WorldTip[] {
     return this.worldTips;
@@ -335,6 +350,14 @@ class InstanceInputImpl implements InstanceInput {
       const at = this.keyHandlers.indexOf(handler);
       if (at >= 0) this.keyHandlers.splice(at, 1);
     };
+  }
+
+  get hands() {
+    if (this.model || this.disposed) return [];
+    const inverse = new THREE.Matrix4().copy(this.root.matrixWorld).invert();
+    return this.hub.hands.map(({ hand, joints }) => ({ hand, joints: Object.fromEntries(
+      Object.entries(joints).map(([name, position]) => [name, position.clone().applyMatrix4(inverse)])
+    ) }));
   }
 
   get tips(): readonly Tip[] {

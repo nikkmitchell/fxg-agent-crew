@@ -113,6 +113,9 @@ export interface Tip {
   velocity: THREE.Vector3;
 }
 
+/** Valid tracked joints in this Thing's local metres; no synthetic controller joints. */
+export interface TrackedHand { hand: Hand; joints: Readonly<Partial<Record<XRHandJoint, THREE.Vector3>>>; }
+
 export interface Input {
   /** A click, a screen tap, a trigger or pinch along a ray, and (unless poke: false) a fingertip poke. */
   press(target: THREE.Object3D, fn: (e: PressEvent) => void, options?: { poke?: boolean }): Off;
@@ -122,6 +125,7 @@ export interface Input {
   keys(keys: string, fn: (key: string, down: boolean) => void): Off;
   /** One per hand, in local coordinates: a controller's grip or a tracked index fingertip. Empty in a model. */
   readonly tips: readonly Tip[];
+  readonly hands: readonly TrackedHand[];
 }
 
 export interface Ctx {
