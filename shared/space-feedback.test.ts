@@ -4,7 +4,7 @@ import { FEEDBACK_LIMITS, readFeedback } from "./space-feedback";
 describe("a tester's report", () => {
   const item = { id: "fps", label: "Stays smooth", status: "passed", note: "72 fps" };
   it("keeps the items and notes a page sent", () => {
-    expect(readFeedback({ branch: "mica-sky", device: "Quest 3", summary: "Lovely", items: [item] })).toEqual({ branch: "mica-sky", device: "Quest 3", summary: "Lovely", items: [item] });
+    expect(readFeedback({ branch: "mica-sky", device: "Quest 3", summary: "Lovely", items: [item] })).toEqual({ branch: "mica-sky", device: "Quest 3", summary: "Lovely", items: [item], deploy: null });
   });
   it("defaults to main, and refuses a branch that could not exist", () => {
     expect(readFeedback({ summary: "x" })?.branch).toBe("main");

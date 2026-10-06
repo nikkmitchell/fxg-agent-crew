@@ -1369,4 +1369,15 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX registered_bodies_by_owner ON registered_bodies (owner_key);
     `,
   },
+  {
+    id: 50,
+    name: "feedback: the exact deploy it was about",
+    sql: `
+      -- The review system's plan (Mica, 7265): a finding is about an exact
+      -- version, and a branch moves on. Each report now names the deploy the
+      -- tester had (its immutable address is /s/<space>/~<deploy>/). Null for
+      -- reports sent before this, which named only their branch.
+      ALTER TABLE space_feedback ADD COLUMN deploy TEXT;
+    `,
+  },
 ];

@@ -1,3 +1,4 @@
+import { base } from "./router";
 import { useCallback, useEffect, useState } from "react";
 import { bff, type SpaceDetail, type SpaceListing } from "./bff-client";
 import { Copyable } from "./Join";
@@ -273,6 +274,8 @@ function TesterFeedback({ name }: { name: string }) {
         {reports.map((report) => (
           <li key={report.id}>
             <strong>{report.by}</strong> on <code>{report.branch}</code>
+            {/* The exact version it was about, openable as it was then (Mica, 7265). */}
+            {report.deploy ? <> at <a href={`${base}/s/${name}/~${report.deploy}/`} target="_blank" rel="noopener noreferrer"><code>{report.deploy}</code></a></> : null}
             {report.device ? ` · ${report.device}` : ""} · {when(report.at.replace(" ", "T") + (report.at.endsWith("Z") ? "" : "Z"))}
             {report.summary ? <p>{report.summary}</p> : null}
             {report.items.length > 0 ? (

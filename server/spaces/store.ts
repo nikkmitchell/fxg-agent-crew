@@ -242,8 +242,8 @@ export class SpaceStore {
   // ------------------------------------------------ tester feedback (migration 48)
 
   addFeedback(space: string, by: string, report: FeedbackReport, id: string, at: string): void {
-    this.db.prepare("INSERT INTO space_feedback (id, space, branch, username, device, summary, items_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(id, space, report.branch, by, report.device, report.summary, JSON.stringify(report.items), at);
+    this.db.prepare("INSERT INTO space_feedback (id, space, branch, username, device, summary, items_json, created_at, deploy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, space, report.branch, by, report.device, report.summary, JSON.stringify(report.items), at, report.deploy ?? null);
   }
 
   /** Newest first; one branch, or every branch when `branch` is null. */
@@ -251,7 +251,7 @@ export class SpaceStore {
     const rows = (branch === null
       ? this.db.prepare("SELECT * FROM space_feedback WHERE space = ? ORDER BY created_at DESC, id DESC LIMIT ?").all(space, limit)
       : this.db.prepare("SELECT * FROM space_feedback WHERE space = ? AND branch = ? ORDER BY created_at DESC, id DESC LIMIT ?").all(space, branch, limit)) as {
-      id: string; branch: string; username: string; device: string; summary: string; items_json: string; created_at: string;
+      id: string; branch: string; username: string; device: string; summary: string; items_json: string; created_at: string; deploy: string | null;
     }[];
     return rows.map((row) => {
       let items: StoredFeedback["items"] = [];
@@ -260,7 +260,7 @@ export class SpaceStore {
       } catch {
         /* unreadable items are shown as none */
       }
-      return { id: row.id, by: row.username, at: row.created_at, branch: row.branch, device: row.device, summary: row.summary, items };
+      return { id: row.id, by: row.username, at: row.created_at, branch: row.branch, device: row.device, summary: row.summary, items, deploy: row.deploy ?? null };
     });
   }
 }

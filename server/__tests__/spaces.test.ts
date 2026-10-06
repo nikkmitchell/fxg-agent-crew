@@ -401,6 +401,21 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     expect((await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/feedback" })).statusCode).toBe(401);
   });
 
+  it("records the exact deploy a report was about (Mica, 7265): the page's own if it is this space's, else the branch's live one", async () => {
+    const ticket = (await ticketFor("nikk")).json().ticket as string;
+    const url = `/bff/spaces/meditation.ar/feedback?ticket=${encodeURIComponent(ticket)}`;
+    const send = async (extra: object) =>
+      (await app.inject({ method: "POST", url, headers: { "content-type": "text/plain" }, payload: JSON.stringify({ branch: "main", summary: "ok", ...extra }) })).json();
+    const live = store.live("meditation.ar", "main")!.id;
+    expect((await send({})).deploy).toBe(live);
+    const older = store.deploys("meditation.ar").find((d) => d.status === "ready" && d.id !== live)!;
+    expect((await send({ deploy: older.id })).deploy, "a real deploy of this space is kept").toBe(older.id);
+    expect((await send({ deploy: "not-a-deploy" })).deploy, "a made-up one is replaced by the live one").toBe(live);
+    const listed = (await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/feedback?branch=main", headers: { cookie: "who=nikk" } })).json().feedback;
+    // Sent in the same millisecond, so compared without their order.
+    expect(listed.map((f: { deploy: string }) => f.deploy).slice(0, 3).sort()).toEqual([live, older.id, live].sort());
+  });
+
   it("lets only a signed-in person leave every space, and says how many seats went (Baiwei, 6395)", async () => {
     expect((await app.inject({ method: "POST", url: "/bff/spaces/leave-everywhere" })).statusCode).toBe(401);
     const answer = await app.inject({ method: "POST", url: "/bff/spaces/leave-everywhere", headers: { cookie: "who=baiwei" } });

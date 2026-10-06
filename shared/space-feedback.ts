@@ -31,7 +31,18 @@ export const FEEDBACK_STATUSES = ["passed", "needs-work", "not-tested"] as const
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
 
 export type FeedbackItem = { id: string; label: string; status: FeedbackStatus; note: string };
-export type FeedbackReport = { branch: string; device: string; summary: string; items: FeedbackItem[] };
+export type FeedbackReport = {
+  branch: string;
+  device: string;
+  summary: string;
+  items: FeedbackItem[];
+  /**
+   * The exact deploy this is about, when the page knows it (a pinned page, a
+   * finished space). The server checks it belongs to the space, and otherwise
+   * records the branch's live deploy at the moment the report arrived.
+   */
+  deploy?: string | null;
+};
 export type StoredFeedback = FeedbackReport & { id: string; by: string; at: string };
 
 /** Plain text, no control characters, trimmed and cut to length. */
@@ -59,5 +70,6 @@ export function readFeedback(raw: unknown): FeedbackReport | null {
   }
   const summary = text(report.summary, FEEDBACK_LIMITS.summary);
   if (items.length === 0 && !summary) return null;
-  return { branch, device: text(report.device, FEEDBACK_LIMITS.device), summary, items };
+  const deploy = typeof report.deploy === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(report.deploy) ? report.deploy : null;
+  return { branch, device: text(report.device, FEEDBACK_LIMITS.device), summary, items, deploy };
 }

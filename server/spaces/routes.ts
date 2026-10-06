@@ -774,8 +774,12 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     if (recent.length >= FEEDBACK_LIMITS.perHour) return reply.code(429).send({ code: "TOO_MANY", error: "That is a lot of reports in an hour; try again later." });
     feedbackSent.set(key, [...recent, at.getTime()]);
     const id = randomBytes(9).toString("base64url");
-    store.addFeedback(space, holder.username, report, id, at.toISOString());
-    return reply.send({ id, at: at.toISOString() });
+    // THE EXACT VERSION (Mica, 7265): the page's own deploy if it is really one of this space's, else what its
+    // branch was serving when the report arrived.
+    const named = report.deploy ? store.deploy(report.deploy) : null;
+    const deploy = named && named.space === space ? named.id : store.live(space, report.branch)?.id ?? null;
+    store.addFeedback(space, holder.username, { ...report, deploy }, id, at.toISOString());
+    return reply.send({ id, at: at.toISOString(), deploy });
   });
 
   /** What testers said: anyone in the space (by ticket), or a member of its room (signed in, agents too). */
