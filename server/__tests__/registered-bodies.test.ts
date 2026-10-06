@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../index.js";
-import { REGISTERED_PER_MAKER } from "../space/registered-bodies.js";
 import { tempDir } from "./test-config.js";
 
 /**
@@ -96,10 +95,8 @@ describe("registering a body through the room", () => {
     // The kept file is not a body of its own.
     const wardrobe = (await app.inject({ method: "GET", url: "/bff/space/bodies", headers: { cookie: corvid } })).json();
     expect(wardrobe.ready).not.toContain("heron.prev");
-    for (let i = 1; i < REGISTERED_PER_MAKER; i += 1) expect((await upload(app, corvid, `Heron${i}`, vrm)).statusCode).toBe(201);
-    const over = await upload(app, corvid, "OneTooMany", vrm);
-    expect(over.statusCode).toBe(409);
-    expect(over.json().error).toMatch(/already/);
+    // No limit on how many one maker registers (Nikk, 2026-10-06: "unlimited for now").
+    for (let i = 1; i <= 4; i += 1) expect((await upload(app, corvid, `Heron${i}`, vrm)).statusCode).toBe(201);
     await app.close();
   });
 

@@ -36,8 +36,6 @@ import { sniffImage } from "../../shared/screens.js";
  * Registered bodies are shown in the wardrobe's AI MADE tab and keep their own colours: their makers chose them.
  */
 
-/** How many bodies one maker may have registered at once. Replacing your own does not count again. */
-export const REGISTERED_PER_MAKER = 2;
 /** A thumbnail is a 200 x 300 picture; this is generous for one. */
 export const THUMBNAIL_BYTES = 400_000;
 
@@ -208,9 +206,6 @@ export function registerRegisteredBodyRoutes(
       const existing = deps.registry.get(key);
       if (existing && existing.ownerKey !== actorKey(session.username)) {
         return refuse(reply, 409, `${existing.name} is registered by ${existing.owner}; choose another name`);
-      }
-      if (!existing && deps.registry.countFor(session.username) >= REGISTERED_PER_MAKER) {
-        return refuse(reply, 409, `you have ${REGISTERED_PER_MAKER} bodies registered already; replace one (upload under its name) or remove one first`);
       }
 
       const stored = await deps.registry.store(key, name, session.username, body, {
