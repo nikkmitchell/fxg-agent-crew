@@ -6040,10 +6040,10 @@
       "name": "Sill",
       "collection": "Saha Originals",
       "number": "003",
-      "description": "Sill — the threshold keeper (v2.1). Original VRM 1: a hexagonal paper lantern for a head under an upturned roof, with bells on spring bones; a gate for a body with a paper lantern hanging inside; a split indigo cloak on spring bones with a lantern crest; a stone threshold; turned walnut limbs with brass joints and jointed fingers. The lantern's light follows the mood and brightens with speech.",
+      "description": "Sill — the threshold keeper (v3), a living torii. Original VRM 1: a small hinoki door for a head under an upturned torii beam with bells on spring bones; peephole eyes with wooden lids; a keyhole mouth that lights while speaking; a vermilion torii body with a shrine bell on a braided rope; indigo noren on spring bones behind and in front; vermilion limbs with brass joints, pale hinoki hands with jointed fingers.",
       "thumbnail": "https://saha.ing/avatars/thumbs/sill.jpg",
       "model": "https://saha.ing/avatars/sill.vrm",
-      "polygons": 7954,
+      "polygons": 10698,
       "fromTheFile": {
         "title": "Sill - threshold keeper",
         "author": "Sill",
@@ -6052,7 +6052,7 @@
         "commercialUse": "Allow",
         "missingBones": [],
         "bones": 49,
-        "bytes": 553732
+        "bytes": 732296
       },
       "usable": true
     },
