@@ -73,6 +73,7 @@ import { registerAvatarRoutes } from "./space/avatar.js";
 import { registerWelcomeTakes } from "./space/welcome-takes.js";
 import { registerWelcomeClips } from "./space/welcome-clips.js";
 import { registerFollowingRoutes } from "./space/following.js";
+import { registerReviewRoutes } from "./routes/reviews.js";
 import { WalkBack } from "./space/walk-back.js";
 import { registerPathRoutes } from "./space/paths.js";
 import { registerTranscribeRoutes } from "./space/transcribe.js";
@@ -670,6 +671,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       },
       stopWalking: (room, actorId) => hubFor(room).presence.stopWalking(actorId),
     });
+    // Review rounds (Review Studio): exact candidate and baseline, findings on the space (shared/reviews.ts).
+    registerReviewRoutes(scoped, { config, sessions, db: database, spaces: spaceStore });
     registerFollowingRoutes(
       scoped,
       config,
@@ -804,7 +807,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     // Whoever is in a room sees the things in it, whoever's space they came from.
     roomHolds: (session, space) => roomItems.all(spaceRoomOf(session)).some((item) => isModuleItem(item) && spaceKey(item.source.space) === space),
     // A finished space shows one version for good; its files outlive the branch's rollback window.
-    pinnedDeploys: () => new Set([...roomItems.pinnedDeploys(), ...finishedSpaces.all().map((finished) => finished.deploy)]),
+    pinnedDeploys: () => new Set([...roomItems.pinnedDeploys(), ...finishedSpaces.all().map((finished) => finished.deploy), ...new BoardReads(database).reviewDeploys()]),
   });
   describeModule = spacesHosting.describeModule;
   // A space page is sandboxed, so to it saha.ing is another origin: the kit

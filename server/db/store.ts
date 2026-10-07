@@ -10,6 +10,7 @@ import {
   type Role,
   type Status,
 } from "../../shared/board-rules.js";
+import type { RoundInput } from "../../shared/reviews.js";
 import { QUESTION_LIMITS, answerBody, answerRefs, isRequestKey, questionText, questionTitle } from "../../shared/questions.js";
 
 type Db = import("node:sqlite").DatabaseSync;
@@ -1025,6 +1026,36 @@ export class BoardStore {
       this.audit(actor.id, "ask", "task", id, undefined, { title, space: input.space, via: "question intake" });
       return { id, projectId: intake.project_id, existing: false };
     }, { actorId: actor.id, action: "ask question", target: input.space });
+  }
+
+  /**
+   * A review round, as a card on the candidate's project with its record beside it (shared/reviews.ts). Takes
+   * a role on that project, like answering: entering its room is not enough to ask others to review. The
+   * route has already checked both deploys are that space's and ready.
+   */
+  publishRound(actor: Actor, input: RoundInput): { id: string } {
+    return this.tx(() => {
+      this.assertAuthority(actor.id, input.project);
+      if (!this.rolesOf(actor.id, input.project)?.length) {
+        throw new Refused(`publishing a review round on ${input.project} takes a role a manager gave you`, "ROLE_REQUIRED");
+      }
+      this.ensureActor(actor.id, actor.kind ?? undefined);
+      const id = `${input.project}-${randomUUID().slice(0, 8)}`;
+      const at = now();
+      const brief = [
+        `Review ${input.space} · ${input.entry} (${input.mode}) at exactly ${input.candidate}${input.baseline ? `, beside ${input.baseline}` : ""}.`,
+        input.checklist.length ? `\nCheck:\n${input.checklist.map((item) => `- ${item}`).join("\n")}` : "",
+        "\nTake it here (claim, then accept) to say you are reviewing; findings land on the space's feedback, at the exact deploy.",
+      ].join("\n");
+      this.db.prepare(`INSERT INTO tasks (id,project_id,title,description,kind,points,priority,status,created_at,updated_at)
+                       VALUES (?,?,?,?,NULL,1,NULL,'backlog',?,?)`)
+        .run(id, input.project, bounded(`Review: ${input.title}`, LIMITS.title, "title"), brief, at, at);
+      this.db.prepare(`INSERT INTO review_rounds (task_id, project_id, space, entry, mode, candidate, baseline, checklist_json, created_by, created_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)`)
+        .run(id, input.project, input.space, input.entry, input.mode, input.candidate, input.baseline, JSON.stringify(input.checklist), actor.id, at);
+      this.audit(actor.id, "publish round", "task", id, undefined, { space: input.space, candidate: input.candidate, baseline: input.baseline });
+      return { id };
+    }, { actorId: actor.id, action: "publish review round", target: input.project });
   }
 
   /** Where a question's one chat line went, if it has gone. */

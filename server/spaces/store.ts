@@ -3,6 +3,7 @@ import type { DeployRecord } from "../../shared/spaces.js";
 import type { BenchPiece } from "../../shared/space-bench.js";
 import type { SpaceItem } from "../../shared/space-kit.js";
 import type { FeedbackReport, StoredFeedback } from "../../shared/space-feedback.js";
+import { pageCursor, type ReviewFinding, type ReviewVariant } from "../../shared/reviews.js";
 
 /**
  * What saha.ing remembers about spaces (migration 44): that a space exists,
@@ -262,5 +263,42 @@ export class SpaceStore {
       }
       return { id: row.id, by: row.username, at: row.created_at, branch: row.branch, device: row.device, summary: row.summary, items, deploy: row.deploy ?? null };
     });
+  }
+
+  // ------------------------------------------------ review findings (migration 53)
+
+  /**
+   * A finding: a feedback report on the round's space, at the exact deploy reviewed, linked to the round
+   * (shared/reviews.ts). The same person's same request key is the same finding, never a second.
+   */
+  addFinding(finding: { id: string; round: string; space: string; by: string; variant: ReviewVariant; deploy: string; text: string; requestKey: string; at: string }): { id: string; existing: boolean } {
+    const already = this.db.prepare("SELECT id FROM space_feedback WHERE username = ? AND request_key = ?").get(finding.by, finding.requestKey) as { id: string } | undefined;
+    if (already) return { id: already.id, existing: true };
+    this.db.prepare(`INSERT INTO space_feedback (id, space, branch, username, device, summary, items_json, created_at, deploy, round, request_key)
+                     VALUES (?, ?, 'main', ?, ?, ?, '[]', ?, ?, ?, ?)`)
+      .run(finding.id, finding.space, finding.by, `review:${finding.variant}`, finding.text, finding.at, finding.deploy, finding.round, finding.requestKey);
+    return { id: finding.id, existing: false };
+  }
+
+  findingsSince(round: string, by: string, since: string): number {
+    return (this.db.prepare("SELECT count(*) AS n FROM space_feedback WHERE round = ? AND username = ? AND created_at > ?").get(round, by, since) as { n: number }).n;
+  }
+
+  /** A round's findings, newest first, a page at a time. */
+  findings(round: string, options: { limit: number; cursor: { at: string; id: string } | null }): { items: ReviewFinding[]; next: string | null } {
+    const values: Array<string | number> = [round];
+    let where = "round = ?";
+    if (options.cursor) {
+      where += " AND (created_at < ? OR (created_at = ? AND id < ?))";
+      values.push(options.cursor.at, options.cursor.at, options.cursor.id);
+    }
+    const rows = this.db.prepare(`SELECT id, round, username, created_at, device, deploy, summary FROM space_feedback WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ?`)
+      .all(...values, options.limit + 1) as { id: string; round: string; username: string; created_at: string; device: string; deploy: string; summary: string }[];
+    const items = rows.slice(0, options.limit).map((row): ReviewFinding => ({
+      id: row.id, round: row.round, by: row.username, at: row.created_at,
+      variant: row.device === "review:baseline" ? "baseline" : "candidate", deploy: row.deploy, text: row.summary,
+    }));
+    const last = items[items.length - 1];
+    return { items, next: rows.length > options.limit && last ? pageCursor(last.at, last.id) : null };
   }
 }

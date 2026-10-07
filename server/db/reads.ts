@@ -1,4 +1,5 @@
 import type { Status } from "../../shared/board-rules.js";
+import { REVIEW_LIMITS, pageCursor, type ReviewMode, type ReviewRound } from "../../shared/reviews.js";
 import { pageSize, questionCursor, type AnswerRef, type Question, type QuestionAnswer, type QuestionPage } from "../../shared/questions.js";
 
 type Db = import("node:sqlite").DatabaseSync;
@@ -154,6 +155,45 @@ export class BoardReads {
     ).all(entity, entityId, limit);
   }
 
+  // -------------------------------------------------- review rounds (migration 53)
+
+  /** Open rounds (their card not done), newest first, a page at a time. */
+  rounds(options: { limit?: number; cursor?: { at: string; id: string } | null } = {}): { items: ReviewRound[]; next: string | null } {
+    const limit = Math.max(1, Math.min(REVIEW_LIMITS.page.max, Math.floor(options.limit ?? REVIEW_LIMITS.page.default)));
+    const where = ["t.status != 'done'"];
+    const values: Array<string | number> = [];
+    if (options.cursor) {
+      where.push("(r.created_at < ? OR (r.created_at = ? AND r.task_id < ?))");
+      values.push(options.cursor.at, options.cursor.at, options.cursor.id);
+    }
+    const rows = this.db.prepare(`${ROUND_ROWS} WHERE ${where.join(" AND ")} ORDER BY r.created_at DESC, r.task_id DESC LIMIT ?`).all(...values, limit + 1) as RoundRow[];
+    const items = rows.slice(0, limit).map((row) => this.toRound(row));
+    const last = items[items.length - 1];
+    return { items, next: rows.length > limit && last ? pageCursor(last.at, last.id) : null };
+  }
+
+  round(id: string): ReviewRound | null {
+    const row = this.db.prepare(`${ROUND_ROWS} WHERE r.task_id = ?`).get(id) as RoundRow | undefined;
+    return row ? this.toRound(row) : null;
+  }
+
+  /** Every deploy an open round shows, so the clean-up keeps them. */
+  reviewDeploys(): string[] {
+    return (this.db.prepare("SELECT r.candidate, r.baseline FROM review_rounds r JOIN tasks t ON t.id = r.task_id WHERE t.status != 'done'").all() as { candidate: string; baseline: string | null }[])
+      .flatMap((row) => (row.baseline ? [row.candidate, row.baseline] : [row.candidate]));
+  }
+
+  private toRound(row: RoundRow): ReviewRound {
+    const owners = (this.db.prepare("SELECT actor_id, accepted FROM task_owners WHERE task_id = ? ORDER BY actor_id").all(row.task_id) as Array<{ actor_id: string; accepted: number }>)
+      .map((owner) => ({ id: owner.actor_id, accepted: owner.accepted === 1 }));
+    const findings = (this.db.prepare("SELECT count(*) AS n FROM space_feedback WHERE round = ?").get(row.task_id) as { n: number }).n;
+    return {
+      id: row.task_id, project: row.project_id, title: row.title.replace(/^Review: /, ""), space: row.space, entry: row.entry, mode: row.mode as ReviewMode,
+      candidate: { deploy: row.candidate }, baseline: row.baseline ? { deploy: row.baseline } : null,
+      checklist: JSON.parse(row.checklist_json) as string[], card: { status: row.status, owners }, findings, by: row.created_by, at: row.created_at,
+    };
+  }
+
   // -------------------------------------------------- questions (migration 51)
 
   /** Which board a space's questions go to, if a manager has said so. */
@@ -226,3 +266,11 @@ type QuestionRow = {
 
 const QUESTION_ROWS = `SELECT q.task_id, q.space, q.asked_by, q.text, q.asked_at, t.project_id, t.status, t.updated_at
   FROM questions q JOIN tasks t ON t.id = q.task_id`;
+
+type RoundRow = {
+  task_id: string; project_id: string; space: string; entry: string; mode: string; candidate: string; baseline: string | null;
+  checklist_json: string; created_by: string; created_at: string; title: string; status: Status;
+};
+
+const ROUND_ROWS = `SELECT r.task_id, r.project_id, r.space, r.entry, r.mode, r.candidate, r.baseline, r.checklist_json, r.created_by, r.created_at, t.title, t.status
+  FROM review_rounds r JOIN tasks t ON t.id = r.task_id`;

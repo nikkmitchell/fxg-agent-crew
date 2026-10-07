@@ -1437,4 +1437,35 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE questions ADD COLUMN chat_message TEXT;
     `,
   },
+  {
+    id: 53,
+    name: "review rounds: an exact candidate and baseline on a board card; findings are its feedback",
+    sql: `
+      -- Review Studio (Mica 7347, 7350, 7368). A ROUND is a board card on the
+      -- candidate's own project, with this beside it: which thing (space,
+      -- entry, mode), the exact candidate deploy, an optional exact baseline,
+      -- and the checklist. Both deploys are kept from the clean-up while the
+      -- card is not done.
+      CREATE TABLE review_rounds (
+        task_id        TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+        project_id     TEXT NOT NULL,
+        space          TEXT NOT NULL,
+        entry          TEXT NOT NULL,
+        mode           TEXT NOT NULL CHECK (mode IN ('item', 'full', 'model')),
+        candidate      TEXT NOT NULL,
+        baseline       TEXT,
+        checklist_json TEXT NOT NULL,
+        created_by     TEXT NOT NULL,
+        created_at     TEXT NOT NULL
+      );
+      CREATE INDEX review_rounds_by_time ON review_rounds (created_at, task_id);
+      -- A FINDING is a feedback report on the round's space, at the exact
+      -- deploy reviewed, linked to its round. The request key is the panel's:
+      -- a resend is the same finding.
+      ALTER TABLE space_feedback ADD COLUMN round TEXT;
+      ALTER TABLE space_feedback ADD COLUMN request_key TEXT;
+      CREATE UNIQUE INDEX space_feedback_request ON space_feedback (username, request_key) WHERE request_key IS NOT NULL;
+      CREATE INDEX space_feedback_by_round ON space_feedback (round, created_at);
+    `,
+  },
 ];
