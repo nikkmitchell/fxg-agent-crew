@@ -3,8 +3,8 @@ import type { Question, QuestionPage } from "../../shared/questions";
 import type { UiTone } from "../../shared/thing-ui";
 import type { ReviewFinding, ReviewRound, ReviewVariant } from "../../shared/reviews";
 import type { UiInk } from "../../shared/ui-ink";
-import type { BookPage, BookShelf } from "../../shared/books";
-export type { BookCard, BookPage, BookShelf } from "../../shared/books";
+import type { BookPage, BookSearch, BookShelf } from "../../shared/books";
+export type { BookCard, BookPage, BookSearch, BookShelf } from "../../shared/books";
 
 export type { AnswerRef, Question, QuestionAnswer, QuestionPage } from "../../shared/questions";
 export type { UiTone } from "../../shared/thing-ui";
@@ -250,6 +250,11 @@ export interface Ctx {
     shelf(n: number): Promise<BookShelf>;
     /** Page `page` (from 1) of book `id`: about 1400 characters, with the book's title, author and page count. */
     read(id: number, page?: number): Promise<BookPage>;
+    /**
+     * Books whose title or authors have every word of `query`, 20 a page, best match first (Mica 7495). Pass `next`
+     * back as `cursor`. Results carry no place in the hall: show them on a shelf of your own and open them directly.
+     */
+    search(options: { query: string; cursor?: string | null }): Promise<BookSearch>;
   };
 
   /**

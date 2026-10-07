@@ -22,7 +22,7 @@ import type { SharedMindfulnessCard } from "../shared/mindfulness";
 import type { GoSize, GoSurface, RoomItem } from "../shared/room-items";
 import type { Question, QuestionPage } from "../shared/questions";
 import type { ReviewFinding, ReviewRound, ReviewVariant } from "../shared/reviews";
-import type { BookPage, BookShelf } from "../shared/books";
+import type { BookPage, BookSearch, BookShelf } from "../shared/books";
 
 /**
  * The browser's side of the room's own API.
@@ -175,6 +175,8 @@ export const space = {
     ),
   /** A shelf of Gutenberg's catalogue, and one page of one book (shared/books.ts; ctx.books). */
   bookShelf: (shelf: number) => requestJson<BookShelf>(`${base}/bff/books?shelf=${Math.round(shelf)}`),
+  bookSearch: (query: string, cursor: string | null) =>
+    requestJson<BookSearch>(`${base}/bff/books/search?q=${encodeURIComponent(query)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),
   bookPage: (id: number, page: number) => requestJson<BookPage>(`${base}/bff/books/${Math.round(id)}?page=${Math.round(page)}`),
   /** Open review rounds (shared/reviews.ts), a page at a time. */
   reviews: (options: { cursor?: string | null; limit?: number } = {}) =>

@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, rename, stat, unlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { BOOK_LIMITS, bookBody, bookHeader, bookPages, type BookCard, type BookPage, type BookShelf } from "../../shared/books.js";
+import { BOOK_LIMITS, SEARCH_LIMITS, bookBody, bookHeader, bookPages, type BookCard, type BookPage, type BookSearch, type BookShelf } from "../../shared/books.js";
+import { readCatalogue, searchCatalogue, type CatalogueEntry } from "./catalogue.js";
 
 /**
  * PROJECT GUTENBERG, FETCHED WHEN SOMEONE LOOKS (shared/books.ts; Nikk 7436).
@@ -26,13 +27,19 @@ export class BookSourceError extends Error {
 type Fetch = (
   url: string,
   init?: { method?: string; signal?: AbortSignal; headers?: Record<string, string> },
-) => Promise<{ ok: boolean; status: number; text(): Promise<string>; headers?: { get(name: string): string | null } }>;
+) => Promise<{ ok: boolean; status: number; text(): Promise<string>; arrayBuffer?(): Promise<ArrayBuffer>; headers?: { get(name: string): string | null } }>;
 
 const SHELF_FRESH_MS = 7 * 24 * 60 * 60 * 1000;
 const TIMEOUT_MS = 45_000;
 const HEADERS = { "user-agent": "saha.ing library (https://saha.ing)" };
 
+const CATALOGUE_FRESH_MS = 7 * 24 * 60 * 60 * 1000;
+const CATALOGUE_URL = "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv.gz";
+
 export class Gutenberg {
+  /** Every book's size once measured, by id: shared by shelves and search. */
+  private readonly sizes = new Map<number, number | null>();
+  private catalogue: CatalogueEntry[] | null = null;
   private readonly inflight = new Map<string, Promise<unknown>>();
   /** Books paged recently, newest last: paging a 1 MB text again for every turn would be waste. */
   private readonly paged = new Map<number, { title: string; author: string; pages: string[] }>();
@@ -157,12 +164,61 @@ export class Gutenberg {
           });
           const length = Number(answer.headers?.get("content-length"));
           book.bytes = answer.ok && Number.isFinite(length) && length > 0 ? length : null;
+          this.sizes.set(book.id, book.bytes);
         } catch {
           book.bytes = null;
         }
       }
     };
     await Promise.all(Array.from({ length: Math.min(6, books.length) }, one));
+  }
+
+  /** Gutenberg's catalogue file, kept a week, read once into memory. */
+  private async entries(): Promise<CatalogueEntry[]> {
+    if (this.catalogue) return this.catalogue;
+    return this.once("catalogue", async () => {
+      const path = this.file("catalogue.csv.gz");
+      let file: Buffer | null = null;
+      try {
+        const info = await stat(path);
+        if (this.now() - info.mtimeMs < CATALOGUE_FRESH_MS) file = await readFile(path);
+      } catch {
+        file = null;
+      }
+      if (!file) {
+        try {
+          const answer = await this.fetch(CATALOGUE_URL, { signal: AbortSignal.timeout(120_000), headers: HEADERS });
+          if (answer.ok && answer.arrayBuffer) {
+            file = Buffer.from(await answer.arrayBuffer());
+            await mkdir(this.options.cacheRoot, { recursive: true });
+            await writeFile(path, file);
+          }
+        } catch {
+          file = null;
+        }
+        // An old copy is better than none while Gutenberg is away.
+        if (!file) file = await readFile(path).catch(() => null);
+      }
+      if (!file) throw new BookSourceError("SOURCE_DOWN", "The book catalogue could not be fetched; try again in a moment.");
+      const read = readCatalogue(file);
+      if (!read.length) throw new BookSourceError("SOURCE_DOWN", "The book catalogue could not be read.");
+      this.catalogue = read;
+      return read;
+    });
+  }
+
+  /** Books whose title or authors have every word of `query`, a page at a time; `cursor` is where the last page ended. */
+  async search(query: string, cursor: string | null): Promise<BookSearch> {
+    const all = searchCatalogue(await this.entries(), query);
+    const from = cursor ? Math.max(0, Number(cursor) || 0) : 0;
+    const page = all.slice(from, from + SEARCH_LIMITS.page);
+    const books: BookCard[] = page.map((entry) => ({
+      id: entry.id, title: entry.title, authors: entry.authors, subjects: entry.subjects, languages: entry.languages, downloads: 0,
+      bytes: this.sizes.get(entry.id) ?? null,
+    }));
+    const unmeasured = books.filter((book) => !this.sizes.has(book.id));
+    if (unmeasured.length) void this.measure(unmeasured.map((book) => ({ ...book }))).catch(() => undefined);
+    return { query, count: all.length, books, next: from + SEARCH_LIMITS.page < all.length ? String(from + SEARCH_LIMITS.page) : null, sized: unmeasured.length === 0 };
   }
 
   private async book(id: number): Promise<{ title: string; author: string; pages: string[] }> {

@@ -40,6 +40,20 @@ export type BookShelf = {
   sized: boolean;
 };
 
+/** A page of search results (ctx.books.search). No shelf location: a search result is not placed in the hall's ordering. */
+export type BookSearch = {
+  query: string;
+  /** Books that match, in the whole catalogue. */
+  count: number;
+  books: BookCard[];
+  /** Pass back as `cursor` for the next page; null on the last. */
+  next: string | null;
+  /** False while some books' sizes are still being measured: ask again a little later for them. */
+  sized: boolean;
+};
+
+export const SEARCH_LIMITS = { query: 120, page: 20 } as const;
+
 export type BookPage = {
   id: number;
   title: string;

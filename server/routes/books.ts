@@ -3,7 +3,7 @@ import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
 import { BookSourceError, type Gutenberg } from "../books/gutenberg.js";
-import { isBookId, isShelf } from "../../shared/books.js";
+import { SEARCH_LIMITS, isBookId, isShelf } from "../../shared/books.js";
 
 /**
  * BOOKS OVER HTTP (ctx.books; shared/books.ts). A shelf of the catalogue, or
@@ -23,6 +23,19 @@ export function registerBookRoutes(app: FastifyInstance, deps: { config: Config;
     if (!isShelf(shelf)) return reply.code(400).send({ code: "BAD_SHELF", error: "shelf is a whole number from 1" });
     try {
       return reply.header("cache-control", "private, max-age=3600").send(await deps.books.shelf(shelf));
+    } catch (error) {
+      return failed(reply, error);
+    }
+  });
+
+  app.get<{ Querystring: { q?: string; cursor?: string } }>("/bff/books/search", async (request, reply) => {
+    if (!requireSession(request, reply)) return reply;
+    const query = String(request.query.q ?? "").trim();
+    if (!query || query.length > SEARCH_LIMITS.query) return reply.code(400).send({ code: "BAD_QUERY", error: `say what to look for, up to ${SEARCH_LIMITS.query} characters` });
+    const cursor = request.query.cursor ?? null;
+    if (cursor !== null && !/^\d{1,6}$/.test(cursor)) return reply.code(400).send({ code: "BAD_CURSOR", error: "that cursor is not one a page of results gave" });
+    try {
+      return reply.header("cache-control", "private, no-store").send(await deps.books.search(query, cursor));
     } catch (error) {
       return failed(reply, error);
     }

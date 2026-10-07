@@ -299,6 +299,10 @@ export class ThingInstance {
         shelf: (n) => (host.books ? host.books.shelf(n) : Promise.reject(Object.assign(new Error("Books are in a saha.ing room; this page has none."), { why: "not-here" }))),
         read: (bookId, page = 1) =>
           host.books ? host.books.read(bookId, page) : Promise.reject(Object.assign(new Error("Books are in a saha.ing room; this page has none."), { why: "not-here" })),
+        search: (searchOptions) =>
+          host.books
+            ? host.books.search(String(searchOptions?.query ?? ""), searchOptions?.cursor ?? null)
+            : Promise.reject(Object.assign(new Error("Books are in a saha.ing room; this page has none."), { why: "not-here" })),
       },
       reviews: (() => {
         const none = <T,>(): Promise<T> => Promise.reject(Object.assign(new Error("Review rounds are in a saha.ing room; this page has none."), { why: "not-here" }));
