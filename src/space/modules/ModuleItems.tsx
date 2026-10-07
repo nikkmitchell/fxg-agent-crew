@@ -15,6 +15,7 @@ import { ThingInstance } from "../../engine/instance";
 import type { Person } from "../../engine/types";
 import { createRoomEngine, type RoomEngine } from "./room-engine";
 import { QuestionForm } from "./QuestionForm";
+import { requestArrival } from "../arrival";
 import { ReviewBack } from "./ReviewBack";
 import { useReviewView, withReviewView } from "./review-view";
 
@@ -383,10 +384,16 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
           if (alive && full && !current.current) onFullViewFailed(item.id, true);
           return;
         }
+        const firstStart = !current.current;
         current.current?.dispose();
         current.current = next;
         driven.set(item.id, next);
         if (full) onFullViewFailed(item.id, false);
+        // ARRIVE WHERE THE SPACE SAYS (Mica 7421): its declared spawn, in the room, once when it first comes up.
+        if (full && firstStart && def.spawn) {
+          const at = group.localToWorld(new THREE.Vector3(def.spawn.at[0], 0, def.spawn.at[2]));
+          requestArrival({ x: at.x, z: at.z, yaw: item.position.rotationY + (def.spawn.yaw ?? 0) });
+        }
         return;
       }
       // THE OLDER WAY: a module that is not a thing (run-module.ts), kept working.

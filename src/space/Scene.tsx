@@ -1,4 +1,5 @@
 import { ModuleItems } from "./modules/ModuleItems";
+import { onArrival, providePose } from "./arrival";
 import { useFinishedRoom } from "./modules/use-finished";
 import { isFullView, isModuleItem } from "../../shared/room-items";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -355,6 +356,22 @@ function Me({
     pitch.current = 0;
     camera.rotation.set(pitch.current, yaw.current, 0, "YXZ");
   }, [camera]);
+
+  // WHERE A SPACE SAYS TO ARRIVE, and back again from a review's version (arrival.ts; Mica 7421).
+  useEffect(() => {
+    providePose(() => ({ x: camera.position.x, z: camera.position.z, yaw: yaw.current }));
+    const off = onArrival((pose) => {
+      camera.position.set(pose.x, EYE_HEIGHT, pose.z);
+      yaw.current = pose.yaw;
+      pitch.current = 0;
+      camera.rotation.set(0, pose.yaw, 0, "YXZ");
+      connection.send({ type: "move", at: { x: pose.x, y: 0, z: pose.z }, facing: pose.yaw });
+    });
+    return () => {
+      off();
+      providePose(null);
+    };
+  }, [camera, connection.send]);
 
   // TELL THE SERVER WHERE WE PUT THE CAMERA, once, as soon as the socket is up.
   //

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ModuleRoomItem } from "../../../shared/room-items";
-import { REVIEW_VIEW_ID, withReviewView } from "./review-view";
+import { REVIEW_VIEW_ID, closeReviewView, openReviewView, withReviewView } from "./review-view";
+import { onArrival, providePose } from "../arrival";
 
 const thing = (id: string, view: "full" | "placed"): ModuleRoomItem => ({
   id, kind: "module", revision: 0, source: { space: "review.studio", branch: "main", entry: "studio", deploy: "s1" },
@@ -21,5 +22,17 @@ describe("a review's version, opened for you alone (Mica 7348)", () => {
     const shown = withReviewView([thing("studio", "full")], { ...view, mode: "item" }, "Nikk2");
     expect(shown.map((item) => item.id)).toEqual(["studio", REVIEW_VIEW_ID]);
     expect(shown[1]).toMatchObject({ view: "placed" });
+  });
+
+  it("puts you back where you stood when the version is closed (Mica 7421)", () => {
+    providePose(() => ({ x: 1, z: 5, yaw: 0.3 }));
+    const arrived: unknown[] = [];
+    const off = onArrival((pose) => arrived.push(pose));
+    openReviewView(view);
+    providePose(() => ({ x: 9, z: 9, yaw: 2 }));
+    closeReviewView();
+    expect(arrived).toEqual([{ x: 1, z: 5, yaw: 0.3 }]);
+    off();
+    providePose(null);
   });
 });
