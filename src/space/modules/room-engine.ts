@@ -24,7 +24,21 @@ import { resumeRoomAudio } from "../room-audio";
  * deploys, the spaces using it are told to load again (onReload).
  */
 
-const REF = /^(?:([a-z0-9][a-z0-9._-]{0,63})\/)?([a-z0-9][a-z0-9_-]{0,31})(?:@([A-Za-z0-9][A-Za-z0-9._-]{0,63}))?$/;
+/**
+ * A part: `key` (this space's own, from the same deploy), `space/key` or `space/key@branch` (that branch, live:
+ * it loads again when the branch deploys), or `space/key~deploy` (exactly that deploy, never again: Review
+ * Studio's baseline beside its candidate, Mica 7344).
+ */
+const REF = /^(?:([a-z0-9][a-z0-9._-]{0,63})\/)?([a-z0-9][a-z0-9_-]{0,31})(?:@([A-Za-z0-9][A-Za-z0-9._-]{0,63})|~([A-Za-z0-9_-]{1,64}))?$/;
+
+/** A part's ref, read: which space, which part, and a branch to follow or an exact deploy to hold; null if malformed. */
+export function parseRef(ref: string): { space: string | null; key: string; branch: string | null; deploy: string | null } | null {
+  const match = REF.exec(ref);
+  if (!match) return null;
+  // An exact deploy names its space: a bare key with ~deploy would hold nothing in particular.
+  if (match[4] && !match[1]) return null;
+  return { space: match[1] ?? null, key: match[2], branch: match[3] ?? null, deploy: match[4] ?? null };
+}
 /** /s/<space>/~<deploy>/...: one deploy of one space (shared/space-bench.ts, moduleUrl). */
 const PINNED = /\/s\/([^/]+)\/~([A-Za-z0-9_-]{1,64})\//;
 
@@ -140,7 +154,12 @@ export function createRoomEngine(deps: {
       const here = sources.get(from);
       const pinned = PINNED.exec(new URL(from, window.location.origin).pathname);
       let found: SpaceModules | null;
-      if (!match[1] && !match[3] && pinned) {
+      if (match[1] && match[4]) {
+        // An exact deploy of another space: nothing to follow, so nothing reloads it.
+        found = await ofDeploy(match[1], match[4]).catch(() => null);
+      } else if (!match[1] && match[4]) {
+        return null;
+      } else if (!match[1] && !match[3] && pinned) {
         // This space's own part: from the same deploy as the space.
         found = await ofDeploy(decodeURIComponent(pinned[1]), pinned[2]).catch(() => null);
       } else {

@@ -144,9 +144,12 @@ export default defineSpace({
 });
 ```
 
-A `ref` is `"id"` (this space, the same deploy), `"space/id"` (that space's followed branch) or
-`"space/id@branch"`. A part from another space follows that branch: when it deploys, the space
-loads again with it.
+A `ref` is `"id"` (this space, the same deploy), `"space/id"` (that space's followed branch),
+`"space/id@branch"`, or `"space/id~deploy"` (exactly that deploy). A part from another space that
+follows a branch loads again when the branch deploys; one held at `~deploy` never changes, which is how
+a review shows a baseline beside a candidate. A deploy that is not that space's, or not ready, is a
+problem on the badge. Old deploys are cleared after ten newer pushes unless something pins them, so
+hold only a deploy that is pinned (a finished space's, or a review round's).
 
 A part's key (`forest`, `drums` above) is lowercase letters, digits, `-` and `_`, up to 32, and
 spaces nest three deep at most: each part's id is `<space>/<key>`, and that is what travels.
