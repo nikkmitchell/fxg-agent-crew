@@ -102,7 +102,8 @@ export class Gutenberg {
       if (kept && kept.age < SHELF_FRESH_MS) {
         const shelfKept = JSON.parse(kept.text) as BookShelf;
         // Kept before its books were measured: hand it out now, measure it behind.
-        if (!shelfKept.sized) {
+        // (Or measured when every answer came back without a length: 883b00f asked compressed.)
+        if (!shelfKept.sized || (shelfKept.books.length > 0 && shelfKept.books.every((book) => book.bytes == null))) {
           shelfKept.sized = false;
           this.measureLater(path, shelfKept);
         }
@@ -148,7 +149,12 @@ export class Gutenberg {
       while (next < books.length) {
         const book = books[next++];
         try {
-          const answer = await this.fetch(`https://www.gutenberg.org/cache/epub/${book.id}/pg${book.id}.txt`, { method: "HEAD", signal: AbortSignal.timeout(10_000), headers: HEADERS });
+          const answer = await this.fetch(`https://www.gutenberg.org/cache/epub/${book.id}/pg${book.id}.txt`, {
+            method: "HEAD",
+            signal: AbortSignal.timeout(10_000),
+            // Asked for compressed, Gutenberg leaves the length out; asked plain, it says it.
+            headers: { ...HEADERS, "accept-encoding": "identity" },
+          });
           const length = Number(answer.headers?.get("content-length"));
           book.bytes = answer.ok && Number.isFinite(length) && length > 0 ? length : null;
         } catch {
