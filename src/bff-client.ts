@@ -193,6 +193,8 @@ export type SpaceModule = {
   url: string;
   /** In the all-branches list (branch "*"), which branch this one is from. */
   branch?: string;
+  /** In the everything list (EVERYTHING), which space this one is from. */
+  space?: string;
 };
 
 /** Every branch at once: `spaceModules(space, ALL_BRANCHES)`. */

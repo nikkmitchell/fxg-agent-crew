@@ -259,3 +259,41 @@ describe("My screen, under Me: one toggle (Nikk, 7227, 7244)", () => {
     expect(labels(screen({ live: true }).value)).not.toContain("Not sharing. Go to saha.ing/share to share your screen.");
   });
 });
+
+describe("Browse all things and spaces (Nikk 7447)", () => {
+  const thing = (id: string, kind: "item" | "environment" | "space", space: string, branch = "main") => ({ id, name: id, kind, export: null, url: `/s/${space}/~d/${id}.js`, space, branch });
+  const base = (extra: Record<string, unknown>) => ({
+    spaces: [{ name: "xr.instruments", title: "XR Instruments", public: true, mine: true, branch: "main" }],
+    open: null, inRoom: [], notice: null, busy: false, refresh: () => undefined, openSpace: vi.fn(), bring: vi.fn(), present: () => null, toggle: vi.fn(),
+    setView: vi.fn(), remove: vi.fn(), page: 0, setPage: vi.fn(), ...extra,
+  });
+  const rowsOf = (sections: { rows: unknown[] }[]) => sections.flatMap((section) => section.rows) as { kind: string; label: string; detail?: string; value?: string; onTap?: () => void }[];
+
+  it("is the first row of the spaces list, and opens the everything list", () => {
+    const shelf = base({});
+    const browse = rowsOf(settingsSections(input("library", { library: shelf as never })))[0];
+    expect(browse.label).toBe("Browse all things and spaces");
+    browse.onTap!();
+    expect(shelf.openSpace).toHaveBeenCalledWith("*everything*");
+  });
+
+  it("lists every space's things a page of fifteen at a time, each saying where it is from", () => {
+    const modules = Array.from({ length: 20 }, (_, i) => thing(`t${String(i).padStart(2, "0")}`, i % 3 === 0 ? "space" : i % 3 === 1 ? "item" : "environment", i < 10 ? "open.library" : "xr.instruments", i === 4 ? "sill-stacks" : "main"));
+    const listing = { space: "*everything*", branch: "*", branches: [], deploy: null, modules, problems: [] };
+    const setPage = vi.fn();
+    const first = settingsSections(input("library", { library: base({ open: { name: "*everything*", listing }, setPage }) as never }));
+    const rows = rowsOf(first);
+    expect(rows.some((row) => row.label?.includes("20 things in 2 spaces · page 1 of 2"))).toBe(true);
+    const things = rows.filter((row) => /^t\d\d/.test(row.label));
+    expect(things).toHaveLength(15);
+    expect(things.find((row) => row.label.startsWith("t01"))).toMatchObject({ kind: "action", label: "t01 · open.library", value: "Bring in" });
+    expect(things.find((row) => row.label === "t00")).toMatchObject({ kind: "toggle", detail: "space, full size · open.library" });
+    expect(things.find((row) => row.label.startsWith("t04"))?.label).toBe("t04 · open.library @sill-stacks");
+    // No column is longer than the menu's five rows.
+    expect(first.every((section) => section.rows.length <= 5)).toBe(true);
+    rows.find((row) => row.label === "Later")!.onTap!();
+    expect(setPage).toHaveBeenCalledWith(1);
+    const second = rowsOf(settingsSections(input("library", { library: base({ open: { name: "*everything*", listing }, page: 1 }) as never })));
+    expect(second.filter((row) => /^t\d\d/.test(row.label))).toHaveLength(5);
+  });
+});

@@ -3,6 +3,11 @@ import { MODEL_HEIGHT, isModuleItem, type ModuleRoomItem, type RoomItem } from "
 import { ALL_BRANCHES, bff, type SpaceModule, type SpaceModules, type SpaceShelf } from "../../bff-client";
 import { space } from "../../space-client";
 
+/** `openSpace(EVERYTHING)`: every thing in every space you can use, in one list (Nikk 7447). */
+export const EVERYTHING = "*everything*";
+/** Things on one page of the everything list: three columns of the menu. */
+export const EVERYTHING_PAGE = 15;
+
 /**
  * THE LIBRARY: every space you can bring things from, what each offers, and
  * what this room has brought in (Nikk, 2026-10-01: "inside a workroom for a
@@ -20,6 +25,9 @@ export type Library = {
   busy: boolean;
   refresh: () => void;
   openSpace: (name: string | null, branch?: string) => void;
+  /** The everything list's page (from 0), and turning it. */
+  page: number;
+  setPage: (page: number) => void;
   /** Bring a thing in: an item in front of you, an environment around the room, a space as a model or full size. */
   bring: (module: SpaceModule, view?: "placed" | "full") => void;
   /** A space between a model and full size. */
@@ -61,6 +69,7 @@ export function useLibrary(options: {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     if (!options.enabled) return;
@@ -84,6 +93,33 @@ export function useLibrary(options: {
     }
     setOpen({ name, listing: null });
     setNotice(null);
+    setPage(0);
+    if (name === EVERYTHING) {
+      // Every space you can use, every live branch, four at a time; each thing keeps its own space and branch.
+      void (async () => {
+        const shelves = await bff.spaceLibrary().then((answer) => answer.spaces).catch(() => [] as SpaceShelf[]);
+        const modules: SpaceModule[] = [];
+        let failed = 0;
+        for (let start = 0; start < shelves.length; start += 4) {
+          const batch = await Promise.all(
+            shelves.slice(start, start + 4).map((shelf) =>
+              bff.spaceModules(shelf.name, ALL_BRANCHES).then(
+                (listing) => listing.modules.map((module) => ({ ...module, space: listing.space, branch: module.branch ?? listing.branch })),
+                () => {
+                  failed += 1;
+                  return [] as SpaceModule[];
+                },
+              ),
+            ),
+          );
+          modules.push(...batch.flat());
+        }
+        modules.sort((a, b) => a.name.localeCompare(b.name) || (a.space ?? "").localeCompare(b.space ?? ""));
+        const listing: SpaceModules = { space: EVERYTHING, branch: ALL_BRANCHES, branches: [], deploy: null, modules, problems: failed ? [`${failed} space${failed === 1 ? "" : "s"} could not be listed`] : [] };
+        setOpen((now) => (now?.name === EVERYTHING ? { name, listing } : now));
+      })();
+      return;
+    }
     // Every live branch's things in one list unless a branch is asked for (Nikk, 6938).
     bff.spaceModules(name, branch ?? ALL_BRANCHES)
       .then((listing) => setOpen((now) => (now?.name === name ? { name, listing } : now)))
@@ -98,7 +134,7 @@ export function useLibrary(options: {
     const spot = module.kind === "environment" || view === "full" ? null : options.inFront?.() ?? null;
     // A space as a model goes on a plinth at table height, where it can be worked on.
     const position = spot ? { ...spot, y: module.kind === "space" ? MODEL_HEIGHT : spot.y } : undefined;
-    space.bringModule({ space: listing.space, branch: module.branch ?? listing.branch, entry: module.id }, { ...(view ? { view } : {}), ...(position ? { position } : {}) })
+    space.bringModule({ space: module.space ?? listing.space, branch: module.branch ?? listing.branch, entry: module.id }, { ...(view ? { view } : {}), ...(position ? { position } : {}) })
       .then((answer) => {
         options.applyRoomItem(answer.item);
         setNotice(`${module.name} is in the room.`);
@@ -123,7 +159,7 @@ export function useLibrary(options: {
   const listing = open?.listing ?? null;
   const present = (module: SpaceModule, view?: "placed" | "full") =>
     inRoom.find((item) =>
-      listing !== null && item.source.space === listing.space && item.source.branch === (module.branch ?? listing.branch) && item.source.entry === module.id && (view === undefined || item.view === view),
+      listing !== null && item.source.space === (module.space ?? listing.space) && item.source.branch === (module.branch ?? listing.branch) && item.source.entry === module.id && (view === undefined || item.view === view),
     ) ?? null;
   const toggle = (module: SpaceModule, view: "placed" | "full") => {
     const here = present(module, view);
@@ -144,7 +180,7 @@ export function useLibrary(options: {
 
   const publish = (module: SpaceModule, title: string) => {
     if (!listing) return Promise.resolve(false);
-    return bff.publishFinished(title.trim(), { space: listing.space, branch: module.branch ?? listing.branch, entry: module.id })
+    return bff.publishFinished(title.trim(), { space: module.space ?? listing.space, branch: module.branch ?? listing.branch, entry: module.id })
       .then((answer) => {
         setNotice(`${answer.finished.title} is a finished space: find it on the room selector's first tab.`);
         return true;
@@ -167,6 +203,8 @@ export function useLibrary(options: {
     busy,
     refresh: () => setRevision((n) => n + 1),
     openSpace,
+    page,
+    setPage,
     bring,
     setView,
     remove,

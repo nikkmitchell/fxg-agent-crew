@@ -1,7 +1,7 @@
 import type { Formation } from "../../shared/agent-home";
 import type { RoomMenuRow } from "../../shared/room-switch";
 import type { MenuRow, MenuSection, MenuTab } from "./menu-layout";
-import { deploySize, describeInRoom, type Library } from "./modules/use-library";
+import { EVERYTHING, EVERYTHING_PAGE, deploySize, describeInRoom, type Library } from "./modules/use-library";
 
 /**
  * WHAT EACH SETTINGS TAB SHOWS, as sections of rows — decided here, without a
@@ -399,8 +399,14 @@ function librarySections(s: SettingsMenuInput): MenuSection[] {
         ? [note("Looking…")]
         : library.spaces.length === 0
           ? [note("No spaces yet. Make one on the Spaces page.")]
-          : library.spaces.map((shelf) => ({ kind: "link" as const, label: shelf.title, value: shelf.mine ? "yours" : "public", onTap: () => library.openSpace(shelf.name) })),
+          : [
+              // Every thing in every space, in one list (Nikk 7447).
+              { kind: "link" as const, label: "Browse all things and spaces", value: "everything", onTap: () => library.openSpace(EVERYTHING) },
+              ...library.spaces.map((shelf) => ({ kind: "link" as const, label: shelf.title, value: shelf.mine ? "yours" : "public", onTap: () => library.openSpace(shelf.name) })),
+            ],
     });
+  } else if (open.name === EVERYTHING) {
+    sections.push(...everythingSections(library));
   } else {
     const listing = open.listing;
     const head: MenuRow[] = [{ kind: "link", label: "‹ All spaces", onTap: () => library.openSpace(null) }];
@@ -437,6 +443,43 @@ function librarySections(s: SettingsMenuInput): MenuSection[] {
     }
   }
   if (library.notice) sections.push({ title: "", rows: [note(library.notice)] });
+  return sections;
+}
+
+/**
+ * EVERYTHING (Nikk 7447: "a button that allows for browsing ALL things and
+ * spaces"): every thing in every space you can use, A to Z, a page of fifteen
+ * at a time so the menu stays a menu. Each says which space (and branch, when
+ * not main) it is from; one row each: an item's Bring in, a space's or an
+ * environment's full-size switch.
+ */
+function everythingSections(library: Library): MenuSection[] {
+  const listing = library.open?.listing ?? null;
+  const all = listing?.modules ?? [];
+  const pages = Math.max(1, Math.ceil(all.length / EVERYTHING_PAGE));
+  const page = Math.min(library.page, pages - 1);
+  const head: MenuRow[] = [{ kind: "link", label: "‹ All spaces", onTap: () => library.openSpace(null) }];
+  if (!listing) head.push(note("Looking through every space…"));
+  else if (!all.length) head.push(note("Nothing to bring in yet, in any space."));
+  else {
+    const spaces = new Set(all.map((module) => module.space)).size;
+    head.push(note(`${all.length} things in ${spaces} space${spaces === 1 ? "" : "s"} · page ${page + 1} of ${pages}`));
+    if (pages > 1) {
+      head.push({ kind: "action", label: "Earlier", value: page > 0 ? `page ${page}` : "", onTap: () => library.setPage((page - 1 + pages) % pages) });
+      head.push({ kind: "action", label: "Later", tone: "accent", value: page < pages - 1 ? `page ${page + 2}` : "first page", onTap: () => library.setPage((page + 1) % pages) });
+    }
+    for (const problem of listing.problems) head.push(note(problem));
+  }
+  const sections: MenuSection[] = [{ title: "Everything", rows: head }];
+  const from = (module: { space?: string; branch?: string }) => `${module.space ?? ""}${module.branch && module.branch !== "main" ? ` @${module.branch}` : ""}`;
+  const shown = all.slice(page * EVERYTHING_PAGE, (page + 1) * EVERYTHING_PAGE);
+  const rows: MenuRow[] = shown.map((module) => {
+    if (module.kind === "item") return { kind: "action" as const, label: `${module.name} · ${from(module)}`, tone: "accent" as const, value: "Bring in", onTap: () => library.bring(module) };
+    // A space or an environment all around you: one switch. A space's model is in its own space's list.
+    const what = module.kind === "space" ? "space, full size" : "around the room";
+    return { kind: "toggle" as const, label: module.name, detail: `${what} · ${from(module)}`, on: Boolean(library.present(module, "full")), onTap: () => library.toggle(module, "full") };
+  });
+  for (let start = 0; start < rows.length; start += 5) sections.push({ title: start ? "" : "Things A to Z", rows: rows.slice(start, start + 5) });
   return sections;
 }
 
