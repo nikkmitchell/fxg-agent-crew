@@ -117,7 +117,7 @@ export function resolveFacing(
 }
 
 /** How far in front of you "here, facing me" puts an agent: conversational, not in your face. */
-export const IN_FRONT_DISTANCE = 1.3;
+export const IN_FRONT_DISTANCE = 2.6;
 /** How far to your side "beside me" puts an agent. */
 export const BESIDE_DISTANCE = 0.9;
 /** And a little ahead, so its screen is in front of both of you, not behind your shoulder. */
@@ -156,7 +156,7 @@ export function homeBesideMe(person: Person, side: "left" | "right" = "right"): 
 export type Formation = "line-facing" | "line-away" | "half-circle" | "ring";
 
 /** Room between two agents standing side by side, in metres: an avatar's shoulders and a little air. */
-export const FORMATION_SPACING = 0.9;
+export const FORMATION_SPACING = 1.4;
 
 /**
  * Where each of `count` agents stands for a formation, from where the person
@@ -175,12 +175,13 @@ export function formationHomes(person: Person, count: number, kind: Formation): 
     return { at, facing: facing ?? toward(at) };
   };
   if (kind === "line-facing" || kind === "line-away") {
-    const ahead = kind === "line-facing" ? 2 : 1.6;
+    const ahead = kind === "line-facing" ? 2.6 : 1.6;
     return Array.from({ length: count }, (_, i) => {
       const side = (i - (count - 1) / 2) * FORMATION_SPACING;
       const x = person.at.x + forward.x * ahead + right.x * side;
       const z = person.at.z + forward.z * ahead + right.z * side;
-      return place(x, z, kind === "line-away" ? f : undefined);
+      // A line looks straight out (Nikk 7358): toward you, all parallel, not turned in on you.
+      return place(x, z, kind === "line-away" ? f : Math.atan2(Math.sin(f + Math.PI), Math.cos(f + Math.PI)));
     });
   }
   // On an arc wide enough that neighbours are about a spacing apart, never closer than 1.6 m.
