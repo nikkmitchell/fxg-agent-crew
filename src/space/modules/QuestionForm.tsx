@@ -24,6 +24,7 @@ export function QuestionForm() {
         initial={open.draft}
         limit={QUESTION_LIMITS.text.max}
         scale={1}
+        doneVerb="send"
         onDone={(text) => void sendOpenQuestion(text)}
         onCancel={cancelOpenQuestion}
       />

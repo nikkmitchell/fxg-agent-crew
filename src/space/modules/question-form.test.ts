@@ -41,7 +41,7 @@ describe("asking from a thing", () => {
   it("opens one panel near the thing, facing you, saying where the question goes and as whom", async () => {
     const host = room();
     const pad = new THREE.Object3D();
-    pad.position.set(0, 1.1, 0);
+    pad.position.set(0, 1.1, 1);
     pad.updateMatrixWorld();
     void host.ask("library/lectern", { prompt: "Ask the Library", near: pad }).result;
     expect(api.questions).toHaveBeenCalledWith("library", { limit: 1 });
@@ -50,7 +50,7 @@ describe("asking from a thing", () => {
     expect(open.header).toBe("Ask the Library · posted publicly to the open-source-library board as Nikk2");
     expect(open.sending).toBe(false);
     // Between the pad and you, below your eyes, turned toward you.
-    expect(open.at.z).toBeGreaterThan(0);
+    expect(open.at.z).toBeGreaterThan(1);
     expect(open.at.z).toBeLessThan(2);
     expect(open.at.y).toBeLessThan(1.6);
     expect(open.yaw).toBeCloseTo(0);
@@ -134,12 +134,26 @@ describe("listing", () => {
   });
 });
 
-describe("where the panel goes without a thing to stand by", () => {
-  it("is in front of you, nearer in a headset", () => {
-    const camera = new THREE.PerspectiveCamera();
-    camera.position.set(0, 1.6, 0);
-    camera.updateMatrixWorld();
+describe("where the panel goes", () => {
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(0, 1.6, 0);
+  camera.updateMatrixWorld();
+  const thingAt = (z: number) => {
+    const thing = new THREE.Object3D();
+    thing.position.set(0, 1, z);
+    thing.updateMatrixWorld();
+    return thing;
+  };
+
+  it("is in front of you without a thing to stand by, nearer in a headset", () => {
     expect(placeNear(undefined, camera, true).at.z).toBeCloseTo(-0.55);
     expect(placeNear(undefined, camera, false).at.z).toBeCloseTo(-0.9);
+  });
+
+  it("stands by the thing when you are at it, and comes to you when you pressed it from across the room", () => {
+    const beside = placeNear(thingAt(-1.2), camera, true).at;
+    expect(beside.z).toBeCloseTo(-0.8);
+    const across = placeNear(thingAt(-4), camera, true).at;
+    expect(across.z).toBeCloseTo(-0.55);
   });
 });

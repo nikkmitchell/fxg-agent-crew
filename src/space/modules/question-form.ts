@@ -72,12 +72,19 @@ function refusalOf(error: unknown): AskResult {
   return refused("failed", "Could not reach saha.ing.");
 }
 
-/** Where the panel goes: between the thing and you, a little under your eyes, facing you. */
+/**
+ * Nearer than this to the thing (metres, across the floor), and the panel stands by it; further, and it
+ * opens in front of you. Seen from across the room a panel by the thing is too small to read where the
+ * question is going (the harness, 2026-10-07: a window's camera stands metres back).
+ */
+export const BESIDE = 1.5;
+
+/** Where the panel goes: between the thing and you when you are at it, else in front of you; a little under your eyes, facing you. */
 export function placeNear(near: THREE.Object3D | undefined, camera: THREE.Camera, inHeadset: boolean): { at: THREE.Vector3; yaw: number } {
   const eye = camera.getWorldPosition(new THREE.Vector3());
+  const target = near?.getWorldPosition(new THREE.Vector3()) ?? null;
   let at: THREE.Vector3;
-  if (near) {
-    const target = near.getWorldPosition(new THREE.Vector3());
+  if (target && Math.hypot(eye.x - target.x, eye.z - target.z) <= BESIDE) {
     const toward = eye.clone().sub(target).setY(0);
     const apart = toward.length();
     if (apart > 1e-6) toward.divideScalar(apart);

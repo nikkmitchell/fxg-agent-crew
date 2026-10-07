@@ -67,6 +67,7 @@ export function Typing3D({
   limit = 280,
   scale = 3.2,
   keyboardScale = 1,
+  doneVerb = "save",
 }: {
   /** What this is for — "New card in Review", "Comment". */
   prompt: string;
@@ -91,6 +92,8 @@ export function Typing3D({
    * at a time; forty keys at that size fill the view.
    */
   keyboardScale?: number;
+  /** What Done does, in words: the hint under the text ("done to save") and the button beside "system keyboard". "send" for a question. */
+  doneVerb?: string;
 }) {
   const [typing, setTyping] = useState<Editing>(() => atEnd(initial));
   /** How tall the text came out, as troika laid it out — the panel is sized to it. */
@@ -352,7 +355,7 @@ export function Typing3D({
       <Text position={[0.33, 0.1, 0]} fontSize={0.022} color="#6f6b63" anchorX="right" anchorY="middle">
         {typing.selected
           ? "type, speak or ⌫ to change the lit word"
-          : `${typing.text.length}/${limit} · ${typing.text ? "tap a word to fix it · " : ""}done to save`}
+          : `${typing.text.length}/${limit} · ${typing.text ? "tap a word to fix it · " : ""}done to ${doneVerb}`}
       </Text>
       {/*
         THE TWO WAYS IN THAT ARE NOT KEYS. Side by side above the keyboard,
@@ -385,7 +388,7 @@ export function Typing3D({
         width={0.22}
         shown
         lit={latest.current.text.trim().length > 0}
-        label={latest.current.text.trim() ? "save" : "close"}
+        label={latest.current.text.trim() ? doneVerb : "close"}
         onPress={() => settle({ ...latest.current, done: true })}
       />
 
