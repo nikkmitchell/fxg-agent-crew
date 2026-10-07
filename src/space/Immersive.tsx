@@ -56,6 +56,7 @@ import { holdSession } from "../update-reload";
 import { VoidSphere } from "./Backdrop";
 import { voidBacking } from "./void-backdrop";
 import { RoomControls } from "./RoomControls";
+import { onRoomMenuRequest } from "./room-menu";
 import type { Meditation } from "../../shared/meditation";
 import { isFullView, type RoomItem } from "../../shared/room-items";
 import { useHiddenAsStill } from "./useHiddenAsStill";
@@ -1307,5 +1308,61 @@ export function Immersive({
       onMeditation={onMeditation}
       peopleRef={peopleRef}
     />
-  ) : null;
+  ) : (
+    <WindowMenu
+      avatarRecorder={avatarRecorder}
+      peopleRef={peopleRef}
+      onReturnToLobby={onReturnToLobby}
+      onSwitchRoom={onSwitchRoom}
+      currentRoom={currentRoom}
+      you={you}
+      groupRoom={groupRoom}
+      voice={voice}
+      liveUtterance={liveUtterance}
+      feed={feed}
+      panels={panels}
+      arrange={arrange}
+      showing={showing}
+      showingChoices={showingChoices}
+      agents={agents}
+      roomItems={roomItems}
+      meditation={meditation}
+      onMeditation={onMeditation}
+    />
+  );
+}
+
+/**
+ * THE SETTINGS IN THE WINDOW (Nikk: the menu button in the top right of the non-VR view). The headset's own
+ * controls, anchored to the window's camera, mounted only while the menu is wanted: the ⚙ Settings button asks
+ * (room-menu.ts), closing takes them away. Nothing else of the headset's controls appears in the window.
+ */
+function WindowMenu(props: Omit<Parameters<typeof RoomControls>[0], "anchor" | "bodyOfYou" | "onResetStanding" | "onNote" | "passthrough" | "passthroughAvailable" | "blendMode" | "onTogglePassthrough" | "hiddenAsStill" | "positionOf" | "menuOnly"> & { peopleRef: { current: readonly { actorId: string; body?: string | null; at: { x: number; z: number } }[] | null } }) {
+  const camera = useThree((state) => state.camera);
+  const [shown, setShown] = useState(false);
+  useEffect(() => onRoomMenuRequest(() => setShown(true)), []);
+  const anchor = useCallback(() => {
+    const at = camera.getWorldPosition(new THREE.Vector3());
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion()));
+    return { at: { x: at.x, y: at.y, z: at.z }, yaw: Math.atan2(-forward.x, -forward.z) };
+  }, [camera]);
+  const close = useCallback(() => setShown(false), []);
+  if (!shown) return null;
+  const { peopleRef, ...rest } = props;
+  return (
+    <RoomControls
+      {...rest}
+      anchor={anchor}
+      bodyOfYou={() => peopleRef.current?.find((person) => person.actorId === props.you)?.body ?? null}
+      onResetStanding={() => undefined}
+      onNote={() => undefined}
+      passthrough={false}
+      passthroughAvailable={false}
+      blendMode={null}
+      onTogglePassthrough={() => undefined}
+      hiddenAsStill={[]}
+      positionOf={(actorId) => (peopleRef.current ?? []).find((person) => person.actorId.toLowerCase() === actorId.toLowerCase())?.at ?? null}
+      menuOnly={close}
+    />
+  );
 }

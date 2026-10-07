@@ -40,12 +40,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
  *
  * 100dvh rather than 100vh so mobile browser chrome cannot push the page taller
  * than the screen. */
-.app-shell { min-height: 100dvh; display: grid; grid-template-columns: 68px minmax(0, 1fr); }
-.utility-rail { position: sticky; top: 0; height: 100vh; z-index: 10; display: flex; flex-direction: column; align-items: center; padding: 20px 0; background: var(--rail); color: #f1efe7; }
+/* TABS ACROSS THE TOP, in words (Nikk): the brand, the sections, Settings and you, in one bar. */
+.app-shell { min-height: 100dvh; display: block; }
+.utility-rail { position: sticky; top: 0; width: 100%; height: 54px; z-index: 10; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 0 16px; background: var(--rail); color: #f1efe7; }
 .brand-mark { border: 0; background: none; color: inherit; font-size: 17px; font-weight: 700; letter-spacing: -.08em; cursor: pointer; }
 .brand-mark span { color: #ee6047; }
-.rail-nav { display: grid; gap: 10px; margin: auto 0; }
-.rail-button { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #9b9d97; cursor: pointer; transition: .25s var(--ease); }
+.rail-nav { display: flex; gap: 4px; margin: 0; overflow-x: auto; scrollbar-width: none; }
+.rail-nav::-webkit-scrollbar { display: none; }
+.rail-button { min-width: 42px; height: 36px; padding: 0 12px; display: grid; place-items: center; flex: 0 0 auto; white-space: nowrap; font-size: 14px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #9b9d97; cursor: pointer; transition: .25s var(--ease); }
 .rail-button:hover, .rail-button.is-active { color: #f8f4ea; background: #343531; border-color: #464741; transform: translateY(-1px); }
 .rail-avatar { width: 32px; height: 32px; border: 1px solid #565751; border-radius: 50%; background: #2d55df; color: white; font-size: 13px; font-weight: 700; cursor: pointer; }
 .glyph { width: 19px; height: 19px; flex: 0 0 auto; }
@@ -573,11 +575,7 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .project-overview li { margin: 8px 0; }
 @media (max-width: 760px) { .project-grid { grid-template-columns: 1fr; } .project-form { padding: 16px; } }
 
-@media (max-width: 1180px) {
-  .app-shell { grid-template-columns: 62px minmax(0, 1fr); }
-  .workroom { grid-column: 2; }
-  .utility-rail { grid-row: 1 / span 2; }
-}
+
 
 @media (max-width: 760px) {
   .app-shell { display: block; }
@@ -600,7 +598,7 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
      anything. */
   .rail-settings { margin-top: 0; padding: 4px 2px; }
   .rail-settings small { max-width: 46px; }
-  .rail-button { width: 36px; height: 36px; }
+  .rail-button { height: 32px; padding: 0 8px; font-size: 13px; }
   .workroom { padding: 28px 17px 56px; }
   .project-header, .stage-heading, .log-header { align-items: flex-start; flex-direction: column; }
   .header-actions { justify-content: flex-start; }
@@ -1316,3 +1314,8 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .space-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
 .space-publish { font-size: 14px; }
 .space-publish input { min-height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--canvas); font: inherit; }
+
+/* The room's own settings, in the corner of the view (Nikk): the same menu as in a headset. */
+.space-canvas { position: relative; }
+.space-menu-button { position: absolute; top: 12px; right: 12px; z-index: 3; padding: 8px 14px; border: 1px solid rgba(255, 255, 255, .18); border-radius: 999px; background: rgba(30, 36, 50, .9); color: #eef2fa; font: inherit; font-size: 14px; cursor: pointer; }
+.space-menu-button:hover { background: rgba(77, 134, 255, .9); }

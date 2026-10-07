@@ -59,8 +59,8 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
     return () => holdReload("voice-microphone", false);
   }, [listening]);
   const [speaking, setSpeaking] = useState(false);
-  const [hearReplies, setHearReplies] = useState(false);
-  const [to, setTo] = useState("");
+  const [hearReplies] = useState(false);
+  const [to] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const inputRef = useRef<SteadyRecorder | null>(null);
@@ -242,52 +242,10 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
       ) : null}
       {overLimit ? <p role="status">This draft is over {DETAIL_LIMIT.toLocaleString()} characters. Your words have been kept.</p> : null}
 
-      <label>
-        <span>Address</span>
-        <select value={to} onChange={(event) => setTo(event.currentTarget.value)} disabled={sending}>
-          <option value="">The room, nobody in particular</option>
-          {recipientMissing ? <option value={to}>{to} — no longer in the roster</option> : null}
-          {people.map((person) => <option key={person.actorId} value={person.actorId}>{person.actorId}</option>)}
-        </select>
-      </label>
-      {recipientMissing ? <p role="status">Your selected recipient is no longer in the roster. Choose an address before sending.</p> : null}
-
       <button type="button" className="primary-action" onClick={() => void send()} disabled={!draft.trim() || sending || overLimit || recipientMissing}>
         {sending ? "Sending…" : "Send after review"}
       </button>
 
-      {/*
-        * NEVER GATED ON `capabilities.synthesis` AGAIN. That asks whether the
-        * BROWSER can speak; a room utterance is a WAV rendered on the box and
-        * played through an Audio element, which every browser has. The
-        * browser's own synthesiser is only the fallback.
-        *
-        * Baiwei, on a Quest 2, into a room that was speaking: "I still cannot
-        * hear your voices in my headset." Quest Browser exposes no speech
-        * synthesis, so this replaced the checkbox with a sentence saying it
-        * could not be done — and `hearReplies` starts false here. Silent, and
-        * no control to make it otherwise. The sentence was not just wrong, it
-        * was load-bearing.
-        */}
-      <label className="space-setting">
-        <input
-          type="checkbox"
-          checked={hearReplies}
-          onChange={(event) => setHearReplies(event.currentTarget.checked)}
-        />
-        <span>Read what is said in the room aloud</span>
-      </label>
-      {/*
-        * AND THIS SAID THE OPPOSITE OF WHAT NOW HAPPENS. Room speech used to
-        * reach only the person it named; Nikk asked for "read to all, like we
-        * are all in the room", so a line addressed to somebody else is read to
-        * you too — which is the whole point of the change and was described
-        * here as not happening.
-        */}
-      <p className="muted-note">
-        Everything said in the room is read aloud, including lines addressed to somebody else. Chat
-        messages are not spoken — only what is said in the room.
-      </p>
       <p className="space-voice-state" aria-live="polite">
         {listening ? "Listening — nothing is sent until you review it." : speaking ? "Speaking." : notice}
       </p>

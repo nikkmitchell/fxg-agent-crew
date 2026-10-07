@@ -1,25 +1,20 @@
 import type { FinishedSpace } from "../../shared/finished-spaces";
 import { useFinishedRoom } from "./modules/use-finished";
-import { LibrarySection } from "./modules/LibrarySection";
 import { inFrontOf, useLibrary } from "./modules/use-library";
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { markInXr } from "../client-errors";
-import { Identity } from "../Identity";
 import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
 import { RoomLoading } from "./RoomLoading";
+import { requestRoomMenu } from "./room-menu";
 import { VoiceControls } from "./VoiceControls";
-import { Transcript } from "./Transcript";
 import { usePanelChoices } from "./usePanelChoices";
 import { usePanelArrange } from "./usePanelArrange";
-import { placeOf, savePlacement } from "./panel-placement";
-import { PANEL_SCALE, scaleOf } from "../../shared/panel-place";
 import { meterVoices } from "./voice-mouth";
 import { useVoiceChat } from "./useVoiceChat";
-import { ProjectChooser } from "../ProjectChooser";
 import { base, pathForTab } from "../router";
-import { setRoomPreferences, useRoomPreferences } from "./room-preferences";
+import { useRoomPreferences } from "./room-preferences";
 import { useHiddenAsStill } from "./useHiddenAsStill";
 import { takeCrumb } from "./left-crumb";
 import { useHeadsetAvailable } from "./useHeadsetAvailable";
@@ -27,7 +22,7 @@ import { bff } from "../bff-client";
 import { ApiError } from "../api-request";
 import { useAvatarRecorder } from "./useAvatarRecorder";
 import { isLobby } from "../../shared/lobby-hall";
-import { microphonePermission, rememberSelfMute, selfMuted, shouldStartVoice } from "./voice-default";
+import { microphonePermission, selfMuted, shouldStartVoice } from "./voice-default";
 import { inSession } from "../update-reload";
 
 /**
@@ -161,9 +156,10 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
    * toggled from outside the browser, so without this control the reduced path
    * could only ever be read, never watched.
    */
-  const [reducedOverride, setReducedOverride] = useState<boolean | null>(null);
+  // The override's switch went with the side column (Nikk: everything is in ⚙ Settings now).
+  const [reducedOverride] = useState<boolean | null>(null);
   const reducedMotion = reducedOverride ?? systemPrefersReduced;
-  const preferences = useRoomPreferences();
+  useRoomPreferences();
   const connection = useSpaceSocket(entered, spaceRoomRevision);
   /**
    * Switch rooms WITHOUT LEAVING THE ROOM PAGE, or the headset (Nikk, 4735).
@@ -175,7 +171,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
     await bff.enterSpaceRoom(roomName);
     setSpaceRoomRevision((revision) => revision + 1);
   }, []);
-  const stillNow = useHiddenAsStill(
+  useHiddenAsStill(
     connection.peopleRef,
     connection.status.state === "open" ? connection.status.you : null,
   );
@@ -187,7 +183,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
   // closes closes here too rather than on the next reload.
   const panels = usePanelChoices(entered, connection.openPanels);
   const arrange = usePanelArrange();
-  const [panelTrouble, setPanelTrouble] = useState<string | null>(null);
+  const [, setPanelTrouble] = useState<string | null>(null);
   /**
    * Live voice, held HERE rather than inside the scene.
    *
@@ -206,9 +202,9 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
   // Mouths move with voices: meter every call, and your own microphone while
   // it is on (voice-mouth.ts).
   const meYou = connection.status.state === "open" ? connection.status.you : null;
-  const finished = useFinishedRoom(spaceRoomName);
+  useFinishedRoom(spaceRoomName);
   // THE LIBRARY (src/space/modules): things from spaces' git, brought into this room.
-  const library = useLibrary({
+  useLibrary({
     enabled: entered && connection.status.state === "open",
     roomSpace: spaceRoomName ? spaceRoomName.toLowerCase() : null,
     roomItems: connection.roomItems,
@@ -351,6 +347,7 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
         </div>
       ) : null}
       <div className="space-canvas">
+        <button type="button" className="space-menu-button" onClick={requestRoomMenu}>⚙ Settings</button>
         {/* A crash in the 3D scene is reported and offers a way back, rather
             than blanking the whole page (and ending a headset session). */}
         <ErrorBoundary where="scene">
@@ -464,201 +461,15 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
           </p>
         )}
 
-        <Transcript heard={connection.heard} />
-
+        {/* Only speaking and writing stay beside the view (Nikk): everything else is in ⚙ Settings. */}
         <VoiceControls connection={connection} />
-
-        {/* TALKING, as opposed to sending words. The audio is a direct
-            connection between browsers; saha.ing copies a few kilobytes of
-            setup and then gets out of the way. */}
-        <section className="space-voice">
-          <h2>Talk out loud</h2>
-          <button
-            type="button"
-            className={voice.on || voice.starting ? "primary-action" : "text-button"}
-            onClick={() => {
-              const next = !(voice.on || voice.starting);
-              rememberSelfMute(!next);
-              voice.setOn(next);
-            }}
-          >
-            {voice.starting
-              ? "Opening microphone… click to cancel"
-              : voice.on
-                ? "Microphone is open — click to close it"
-                : "Open your microphone"}
-          </button>
-          <p className="muted-note">
-            {voice.others.length === 0
-              ? "Nobody else has a microphone open right now. You will hear anyone who opens theirs, whether or not yours is open."
-              : `Microphones open: ${voice.others.join(", ")}.`}
-          </p>
-          {voice.others.length > 0 ? (
-            <ul className="voice-mutes">
-              {voice.others.map((name) => {
-                const isMuted = voice.muted.has(name.trim().toLowerCase());
-                return (
-                  <li key={name}>
-                    <span>{name}</span>
-                    <button type="button" className="text-button" onClick={() => voice.setMuted(name, !isMuted)}>
-                      {isMuted ? "Unmute" : "Mute for me"}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-          {voice.trouble ? <p role="status">{voice.trouble}</p> : null}
-        </section>
-
-        <ShareScreenLink />
-
-        {/* WHAT IS ON THE ARC, and which project it is showing.
-            Both live here rather than on a settings page because in this room
-            the panels ARE the tabs: closing one or changing project changes
-            what is hanging in front of you, and walking out to a settings page
-            to do it is the errand a space is supposed to remove. */}
-        <section className="space-panel-picker">
-          <h2>Panels</h2>
-          <p className="muted-note">
-            Shared with everyone in the room — opening or closing one changes it for everybody,
-            the same as moving or resizing it.
-          </p>
-          {panels.catalogue.map((panel) => {
-            const open = panels.open.includes(panel.id);
-            const place = placeOf(connection.places, panel.id);
-            const size = scaleOf(place);
-            const resize = (to: number) => {
-              const next = Math.min(PANEL_SCALE.max, Math.max(PANEL_SCALE.min, to));
-              void savePlacement({ ...place, scale: next }).then(setPanelTrouble);
-            };
-            return (
-              <div key={panel.id} className="space-setting-row">
-                <label className="space-setting">
-                  <input
-                    type="checkbox"
-                    checked={open}
-                    onChange={(event) => panels.setOpen(panel.id, event.currentTarget.checked)}
-                  />
-                  <span>{panel.label}</span>
-                </label>
-                {/* SIZE, HERE AS WELL AS IN THE ROOM. The reason this pair of
-                    buttons existed was that the canvas could not receive a
-                    pointer in a window — `occlude="blending"` on the old iframe
-                    panels set `pointer-events: none` on it — so resizing by
-                    pulling a panel's face was impossible here. The iframes are
-                    gone and the canvas takes a mouse again, so the gesture works
-                    in both rooms and these are a convenience rather than the
-                    only way. Kept because a keyboard can reach them. */}
-                {open ? (
-                  <span className="space-setting-size">
-                    <button
-                      type="button"
-                      onClick={() => resize(size - 0.2)}
-                      disabled={size <= PANEL_SCALE.min + 0.001}
-                      aria-label={`Make ${panel.label} smaller`}
-                    >
-                      −
-                    </button>
-                    <span aria-live="polite">{Math.round(size * 100)}%</span>
-                    <button
-                      type="button"
-                      onClick={() => resize(size + 0.2)}
-                      disabled={size >= PANEL_SCALE.max - 0.001}
-                      aria-label={`Make ${panel.label} bigger`}
-                    >
-                      +
-                    </button>
-                  </span>
-                ) : null}
-              </div>
-            );
-          })}
-          <p className="muted-note">
-            Drag the bar along the top of a panel to move it. Where a panel hangs is shared: it
-            moves for everyone, and the agents that walk to it follow.
-          </p>
-          {panels.refusal ? <p role="status">{panels.refusal}</p> : null}
-          {panelTrouble ? <p role="status">{panelTrouble}</p> : null}
-        </section>
-
-        <ProjectChooser />
-
-        {finished ? <FinishedNote finished={finished} /> : <LibrarySection library={library} />}
-
-        <h2>In the room</h2>
-        <label className="space-setting">
-          <input
-            type="checkbox"
-            checked={preferences.rings}
-            onChange={(event) => setRoomPreferences({ rings: event.currentTarget.checked })}
-          />
-          <span>Show the coloured ring under each person and agent (this browser only)</span>
-        </label>
-        <label className="space-setting">
-          <input
-            type="checkbox"
-            checked={preferences.hideStill}
-            onChange={(event) => setRoomPreferences({ hideStill: event.currentTarget.checked })}
-          />
-          <span>
-            Hide anyone who has not moved for 5 minutes (this browser only, never you)
-            {preferences.hideStill
-              ? stillNow.length > 0
-                ? ` — hiding ${stillNow.join(", ")}`
-                : " — nobody is that still right now"
-              : ""}
-          </span>
-        </label>
-        <label className="space-setting">
-          <input
-            type="checkbox"
-            checked={reducedMotion}
-            onChange={(event) => setReducedOverride(event.currentTarget.checked)}
-          />
-          <span>
-            Redraw only when something happens
-            {reducedOverride === null && systemPrefersReduced ? " (your system asks for this)" : ""}
-          </span>
-        </label>
-        {status.state === "open" ? (
-          <p className="muted-note">You are {status.you}.</p>
-        ) : null}
-        {connection.roster.length === 0 ? (
-          <p className="muted-note">
-            Nobody — including you, until the connection is open.
-          </p>
-        ) : (
-          <ul>
-            {connection.roster.map((person) => (
-              <li key={person.actorId}>
-                <Identity username={person.actorId} kind={person.kind ?? undefined} showName />
-                {person.because ? (
-                  <em className="space-because">{person.because}</em>
-                ) : null}
-                {person.connected ? null : (
-                  // Said in words, not only by a fainter ring in the scene. A
-                  // dimmed outline is not something anyone can read reliably,
-                  // and the difference between "watching the room" and "put
-                  // there by something they did" is worth stating.
-                  <em className="space-offline">no live connection</em>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="muted-note">
-          Someone marked <em>no live connection</em> is not watching the room — they are standing
-          where something they did puts them, and the line above says what that was. No reason
-          means we have no recent record of them acting, which is not the same as idle.
-        </p>
       </aside>
     </section>
   );
 }
 
 /** Inside a finished space: what it is, and bringing it up to its branch's newest version (shared/finished-spaces.ts). */
-function FinishedNote({ finished }: { finished: FinishedSpace }) {
+export function FinishedNote({ finished }: { finished: FinishedSpace }) {
   const [notice, setNotice] = useState<string | null>(null);
   return (
     <section className="space-voice" aria-label="Finished space">

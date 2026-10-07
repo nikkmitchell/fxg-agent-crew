@@ -29,6 +29,7 @@ import { statusLineActionable } from "./touch-press";
 import { controllerFaceButtons, controllerMicAction, readTouchMicSetting, writeTouchMicSetting } from "./controller-mic";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
 import { questionVoice } from "./modules/question-form";
+import { onRoomMenuRequest } from "./room-menu";
 import { controllersInUse, micGestureHands, micGestureIndicator } from "./mic-gesture-input";
 import {
   closedControlPose,
@@ -248,6 +249,7 @@ export function RoomControls({
   onMeditation,
   hiddenAsStill,
   positionOf,
+  menuOnly,
   onResetStanding,
   onReturnToLobby,
   onSwitchRoom,
@@ -288,6 +290,11 @@ export function RoomControls({
   hiddenAsStill: string[];
   /** Where somebody is standing, for reading them aloud as loud as they are near. */
   positionOf: (actorId: string) => { x: number; z: number } | null;
+  /**
+   * IN THE WINDOW, THE MENU AND NOTHING ELSE (Nikk: "the menu settings button ... in the top right hand corner of
+   * the non VR 3d window"). Opens at once; closing it calls this, and the window takes the controls away again.
+   */
+  menuOnly?: () => void;
   /**
    * Measure the wearer's height again from where their head is now.
    *
@@ -1023,7 +1030,8 @@ export function RoomControls({
     // Back to the main screen of the tab you were on, so it opens where you left it.
     setView((current) => SETTINGS_TABS.find((entry) => entry.id === tabOfView(current))?.view ?? "root");
     setOpen(false);
-  }, []);
+    menuOnly?.();
+  }, [menuOnly]);
 
   /**
    * The panel follows you while CLOSED, driven per frame rather than through
@@ -1123,7 +1131,8 @@ export function RoomControls({
 
     const held = pinned.current;
     if (held || fixingNow.current) placed.current = false;
-    if (held && walkedAway(held.from, body.at)) {
+    // In the window the camera eases after you; walking away means nothing there (menuOnly).
+    if (held && !menuOnly && walkedAway(held.from, body.at)) {
       // WALKED AWAY: the settings close by themselves (Nikk, 5248).
       closeMenuRef.current();
       return;
@@ -1640,6 +1649,14 @@ export function RoomControls({
 
   pressTalkRef.current = pressTalk;
   openMenuRef.current = openMenu;
+  // The page's ⚙ Settings button, in the window (room-menu.ts).
+  useEffect(() => onRoomMenuRequest(() => openMenuRef.current()), []);
+  // The window's menu-only controls open the moment they are mounted (a frame later, once there is an anchor).
+  useEffect(() => {
+    if (!menuOnly) return;
+    const timer = setTimeout(() => openMenuRef.current(), 50);
+    return () => clearTimeout(timer);
+  }, [menuOnly]);
   closeMenuRef.current = closeMenu;
   // THE GESTURE NEVER STOPS A SEND ON ITS WAY. Only the ✕ button does. A
   // tracking blink read as a fist was aborting Nikk's sends mid-flight (the
@@ -1766,7 +1783,7 @@ export function RoomControls({
       {/* THE GEAR, UP WHERE YOU LOOK (Nikk, 5245): a pointer or a fingertip
           opens the settings. Placed every frame in the loop above. */}
       <group ref={upGear} visible={false}>
-        {upVisible && !open ? (
+        {upVisible && !open && !menuOnly ? (
           <>
             {/* Half see-through, and the call button is gone from beside it (Nikk, 5426). */}
             <WristButton label="⚙" glyph tone="menu" x={0} y={0} width={UP_GEAR_SIZE} height={UP_GEAR_SIZE} opacity={0.75} onTap={openMenu} />
@@ -1822,7 +1839,7 @@ export function RoomControls({
           }}
         />
         </>
-      ) : (
+      ) : menuOnly ? null : (
         <group pointerEventsType={CLOSED_POINTERS}>
           {/*
             CLOSED: A GEAR AND A MICROPHONE, SIDE BY SIDE.
@@ -1904,7 +1921,7 @@ export function RoomControls({
           this line, placed for the closed controls, landed on its buttons —
           Baiwei: "Whatever I have said is hovering over the settings above
           the keyboard, so they overlap." */}
-      {said && !fixing ? (
+      {said && !fixing && !menuOnly ? (
         <WristButton
           label={said}
           tone={updateOffered || (!notice && listening) ? "live" : "muted"}

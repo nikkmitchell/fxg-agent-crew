@@ -359,7 +359,7 @@ export default function App() {
               aria-current={tab === name ? "page" : undefined}
               onClick={() => go(name)}
             >
-              <Glyph name={TAB_META[name].glyph} />
+              {TAB_META[name].label}
             </button>
           ))}
         </nav>
