@@ -71,7 +71,7 @@ describe("asking", () => {
       answer: null,
     });
     const card = reads.project(project)!.tasks.find((task) => task.id === filed.id)!;
-    expect(card.title).toBe("Question: How do I rig a hand?");
+    expect(card).toMatchObject({ title: "Question: How do I rig a hand?" });
     expect(reads.history("task", filed.id)).toMatchObject([{ actor_id: "Nikk2", action: "ask" }]);
     // The intake let a card be made. It did not make the asker a member.
     expect(() => store.updateTask(visitor, filed.id, { title: "mine now" })).toThrow(/not a member/);

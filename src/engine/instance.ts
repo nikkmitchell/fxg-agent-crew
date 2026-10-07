@@ -265,6 +265,20 @@ export class ThingInstance {
         host.problem(id, "ctx.act and models arrive in phase 2 (the ordered log); use ctx.state and ctx.net for now.");
         return { ok: false, why: "phase 2" };
       },
+      questions: {
+        ask: (askOptions) => {
+          if (this.disposed) return Promise.resolve({ ok: false, why: "removed", message: `${this.def.name} has been taken away.` });
+          if (!host.questions) return Promise.resolve({ ok: false, why: "not-here", message: "Questions are asked in a saha.ing room; this page has none." });
+          const asking = host.questions.ask(id, askOptions ?? {});
+          // Taking the thing away closes its panel (Mica, 7322): never a stale Send.
+          own(asking.close);
+          return asking.result;
+        },
+        list: (listOptions) => {
+          if (!host.questions) return Promise.reject(Object.assign(new Error("Questions are asked in a saha.ing room; this page has none."), { why: "not-here" }));
+          return host.questions.list(id, listOptions ?? {});
+        },
+      },
       time: {
         now: () => host.now(),
         get elapsed() {

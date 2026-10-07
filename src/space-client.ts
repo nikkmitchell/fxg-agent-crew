@@ -20,6 +20,7 @@ import type { AgentHome } from "../shared/agent-home";
 import type { Meditation, MeditationChange } from "../shared/meditation";
 import type { SharedMindfulnessCard } from "../shared/mindfulness";
 import type { GoSize, GoSurface, RoomItem } from "../shared/room-items";
+import type { Question } from "../shared/questions";
 
 /**
  * The browser's side of the room's own API.
@@ -165,6 +166,17 @@ export const space = {
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(change) }),
   /** What a thing from a space has decided so far, for a copy that is starting. */
   moduleState: (id: string) => requestJson<{ state: Record<string, unknown> }>(`${root}/items/${encodeURIComponent(id)}/state`),
+  /** The questions asked at a thing in this room, and the board they go to (shared/questions.ts). */
+  questions: (item: string, options: { mine?: boolean; limit?: number } = {}) =>
+    requestJson<{ space: string; project: string; questions: Question[] }>(
+      `${root}/questions?item=${encodeURIComponent(item)}${options.mine ? "&mine=1" : ""}${options.limit ? `&limit=${Math.round(options.limit)}` : ""}`,
+    ),
+  /** Send a question written in the room's panel; the same request key is the same card. */
+  askQuestion: (item: string, text: string, requestKey: string) =>
+    requestJson<{ ok: true; result: { existing: boolean; question: Question } }>(`${root}/questions`, {
+      method: "POST",
+      body: JSON.stringify({ item, text, requestKey }),
+    }),
   configureGo: (id: string, change: { size?: GoSize; addBowl?: true; players?: number; reset?: true; position?: { x: number; y: number; z: number; rotationY: number }; scale?: number; revision?: number; deskVisible?: boolean; surface?: GoSurface; territoryShown?: boolean; clock?: number }) =>
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}`, {
       method: "PATCH", body: JSON.stringify(change),

@@ -14,6 +14,7 @@ import { useCarry } from "./use-carry";
 import { ThingInstance } from "../../engine/instance";
 import type { Person } from "../../engine/types";
 import { createRoomEngine, type RoomEngine } from "./room-engine";
+import { QuestionForm } from "./QuestionForm";
 
 /**
  * THINGS FROM SPACES, LIVE IN THE ROOM (shared/room-items.ts, ModuleRoomItem;
@@ -272,6 +273,7 @@ export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, re
           />
         );
       })}
+      <QuestionForm />
     </>
   );
 }

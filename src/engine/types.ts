@@ -1,4 +1,7 @@
 import type * as THREE from "three";
+import type { Question } from "../../shared/questions";
+
+export type { AnswerRef, Question, QuestionAnswer } from "../../shared/questions";
 
 /**
  * THE CONTRACT, saha/1 (docs/things/DESIGN.md): what an item, an environment
@@ -202,7 +205,28 @@ export interface Ctx {
   log(...args: unknown[]): void;
   /** Shown on the thing's badge, under its name. */
   problem(text: string): void;
+
+  /**
+   * QUESTIONS FOR THIS THING'S SPACE (shared/questions.ts; Mica 7319, the
+   * Library's lectern). Each becomes a card on the board a manager pointed the
+   * space at, in the asker's name. The thing never sees the typing: the room
+   * writes, shows where the question goes, and sends.
+   */
+  readonly questions: {
+    /**
+     * The room's own writing panel, near `near` (else in front of you). Resolves
+     * once: the card when it is sent, or why not. Taking the thing away closes
+     * the panel. A resend after a dropped connection is the same card.
+     */
+    ask(options?: { prompt?: string; near?: THREE.Object3D }): Promise<AskResult>;
+    /** Newest first, as the board has them. Rejects, with `why`, when this space's questions go nowhere. */
+    list(options?: { mine?: boolean; limit?: number }): Promise<Question[]>;
+  };
 }
+
+/** Why a question was not asked: closed, nobody signed in, nowhere to go, too many, another panel open, the thing gone, a host with no room, or a line that says. */
+export type AskRefusal = "cancelled" | "signed-out" | "no-intake" | "too-many" | "busy" | "removed" | "not-here" | "failed";
+export type AskResult = { ok: true; question: Question } | { ok: false; why: AskRefusal; message: string };
 
 export interface ChildHandle {
   readonly mounted: boolean;

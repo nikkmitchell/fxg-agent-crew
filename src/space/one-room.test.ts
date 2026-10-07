@@ -34,6 +34,8 @@ const ROOT = join(import.meta.dirname, "..");
 const ALLOWED: Record<string, string> = {
   "space/MyScreen.tsx":
     "how far ahead your own screen first opens: a reading distance from a headset's eye, further from a window's camera, which stands back from you; the same panel, moved the same way, in both",
+  "space/modules/question-form.ts":
+    "how far ahead a question panel opens when its thing names no place to stand it: a writing distance from a headset's eye, further from a window's camera; the same panel, keys and Send in both",
   "space/modules/ModuleItems.tsx":
     "hangs three's controllers, grips and hands on the player's origin when a session is already running, so things from spaces read room positions in a headset; the same things, presses and controls in both",
   "space/HeadsetControls.tsx":

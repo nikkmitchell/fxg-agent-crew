@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { EnvStack, type EnvState } from "./env";
-import type { Host, TransportEvent } from "./host";
+import type { Host, QuestionHost, TransportEvent } from "./host";
 import { Engine, ThingInstance } from "./instance";
 import type { Ctx, Json, ThingDefinition } from "./types";
 
@@ -293,5 +293,42 @@ describe("input, in the thing's own frame", () => {
     engine.frame({ frame: at(0.74), referenceSpace: {} as XRReferenceSpace });
     drums.frame(1 / 60, 2 / 60);
     expect(strikes).toEqual([1]);
+  });
+});
+
+describe("questions (ctx.questions, Mica 7319)", () => {
+  const asker = (capture: { ctx?: Ctx }) => thing("item", { name: "Lectern", setup(ctx) { capture.ctx = ctx; } });
+
+  it("asks through the host's panel, and taking the thing away closes it: never a stale Send", async () => {
+    const { host, run } = world();
+    const asked: Array<{ instance: string; prompt?: string; near?: THREE.Object3D }> = [];
+    let closed = 0;
+    (host as { questions?: QuestionHost }).questions = {
+      ask: (instance, options) => {
+        asked.push({ instance, ...options });
+        return { result: new Promise(() => undefined), close: () => void closed++ };
+      },
+      list: async () => [],
+    };
+    const capture: { ctx?: Ctx } = {};
+    const lectern = run("library/lectern", asker(capture));
+    await lectern.start();
+    const pad = new THREE.Object3D();
+    void capture.ctx!.questions.ask({ prompt: "Ask the Library", near: pad });
+    expect(asked).toEqual([{ instance: "library/lectern", prompt: "Ask the Library", near: pad }]);
+    expect(closed).toBe(0);
+    lectern.dispose();
+    expect(closed).toBe(1);
+    // Gone is gone: a later ask is answered here, without opening anything.
+    expect(await capture.ctx!.questions.ask()).toMatchObject({ ok: false, why: "removed" });
+    expect(asked).toHaveLength(1);
+  });
+
+  it("says plainly when the page has no room to ask in", async () => {
+    const { run } = world();
+    const capture: { ctx?: Ctx } = {};
+    await run("lectern", asker(capture)).start();
+    expect(await capture.ctx!.questions.ask()).toMatchObject({ ok: false, why: "not-here" });
+    await expect(capture.ctx!.questions.list()).rejects.toMatchObject({ why: "not-here" });
   });
 });

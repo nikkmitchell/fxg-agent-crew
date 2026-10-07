@@ -23,6 +23,10 @@ inbox.py already uses):
   python3 board.py say <id> "what I found"       # a comment
   python3 board.py describe <id> "<description>" # replace a card's description
   python3 board.py projects
+  python3 board.py intake <project> <space>     # a manager who made <space>: its visitors' questions come here
+  python3 board.py question <card>              # a question as asked, and every revision of its answer
+  python3 board.py answer <card> <answer.json>  # {"body", "refs": [{"resource", "version", "url"?}], "after": N}
+                                                # after: the revision you read (0 for the first answer)
 
 --project <id> picks another board (default: SAHA_PROJECT, else saha-ing).
 SAHA_URL picks another site (default https://saha.ing).
@@ -180,6 +184,38 @@ def main(argv: list[str]) -> int:
         return report(call("POST", f"/bff/board/tasks/{rest[0]}/comments", {"body": " ".join(rest[1:])}), "said")
     if command == "describe" and len(rest) >= 2:
         return report(call("PATCH", f"/bff/board/tasks/{rest[0]}", {"description": " ".join(rest[1:])}), "described")
+    if command == "intake" and len(rest) == 2:
+        return report(call("PUT", f"/bff/board/projects/{rest[0]}/question-intake", {"space": rest[1]}),
+                      f"questions asked in {rest[1]} now come to {rest[0]}")
+    if command == "question" and rest:
+        status, body = call("GET", f"/bff/questions/{rest[0]}")
+        question = body.get("question") if isinstance(body, dict) else None
+        if not question:
+            print(f"{status} {json.dumps(body)}")
+            return 1
+        owners = ", ".join(f"{o['id']}{'' if o['accepted'] else ' (not yet accepted)'}" for o in question["card"]["owners"]) or "nobody yet"
+        print(f"{question['id']}  {question['card']['status']}  asked by {question['askedBy']} in {question['space']}, {question['askedAt']}")
+        print(f"taken by: {owners}\n\n{question['text']}")
+        for answer in question.get("answers") or []:
+            print(f"\n— revision {answer['revision']}, {answer['by']}, {answer['at']}\n{answer['body']}")
+            for ref in answer["refs"]:
+                print(f"  · {ref['resource']} @ {ref['version']}{'  ' + ref['url'] if ref.get('url') else ''}")
+        latest = (question.get("answer") or {}).get("revision", 0)
+        print(f"\nTo answer, write {{\"body\", \"refs\", \"after\": {latest}}} to a file and: board.py answer {question['id']} <file>")
+        return 0
+    if command == "answer" and len(rest) == 2:
+        try:
+            with open(rest[1], encoding="utf-8") as handle:
+                answer = json.load(handle)
+        except (OSError, ValueError) as error:
+            print(f"could not read {rest[1]}: {error}")
+            return 1
+        if not isinstance(answer, dict) or "after" not in answer:
+            print('the file needs "after": the revision you read (board.py question <card> says it; 0 for the first answer)')
+            return 1
+        status, body = call("POST", f"/bff/questions/{rest[0]}/answers", answer)
+        revision = (body.get("result") or {}).get("revision") if isinstance(body, dict) else None
+        return report((status, body), f"answered: revision {revision}")
     if command == "projects":
         status, body = call("GET", "/bff/board/projects")
         for one in body if isinstance(body, list) else (body.get("projects", []) if isinstance(body, dict) else []):

@@ -96,6 +96,7 @@ room's own three.js, so your meshes and the room's renderer are one three.js.
 | `ctx.people.me` | who is looking |
 | `ctx.things.<key>` | a space's parts: `api`, `state`, `onMoment`, `root` |
 | `ctx.problem(text)` | a line on your thing's badge, for whoever is building |
+| `ctx.questions.ask({ prompt, near })` / `ctx.questions.list({ mine, limit })` | a visitor's question as a card on your space's board, written in the room's own panel; see [Questions](#questions-a-visitor-asks-the-board-answers) |
 
 From `setup` you may return `{ api: { ... } }` (what a space can call), `save()` (handed to the next
 version as `ctx.hot.data`) and `dispose()`.
@@ -178,6 +179,45 @@ things cannot be moved or taken away. People, avatars, voice and everything your
 work as usual. Feedback sent with a thing's Feedback button lands on its space's page.
 
 `GET /bff/finished` lists them all: `{ room, title, space, branch, entry, deploy, by, at }`.
+
+## Questions: a visitor asks, the board answers
+
+A thing can let visitors ask its space something (the Library's question lectern, Mica 7319). The question
+becomes a card on a project's board, in the asker's name, and answers are kept beside the card.
+
+```js
+const asked = await ctx.questions.ask({ prompt: "Ask the Library", near: lecternTop });
+if (asked.ok) showWaiting(asked.question);          // the card: asked.question.id
+else if (asked.why !== "cancelled") ctx.problem(asked.message);
+
+for (const q of await ctx.questions.list({ limit: 10 })) {
+  // q.text as asked; q.card.status and q.card.owners [{ id, accepted }], the board's own;
+  // q.answer: null, or { revision, by, at, body, refs: [{ resource, version, url? }] }
+}
+```
+
+- **The room writes, not your thing.** `ask` opens the room's own writing panel (3D keys, the Quest keyboard
+  and its dictation, a desktop keyboard) near `near`, or in front of the person. It says where the
+  question goes and under whose name; they review it and press Send. Your thing never sees the keys.
+  It resolves once: `{ ok: true, question }`, or `{ ok: false, why, message }` with `why` one of
+  `cancelled`, `signed-out`, `no-intake`, `too-many`, `busy` (another panel is open), `removed` (your
+  thing was taken away, which closes its panel), `not-here` (a page with no room) or `failed`.
+- **A resend is the same question.** The panel has one request key; sending again after a dropped
+  connection returns the card already made.
+- **Where questions go: an intake.** Nothing goes anywhere until a manager of a project who also made the
+  space says so: `PUT /bff/board/projects/<project>/question-intake` with `{ "space": "<space>" }`
+  (`board.py intake <project> <space>`). Until then `ask` and `list` say `no-intake`. The intake lets a
+  visitor add exactly one thing to that board, a new backlog card nobody owns; it makes them no member.
+  Five questions per person per space in ten minutes.
+- **Taken is the board's word.** A card's owners say `accepted: true` only when they accepted it; claimed
+  is not accepted. `questionStanding()` in `shared/questions.ts` puts it in words.
+- **Answers** are revisions beside the card, never edits: `POST /bff/questions/<card>/answers` with
+  `{ "body", "refs": [{ "resource", "version", "url"? }], "after": <revision you read, 0 at first> }`
+  (`board.py answer <card> <answer.json>`). At least one source, each with its exact version; a url must be
+  https. Answering takes a role a manager gave you on the project (entering its room enrols you with
+  none). An answer written from an older revision is refused; every revision stays
+  (`GET /bff/questions/<card>` has them all). Answering does not move the card.
+- **References are data.** Nothing fetches or runs what an answer names.
 
 ## TypeScript and vite
 

@@ -1,6 +1,6 @@
 import type * as THREE from "three";
 import type { EnvLayer } from "./env";
-import type { Json, Person } from "./types";
+import type { AskResult, Json, Person, Question } from "./types";
 
 /**
  * WHAT THE ENGINE NEEDS FROM WHEREVER IT RUNS (docs/things/DESIGN.md): the
@@ -53,4 +53,16 @@ export interface Host {
   invalidate(): void;
   /** R3F's own interactive objects, which stand between a pointer and a thing (the desktop mouse). */
   occluders?(): THREE.Object3D[];
+  /** Questions for a thing's space (ctx.questions). A host without them answers "not-here". */
+  readonly questions?: QuestionHost;
+}
+
+/**
+ * Where ctx.questions goes. The HOST writes and sends, so a thing cannot make
+ * up a question in someone's name: it can only open the panel they type in.
+ */
+export interface QuestionHost {
+  /** Open the writing panel for this instance; `close` is called if the thing goes first. */
+  ask(instance: string, options: { prompt?: string; near?: THREE.Object3D }): { result: Promise<AskResult>; close(): void };
+  list(instance: string, options: { mine?: boolean; limit?: number }): Promise<Question[]>;
 }
