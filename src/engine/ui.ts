@@ -38,7 +38,7 @@ const MAX_SIDE = 4;
 const metres = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isFinite(value) ? Math.min(MAX_SIDE, Math.max(MIN_SIDE, value)) : fallback;
 
-export function thingUi(deps: UiDeps): Ctx["ui"] {
+export function thingUi(deps: UiDeps): Omit<Ctx["ui"], "query" | "openLink"> {
   let measuring: Context2D | null = null;
   const context = () => (measuring ??= deps.canvas(8, 8).getContext("2d") as Context2D | null);
 

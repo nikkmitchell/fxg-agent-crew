@@ -273,6 +273,13 @@ export interface Ctx {
     card(options: UiCardOptions): UiCard;
     /** Long text as pages that each fit a card of this size at the menu's text size (`title: false` for a card without one). */
     pages(text: string, options: { width: number; height: number; title?: boolean }): string[];
+    /**
+     * Ask the person for a line of text in the room's own writing panel (Mica 7395: the Library's search). The
+     * words come back to you alone: nothing is posted anywhere. Taking your thing away closes the panel.
+     */
+    query(options?: { title?: string; initial?: string; near?: THREE.Object3D }): Promise<{ status: "ok"; text: string } | { status: "cancelled" | "busy" | "removed" | "signed-out" | "not-here" }>;
+    /** Open an https page in a new tab, from a press of yours (a browser opens one only from a gesture). */
+    openLink(url: string): { ok: true } | { ok: false; why: string };
   };
 }
 

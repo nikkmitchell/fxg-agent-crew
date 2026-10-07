@@ -282,3 +282,26 @@ export function openPanel(options: { instance: string; header: string; near?: TH
   return { result, close };
 }
 
+/** ctx.ui.query in the room: the same panel, its words handed back to the thing, nothing posted. */
+export function queryPanel(deps: { camera: () => THREE.Camera; me: () => Person | null; renderer: PanelRenderer }) {
+  return (instance: string, options: { title?: string; initial?: string; near?: THREE.Object3D }) => {
+    const opened = openPanel({
+      instance,
+      header: (options.title ?? "Search").trim().slice(0, 80) || "Search",
+      near: options.near,
+      camera: deps.camera(),
+      me: deps.me(),
+      renderer: deps.renderer,
+      send: async (text) => ({ done: { ok: true, text } }),
+    });
+    if (options.initial && open) show({ ...open, draft: String(options.initial).slice(0, 2000) });
+    const result = opened.result.then((answer) => {
+      const outcome = answer as unknown as { ok: boolean; text?: string; why?: string };
+      if (outcome.ok) return { status: "ok" as const, text: outcome.text ?? "" };
+      const why: "busy" | "removed" | "signed-out" | "cancelled" = outcome.why === "busy" || outcome.why === "removed" || outcome.why === "signed-out" ? outcome.why : "cancelled";
+      return { status: why };
+    });
+    return { result, close: opened.close };
+  };
+}
+

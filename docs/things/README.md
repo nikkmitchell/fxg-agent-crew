@@ -214,6 +214,11 @@ reader.set({ title: `${book.title} · 2/${pages.length}`, text: pages[1] });
   breaks are kept. `set({ title, text })` changes it in place.
 - **`ctx.ui.pages(text, { width, height })`** splits long reading into pages that each fit a card of that size at
   the menu's text size (`title: false` for a card without a title). Page with your own Earlier/Later buttons.
+- **`ctx.ui.query({ title, initial, near })`** asks for a line of text in the room's own writing panel (3D keys,
+  the Quest keyboard and its dictation, a desktop keyboard) and gives `{ status: "ok", text }` back to your thing
+  alone, or `{ status: "cancelled" | "busy" | "removed" | "signed-out" | "not-here" }`. Nothing is posted anywhere.
+- **`ctx.ui.openLink(url)`** opens an https page in a new tab. Call it from a press: a browser opens a tab only
+  from a gesture. Anything not https is refused.
 - **`ctx.ui.ink`** and **`ctx.ui.font`** are the menu's palette and font, for anything you still draw yourself.
 - Every part is seen by you alone (selection and reading stay each visitor's own), and goes when your thing
   does. Make a part again to change its size.

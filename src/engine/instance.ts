@@ -266,14 +266,35 @@ export class ThingInstance {
         host.problem(id, "ctx.act and models arrive in phase 2 (the ordered log); use ctx.state and ctx.net for now.");
         return { ok: false, why: "phase 2" };
       },
-      ui: thingUi({
-        input,
-        canvas: (width, height) =>
-          typeof document !== "undefined" ? Object.assign(document.createElement("canvas"), { width, height }) : new OffscreenCanvas(width, height),
-        own,
-        invalidate: () => host.invalidate(),
-        gone: () => this.disposed,
-      }),
+      ui: {
+        ...thingUi({
+          input,
+          canvas: (width, height) =>
+            typeof document !== "undefined" ? Object.assign(document.createElement("canvas"), { width, height }) : new OffscreenCanvas(width, height),
+          own,
+          invalidate: () => host.invalidate(),
+          gone: () => this.disposed,
+        }),
+        query: (queryOptions) => {
+          if (this.disposed) return Promise.resolve({ status: "removed" as const });
+          if (!host.query) return Promise.resolve({ status: "not-here" as const });
+          const asking = host.query(id, queryOptions ?? {});
+          own(asking.close);
+          return asking.result;
+        },
+        openLink: (url) => {
+          let parsed: URL | null = null;
+          try {
+            parsed = new URL(String(url));
+          } catch {
+            parsed = null;
+          }
+          if (!parsed || parsed.protocol !== "https:") return { ok: false, why: "only an https address opens" };
+          if (typeof window === "undefined") return { ok: false, why: "this page has no browser to open it in" };
+          const opened = window.open(parsed.href, "_blank", "noopener,noreferrer");
+          return opened === null && !document.hasFocus() ? { ok: false, why: "the browser did not open it" } : { ok: true };
+        },
+      },
       reviews: (() => {
         const none = <T,>(): Promise<T> => Promise.reject(Object.assign(new Error("Review rounds are in a saha.ing room; this page has none."), { why: "not-here" }));
         const reviews = host.reviews;

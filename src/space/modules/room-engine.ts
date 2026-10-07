@@ -5,7 +5,7 @@ import { space } from "../../space-client";
 import { EnvStack } from "../../engine/env";
 import type { Host, Resolved, TransportEvent } from "../../engine/host";
 import { Engine } from "../../engine/instance";
-import { createQuestionHost } from "./question-form";
+import { createQuestionHost, queryPanel } from "./question-form";
 import { createReviewHost } from "./review-host";
 import type { Json, Person } from "../../engine/types";
 import { claimPointer } from "../pointer-claim";
@@ -202,6 +202,8 @@ export function createRoomEngine(deps: {
     questions: createQuestionHost({ camera: deps.camera, me: deps.me, renderer: deps.gl }),
     // ctx.reviews: the board's taking, the room's panel for findings, a version opened for you (review-host.ts).
     reviews: createReviewHost({ camera: deps.camera, me: deps.me, renderer: deps.gl }),
+    // ctx.ui.query: the room's panel, words back to the thing only (Mica 7395).
+    query: queryPanel({ camera: deps.camera, me: deps.me, renderer: deps.gl }),
   };
 
   const engine = new Engine(host, {

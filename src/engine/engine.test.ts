@@ -332,3 +332,15 @@ describe("questions (ctx.questions, Mica 7319)", () => {
     await expect(capture.ctx!.questions.list()).rejects.toMatchObject({ why: "not-here" });
   });
 });
+
+describe("ctx.ui.openLink (Mica 7395)", () => {
+  it("opens only an https address", async () => {
+    const { run } = world();
+    const capture: { ctx?: Ctx } = {};
+    await run("shelf", thing("item", { name: "Shelf", setup(ctx) { capture.ctx = ctx; } })).start();
+    expect(capture.ctx!.ui.openLink("javascript:alert(1)")).toEqual({ ok: false, why: "only an https address opens" });
+    expect(capture.ctx!.ui.openLink("http://example.com")).toMatchObject({ ok: false });
+    expect(await capture.ctx!.ui.query()).toEqual({ status: "not-here" });
+  });
+});
+

@@ -11,7 +11,7 @@ import type { Question } from "../../../shared/questions";
 const api = vi.hoisted(() => ({ questions: vi.fn(), askQuestion: vi.fn() }));
 vi.mock("../../space-client", () => ({ space: api }));
 
-const { cancelOpenQuestion, createQuestionHost, openQuestionNow, placeNear, resetQuestionPanel, sendOpenQuestion } = await import("./question-form");
+const { cancelOpenQuestion, createQuestionHost, openQuestionNow, placeNear, queryPanel, resetQuestionPanel, sendOpenQuestion } = await import("./question-form");
 
 const question: Question = {
   id: "open-source-library-1a2b3c4d", project: "open-source-library", space: "open.library",
@@ -146,6 +146,25 @@ describe("Ask Librarian (Mica 7386)", () => {
     await sendOpenQuestion("Another one?");
     cancelOpenQuestion();
     expect(await again).toMatchObject({ ok: true, question, chat: { posted: false } });
+  });
+});
+
+describe("a thing's own query (ctx.ui.query, Mica 7395)", () => {
+  const query = () => queryPanel({ camera: () => new THREE.PerspectiveCamera(), me: () => ({ id: "Nikk2", name: "Nikk2", me: true, agent: false }), renderer: { xr: { isPresenting: false } } });
+  it("hands the words back, keeps what was there to begin with, and posts nothing", async () => {
+    const asking = query()("library", { title: "Search the Library", initial: "gltf" });
+    expect(openQuestionNow()).toMatchObject({ header: "Search the Library", draft: "gltf" });
+    await sendOpenQuestion("gltf box");
+    expect(await asking.result).toEqual({ status: "ok", text: "gltf box" });
+    expect(api.askQuestion).not.toHaveBeenCalled();
+  });
+  it("says cancelled when closed, and removed when the thing goes", async () => {
+    const one = query()("library", {});
+    cancelOpenQuestion();
+    expect(await one.result).toEqual({ status: "cancelled" });
+    const two = query()("library", {});
+    two.close();
+    expect(await two.result).toEqual({ status: "removed" });
   });
 });
 

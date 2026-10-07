@@ -57,6 +57,8 @@ export interface Host {
   readonly questions?: QuestionHost;
   /** Review rounds (ctx.reviews). A host without them answers "not-here". */
   readonly reviews?: ReviewHost;
+  /** The room's writing panel for a thing's own query (ctx.ui.query). */
+  readonly query?: (instance: string, options: { title?: string; initial?: string; near?: THREE.Object3D }) => { result: Promise<{ status: "ok"; text: string } | { status: "cancelled" | "busy" | "removed" | "signed-out" }>; close(): void };
 }
 
 /**
