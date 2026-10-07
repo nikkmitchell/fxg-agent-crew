@@ -527,19 +527,19 @@ function agentSections(s: SettingsMenuInput): MenuSection[] {
     ? [
         {
           kind: "buttons",
-          label: "All agents",
+          label: "",
           buttons: [
-            { label: "Line", onTap: () => s.placeAll("line-facing") },
+            { label: "Line", onTap: () => s.placeAll("line") },
+            { label: "Face me", onTap: () => s.placeAll("line-facing") },
             { label: "Away", onTap: () => s.placeAll("line-away") },
             { label: "Arc", onTap: () => s.placeAll("half-circle") },
             { label: "Ring", onTap: () => s.placeAll("ring") },
           ],
         },
-        note("Line, Arc and Ring face you; Away faces where you face"),
       ]
     : [];
   const where: MenuRow[] = s.agents.length
-    ? [...together, ...s.agents.map((agent): MenuRow => ({
+    ? [...s.agents.map((agent): MenuRow => ({
         kind: "buttons",
         label: agent,
         buttons: [
@@ -551,6 +551,7 @@ function agentSections(s: SettingsMenuInput): MenuSection[] {
     : [note("No agents in the room")];
   return [
     { title: "Show agents", rows: seen },
+    ...(together.length ? [{ title: "All agents", rows: together, wide: true }] : []),
     { title: "Where they stand", rows: where, wide: true },
   ];
 }

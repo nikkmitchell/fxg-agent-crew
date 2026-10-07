@@ -1281,7 +1281,7 @@ export function RoomControls({
     const everyone = [...agents].sort((a, b) => a.localeCompare(b));
     const homes = formationHomes({ at: me.at, facing: me.yaw }, everyone.length, kind);
     Promise.all(everyone.map((agent, i) => space.placeAgent(agent, homes[i])))
-      .then(() => flash(`${everyone.length} agents are coming to stand ${kind === "ring" ? "round you" : kind === "half-circle" ? "in an arc in front of you" : kind === "line-away" ? "in a line ahead of you, facing your way" : "in a line facing you"}.`))
+      .then(() => flash(`${everyone.length} agents are coming to stand ${kind === "ring" ? "round you" : kind === "half-circle" ? "in an arc in front of you" : kind === "line-away" ? "in a line ahead of you, facing your way" : kind === "line-facing" ? "in a line, each turned to you" : "in a line, looking straight out"}.`))
       .catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not move the agents."));
   };
   const sections = !open ? [] : settingsSections({

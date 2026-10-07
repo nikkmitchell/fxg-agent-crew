@@ -15,15 +15,19 @@ const ahead = (home: AgentHome) => (home.at.x - me.at.x) * myForward.x + (home.a
 
 describe("standing all the agents at once (Nikk 7353)", () => {
   it("lines them up in front of you, well apart, all looking straight out toward you (Nikk 7358)", () => {
-    const line = formationHomes(me, 4, "line-facing");
+    const line = formationHomes(me, 4, "line");
     expect(line).toHaveLength(4);
     for (const home of line) {
       const f = forwardOf(home);
       // Parallel: each looks exactly opposite to the way you look.
       expect(f.x * myForward.x + f.z * myForward.z).toBeCloseTo(-1);
-      expect(ahead(home)).toBeCloseTo(2.6);
+      expect(ahead(home)).toBeCloseTo(1.95);
     }
     expect(Math.hypot(line[1].at.x - line[0].at.x, line[1].at.z - line[0].at.z)).toBeCloseTo(FORMATION_SPACING);
+  });
+
+  it("angles a Face me line toward you (Nikk 7366)", () => {
+    for (const home of formationHomes(me, 4, "line-facing")) expect(looksAtMe(home)).toBeGreaterThan(0.999);
   });
 
   it("lines them up in front of you facing the way you face, so you see their screens", () => {

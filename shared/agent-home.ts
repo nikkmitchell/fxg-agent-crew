@@ -117,7 +117,7 @@ export function resolveFacing(
 }
 
 /** How far in front of you "here, facing me" puts an agent: conversational, not in your face. */
-export const IN_FRONT_DISTANCE = 2.6;
+export const IN_FRONT_DISTANCE = 1.95;
 /** How far to your side "beside me" puts an agent. */
 export const BESIDE_DISTANCE = 0.9;
 /** And a little ahead, so its screen is in front of both of you, not behind your shoulder. */
@@ -153,10 +153,10 @@ export function homeBesideMe(person: Person, side: "left" | "right" = "right"): 
 }
 
 /** Ways to stand ALL the agents at once (Nikk 7353): a line facing you or facing away, a half circle, a ring. */
-export type Formation = "line-facing" | "line-away" | "half-circle" | "ring";
+export type Formation = "line" | "line-facing" | "line-away" | "half-circle" | "ring";
 
 /** Room between two agents standing side by side, in metres: an avatar's shoulders and a little air. */
-export const FORMATION_SPACING = 1.4;
+export const FORMATION_SPACING = 1.15;
 
 /**
  * Where each of `count` agents stands for a formation, from where the person
@@ -174,13 +174,14 @@ export function formationHomes(person: Person, count: number, kind: Formation): 
     const at = { x, y: 0, z };
     return { at, facing: facing ?? toward(at) };
   };
-  if (kind === "line-facing" || kind === "line-away") {
-    const ahead = kind === "line-facing" ? 2.6 : 1.6;
+  if (kind === "line" || kind === "line-facing" || kind === "line-away") {
+    const ahead = kind === "line-away" ? 1.6 : 1.95;
     return Array.from({ length: count }, (_, i) => {
       const side = (i - (count - 1) / 2) * FORMATION_SPACING;
       const x = person.at.x + forward.x * ahead + right.x * side;
       const z = person.at.z + forward.z * ahead + right.z * side;
-      // A line looks straight out (Nikk 7358): toward you, all parallel, not turned in on you.
+      // "line" looks straight out, all parallel (Nikk 7358); "line-facing" angles each toward you (7366).
+      if (kind === "line-facing") return place(x, z);
       return place(x, z, kind === "line-away" ? f : Math.atan2(Math.sin(f + Math.PI), Math.cos(f + Math.PI)));
     });
   }

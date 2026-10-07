@@ -165,12 +165,12 @@ describe("what each settings tab holds", () => {
   it("stands all the agents at once, in a line, a line facing away, an arc or a ring (Nikk 7353)", () => {
     const placeAll = vi.fn();
     const rows = settingsSections(input("agents", { placeAll, agents: ["Mica", "Sill"] })).flatMap((section) => section.rows);
-    const all = rows.find((row) => row.kind === "buttons" && row.label === "All agents");
-    expect(all && all.kind === "buttons" && all.buttons.map((b) => b.label)).toEqual(["Line", "Away", "Arc", "Ring"]);
-    if (all?.kind === "buttons") all.buttons[3].onTap();
+    const all = rows.find((row) => row.kind === "buttons" && row.label === "");
+    expect(all && all.kind === "buttons" && all.buttons.map((b) => b.label)).toEqual(["Line", "Face me", "Away", "Arc", "Ring"]);
+    if (all?.kind === "buttons") all.buttons[4].onTap();
     expect(placeAll).toHaveBeenCalledWith("ring");
     const alone = settingsSections(input("agents", { placeAll, agents: ["Sill"] })).flatMap((section) => section.rows);
-    expect(alone.some((row) => row.kind === "buttons" && row.label === "All agents")).toBe(false);
+    expect(alone.some((row) => row.kind === "buttons" && row.label === "")).toBe(false);
   });
 
   it("chooses a work board and goes back to Work items", () => {
