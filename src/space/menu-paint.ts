@@ -53,20 +53,53 @@ export function fitText(measure: (text: string) => number, text: string, width: 
   return low > 0 ? `${text.slice(0, low).trimEnd()}…` : "…";
 }
 
-/** At most two lines, the second cut with an ellipsis if it must be. */
-function twoLines(context: CanvasRenderingContext2D, text: string, width: number): string[] {
-  const measure = (value: string) => context.measureText(value).width;
+/**
+ * At most two lines, the second cut with an ellipsis if it must be. Words stay
+ * whole where they can; a word wider than the line (a branch name, a long
+ * space name) is broken between letters rather than cut off (Nikk 7447).
+ */
+export function wrapTwo(measure: (text: string) => number, text: string, width: number): string[] {
   if (measure(text) <= width) return [text];
-  const words = text.split(/\s+/);
+  const words = text.split(/\s+/).filter(Boolean);
   let first = "";
   let used = 0;
   for (; used < words.length; used += 1) {
     const next = first ? `${first} ${words[used]}` : words[used];
-    if (measure(next) > width && first) break;
-    first = next;
+    if (measure(next) <= width) {
+      first = next;
+      continue;
+    }
+    if (first) break;
+    // One word that does not fit a line on its own: as much of it as fits.
+    let cut = words[used].length;
+    while (cut > 1 && measure(words[used].slice(0, cut)) > width) cut -= 1;
+    first = words[used].slice(0, cut);
+    words[used] = words[used].slice(cut);
+    break;
   }
-  const rest = words.slice(used).join(" ");
-  return rest ? [fitText(measure, first, width), fitText(measure, rest, width)] : [fitText(measure, first, width)];
+  const rest = words.slice(used).join(" ").trim();
+  return rest ? [first, fitText(measure, rest, width)] : [first];
+}
+
+function twoLines(context: CanvasRenderingContext2D, text: string, width: number): string[] {
+  return wrapTwo((value) => context.measureText(value).width, text, width);
+}
+
+/**
+ * A row's label: one line at `size` when it fits, else two smaller lines,
+ * centred on `mid` (Nikk 7447: "make a second line" instead of "...").
+ */
+function label(context: CanvasRenderingContext2D, text: string, width: number, x: number, mid: number, size: number, weight: number, small = size - 5): number {
+  font(context, size, weight);
+  if (context.measureText(text).width <= width) {
+    context.fillText(text, x, mid);
+    return 1;
+  }
+  font(context, small, weight);
+  const lines = twoLines(context, text, width);
+  const gap = small + 3;
+  lines.forEach((line, index) => context.fillText(line, x, mid + (index - (lines.length - 1) / 2) * gap));
+  return lines.length;
 }
 
 function drawChevron(context: CanvasRenderingContext2D, x: number, y: number, colour: string): void {
@@ -183,23 +216,24 @@ function drawRow(context: CanvasRenderingContext2D, laid: LaidRow, layout: MenuL
     }
     case "toggle": {
       const labelWidth = rect.width - inset * 3 - MENU.switchWidth;
-      font(context, 28, 500);
       context.fillStyle = row.disabled ? MENU_INK.faint : MENU_INK.text;
       if (row.detail) {
-        context.fillText(fitText(measure, row.label, labelWidth), left, mid - 13);
-        font(context, 21, 450);
+        font(context, 28, 500);
+        const wide = context.measureText(row.label).width > labelWidth;
+        // A label that needs two lines takes the top two thirds; the detail keeps one line under it.
+        label(context, row.label, labelWidth, left, wide ? mid - 12 : mid - 13, 28, 500, 22);
+        font(context, wide ? 18 : 21, 450);
         context.fillStyle = MENU_INK.dim;
-        context.fillText(fitText(measure, row.detail, labelWidth), left, mid + 19);
+        context.fillText(fitText(measure, row.detail, labelWidth), left, wide ? mid + 27 : mid + 19);
       } else {
-        context.fillText(fitText(measure, row.label, labelWidth), left, mid);
+        label(context, row.label, labelWidth, left, mid, 28, 500);
       }
       drawSwitch(context, right, mid, row.on, Boolean(row.disabled));
       return;
     }
     case "choice": {
-      font(context, 28, row.selected ? 600 : 500);
       context.fillStyle = row.selected ? MENU_INK.text : MENU_INK.soft;
-      context.fillText(fitText(measure, row.label, rect.width - inset * 3 - 30), left, mid);
+      label(context, row.label, rect.width - inset * 3 - 30, left, mid, 28, row.selected ? 600 : 500);
       if (row.selected) drawCheck(context, right - 14, mid, MENU_INK.accentText);
       return;
     }
@@ -216,9 +250,8 @@ function drawRow(context: CanvasRenderingContext2D, laid: LaidRow, layout: MenuL
         context.fillText(value, right - chevron, mid);
         context.textAlign = "left";
       }
-      font(context, 28, tone === "normal" ? 500 : 600);
       context.fillStyle = tone === "accent" ? MENU_INK.accentText : tone === "danger" ? MENU_INK.danger : MENU_INK.text;
-      context.fillText(fitText(measure, row.label, rect.width - inset * 2 - chevron - valueWidth), left, mid);
+      label(context, row.label, rect.width - inset * 2 - chevron - valueWidth, left, mid, 28, tone === "normal" ? 500 : 600);
       if (row.kind === "link") drawChevron(context, right - 6, mid, MENU_INK.faint);
       return;
     }
@@ -232,16 +265,14 @@ function drawRow(context: CanvasRenderingContext2D, laid: LaidRow, layout: MenuL
       context.fillStyle = MENU_INK.text;
       context.fillText(row.value, minus.x + MENU.stepButton + MENU.stepValue / 2, mid);
       context.textAlign = "left";
-      font(context, 28, 500);
-      context.fillText(fitText(measure, row.label, minus.x - left - 12), left, mid);
+      label(context, row.label, minus.x - left - 12, left, mid, 28, 500);
       return;
     }
     case "buttons": {
       const pills = layout.targets.filter((target) => target.id.startsWith(`${id}:b`));
       const firstPill = pills.reduce((min, pill) => Math.min(min, pill.x), right);
-      font(context, 28, 500);
       context.fillStyle = MENU_INK.text;
-      context.fillText(fitText(measure, row.label, firstPill - left - 12), left, mid);
+      label(context, row.label, firstPill - left - 12, left, mid, 28, 500);
       font(context, 22, 600);
       context.textAlign = "center";
       pills.forEach((pill, index) => {
