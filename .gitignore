@@ -18,6 +18,7 @@ package-lock.json
 .dev-blobs/
 .dev-spaces/
 .dev-speech/
+.dev-books/
 
 # Page stills written by the local renderer. Pictures, not source.
 .dev-stills/
