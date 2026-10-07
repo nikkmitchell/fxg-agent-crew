@@ -1,3 +1,6 @@
+import type { Status } from "../../shared/board-rules.js";
+import type { AnswerRef, Question, QuestionAnswer } from "../../shared/questions.js";
+
 type Db = import("node:sqlite").DatabaseSync;
 
 /**
@@ -150,4 +153,60 @@ export class BoardReads {
       "SELECT at, actor_id, action, before, after FROM audit WHERE entity=? AND entity_id=? ORDER BY id DESC LIMIT ?",
     ).all(entity, entityId, limit);
   }
+
+  // -------------------------------------------------- questions (migration 51)
+
+  /** Which board a space's questions go to, if a manager has said so. */
+  questionIntake(space: string): { projectId: string; grantedBy: string; grantedAt: string } | null {
+    const row = this.db.prepare("SELECT project_id, granted_by, granted_at FROM question_intakes WHERE space = ?").get(space) as
+      | { project_id: string; granted_by: string; granted_at: string } | undefined;
+    return row ? { projectId: row.project_id, grantedBy: row.granted_by, grantedAt: row.granted_at } : null;
+  }
+
+  /** The questions asked in a space, newest first: each card's own status and owners, and the newest answer. */
+  questions(space: string, options: { askedBy?: string; limit?: number } = {}): Question[] {
+    const limit = Math.max(1, Math.min(100, options.limit ?? 30));
+    const rows = (options.askedBy
+      ? this.db.prepare(`${QUESTION_ROWS} WHERE q.space = ? AND q.asked_by = ? COLLATE NOCASE ORDER BY q.asked_at DESC, q.task_id DESC LIMIT ?`).all(space, options.askedBy, limit)
+      : this.db.prepare(`${QUESTION_ROWS} WHERE q.space = ? ORDER BY q.asked_at DESC, q.task_id DESC LIMIT ?`).all(space, limit)) as QuestionRow[];
+    return rows.map((row) => this.toQuestion(row, false));
+  }
+
+  /** One question with every revision of its answer, oldest first: what an answerer reads before writing the next. */
+  question(taskId: string): (Question & { answers: QuestionAnswer[] }) | null {
+    const row = this.db.prepare(`${QUESTION_ROWS} WHERE q.task_id = ?`).get(taskId) as QuestionRow | undefined;
+    if (!row) return null;
+    const question = this.toQuestion(row, true);
+    return { ...question, answers: question.answers ?? [] };
+  }
+
+  private toQuestion(row: QuestionRow, all: true): Question & { answers: QuestionAnswer[] };
+  private toQuestion(row: QuestionRow, all: false): Question;
+  private toQuestion(row: QuestionRow, all: boolean): Question & { answers?: QuestionAnswer[] } {
+    const owners = (this.db.prepare("SELECT actor_id, accepted FROM task_owners WHERE task_id = ? ORDER BY actor_id").all(row.task_id) as
+      Array<{ actor_id: string; accepted: number }>).map((owner) => ({ id: owner.actor_id, accepted: owner.accepted === 1 }));
+    const answers = (this.db.prepare(
+      `SELECT revision, author, body, refs_json, created_at FROM question_answers WHERE task_id = ? ORDER BY revision ${all ? "ASC" : "DESC LIMIT 1"}`,
+    ).all(row.task_id) as Array<{ revision: number; author: string; body: string; refs_json: string; created_at: string }>)
+      .map((answer) => ({ revision: answer.revision, by: answer.author, at: answer.created_at, body: answer.body, refs: JSON.parse(answer.refs_json) as AnswerRef[] }));
+    const question: Question = {
+      id: row.task_id,
+      project: row.project_id,
+      space: row.space,
+      text: row.text,
+      askedBy: row.asked_by,
+      askedAt: row.asked_at,
+      card: { status: row.status, owners, updatedAt: row.updated_at },
+      answer: (all ? answers[answers.length - 1] : answers[0]) ?? null,
+    };
+    return all ? { ...question, answers } : question;
+  }
 }
+
+type QuestionRow = {
+  task_id: string; space: string; asked_by: string; text: string; asked_at: string;
+  project_id: string; status: Status; updated_at: string;
+};
+
+const QUESTION_ROWS = `SELECT q.task_id, q.space, q.asked_by, q.text, q.asked_at, t.project_id, t.status, t.updated_at
+  FROM questions q JOIN tasks t ON t.id = q.task_id`;

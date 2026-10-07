@@ -427,6 +427,14 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       config.blobRoot,
       (actorId, kind, view) => activity.observeRead(actorId, kind, view),
       (auditId, at, actorId) => activity.revealAt(auditId, at, actorId),
+      {
+        // The thing's top-level item in your room: a part's id is "<item>/<part>", as for its moments.
+        spaceOfItem: (session, item) => {
+          const found = roomItems.one(spaceRoomOf(session), item.split("/")[0]);
+          return found && isModuleItem(found) ? found.source.space : null;
+        },
+        creatorOf: (space) => spaceStore.get(space)?.createdBy ?? null,
+      },
     );
     let itemRoutes: ReturnType<typeof registerRoomItemRoutes> | null = null;
     // This room's own panels and agent visibility, for every socket's welcome.

@@ -10,6 +10,7 @@ import {
   type Role,
   type Status,
 } from "../../shared/board-rules.js";
+import { QUESTION_LIMITS, answerBody, answerRefs, isRequestKey, questionText, questionTitle } from "../../shared/questions.js";
 
 type Db = import("node:sqlite").DatabaseSync;
 
@@ -930,6 +931,142 @@ export class BoardStore {
       this.audit(actor.id, "remove", "board_item", itemId, row, undefined);
     }, { actorId: actor.id, action: "remove board item", target: itemId });
   }
+
+  // -------------------------------------------------- questions (migration 51)
+  //
+  // shared/questions.ts says what these are. Their rules live here with the
+  // rest: an intake is a manager's who made the space; filing through it is the
+  // one way a non-member's words reach a project, and all it can do is add a
+  // fresh backlog card; answering takes a role on the project.
+
+  private rolesOf(actorId: string, projectId: string): string[] | null {
+    const row = this.db.prepare("SELECT roles FROM memberships WHERE project_id = ? AND actor_id = ? COLLATE NOCASE AND active = 1")
+      .get(projectId, actorId) as { roles: string } | undefined;
+    return row ? (JSON.parse(row.roles) as string[]) : null;
+  }
+
+  /**
+   * Send the questions asked in `space` to `projectId`'s board, or stop them
+   * (null). Starting takes a manager of the project who also made the space
+   * (`spaceCreator`, which the route reads from the spaces): the space says
+   * where its questions go and the board agrees to take them. Stopping takes
+   * either of them.
+   */
+  setQuestionIntake(actor: Actor, space: string, projectId: string | null, spaceCreator: string | null) {
+    const madeIt = !!spaceCreator && spaceCreator.toLowerCase() === actor.id.toLowerCase();
+    return this.tx(() => {
+      const before = this.db.prepare("SELECT project_id FROM question_intakes WHERE space = ?").get(space) as { project_id: string } | undefined;
+      if (projectId === null) {
+        if (!before) return;
+        if (!madeIt && !this.rolesOf(actor.id, before.project_id)?.includes("manager")) {
+          throw new Refused(`only whoever made ${space}, or a manager of ${before.project_id}, can stop its questions going there`, "PROJECT_PERMISSION_REQUIRED");
+        }
+        this.db.prepare("DELETE FROM question_intakes WHERE space = ?").run(space);
+        this.audit(actor.id, "close intake", "question_intake", space, { projectId: before.project_id }, undefined);
+        return;
+      }
+      if (!this.db.prepare("SELECT 1 FROM projects WHERE id = ?").get(projectId)) throw new Refused(`no project ${projectId}`, "NOT_FOUND");
+      if (!this.rolesOf(actor.id, projectId)?.includes("manager")) {
+        throw new Refused(`only a manager of ${projectId} can take questions onto its board`, "PROJECT_PERMISSION_REQUIRED");
+      }
+      if (!madeIt) throw new Refused(`only whoever made ${space} can say where its questions go`, "NOT_YOURS");
+      this.db.prepare(`INSERT INTO question_intakes (space, project_id, granted_by, granted_at) VALUES (?,?,?,?)
+                       ON CONFLICT(space) DO UPDATE SET project_id = excluded.project_id, granted_by = excluded.granted_by, granted_at = excluded.granted_at`)
+        .run(space, projectId, actor.id, now());
+      this.audit(actor.id, "open intake", "question_intake", space, before ? { projectId: before.project_id } : undefined, { projectId });
+    }, { actorId: actor.id, action: "set question intake", target: space });
+  }
+
+  /**
+   * A visitor's question, as a card on the board its space's questions go to.
+   *
+   * NOT THROUGH assertAuthority, and deliberately so: the intake is the
+   * project's own yes, given in advance, to exactly this — a new backlog card
+   * nobody owns, in the asker's name — and to nothing else. The asker gains no
+   * membership and no power over the card.
+   *
+   * The same request key from the same asker is the same question: the card it
+   * already made, never a second (a retry after a dropped connection).
+   */
+  fileQuestion(actor: Actor, input: { space: string; text: unknown; requestKey: unknown }, at = Date.now()): { id: string; projectId: string; existing: boolean } {
+    const checked = questionText(input.text);
+    if ("problem" in checked) throw new Refused(checked.problem, "BAD_QUESTION");
+    if (!isRequestKey(input.requestKey)) throw new Refused("a question needs the request key of the form it was written in", "BAD_QUESTION");
+    const requestKey = input.requestKey;
+    return this.tx(() => {
+      const already = this.db.prepare("SELECT task_id, space, text FROM questions WHERE asked_by = ? COLLATE NOCASE AND request_key = ?")
+        .get(actor.id, requestKey) as { task_id: string; space: string; text: string } | undefined;
+      if (already) {
+        if (already.space !== input.space || already.text !== checked.text) throw new Refused("that form already sent a different question", "CONFLICT");
+        return { id: already.task_id, projectId: this.taskRow(already.task_id).project_id as string, existing: true };
+      }
+      const intake = this.db.prepare("SELECT project_id FROM question_intakes WHERE space = ?").get(input.space) as { project_id: string } | undefined;
+      if (!intake) {
+        throw new Refused(`questions asked in ${input.space} have nowhere to go yet: a manager of the board that answers them has to take them first`, "NO_INTAKE");
+      }
+      const since = new Date(at - QUESTION_LIMITS.windowMs).toISOString();
+      const recent = (this.db.prepare("SELECT count(*) AS n FROM questions WHERE asked_by = ? COLLATE NOCASE AND space = ? AND asked_at > ?")
+        .get(actor.id, input.space, since) as { n: number }).n;
+      if (recent >= QUESTION_LIMITS.perWindow) {
+        throw new Refused(`that is ${recent} questions here in ten minutes; give the answerers a little time before the next`, "TOO_MANY");
+      }
+      this.ensureActor(actor.id, actor.kind ?? undefined);
+      const id = `${intake.project_id}-${randomUUID().slice(0, 8)}`;
+      const askedAt = new Date(at).toISOString();
+      const title = questionTitle(checked.text);
+      const brief = `${checked.text}\n\n— Asked by ${actor.id} in ${input.space}, at its question lectern, ${askedAt.slice(0, 16).replace("T", " ")} UTC.\n`
+        + `Answer it beside this card: board.py answer ${id} <answer.json>, or POST /bff/questions/${id}/answers with { body, refs: [{ resource, version, url? }], after: 0 }. `
+        + "An answer does not move the card; take the card here as you would any other.";
+      this.db.prepare(`INSERT INTO tasks (id,project_id,title,description,kind,points,priority,status,created_at,updated_at)
+                       VALUES (?,?,?,?,NULL,1,NULL,'backlog',?,?)`)
+        .run(id, intake.project_id, title, brief, askedAt, askedAt);
+      this.db.prepare("INSERT INTO questions (task_id, space, asked_by, request_key, text, asked_at) VALUES (?,?,?,?,?,?)")
+        .run(id, input.space, actor.id, requestKey, checked.text, askedAt);
+      this.audit(actor.id, "ask", "task", id, undefined, { title, space: input.space, via: "question intake" });
+      return { id, projectId: intake.project_id, existing: false };
+    }, { actorId: actor.id, action: "ask question", target: input.space });
+  }
+
+  /**
+   * An answer, as the next revision beside the question's card.
+   *
+   * TAKES A ROLE, NOT JUST MEMBERSHIP. Entering a project's room enrols you in
+   * it with no roles (enrolFromRoom), so plain membership is "has walked in",
+   * and that must not be enough to publish an answer on the project's behalf.
+   * Any role a manager gave counts.
+   *
+   * `after` is the revision the answerer read. Anything else is refused, so two
+   * answerers never quietly replace each other; and nothing is replaced in any
+   * case — every revision stays.
+   */
+  answerQuestion(actor: Actor, taskId: string, input: { body: unknown; refs: unknown; after: unknown }): { revision: number } {
+    const body = answerBody(input.body);
+    if ("problem" in body) throw new Refused(body.problem, "BAD_ANSWER");
+    const refs = answerRefs(input.refs);
+    if ("problem" in refs) throw new Refused(refs.problem, "BAD_ANSWER");
+    const after = input.after;
+    if (typeof after !== "number" || !Number.isInteger(after) || after < 0) {
+      throw new Refused("after is the revision you answered from: 0 for the first answer", "BAD_ANSWER");
+    }
+    return this.tx(() => {
+      if (!this.db.prepare("SELECT 1 FROM questions WHERE task_id = ?").get(taskId)) throw new Refused(`no question ${taskId}`, "NOT_FOUND");
+      const projectId = this.taskRow(taskId).project_id as string;
+      this.assertAuthority(actor.id, projectId);
+      if (!this.rolesOf(actor.id, projectId)?.length) {
+        throw new Refused(`answering for ${projectId} takes a role a manager gave you; entering its room is not enough`, "ROLE_REQUIRED");
+      }
+      const current = (this.db.prepare("SELECT coalesce(max(revision), 0) AS n FROM question_answers WHERE task_id = ?").get(taskId) as { n: number }).n;
+      if (after !== current) {
+        throw new Refused(`the answer is at revision ${current} and yours was written from revision ${after}; read it again and answer from ${current}`, "STALE_ANSWER");
+      }
+      const revision = current + 1;
+      this.ensureActor(actor.id, actor.kind ?? undefined);
+      this.db.prepare("INSERT INTO question_answers (task_id, revision, author, body, refs_json, created_at) VALUES (?,?,?,?,?,?)")
+        .run(taskId, revision, actor.id, body.body, JSON.stringify(refs.refs), now());
+      this.audit(actor.id, "answer", "question", taskId, current ? { revision: current } : undefined, { revision, refs: refs.refs.length });
+      return { revision };
+    }, { actorId: actor.id, action: "answer question", target: taskId });
+  }
 }
 
 const slug = (name: string) =>
@@ -983,6 +1120,12 @@ function reasonFor(code: string): string {
     BAD_URL: "link was not http or https",
     NOT_FOUND: "target does not exist",
     CONFLICT: "target already exists",
+    BAD_QUESTION: "question was not a question the board keeps",
+    NO_INTAKE: "space has no board taking its questions",
+    TOO_MANY: "too many questions in the window",
+    BAD_ANSWER: "answer or its sources were malformed",
+    ROLE_REQUIRED: "answering takes a role on the project",
+    STALE_ANSWER: "answer was written from an older revision",
   };
   return reasons[code] ?? "refused";
 }

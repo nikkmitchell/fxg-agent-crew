@@ -1380,4 +1380,48 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE space_feedback ADD COLUMN deploy TEXT;
     `,
   },
+  {
+    id: 51,
+    name: "questions: asked in a space, carded on a project's board, answered beside it",
+    sql: `
+      -- The Library's question lectern (Mica 7319, Baiwei). shared/questions.ts.
+      --
+      -- An INTAKE is a project manager, who also made the space, saying "the
+      -- questions asked in this space come to my board". It is the only way a
+      -- visitor's words reach a project they do not belong to, and it lets
+      -- exactly one thing happen: a new backlog card, nobody's, in the asker's
+      -- name. One project per space.
+      CREATE TABLE question_intakes (
+        space       TEXT PRIMARY KEY,
+        project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        granted_by  TEXT NOT NULL,
+        granted_at  TEXT NOT NULL
+      );
+      -- What was asked, as it was asked: the card's title and brief belong to
+      -- the board and can be edited; the question cannot. The request key is
+      -- the host's, one per opened form, so sending again is the same question
+      -- and the same card.
+      CREATE TABLE questions (
+        task_id      TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+        space        TEXT NOT NULL,
+        asked_by     TEXT NOT NULL,
+        request_key  TEXT NOT NULL,
+        text         TEXT NOT NULL,
+        asked_at     TEXT NOT NULL,
+        UNIQUE (asked_by, request_key)
+      );
+      CREATE INDEX questions_by_space ON questions (space, asked_at);
+      -- Answers are revisions, never edits: each keeps who wrote it, when, and
+      -- the exact sources it rests on. Every revision stays (Mica, 7322).
+      CREATE TABLE question_answers (
+        task_id     TEXT NOT NULL REFERENCES questions(task_id) ON DELETE CASCADE,
+        revision    INTEGER NOT NULL CHECK (revision > 0),
+        author      TEXT NOT NULL,
+        body        TEXT NOT NULL,
+        refs_json   TEXT NOT NULL,
+        created_at  TEXT NOT NULL,
+        PRIMARY KEY (task_id, revision)
+      );
+    `,
+  },
 ];

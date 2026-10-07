@@ -34,6 +34,12 @@ const CODES: Record<string, number> = {
   EMPTY_FILE: 400,
   BAD_URL: 400,
   OFF_THE_BOARD: 400,
+  BAD_QUESTION: 400,
+  NO_INTAKE: 409,
+  TOO_MANY: 429,
+  BAD_ANSWER: 400,
+  ROLE_REQUIRED: 403,
+  STALE_ANSWER: 409,
 };
 
 export function registerBoardRoutes(
@@ -49,6 +55,8 @@ export function registerBoardRoutes(
   ) => void,
   /** When the room should show a board change: see shared/board-freshness.ts. */
   revealOf: (auditId: number, at: string, actorId: string) => string | null = (_id, at) => at,
+  /** Questions asked in spaces (shared/questions.ts); without these the routes are not offered. */
+  questions?: QuestionHooks,
 ): void {
   const reads = new BoardReads(db);
   const store = new BoardStore(db);
@@ -422,4 +430,96 @@ export function registerBoardRoutes(
       throw error;
     }
   });
+
+  // --------------------------------------------------------------- questions
+  //
+  // Asked in a space, carded on a project's board, answered beside the card
+  // (shared/questions.ts). The rules are BoardStore's like every other write;
+  // what these routes add is what the board cannot know: which space the thing
+  // you are standing at comes from, and who made that space.
+
+  if (!questions) return;
+
+  const NO_INTAKE = (space: string) => ({
+    code: "NO_INTAKE",
+    error: `questions asked in ${space} have nowhere to go yet: a manager of the board that answers them has to take them first`,
+  });
+
+  app.put<{ Params: { id: string }; Body: { space?: unknown } }>("/bff/board/projects/:id/question-intake", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const space = typeof request.body?.space === "string" ? request.body.space : "";
+    if (!space) return reply.code(400).send({ code: "BAD_REQUEST", error: "say which space: { space }" });
+    return handle(reply, request, () => {
+      store.setQuestionIntake(actorOf(session), space, request.params.id, questions.creatorOf(space));
+      return reads.questionIntake(space);
+    });
+  });
+
+  app.delete<{ Params: { id: string }; Querystring: { space?: string } }>("/bff/board/projects/:id/question-intake", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const space = request.query.space ?? "";
+    if (reads.questionIntake(space)?.projectId !== request.params.id) {
+      return reply.code(404).send({ code: "NOT_FOUND", error: `questions from ${space || "that space"} do not come to ${request.params.id}` });
+    }
+    return handle(reply, request, () => store.setQuestionIntake(actorOf(session), space, null, questions.creatorOf(space)));
+  });
+
+  /** The space of the thing you named, in the room you are in; or a reply saying it is not one. */
+  const spaceAt = (session: Session, item: unknown, reply: FastifyReply): string | null => {
+    const space = typeof item === "string" && item ? questions.spaceOfItem(session, item) : null;
+    if (!space) reply.code(404).send({ code: "NOT_A_THING", error: "there is no thing from a space by that id in your room" });
+    return space;
+  };
+
+  app.get<{ Querystring: { item?: string; mine?: string; limit?: string } }>("/bff/space/questions", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const space = spaceAt(session, request.query.item, reply);
+    if (!space) return reply;
+    const intake = reads.questionIntake(space);
+    // Fail clearly (Mica, 7322): an empty list would say "nobody has asked", not "nowhere to ask".
+    if (!intake) return reply.code(409).send(NO_INTAKE(space));
+    const limit = Number(request.query.limit ?? 30);
+    return reply.send({
+      space,
+      project: intake.projectId,
+      questions: reads.questions(space, { askedBy: request.query.mine === "1" ? session.username : undefined, limit: Number.isFinite(limit) ? limit : 30 }),
+    });
+  });
+
+  app.post<{ Body: { item?: unknown; text?: unknown; requestKey?: unknown } }>("/bff/space/questions", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const space = spaceAt(session, request.body?.item, reply);
+    if (!space) return reply;
+    return handle(reply, request, () => {
+      const filed = store.fileQuestion(actorOf(session), { space, text: request.body?.text, requestKey: request.body?.requestKey });
+      const { answers: _answers, ...question } = reads.question(filed.id)!;
+      return { existing: filed.existing, question };
+    });
+  });
+
+  app.get<{ Params: { id: string } }>("/bff/questions/:id", async (request, reply) => {
+    if (!requireSession(request, reply)) return reply;
+    const question = reads.question(request.params.id);
+    return question ? reply.send({ question }) : reply.code(404).send({ code: "NOT_FOUND", error: `no question ${request.params.id}` });
+  });
+
+  app.post<{ Params: { id: string }; Body: { body?: unknown; refs?: unknown; after?: unknown } }>("/bff/questions/:id/answers", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    return handle(reply, request, () => store.answerQuestion(actorOf(session), request.params.id, {
+      body: request.body?.body, refs: request.body?.refs, after: request.body?.after,
+    }));
+  });
 }
+
+/** What the question routes need from the rooms and spaces, which the board does not own. */
+export type QuestionHooks = {
+  /** The space a thing in your room comes from (its top-level item's source), or null when it is no such thing. */
+  spaceOfItem(session: Session, item: string): string | null;
+  /** Who made a space, or null when there is no such space. */
+  creatorOf(space: string): string | null;
+};
