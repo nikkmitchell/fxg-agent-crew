@@ -15,6 +15,8 @@ import { ThingInstance } from "../../engine/instance";
 import type { Person } from "../../engine/types";
 import { createRoomEngine, type RoomEngine } from "./room-engine";
 import { QuestionForm } from "./QuestionForm";
+import { ReviewBack } from "./ReviewBack";
+import { useReviewView, withReviewView } from "./review-view";
 
 /**
  * THINGS FROM SPACES, LIVE IN THE ROOM (shared/room-items.ts, ModuleRoomItem;
@@ -161,7 +163,7 @@ function usePressRouter(running: Map<string, RunningModule>, you: { id: string; 
   }, [gl, pressAlong]);
 }
 
-export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, reducedMotion = false, people, onFullViewFailed, locked = false }: {
+export function ModuleItems({ items: roomItems, you, send, subscribe, onItem, onRemoved, reducedMotion = false, people, onFullViewFailed, locked = false }: {
   items: ModuleRoomItem[];
   you: string | null;
   send: (message: ClientMessage) => boolean | void;
@@ -176,6 +178,9 @@ export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, re
   /** A finished space: the things are as published, so no ⚙, move or take-away controls. */
   locked?: boolean;
 }) {
+  // A review round's version opened for you alone (review-view.ts), among or in place of the room's things.
+  const reviewView = useReviewView();
+  const items = useMemo(() => withReviewView(roomItems, reviewView, you), [roomItems, reviewView, you]);
   const sources = useModuleSources(items, subscribe);
   const running = useMemo(() => new Map<string, RunningModule>(), []);
   const person = useMemo<Person | null>(() => (you ? { id: you, name: you, me: true, agent: false } : null), [you]);
@@ -274,6 +279,7 @@ export function ModuleItems({ items, you, send, subscribe, onItem, onRemoved, re
         );
       })}
       <QuestionForm />
+      <ReviewBack />
     </>
   );
 }

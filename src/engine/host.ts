@@ -1,6 +1,6 @@
 import type * as THREE from "three";
 import type { EnvLayer } from "./env";
-import type { AskResult, Json, Person, QuestionPage } from "./types";
+import type { AskRefusal, AskResult, Json, Person, QuestionPage, ReviewFinding, ReviewRound, ReviewVariant } from "./types";
 
 /**
  * WHAT THE ENGINE NEEDS FROM WHEREVER IT RUNS (docs/things/DESIGN.md): the
@@ -55,6 +55,8 @@ export interface Host {
   occluders?(): THREE.Object3D[];
   /** Questions for a thing's space (ctx.questions). A host without them answers "not-here". */
   readonly questions?: QuestionHost;
+  /** Review rounds (ctx.reviews). A host without them answers "not-here". */
+  readonly reviews?: ReviewHost;
 }
 
 /**
@@ -65,4 +67,15 @@ export interface QuestionHost {
   /** Open the writing panel for this instance; `close` is called if the thing goes first. */
   ask(instance: string, options: { prompt?: string; near?: THREE.Object3D; voice?: boolean; to?: string }): { result: Promise<AskResult>; close(): void };
   list(instance: string, options: { mine?: boolean; limit?: number; cursor?: string | null }): Promise<QuestionPage>;
+}
+
+/** Where ctx.reviews goes: the board's taking, the room's panel for findings, a version opened for this viewer. */
+export interface ReviewHost {
+  list(options: { cursor?: string | null; limit?: number }): Promise<{ rounds: ReviewRound[]; next: string | null }>;
+  accept(id: string): Promise<{ ok: true } | { ok: false; why: string }>;
+  decline(id: string): Promise<{ ok: true } | { ok: false; why: string }>;
+  submit(instance: string, id: string, options: { variant: ReviewVariant; near?: THREE.Object3D }): { result: Promise<{ ok: true; finding: ReviewFinding } | { ok: false; why: AskRefusal; message: string }>; close(): void };
+  findings(id: string, options: { cursor?: string | null; limit?: number }): Promise<{ findings: ReviewFinding[]; next: string | null }>;
+  open(id: string, variant: ReviewVariant): Promise<{ ok: true } | { ok: false; why: string }>;
+  back(): void;
 }

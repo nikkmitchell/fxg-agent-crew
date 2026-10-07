@@ -45,7 +45,12 @@ export type OpenQuestion = {
   to: string | null;
   /** The card, once saved, while its chat line has not gone: a resend retries only the line. */
   saved: Question | null;
+  /** A panel that is not a question (a review finding): how it sends. Same key, same states. */
+  send?: PanelSend;
 };
+
+/** What a non-question panel does with its words: finished with a result, or kept open with why. */
+export type PanelSend = (text: string, key: string) => Promise<{ done: unknown } | { keep: string }>;
 
 type Voice = { start(): void; finish(): void; cancel(): void; recording(): boolean };
 let voiceControl: Voice | null = null;
@@ -118,6 +123,12 @@ export function placeNear(near: THREE.Object3D | undefined, camera: THREE.Camera
   return { at, yaw: Math.atan2(eye.x - at.x, eye.z - at.z) };
 }
 
+/** The renderer as these panels need it: only whether a session is running, for distance. */
+export type PanelRenderer = { xr: { isPresenting: boolean } };
+
+/** In front of whoever is looking, nearer in a headset: for the room's own panels (ReviewBack). */
+export const placeInFront = (camera: THREE.Camera, renderer: { xr: { isPresenting: boolean } }) => placeNear(undefined, camera, renderer.xr.isPresenting);
+
 const newKey = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 
@@ -126,6 +137,23 @@ export async function sendOpenQuestion(text: string): Promise<void> {
   const current = open;
   if (!current || current.sending) return;
   show({ ...current, draft: text, sending: true, problem: null });
+  if (current.send) {
+    try {
+      const out = await current.send(text, current.key);
+      if (open?.key !== current.key) return;
+      if ("done" in out) finish?.(out.done as AskResult);
+      else show({ ...open, sending: false, problem: out.keep });
+    } catch (error) {
+      if (open?.key !== current.key) return;
+      const network = !(error instanceof ApiError) || error.retryable;
+      if (network || /^BAD_/.test(error.code)) {
+        show({ ...open, sending: false, problem: network ? "Could not reach saha.ing. Send again: it stays one finding." : error.message });
+        return;
+      }
+      finish?.(refusalOf(error));
+    }
+    return;
+  }
   try {
     const answer = await space.askQuestion(current.item, text, current.key, current.to);
     if (open?.key !== current.key) return;
@@ -220,3 +248,37 @@ export function resetQuestionPanel(): void {
 }
 
 export type { Question };
+
+/**
+ * The room's panel for something that is not a question (a review finding, review-host.ts): the same
+ * Typing3D, one request key, one panel a page, closed when the thing goes. `header` says where it goes.
+ */
+export function openPanel(options: { instance: string; header: string; near?: THREE.Object3D; send: PanelSend; camera: THREE.Camera; me: Person | null; renderer: { xr: { isPresenting: boolean } } }): { result: Promise<AskResult>; close(): void } {
+  const key = newKey();
+  let settled = false;
+  let settle!: (result: AskResult) => void;
+  const result = new Promise<AskResult>((resolve) => (settle = resolve));
+  const done = (answer: AskResult) => {
+    if (settled) return;
+    settled = true;
+    if (open?.key === key) {
+      finish = null;
+      show(null);
+    }
+    settle(answer);
+  };
+  const close = () => done(refused("removed", "The thing was taken away before it was sent."));
+  if (!options.me) {
+    done(refused("signed-out", "Sign in to saha.ing to do that."));
+    return { result, close };
+  }
+  if (open) {
+    done(refused("busy", "Something is already being written here: send or close it first."));
+    return { result, close };
+  }
+  const place = placeNear(options.near, options.camera, options.renderer.xr.isPresenting);
+  show({ key, instance: options.instance, item: options.instance.split("/")[0], header: options.header, at: place.at, yaw: place.yaw, draft: "", problem: null, sending: false, voice: false, to: null, saved: null, send: options.send });
+  finish = done;
+  return { result, close };
+}
+

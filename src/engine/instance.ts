@@ -274,6 +274,31 @@ export class ThingInstance {
         invalidate: () => host.invalidate(),
         gone: () => this.disposed,
       }),
+      reviews: (() => {
+        const none = <T,>(): Promise<T> => Promise.reject(Object.assign(new Error("Review rounds are in a saha.ing room; this page has none."), { why: "not-here" }));
+        const reviews = host.reviews;
+        if (!reviews) {
+          return {
+            list: () => none(), accept: () => none(), decline: () => none(), findings: () => none(), open: () => none(), back: () => undefined,
+            submit: () => Promise.resolve({ ok: false as const, why: "not-here" as const, message: "Review rounds are in a saha.ing room; this page has none." }),
+          };
+        }
+        return {
+          list: (o) => reviews.list(o ?? {}),
+          accept: (rid) => reviews.accept(rid),
+          decline: (rid) => reviews.decline(rid),
+          findings: (rid, o) => reviews.findings(rid, o ?? {}),
+          open: (rid, variant) => reviews.open(rid, variant),
+          back: () => reviews.back(),
+          submit: (rid, o) => {
+            if (this.disposed) return Promise.resolve({ ok: false as const, why: "removed" as const, message: `${this.def.name} has been taken away.` });
+            const submitting = reviews.submit(id, rid, o);
+            // Taking the thing away closes its panel, as for questions.
+            own(submitting.close);
+            return submitting.result;
+          },
+        };
+      })(),
       questions: {
         ask: (askOptions) => {
           if (this.disposed) return Promise.resolve({ ok: false, why: "removed", message: `${this.def.name} has been taken away.` });

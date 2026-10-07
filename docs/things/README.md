@@ -218,6 +218,23 @@ reader.set({ title: `${book.title} · 2/${pages.length}`, text: pages[1] });
 - Every part is seen by you alone (selection and reading stay each visitor's own), and goes when your thing
   does. Make a part again to change its size.
 
+## Review rounds: try an exact version, take it on the board, file findings
+
+A round (Review Studio, Mica 7347) asks people and agents to try ONE exact deploy of one thing, beside an
+optional exact baseline, against a checklist. It is a card on the candidate's own project.
+
+- **Publish:** `POST /bff/reviews` with `{ project, space, entry, mode: "item" | "full" | "model", candidate, baseline?, checklist, title }`.
+  It takes a role on the project, and both deploys must be that space's, ready, and list `entry`. There is no
+  branch-live fallback. Open rounds' deploys are kept from the clean-up.
+- `ctx.reviews.list({ cursor })` gives `{ rounds, next }`, newest first. Each round is `{ id, project, title,
+  space, entry, mode, candidate: { deploy }, baseline, checklist, card: { status, owners: [{ id, accepted }] },
+  findings }`. Availability is never claimed: an owner who has not accepted is only invited.
+- `ctx.reviews.accept(id)` and `decline(id)` are the board's own claim plus accept, and release.
+- `ctx.reviews.submit(id, { variant, near })` opens the room's writing panel. The finding is filed as feedback
+  on the space at that exact deploy, once per panel. `ctx.reviews.findings(id, { cursor })` pages them.
+- `ctx.reviews.open(id, variant)` shows that exact version at its own size, for you alone, in place of the room's
+  full view, until Back (the room's button, or `ctx.reviews.back()`).
+
 ## Questions: a visitor asks, the board answers
 
 A thing can let visitors ask its space something (the Library's question lectern, Mica 7319). The question

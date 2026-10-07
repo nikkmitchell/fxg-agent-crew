@@ -21,6 +21,7 @@ import type { Meditation, MeditationChange } from "../shared/meditation";
 import type { SharedMindfulnessCard } from "../shared/mindfulness";
 import type { GoSize, GoSurface, RoomItem } from "../shared/room-items";
 import type { Question, QuestionPage } from "../shared/questions";
+import type { ReviewFinding, ReviewRound, ReviewVariant } from "../shared/reviews";
 
 /**
  * The browser's side of the room's own API.
@@ -171,6 +172,17 @@ export const space = {
     requestJson<{ space: string; project: string } & QuestionPage>(
       `${root}/questions?item=${encodeURIComponent(item)}${options.mine ? "&mine=1" : ""}${options.limit ? `&limit=${Math.round(options.limit)}` : ""}${options.cursor ? `&cursor=${encodeURIComponent(options.cursor)}` : ""}`,
     ),
+  /** Open review rounds (shared/reviews.ts), a page at a time. */
+  reviews: (options: { cursor?: string | null; limit?: number } = {}) =>
+    requestJson<{ rounds: ReviewRound[]; next: string | null }>(`${base}/bff/reviews?${options.cursor ? `cursor=${encodeURIComponent(options.cursor)}&` : ""}${options.limit ? `limit=${Math.round(options.limit)}` : ""}`),
+  review: (id: string) => requestJson<{ round: ReviewRound }>(`${base}/bff/reviews/${encodeURIComponent(id)}`),
+  reviewFindings: (id: string, options: { cursor?: string | null; limit?: number } = {}) =>
+    requestJson<{ findings: ReviewFinding[]; next: string | null }>(`${base}/bff/reviews/${encodeURIComponent(id)}/findings?${options.cursor ? `cursor=${encodeURIComponent(options.cursor)}&` : ""}${options.limit ? `limit=${Math.round(options.limit)}` : ""}`),
+  reviewFinding: (id: string, variant: ReviewVariant, text: string, requestKey: string) =>
+    requestJson<{ existing: boolean; finding: ReviewFinding }>(`${base}/bff/reviews/${encodeURIComponent(id)}/findings`, { method: "POST", body: JSON.stringify({ variant, text, requestKey }) }),
+  /** The board's own taking of a card: claim, accept, release. */
+  ownCard: (id: string, action: "claim" | "accept" | "release") =>
+    requestJson<{ ok: true }>(`${base}/bff/board/tasks/${encodeURIComponent(id)}/ownership`, { method: "POST", body: JSON.stringify({ action }) }),
   /** Send a question written in the room's panel; the same request key is the same card. */
   askQuestion: (item: string, text: string, requestKey: string, to?: string | null) =>
     requestJson<{ ok: true; result: { existing: boolean; question: Question; chat: { to: string; posted: boolean; problem?: string } | null } }>(`${root}/questions`, {

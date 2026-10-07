@@ -6,6 +6,7 @@ import { EnvStack } from "../../engine/env";
 import type { Host, Resolved, TransportEvent } from "../../engine/host";
 import { Engine } from "../../engine/instance";
 import { createQuestionHost } from "./question-form";
+import { createReviewHost } from "./review-host";
 import type { Json, Person } from "../../engine/types";
 import { claimPointer } from "../pointer-claim";
 import { resumeRoomAudio } from "../room-audio";
@@ -199,6 +200,8 @@ export function createRoomEngine(deps: {
     occluders: deps.occluders,
     // ctx.questions: the room's own panel and the question routes (question-form.ts).
     questions: createQuestionHost({ camera: deps.camera, me: deps.me, renderer: deps.gl }),
+    // ctx.reviews: the board's taking, the room's panel for findings, a version opened for you (review-host.ts).
+    reviews: createReviewHost({ camera: deps.camera, me: deps.me, renderer: deps.gl }),
   };
 
   const engine = new Engine(host, {

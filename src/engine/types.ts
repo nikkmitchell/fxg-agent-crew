@@ -1,10 +1,12 @@
 import type * as THREE from "three";
 import type { Question, QuestionPage } from "../../shared/questions";
 import type { UiTone } from "../../shared/thing-ui";
+import type { ReviewFinding, ReviewRound, ReviewVariant } from "../../shared/reviews";
 import type { UiInk } from "../../shared/ui-ink";
 
 export type { AnswerRef, Question, QuestionAnswer, QuestionPage } from "../../shared/questions";
 export type { UiTone } from "../../shared/thing-ui";
+export type { ReviewFinding, ReviewRound, ReviewVariant } from "../../shared/reviews";
 
 /**
  * THE CONTRACT, saha/1 (docs/things/DESIGN.md): what an item, an environment
@@ -234,6 +236,25 @@ export interface Ctx {
      * `cursor` for the page after; it is null on the last. Rejects, with `why`, when this space's questions go nowhere.
      */
     list(options?: { mine?: boolean; limit?: number; cursor?: string | null }): Promise<QuestionPage>;
+  };
+
+  /**
+   * REVIEW ROUNDS (shared/reviews.ts; Review Studio, Mica 7347): exact versions to try, taken through the board,
+   * with findings filed at the exact deploy reviewed. No branch-live fallback anywhere.
+   */
+  readonly reviews: {
+    /** Open rounds, newest first, a page at a time. */
+    list(options?: { cursor?: string | null; limit?: number }): Promise<{ rounds: ReviewRound[]; next: string | null }>;
+    /** The board's own claim and accept, on the round's card: refused unless you belong to its project. */
+    accept(id: string): Promise<{ ok: true } | { ok: false; why: string }>;
+    /** The board's own release. */
+    decline(id: string): Promise<{ ok: true } | { ok: false; why: string }>;
+    /** The room's writing panel, for a finding on the candidate or the baseline. One per panel, as for questions. */
+    submit(id: string, options: { variant: ReviewVariant; near?: THREE.Object3D }): Promise<{ ok: true; finding: ReviewFinding } | { ok: false; why: AskRefusal; message: string }>;
+    findings(id: string, options?: { cursor?: string | null; limit?: number }): Promise<{ findings: ReviewFinding[]; next: string | null }>;
+    /** That exact version, at its own size, for you alone, until Back (the room's button, or `back()`). */
+    open(id: string, variant: ReviewVariant): Promise<{ ok: true } | { ok: false; why: string }>;
+    back(): void;
   };
 
   /**
