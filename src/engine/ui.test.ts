@@ -162,6 +162,15 @@ describe("ctx.ui in the engine (Mica 7331)", () => {
     }
   });
 
+  it("says what size a button is when a thing does not say, so rows can be spaced by it", () => {
+    const { ui } = setUp();
+    expect(ui.sizes.button).toEqual({ width: 0.25, height: 0.09 });
+    const plain = ui.button("Earlier");
+    const box = new THREE.Box3().setFromObject(plain.object).getSize(new THREE.Vector3());
+    expect(box.x).toBeCloseTo(ui.sizes.button.width);
+    expect(box.y).toBeCloseTo(ui.sizes.button.height);
+  });
+
   it("leaves nothing behind when the thing goes: meshes out, textures freed, no more hover or press", () => {
     const { ui, root, takeAway } = setUp();
     const pressed = vi.fn();

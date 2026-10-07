@@ -239,6 +239,8 @@ export interface Ctx {
     /** The settings menu's palette and font, for anything you draw yourself. */
     readonly ink: UiInk;
     readonly font: string;
+    /** A button's size when you do not give one, in metres: space rows of buttons by it. */
+    readonly sizes: { readonly button: { readonly width: number; readonly height: number } };
     button(label: string, options?: UiButtonOptions): UiButton;
     card(options: UiCardOptions): UiCard;
     /** Long text as pages that each fit a card of this size at the menu's text size (`title: false` for a card without one). */

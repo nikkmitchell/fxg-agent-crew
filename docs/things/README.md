@@ -201,7 +201,7 @@ const reader = ctx.ui.card({ title: `${book.title} · 1/${pages.length}`, text: 
 reader.set({ title: `${book.title} · 2/${pages.length}`, text: pages[1] });
 ```
 
-- **A button** is `width` by `height` metres (0.25 by 0.09 unless you say), a plane facing +Z, drawn and pressed
+- **A button** is `width` by `height` metres (`ctx.ui.sizes.button`, 0.25 by 0.09, unless you say), a plane facing +Z, drawn and pressed
   from the front only. `tone: "accent"` for the one thing to do here, `"danger"` for what cannot be undone,
   `disabled: true` greys it and ignores presses. It lights under a ray or the mouse, flashes when pressed,
   and calls `onPress` for a click, a ray, a pinch or a fingertip. `set({ label, tone, disabled, onPress })`

@@ -30,6 +30,9 @@ export type UiDeps = {
 /** How long a press shows, as in the settings menu (SettingsMenu3D). */
 export const PRESSED_MS = 160;
 
+/** A button's size when a thing does not say, in metres (Mica 7335: so rows can be spaced by it). */
+export const UI_SIZES = Object.freeze({ button: Object.freeze({ width: 0.25, height: 0.09 }) });
+
 const MIN_SIDE = 0.02;
 const MAX_SIDE = 4;
 const metres = (value: unknown, fallback: number) =>
@@ -70,8 +73,8 @@ export function thingUi(deps: UiDeps): Ctx["ui"] {
   };
 
   function button(label: string, options: UiButtonOptions = {}): UiButton {
-    const width = metres(options.width, 0.25);
-    const height = metres(options.height, 0.09);
+    const width = metres(options.width, UI_SIZES.button.width);
+    const height = metres(options.height, UI_SIZES.button.height);
     const made = surface(width, height, `ui-button ${label}`.slice(0, 60));
     const measure = measures(made.canvas).bold;
     let current = { label: String(label), tone: options.tone ?? "normal", disabled: Boolean(options.disabled), onPress: options.onPress };
@@ -158,6 +161,7 @@ export function thingUi(deps: UiDeps): Ctx["ui"] {
   return {
     ink: UI_INK,
     font: UI_FONT,
+    sizes: UI_SIZES,
     button: (label, options) => {
       if (deps.gone()) throw new Error("This thing has been taken away; it can make no more controls.");
       return button(label, options);
