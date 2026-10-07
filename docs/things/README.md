@@ -237,6 +237,7 @@ const next = await ctx.books.read(1342, page.page + 1);
 ```
 
 - Shelves go most read first (shelf 1 is Pride and Prejudice, Frankenstein, ...). `shelves` is how many there are.
+- Each book has `bytes`, its plain text's size, for sizing it on a shelf. Sizes are measured just after a shelf is first handed out: while `sized` is false, ask for the shelf again a few seconds later.
 - A page past the end is the last page. Fit a page to your card with `ctx.ui.pages(page.text, { width, height })`.
 - Both reject with `why`: `"not-here"` (not in a saha.ing room), `"source-down"` (Gutenberg did not answer; try
   again), `"not-found"` (no plain text of that book), `"too-big"` (over 6 MB), `"offline"`.

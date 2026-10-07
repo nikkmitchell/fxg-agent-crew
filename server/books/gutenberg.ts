@@ -23,7 +23,10 @@ export class BookSourceError extends Error {
   }
 }
 
-type Fetch = (url: string, init?: { signal?: AbortSignal; headers?: Record<string, string> }) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>;
+type Fetch = (
+  url: string,
+  init?: { method?: string; signal?: AbortSignal; headers?: Record<string, string> },
+) => Promise<{ ok: boolean; status: number; text(): Promise<string>; headers?: { get(name: string): string | null } }>;
 
 const SHELF_FRESH_MS = 7 * 24 * 60 * 60 * 1000;
 const TIMEOUT_MS = 45_000;
@@ -96,9 +99,17 @@ export class Gutenberg {
     return this.once(`shelf:${shelf}`, async () => {
       const path = this.file("shelves", `${shelf}.json`);
       const kept = await this.kept(path);
-      if (kept && kept.age < SHELF_FRESH_MS) return JSON.parse(kept.text) as BookShelf;
+      if (kept && kept.age < SHELF_FRESH_MS) {
+        const shelfKept = JSON.parse(kept.text) as BookShelf;
+        // Kept before its books were measured: hand it out now, measure it behind.
+        if (!shelfKept.sized) {
+          shelfKept.sized = false;
+          this.measureLater(path, shelfKept);
+        }
+        return shelfKept;
+      }
       const answer = await this.get(`https://gutendex.com/books/?page=${shelf}`);
-      if (answer.status === 404) return { shelf, count: 0, shelves: 0, books: [] };
+      if (answer.status === 404) return { shelf, count: 0, shelves: 0, books: [], sized: true };
       if (answer.status !== 200) {
         if (kept) return JSON.parse(kept.text) as BookShelf;
         throw new BookSourceError("SOURCE_DOWN", "The book catalogue did not answer; try again in a moment.");
@@ -109,8 +120,43 @@ export class Gutenberg {
         throw new BookSourceError("SOURCE_DOWN", "The book catalogue answered with something that is not a shelf.");
       }
       await this.keep(path, JSON.stringify(made));
+      this.measureLater(path, made);
       return made;
     });
+  }
+
+  private readonly measuring = new Set<string>();
+  /** Measure a shelf's books without keeping anyone waiting, then keep the shelf with its sizes. */
+  private measureLater(path: string, shelf: BookShelf) {
+    if (this.measuring.has(path)) return;
+    this.measuring.add(path);
+    const copy: BookShelf = JSON.parse(JSON.stringify(shelf));
+    void this.measure(copy.books)
+      .then(() => this.keep(path, JSON.stringify({ ...copy, sized: true })))
+      .catch(() => undefined)
+      .finally(() => this.measuring.delete(path));
+  }
+  /** Settled when every shelf being measured is (tests). */
+  async measured() {
+    while (this.measuring.size) await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+
+  /** Each book's plain-text size, from a HEAD of the file (six at a time); null where Gutenberg does not say. */
+  private async measure(books: BookCard[]) {
+    let next = 0;
+    const one = async () => {
+      while (next < books.length) {
+        const book = books[next++];
+        try {
+          const answer = await this.fetch(`https://www.gutenberg.org/cache/epub/${book.id}/pg${book.id}.txt`, { method: "HEAD", signal: AbortSignal.timeout(10_000), headers: HEADERS });
+          const length = Number(answer.headers?.get("content-length"));
+          book.bytes = answer.ok && Number.isFinite(length) && length > 0 ? length : null;
+        } catch {
+          book.bytes = null;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(6, books.length) }, one));
   }
 
   private async book(id: number): Promise<{ title: string; author: string; pages: string[] }> {
@@ -186,7 +232,8 @@ export function readShelf(shelf: number, text: string): BookShelf | null {
       subjects: strings(one.subjects, 4),
       languages: strings(one.languages, 4),
       downloads: typeof one.download_count === "number" ? one.download_count : 0,
+      bytes: null,
     });
   }
-  return { shelf, count: page.count, shelves: Math.ceil(page.count / BOOK_LIMITS.shelfSize), books };
+  return { shelf, count: page.count, shelves: Math.ceil(page.count / BOOK_LIMITS.shelfSize), books, sized: false };
 }

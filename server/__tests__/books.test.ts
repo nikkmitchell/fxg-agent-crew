@@ -21,7 +21,14 @@ const text = (paragraphs: number) =>
 
 function boot(answers: Record<string, { status: number; body: string } | "throw">) {
   const asked: string[] = [];
-  const fetch = async (url: string) => {
+  const headed: string[] = [];
+  const fetch = async (url: string, init?: { method?: string }) => {
+    if (init?.method === "HEAD") {
+      headed.push(url);
+      // Book 2 has no size; the others are their id in kilobytes.
+      const id = Number(/pg(\d+)\.txt$/.exec(url)?.[1]);
+      return { ok: id !== 2, status: id !== 2 ? 200 : 404, text: async () => "", headers: { get: (name: string) => (name === "content-length" ? String(id * 1000) : null) } };
+    }
     asked.push(url);
     const answer = answers[url];
     if (!answer || answer === "throw") throw new Error("offline");
@@ -34,7 +41,7 @@ function boot(answers: Record<string, { status: number; body: string } | "throw"
   app.register(cookie);
   registerBookRoutes(app, { config, sessions, books });
   const cookies = { [config.cookieName]: sessions.create("Nikk2", "t") };
-  return { app, asked, cookies, answers };
+  return { app, asked, headed, cookies, answers, books };
 }
 
 const SHELF_2 = "https://gutendex.com/books/?page=2";
@@ -43,19 +50,26 @@ const BOOK_7 = "https://www.gutenberg.org/cache/epub/7/pg7.txt";
 describe("books", () => {
   it("keeps a shelf to readable books and what the room shows", () => {
     const shelf = readShelf(2, shelfJson([11, 12, 13]))!;
-    expect(shelf).toMatchObject({ shelf: 2, count: 75_000, shelves: 2344 });
+    expect(shelf).toMatchObject({ shelf: 2, count: 75_000, shelves: 2344, sized: false });
     expect(shelf.books.map((book) => book.id)).toEqual([11, 12]);
-    expect(shelf.books[0]).toEqual({ id: 11, title: "Book 11", authors: ["Austen, Jane"], subjects: ["Fiction"], languages: ["en"], downloads: 9 });
+    expect(shelf.books[0]).toEqual({ id: 11, title: "Book 11", authors: ["Austen, Jane"], subjects: ["Fiction"], languages: ["en"], downloads: 9, bytes: null });
     expect(readShelf(1, "<html>")).toBeNull();
   });
 
   it("needs a session, and asks the catalogue once however often the shelf is looked at", async () => {
-    const { app, asked, cookies } = boot({ [SHELF_2]: { status: 200, body: shelfJson([1, 2]) } });
+    const { app, asked, headed, cookies, books } = boot({ [SHELF_2]: { status: 200, body: shelfJson([1, 2]) } });
     expect((await app.inject({ url: "/bff/books?shelf=2" })).statusCode).toBe(401);
     const [one, two] = await Promise.all([app.inject({ url: "/bff/books?shelf=2", cookies }), app.inject({ url: "/bff/books?shelf=2", cookies })]);
     expect(one.json().books).toHaveLength(2);
     expect(two.json()).toEqual(one.json());
     await app.inject({ url: "/bff/books?shelf=2", cookies });
+    expect(asked).toEqual([SHELF_2]);
+    // Handed out at once, unmeasured; each book measured once behind it (Nikk 7457: sized by how big it is).
+    expect(one.json().sized).toBe(false);
+    await books.measured();
+    const later = (await app.inject({ url: "/bff/books?shelf=2", cookies })).json();
+    expect([later.sized, later.books.map((book: { bytes: number | null }) => book.bytes)]).toEqual([true, [1000, null]]);
+    expect(headed).toHaveLength(2);
     expect(asked).toEqual([SHELF_2]);
     expect((await app.inject({ url: "/bff/books?shelf=0", cookies })).statusCode).toBe(400);
     expect((await app.inject({ url: "/bff/books?shelf=../etc", cookies })).statusCode).toBe(400);

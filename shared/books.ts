@@ -25,6 +25,8 @@ export type BookCard = {
   subjects: string[];
   languages: string[];
   downloads: number;
+  /** The plain text's size in bytes, from Gutenberg (null when it did not say): how thick and tall the book is on the shelf (Nikk 7457). */
+  bytes: number | null;
 };
 
 export type BookShelf = {
@@ -34,6 +36,8 @@ export type BookShelf = {
   /** Shelves in the whole catalogue. */
   shelves: number;
   books: BookCard[];
+  /** Whether the books' sizes are in yet: they are measured after the shelf is first handed out, so ask again a little later when false. */
+  sized: boolean;
 };
 
 export type BookPage = {
