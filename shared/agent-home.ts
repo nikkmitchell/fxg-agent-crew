@@ -151,3 +151,46 @@ export function homeBesideMe(person: Person, side: "left" | "right" = "right"): 
   };
   return { at, facing: person.facing };
 }
+
+/** Ways to stand ALL the agents at once (Nikk 7353): a line facing you or facing away, a half circle, a ring. */
+export type Formation = "line-facing" | "line-away" | "half-circle" | "ring";
+
+/** Room between two agents standing side by side, in metres: an avatar's shoulders and a little air. */
+export const FORMATION_SPACING = 0.9;
+
+/**
+ * Where each of `count` agents stands for a formation, from where the person
+ * stands and faces. In front of them for a line or a half circle; all around
+ * them for a ring. "Facing" means looking at the person; "away" means looking
+ * the way the person looks, so their screens are in view.
+ */
+export function formationHomes(person: Person, count: number, kind: Formation): AgentHome[] {
+  if (count <= 0) return [];
+  const f = person.facing;
+  const forward = { x: -Math.sin(f), z: -Math.cos(f) };
+  const right = { x: Math.cos(f), z: -Math.sin(f) };
+  const toward = (at: { x: number; z: number }) => Math.atan2(at.x - person.at.x, at.z - person.at.z);
+  const place = (x: number, z: number, facing?: number): AgentHome => {
+    const at = { x, y: 0, z };
+    return { at, facing: facing ?? toward(at) };
+  };
+  if (kind === "line-facing" || kind === "line-away") {
+    const ahead = kind === "line-facing" ? 2 : 1.6;
+    return Array.from({ length: count }, (_, i) => {
+      const side = (i - (count - 1) / 2) * FORMATION_SPACING;
+      const x = person.at.x + forward.x * ahead + right.x * side;
+      const z = person.at.z + forward.z * ahead + right.z * side;
+      return place(x, z, kind === "line-away" ? f : undefined);
+    });
+  }
+  // On an arc wide enough that neighbours are about a spacing apart, never closer than 1.6 m.
+  const span = kind === "ring" ? Math.PI * 2 : Math.PI;
+  const radius = Math.max(1.6, (FORMATION_SPACING * (kind === "ring" ? count : Math.max(count - 1, 1))) / span);
+  return Array.from({ length: count }, (_, i) => {
+    // Angle from straight ahead, positive to the person's right.
+    const angle = kind === "ring" ? (i / count) * span : count === 1 ? 0 : -Math.PI / 2 + (i / (count - 1)) * Math.PI;
+    const dx = forward.x * Math.cos(angle) + right.x * Math.sin(angle);
+    const dz = forward.z * Math.cos(angle) + right.z * Math.sin(angle);
+    return place(person.at.x + dx * radius, person.at.z + dz * radius);
+  });
+}

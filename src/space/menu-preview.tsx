@@ -197,6 +197,7 @@ function Preview() {
     agentsHiddenForMe: hiddenMe,
     setAgentsHiddenForMe: setHiddenMe,
     placeAgent: (agent, where) => log(`${agent} ${where}`),
+    placeAll: (kind) => log(`all agents: ${kind}`),
   });
 
   return (

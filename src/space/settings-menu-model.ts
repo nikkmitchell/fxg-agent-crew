@@ -1,3 +1,4 @@
+import type { Formation } from "../../shared/agent-home";
 import type { RoomMenuRow } from "../../shared/room-switch";
 import type { MenuRow, MenuSection, MenuTab } from "./menu-layout";
 import { deploySize, describeInRoom, type Library } from "./modules/use-library";
@@ -176,6 +177,8 @@ export type SettingsMenuInput = {
   agentsHiddenForMe: boolean | null;
   setAgentsHiddenForMe: (hidden: boolean) => void;
   placeAgent: (agent: string, where: "facing" | "beside" | "desk") => void;
+  /** Every agent here at once, in a formation round you (Nikk 7353). */
+  placeAll: (kind: Formation) => void;
 };
 
 const note = (label: string): MenuRow => ({ kind: "note", label });
@@ -519,8 +522,24 @@ function agentSections(s: SettingsMenuInput): MenuSection[] {
     const hidden = s.agentsHiddenForMe;
     seen.push({ kind: "toggle", label: "To me", detail: hidden ? "Hidden just for you" : undefined, on: !hidden, onTap: () => s.setAgentsHiddenForMe(!hidden) });
   }
+  // ALL OF THEM AT ONCE (Nikk 7353): a line facing you, a line facing your way, an arc or a ring.
+  const together: MenuRow[] = s.agents.length > 1
+    ? [
+        {
+          kind: "buttons",
+          label: "All agents",
+          buttons: [
+            { label: "Line", onTap: () => s.placeAll("line-facing") },
+            { label: "Away", onTap: () => s.placeAll("line-away") },
+            { label: "Arc", onTap: () => s.placeAll("half-circle") },
+            { label: "Ring", onTap: () => s.placeAll("ring") },
+          ],
+        },
+        note("Line, Arc and Ring face you; Away faces where you face"),
+      ]
+    : [];
   const where: MenuRow[] = s.agents.length
-    ? s.agents.map((agent) => ({
+    ? [...together, ...s.agents.map((agent): MenuRow => ({
         kind: "buttons",
         label: agent,
         buttons: [
@@ -528,7 +547,7 @@ function agentSections(s: SettingsMenuInput): MenuSection[] {
           { label: "Beside", onTap: () => s.placeAgent(agent, "beside") },
           { label: "Desk", onTap: () => s.placeAgent(agent, "desk") },
         ],
-      }))
+      }))]
     : [note("No agents in the room")];
   return [
     { title: "Show agents", rows: seen },

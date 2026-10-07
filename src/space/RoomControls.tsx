@@ -64,7 +64,7 @@ import { canTranscribe, createSayRecorder, type SayRecorder } from "./say-record
 import { microphoneState } from "./mic-permission";
 import { voiceReport } from "./voice-report";
 import { volumeAt } from "./agent-voice";
-import { homeBesideMe, homeFacingMe, type AgentHome } from "../../shared/agent-home";
+import { formationHomes, homeBesideMe, homeFacingMe, type AgentHome, type Formation } from "../../shared/agent-home";
 import { isGoItem, type RoomItem } from "../../shared/room-items";
 import { Typing3D } from "./Typing3D";
 import { endSessionThenReturn } from "./end-session-to-lobby";
@@ -1271,6 +1271,19 @@ export function RoomControls({
       .then(() => flash(`${agent} ${where === "facing" ? "is coming to stand in front of you." : "is coming to work beside you."}`))
       .catch(failed);
   };
+  /** Every agent here at once (Nikk 7353): each spot worked out from where you stand now, saved as its home. */
+  const placeAll = (kind: Formation) => {
+    const me = anchor();
+    if (!me) {
+      setNotice("Cannot tell where you are standing yet.");
+      return;
+    }
+    const everyone = [...agents].sort((a, b) => a.localeCompare(b));
+    const homes = formationHomes({ at: me.at, facing: me.yaw }, everyone.length, kind);
+    Promise.all(everyone.map((agent, i) => space.placeAgent(agent, homes[i])))
+      .then(() => flash(`${everyone.length} agents are coming to stand ${kind === "ring" ? "round you" : kind === "half-circle" ? "in an arc in front of you" : kind === "line-away" ? "in a line ahead of you, facing your way" : "in a line facing you"}.`))
+      .catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not move the agents."));
+  };
   const sections = !open ? [] : settingsSections({
     view,
     screen: you
@@ -1450,6 +1463,7 @@ export function RoomControls({
       if (currentRoom) setAgentsHidden(currentRoom, hidden);
     },
     placeAgent,
+    placeAll,
   });
   /** How far below the open menu's middle its bottom edge is, in metres. */
   const menuHalfHeight = menuHeight() / MENU.pxPerMetre / 2;
