@@ -28,6 +28,7 @@ import { micGlyph, micPress } from "./mic-press";
 import { statusLineActionable } from "./touch-press";
 import { controllerFaceButtons, controllerMicAction, readTouchMicSetting, writeTouchMicSetting } from "./controller-mic";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
+import { questionVoice } from "./modules/question-form";
 import { controllersInUse, micGestureHands, micGestureIndicator } from "./mic-gesture-input";
 import {
   closedControlPose,
@@ -1676,6 +1677,24 @@ export function RoomControls({
     if (controllersInUse.now) lastControllerSeen.current = now;
     const seen = now - lastControllerSeen.current >= 1_000;
     if (seen !== handsInView) setHandsInView(seen);
+    // ASK LIBRARIAN (Mica 7386): while a question panel that asked for voice is open, the gesture is its:
+    // palm in starts the panel's recorder, the tilt sends it, a fist cancels. Nothing goes to the room's talk.
+    const asking = questionVoice();
+    if (asking) {
+      const step = stepMicGesture(micGestureState.current, micGestureHands, asking.recording(), now, anchor() !== null);
+      micGestureState.current = step.state;
+      micGestureIndicator.side = step.outlineSide;
+      micGestureIndicator.tilt = step.tilt ?? 0;
+      micGestureIndicator.closing = step.closing ?? 0;
+      if (step.action === "finish" || step.action === "cancel") {
+        micGestureIndicator.popAt = now;
+        micGestureIndicator.popKind = step.action === "finish" ? "sent" : "cancelled";
+      }
+      if (step.action === "start") asking.start();
+      else if (step.action === "finish") asking.finish();
+      else if (step.action === "cancel") asking.cancel();
+      return;
+    }
     const startAction = capabilities.recognition
       ? micPress({ available: true, listening, sending, heard, alwaysOn }) === "start"
       : saying === "idle" && canSpeak && written.trim() === "" && !keyboardFocused;

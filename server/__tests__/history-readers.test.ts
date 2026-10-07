@@ -44,6 +44,9 @@ const CLASSIFIED: Record<string, "exhaustive" | "bounded-window" | "write"> = {
   // Appends a crew-event to the room. Refuses over the chat limit before
   // sending, so the durable log never receives something upstream will reject.
   "server/routes/projects.ts": "write",
+  // Ask Librarian (Mica 7386): ONE line per question, as the asker, in the room it
+  // was asked in; recorded per card so a resend never posts it twice.
+  "server/index.ts": "write",
   // The one-time import for ADR-002. Same drainPages, and it compares what it
   // wrote against a fold of the room before declaring success.
   "tools/import-from-chat.mts": "exhaustive",

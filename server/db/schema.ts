@@ -1424,4 +1424,17 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    id: 52,
+    name: "questions: the one chat line to a librarian, once",
+    sql: `
+      -- Ask Librarian (Mica 7386): a question can also be said, once, in the
+      -- room's chat to a named answerer. The card and the line are separate
+      -- facts: a line that failed is sent again on the same request key,
+      -- never with a second card.
+      ALTER TABLE questions ADD COLUMN chat_to TEXT;
+      ALTER TABLE questions ADD COLUMN chat_room TEXT;
+      ALTER TABLE questions ADD COLUMN chat_message TEXT;
+    `,
+  },
 ];

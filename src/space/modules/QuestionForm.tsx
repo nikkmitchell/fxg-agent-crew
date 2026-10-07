@@ -1,6 +1,6 @@
 import { QUESTION_LIMITS } from "../../../shared/questions";
 import { Typing3D } from "../Typing3D";
-import { cancelOpenQuestion, sendOpenQuestion, useOpenQuestion } from "./question-form";
+import { cancelOpenQuestion, sendOpenQuestion, setQuestionVoice, useOpenQuestion } from "./question-form";
 
 /**
  * The page's question panel, where a thing asked for it (question-form.ts).
@@ -25,6 +25,9 @@ export function QuestionForm() {
         limit={QUESTION_LIMITS.text.max}
         scale={1}
         doneVerb="send"
+        // Listening only when it opens empty: a panel drawn again after a failed send keeps its words.
+        listen={open.voice && !open.draft}
+        onVoice={setQuestionVoice}
         onDone={(text) => void sendOpenQuestion(text)}
         onCancel={cancelOpenQuestion}
       />

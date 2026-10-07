@@ -172,10 +172,10 @@ export const space = {
       `${root}/questions?item=${encodeURIComponent(item)}${options.mine ? "&mine=1" : ""}${options.limit ? `&limit=${Math.round(options.limit)}` : ""}${options.cursor ? `&cursor=${encodeURIComponent(options.cursor)}` : ""}`,
     ),
   /** Send a question written in the room's panel; the same request key is the same card. */
-  askQuestion: (item: string, text: string, requestKey: string) =>
-    requestJson<{ ok: true; result: { existing: boolean; question: Question } }>(`${root}/questions`, {
+  askQuestion: (item: string, text: string, requestKey: string, to?: string | null) =>
+    requestJson<{ ok: true; result: { existing: boolean; question: Question; chat: { to: string; posted: boolean; problem?: string } | null } }>(`${root}/questions`, {
       method: "POST",
-      body: JSON.stringify({ item, text, requestKey }),
+      body: JSON.stringify({ item, text, requestKey, ...(to ? { to } : {}) }),
     }),
   configureGo: (id: string, change: { size?: GoSize; addBowl?: true; players?: number; reset?: true; position?: { x: number; y: number; z: number; rotationY: number }; scale?: number; revision?: number; deskVisible?: boolean; surface?: GoSurface; territoryShown?: boolean; clock?: number }) =>
     requestJson<{ item: RoomItem }>(`${root}/items/${encodeURIComponent(id)}`, {

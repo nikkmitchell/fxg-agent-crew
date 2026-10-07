@@ -246,6 +246,11 @@ if (page.next) page = await ctx.questions.list({ limit: 10, cursor: page.next })
   following page starts (pass it back as `cursor`); it is null on the last page. Nothing is capped
   overall, and a question asked meanwhile lands on page one without shifting the page you are on.
   Over HTTP: `GET /bff/space/questions?item=<item>&mine=1&limit=&cursor=` gives `{ space, project, questions, next }`.
+- **Ask by voice, to someone** (Ask Librarian, Mica 7386): `ask({ prompt: "Ask Librarian", near, voice: true, to: "Mica" })`
+  opens the panel already listening through the room's own recorder; while it is open, the room's raise-and-send
+  gesture starts, sends and cancels it (and nothing else). `to` also says the question once in this room's chat,
+  to them. The result's `chat` says whether that line went: a failed line keeps the panel, and Send retries only
+  the line on the same card. Nothing records before the panel opens; closing it stops the recording.
 - **A resend is the same question.** The panel has one request key; sending again after a dropped
   connection returns the card already made.
 - **Where questions go: an intake.** Nothing goes anywhere until a manager of a project who also made the

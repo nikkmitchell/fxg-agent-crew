@@ -435,6 +435,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
           return found && isModuleItem(found) ? found.source.space : null;
         },
         creatorOf: (space) => spaceStore.get(space)?.createdBy ?? null,
+        postChat: (session, room, content) =>
+          client.request<{ id: string | number }>(`/api/rooms/${encodeURIComponent(room)}/messages`, { method: "POST", token: session.token, body: { content } }),
       },
     );
     let itemRoutes: ReturnType<typeof registerRoomItemRoutes> | null = null;

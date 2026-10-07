@@ -221,7 +221,14 @@ export interface Ctx {
      * once: the card when it is sent, or why not. Taking the thing away closes
      * the panel. A resend after a dropped connection is the same card.
      */
-    ask(options?: { prompt?: string; near?: THREE.Object3D }): Promise<AskResult>;
+    ask(options?: {
+      prompt?: string;
+      near?: THREE.Object3D;
+      /** Open already listening; the room's raise-and-send gesture starts, sends and cancels it while it is open (Ask Librarian). */
+      voice?: boolean;
+      /** Also say it once in this room's chat, to this answerer. `chat` in the result says whether that line went. */
+      to?: string;
+    }): Promise<AskResult>;
     /**
      * A page, newest first, as the board has them: 30 unless `limit` says (100 at most). Pass `next` back as
      * `cursor` for the page after; it is null on the last. Rejects, with `why`, when this space's questions go nowhere.
@@ -284,7 +291,9 @@ export interface UiCard {
 
 /** Why a question was not asked: closed, nobody signed in, nowhere to go, too many, another panel open, the thing gone, a host with no room, or a line that says. */
 export type AskRefusal = "cancelled" | "signed-out" | "no-intake" | "too-many" | "busy" | "removed" | "not-here" | "failed";
-export type AskResult = { ok: true; question: Question } | { ok: false; why: AskRefusal; message: string };
+export type AskResult =
+  | { ok: true; question: Question; chat: { to: string; posted: boolean; problem?: string } | null }
+  | { ok: false; why: AskRefusal; message: string };
 
 export interface ChildHandle {
   readonly mounted: boolean;

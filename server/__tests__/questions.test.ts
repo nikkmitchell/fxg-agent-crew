@@ -223,6 +223,8 @@ describe("answering", () => {
 
 describe("the routes", () => {
   function boot() {
+    const chats: Array<{ by: string; room: string; content: string }> = [];
+    const chatDown = { value: false };
     const config = testConfig();
     const sessions = new MemorySessionStore(60_000);
     const db = openDatabase(":memory:", DatabaseSync);
@@ -233,6 +235,11 @@ describe("the routes", () => {
     registerBoardRoutes(app, config, sessions, db, tempDir("question-blobs-"), undefined, undefined, {
       spaceOfItem: (session, item) => things[session.spaceRoom ?? ""]?.[item.split("/")[0]] ?? null,
       creatorOf: (space) => (space === SPACE ? "Mica" : null),
+      postChat: async (session, room, content) => {
+        if (chatDown.value) throw new Error("upstream down");
+        chats.push({ by: session.username, room, content });
+        return { id: chats.length };
+      },
     });
     const store = new BoardStore(db);
     const project = store.createRoomProject(mica, "open-source-library");
@@ -242,7 +249,7 @@ describe("the routes", () => {
       sessions.get(id)!.spaceRoom = room;
       return { [config.cookieName]: id };
     };
-    return { app, project, as };
+    return { app, project, as, chats, chatDown };
   }
 
   it("asks from the thing you stand at, lists, answers and reads it back", async () => {
@@ -290,5 +297,23 @@ describe("the routes", () => {
     expect(closed.statusCode).toBe(200);
     expect((await ask("lib-1", key(4))).json().code).toBe("NO_INTAKE");
     expect((await app.inject({ method: "GET", url: `/bff/questions/${question.id}`, cookies: as("Nikk2") })).statusCode).toBe(200);
+  });
+
+  it("asks the librarian in the room's chat once, separately from the card, and retries only the line (Mica 7386)", async () => {
+    const { app, project, as, chats, chatDown } = boot();
+    await app.inject({ method: "PUT", url: `/bff/board/projects/${project}/question-intake`, cookies: as("Mica"), payload: { space: SPACE } });
+    const ask = () => app.inject({ method: "POST", url: "/bff/space/questions", cookies: as("Nikk2"), payload: { item: "lib-1", text: "Where are the skill books?", requestKey: key("voice"), to: "Mica" } });
+    chatDown.value = true;
+    const first = (await ask()).json().result;
+    expect(first.chat).toMatchObject({ to: "Mica", posted: false });
+    expect(first.question.id).toBeTruthy();
+    chatDown.value = false;
+    const second = (await ask()).json().result;
+    expect(second).toMatchObject({ existing: true, question: { id: first.question.id }, chat: { posted: true } });
+    const third = (await ask()).json().result;
+    expect(third.chat).toMatchObject({ posted: true });
+    expect(chats).toEqual([{ by: "Nikk2", room: "open-source-library", content: `@Mica question from Nikk2: Where are the skill books? (card ${first.question.id})` }]);
+    const bad = await app.inject({ method: "POST", url: "/bff/space/questions", cookies: as("Nikk2"), payload: { item: "lib-1", text: "Hi there?", requestKey: key("x"), to: "Mica; drop" } });
+    expect(bad.statusCode).toBe(400);
   });
 });

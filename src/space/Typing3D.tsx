@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
 import { CARD_INK } from "../../shared/card-paint";
@@ -68,6 +68,8 @@ export function Typing3D({
   scale = 3.2,
   keyboardScale = 1,
   doneVerb = "save",
+  listen = false,
+  onVoice,
 }: {
   /** What this is for — "New card in Review", "Comment". */
   prompt: string;
@@ -94,6 +96,13 @@ export function Typing3D({
   keyboardScale?: number;
   /** What Done does, in words: the hint under the text ("done to save") and the button beside "system keyboard". "send" for a question. */
   doneVerb?: string;
+  /** Open already listening, through the panel's own recorder (Mica 7386: Ask Librarian). Only where it can transcribe. */
+  listen?: boolean;
+  /**
+   * The panel's voice, for the room's raise-and-send gesture while this panel is open: start, finish (stop,
+   * write the words, then send them) and cancel (stop, keep nothing). Called with null when it closes.
+   */
+  onVoice?: (voice: { start(): void; finish(): void; cancel(): void; recording(): boolean } | null) => void;
 }) {
   const [typing, setTyping] = useState<Editing>(() => atEnd(initial));
   /** How tall the text came out, as troika laid it out — the panel is sized to it. */
@@ -222,6 +231,57 @@ export function Typing3D({
     }
     void it.start().catch(() => setPhase("idle"));
   }, [write]);
+
+  /** Whether this panel is still open: a transcript that arrives after a cancel must not write or send. */
+  const open = useRef(true);
+  useEffect(() => () => {
+    open.current = false;
+  }, []);
+
+  const voice = useMemo(() => ({
+    recording: () => recorder.current?.recording() ?? false,
+    start: () => {
+      if (!open.current || recorder.current?.recording()) return;
+      speak();
+    },
+    finish: () => {
+      const it = recorder.current;
+      if (!open.current) return;
+      if (!it?.recording()) {
+        settle({ ...latest.current, done: true });
+        return;
+      }
+      void it.finish().then((words) => {
+        if (!open.current) return;
+        write(words);
+        // After the words land: send what the panel now holds.
+        setTimeout(() => {
+          if (open.current) settle({ ...latest.current, done: true });
+        }, 0);
+      }).catch(() => setPhase("idle"));
+    },
+    cancel: () => {
+      recorder.current?.dispose();
+      recorder.current = null;
+      setPhase("idle");
+      if (open.current) onCancel();
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [speak, write]);
+
+  useEffect(() => {
+    if (!onVoice) return;
+    onVoice(voice);
+    return () => onVoice(null);
+  }, [onVoice, voice]);
+
+  // Already listening when it opens, once we know this browser can transcribe.
+  const listened = useRef(false);
+  useEffect(() => {
+    if (!listen || !canSpeak || listened.current) return;
+    listened.current = true;
+    speak();
+  }, [listen, canSpeak, speak]);
 
   const useSystemKeyboard = useCallback(() => {
     native.current?.close();

@@ -63,6 +63,6 @@ export interface Host {
  */
 export interface QuestionHost {
   /** Open the writing panel for this instance; `close` is called if the thing goes first. */
-  ask(instance: string, options: { prompt?: string; near?: THREE.Object3D }): { result: Promise<AskResult>; close(): void };
+  ask(instance: string, options: { prompt?: string; near?: THREE.Object3D; voice?: boolean; to?: string }): { result: Promise<AskResult>; close(): void };
   list(instance: string, options: { mine?: boolean; limit?: number; cursor?: string | null }): Promise<QuestionPage>;
 }

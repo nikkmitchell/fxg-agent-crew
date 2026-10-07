@@ -64,8 +64,8 @@ describe("asking from a thing", () => {
     await settled();
     const key = openQuestionNow()!.key;
     await sendOpenQuestion("How do I rig a hand?");
-    expect(api.askQuestion).toHaveBeenCalledWith("library", "How do I rig a hand?", key);
-    expect(await asked).toEqual({ ok: true, question });
+    expect(api.askQuestion).toHaveBeenCalledWith("library", "How do I rig a hand?", key, null);
+    expect(await asked).toEqual({ ok: true, question, chat: undefined });
     expect(openQuestionNow()).toBeNull();
   });
 
@@ -121,6 +121,31 @@ describe("asking from a thing", () => {
     await settled();
     cancelOpenQuestion();
     expect(await asked).toMatchObject({ ok: false, why: "cancelled" });
+  });
+});
+
+describe("Ask Librarian (Mica 7386)", () => {
+  it("keeps the panel when only the chat line failed, retries just the line, and counts a close then as asked", async () => {
+    const host = room();
+    const asked = host.ask("library", { voice: true, to: "Mica" }).result;
+    await settled();
+    expect(openQuestionNow()).toMatchObject({ voice: true, to: "Mica" });
+    expect(openQuestionNow()!.header).toContain("this room's chat, to Mica");
+    const key = openQuestionNow()!.key;
+    api.askQuestion.mockResolvedValueOnce({ ok: true, result: { existing: false, question, chat: { to: "Mica", posted: false, problem: "the message to Mica did not send" } } });
+    await sendOpenQuestion("Where are the skill books?");
+    expect(openQuestionNow()).toMatchObject({ saved: question, problem: "the message to Mica did not send" });
+    api.askQuestion.mockResolvedValueOnce({ ok: true, result: { existing: true, question, chat: { to: "Mica", posted: true } } });
+    await sendOpenQuestion("Where are the skill books?");
+    expect(api.askQuestion.mock.calls.map((call) => [call[2], call[3]])).toEqual([[key, "Mica"], [key, "Mica"]]);
+    expect(await asked).toEqual({ ok: true, question, chat: { to: "Mica", posted: true } });
+
+    const again = room().ask("library", { voice: true, to: "Mica" }).result;
+    await settled();
+    api.askQuestion.mockResolvedValueOnce({ ok: true, result: { existing: false, question, chat: { to: "Mica", posted: false } } });
+    await sendOpenQuestion("Another one?");
+    cancelOpenQuestion();
+    expect(await again).toMatchObject({ ok: true, question, chat: { posted: false } });
   });
 });
 

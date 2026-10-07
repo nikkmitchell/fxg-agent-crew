@@ -5,7 +5,7 @@ import { BoardReads } from "../db/reads.js";
 import { BoardStore, Refused } from "../db/store.js";
 import { BlobStore, MAX_BYTES, QUOTA_BYTES, QUOTA_FILES, orphanReport } from "../db/blobs.js";
 import type { Role, Status } from "../../shared/board-rules.js";
-import { makeRequireSession } from "../require-session.js";
+import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import { pageSize, readQuestionCursor } from "../../shared/questions.js";
 
 /**
@@ -488,16 +488,54 @@ export function registerBoardRoutes(
     return reply.send({ space, project: intake.projectId, ...page });
   });
 
-  app.post<{ Body: { item?: unknown; text?: unknown; requestKey?: unknown } }>("/bff/space/questions", async (request, reply) => {
+  /** Lines being posted right now, by card: two quick resends must not post twice. */
+  const posting = new Set<string>();
+
+  app.post<{ Body: { item?: unknown; text?: unknown; requestKey?: unknown; to?: unknown } }>("/bff/space/questions", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const space = spaceAt(session, request.body?.item, reply);
     if (!space) return reply;
-    return handle(reply, request, () => {
-      const filed = store.fileQuestion(actorOf(session), { space, text: request.body?.text, requestKey: request.body?.requestKey });
-      const { answers: _answers, ...question } = reads.question(filed.id)!;
-      return { existing: filed.existing, question };
-    });
+    const to = request.body?.to;
+    if (to !== undefined && (typeof to !== "string" || !/^[A-Za-z0-9._-]{1,64}$/.test(to))) {
+      return reply.code(400).send({ code: "BAD_QUESTION", error: "to names who should hear it: an actor's name" });
+    }
+    let card: { id: string; existing: boolean };
+    try {
+      const envelope = { method: request.method, path: request.url, body: request.body ?? null };
+      card = store.withRequest(envelope, () => store.fileQuestion(actorOf(session), { space, text: request.body?.text, requestKey: request.body?.requestKey }));
+    } catch (error) {
+      if (error instanceof Refused) {
+        countRefusal(session.username);
+        return reply.code(CODES[error.code] ?? 400).send({ code: error.code, error: error.message });
+      }
+      app.log.error({ err: error }, "question not filed");
+      return reply.code(500).send({ code: "INTERNAL", error: "the question was not saved" });
+    }
+    const { answers: _answers, ...question } = reads.question(card.id)!;
+    // ASK LIBRARIAN (Mica 7386): one line in this room's chat, to them. The card is already safe; the line is
+    // its own fact, sent again on a resend only if it has not gone.
+    let chat: { to: string; posted: boolean; problem?: string } | null = null;
+    if (typeof to === "string") {
+      const done = store.questionChat(card.id);
+      if (done.message) chat = { to, posted: true };
+      else if (posting.has(card.id)) chat = { to, posted: false, problem: "the message is still being sent" };
+      else {
+        posting.add(card.id);
+        const room = spaceRoomOf(session);
+        try {
+          const content = `@${to} question from ${session.username}: ${question.text} (card ${card.id})`;
+          const posted = await questions.postChat(session, room, content);
+          store.recordQuestionChat(actorOf(session), card.id, { to, room, message: String(posted.id) });
+          chat = { to, posted: true };
+        } catch {
+          chat = { to, posted: false, problem: `the message to ${to} did not send; send again to retry it (the card is saved)` };
+        } finally {
+          posting.delete(card.id);
+        }
+      }
+    }
+    return reply.send({ ok: true, result: { existing: card.existing, question, chat } });
   });
 
   app.get<{ Params: { id: string } }>("/bff/questions/:id", async (request, reply) => {
@@ -521,4 +559,6 @@ export type QuestionHooks = {
   spaceOfItem(session: Session, item: string): string | null;
   /** Who made a space, or null when there is no such space. */
   creatorOf(space: string): string | null;
+  /** Say something in a room's chat as this person (WebHarness), for Ask Librarian. */
+  postChat(session: Session, room: string, content: string): Promise<{ id: string | number }>;
 };

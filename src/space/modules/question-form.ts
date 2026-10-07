@@ -39,7 +39,25 @@ export type OpenQuestion = {
   draft: string;
   problem: string | null;
   sending: boolean;
+  /** Opened listening, with the room's gesture driving it (Ask Librarian). */
+  voice: boolean;
+  /** Who hears it in the room's chat too, if anyone. */
+  to: string | null;
+  /** The card, once saved, while its chat line has not gone: a resend retries only the line. */
+  saved: Question | null;
 };
+
+type Voice = { start(): void; finish(): void; cancel(): void; recording(): boolean };
+let voiceControl: Voice | null = null;
+/** The open panel's voice, set by QuestionForm. */
+export const setQuestionVoice = (voice: Voice | null) => {
+  voiceControl = voice;
+};
+/**
+ * What the room's raise-and-send gesture drives instead of the room's own talk, ONLY while a question panel
+ * that asked for voice is open (Mica 7386): never in another room, never otherwise.
+ */
+export const questionVoice = (): Voice | null => (open?.voice && !open.sending ? voiceControl : null);
 
 let open: OpenQuestion | null = null;
 let finish: ((result: AskResult) => void) | null = null;
@@ -109,8 +127,15 @@ export async function sendOpenQuestion(text: string): Promise<void> {
   if (!current || current.sending) return;
   show({ ...current, draft: text, sending: true, problem: null });
   try {
-    const answer = await space.askQuestion(current.item, text, current.key);
-    if (open?.key === current.key) finish?.({ ok: true, question: answer.result.question });
+    const answer = await space.askQuestion(current.item, text, current.key, current.to);
+    if (open?.key !== current.key) return;
+    const { question, chat } = answer.result;
+    if (chat && !chat.posted) {
+      // The card is saved; only the chat line failed. The panel stays, and Send retries the line alone.
+      show({ ...open, sending: false, saved: question, problem: chat.problem ?? `Saved as a card; the message to ${chat.to} did not send. Send again to retry it.` });
+      return;
+    }
+    finish?.({ ok: true, question, chat });
   } catch (error) {
     if (open?.key !== current.key) return;
     const network = !(error instanceof ApiError) || error.retryable;
@@ -124,7 +149,10 @@ export async function sendOpenQuestion(text: string): Promise<void> {
 }
 
 export function cancelOpenQuestion(): void {
-  finish?.(refused("cancelled", "Closed without sending."));
+  // Closed after the card was saved but before its chat line went: that is still a question asked.
+  const saved = open?.saved;
+  if (saved && open) finish?.({ ok: true, question: saved, chat: { to: open.to ?? "", posted: false, problem: "closed before the chat message was sent" } });
+  else finish?.(refused("cancelled", "Closed without sending."));
 }
 
 export function createQuestionHost(deps: { camera: () => THREE.Camera; me: () => Person | null; renderer: { xr: { isPresenting: boolean } } }): QuestionHost {
@@ -157,13 +185,15 @@ export function createQuestionHost(deps: { camera: () => THREE.Camera; me: () =>
       // Claim the page's one panel now, so a second ask cannot slip in while the board is being found.
       const place = placeNear(options.near, deps.camera(), deps.renderer.xr.isPresenting);
       const prompt = (options.prompt ?? "Ask a question").trim().slice(0, 80) || "Ask a question";
-      show({ key, instance, item, header: prompt, at: place.at, yaw: place.yaw, draft: "", problem: null, sending: true });
+      const to = typeof options.to === "string" && /^[A-Za-z0-9._-]{1,64}$/.test(options.to) ? options.to : null;
+      show({ key, instance, item, header: prompt, at: place.at, yaw: place.yaw, draft: "", problem: null, sending: true, voice: Boolean(options.voice), to, saved: null });
       finish = done;
       // Where it goes, before anything is typed: "nowhere" is said at once, not after a paragraph.
       space.questions(item, { limit: 1 }).then(
         ({ project }) => {
           if (settled || open?.key !== key) return;
-          show({ ...open, header: `${prompt} · posted publicly to the ${project} board as ${me.name}`, sending: false });
+          const where = open.to ? `the ${project} board and this room's chat, to ${open.to},` : `the ${project} board`;
+          show({ ...open, header: `${prompt} · posted publicly to ${where} as ${me.name}`, sending: false });
         },
         (error: unknown) => done(refusalOf(error)),
       );

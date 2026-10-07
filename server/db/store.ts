@@ -1027,6 +1027,21 @@ export class BoardStore {
     }, { actorId: actor.id, action: "ask question", target: input.space });
   }
 
+  /** Where a question's one chat line went, if it has gone. */
+  questionChat(taskId: string): { to: string | null; room: string | null; message: string | null } {
+    const row = this.db.prepare("SELECT chat_to, chat_room, chat_message FROM questions WHERE task_id = ?").get(taskId) as
+      | { chat_to: string | null; chat_room: string | null; chat_message: string | null } | undefined;
+    return { to: row?.chat_to ?? null, room: row?.chat_room ?? null, message: row?.chat_message ?? null };
+  }
+
+  /** The line was posted: record it, so a resend never posts it twice. */
+  recordQuestionChat(actor: Actor, taskId: string, chat: { to: string; room: string; message: string }): void {
+    this.tx(() => {
+      this.db.prepare("UPDATE questions SET chat_to = ?, chat_room = ?, chat_message = ? WHERE task_id = ?").run(chat.to, chat.room, chat.message, taskId);
+      this.audit(actor.id, "chat", "question", taskId, undefined, chat);
+    }, { actorId: actor.id, action: "record question chat", target: taskId });
+  }
+
   /**
    * An answer, as the next revision beside the question's card.
    *
