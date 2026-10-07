@@ -26,6 +26,8 @@ export const QUESTION_LIMITS = {
   /** A resource id or a version: a catalog id or a git revision, never a document. */
   field: 200,
   url: 2000,
+  /** One page of a list: 30 unless asked, never more than 100. Nothing is capped overall: walk the pages (Mica, 7323). */
+  page: { default: 30, max: 100 },
   /** Questions per person per space in a window: enough to ask, too few to flood a board. */
   perWindow: 5,
   windowMs: 10 * 60_000,
@@ -60,6 +62,29 @@ export type Question = {
   };
   /** The newest revision, or null while nobody has answered. */
   answer: QuestionAnswer | null;
+};
+
+/** One page of questions, newest first, and where the next page starts: null on the last. */
+export type QuestionPage = { questions: Question[]; next: string | null };
+
+/**
+ * Where a page starts: just after this question, in newest-first order (when it
+ * was asked, then its card id, so equal times still have one order). New
+ * questions land on page one, so they never shift a page somebody is reading.
+ * Opaque to a thing: pass `next` back as `cursor`.
+ */
+export const questionCursor = (question: { askedAt: string; id: string }): string => `${question.askedAt}~${question.id}`;
+
+export function readQuestionCursor(value: unknown): { askedAt: string; id: string } | null {
+  if (typeof value !== "string") return null;
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)~([A-Za-z0-9._-]{1,200})$/.exec(value);
+  return match ? { askedAt: match[1], id: match[2] } : null;
+}
+
+/** A page size: whole, at least 1, at most the page maximum; the default when not given or not a number. */
+export const pageSize = (value: unknown): number => {
+  const asked = typeof value === "string" && value.trim() !== "" ? Number(value) : typeof value === "number" ? value : NaN;
+  return Number.isFinite(asked) ? Math.max(1, Math.min(QUESTION_LIMITS.page.max, Math.floor(asked))) : QUESTION_LIMITS.page.default;
 };
 
 /** What a request key may be: made by the host, one per opened form, so a resent question is the same question. */

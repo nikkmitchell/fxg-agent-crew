@@ -1,6 +1,6 @@
 import type * as THREE from "three";
 import type { EnvLayer } from "./env";
-import type { AskResult, Json, Person, Question } from "./types";
+import type { AskResult, Json, Person, QuestionPage } from "./types";
 
 /**
  * WHAT THE ENGINE NEEDS FROM WHEREVER IT RUNS (docs/things/DESIGN.md): the
@@ -64,5 +64,5 @@ export interface Host {
 export interface QuestionHost {
   /** Open the writing panel for this instance; `close` is called if the thing goes first. */
   ask(instance: string, options: { prompt?: string; near?: THREE.Object3D }): { result: Promise<AskResult>; close(): void };
-  list(instance: string, options: { mine?: boolean; limit?: number }): Promise<Question[]>;
+  list(instance: string, options: { mine?: boolean; limit?: number; cursor?: string | null }): Promise<QuestionPage>;
 }

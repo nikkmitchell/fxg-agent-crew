@@ -172,7 +172,8 @@ export function createQuestionHost(deps: { camera: () => THREE.Camera; me: () =>
 
     async list(instance, options) {
       try {
-        return (await space.questions(instance.split("/")[0], options)).questions;
+        const { questions, next } = await space.questions(instance.split("/")[0], options);
+        return { questions, next };
       } catch (error) {
         const why = refusalOf(error);
         throw Object.assign(new Error(why.ok ? "" : why.message), { why: why.ok ? "failed" : why.why });

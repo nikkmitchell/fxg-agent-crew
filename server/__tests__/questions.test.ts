@@ -7,7 +7,7 @@ import { BoardReads } from "../db/reads.js";
 import { BoardStore } from "../db/store.js";
 import { registerBoardRoutes } from "../routes/board.js";
 import { MemorySessionStore } from "../session.js";
-import { questionStanding } from "../../shared/questions.js";
+import { pageSize, questionStanding, readQuestionCursor } from "../../shared/questions.js";
 import { tempDir, testConfig } from "./test-config.js";
 
 /**
@@ -63,7 +63,7 @@ describe("asking", () => {
     const { store, reads, project } = boardWithIntake();
     const filed = store.fileQuestion(visitor, { space: SPACE, text: "  How do I rig a hand?\nFor a VRM avatar.  ", requestKey: key(1) });
     expect(filed).toMatchObject({ projectId: project, existing: false });
-    const [question] = reads.questions(SPACE);
+    const [question] = reads.questions(SPACE).questions;
     expect(question).toMatchObject({
       id: filed.id, project, space: SPACE, askedBy: "Nikk2",
       text: "How do I rig a hand?\nFor a VRM avatar.",
@@ -83,7 +83,7 @@ describe("asking", () => {
     const first = store.fileQuestion(visitor, { space: SPACE, text: "Where is the glTF reader?", requestKey: key(1) });
     const again = store.fileQuestion(visitor, { space: SPACE, text: "Where is the glTF reader?", requestKey: key(1) });
     expect(again).toEqual({ ...first, existing: true });
-    expect(reads.questions(SPACE)).toHaveLength(1);
+    expect(reads.questions(SPACE).questions).toHaveLength(1);
     // The same key for different words is a broken form, not a second question.
     expect(() => store.fileQuestion(visitor, { space: SPACE, text: "Something else entirely", requestKey: key(1) })).toThrow(/different question/);
   });
@@ -107,14 +107,64 @@ describe("asking", () => {
   });
 });
 
+describe("reading them back, a page at a time (Mica, 7323)", () => {
+  it("walks every question, newest first, without a cap, a gap or a repeat", () => {
+    const { store, reads } = boardWithIntake();
+    const at = Date.parse("2026-10-07T09:00:00Z");
+    // Seven questions from seven people, a minute apart; two share a minute to the millisecond.
+    for (let n = 0; n < 7; n++) {
+      store.fileQuestion({ id: `visitor-${n}`, kind: "human" }, { space: SPACE, text: `Question number ${n}?`, requestKey: key(n) }, at + Math.min(n, 5) * 60_000);
+    }
+    const seen: string[] = [];
+    let cursor: { askedAt: string; id: string } | null = null;
+    const sizes: number[] = [];
+    for (let page = 0; page < 10; page++) {
+      const got = reads.questions(SPACE, { limit: 3, cursor });
+      sizes.push(got.questions.length);
+      seen.push(...got.questions.map((question) => question.text));
+      if (!got.next) break;
+      cursor = readQuestionCursor(got.next);
+      expect(cursor).not.toBeNull();
+      // A question asked while somebody reads lands on page one, and moves nothing they are on.
+      if (page === 0) store.fileQuestion({ id: "late", kind: "human" }, { space: SPACE, text: "Asked meanwhile?", requestKey: key("late") }, at + 99 * 60_000);
+    }
+    expect(sizes).toEqual([3, 3, 1]);
+    expect(new Set(seen).size).toBe(7);
+    // 5 and 6 were asked in the same millisecond: their card ids order them, either way round.
+    expect(new Set(seen.slice(0, 2))).toEqual(new Set(["Question number 5?", "Question number 6?"]));
+    expect(seen.slice(2)).toEqual(["Question number 4?", "Question number 3?", "Question number 2?", "Question number 1?", "Question number 0?"]);
+    expect(seen).not.toContain("Asked meanwhile?");
+
+    // One at a time, so the tie falls across a page boundary: still every question, once.
+    const single: string[] = [];
+    let next: string | null = null;
+    do {
+      const got = reads.questions(SPACE, { limit: 1, cursor: next ? readQuestionCursor(next) : null });
+      single.push(...got.questions.map((question) => question.text));
+      next = got.next;
+    } while (next && single.length < 20);
+    expect(single).toHaveLength(8);
+    expect(new Set(single).size).toBe(8);
+    expect(single[0]).toBe("Asked meanwhile?");
+  });
+
+  it("gives at most a hundred a page, thirty unless asked", () => {
+    expect(pageSize(undefined)).toBe(30);
+    expect(pageSize("500")).toBe(100);
+    expect(pageSize(0)).toBe(1);
+    expect(pageSize("two")).toBe(30);
+    expect(readQuestionCursor("not a cursor")).toBeNull();
+  });
+});
+
 describe("taking it: the card's own fields, never inferred", () => {
   it("keeps submitted, assigned and accepted apart", () => {
     const { store, reads } = boardWithIntake();
     const { id } = store.fileQuestion(visitor, { space: SPACE, text: "How do I rig a hand?", requestKey: key(1) });
-    const standing = () => questionStanding(reads.questions(SPACE)[0]);
+    const standing = () => questionStanding(reads.questions(SPACE).questions[0]);
     expect(standing()).toBe("submitted, waiting for someone to take it");
     store.setOwnership(sill, id, "claim");
-    expect(reads.questions(SPACE)[0].card).toMatchObject({ status: "assigned", owners: [{ id: "Sill", accepted: false }] });
+    expect(reads.questions(SPACE).questions[0].card).toMatchObject({ status: "assigned", owners: [{ id: "Sill", accepted: false }] });
     expect(standing()).toBe("assigned to Sill, not yet accepted");
     store.setOwnership(sill, id, "accept");
     expect(standing()).toBe("taken by Sill");
@@ -134,7 +184,7 @@ describe("answering", () => {
     const read = reads.question(id)!;
     expect(read.answers.map((answer) => [answer.revision, answer.by, answer.refs.length])).toEqual([[1, "Sill", 1], [2, "Mica", 2]]);
     expect(read.answer).toMatchObject({ revision: 2, by: "Mica" });
-    expect(reads.questions(SPACE)[0].answer).toMatchObject({ revision: 2 });
+    expect(reads.questions(SPACE).questions[0].answer).toMatchObject({ revision: 2 });
     expect(read.card.status).toBe("backlog");
     expect(questionStanding(read)).toBe("answered (revision 2)");
   });
@@ -229,6 +279,9 @@ describe("the routes", () => {
 
     const listed = await app.inject({ method: "GET", url: "/bff/space/questions?item=lib-1&mine=1", cookies: as("Nikk2") });
     expect(listed.json()).toMatchObject({ space: SPACE, project, questions: [{ id: question.id, answer: { revision: 1, by: "Sill", refs: [source] } }] });
+    expect(listed.json().next).toBeNull();
+    const badCursor = await app.inject({ method: "GET", url: "/bff/space/questions?item=lib-1&cursor=nonsense", cookies: as("Nikk2") });
+    expect([badCursor.statusCode, badCursor.json().code]).toEqual([400, "BAD_CURSOR"]);
     const one = await app.inject({ method: "GET", url: `/bff/questions/${question.id}`, cookies: as("Baiwei") });
     expect(one.json().question.answers).toHaveLength(1);
 

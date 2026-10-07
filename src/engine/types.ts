@@ -1,7 +1,7 @@
 import type * as THREE from "three";
-import type { Question } from "../../shared/questions";
+import type { Question, QuestionPage } from "../../shared/questions";
 
-export type { AnswerRef, Question, QuestionAnswer } from "../../shared/questions";
+export type { AnswerRef, Question, QuestionAnswer, QuestionPage } from "../../shared/questions";
 
 /**
  * THE CONTRACT, saha/1 (docs/things/DESIGN.md): what an item, an environment
@@ -219,8 +219,11 @@ export interface Ctx {
      * the panel. A resend after a dropped connection is the same card.
      */
     ask(options?: { prompt?: string; near?: THREE.Object3D }): Promise<AskResult>;
-    /** Newest first, as the board has them. Rejects, with `why`, when this space's questions go nowhere. */
-    list(options?: { mine?: boolean; limit?: number }): Promise<Question[]>;
+    /**
+     * A page, newest first, as the board has them: 30 unless `limit` says (100 at most). Pass `next` back as
+     * `cursor` for the page after; it is null on the last. Rejects, with `why`, when this space's questions go nowhere.
+     */
+    list(options?: { mine?: boolean; limit?: number; cursor?: string | null }): Promise<QuestionPage>;
   };
 }
 

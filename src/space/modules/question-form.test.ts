@@ -29,7 +29,7 @@ function room(me: { id: string; name: string } | null = { id: "Nikk2", name: "Ni
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 beforeEach(() => {
-  api.questions.mockResolvedValue({ space: "open.library", project: "open-source-library", questions: [] });
+  api.questions.mockResolvedValue({ space: "open.library", project: "open-source-library", questions: [], next: null });
   api.askQuestion.mockResolvedValue({ ok: true, result: { existing: false, question } });
 });
 afterEach(() => {
@@ -125,10 +125,10 @@ describe("asking from a thing", () => {
 });
 
 describe("listing", () => {
-  it("is the board's own list, and fails with a reason rather than an empty shelf", async () => {
-    api.questions.mockResolvedValueOnce({ space: "open.library", project: "open-source-library", questions: [question] });
-    expect(await room().list("library/lectern", { mine: true })).toEqual([question]);
-    expect(api.questions).toHaveBeenCalledWith("library", { mine: true });
+  it("is the board's own list, a page at a time, and fails with a reason rather than an empty shelf", async () => {
+    api.questions.mockResolvedValueOnce({ space: "open.library", project: "open-source-library", questions: [question], next: "2026-10-07T10:00:00.000Z~open-source-library-1a2b3c4d" });
+    expect(await room().list("library/lectern", { mine: true, cursor: "earlier" })).toEqual({ questions: [question], next: "2026-10-07T10:00:00.000Z~open-source-library-1a2b3c4d" });
+    expect(api.questions).toHaveBeenCalledWith("library", { mine: true, cursor: "earlier" });
     api.questions.mockRejectedValueOnce(new ApiError("questions asked in open.library have nowhere to go yet", 409, "NO_INTAKE"));
     await expect(room().list("library", {})).rejects.toMatchObject({ why: "no-intake" });
   });

@@ -96,7 +96,7 @@ room's own three.js, so your meshes and the room's renderer are one three.js.
 | `ctx.people.me` | who is looking |
 | `ctx.things.<key>` | a space's parts: `api`, `state`, `onMoment`, `root` |
 | `ctx.problem(text)` | a line on your thing's badge, for whoever is building |
-| `ctx.questions.ask({ prompt, near })` / `ctx.questions.list({ mine, limit })` | a visitor's question as a card on your space's board, written in the room's own panel; see [Questions](#questions-a-visitor-asks-the-board-answers) |
+| `ctx.questions.ask({ prompt, near })` / `ctx.questions.list({ mine, limit, cursor })` | a visitor's question as a card on your space's board, written in the room's own panel; see [Questions](#questions-a-visitor-asks-the-board-answers) |
 
 From `setup` you may return `{ api: { ... } }` (what a space can call), `save()` (handed to the next
 version as `ctx.hot.data`) and `dispose()`.
@@ -190,10 +190,12 @@ const asked = await ctx.questions.ask({ prompt: "Ask the Library", near: lectern
 if (asked.ok) showWaiting(asked.question);          // the card: asked.question.id
 else if (asked.why !== "cancelled") ctx.problem(asked.message);
 
-for (const q of await ctx.questions.list({ limit: 10 })) {
+let page = await ctx.questions.list({ limit: 10 });   // newest first
+for (const q of page.questions) {
   // q.text as asked; q.card.status and q.card.owners [{ id, accepted }], the board's own;
-  // q.answer: null, or { revision, by, at, body, refs: [{ resource, version, url? }] }
+  // q.answer: the newest revision, or null: { revision, by, at, body, refs: [{ resource, version, url? }] }
 }
+if (page.next) page = await ctx.questions.list({ limit: 10, cursor: page.next });   // the page after
 ```
 
 - **The room writes, not your thing.** `ask` opens the room's own writing panel (3D keys, the Quest keyboard
@@ -202,6 +204,10 @@ for (const q of await ctx.questions.list({ limit: 10 })) {
   It resolves once: `{ ok: true, question }`, or `{ ok: false, why, message }` with `why` one of
   `cancelled`, `signed-out`, `no-intake`, `too-many`, `busy` (another panel is open), `removed` (your
   thing was taken away, which closes its panel), `not-here` (a page with no room) or `failed`.
+- **Lists come a page at a time**, newest first: 30 unless `limit` says, 100 at most. `next` is where the
+  following page starts (pass it back as `cursor`); it is null on the last page. Nothing is capped
+  overall, and a question asked meanwhile lands on page one without shifting the page you are on.
+  Over HTTP: `GET /bff/space/questions?item=<item>&mine=1&limit=&cursor=` gives `{ space, project, questions, next }`.
 - **A resend is the same question.** The panel has one request key; sending again after a dropped
   connection returns the card already made.
 - **Where questions go: an intake.** Nothing goes anywhere until a manager of a project who also made the

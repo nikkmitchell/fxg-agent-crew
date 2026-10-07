@@ -6,6 +6,7 @@ import { BoardStore, Refused } from "../db/store.js";
 import { BlobStore, MAX_BYTES, QUOTA_BYTES, QUOTA_FILES, orphanReport } from "../db/blobs.js";
 import type { Role, Status } from "../../shared/board-rules.js";
 import { makeRequireSession } from "../require-session.js";
+import { pageSize, readQuestionCursor } from "../../shared/questions.js";
 
 /**
  * The board API. saha.ing's own data, served from saha.ing's own database.
@@ -473,7 +474,7 @@ export function registerBoardRoutes(
     return space;
   };
 
-  app.get<{ Querystring: { item?: string; mine?: string; limit?: string } }>("/bff/space/questions", async (request, reply) => {
+  app.get<{ Querystring: { item?: string; mine?: string; limit?: string; cursor?: string } }>("/bff/space/questions", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const space = spaceAt(session, request.query.item, reply);
@@ -481,12 +482,10 @@ export function registerBoardRoutes(
     const intake = reads.questionIntake(space);
     // Fail clearly (Mica, 7322): an empty list would say "nobody has asked", not "nowhere to ask".
     if (!intake) return reply.code(409).send(NO_INTAKE(space));
-    const limit = Number(request.query.limit ?? 30);
-    return reply.send({
-      space,
-      project: intake.projectId,
-      questions: reads.questions(space, { askedBy: request.query.mine === "1" ? session.username : undefined, limit: Number.isFinite(limit) ? limit : 30 }),
-    });
+    const cursor = request.query.cursor ? readQuestionCursor(request.query.cursor) : null;
+    if (request.query.cursor && !cursor) return reply.code(400).send({ code: "BAD_CURSOR", error: "that cursor is not one a page of questions gave; start again without it" });
+    const page = reads.questions(space, { askedBy: request.query.mine === "1" ? session.username : undefined, limit: pageSize(request.query.limit), cursor });
+    return reply.send({ space, project: intake.projectId, ...page });
   });
 
   app.post<{ Body: { item?: unknown; text?: unknown; requestKey?: unknown } }>("/bff/space/questions", async (request, reply) => {

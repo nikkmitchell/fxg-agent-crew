@@ -308,7 +308,7 @@ describe("questions (ctx.questions, Mica 7319)", () => {
         asked.push({ instance, ...options });
         return { result: new Promise(() => undefined), close: () => void closed++ };
       },
-      list: async () => [],
+      list: async () => ({ questions: [], next: null }),
     };
     const capture: { ctx?: Ctx } = {};
     const lectern = run("library/lectern", asker(capture));

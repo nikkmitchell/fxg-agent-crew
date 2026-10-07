@@ -1,5 +1,5 @@
 import type { Status } from "../../shared/board-rules.js";
-import type { AnswerRef, Question, QuestionAnswer } from "../../shared/questions.js";
+import { pageSize, questionCursor, type AnswerRef, type Question, type QuestionAnswer, type QuestionPage } from "../../shared/questions.js";
 
 type Db = import("node:sqlite").DatabaseSync;
 
@@ -163,13 +163,29 @@ export class BoardReads {
     return row ? { projectId: row.project_id, grantedBy: row.granted_by, grantedAt: row.granted_at } : null;
   }
 
-  /** The questions asked in a space, newest first: each card's own status and owners, and the newest answer. */
-  questions(space: string, options: { askedBy?: string; limit?: number } = {}): Question[] {
-    const limit = Math.max(1, Math.min(100, options.limit ?? 30));
-    const rows = (options.askedBy
-      ? this.db.prepare(`${QUESTION_ROWS} WHERE q.space = ? AND q.asked_by = ? COLLATE NOCASE ORDER BY q.asked_at DESC, q.task_id DESC LIMIT ?`).all(space, options.askedBy, limit)
-      : this.db.prepare(`${QUESTION_ROWS} WHERE q.space = ? ORDER BY q.asked_at DESC, q.task_id DESC LIMIT ?`).all(space, limit)) as QuestionRow[];
-    return rows.map((row) => this.toQuestion(row, false));
+  /**
+   * One page of the questions asked in a space, newest first: each card's own
+   * status and owners, and the newest answer. `cursor` is where the page starts
+   * (shared/questions.ts); `next` is where the following one does, or null.
+   */
+  questions(space: string, options: { askedBy?: string; limit?: number; cursor?: { askedAt: string; id: string } | null } = {}): QuestionPage {
+    const limit = pageSize(options.limit);
+    const where = ["q.space = ?"];
+    const values: Array<string | number> = [space];
+    if (options.askedBy) {
+      where.push("q.asked_by = ? COLLATE NOCASE");
+      values.push(options.askedBy);
+    }
+    if (options.cursor) {
+      where.push("(q.asked_at < ? OR (q.asked_at = ? AND q.task_id < ?))");
+      values.push(options.cursor.askedAt, options.cursor.askedAt, options.cursor.id);
+    }
+    // One more than the page, to know whether there is a next page without a count.
+    const rows = this.db.prepare(`${QUESTION_ROWS} WHERE ${where.join(" AND ")} ORDER BY q.asked_at DESC, q.task_id DESC LIMIT ?`)
+      .all(...values, limit + 1) as QuestionRow[];
+    const questions = rows.slice(0, limit).map((row) => this.toQuestion(row, false));
+    const last = questions[questions.length - 1];
+    return { questions, next: rows.length > limit && last ? questionCursor(last) : null };
   }
 
   /** One question with every revision of its answer, oldest first: what an answerer reads before writing the next. */
