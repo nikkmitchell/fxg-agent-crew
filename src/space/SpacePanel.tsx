@@ -8,6 +8,7 @@ import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
 import { RoomLoading } from "./RoomLoading";
 import { requestRoomMenu } from "./room-menu";
+import { FullScreenButton } from "./FullScreenButton";
 import { VoiceControls } from "./VoiceControls";
 import { usePanelChoices } from "./usePanelChoices";
 import { usePanelArrange } from "./usePanelArrange";
@@ -112,6 +113,8 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
    * stays false even while the door's flag is still true.
    */
   const [entered, setEntered] = useState(startEntered);
+  /** The 3D view's box: what the full-screen button fills the screen with, its buttons included (Nikk 7448). */
+  const canvasBox = useRef<HTMLDivElement>(null);
   const [directEntryTrouble, setDirectEntryTrouble] = useState<string | null>(null);
   const [checkingDirectEntry, setCheckingDirectEntry] = useState(false);
   const enterFromDirectLink = async () => {
@@ -346,8 +349,11 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
           </Suspense>
         </div>
       ) : null}
-      <div className="space-canvas">
-        <button type="button" className="space-menu-button" onClick={requestRoomMenu}>⚙ Settings</button>
+      <div className="space-canvas" ref={canvasBox}>
+        <div className="space-canvas-buttons">
+          <FullScreenButton target={canvasBox} />
+          <button type="button" className="space-menu-button" onClick={requestRoomMenu}>⚙ Settings</button>
+        </div>
         {/* A crash in the 3D scene is reported and offers a way back, rather
             than blanking the whole page (and ending a headset session). */}
         <ErrorBoundary where="scene">

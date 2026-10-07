@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { WindowUpGear } from "./WindowUpGear";
 import { roomBoards, useArrivalClearance } from "./arrival-clearance";
 import { controllerFaceButtons, isPressed } from "./controller-mic";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -1347,7 +1348,9 @@ function WindowMenu(props: Omit<Parameters<typeof RoomControls>[0], "anchor" | "
     return { at: { x: at.x, y: at.y, z: at.z }, yaw: Math.atan2(-forward.x, -forward.z) };
   }, [camera]);
   const close = useCallback(() => setShown(false), []);
-  if (!shown) return null;
+  const openMenu = useCallback(() => setShown(true), []);
+  // Closed: the gear waits up where you look, as in the headset (Nikk 7448).
+  if (!shown) return <WindowUpGear onOpen={openMenu} />;
   const { peopleRef, ...rest } = props;
   return (
     <RoomControls
