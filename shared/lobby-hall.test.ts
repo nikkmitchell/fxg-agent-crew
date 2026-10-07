@@ -91,6 +91,19 @@ describe("the room selector's two tabs (Nikk, 6940)", () => {
     expect(split.finished.map((door) => `${door.room}:${door.label}:${door.kind}:${door.detail}`)).toEqual(["desert-camp:Desert Camp:join:finished space", "rain-room:Rain Room:join:finished space"]);
     expect(split.work.map((door) => door.room)).toEqual(["saha.ing"]);
   });
+  it("gives a finished space one door: its source work room is not a second way in, unless you are standing in it (Mica 7375)", () => {
+    const finished = [{ room: "open-source-library", title: "Open Source Library", space: "open.library" }];
+    const doors = [
+      { room: "open.library", kind: "join" as const, detail: "public" },
+      { room: "open-source-library", kind: "join" as const, detail: "public" },
+      { room: "xr.instruments", kind: "join" as const, detail: "public" },
+    ];
+    const split = splitDoors(doors, finished);
+    expect(split.finished.map((door) => door.label)).toEqual(["Open Source Library"]);
+    expect(split.work.map((door) => door.room)).toEqual(["xr.instruments"]);
+    const inside = splitDoors([{ room: "open.library", kind: "here" as const, detail: "" }], finished);
+    expect(inside.work.map((door) => door.room)).toEqual(["open.library"]);
+  });
   it("marks the agents' own bodies for the AI MADE tab (Nikk2, 6974)", () => {
     const shown = wearables(["skein", "alienteen"], [{ name: "Skein", collection: "Saha Originals" }, { name: "AlienTeen", collection: "100Avatars R1" }]);
     expect(shown.map((one) => `${one.key}:${one.ai === true}`)).toEqual(["alienteen:false", "skein:true"]);

@@ -88,8 +88,13 @@ export function lobbyDoors(
  * nature experience or the things examples) is on neither tab: it is not a
  * work room (Nikk2, 6974).
  */
-export function splitDoors(doors: readonly LobbyDoor[], finished: readonly { room: string; title: string }[]): { finished: LobbyDoor[]; work: LobbyDoor[] } {
+export function splitDoors(doors: readonly LobbyDoor[], finished: readonly { room: string; title: string; space?: string }[]): { finished: LobbyDoor[]; work: LobbyDoor[] } {
   const keys = new Map(finished.map((one) => [roomKey(one.room), one.title]));
+  /**
+   * ONE DOOR PER EXPERIENCE (Baiwei, via Mica 7375): a finished space's source work room ("open.library" beside
+   * "Open Source Library") is not a second way in. Its builders reach it from the Spaces page and the editor.
+   */
+  const sources = new Set(finished.flatMap((one) => (one.space ? [roomKey(one.space)] : [])));
   const done: LobbyDoor[] = [];
   const work: LobbyDoor[] = [];
   const seen = new Set<string>();
@@ -99,7 +104,7 @@ export function splitDoors(doors: readonly LobbyDoor[], finished: readonly { roo
     if (keys.has(key)) {
       seen.add(key);
       done.push({ ...door, label: keys.get(key), detail: door.kind === "here" ? door.detail : "finished space" });
-    } else {
+    } else if (!sources.has(key) || door.kind === "here") {
       work.push(door);
     }
   }
