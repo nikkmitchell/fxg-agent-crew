@@ -6,6 +6,7 @@ import { drawInk, measureWith } from "../../engine/ink-canvas";
 import { claimPointer } from "../pointer-claim";
 import { placeInFront } from "./question-form";
 import { closeReviewView, useReviewView } from "./review-view";
+import { onArrival } from "../arrival";
 
 const WIDTH = 0.7;
 const HEIGHT = 0.1;
@@ -23,7 +24,11 @@ export function ReviewBack() {
   const gl = useThree((state) => state.gl);
   const invalidate = useThree((state) => state.invalidate);
   const [state, setState] = useState<UiState>("rest");
-  const place = useMemo(() => (view ? placeInFront(camera, gl) : null), [view, camera, gl]);
+  // Placed again whenever you are moved: the version's own spawn arrives after it opens, and Back must be in
+  // front of where you then stand, not where you were (Mica 7461).
+  const [arrivals, setArrivals] = useState(0);
+  useEffect(() => onArrival(() => requestAnimationFrame(() => setArrivals((n) => n + 1))), []);
+  const place = useMemo(() => (view ? placeInFront(camera, gl) : null), [view, camera, gl, arrivals]);
   const surface = useMemo(() => {
     const px = uiPixels(WIDTH, HEIGHT);
     const canvas = Object.assign(document.createElement("canvas"), { width: px.width, height: px.height });

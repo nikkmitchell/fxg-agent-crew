@@ -58,6 +58,19 @@ import { Keyboard3D } from "./Keyboard3D";
  * Each is OFFERED ONLY WHEN IT WILL WORK, asked rather than assumed — a control
  * that can only apologise is worse than one that is not there.
  */
+const PROMPT_SIZE = 0.028;
+const PROMPT_WIDTH = 0.66;
+const PROMPT_LINE = 1.2;
+/**
+ * How tall the prompt is once wrapped to the panel's width, in metres: its own line breaks, and a line for about
+ * every PROMPT_WIDTH of text at half an em a character (the room's sans averages under that, so it errs roomy).
+ */
+export function promptHeight(prompt: string): number {
+  const perLine = Math.floor(PROMPT_WIDTH / (PROMPT_SIZE * 0.52));
+  const lines = prompt.split("\n").reduce((n, line) => n + Math.max(1, Math.ceil(line.length / perLine)), 0);
+  return lines * PROMPT_SIZE * PROMPT_LINE;
+}
+
 export function Typing3D({
   prompt,
   initial = "",
@@ -343,7 +356,8 @@ export function Typing3D({
     return { x: (left + right) / 2, y: (bottom + top) / 2, width: Math.abs(right - left) + 0.012, height: Math.abs(top - bottom) + 0.006 };
   })();
   const promptY = Math.max(0.225, TEXT_BOTTOM + textHeight + 0.034);
-  const panelTop = promptY + 0.035;
+  // A long prompt wraps inside the panel and the panel grows up to hold it (Mica 7462: the finding's heading ran off it).
+  const panelTop = promptY - PROMPT_SIZE / 2 + promptHeight(prompt) + 0.02;
 
   const tapText = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
@@ -385,7 +399,7 @@ export function Typing3D({
         <planeGeometry args={[0.72, panelTop - PANEL_BOTTOM]} />
         <meshBasicMaterial color="#14161d" transparent opacity={0.94} toneMapped={false} />
       </mesh>
-      <Text position={[-0.33, promptY, 0]} fontSize={0.028} color="#9a978f" anchorX="left" anchorY="middle">
+      <Text position={[-0.33, promptY - PROMPT_SIZE / 2, 0]} fontSize={PROMPT_SIZE} maxWidth={PROMPT_WIDTH} lineHeight={PROMPT_LINE} color="#9a978f" anchorX="left" anchorY="bottom">
         {prompt}
       </Text>
       <Text

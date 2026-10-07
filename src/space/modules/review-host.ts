@@ -16,8 +16,14 @@ import { closeReviewView, openReviewView } from "./review-view";
 const why = (error: unknown) => (error instanceof ApiError ? error.message : "Could not reach saha.ing.");
 
 export function createReviewHost(deps: { camera: () => THREE.Camera; me: () => Person | null; renderer: PanelRenderer }): ReviewHost {
+  /** Rounds' titles as they were listed or opened, so a finding's panel can say which round it is about (Mica 7462). */
+  const titles = new Map<string, string>();
   return {
-    list: async (options) => space.reviews(options),
+    list: async (options) => {
+      const page = await space.reviews(options);
+      for (const round of page.rounds) titles.set(round.id, round.title);
+      return page;
+    },
     accept: async (id) => {
       try {
         await space.ownCard(id, "claim");
@@ -39,6 +45,7 @@ export function createReviewHost(deps: { camera: () => THREE.Camera; me: () => P
     open: async (id, variant) => {
       try {
         const { round } = await space.review(id);
+        titles.set(round.id, round.title);
         const deploy = variant === "baseline" ? round.baseline?.deploy : round.candidate.deploy;
         if (!deploy) return { ok: false, why: "this round has no baseline" };
         openReviewView({ round: round.id, title: round.title, variant, space: round.space, entry: round.entry, mode: round.mode, deploy });
@@ -69,7 +76,7 @@ export function createReviewHost(deps: { camera: () => THREE.Camera; me: () => P
       const me = deps.me();
       const opened = openPanel({
         instance,
-        header: `Finding on the ${options.variant} · filed on its space's feedback, at that exact version, as ${me?.name ?? "you"}`,
+        header: `Finding on "${titles.get(id) ?? id}" · ${options.variant === "baseline" ? "the earlier version" : "this version"}\nFiled on its space's feedback, at that exact version, as ${me?.name ?? "you"}`,
         near: options.near,
         camera: deps.camera(),
         me,
