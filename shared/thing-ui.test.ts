@@ -34,10 +34,15 @@ describe("the platform's look for a thing's parts (Mica 7331)", () => {
     expect(texts(at("pressed", "danger"))[0].fill).toBe(UI_INK.onAccent);
   });
 
-  it("cuts a label that will not fit with an ellipsis, inside the rounded ends", () => {
-    const [label] = texts(buttonInk({ label: "A label far too long for this little button", state: "rest", width: 225, height: 81 }, measure));
-    expect(label.text.endsWith("…")).toBe(true);
-    expect(measure(label.text, label.size)).toBeLessThanOrEqual(225 - 81 * 0.6);
+  it("puts a label too long for one line on two, inside the rounded ends, and only then cuts it (Nikk 7447)", () => {
+    const two = texts(buttonInk({ label: "Feedback about: earlier version", state: "rest", width: 360, height: 81 }, measure));
+    expect(two).toHaveLength(2);
+    expect(two.map((line) => line.text).join(" ")).toBe("Feedback about: earlier version");
+    expect(two.every((line) => measure(line.text, line.size) <= 360 - 81 * 0.6)).toBe(true);
+    const cut = texts(buttonInk({ label: "A label far too long for this little button even on two lines of it", state: "rest", width: 225, height: 81 }, measure));
+    expect(cut).toHaveLength(2);
+    expect(cut[1].text.endsWith("…")).toBe(true);
+    expect(cut.every((line) => measure(line.text, line.size) <= 225 - 81 * 0.6)).toBe(true);
   });
 
   it("sets a card's text as large as fits, down to the least, then says it did not fit", () => {

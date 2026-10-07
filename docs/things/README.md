@@ -209,7 +209,7 @@ reader.set({ title: `${book.title} · 2/${pages.length}`, text: pages[1] });
   from the front only. `tone: "accent"` for the one thing to do here, `"danger"` for what cannot be undone,
   `disabled: true` greys it and ignores presses. It lights under a ray or the mouse, flashes when pressed,
   and calls `onPress` for a click, a ray, a pinch or a fingertip. `set({ label, tone, disabled, onPress })`
-  changes it in place.
+  changes it in place. A label too long for one line takes two smaller lines; only past that does it end in "…".
 - **A card** is the menu's dark glass with a title and text. The text is set as large as fits, down to a
   readable least; `card.fits` is false when it still did not fit (it then ends in an ellipsis). Your line
   breaks are kept. `set({ title, text })` changes it in place.

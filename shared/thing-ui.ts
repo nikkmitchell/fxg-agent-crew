@@ -124,8 +124,16 @@ export function buttonInk(
       : part.state === "pressed" || tone === "accent" ? UI_INK.onAccent
         : tone === "danger" ? UI_INK.danger
           : UI_INK.text;
-  const label = fitOne(measure, part.label, size, width - radius * 1.2);
-  return [glass, over, { kind: "text", x: width / 2, y: height / 2 + size * 0.36, text: label, size, fill: words, weight: "bold", align: "center" }];
+  const room = width - radius * 1.2;
+  const text = (line: string, y: number, at: number): Ink => ({ kind: "text", x: width / 2, y, text: line, size: at, fill: words, weight: "bold", align: "center" });
+  if (measure(part.label, size) <= room) return [glass, over, text(part.label, height / 2 + size * 0.36, size)];
+  // Too long for one line: two smaller lines, the second ending in "…" only if even that is not enough (Nikk 7447, Skein 7455).
+  const small = Math.max(10, Math.round(size * 0.8));
+  const lines = wrapText(measure, part.label, small, room);
+  if (lines.length === 1) return [glass, over, text(lines[0], height / 2 + small * 0.36, small)];
+  const second = lines.length > 2 ? fitOne(measure, `${lines.slice(1).join(" ")}`, small, room) : lines[1];
+  const gap = small * 1.1;
+  return [glass, over, text(fitOne(measure, lines[0], small, room), height / 2 - gap / 2 + small * 0.36, small), text(second, height / 2 + gap / 2 + small * 0.36, small)];
 }
 
 /** Where a card's body goes, for a card of these pixels: what `cardInk` and `cardPages` agree on. */
