@@ -1,6 +1,6 @@
 import type * as THREE from "three";
 import type { EnvLayer } from "./env";
-import type { AskRefusal, AskResult, Json, Person, QuestionPage, ReviewFinding, ReviewRound, ReviewVariant } from "./types";
+import type { AskRefusal, AskResult, BookPage, BookShelf, Json, Person, QuestionPage, ReviewFinding, ReviewRound, ReviewVariant } from "./types";
 
 /**
  * WHAT THE ENGINE NEEDS FROM WHEREVER IT RUNS (docs/things/DESIGN.md): the
@@ -55,6 +55,8 @@ export interface Host {
   occluders?(): THREE.Object3D[];
   /** Questions for a thing's space (ctx.questions). A host without them answers "not-here". */
   readonly questions?: QuestionHost;
+  /** Gutenberg's books (ctx.books). A host without them answers "not-here". */
+  readonly books?: { shelf(n: number): Promise<BookShelf>; read(id: number, page: number): Promise<BookPage> };
   /** Review rounds (ctx.reviews). A host without them answers "not-here". */
   readonly reviews?: ReviewHost;
   /** The room's writing panel for a thing's own query (ctx.ui.query). */

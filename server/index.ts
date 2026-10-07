@@ -74,6 +74,8 @@ import { registerWelcomeTakes } from "./space/welcome-takes.js";
 import { registerWelcomeClips } from "./space/welcome-clips.js";
 import { registerFollowingRoutes } from "./space/following.js";
 import { registerReviewRoutes } from "./routes/reviews.js";
+import { registerBookRoutes } from "./routes/books.js";
+import { Gutenberg } from "./books/gutenberg.js";
 import { WalkBack } from "./space/walk-back.js";
 import { registerPathRoutes } from "./space/paths.js";
 import { registerTranscribeRoutes } from "./space/transcribe.js";
@@ -673,6 +675,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     });
     // Review rounds (Review Studio): exact candidate and baseline, findings on the space (shared/reviews.ts).
     registerReviewRoutes(scoped, { config, sessions, db: database, spaces: spaceStore });
+    // Books read live (ctx.books): Gutenberg fetched when someone opens one, a page at a time (Nikk 7436).
+    registerBookRoutes(scoped, { config, sessions, books: new Gutenberg({ cacheRoot: resolve(config.booksCacheRoot) }) });
     registerFollowingRoutes(
       scoped,
       config,

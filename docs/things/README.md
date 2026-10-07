@@ -97,6 +97,7 @@ room's own three.js, so your meshes and the room's renderer are one three.js.
 | `ctx.things.<key>` | a space's parts: `api`, `state`, `onMoment`, `root` |
 | `ctx.problem(text)` | a line on your thing's badge, for whoever is building |
 | `ctx.questions.ask({ prompt, near })` / `ctx.questions.list({ mine, limit, cursor })` | a visitor's question as a card on your space's board, written in the room's own panel; see [Questions](#questions-a-visitor-asks-the-board-answers) |
+| `ctx.books.shelf(n)` / `ctx.books.read(id, page)` | Project Gutenberg's free books, read live: a shelf of 32 from the catalogue, or one page (about 1400 characters) of one book, fetched by saha.ing when someone looks; see [Books](#books-read-live) |
 | `ctx.ui.button(label, { width, height, tone, onPress })` / `ctx.ui.card({ title, text, width, height })` / `ctx.ui.pages(text, { width, height })` / `ctx.ui.ink` | your own controls and text in the settings menu's look, with the room's hover and pressed feedback; see [Controls and text](#controls-and-text-in-the-platforms-look) |
 
 From `setup` you may return `{ api: { ... } }` (what a space can call), `save()` (handed to the next
@@ -222,6 +223,24 @@ reader.set({ title: `${book.title} · 2/${pages.length}`, text: pages[1] });
 - **`ctx.ui.ink`** and **`ctx.ui.font`** are the menu's palette and font, for anything you still draw yourself.
 - Every part is seen by you alone (selection and reading stay each visitor's own), and goes when your thing
   does. Make a part again to change its size.
+
+## Books, read live
+
+Project Gutenberg's free books (about 79,000), for a library to show and read (Nikk 7436). Nothing is
+downloaded up front: saha.ing fetches a shelf or a book from Gutenberg the first time anyone asks, keeps
+it, and hands the room a shelf or ONE page at a time, so a headset on a slow link carries only what it shows.
+
+```js
+const shelf = await ctx.books.shelf(1);        // { shelf, count, shelves, books: [{ id, title, authors, subjects, languages, downloads }] }
+const page = await ctx.books.read(1342, 1);    // { id, title, author, page, pages, text }
+const next = await ctx.books.read(1342, page.page + 1);
+```
+
+- Shelves go most read first (shelf 1 is Pride and Prejudice, Frankenstein, ...). `shelves` is how many there are.
+- A page past the end is the last page. Fit a page to your card with `ctx.ui.pages(page.text, { width, height })`.
+- Both reject with `why`: `"not-here"` (not in a saha.ing room), `"source-down"` (Gutenberg did not answer; try
+  again), `"not-found"` (no plain text of that book), `"too-big"` (over 6 MB), `"offline"`.
+- Gutenberg is the source because it answers from saha.ing's box; Open Library and archive.org do not.
 
 ## Review rounds: try an exact version, take it on the board, file findings
 

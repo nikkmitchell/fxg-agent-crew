@@ -64,6 +64,8 @@ export type Config = {
    * line in the same voice is the same sound for ever.
    */
   speechCacheRoot: string;
+  /** Where Gutenberg's shelves and books are kept once someone has opened them (ctx.books), beside the database. */
+  booksCacheRoot: string;
   /**
    * Shared secret for the loopback-only render-session endpoint. EMPTY DISABLES
    * IT, which is the right default: a deployment that has not deliberately set
@@ -133,5 +135,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     bodyCacheRoot: env.BODY_CACHE_ROOT ?? beside(databasePath, "bodies", "./.dev-bodies"),
     speechCacheRoot: env.SPEECH_CACHE_ROOT ?? beside(databasePath, "speech", "./.dev-speech"),
     spacesRoot: env.SPACES_ROOT ?? beside(databasePath, "spaces", "./.dev-spaces"),
+    booksCacheRoot: env.BOOKS_CACHE_ROOT ?? beside(databasePath, "books", "./.dev-books"),
   };
 }

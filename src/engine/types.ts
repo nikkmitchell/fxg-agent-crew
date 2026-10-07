@@ -3,6 +3,8 @@ import type { Question, QuestionPage } from "../../shared/questions";
 import type { UiTone } from "../../shared/thing-ui";
 import type { ReviewFinding, ReviewRound, ReviewVariant } from "../../shared/reviews";
 import type { UiInk } from "../../shared/ui-ink";
+import type { BookPage, BookShelf } from "../../shared/books";
+export type { BookCard, BookPage, BookShelf } from "../../shared/books";
 
 export type { AnswerRef, Question, QuestionAnswer, QuestionPage } from "../../shared/questions";
 export type { UiTone } from "../../shared/thing-ui";
@@ -236,6 +238,18 @@ export interface Ctx {
      * `cursor` for the page after; it is null on the last. Rejects, with `why`, when this space's questions go nowhere.
      */
     list(options?: { mine?: boolean; limit?: number; cursor?: string | null }): Promise<QuestionPage>;
+  };
+
+  /**
+   * BOOKS, READ LIVE (shared/books.ts; Nikk 7436): Project Gutenberg's free books, fetched by saha.ing when
+   * someone looks and handed over a shelf or a page at a time. Both reject, with `why`, off saha.ing or when
+   * the source is down ("not-here", "source-down", "not-found", "too-big").
+   */
+  readonly books: {
+    /** Shelf `n` (from 1) of the catalogue: 32 books, most read first, and how many shelves there are. */
+    shelf(n: number): Promise<BookShelf>;
+    /** Page `page` (from 1) of book `id`: about 1400 characters, with the book's title, author and page count. */
+    read(id: number, page?: number): Promise<BookPage>;
   };
 
   /**

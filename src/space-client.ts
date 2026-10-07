@@ -22,6 +22,7 @@ import type { SharedMindfulnessCard } from "../shared/mindfulness";
 import type { GoSize, GoSurface, RoomItem } from "../shared/room-items";
 import type { Question, QuestionPage } from "../shared/questions";
 import type { ReviewFinding, ReviewRound, ReviewVariant } from "../shared/reviews";
+import type { BookPage, BookShelf } from "../shared/books";
 
 /**
  * The browser's side of the room's own API.
@@ -172,6 +173,9 @@ export const space = {
     requestJson<{ space: string; project: string } & QuestionPage>(
       `${root}/questions?item=${encodeURIComponent(item)}${options.mine ? "&mine=1" : ""}${options.limit ? `&limit=${Math.round(options.limit)}` : ""}${options.cursor ? `&cursor=${encodeURIComponent(options.cursor)}` : ""}`,
     ),
+  /** A shelf of Gutenberg's catalogue, and one page of one book (shared/books.ts; ctx.books). */
+  bookShelf: (shelf: number) => requestJson<BookShelf>(`${base}/bff/books?shelf=${Math.round(shelf)}`),
+  bookPage: (id: number, page: number) => requestJson<BookPage>(`${base}/bff/books/${Math.round(id)}?page=${Math.round(page)}`),
   /** Open review rounds (shared/reviews.ts), a page at a time. */
   reviews: (options: { cursor?: string | null; limit?: number } = {}) =>
     requestJson<{ rounds: ReviewRound[]; next: string | null }>(`${base}/bff/reviews?${options.cursor ? `cursor=${encodeURIComponent(options.cursor)}&` : ""}${options.limit ? `limit=${Math.round(options.limit)}` : ""}`),

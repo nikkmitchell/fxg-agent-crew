@@ -25,6 +25,7 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     bodyCacheRoot: "",
     speechCacheRoot: "",
     spacesRoot: "",
+    booksCacheRoot: "",
     ...overrides,
   };
 }
