@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { ModuleRoomItem } from "../../../shared/room-items";
 import type { ReviewMode, ReviewVariant } from "../../../shared/reviews";
-import { currentPose, requestArrival, type Pose } from "../arrival";
+import { currentPose, restoreArrival, type Pose } from "../arrival";
 
 /**
  * A REVIEW ROUND'S VERSION, OPENED FOR YOU ALONE (ctx.reviews.open; Mica 7348:
@@ -29,7 +29,7 @@ export const closeReviewView = () => {
   const back = returnTo;
   returnTo = null;
   set(null);
-  if (back) requestArrival(back);
+  if (back) restoreArrival(back);
 };
 export const reviewViewNow = () => current;
 export const useReviewView = (): ReviewView | null =>
