@@ -15,7 +15,7 @@ import { ThingInstance } from "../../engine/instance";
 import type { Person } from "../../engine/types";
 import { createRoomEngine, type RoomEngine } from "./room-engine";
 import { QuestionForm } from "./QuestionForm";
-import { arriveAtSpawn } from "../arrival";
+import { arriveAtSpawn, holdSpawnFor } from "../arrival";
 import { ReviewBack } from "./ReviewBack";
 import { useReviewView, withReviewView } from "./review-view";
 
@@ -182,6 +182,10 @@ export function ModuleItems({ items: roomItems, you, send, subscribe, onItem, on
   // A review round's version opened for you alone (review-view.ts), among or in place of the room's things.
   const reviewView = useReviewView();
   const items = useMemo(() => withReviewView(roomItems, reviewView, you), [roomItems, reviewView, you]);
+  // What a full-size review version displaces comes back on Back; its return must not override Back's pose.
+  useEffect(() => {
+    if (reviewView?.mode === "full") holdSpawnFor(roomItems.filter((item) => item.view === "full").map((item) => item.id));
+  }, [reviewView, roomItems]);
   const sources = useModuleSources(items, subscribe);
   const running = useMemo(() => new Map<string, RunningModule>(), []);
   const person = useMemo<Person | null>(() => (you ? { id: you, name: you, me: true, agent: false } : null), [you]);
@@ -392,7 +396,7 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
         // ARRIVE WHERE THE SPACE SAYS (Mica 7421): its declared spawn, in the room, once when it first comes up.
         if (full && firstStart && def.spawn) {
           const at = group.localToWorld(new THREE.Vector3(def.spawn.at[0], 0, def.spawn.at[2]));
-          arriveAtSpawn({ x: at.x, z: at.z, yaw: item.position.rotationY + (def.spawn.yaw ?? 0) });
+          arriveAtSpawn({ x: at.x, z: at.z, yaw: item.position.rotationY + (def.spawn.yaw ?? 0) }, item.id);
         }
         return;
       }

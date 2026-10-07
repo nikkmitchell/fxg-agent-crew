@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ModuleRoomItem } from "../../../shared/room-items";
 import { REVIEW_VIEW_ID, closeReviewView, openReviewView, withReviewView } from "./review-view";
-import { arriveAtSpawn, onArrival, providePose } from "../arrival";
+import { arriveAtSpawn, holdSpawnFor, onArrival, providePose } from "../arrival";
 
 const thing = (id: string, view: "full" | "placed"): ModuleRoomItem => ({
   id, kind: "module", revision: 0, source: { space: "review.studio", branch: "main", entry: "studio", deploy: "s1" },
@@ -29,14 +29,17 @@ describe("a review's version, opened for you alone (Mica 7348)", () => {
     const arrived: unknown[] = [];
     const off = onArrival((pose) => arrived.push(pose));
     openReviewView(view);
+    // ModuleItems holds the room's displaced full view ("studio") while the version is open.
+    holdSpawnFor(["studio"]);
     providePose(() => ({ x: 9, z: 9, yaw: 2 }));
     closeReviewView();
-    // The room's own space comes back and starts again: its spawn must not override the restore (Mica 7429).
-    arriveAtSpawn({ x: 0, z: 2.35, yaw: 0 });
+    // However long it takes to come back (Mica 7432: past 15 s on a slow link), its first spawn does not move you.
+    arriveAtSpawn({ x: 0, z: 2.35, yaw: 0 }, "studio");
     expect(arrived).toEqual([{ x: 1, z: 5, yaw: 0.3 }]);
-    // Only once: a space arriving later still sends you to its spawn.
-    arriveAtSpawn({ x: 0, z: 2.35, yaw: 0 });
-    expect(arrived).toEqual([{ x: 1, z: 5, yaw: 0.3 }, { x: 0, z: 2.35, yaw: 0 }]);
+    // Once only, and only that thing: another space, or the same one later, arrives at its spawn.
+    arriveAtSpawn({ x: 3, z: 3, yaw: 0 }, "garden");
+    arriveAtSpawn({ x: 0, z: 2.35, yaw: 0 }, "studio");
+    expect(arrived).toEqual([{ x: 1, z: 5, yaw: 0.3 }, { x: 3, z: 3, yaw: 0 }, { x: 0, z: 2.35, yaw: 0 }]);
     off();
     providePose(null);
   });

@@ -24,22 +24,19 @@ export const providePose = (read: (() => Pose | null) | null): void => {
 export const currentPose = (): Pose | null => poseNow?.() ?? null;
 
 /**
- * BACK WINS OVER THE SPACE THAT COMES BACK (Mica 7429): closing a review's version restores where you stood, and
- * then the room's own full-size space mounts again and would send you to its spawn. A restore holds off the next
- * spawn arrival, once.
+ * BACK WINS OVER THE SPACE THAT COMES BACK (Mica 7429, 7432): closing a review's version restores where you
+ * stood, and then the room's own full-size space, displaced while the version was open, mounts again and would
+ * send you to its spawn. Its first arrival after that is skipped: held by WHICH thing was displaced, not by a
+ * clock, so a slow connection that takes longer to load it again changes nothing.
  */
-/** Until when the next spawn arrival is held off: long enough for a space to load again, not forever. */
-let holdSpawnUntil = 0;
-const HOLD_MS = 15_000;
-export const restoreArrival = (pose: Pose): void => {
-  holdSpawnUntil = Date.now() + HOLD_MS;
-  requestArrival(pose);
+const held = new Set<string>();
+export const restoreArrival = (pose: Pose): void => requestArrival(pose);
+/** These things were displaced by a review's version: their next spawn arrival does not move you. */
+export const holdSpawnFor = (ids: readonly string[]): void => {
+  for (const id of ids) held.add(id);
 };
-/** A full-size space's first start: its spawn, unless a restore has just put you back. */
-export const arriveAtSpawn = (pose: Pose): void => {
-  if (Date.now() < holdSpawnUntil) {
-    holdSpawnUntil = 0;
-    return;
-  }
+/** A full-size space's first start: its spawn, unless it is coming back from being displaced. */
+export const arriveAtSpawn = (pose: Pose, id: string): void => {
+  if (held.delete(id)) return;
   requestArrival(pose);
 };
