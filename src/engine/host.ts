@@ -80,4 +80,5 @@ export interface ReviewHost {
   findings(id: string, options: { cursor?: string | null; limit?: number }): Promise<{ findings: ReviewFinding[]; next: string | null }>;
   open(id: string, variant: ReviewVariant): Promise<{ ok: true } | { ok: false; why: string }>;
   back(): void;
+  request(instance: string, options: { project: string; space: string; entry: string; mode: "item" | "full" | "model"; candidate: string; baseline?: string | null; checklist: string[]; near?: THREE.Object3D }): { result: Promise<{ ok: true; round: ReviewRound } | { ok: false; why: AskRefusal; message: string }>; close(): void };
 }

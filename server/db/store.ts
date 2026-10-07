@@ -1033,8 +1033,12 @@ export class BoardStore {
    * a role on that project, like answering: entering its room is not enough to ask others to review. The
    * route has already checked both deploys are that space's and ready.
    */
-  publishRound(actor: Actor, input: RoundInput): { id: string } {
+  publishRound(actor: Actor, input: RoundInput, requestKey: string | null = null): { id: string; existing: boolean } {
     return this.tx(() => {
+      if (requestKey) {
+        const already = this.db.prepare("SELECT task_id FROM review_rounds WHERE created_by = ? AND request_key = ?").get(actor.id, requestKey) as { task_id: string } | undefined;
+        if (already) return { id: already.task_id, existing: true };
+      }
       this.assertAuthority(actor.id, input.project);
       if (!this.rolesOf(actor.id, input.project)?.length) {
         throw new Refused(`publishing a review round on ${input.project} takes a role a manager gave you`, "ROLE_REQUIRED");
@@ -1050,11 +1054,11 @@ export class BoardStore {
       this.db.prepare(`INSERT INTO tasks (id,project_id,title,description,kind,points,priority,status,created_at,updated_at)
                        VALUES (?,?,?,?,NULL,1,NULL,'backlog',?,?)`)
         .run(id, input.project, bounded(`Review: ${input.title}`, LIMITS.title, "title"), brief, at, at);
-      this.db.prepare(`INSERT INTO review_rounds (task_id, project_id, space, entry, mode, candidate, baseline, checklist_json, created_by, created_at)
-                       VALUES (?,?,?,?,?,?,?,?,?,?)`)
-        .run(id, input.project, input.space, input.entry, input.mode, input.candidate, input.baseline, JSON.stringify(input.checklist), actor.id, at);
+      this.db.prepare(`INSERT INTO review_rounds (task_id, project_id, space, entry, mode, candidate, baseline, checklist_json, created_by, created_at, request_key)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(id, input.project, input.space, input.entry, input.mode, input.candidate, input.baseline, JSON.stringify(input.checklist), actor.id, at, requestKey);
       this.audit(actor.id, "publish round", "task", id, undefined, { space: input.space, candidate: input.candidate, baseline: input.baseline });
-      return { id };
+      return { id, existing: false };
     }, { actorId: actor.id, action: "publish review round", target: input.project });
   }
 

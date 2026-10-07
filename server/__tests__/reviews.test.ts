@@ -33,7 +33,7 @@ function boot() {
   registerReviewRoutes(app, { config, sessions, db, spaces });
   const as = (username: string) => ({ [config.cookieName]: sessions.create(username, "t") });
   const round = { project, space: "open.library", entry: "library", mode: "full", candidate: "cand-1", baseline: "base-1", checklist: ["Books open in the selecting hand", "Plant clears the shelf"], title: "Library books" };
-  return { app, as, project, round, reads: new BoardReads(db), board };
+  return { app, as, project, round, reads: new BoardReads(db), board, spaces };
 }
 
 describe("review rounds", () => {
@@ -94,5 +94,18 @@ describe("review rounds", () => {
     expect([late.statusCode, late.json().code]).toEqual([409, "ROUND_CLOSED"]);
     expect((await app.inject({ method: "GET", url: "/bff/reviews", cookies: as("Nikk2") })).json().rounds).toEqual([]);
     expect(reads.reviewDeploys()).toEqual([]);
+  });
+
+  it("is one round per publish form however often it is sent, and takes no finding once its version is gone (Mica 7405)", async () => {
+    const { app, as, round, spaces } = boot();
+    const publish = () => app.inject({ method: "POST", url: "/bff/reviews", cookies: as("Sill"), payload: { ...round, requestKey: "publish-key-01" } });
+    const first = await publish();
+    const again = await publish();
+    expect([first.statusCode, again.statusCode]).toEqual([201, 200]);
+    expect(again.json()).toMatchObject({ existing: true, round: { id: first.json().round.id } });
+    expect((await app.inject({ method: "GET", url: "/bff/reviews", cookies: as("Nikk2") })).json().rounds).toHaveLength(1);
+    spaces.retire("cand-1");
+    const late = await app.inject({ method: "POST", url: `/bff/reviews/${first.json().round.id}/findings`, cookies: as("Nikk2"), payload: { variant: "candidate", text: "Is it still there?", requestKey: "panel-key-0101" } });
+    expect([late.statusCode, late.json().code]).toEqual([409, "NO_DEPLOY"]);
   });
 });

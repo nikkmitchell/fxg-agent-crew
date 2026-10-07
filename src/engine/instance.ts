@@ -301,6 +301,7 @@ export class ThingInstance {
         if (!reviews) {
           return {
             list: () => none(), accept: () => none(), decline: () => none(), findings: () => none(), open: () => none(), back: () => undefined,
+            request: () => Promise.resolve({ ok: false as const, why: "not-here" as const, message: "Review rounds are in a saha.ing room; this page has none." }),
             submit: () => Promise.resolve({ ok: false as const, why: "not-here" as const, message: "Review rounds are in a saha.ing room; this page has none." }),
           };
         }
@@ -311,6 +312,12 @@ export class ThingInstance {
           findings: (rid, o) => reviews.findings(rid, o ?? {}),
           open: (rid, variant) => reviews.open(rid, variant),
           back: () => reviews.back(),
+          request: (o) => {
+            if (this.disposed) return Promise.resolve({ ok: false as const, why: "removed" as const, message: `${this.def.name} has been taken away.` });
+            const requesting = reviews.request(id, o);
+            own(requesting.close);
+            return requesting.result;
+          },
           submit: (rid, o) => {
             if (this.disposed) return Promise.resolve({ ok: false as const, why: "removed" as const, message: `${this.def.name} has been taken away.` });
             const submitting = reviews.submit(id, rid, o);

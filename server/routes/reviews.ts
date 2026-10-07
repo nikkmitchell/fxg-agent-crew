@@ -39,14 +39,16 @@ export function registerReviewRoutes(app: FastifyInstance, deps: { config: Confi
     const read = readRound(request.body);
     if ("problem" in read) return reply.code(400).send({ code: "BAD_ROUND", error: read.problem });
     const round = read.round;
+    const requestKey = (request.body as { requestKey?: unknown } | null)?.requestKey;
+    if (requestKey !== undefined && !isRequestKey(requestKey)) return reply.code(400).send({ code: "BAD_ROUND", error: "requestKey is the form's key: 8 to 100 letters, digits, - and _" });
     for (const deploy of round.baseline ? [round.candidate, round.baseline] : [round.candidate]) {
       const wrong = target(round.space, deploy, round.entry);
       if (wrong) return reply.code(409).send({ code: "NO_DEPLOY", error: wrong });
     }
     try {
       const made = store.withRequest({ method: request.method, path: request.url, body: request.body ?? null }, () =>
-        store.publishRound({ id: session.username, kind: session.kind }, round));
-      return reply.code(201).send({ round: reads.round(made.id) });
+        store.publishRound({ id: session.username, kind: session.kind }, round, (requestKey as string | undefined) ?? null));
+      return reply.code(made.existing ? 200 : 201).send({ existing: made.existing, round: reads.round(made.id) });
     } catch (error) {
       if (error instanceof Refused) return reply.code(STATUS[error.code] ?? 400).send({ code: error.code, error: error.message });
       throw error;
@@ -85,6 +87,9 @@ export function registerReviewRoutes(app: FastifyInstance, deps: { config: Confi
       return reply.code(429).send({ code: "TOO_MANY", error: "that is a lot of findings in an hour on one round; try again later" });
     }
     const deploy = variant === "baseline" ? round.baseline!.deploy : round.candidate.deploy;
+    // The version must still be there and ready: evidence about something nobody can open is not filed (Mica 7405).
+    const gone = target(round.space, deploy, round.entry);
+    if (gone) return reply.code(409).send({ code: "NO_DEPLOY", error: gone });
     const filed = deps.spaces.addFinding({
       id: randomBytes(9).toString("base64url"), round: round.id, space: round.space, by: session.username, variant, deploy,
       text: text.text, requestKey: request.body!.requestKey as string, at: at.toISOString(),

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ ownCard: vi.fn(), review: vi.fn(), reviewFinding: vi.fn(), reviews: vi.fn(), reviewFindings: vi.fn(), questions: vi.fn(), askQuestion: vi.fn() }));
+const api = vi.hoisted(() => ({ ownCard: vi.fn(), review: vi.fn(), reviewFinding: vi.fn(), reviews: vi.fn(), reviewFindings: vi.fn(), publishReview: vi.fn(), questions: vi.fn(), askQuestion: vi.fn() }));
 vi.mock("../../space-client", () => ({ space: api }));
 
 const { createReviewHost } = await import("./review-host");
@@ -47,5 +47,15 @@ describe("ctx.reviews in the room (Mica 7347)", () => {
     expect(api.reviewFinding).toHaveBeenCalledWith(round.id, "candidate", "Opens in the right hand.", key);
     expect(await submitting.result).toEqual({ ok: true, finding });
     expect(openQuestionNow()).toBeNull();
+  });
+
+  it("asks for a review in the room's panel: the target shown, the title written, published once with the panel's key (Mica 7405)", async () => {
+    api.publishReview.mockResolvedValue({ existing: false, round });
+    const asking = host().request("studio", { project: "open-source-library", space: "open.library", entry: "library", mode: "full", candidate: "cand-1", checklist: ["Books open"] });
+    const open = openQuestionNow()!;
+    expect(open.header).toContain("open.library · library (full) at cand-1");
+    await sendOpenQuestion("Library books");
+    expect(api.publishReview).toHaveBeenCalledWith({ project: "open-source-library", space: "open.library", entry: "library", mode: "full", candidate: "cand-1", checklist: ["Books open"], title: "Library books" }, open.key);
+    expect(await asking.result).toEqual({ ok: true, round });
   });
 });

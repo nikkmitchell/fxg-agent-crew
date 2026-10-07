@@ -1468,4 +1468,14 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX space_feedback_by_round ON space_feedback (round, created_at);
     `,
   },
+  {
+    id: 54,
+    name: "review rounds: one per publish form",
+    sql: `
+      -- Mica 7405: a publish retried after a lost reply made a second card. The
+      -- form's request key makes it the same round.
+      ALTER TABLE review_rounds ADD COLUMN request_key TEXT;
+      CREATE UNIQUE INDEX review_rounds_request ON review_rounds (created_by, request_key) WHERE request_key IS NOT NULL;
+    `,
+  },
 ];

@@ -255,6 +255,11 @@ export interface Ctx {
     /** That exact version, at its own size, for you alone, until Back (the room's button, or `back()`). */
     open(id: string, variant: ReviewVariant): Promise<{ ok: true } | { ok: false; why: string }>;
     back(): void;
+    /**
+     * Ask others to review an exact version (Mica 7405): the room's panel shows this target and takes the round's
+     * title; Send publishes it once (one key per panel). Takes a role on `project`.
+     */
+    request(options: { project: string; space: string; entry: string; mode: "item" | "full" | "model"; candidate: string; baseline?: string | null; checklist: string[]; near?: THREE.Object3D }): Promise<{ ok: true; round: ReviewRound } | { ok: false; why: AskRefusal; message: string }>;
   };
 
   /**

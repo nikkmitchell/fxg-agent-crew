@@ -180,6 +180,8 @@ export const space = {
     requestJson<{ findings: ReviewFinding[]; next: string | null }>(`${base}/bff/reviews/${encodeURIComponent(id)}/findings?${options.cursor ? `cursor=${encodeURIComponent(options.cursor)}&` : ""}${options.limit ? `limit=${Math.round(options.limit)}` : ""}`),
   reviewFinding: (id: string, variant: ReviewVariant, text: string, requestKey: string) =>
     requestJson<{ existing: boolean; finding: ReviewFinding }>(`${base}/bff/reviews/${encodeURIComponent(id)}/findings`, { method: "POST", body: JSON.stringify({ variant, text, requestKey }) }),
+  publishReview: (round: { project: string; space: string; entry: string; mode: string; candidate: string; baseline?: string | null; checklist: string[]; title: string }, requestKey: string) =>
+    requestJson<{ existing: boolean; round: ReviewRound }>(`${base}/bff/reviews`, { method: "POST", body: JSON.stringify({ ...round, requestKey }) }),
   /** The board's own taking of a card: claim, accept, release. */
   ownCard: (id: string, action: "claim" | "accept" | "release") =>
     requestJson<{ ok: true }>(`${base}/bff/board/tasks/${encodeURIComponent(id)}/ownership`, { method: "POST", body: JSON.stringify({ action }) }),

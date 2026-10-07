@@ -48,6 +48,23 @@ export function createReviewHost(deps: { camera: () => THREE.Camera; me: () => P
       }
     },
     back: () => closeReviewView(),
+    request: (instance, options) => {
+      const target = `${options.space} · ${options.entry} (${options.mode}) at ${options.candidate}${options.baseline ? `, beside ${options.baseline}` : ""}`;
+      const opened = openPanel({
+        instance,
+        header: `Ask for a review of ${target} · on the ${options.project} board · write its title`,
+        near: options.near,
+        camera: deps.camera(),
+        me: deps.me(),
+        renderer: deps.renderer,
+        send: async (title, key) => {
+          const { near: _near, ...round } = options;
+          const answer = await space.publishReview({ ...round, title }, key);
+          return { done: { ok: true, round: answer.round } };
+        },
+      });
+      return { result: opened.result as never, close: opened.close };
+    },
     submit: (instance, id, options) => {
       const me = deps.me();
       const opened = openPanel({
