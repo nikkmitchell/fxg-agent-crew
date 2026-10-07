@@ -73,6 +73,7 @@ import { registerAvatarRoutes } from "./space/avatar.js";
 import { registerWelcomeTakes } from "./space/welcome-takes.js";
 import { registerWelcomeClips } from "./space/welcome-clips.js";
 import { registerFollowingRoutes } from "./space/following.js";
+import { WalkBack } from "./space/walk-back.js";
 import { registerPathRoutes } from "./space/paths.js";
 import { registerTranscribeRoutes } from "./space/transcribe.js";
 import { ScreenFrames, ShareKeys, registerScreenRoutes } from "./space/screens.js";
@@ -615,6 +616,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       liveDeploy: (space, branch) => spaceStore.live(space, branch)?.id ?? null,
       announce: (room, items, by) => hubFor(room).broadcast({ type: "roomItems", items, by }),
     });
+    const walkBack = new WalkBack((room, actorId, spot) => {
+      const presence = hubFor(room).presence;
+      presence.stopFollowing(actorId);
+      presence.walk(actorId, "agent", [{ x: spot.x, y: 0, z: spot.z }], "back to where I was, having said it");
+    });
     registerUtteranceRoutes(
       scoped,
       config,
@@ -623,8 +629,12 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       (room, utterance) => hubFor(room).broadcast({ type: "said", utterance }),
       (room, actorId, utteranceId) => hubFor(room).presence.attend(actorId, utteranceId),
       (room, actorId, kind) => hubFor(room).presence.spoke(actorId, kind),
-      (room, actorId, kind, targetActorId, durationMs) =>
-        hubFor(room).presence.speakTo(actorId, kind, targetActorId, durationMs),
+      (room, actorId, kind, targetActorId, durationMs) => {
+        const result = hubFor(room).presence.speakTo(actorId, kind, targetActorId, durationMs);
+        // Walked over to say it: back where it was once it is said (Nikk 7378).
+        walkBack.spoke(room, actorId, durationMs);
+        return result;
+      },
       // Said now, so it is ready to hear by the time anybody asks for it.
       (utterance) => {
         if (utterance.say) speech.warm(utterance.say, agentVoices.voiceOf(utterance.actorId).id);
@@ -652,17 +662,26 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerPathRoutes(scoped, {
       config,
       sessions,
-      walk: (room, actorId, kind, waypoints, because) =>
-        hubFor(room).presence.walk(actorId, kind, waypoints, because),
+      walk: (room, actorId, kind, waypoints, because) => {
+        walkBack.forget(room, actorId);
+        return hubFor(room).presence.walk(actorId, kind, waypoints, because);
+      },
       stopWalking: (room, actorId) => hubFor(room).presence.stopWalking(actorId),
     });
     registerFollowingRoutes(
       scoped,
       config,
       sessions,
-      (room, actorId, kind, targetId, side, because) =>
-        hubFor(room).presence.follow(actorId, kind, targetId, side, because),
-      (room, actorId) => hubFor(room).presence.stopFollowing(actorId),
+      (room, actorId, kind, targetId, side, because) => {
+        const where = hubFor(room).presence.find(actorId)?.at ?? null;
+        const result = hubFor(room).presence.follow(actorId, kind, targetId, side, because);
+        if (result.ok && kind === "agent") walkBack.followed(room, actorId, where);
+        return result;
+      },
+      (room, actorId) => {
+        walkBack.forget(room, actorId);
+        return hubFor(room).presence.stopFollowing(actorId);
+      },
     );
     registerScreenRoutes(scoped, {
       config, sessions, frames: screenFrames, keys: shareKeys,
