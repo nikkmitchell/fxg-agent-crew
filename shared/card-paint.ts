@@ -15,7 +15,11 @@ import type { BoardCard } from "./board-3d.js";
  */
 
 export type Ink =
-  | { kind: "rect"; x: number; y: number; width: number; height: number; fill: string; radius?: number }
+  | {
+      kind: "rect"; x: number; y: number; width: number; height: number; fill: string; radius?: number;
+      /** A hairline round it, drawn after the fill (the settings card's edge). */
+      stroke?: string; lineWidth?: number;
+    }
   | {
       kind: "text";
       /** The anchor. With `align: "right"` this is the text's RIGHT edge, not its left. */
@@ -25,7 +29,8 @@ export type Ink =
       size: number;
       fill: string;
       weight?: "normal" | "bold";
-      align?: "left" | "right";
+      /** With "center", `x` is the middle of the text. */
+      align?: "left" | "right" | "center";
     }
   | { kind: "line"; x: number; y: number; width: number; height: number; fill: string };
 

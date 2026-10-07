@@ -1,3 +1,4 @@
+import { UI_INK } from "./ui-ink.js";
 import type { Ink } from "./card-paint.js";
 import { fitLines } from "./card-paint.js";
 import type { LobbyDoor, Wearable } from "./lobby-hall.js";
@@ -16,18 +17,18 @@ import { pageOf } from "./lobby-hall.js";
 
 /**
  * THE WELCOME SIGN'S AND THE SETTINGS MENU'S COLOURS (Nikk, 7241: "adjust the Ui look for rooms and the avatar to be
- * the same UI coloring and look as nightjars welcome page (its the same as the settings page)"). The same values as
- * MENU_INK in src/space/menu-paint.ts, which shared code cannot import; change them together.
+ * the same UI coloring and look as nightjars welcome page (its the same as the settings page)"), from the platform's
+ * one palette (shared/ui-ink.ts). Only the opaque paper a door is painted on, and its edge, are the lobby's own.
  */
 export const LOBBY_INK = {
   paper: "#1b202c",
-  paperHeld: "rgba(255, 255, 255, 0.055)",
+  paperHeld: UI_INK.card,
   edge: "rgba(255, 255, 255, 0.11)",
-  ink: "#eef2fa",
-  muted: "#8e99b3",
-  accent: "#4d86ff",
-  onAccent: "#ffffff",
-  rim: "rgba(255, 255, 255, 0.13)",
+  ink: UI_INK.text,
+  muted: UI_INK.dim,
+  accent: UI_INK.accent,
+  onAccent: UI_INK.onAccent,
+  rim: UI_INK.panelEdge,
 } as const;
 
 // DOORS ----------------------------------------------------------------------------------------------------------

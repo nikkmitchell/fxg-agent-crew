@@ -48,6 +48,12 @@ export type InputHubOptions = {
 };
 
 export type InstanceInput = Input & {
+  /**
+   * Whether a pointer is on `target`: a headset's ray, or the mouse. For the
+   * room's own controls in things (ctx.ui), which draw their hover; not offered
+   * to things themselves yet.
+   */
+  hover(target: THREE.Object3D, fn: (on: boolean) => void): Off;
   /** A point in the room, in this thing's own frame. */
   toLocal(world: THREE.Vector3): THREE.Vector3;
   /** Every frame, after tips are read: strikes. */
@@ -66,6 +72,10 @@ export class InputHub {
   private readonly caster = new THREE.Raycaster();
   private pending: { pointerId: number; target: Target; point: THREE.Vector3; x: number; y: number } | null = null;
   private readonly off: Array<() => void> = [];
+  /** Objects whose hover is drawn (ctx.ui): which headset pointers are on each, and whether it is lit. */
+  private readonly hovers = new Map<THREE.Object3D, { rays: Set<number>; on: boolean; update: () => void }>();
+  /** The one hovered by the mouse, if any. */
+  private mouseOn: THREE.Object3D | null = null;
 
   constructor(private readonly options: InputHubOptions) {
     this.listenForMouse();
@@ -104,16 +114,92 @@ export class InputHub {
     const forget = (event: PointerEvent) => {
       if (this.pending?.pointerId === event.pointerId) this.pending = null;
     };
+    // HOVER WITH A MOUSE: cast at the hovered controls as it moves, and only while there are any.
+    const move = (event: PointerEvent) => {
+      if (!this.hovers.size || event.pointerType === "touch") return;
+      const box = (element ?? above).getBoundingClientRect();
+      let found: THREE.Object3D | null = null;
+      if (event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom) {
+        ndc.set(((event.clientX - box.left) / box.width) * 2 - 1, -(((event.clientY - box.top) / box.height) * 2 - 1));
+        this.caster.setFromCamera(ndc, this.options.camera());
+        found = this.hovered(this.caster);
+      }
+      this.setMouseOn(found);
+    };
+    const away = () => this.setMouseOn(null);
     above.addEventListener("pointerdown", down, true);
     above.addEventListener("pointerup", up, true);
+    above.addEventListener("pointermove", move);
+    above.addEventListener("pointerleave", away);
     window.addEventListener("pointerup", forget);
     window.addEventListener("pointercancel", forget, true);
     this.off.push(() => {
       above.removeEventListener("pointerdown", down, true);
       above.removeEventListener("pointerup", up, true);
+      above.removeEventListener("pointermove", move);
+      above.removeEventListener("pointerleave", away);
       window.removeEventListener("pointerup", forget);
       window.removeEventListener("pointercancel", forget, true);
     });
+  }
+
+  /** The hovered control along a ray, unless something of the room's own is in front of it. */
+  private hovered(caster: THREE.Raycaster): THREE.Object3D | null {
+    const objects = [...this.hovers.keys()].filter((object) => object.visible);
+    const hit = caster.intersectObjects(objects, true)[0];
+    if (!hit) return null;
+    const occluding = this.options.occluders?.() ?? [];
+    if (occluding.length) {
+      const blocker = caster.intersectObjects(occluding, true)[0];
+      if (blocker && blocker.distance < hit.distance) return null;
+    }
+    for (let at: THREE.Object3D | null = hit.object; at; at = at.parent) if (this.hovers.has(at)) return at;
+    return null;
+  }
+
+  private setMouseOn(next: THREE.Object3D | null): void {
+    if (next === this.mouseOn) return;
+    const before = this.mouseOn;
+    this.mouseOn = next;
+    if (before) this.hovers.get(before)?.update();
+    if (next) this.hovers.get(next)?.update();
+  }
+
+  /**
+   * Tell `fn` when a pointer comes onto `object` and when the last one leaves.
+   * In a headset pmndrs calls the object's own pointerenter and pointerleave
+   * (each ray its own pointer, so two hands are counted apart); with a mouse,
+   * the cast above.
+   */
+  hover(object: THREE.Object3D, fn: (on: boolean) => void): Off {
+    const entry = {
+      rays: new Set<number>(),
+      on: false,
+      update: () => {
+        const on = entry.rays.size > 0 || this.mouseOn === object;
+        if (on === entry.on) return;
+        entry.on = on;
+        fn(on);
+        this.options.invalidate?.();
+      },
+    };
+    type XrPointerEvent = { pointerId?: number };
+    const enter = (event: XrPointerEvent) => {
+      entry.rays.add(event.pointerId ?? -1);
+      entry.update();
+    };
+    const leave = (event: XrPointerEvent) => {
+      if (!entry.rays.delete(event.pointerId ?? -1)) return;
+      entry.update();
+    };
+    const listeners: Array<[string, (event: XrPointerEvent) => void]> = [["pointerenter", enter], ["pointerleave", leave], ["pointercancel", leave]];
+    for (const [type, listener] of listeners) object.addEventListener(type as never, listener as never);
+    this.hovers.set(object, entry);
+    return () => {
+      for (const [type, listener] of listeners) object.removeEventListener(type as never, listener as never);
+      if (this.hovers.get(object) === entry) this.hovers.delete(object);
+      if (this.mouseOn === object) this.mouseOn = null;
+    };
   }
 
   /** The nearest registered target along a ray, unless something of the room's own is in front of it. */
@@ -324,6 +410,16 @@ class InstanceInputImpl implements InstanceInput {
   press(target: THREE.Object3D, fn: (e: PressEvent) => void, options: { poke?: boolean } = {}): Off {
     if (this.disposed) return () => undefined;
     const off = this.hub.register({ object: target, instance: this, press: fn, poke: options.poke !== false });
+    this.offs.add(off);
+    return () => {
+      off();
+      this.offs.delete(off);
+    };
+  }
+
+  hover(target: THREE.Object3D, fn: (on: boolean) => void): Off {
+    if (this.disposed) return () => undefined;
+    const off = this.hub.hover(target, (on) => this.guard("hover", () => fn(on)));
     this.offs.add(off);
     return () => {
       off();

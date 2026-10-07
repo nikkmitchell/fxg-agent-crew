@@ -1,4 +1,5 @@
 import { MENU, type LaidRow, type MenuLayout, type Rect } from "./menu-layout";
+import { UI_FONT, UI_INK } from "../../shared/ui-ink";
 
 /**
  * Draw a laid-out settings menu into a 2D canvas.
@@ -12,34 +13,10 @@ import { MENU, type LaidRow, type MenuLayout, type Rect } from "./menu-layout";
  * Only colour and type live here; where things go is menu-layout.ts.
  */
 
-const FONT = `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
+/** The platform's one palette and font (shared/ui-ink.ts): things' ctx.ui and the lobby read the same. */
+const FONT = UI_FONT;
 
-export const MENU_INK = {
-  panelTop: "rgba(30, 36, 50, 0.95)",
-  panelBottom: "rgba(17, 21, 31, 0.95)",
-  panelEdge: "rgba(255, 255, 255, 0.13)",
-  title: "#f3f6fc",
-  text: "#eef2fa",
-  soft: "#c3cad9",
-  dim: "#8e99b3",
-  faint: "#6c7690",
-  caption: "#8d9ab6",
-  card: "rgba(255, 255, 255, 0.055)",
-  cardEdge: "rgba(255, 255, 255, 0.06)",
-  separator: "rgba(255, 255, 255, 0.08)",
-  hover: "rgba(255, 255, 255, 0.075)",
-  pressed: "rgba(92, 140, 255, 0.28)",
-  track: "rgba(0, 0, 0, 0.32)",
-  accent: "#4d86ff",
-  accentDeep: "#3466e0",
-  accentText: "#86b2ff",
-  danger: "#ff7a70",
-  switchOn: "#30d158",
-  switchOff: "rgba(255, 255, 255, 0.16)",
-  knob: "#ffffff",
-  control: "rgba(255, 255, 255, 0.11)",
-  controlHover: "rgba(255, 255, 255, 0.2)",
-} as const;
+export const MENU_INK = UI_INK;
 
 type Corners = { tl: number; tr: number; br: number; bl: number };
 
@@ -312,7 +289,7 @@ export function paintMenu(context: CanvasRenderingContext2D, layout: MenuLayout,
     const b = layout.badge;
     const state = stateOf("badge", hover, pressed);
     roundedPath(context, b, b.height / 2);
-    context.fillStyle = state === "pressed" ? MENU_INK.accentDeep : state === "hover" ? "#6a9bff" : MENU_INK.accent;
+    context.fillStyle = state === "pressed" ? MENU_INK.accentDeep : state === "hover" ? MENU_INK.accentHover : MENU_INK.accent;
     context.fill();
     font(context, 22, 650);
     context.textAlign = "center";

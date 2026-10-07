@@ -10,6 +10,7 @@ import type { EnvLayer } from "./env";
 import type { Host } from "./host";
 import { InputHub, type InputHubOptions, type InstanceInput } from "./input";
 import type { Child, ChildHandle, Ctx, Handle, Json, Mode, Off, ThingDefinition } from "./types";
+import { thingUi } from "./ui";
 
 /**
  * A THING, RUNNING (docs/things/DESIGN.md, 1): loaded from its pinned
@@ -265,6 +266,14 @@ export class ThingInstance {
         host.problem(id, "ctx.act and models arrive in phase 2 (the ordered log); use ctx.state and ctx.net for now.");
         return { ok: false, why: "phase 2" };
       },
+      ui: thingUi({
+        input,
+        canvas: (width, height) =>
+          typeof document !== "undefined" ? Object.assign(document.createElement("canvas"), { width, height }) : new OffscreenCanvas(width, height),
+        own,
+        invalidate: () => host.invalidate(),
+        gone: () => this.disposed,
+      }),
       questions: {
         ask: (askOptions) => {
           if (this.disposed) return Promise.resolve({ ok: false, why: "removed", message: `${this.def.name} has been taken away.` });

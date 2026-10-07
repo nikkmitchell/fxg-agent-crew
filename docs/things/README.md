@@ -97,6 +97,7 @@ room's own three.js, so your meshes and the room's renderer are one three.js.
 | `ctx.things.<key>` | a space's parts: `api`, `state`, `onMoment`, `root` |
 | `ctx.problem(text)` | a line on your thing's badge, for whoever is building |
 | `ctx.questions.ask({ prompt, near })` / `ctx.questions.list({ mine, limit, cursor })` | a visitor's question as a card on your space's board, written in the room's own panel; see [Questions](#questions-a-visitor-asks-the-board-answers) |
+| `ctx.ui.button(label, { width, height, tone, onPress })` / `ctx.ui.card({ title, text, width, height })` / `ctx.ui.pages(text, { width, height })` / `ctx.ui.ink` | your own controls and text in the settings menu's look, with the room's hover and pressed feedback; see [Controls and text](#controls-and-text-in-the-platforms-look) |
 
 From `setup` you may return `{ api: { ... } }` (what a space can call), `save()` (handed to the next
 version as `ctx.hot.data`) and `dispose()`.
@@ -179,6 +180,40 @@ things cannot be moved or taken away. People, avatars, voice and everything your
 work as usual. Feedback sent with a thing's Feedback button lands on its space's page.
 
 `GET /bff/finished` lists them all: `{ room, title, space, branch, entry, deploy, by, at }`.
+
+## Controls and text in the platform's look
+
+Buttons and text panels that look and answer like the settings menu (Mica 7331, Baiwei 7333): the same dark
+glass, palette and font, and the room's own hover and pressed feedback, which a thing cannot draw for
+itself because it is never told where a pointer is. Use them for controls and reading; keep your own
+materials for the things in your world (shelves, books, instruments).
+
+```js
+const read = ctx.ui.button("Read source", { width: 0.45, onPress: () => openSource() });
+read.object.position.set(0, 0.91, 0.18);
+shelf.add(read.object);                               // anywhere you like: it is yours to place
+
+const ask = ctx.ui.button("Ask a question", { width: 0.46, tone: "accent", onPress: askQuestion });
+const detail = ctx.ui.card({ title: book.title, text: book.summary, width: 1.15, height: 0.88 });
+
+const pages = ctx.ui.pages(longText, { width: 1.28, height: 1.1 });   // each page fits a card this size
+const reader = ctx.ui.card({ title: `${book.title} · 1/${pages.length}`, text: pages[0], width: 1.28, height: 1.1 });
+reader.set({ title: `${book.title} · 2/${pages.length}`, text: pages[1] });
+```
+
+- **A button** is `width` by `height` metres (0.25 by 0.09 unless you say), a plane facing +Z, drawn and pressed
+  from the front only. `tone: "accent"` for the one thing to do here, `"danger"` for what cannot be undone,
+  `disabled: true` greys it and ignores presses. It lights under a ray or the mouse, flashes when pressed,
+  and calls `onPress` for a click, a ray, a pinch or a fingertip. `set({ label, tone, disabled, onPress })`
+  changes it in place.
+- **A card** is the menu's dark glass with a title and text. The text is set as large as fits, down to a
+  readable least; `card.fits` is false when it still did not fit (it then ends in an ellipsis). Your line
+  breaks are kept. `set({ title, text })` changes it in place.
+- **`ctx.ui.pages(text, { width, height })`** splits long reading into pages that each fit a card of that size at
+  the menu's text size (`title: false` for a card without a title). Page with your own Earlier/Later buttons.
+- **`ctx.ui.ink`** and **`ctx.ui.font`** are the menu's palette and font, for anything you still draw yourself.
+- Every part is seen by you alone (selection and reading stay each visitor's own), and goes when your thing
+  does. Make a part again to change its size.
 
 ## Questions: a visitor asks, the board answers
 

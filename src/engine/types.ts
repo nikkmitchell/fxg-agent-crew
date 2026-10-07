@@ -1,7 +1,10 @@
 import type * as THREE from "three";
 import type { Question, QuestionPage } from "../../shared/questions";
+import type { UiTone } from "../../shared/thing-ui";
+import type { UiInk } from "../../shared/ui-ink";
 
 export type { AnswerRef, Question, QuestionAnswer, QuestionPage } from "../../shared/questions";
+export type { UiTone } from "../../shared/thing-ui";
 
 /**
  * THE CONTRACT, saha/1 (docs/things/DESIGN.md): what an item, an environment
@@ -225,6 +228,56 @@ export interface Ctx {
      */
     list(options?: { mine?: boolean; limit?: number; cursor?: string | null }): Promise<QuestionPage>;
   };
+
+  /**
+   * THE PLATFORM'S LOOK for your own controls and text (shared/thing-ui.ts; Mica 7331, Baiwei 7333): buttons and
+   * cards drawn as the settings menu is, with the room's hover and pressed feedback, which a thing cannot draw
+   * itself. Each part is yours to place (add its `object` where you like), is seen by you alone, and goes with
+   * your thing.
+   */
+  readonly ui: {
+    /** The settings menu's palette and font, for anything you draw yourself. */
+    readonly ink: UiInk;
+    readonly font: string;
+    button(label: string, options?: UiButtonOptions): UiButton;
+    card(options: UiCardOptions): UiCard;
+    /** Long text as pages that each fit a card of this size at the menu's text size (`title: false` for a card without one). */
+    pages(text: string, options: { width: number; height: number; title?: boolean }): string[];
+  };
+}
+
+export interface UiButtonOptions {
+  /** Metres: 0.25 by 0.09 unless you say. */
+  width?: number;
+  height?: number;
+  /** "accent" for the one thing to do here; "danger" for what cannot be undone. */
+  tone?: UiTone;
+  disabled?: boolean;
+  /** A click, a ray, a pinch or a fingertip. */
+  onPress?: (e: PressEvent) => void;
+}
+
+export interface UiButton {
+  /** A plane facing +Z; drawn and pressed from the front only. */
+  readonly object: THREE.Mesh;
+  set(next: { label?: string; tone?: UiTone; disabled?: boolean; onPress?: (e: PressEvent) => void }): void;
+  dispose(): void;
+}
+
+export interface UiCardOptions {
+  title?: string;
+  text: string;
+  /** Metres. */
+  width: number;
+  height: number;
+}
+
+export interface UiCard {
+  readonly object: THREE.Mesh;
+  /** False when the text did not fit even at the smallest size and ends in an ellipsis: use `ui.pages`. */
+  readonly fits: boolean;
+  set(next: { title?: string; text?: string }): void;
+  dispose(): void;
 }
 
 /** Why a question was not asked: closed, nobody signed in, nowhere to go, too many, another panel open, the thing gone, a host with no room, or a line that says. */
