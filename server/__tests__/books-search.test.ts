@@ -47,6 +47,15 @@ describe("A to Z shelves (Baiwei 7521, Mica 7523)", () => {
     expect(filingTitle("The Great Gatsby")).toBe("great gatsby");
     expect(filingTitle("An Émigré")).toBe("emigre");
     expect(filingTitle('"Quoted" first')).toBe('quoted" first');
+    // Other scripts keep their own letters (they used to be stripped to nothing and filed before "A").
+    expect(filingTitle("羅生門")).toBe("羅生門");
+    const mixed = byTitle([
+      { id: 1, title: "羅生門", authors: [], subjects: [], languages: [], words: "" },
+      { id: 2, title: "1984 Notes", authors: [], subjects: [], languages: [], words: "" },
+      { id: 3, title: "Zoo", authors: [], subjects: [], languages: [], words: "" },
+      { id: 4, title: "Apple", authors: [], subjects: [], languages: [], words: "" },
+    ]).map((entry) => entry.id);
+    expect(mixed).toEqual([4, 3, 2, 1]);
     const order = byTitle(readCatalogue(Buffer.from(CSV))).map((entry) => entry.title);
     expect(order).toEqual(["The Expedition of Humphry Clinker", "The Great Gatsby", "Persuasion", "Pride and Prejudice", 'A title with "quotes" and a line break']);
   });

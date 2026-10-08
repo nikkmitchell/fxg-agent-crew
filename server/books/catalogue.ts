@@ -58,13 +58,16 @@ export function readCatalogue(file: Buffer): CatalogueEntry[] {
 }
 
 /** How a library files a title: case and accents folded, a leading "The", "A" or "An" set aside. */
-export const filingTitle = (title: string): string => fold(title).replace(/^(the|a|an)\s+/, "").replace(/^[^a-z0-9]+/, "");
+export const filingTitle = (title: string): string => fold(title).replace(/^[\p{P}\p{S}\s]+/u, "").replace(/^(the|a|an)\s+/, "").replace(/^[\p{P}\p{S}\s]+/u, "");
+
+/** Latin letters A to Z first, then titles that start with a number, then other scripts, each in its own order. */
+const shelfGroup = (key: string) => (/^[a-z]/.test(key) ? 0 : /^[0-9]/.test(key) ? 1 : 2);
 
 /** The whole catalogue A to Z by title, then by number (Baiwei 7521, Mica 7523): the same order for everyone. */
 export function byTitle(entries: readonly CatalogueEntry[]): CatalogueEntry[] {
   return entries
     .map((entry) => ({ entry, key: filingTitle(entry.title) }))
-    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : a.entry.id - b.entry.id))
+    .sort((a, b) => shelfGroup(a.key) - shelfGroup(b.key) || (a.key < b.key ? -1 : a.key > b.key ? 1 : a.entry.id - b.entry.id))
     .map(({ entry }) => entry);
 }
 
