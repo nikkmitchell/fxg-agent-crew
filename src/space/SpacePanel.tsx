@@ -7,7 +7,7 @@ import { markInXr } from "../client-errors";
 import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
 import { RoomLoading } from "./RoomLoading";
-import { requestRoomMenu } from "./room-menu";
+import { closeRoomMenu, requestRoomMenu } from "./room-menu";
 import { provideRoomGo } from "./room-go";
 import { FullScreenButton } from "./FullScreenButton";
 import { VoiceControls } from "./VoiceControls";
@@ -173,6 +173,8 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
    */
   const switchRoom = useCallback(async (roomName: string) => {
     await bff.enterSpaceRoom(roomName);
+    // The settings menu belongs to where you were (Mica 7513): close it on the way.
+    closeRoomMenu();
     setSpaceRoomRevision((revision) => revision + 1);
   }, []);
   // A thing's door (ctx.rooms.go): the same in-place switch; a public room not yet joined is joined first.

@@ -11,3 +11,13 @@ export const onRoomMenuRequest = (listener: () => void): (() => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
 };
+
+/** Close the menu: the room changed under it (Mica 7513: after a door, it stayed open and too close). */
+const closers = new Set<() => void>();
+export const closeRoomMenu = (): void => {
+  for (const closer of closers) closer();
+};
+export const onRoomMenuClose = (listener: () => void): (() => void) => {
+  closers.add(listener);
+  return () => closers.delete(listener);
+};

@@ -29,7 +29,7 @@ import { statusLineActionable } from "./touch-press";
 import { controllerFaceButtons, controllerMicAction, readTouchMicSetting, writeTouchMicSetting } from "./controller-mic";
 import { IDLE_MIC_GESTURE, describeStart, stepMicGesture, type MicGestureState } from "./mic-gesture";
 import { questionVoice } from "./modules/question-form";
-import { onRoomMenuRequest } from "./room-menu";
+import { onRoomMenuClose, onRoomMenuRequest } from "./room-menu";
 import { controllersInUse, micGestureHands, micGestureIndicator } from "./mic-gesture-input";
 import {
   closedControlPose,
@@ -1658,6 +1658,8 @@ export function RoomControls({
     return () => clearTimeout(timer);
   }, [menuOnly]);
   closeMenuRef.current = closeMenu;
+  // A room change closes it: a menu left open over a new room is in the wrong place (room-menu.ts).
+  useEffect(() => onRoomMenuClose(() => closeMenuRef.current()), []);
   // THE GESTURE NEVER STOPS A SEND ON ITS WAY. Only the ✕ button does. A
   // tracking blink read as a fist was aborting Nikk's sends mid-flight (the
   // headset reported them "stopped"), then saying so, while they had arrived.
