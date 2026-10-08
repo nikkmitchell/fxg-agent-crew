@@ -174,7 +174,8 @@ export const space = {
       `${root}/questions?item=${encodeURIComponent(item)}${options.mine ? "&mine=1" : ""}${options.limit ? `&limit=${Math.round(options.limit)}` : ""}${options.cursor ? `&cursor=${encodeURIComponent(options.cursor)}` : ""}`,
     ),
   /** A shelf of Gutenberg's catalogue, and one page of one book (shared/books.ts; ctx.books). */
-  bookShelf: (shelf: number) => requestJson<BookShelf>(`${base}/bff/books?shelf=${Math.round(shelf)}`),
+  bookShelf: (shelf: number, order: "popular" | "title" = "popular") =>
+    requestJson<BookShelf>(`${base}/bff/books?shelf=${Math.round(shelf)}${order === "title" ? "&order=title" : ""}`),
   bookSearch: (query: string, cursor: string | null) =>
     requestJson<BookSearch>(`${base}/bff/books/search?q=${encodeURIComponent(query)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),
   bookPage: (id: number, page: number) => requestJson<BookPage>(`${base}/bff/books/${Math.round(id)}?page=${Math.round(page)}`),

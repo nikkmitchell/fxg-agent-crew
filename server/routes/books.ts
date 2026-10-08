@@ -17,12 +17,15 @@ export function registerBookRoutes(app: FastifyInstance, deps: { config: Config;
     throw error;
   };
 
-  app.get<{ Querystring: { shelf?: string } }>("/bff/books", async (request, reply) => {
+  app.get<{ Querystring: { shelf?: string; order?: string } }>("/bff/books", async (request, reply) => {
     if (!requireSession(request, reply)) return reply;
     const shelf = Number(request.query.shelf ?? 1);
     if (!isShelf(shelf)) return reply.code(400).send({ code: "BAD_SHELF", error: "shelf is a whole number from 1" });
     try {
-      return reply.header("cache-control", "private, max-age=3600").send(await deps.books.shelf(shelf));
+      const order = request.query.order ?? "popular";
+      if (order !== "popular" && order !== "title") return reply.code(400).send({ code: "BAD_ORDER", error: 'order is "popular" (most read first) or "title" (A to Z)' });
+      const answer = order === "title" ? await deps.books.titleShelf(shelf) : await deps.books.shelf(shelf);
+      return reply.header("cache-control", answer.sized ? "private, max-age=3600" : "private, no-store").send(answer);
     } catch (error) {
       return failed(reply, error);
     }

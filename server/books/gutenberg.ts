@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, rename, stat, unlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { BOOK_LIMITS, SEARCH_LIMITS, bookBody, bookHeader, bookPages, type BookCard, type BookPage, type BookSearch, type BookShelf } from "../../shared/books.js";
-import { readCatalogue, searchCatalogue, type CatalogueEntry } from "./catalogue.js";
+import { byTitle, readCatalogue, searchCatalogue, type CatalogueEntry } from "./catalogue.js";
 
 /**
  * PROJECT GUTENBERG, FETCHED WHEN SOMEONE LOOKS (shared/books.ts; Nikk 7436).
@@ -40,6 +40,7 @@ export class Gutenberg {
   /** Every book's size once measured, by id: shared by shelves and search. */
   private readonly sizes = new Map<number, number | null>();
   private catalogue: CatalogueEntry[] | null = null;
+  private alphabetical: CatalogueEntry[] | null = null;
   private readonly inflight = new Map<string, Promise<unknown>>();
   /** Books paged recently, newest last: paging a 1 MB text again for every turn would be waste. */
   private readonly paged = new Map<number, { title: string; author: string; pages: string[] }>();
@@ -203,22 +204,35 @@ export class Gutenberg {
       const read = readCatalogue(file);
       if (!read.length) throw new BookSourceError("SOURCE_DOWN", "The book catalogue could not be read.");
       this.catalogue = read;
+      this.alphabetical = null;
       return read;
     });
+  }
+
+  /** Cards for catalogue entries, with any size already measured; the rest measured behind. */
+  private cards(entries: readonly CatalogueEntry[]): { books: BookCard[]; sized: boolean } {
+    const books: BookCard[] = entries.map((entry) => ({
+      id: entry.id, title: entry.title, authors: entry.authors, subjects: entry.subjects, languages: entry.languages, downloads: 0,
+      bytes: this.sizes.get(entry.id) ?? null,
+    }));
+    const unmeasured = books.filter((book) => !this.sizes.has(book.id));
+    if (unmeasured.length) void this.measure(unmeasured.map((book) => ({ ...book }))).catch(() => undefined);
+    return { books, sized: unmeasured.length === 0 };
+  }
+
+  /** Shelf `shelf` of the whole catalogue A to Z by title (Baiwei 7521): a stable order everyone shares. */
+  async titleShelf(shelf: number): Promise<BookShelf> {
+    const all = (this.alphabetical ??= byTitle(await this.entries()));
+    const from = (shelf - 1) * BOOK_LIMITS.shelfSize;
+    return { shelf, count: all.length, shelves: Math.ceil(all.length / BOOK_LIMITS.shelfSize), ...this.cards(all.slice(from, from + BOOK_LIMITS.shelfSize)) };
   }
 
   /** Books whose title or authors have every word of `query`, a page at a time; `cursor` is where the last page ended. */
   async search(query: string, cursor: string | null): Promise<BookSearch> {
     const all = searchCatalogue(await this.entries(), query);
     const from = cursor ? Math.max(0, Number(cursor) || 0) : 0;
-    const page = all.slice(from, from + SEARCH_LIMITS.page);
-    const books: BookCard[] = page.map((entry) => ({
-      id: entry.id, title: entry.title, authors: entry.authors, subjects: entry.subjects, languages: entry.languages, downloads: 0,
-      bytes: this.sizes.get(entry.id) ?? null,
-    }));
-    const unmeasured = books.filter((book) => !this.sizes.has(book.id));
-    if (unmeasured.length) void this.measure(unmeasured.map((book) => ({ ...book }))).catch(() => undefined);
-    return { query, count: all.length, books, next: from + SEARCH_LIMITS.page < all.length ? String(from + SEARCH_LIMITS.page) : null, sized: unmeasured.length === 0 };
+    const { books, sized } = this.cards(all.slice(from, from + SEARCH_LIMITS.page));
+    return { query, count: all.length, books, next: from + SEARCH_LIMITS.page < all.length ? String(from + SEARCH_LIMITS.page) : null, sized };
   }
 
   private async book(id: number): Promise<{ title: string; author: string; pages: string[] }> {

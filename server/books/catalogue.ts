@@ -57,6 +57,17 @@ export function readCatalogue(file: Buffer): CatalogueEntry[] {
   return out;
 }
 
+/** How a library files a title: case and accents folded, a leading "The", "A" or "An" set aside. */
+export const filingTitle = (title: string): string => fold(title).replace(/^(the|a|an)\s+/, "").replace(/^[^a-z0-9]+/, "");
+
+/** The whole catalogue A to Z by title, then by number (Baiwei 7521, Mica 7523): the same order for everyone. */
+export function byTitle(entries: readonly CatalogueEntry[]): CatalogueEntry[] {
+  return entries
+    .map((entry) => ({ entry, key: filingTitle(entry.title) }))
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : a.entry.id - b.entry.id))
+    .map(({ entry }) => entry);
+}
+
 /**
  * Every word of the query in the title or authors; a title that starts with
  * the query first, then one that has it whole, then the rest; lowest number

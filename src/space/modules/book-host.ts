@@ -16,7 +16,7 @@ const reason = (error: unknown) =>
 
 export function createBookHost(): NonNullable<Host["books"]> {
   return {
-    shelf: (n) => space.bookShelf(n).catch((error: unknown) => Promise.reject(reason(error))),
+    shelf: (n, order) => space.bookShelf(n, order).catch((error: unknown) => Promise.reject(reason(error))),
     search: (query, cursor) => space.bookSearch(query, cursor).catch((error: unknown) => Promise.reject(reason(error))),
     read: (id, page) => space.bookPage(id, page).catch((error: unknown) => Promise.reject(reason(error))),
   };

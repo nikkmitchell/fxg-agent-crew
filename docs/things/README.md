@@ -239,6 +239,8 @@ const found = await ctx.books.search({ query: "austen" });   // { query, count, 
 ```
 
 - Shelves go most read first (shelf 1 is Pride and Prejudice, Frankenstein, ...). `shelves` is how many there are.
+- `ctx.books.shelf(n, { order: "title" })` is the whole catalogue A to Z by title instead (a leading The/A/An set aside):
+  the same order for every visitor, so shared shelves never rearrange. Personal sorts belong on a shelf of your own.
 - Each book has `bytes`, its plain text's size, for sizing it on a shelf. Sizes are measured just after a shelf is first handed out: while `sized` is false, ask for the shelf again a few seconds later.
 - Search looks at every title and author in Gutenberg's catalogue (kept on saha.ing, a week at a time), every word of the
   query, 20 a page. A result has no place in the hall: show it on a shelf of your own and open it with `read`.

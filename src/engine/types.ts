@@ -246,8 +246,11 @@ export interface Ctx {
    * the source is down ("not-here", "source-down", "not-found", "too-big").
    */
   readonly books: {
-    /** Shelf `n` (from 1) of the catalogue: 32 books, most read first, and how many shelves there are. */
-    shelf(n: number): Promise<BookShelf>;
+    /**
+     * Shelf `n` (from 1) of the catalogue: 32 books and how many shelves there are. Most read first, or with
+     * `order: "title"` the whole catalogue A to Z by title (a leading The/A/An set aside), the same for everyone.
+     */
+    shelf(n: number, options?: { order?: "popular" | "title" }): Promise<BookShelf>;
     /** Page `page` (from 1) of book `id`: about 1400 characters, with the book's title, author and page count. */
     read(id: number, page?: number): Promise<BookPage>;
     /**

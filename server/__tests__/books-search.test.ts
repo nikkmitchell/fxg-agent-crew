@@ -2,7 +2,7 @@ import { gzipSync } from "node:zlib";
 import cookie from "@fastify/cookie";
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
-import { readCatalogue, readCsv, searchCatalogue } from "../books/catalogue.js";
+import { byTitle, filingTitle, readCatalogue, readCsv, searchCatalogue } from "../books/catalogue.js";
 import { Gutenberg } from "../books/gutenberg.js";
 import { registerBookRoutes } from "../routes/books.js";
 import { MemorySessionStore } from "../session.js";
@@ -42,6 +42,16 @@ describe("the catalogue", () => {
   });
 });
 
+describe("A to Z shelves (Baiwei 7521, Mica 7523)", () => {
+  it("files titles as a library does: a leading The, A or An set aside, case and accents folded", () => {
+    expect(filingTitle("The Great Gatsby")).toBe("great gatsby");
+    expect(filingTitle("An Émigré")).toBe("emigre");
+    expect(filingTitle('"Quoted" first')).toBe('quoted" first');
+    const order = byTitle(readCatalogue(Buffer.from(CSV))).map((entry) => entry.title);
+    expect(order).toEqual(["The Expedition of Humphry Clinker", "The Great Gatsby", "Persuasion", "Pride and Prejudice", 'A title with "quotes" and a line break']);
+  });
+});
+
 describe("GET /bff/books/search", () => {
   function boot() {
     let downloads = 0;
@@ -73,6 +83,14 @@ describe("GET /bff/books/search", () => {
     const again = (await app.inject({ url: "/bff/books/search?q=austen", cookies })).json();
     expect([again.sized, again.books.map((b: { bytes: number }) => b.bytes)]).toEqual([true, [123456, 123456]]);
     expect(downloads()).toBe(1);
+  });
+
+  it("hands out the catalogue A to Z, 32 a shelf, with order=title", async () => {
+    const { app, cookies } = boot();
+    const shelf = (await app.inject({ url: "/bff/books?shelf=1&order=title", cookies })).json();
+    expect(shelf).toMatchObject({ shelf: 1, count: 5, shelves: 1 });
+    expect(shelf.books.map((b: { id: number }) => b.id)).toEqual([2160, 64317, 105, 1342, 7000]);
+    expect((await app.inject({ url: "/bff/books?shelf=1&order=sideways", cookies })).statusCode).toBe(400);
   });
 
   it("refuses an empty or over-long query and a cursor it did not give", async () => {
