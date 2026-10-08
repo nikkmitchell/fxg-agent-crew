@@ -258,6 +258,15 @@ export interface Ctx {
   };
 
   /**
+   * ROOMS (Mica, open-source-library-b2425a2a): a door from your thing to another room, a finished space's say.
+   * The room changes in place, page and headset session kept, as the lobby's doors do. Only from a press on your
+   * thing (within two seconds of it), so nothing can carry people off unasked. Resolves when they are there.
+   */
+  readonly rooms: {
+    go(room: string): Promise<{ ok: true } | { ok: false; why: "no-press" | "not-here" | "refused" | "removed"; message: string }>;
+  };
+
+  /**
    * REVIEW ROUNDS (shared/reviews.ts; Review Studio, Mica 7347): exact versions to try, taken through the board,
    * with findings filed at the exact deploy reviewed. No branch-live fallback anywhere.
    */

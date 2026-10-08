@@ -97,6 +97,7 @@ room's own three.js, so your meshes and the room's renderer are one three.js.
 | `ctx.things.<key>` | a space's parts: `api`, `state`, `onMoment`, `root` |
 | `ctx.problem(text)` | a line on your thing's badge, for whoever is building |
 | `ctx.questions.ask({ prompt, near })` / `ctx.questions.list({ mine, limit, cursor })` | a visitor's question as a card on your space's board, written in the room's own panel; see [Questions](#questions-a-visitor-asks-the-board-answers) |
+| `ctx.rooms.go(room)` | a door: takes whoever pressed your thing to another room (a finished space's room name), in place, page and headset kept, as the lobby's doors do; only from a press, within two seconds of it; resolves `{ ok }` or `{ ok: false, why, message }` |
 | `ctx.books.shelf(n)` / `ctx.books.read(id, page)` / `ctx.books.search({ query, cursor })` | Project Gutenberg's free books, read live: a shelf of 32 from the catalogue, or one page (about 1400 characters) of one book, fetched by saha.ing when someone looks; see [Books](#books-read-live) |
 | `ctx.ui.button(label, { width, height, tone, onPress })` / `ctx.ui.card({ title, text, width, height })` / `ctx.ui.pages(text, { width, height })` / `ctx.ui.ink` | your own controls and text in the settings menu's look, with the room's hover and pressed feedback; see [Controls and text](#controls-and-text-in-the-platforms-look) |
 

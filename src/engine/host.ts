@@ -55,6 +55,8 @@ export interface Host {
   occluders?(): THREE.Object3D[];
   /** Questions for a thing's space (ctx.questions). A host without them answers "not-here". */
   readonly questions?: QuestionHost;
+  /** Change the room this page is in, in place (ctx.rooms.go). A host without it answers "not-here". */
+  readonly goToRoom?: (room: string) => Promise<void>;
   /** Gutenberg's books (ctx.books). A host without them answers "not-here". */
   readonly books?: { shelf(n: number): Promise<BookShelf>; read(id: number, page: number): Promise<BookPage>; search(query: string, cursor: string | null): Promise<BookSearch> };
   /** Review rounds (ctx.reviews). A host without them answers "not-here". */

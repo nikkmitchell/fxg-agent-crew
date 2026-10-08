@@ -48,6 +48,8 @@ export type InputHubOptions = {
 };
 
 export type InstanceInput = Input & {
+  /** When this thing was last pressed (performance.now). */
+  readonly lastPressAt: number;
   /**
    * Whether a pointer is on `target`: a headset's ray, or the mouse. For the
    * room's own controls in things (ctx.ui), which draw their hover; not offered
@@ -367,6 +369,8 @@ export class InputHub {
 }
 
 class InstanceInputImpl implements InstanceInput {
+  /** When this thing was last pressed (performance.now): a door opens only from a press (ctx.rooms.go). */
+  lastPressAt = -Infinity;
   private readonly offs = new Set<Off>();
   private readonly strikes = new Map<THREE.Object3D, (e: StrikeEvent) => void>();
   private readonly armed = new Map<string, boolean>();
@@ -409,7 +413,15 @@ class InstanceInputImpl implements InstanceInput {
 
   press(target: THREE.Object3D, fn: (e: PressEvent) => void, options: { poke?: boolean } = {}): Off {
     if (this.disposed) return () => undefined;
-    const off = this.hub.register({ object: target, instance: this, press: fn, poke: options.poke !== false });
+    const off = this.hub.register({
+      object: target,
+      instance: this,
+      press: (e) => {
+        this.lastPressAt = performance.now();
+        fn(e);
+      },
+      poke: options.poke !== false,
+    });
     this.offs.add(off);
     return () => {
       off();

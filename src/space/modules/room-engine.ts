@@ -7,6 +7,7 @@ import type { Host, Resolved, TransportEvent } from "../../engine/host";
 import { Engine } from "../../engine/instance";
 import { createQuestionHost, queryPanel } from "./question-form";
 import { createBookHost } from "./book-host";
+import { requestRoomGo } from "../room-go";
 import { createReviewHost } from "./review-host";
 import type { Json, Person } from "../../engine/types";
 import { claimPointer } from "../pointer-claim";
@@ -203,6 +204,8 @@ export function createRoomEngine(deps: {
     questions: createQuestionHost({ camera: deps.camera, me: deps.me, renderer: deps.gl }),
     // ctx.reviews: the board's taking, the room's panel for findings, a version opened for you (review-host.ts).
     reviews: createReviewHost({ camera: deps.camera, me: deps.me, renderer: deps.gl }),
+    // ctx.rooms.go: the page changes rooms in place (room-go.ts).
+    goToRoom: (room) => requestRoomGo(room),
     // ctx.books: Gutenberg, a shelf or a page at a time (book-host.ts; Nikk 7436).
     books: createBookHost(),
     // ctx.ui.query: the room's panel, words back to the thing only (Mica 7395).

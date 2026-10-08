@@ -295,6 +295,23 @@ export class ThingInstance {
           return opened === null && !document.hasFocus() ? { ok: false, why: "the browser did not open it" } : { ok: true };
         },
       },
+      rooms: {
+        go: async (room) => {
+          const name = String(room ?? "").trim();
+          if (this.disposed) return { ok: false as const, why: "removed" as const, message: `${this.def.name} has been taken away.` };
+          if (!host.goToRoom) return { ok: false as const, why: "not-here" as const, message: "Rooms are in saha.ing; this page has none." };
+          // Only from a press on this thing: a door is opened by a person, never by a thing on its own.
+          if (!this.input || performance.now() - this.input.lastPressAt > 2000) {
+            return { ok: false as const, why: "no-press" as const, message: "A door opens from a press on the thing: call rooms.go from a press." };
+          }
+          try {
+            await host.goToRoom(name);
+            return { ok: true as const };
+          } catch (error) {
+            return { ok: false as const, why: "refused" as const, message: error instanceof Error ? error.message : `Could not go to ${name}.` };
+          }
+        },
+      },
       books: {
         shelf: (n) => (host.books ? host.books.shelf(n) : Promise.reject(Object.assign(new Error("Books are in a saha.ing room; this page has none."), { why: "not-here" }))),
         read: (bookId, page = 1) =>
