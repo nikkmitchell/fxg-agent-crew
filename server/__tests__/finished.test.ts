@@ -59,6 +59,20 @@ describe("finished spaces", () => {
     expect(listed.spaces).toMatchObject([{ room: "desert-camp", title: "Desert Camp", deploy: "d1", by: "Nikk2" }]);
   });
 
+  it("unpublishes only for whoever published it, and forgets only the record (Mica 7581)", async () => {
+    const { app, items, as } = boot();
+    await app.inject({ method: "POST", url: "/bff/finished", cookies: as("Nikk2"), payload: { title: "Desert Camp", source: camp } });
+    const refused = await app.inject({ method: "DELETE", url: "/bff/finished/desert-camp", cookies: as("Baiwei") });
+    expect([refused.statusCode, refused.json().code]).toEqual([403, "NOT_ITS_PUBLISHER"]);
+    expect((await app.inject({ method: "DELETE", url: "/bff/finished/desert-camp" })).statusCode).toBe(401);
+    const removed = await app.inject({ method: "DELETE", url: "/bff/finished/desert-camp", cookies: as("Nikk2") });
+    expect(removed.json()).toEqual({ removed: "desert-camp" });
+    expect((await app.inject({ method: "GET", url: "/bff/finished", cookies: as("Baiwei") })).json().spaces).toEqual([]);
+    // The room's things stay where they were: only the finished record goes.
+    expect(items.all("desert-camp")).toHaveLength(1);
+    expect((await app.inject({ method: "DELETE", url: "/bff/finished/desert-camp", cookies: as("Nikk2") })).statusCode).toBe(404);
+  });
+
   it("keeps its things as published: nothing is added, moved or taken away inside it", async () => {
     const { app, items, as } = boot();
     await app.inject({ method: "POST", url: "/bff/finished", cookies: as("Nikk2"), payload: { title: "Desert Camp", source: camp } });

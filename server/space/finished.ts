@@ -31,6 +31,10 @@ export class FinishedSpaces {
   has(room: string): boolean {
     return this.get(room) !== null;
   }
+  /** Forget it: the room stops being a finished space (its room, items and people are untouched). */
+  remove(room: string): boolean {
+    return Number(this.db.prepare("DELETE FROM finished_spaces WHERE room = ?").run(roomKey(room)).changes) > 0;
+  }
   put(finished: FinishedSpace): void {
     this.db.prepare(`INSERT INTO finished_spaces (room, title, space, branch, entry, deploy, by, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(room) DO UPDATE SET title = excluded.title, space = excluded.space, branch = excluded.branch, entry = excluded.entry,
@@ -48,6 +52,7 @@ type Describe = (who: { username: string; token: string }, source: { space: stri
  *   GET  /bff/finished                 every finished space, for the room selector's first tab
  *   POST /bff/finished                 { title, source: { space, branch, entry } }: make the room, pinned
  *   POST /bff/finished/:room/update    pin it to the branch's live deploy now; { branch } moves it to another branch first
+ *   DELETE /bff/finished/:room         unpublish it: only whoever published or last updated it (Mica 7581)
  *
  * Publishing makes a PUBLIC WebHarness room named by the title, as the person
  * publishing (who therefore owns it), and puts the one thing in it at full
@@ -120,6 +125,23 @@ export function registerFinishedRoutes(app: FastifyInstance, options: {
     options.finished.put(finished);
     options.announce(room, options.items.all(room), session.username);
     return reply.code(201).send({ finished });
+  });
+
+  /**
+   * UNPUBLISH (Mica 7581: a finished record outlived its archived room and would be a broken door). Only the one
+   * recorded as publishing or last updating it, or a project mutator; it removes the record and nothing else.
+   */
+  app.delete<{ Params: { room: string } }>("/bff/finished/:room", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const finished = options.finished.get(request.params.room);
+    if (!finished) return reply.code(404).send({ error: "There is no finished space by that name." });
+    if (session.username !== finished.by && !options.config.projectMutators.includes(session.username)) {
+      return reply.code(403).send({ code: "NOT_ITS_PUBLISHER", error: `Only ${finished.by}, who published or last updated it, can unpublish ${finished.title}.` });
+    }
+    options.finished.remove(finished.room);
+    request.log.info({ room: finished.room, by: session.username }, "finished space unpublished");
+    return reply.send({ removed: finished.room });
   });
 
   app.post<{ Params: { room: string }; Body: { branch?: unknown } | undefined }>("/bff/finished/:room/update", async (request, reply) => {

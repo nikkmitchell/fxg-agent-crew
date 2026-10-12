@@ -186,6 +186,9 @@ work as usual. Feedback sent with a thing's Feedback button lands on its space's
 
 `GET /bff/finished` lists them all: `{ room, title, space, branch, entry, deploy, by, at }`.
 
+To take one down, `DELETE /bff/finished/<room>`: only `by` (whoever published or last updated it) can. It removes the
+finished record and nothing else; the room, its things and its people stay as they are.
+
 ## Controls and text in the platform's look
 
 Buttons and text panels that look and answer like the settings menu (Mica 7331, Baiwei 7333): the same dark
