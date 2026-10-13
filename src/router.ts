@@ -23,7 +23,7 @@
  * other tab is untouched and still reachable; what changed is what the product
  * says it is when you arrive.
  */
-export const TABS = ["home", "room", "projects", "overview", "board", "mood", "mine", "people", "build", "said", "chat", "join", "profiles", "meditate", "agents", "spaces"] as const;
+export const TABS = ["home", "room", "projects", "overview", "board", "mood", "mine", "people", "build", "said", "chat", "profiles", "meditate", "agents", "spaces"] as const;
 export type Tab = (typeof TABS)[number];
 
 /**
@@ -55,7 +55,14 @@ export const DEFAULT_TAB: Tab = "home";
  */
 // "agents" joined on 2026-09-29: Nikk made an account on saha.ing and then
 // "couldn't find agent creation", which lived in step 3 of /join.
-export const RAIL: readonly Tab[] = ["home", "room", "board", "profiles", "agents", "spaces", "chat", "build", "join"];
+//
+// "chat" LEFT on 2026-10-14 (Nikk): Home and Rooms were two lists of the same
+// rooms. Home is the list; a room's chat opens from it. /chat stays a route,
+// because the 3D room's Chat panel is that page.
+//
+// "join" LEFT on 2026-10-14 too (Nikk: "we can delete joining, as we have my
+// agents, which is a cleaner version"). Its old links open Add agents (ALIASES).
+export const RAIL: readonly Tab[] = ["home", "room", "board", "profiles", "agents", "spaces", "build"];
 
 /** Base path with no trailing slash: "/space" in production, "" in dev. */
 export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -72,8 +79,11 @@ export function isTab(value: string): value is Tab {
 export function tabFromPath(pathname: string): Tab {
   const rest = pathname.startsWith(base) ? pathname.slice(base.length) : pathname;
   const segment = rest.split("/").filter(Boolean)[0] ?? "";
-  return isTab(segment) ? segment : DEFAULT_TAB;
+  return isTab(segment) ? segment : (ALIASES[segment] ?? DEFAULT_TAB);
 }
+
+/** Pages that went away, and where their links land now. */
+const ALIASES: Record<string, Tab> = { join: "agents" };
 
 /**
  * "room", NOT "space".

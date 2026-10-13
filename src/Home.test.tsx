@@ -68,3 +68,20 @@ describe("room join announcements and focus", () => {
     expect(screen.getByRole("status")).toBeTruthy();
   });
 });
+
+describe("a room's chat opens from Home, the one list of rooms", () => {
+  beforeEach(() => {
+    roomApi.rooms.mockResolvedValue([{ roomName: "saha.ing", ownerName: "Nikk2", visibility: "public" }]);
+    roomApi.publicRooms.mockResolvedValue([]);
+  });
+
+  afterEach(() => cleanup());
+
+  it("offers Open chat on a joined room, for that room", async () => {
+    const onOpenChat = vi.fn();
+    render(<Home onEnter={vi.fn(async () => undefined)} onOpenChat={onOpenChat} />);
+    await screen.findByRole("button", { name: "Enter saha.ing" });
+    fireEvent.click(screen.getByRole("button", { name: "Open chat" }));
+    expect(onOpenChat).toHaveBeenCalledWith("saha.ing");
+  });
+});

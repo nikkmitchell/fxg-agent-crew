@@ -30,7 +30,15 @@ export function roomActionError(error: unknown): string {
  * A single front door. Join, create, and enter are deliberately distinct:
  * WebHarness's join-or-create API must never turn a typo into a new room.
  */
-export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void> }) {
+export function Home({ onEnter, onOpenChat }: {
+  onEnter: (roomName: string) => Promise<void>;
+  /**
+   * The room's chat, read and written, without leaving the directory. Home is
+   * the one list of rooms (Nikk, 2026-10-14: the Rooms tab was a second one);
+   * the chat is something you open from a room, not another place to find it.
+   */
+  onOpenChat?: (roomName: string) => void;
+}) {
   const headset = useHeadsetAvailable();
   const [joined, setJoined] = useState<RoomSummary[]>([]);
   const [publicRooms, setPublicRooms] = useState<RoomSummary[]>([]);
@@ -230,6 +238,9 @@ export function Home({ onEnter }: { onEnter: (roomName: string) => Promise<void>
             {chosen.joined
               ? <button ref={primaryActionRef} type="button" className="primary-action room-front-primary" disabled={action !== null} onClick={() => void enter()}>{action === "enter" ? "Opening the room…" : "Enter " + chosen.room.roomName}</button>
               : <button ref={primaryActionRef} type="button" className="primary-action room-front-primary" disabled={action !== null} onClick={() => void join(chosen.room.roomName)}>{action === "join" ? "Joining…" : "Join " + chosen.room.roomName}</button>}
+            {chosen.joined && onOpenChat
+              ? <button type="button" className="room-front-chat" onClick={() => onOpenChat(chosen.room.roomName)}>Open chat</button>
+              : null}
             <p className="room-front-capability">
               {headset === true ? "The 3D room opens first. Then choose Enter in your headset above the view."
                 : headset === false ? "No headset detected here. You can enter in a browser with a mouse, keyboard or touch."

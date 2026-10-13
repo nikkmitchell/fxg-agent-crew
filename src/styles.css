@@ -1002,6 +1002,9 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .room-front-primary { width: 100%; min-height: 60px; background: #eae2ce; color: #1c242c; font-size: 16px; }
 .room-front-primary:hover { background: white; opacity: 1; }
 .room-front-primary:disabled { opacity: .55; cursor: wait; }
+/* The room's chat, opened from the room: one list of rooms, not two. */
+.room-front-chat { width: 100%; min-height: 44px; margin-top: 8px; border: 1px solid #8793a2; border-radius: 6px; background: transparent; color: #f9f6ef; font-size: 14px; font-weight: 700; cursor: pointer; }
+.room-front-chat:hover { background: rgba(255,255,255,.12); }
 .room-front-capability { margin: 13px 0 20px; color: #b6c0ca; font-size: 12px; line-height: 1.55; }
 .room-front-other-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 22px; border-top: 1px solid rgba(255,255,255,.2); }
 .room-front-other-actions button { min-height: 44px; padding: 0 13px; border: 1px solid #8793a2; border-radius: 6px; background: transparent; color: #f9f6ef; font-size: 12px; font-weight: 700; cursor: pointer; }
@@ -1225,16 +1228,8 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .profile-standing { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: 13px; line-height: 1.6; }
 .profile-detail-bio { margin: 0 0 6px; font-size: 15px; line-height: 1.55; }
 
-/* Joining, at /join. Rendered BEFORE the sign-in gate, so it carries its own
-   page furniture: there is no app shell around it to supply a measure or a
-   margin. Same tokens as everything else, and a readable column rather than
-   full-bleed text, because this is the one page read start to finish. */
-.join { min-height: 100dvh; padding: 40px 24px 72px; background: var(--canvas); color: var(--ink); }
-.join > * { width: min(720px, 100%); margin-inline: auto; }
-.join-head { margin-bottom: 4px; }
-.join-head h1 { margin: 0 0 4px; font-size: 32px; }
-.join-where { margin: 0; color: var(--muted); font-size: 14px; }
-.join-blurb { margin: 18px auto 8px; font-size: 15px; line-height: 1.65; }
+/* The written pages: Add agents and Spaces. The .join-* names are from the
+   /join page these outlived (removed 2026-10-14). */
 .join-section { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--line); }
 .join-section h2 { margin: 0 0 12px; font-size: 21px; }
 .join-section h3 { margin: 22px 0 8px; font-size: 15px; }
@@ -1243,16 +1238,14 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .join-section li { margin-bottom: 8px; }
 /* Commands scroll rather than widening the page — a shell line is the one
    thing here that will not wrap honestly. */
-.join pre { overflow-x: auto; margin: 10px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
-.join pre code { font-size: 12.5px; line-height: 1.6; white-space: pre; }
-.join :not(pre) > code { padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 7%, var(--surface)); font-size: 12.5px; }
+.join-section pre { overflow-x: auto; margin: 10px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.join-section pre code { font-size: 12.5px; line-height: 1.6; white-space: pre; }
+.join-section :not(pre) > code { padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 7%, var(--surface)); font-size: 12.5px; }
 .join-copy { margin: 12px 0 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; }
 .join-copy-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 4%, var(--surface)); font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .join-copy-head button { min-height: 30px; padding: 0 14px; border: 1px solid var(--ink); border-radius: 5px; background: var(--ink); color: white; font: inherit; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
 .join-copy pre { margin: 0; border: 0; border-radius: 0; background: transparent; max-height: 420px; overflow: auto; }
 .join-note { margin: 12px 0 0; padding: 10px 14px; border-left: 3px solid var(--amber); background: color-mix(in srgb, var(--amber) 8%, var(--surface)); font-size: 13.5px; line-height: 1.6; }
-.join-foot { margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); }
-.join-foot p { margin: 0; font-size: 13px; line-height: 1.6; }
 
 /* Muting somebody in the room, for yourself. */
 .voice-mutes { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }

@@ -4,7 +4,7 @@ import { ApiError } from "./api-request";
 import { agentNameProblem, publicKeyProblem, type AgentSummary } from "../shared/agents";
 
 /**
- * STEP 3 OF /join, DONE HERE (Nikk, 6130, 6132): register the agent's public
+ * ON ADD AGENTS (once step 3 of /join; Nikk, 6130, 6132): register the agent's public
  * key under you without going to webharness.chat. Signed out, it says so and
  * the page's own instructions still stand. See shared/agents.ts for why a
  * private key is refused on sight.

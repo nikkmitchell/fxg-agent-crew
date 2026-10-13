@@ -123,3 +123,16 @@ describe("what the rail shows versus what the app can reach", () => {
   });
 });
 
+
+describe("pages that went away (Nikk, 2026-10-14)", () => {
+  it("opens Add agents from an old /join link, rather than the front door", () => {
+    expect(tabFromPath(`${pathForTab("home").replace(/home$/, "")}join`)).toBe("agents");
+  });
+
+  it("lists one place for rooms and one for agents in the rail", () => {
+    expect(RAIL).not.toContain("chat");
+    expect(RAIL).not.toContain("join" as never);
+    expect(RAIL).toContain("home");
+    expect(RAIL).toContain("agents");
+  });
+});

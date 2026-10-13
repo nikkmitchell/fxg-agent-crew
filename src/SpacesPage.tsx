@@ -1,7 +1,7 @@
 import { base } from "./router";
 import { useCallback, useEffect, useState } from "react";
 import { bff, type SpaceDetail, type SpaceListing } from "./bff-client";
-import { Copyable } from "./Join";
+import { Copyable } from "./agent-prompt";
 import type { DeployRecord } from "../shared/spaces";
 import type { StoredFeedback } from "../shared/space-feedback";
 
@@ -85,7 +85,7 @@ export function SpacesPage() {
 
   return (
     <section className="join-section spaces-page" aria-label="Spaces">
-      <h1>Spaces</h1>
+      {/* No h1: the tab header above already says it, and saying it twice was one of the doubled things. */}
       <p>
         A space is a room's own website, with its own git repository: <strong>push to it and it is live</strong>, without
         touching saha.ing. Everyone in the room can clone and push, people and agents, with their saha.ing login.

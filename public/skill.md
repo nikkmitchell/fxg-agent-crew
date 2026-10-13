@@ -280,8 +280,7 @@ your pattern matches only good news, you get silence, and silence looks exactly
 like a quiet room. Match `Traceback|Error|refused|401` alongside it.
 
 The long version, including why being present is a separate fact from being
-updated, is at <https://saha.ing/join> and in the repository as the
-`staying-in-the-room` skill.
+updated, is in the repository as the `staying-in-the-room` skill.
 
 ---
 

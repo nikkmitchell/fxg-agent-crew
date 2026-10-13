@@ -3,7 +3,7 @@ import { AgentsPage } from "./AgentsPage";
 import { useEffect, useState } from "react";
 import { LiveRoomPanel } from "./LiveRoomPanel";
 import { Home } from "./Home";
-import { DEFAULT_TAB, RAIL, type Tab, pathForTab, tabFromPath } from "./router";
+import { DEFAULT_TAB, RAIL, type Tab, base, isTab, pathForTab, tabFromPath } from "./router";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import { BuildPanel } from "./BuildPanel";
 import { Identity } from "./Identity";
@@ -15,7 +15,6 @@ import { ChatFeed } from "./ChatFeed";
 import { useCurrentProject } from "./current-project";
 import { useViewer } from "./use-session";
 import SignIn, { CannotTell } from "./SignIn";
-import { Join } from "./Join";
 import { ProfilesPage } from "./ProfilesPage";
 import { MeditatePage } from "./MeditatePage";
 import { board } from "./board-client";
@@ -70,15 +69,15 @@ const TAB_META: Record<Tab, { label: string; glyph: "grid" | "stack" | "clock" |
   board: { label: "Work", glyph: "stack" },
   mood: { label: "Mood boards", glyph: "image" },
   mine: { label: "My work", glyph: "grid" },
-  people: { label: "People", glyph: "grid" },
+  // Not a second "People": profiles are /profiles; this is who works on what.
+  people: { label: "Who works on what", glyph: "grid" },
   room: { label: "The room", glyph: "room" },
   build: { label: "Build", glyph: "clock" },
   said: { label: "Said in the room", glyph: "clock" },
   chat: { label: "Rooms", glyph: "chat" },
-  join: { label: "Joining", glyph: "room" },
   profiles: { label: "People", glyph: "grid" },
   meditate: { label: "Meditate", glyph: "clock" },
-  agents: { label: "My agents", glyph: "cog" },
+  agents: { label: "Add agents", glyph: "cog" },
   spaces: { label: "Spaces", glyph: "stack" },
 };
 
@@ -120,7 +119,7 @@ function TabContent({
         embedded ? (
           <p className="muted-note">The room&rsquo;s front door is not shown inside the room.</p>
         ) : (
-          <Home onEnter={onEnterRoom} />
+          <Home onEnter={onEnterRoom} onOpenChat={onOpenChat} />
         )
       ) : null}
 
@@ -145,7 +144,7 @@ function TabContent({
       {tab === "build" ? <BuildPanel /> : null}
       {/* The guided meditations without a headset (shared/guided.ts). */}
       {tab === "meditate" ? <MeditatePage /> : null}
-      {/* Make and list your agents (Nikk, 6142). */}
+      {/* Add an agent (Nikk, 6142); /join opens this too since 2026-10-14. */}
       {tab === "agents" ? <AgentsPage /> : null}
       {/* Each room's own git and site (shared/spaces.ts). */}
       {tab === "spaces" ? <SpacesPage /> : null}
@@ -176,6 +175,15 @@ export default function App() {
 
   // A deploy reloads every open page once it is safe to — see update-reload.ts.
   useEffect(() => startUpdateReload(), []);
+
+  // An old address (/join) opens the page that replaced it; say so in the
+  // address bar too, so what gets copied and shared is the current one.
+  useEffect(() => {
+    const segment = window.location.pathname.slice(base.length).split("/").filter(Boolean)[0] ?? "";
+    if (segment && !isTab(segment) && tab !== DEFAULT_TAB) {
+      window.history.replaceState(window.history.state, "", `${pathForTab(tab)}${window.location.search}${window.location.hash}`);
+    }
+  }, [tab]);
 
   // Back/forward must work. Without this the URL changes and the view does
   // not, which is worse than having no routing at all.
@@ -291,20 +299,6 @@ export default function App() {
    * them to type a password whenever the page is slow, which is the habit worth
    * least in a product whose premise is that you can trust who said what.
    */
-  /**
-   * BEFORE THE GATE, AND THAT IS THE WHOLE POINT.
-   *
-   * Every other tab waits for `viewer` and answers `<SignIn />` to a stranger.
-   * A JOINING page behind a sign-in is a door locked from the inside: the only
-   * people who need it are the ones who cannot get past it. Nikk onboards
-   * agents by pasting a prompt into a fresh session — no account, no cookie, no
-   * checkout — so this has to render for somebody the server has never heard of.
-   *
-   * It is also above `checking`, which draws nothing while the viewer resolves.
-   * This page needs no session at all, so making a stranger wait on a lookup
-   * whose answer it does not use would be a blank screen for no reason.
-   */
-  if (tab === "join") return <Join />;
 
   if (viewer.status === "checking") {
     return <main className="signin" id="workroom" aria-busy="true" />;

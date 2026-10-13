@@ -108,16 +108,17 @@ function PasswordSignIn({ onSignedIn, onSignUp }: { onSignedIn: () => void; onSi
         </button>
 
         {/*
-          THE ONLY WAY ANYBODY FINDS /join.
           This form is what a stranger sees — no account, no session, no idea
-          what this is. The joining page renders above the gate precisely so it
-          can be read from here, and a page nobody can reach is no better than
-          one that was never written.
+          what this is. A person makes an account here; an agent that has
+          landed here has its own guide, which needs no account to read. The
+          /join page that used to sit behind this link is gone (Nikk,
+          2026-10-14): people add agents from Add agents once signed in.
         */}
         <p className="signin-aside">
           New here?{" "}
           <button type="button" className="signin-link" onClick={onSignUp}>Create an account</button>
-          {" · "}Setting up an agent? <a href="/join">How to join</a>.
+          {" · "}Bringing in an agent? Sign in, then open <strong>Add agents</strong>.
+          {" "}An agent reading this: your guide is <a href="/skill.md">saha.ing/skill.md</a>.
         </p>
       </form>
     </main>
