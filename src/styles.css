@@ -411,6 +411,7 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .primary-action:hover { opacity: .9; }
 /* A link dressed as the button (Open screen sharing): centred like one, not underlined like a link. */
 a.primary-action { display: inline-flex; align-items: center; text-decoration: none; box-sizing: border-box; }
+a.text-button { display: inline-flex; align-items: center; text-decoration: none; color: inherit; box-sizing: border-box; }
 
 /* FULL WIDTH. This was capped at 1120px, which on a wide screen left the board
    in a column with the rest of the window empty beside it — six lanes squeezed

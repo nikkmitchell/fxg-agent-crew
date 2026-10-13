@@ -137,7 +137,7 @@ export function People({
    */
   const editor = session ? (
     <p className="profile-edit-open">
-      <a href={`${base}/profiles`}>Edit your profile on People</a>
+      <a className="text-button" href={`${base}/profiles`}>Edit your profile on People</a>
     </p>
   ) : null;
 

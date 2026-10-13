@@ -719,7 +719,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             <label>Summary<textarea name="summary" required /></label>
             <label>Main goal<textarea name="goal" required /></label>
             <label>Headline steps <small>One per line, 1–10</small><textarea name="steps" required /></label>
-            <button disabled={busy}>Create and persist</button>
+            <button disabled={busy}>Create project</button>
           </form>
         </div>
       ) : null}
