@@ -369,8 +369,8 @@ function activitySections(s: SettingsMenuInput): MenuSection[] {
 }
 
 /**
- * THE LIBRARY, in the headset (the window has the same in its sidebar,
- * LibrarySection.tsx): the spaces you can bring things from, what the open
+ * THE LIBRARY, in the headset (the window has the same in the room's
+ * Settings menu, RoomControls.tsx): the spaces you can bring things from, what the open
  * one offers, and what this room has brought in.
  */
 function librarySections(s: SettingsMenuInput): MenuSection[] {

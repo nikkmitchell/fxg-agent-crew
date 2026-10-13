@@ -997,7 +997,7 @@ The same module file runs in all of these. Only the adapter around it changes.
   - the plinth for a miniature;
   - the problem caption.
   To these it adds props, buttons, views, volume and follow-branch.
-- The Library, opened from Settings: use-library.ts, LibrarySection.tsx, and the headset Library tab (settings-menu-model.ts:30, :340-364).
+- The Library, opened from Settings: use-library.ts, the Library tab in RoomControls, and the headset Library tab (settings-menu-model.ts:30, :340-364).
   - The room's own project repos come first, then public ones (GET /bff/spaces/library).
   - Entries are grouped: Spaces ("Around us" or "As a model"), Environments ("Around us"), Items ("Bring here").
   - Each repo has a branch picker.
