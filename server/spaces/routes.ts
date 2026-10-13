@@ -211,10 +211,11 @@ Anyone in the WebHarness room \`${space}\` can clone and push, with their saha.i
 
 ## Multiplayer
 
-\`index.html\` loads saha.ing's kit and calls \`joinSaha({ THREE, scene, camera, renderer })\`:
+\`index.html\` loads saha.ing's kit and calls \`joinSaha({ scene, camera, renderer })\`:
 everyone who enters the space from saha.ing sees everyone else. \`room.set(key, value)\` and
 \`room.on("state", ...)\` share values every visitor sees; \`room.say(text)\` shows a line
-over your head. People who open the address directly watch as guests.
+over your head; \`buttons: [{ label, onPress }]\` adds your own to the wrist menu in a headset.
+People who open the address directly watch as guests. The whole kit: docs/SPACES.md in saha.ing.
 
 ## Publishing
 
@@ -489,6 +490,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     return reply.header("cache-control", "no-store").send({ spaces, rooms: withoutSpace });
   });
 
+  /** Spaces being made right now, so a second request for one cannot make it again. */
+  const making = new Set<string>();
   app.post<{ Body: { room?: unknown; kind?: unknown } }>("/bff/spaces", async (request, reply) => {
     const me = signedIn(request, reply);
     if (!me) return reply;
@@ -501,12 +504,19 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     } catch (error) {
       return upstream(reply, error);
     }
-    if (store.exists(room)) return reply.code(409).send({ code: "SPACE_EXISTS", error: `${room} already has a space.` });
-    const at = now().toISOString();
-    const commit = await createRepo(root, room, STARTER(room, me.username, starterKind(request.body?.kind)), me.username);
-    store.create(room, me.username, at);
-    await deployFor(room, LIVE_BRANCH, commit, me.username);
-    return reply.send(summary(room, me.username, at));
+    // Two requests at once (a double click, two tabs) both found no space, both wrote the repo,
+    // and the second died on the database with a 500. The first one in makes it; the other is told it exists.
+    if (store.exists(room) || making.has(room)) return reply.code(409).send({ code: "SPACE_EXISTS", error: `${room} already has a space.` });
+    making.add(room);
+    try {
+      const at = now().toISOString();
+      const commit = await createRepo(root, room, STARTER(room, me.username, starterKind(request.body?.kind)), me.username);
+      store.create(room, me.username, at);
+      await deployFor(room, LIVE_BRANCH, commit, me.username);
+      return reply.send(summary(room, me.username, at));
+    } finally {
+      making.delete(room);
+    }
   });
 
   const memberSpace = async (request: FastifyRequest<{ Params: { space: string } }>, reply: FastifyReply) => {
@@ -773,6 +783,10 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     const recent = (feedbackSent.get(key) ?? []).filter((when) => at.getTime() - when < 3_600_000);
     if (recent.length >= FEEDBACK_LIMITS.perHour) return reply.code(429).send({ code: "TOO_MANY", error: "That is a lot of reports in an hour; try again later." });
     feedbackSent.set(key, [...recent, at.getTime()]);
+    // Nobody's hour lasts for ever: forget whoever has sent nothing in one, now and then.
+    if (feedbackSent.size > 200) {
+      for (const [who, times] of feedbackSent) if (at.getTime() - times[times.length - 1] >= 3_600_000) feedbackSent.delete(who);
+    }
     const id = randomBytes(9).toString("base64url");
     // THE EXACT VERSION (Mica, 7265): the page's own deploy if it is really one of this space's, else what its
     // branch was serving when the report arrived.

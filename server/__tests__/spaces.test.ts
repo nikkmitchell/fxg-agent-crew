@@ -788,3 +788,14 @@ describe("the git sign-in's memory does not grow for ever (Kerf, 2026-10-14)", (
     expect(memory.failures.has("5.6.7.8")).toBe(false);
   });
 });
+
+describe("making a space twice at once (Kerf, 2026-10-14)", () => {
+  it("makes it once: the second request is told it exists, and main has one first commit", async () => {
+    ROOMS.nikk.push("both.at.once");
+    const ask = () => app.inject({ method: "POST", url: "/bff/spaces", headers: { cookie: "who=nikk" }, payload: { room: "both.at.once" } });
+    const answers = await Promise.all([ask(), ask()]);
+    expect(answers.map((answer) => answer.statusCode).sort()).toEqual([200, 409]);
+    const log = await run("git", ["--git-dir", join(root, "repos", "both.at.once.git"), "log", "--format=%s", "main"]);
+    expect(log.stdout.trim().split("\n")).toEqual(["A new space: both.at.once"]);
+  });
+});
