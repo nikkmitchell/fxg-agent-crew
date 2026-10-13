@@ -29,7 +29,7 @@ import type { SpaceTickets } from "./tickets.js";
 import { WebharnessError } from "../webharness/client.js";
 import { SpaceAuth, parseBasic, type GitIdentity } from "./auth.js";
 import { DeployQueue, deployCommit, siteDir } from "./deploy.js";
-import { branches, createRepo, gitEnv, GitError, mergeInto, prepareAllRepos, resolveCommit, commitLog, commitChanges, viewFile, treeFiles } from "./git.js";
+import { branches, createRepo, gitEnv, GitError, mergeInto, prepareAllRepos, prepareRepo, resolveCommit, commitLog, commitChanges, viewFile, treeFiles } from "./git.js";
 import { SpaceStore, type StoredDeploy } from "./store.js";
 
 /**
@@ -510,7 +510,12 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     making.add(room);
     try {
       const at = now().toISOString();
-      const commit = await createRepo(root, room, STARTER(room, me.username, starterKind(request.body?.kind)), me.username);
+      // A repository already on the box with no record (a make that failed half way, or a box restored with its
+      // repos but not its database) is taken up as it is: its main goes live. Making a new one moved main to a
+      // fresh first commit, dropping whatever history was there from the branch.
+      const kept = await branches(root, room).then((heads) => heads.get(LIVE_BRANCH) ?? null, () => null);
+      const commit = kept ?? await createRepo(root, room, STARTER(room, me.username, starterKind(request.body?.kind)), me.username);
+      if (kept) await prepareRepo(root, room);
       store.create(room, me.username, at);
       await deployFor(room, LIVE_BRANCH, commit, me.username);
       return reply.send(summary(room, me.username, at));

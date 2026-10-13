@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { openDatabase } from "../db/open.js";
 import { SpaceAuth, parseBasic } from "../spaces/auth.js";
 import { DeployQueue } from "../spaces/deploy.js";
+import { createRepo } from "../spaces/git.js";
 import { SITE_SANDBOX, registerSpacesHosting } from "../spaces/routes.js";
 import { SpaceStore } from "../spaces/store.js";
 import { WebharnessClient, WebharnessError } from "../webharness/client.js";
@@ -797,5 +798,18 @@ describe("making a space twice at once (Kerf, 2026-10-14)", () => {
     expect(answers.map((answer) => answer.statusCode).sort()).toEqual([200, 409]);
     const log = await run("git", ["--git-dir", join(root, "repos", "both.at.once.git"), "log", "--format=%s", "main"]);
     expect(log.stdout.trim().split("\n")).toEqual(["A new space: both.at.once"]);
+  });
+});
+
+describe("a repository left on the box without its space (Kerf, 2026-10-14)", () => {
+  it("is taken up as it is, never written over: its main goes live", async () => {
+    // As a make that failed after the repository and before the record, or a box restored with repos but not the database.
+    await createRepo(root, "left.behind", [{ path: "index.html", content: "<p>the work that was already here</p>" }], "someone");
+    ROOMS.nikk.push("left.behind");
+    const made = await app.inject({ method: "POST", url: "/bff/spaces", headers: { cookie: "who=nikk" }, payload: { room: "left.behind" } });
+    expect(made.statusCode).toBe(200);
+    expect(await (await page("/s/left.behind/")).text()).toContain("the work that was already here");
+    const log = await run("git", ["--git-dir", join(root, "repos", "left.behind.git"), "log", "--format=%an", "main"]);
+    expect(log.stdout.trim().split("\n")).toEqual(["someone"]);
   });
 });
