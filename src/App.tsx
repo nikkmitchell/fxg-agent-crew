@@ -348,7 +348,8 @@ export default function App() {
       <a className="skip-link" href="#workroom">Skip to content</a>
 
       <aside className="utility-rail" aria-label="Workspace navigation">
-        <button className="brand-mark" aria-label="Saha home">F<span>/</span>X</button>
+        {/* Said "Saha home" to a screen reader and did nothing when pressed. */}
+        <button className="brand-mark" aria-label="Saha home" onClick={() => go("home")}>F<span>/</span>X</button>
         <nav className="rail-nav" aria-label="Sections">
           {RAIL.map((name) => (
             <button
