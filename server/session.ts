@@ -95,6 +95,36 @@ function publicViewOf(session: Session): { username: string; kind: SessionKind }
  */
 export const RENEW_AFTER_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * When WebHarness stops accepting this token, in ms, or undefined when the
+ * token does not say (a test token, or a shape we do not recognise).
+ *
+ * A SESSION CANNOT OUTLIVE THE TOKEN IT HOLDS. WebHarness tokens end a fixed
+ * seven days after they are issued (`exp` in the token's first segment, read on
+ * 2026-10-14), and there is no way to renew one without the password, which
+ * this server never keeps. When sessions became 400 days long (7227), a person
+ * stayed "signed in" here after day seven while every room, chat and agent
+ * call failed upstream, and the site has no sign-out button outside the chat
+ * overlay. Ending the session with the token puts them back at the sign-in
+ * page, which is the truth.
+ *
+ * Read, not verified: it can only make a session end sooner, and upstream
+ * refuses an expired token whatever this says.
+ */
+export function upstreamTokenExpiry(token: string): number | undefined {
+  try {
+    const claims = JSON.parse(Buffer.from(token.split(".")[0] ?? "", "base64url").toString("utf8")) as { exp?: unknown };
+    return typeof claims?.exp === "number" && Number.isFinite(claims.exp) ? claims.exp * 1000 : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The latest a session holding `token` may last, if it is renewed at `now`. */
+function lifeEnd(token: string, ttlMs: number, now: number): number {
+  return Math.min(now + ttlMs, upstreamTokenExpiry(token) ?? Infinity);
+}
+
 export class MemorySessionStore implements SessionStore {
   private readonly sessions = new Map<string, Session>();
   private readonly lastRoomByActor = new Map<string, string>();
@@ -103,7 +133,7 @@ export class MemorySessionStore implements SessionStore {
 
   create(username: string, token: string, kind: SessionKind = "human"): string {
     const sid = newSessionId();
-    this.sessions.set(sid, { username, token, kind, expiresAt: Date.now() + this.ttlMs });
+    this.sessions.set(sid, { username, token, kind, expiresAt: lifeEnd(token, this.ttlMs, Date.now()) });
     return sid;
   }
 
@@ -117,11 +147,13 @@ export class MemorySessionStore implements SessionStore {
     if (!sid) return undefined;
     const session = this.sessions.get(sid);
     if (!session) return undefined;
-    if (session.expiresAt <= Date.now()) {
+    const now = Date.now();
+    if (Math.min(session.expiresAt, upstreamTokenExpiry(session.token) ?? Infinity) <= now) {
       this.destroy(sid);
       return undefined;
     }
-    if (session.expiresAt - Date.now() < this.ttlMs - RENEW_AFTER_MS) session.expiresAt = Date.now() + this.ttlMs;
+    const renewed = lifeEnd(session.token, this.ttlMs, now);
+    if (renewed - session.expiresAt > RENEW_AFTER_MS) session.expiresAt = renewed;
     return session;
   }
 
@@ -129,7 +161,7 @@ export class MemorySessionStore implements SessionStore {
     const session = this.sessions.get(sid);
     if (!session) return;
     session.token = token;
-    session.expiresAt = Date.now() + this.ttlMs;
+    session.expiresAt = lifeEnd(token, this.ttlMs, Date.now());
   }
 
   enterRoom(sid: string, room: string): void {
@@ -267,14 +299,14 @@ export class SqliteSessionStore implements SessionStore {
     const sid = newSessionId();
     this.db
       .prepare("INSERT INTO sessions (sid, username, token, kind, expires_at) VALUES (?, ?, ?, ?, ?)")
-      .run(sid, username, token, kind, Date.now() + this.ttlMs);
+      .run(sid, username, token, kind, lifeEnd(token, this.ttlMs, Date.now()));
     return sid;
   }
 
   createUnselected(username: string, token: string, kind: SessionKind = "human"): string {
     const sid = newSessionId();
     this.db.prepare("INSERT INTO sessions (sid, username, token, kind, expires_at, requires_room_entry) VALUES (?, ?, ?, ?, ?, 1)")
-      .run(sid, username, token, kind, Date.now() + this.ttlMs);
+      .run(sid, username, token, kind, lifeEnd(token, this.ttlMs, Date.now()));
     return sid;
   }
 
@@ -286,13 +318,18 @@ export class SqliteSessionStore implements SessionStore {
         { username: string; token: string; kind: string; expires_at: number; space_room: string | null; requires_room_entry: number } | undefined;
     if (!row) return undefined;
 
-    if (row.expires_at <= Date.now()) {
+    // Rows written before upstreamTokenExpiry existed carry a 400-day end over
+    // a token that died after seven, so the token's own end is checked here too.
+    const now = Date.now();
+    if (Math.min(row.expires_at, upstreamTokenExpiry(row.token) ?? Infinity) <= now) {
       this.destroy(sid);
       return undefined;
     }
-    // In use, so still wanted: push the end out again (at most one write a day).
-    if (row.expires_at - Date.now() < this.ttlMs - RENEW_AFTER_MS) {
-      row.expires_at = Date.now() + this.ttlMs;
+    // In use, so still wanted: push the end out again (at most one write a day,
+    // and never past the token's own end).
+    const renewed = lifeEnd(row.token, this.ttlMs, now);
+    if (renewed - row.expires_at > RENEW_AFTER_MS) {
+      row.expires_at = renewed;
       this.db.prepare("UPDATE sessions SET expires_at = ? WHERE sid = ?").run(row.expires_at, sid);
     }
     // Anything that is not exactly "agent" reads as human. An unrecognised
@@ -310,7 +347,7 @@ export class SqliteSessionStore implements SessionStore {
   refreshToken(sid: string, token: string): void {
     this.db
       .prepare("UPDATE sessions SET token = ?, expires_at = ? WHERE sid = ?")
-      .run(token, Date.now() + this.ttlMs, sid);
+      .run(token, lifeEnd(token, this.ttlMs, Date.now()), sid);
   }
 
   enterRoom(sid: string, room: string): void {

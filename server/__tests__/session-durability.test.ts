@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MemorySessionStore, RENEW_AFTER_MS, SqliteSessionStore, type SessionStore } from "../session.js";
+import { MemorySessionStore, RENEW_AFTER_MS, SqliteSessionStore, type SessionStore, upstreamTokenExpiry } from "../session.js";
 
 /**
  * The point of the SQLite store is surviving a restart, so these tests actually
@@ -190,4 +190,67 @@ describe("a session lasts as long as it is used (Nikk, 7227: stay signed in unti
       store.close();
     });
   }
+});
+
+describe("a session ends when the WebHarness token it holds does", () => {
+  afterEach(() => vi.useRealTimers());
+
+  /** The shape WebHarness issues: base64url JSON claims, a dot, a signature. */
+  const tokenEnding = (expMs: number) =>
+    `${Buffer.from(JSON.stringify({ uid: 1, username: "Nikk2", kind: "human", epoch: 0, exp: Math.floor(expMs / 1000) })).toString("base64url")}.signature`;
+  const DAY = RENEW_AFTER_MS;
+
+  it("reads the token's own end, and nothing from a token that does not say", () => {
+    expect(upstreamTokenExpiry(tokenEnding(7 * DAY))).toBe(7 * DAY);
+    expect(upstreamTokenExpiry("upstream-token")).toBeUndefined();
+    expect(upstreamTokenExpiry("dev-harness-not-a-real-token")).toBeUndefined();
+    expect(upstreamTokenExpiry("")).toBeUndefined();
+  });
+
+  for (const [name, make] of [["memory", (ttl: number) => new MemorySessionStore(ttl)], ["sqlite", (ttl: number) => openStore(ttl)]] as const) {
+    it(`${name}: used every day, it still ends on day seven with the token, not on day 400`, () => {
+      vi.useFakeTimers({ now: 0, toFake: ["Date"] });
+      const store = make(400 * DAY);
+      const sid = store.create("Nikk2", tokenEnding(7 * DAY));
+      for (let day = 1; day < 7; day++) {
+        vi.setSystemTime(day * DAY);
+        expect(store.get(sid)?.username, `day ${day}`).toBe("Nikk2");
+      }
+      vi.setSystemTime(7 * DAY);
+      expect(store.get(sid)).toBeUndefined();
+      store.close();
+    });
+
+    it(`${name}: a fresh token from signing in again starts a fresh week`, () => {
+      vi.useFakeTimers({ now: 10 * DAY, toFake: ["Date"] });
+      const store = make(400 * DAY);
+      const sid = store.create("Nikk2", tokenEnding(17 * DAY));
+      vi.setSystemTime(16 * DAY);
+      expect(store.get(sid)?.username).toBe("Nikk2");
+      store.close();
+    });
+
+    it(`${name}: a session whose token has already died is not handed out`, () => {
+      vi.useFakeTimers({ now: 10 * DAY, toFake: ["Date"] });
+      const store = make(400 * DAY);
+      expect(store.get(store.create("Nikk2", tokenEnding(9 * DAY)))).toBeUndefined();
+      store.close();
+    });
+  }
+
+  it("sqlite: a row written before this fix, with a 400-day end over a dead token, ends anyway", () => {
+    vi.useFakeTimers({ now: 0, toFake: ["Date"] });
+    const first = openStore(400 * DAY);
+    const sid = first.create("Nikk2", tokenEnding(7 * DAY));
+    // What the old code wrote: the full 400 days, whatever the token said.
+    const raw = new DatabaseSync(path);
+    raw.prepare("UPDATE sessions SET expires_at = ? WHERE sid = ?").run(400 * DAY, sid);
+    raw.close();
+    first.close();
+
+    vi.setSystemTime(8 * DAY);
+    const second = openStore(400 * DAY);
+    expect(second.get(sid)).toBeUndefined();
+    second.close();
+  });
 });
