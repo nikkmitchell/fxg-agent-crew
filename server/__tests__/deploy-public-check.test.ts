@@ -19,5 +19,7 @@ describe.skipIf(unixOnly)("asking the public URL from a machine with a flaky con
     const output = execFileSync("bash", [script], { encoding: "utf8" });
     expect(output).not.toContain("FAIL");
     expect(output).toContain("ok   - gives up with 000");
+    expect(output).toContain("ok   - believes Node when curl gets nothing");
+    expect(output).toContain("ok   - a 503 from curl stays a 503");
   });
 });

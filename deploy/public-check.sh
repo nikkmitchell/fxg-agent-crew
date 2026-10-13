@@ -15,7 +15,27 @@
 # rather than say something about the site. A real status is returned at once:
 # a 404 is an answer, not a flake, and retrying it only hides it.
 #
-# Tested by deploy/public-check.test.sh against a stub curl.
+# Tested by deploy/public-check.test.sh against a stub curl and a stub node.
+
+# THROUGH NODE WHEN CURL GETS NOTHING (Kerf, 2026-10-14). From this Mac every
+# TLS hello naming saha.ing from curl is reset by something on the route, while
+# Node's fetch gets through (memory: the name filter), so every release from
+# here ended "FAILED" after shipping fine — a false alarm on every deploy is how
+# people learn to ignore the real one. Only tried when curl got NO answer: a
+# real status from curl is believed as it is. manual redirects, as curl does.
+node_code() {
+  command -v node >/dev/null 2>&1 || { printf '000'; return; }
+  node -e '
+    const [url, body] = process.argv.slice(1);
+    fetch(url, { redirect: "manual", signal: AbortSignal.timeout(20000) })
+      .then(async (r) => {
+        const bytes = Buffer.from(await r.arrayBuffer());
+        if (body && body !== "/dev/null") require("fs").writeFileSync(body, bytes);
+        process.stdout.write(String(r.status));
+      })
+      .catch(() => process.stdout.write("000"));
+  ' "$1" "$2" 2>/dev/null || printf '000'
+}
 
 public_code() {
   local url="$1" body="${2:-/dev/null}" code=""
@@ -28,6 +48,11 @@ public_code() {
     code=$(curl -sS -o "$body" -w '%{http_code}' --max-time 20 "$url" 2>/dev/null) || true
     case "$code" in ""|*[!0-9]*) code="000" ;; esac
     [ "${#code}" -gt 3 ] && code="000"
+    if [ "$code" = "000" ]; then
+      code=$(node_code "$url" "$body")
+      case "$code" in ""|*[!0-9]*) code="000" ;; esac
+      [ "${#code}" -gt 3 ] && code="000"
+    fi
     [ "$code" != "000" ] && break
     # A moment for a flapping proxy to come back. Zero in tests, which assert
     # the retry COUNT: a suite that waits six seconds to prove nothing is a

@@ -24,6 +24,16 @@ done
 printf '%s' "${STUB_CODE:-200}"
 STUB
 chmod +x "$WORK/curl"
+# A node that answers $STUB_NODE_CODE (000 unless set), as the fallback does
+# when curl is reset by name and Node's fetch is not; it writes the body to the
+# file it is given, which is the last argument.
+cat > "$WORK/node" <<'STUB'
+#!/bin/sh
+for arg in "$@"; do last="$arg"; done
+[ -n "${STUB_NODE_BODY:-}" ] && [ "$last" != "/dev/null" ] && printf '%s' "$STUB_NODE_BODY" > "$last"
+printf '%s' "${STUB_NODE_CODE:-000}"
+STUB
+chmod +x "$WORK/node"
 export PATH="$WORK:$PATH" STUB_COUNT="$WORK/count" PUBLIC_CHECK_PAUSE=0
 . "$HERE/public-check.sh"
 
@@ -53,5 +63,17 @@ check "tried three times before giving up" "$(cat "$STUB_COUNT")" "3"
 Disallow: /"
 public_code https://example.test/robots.txt "$WORK/body" >/dev/null
 check "writes the body to the file given" "$(grep -c Disallow "$WORK/body")" "1"
+
+# 6. Curl reset every time (the name filter), Node answers: that is the site
+#    answering, and the body comes through too.
+: > "$STUB_COUNT"; export STUB_FAIL_TIMES=99 STUB_NODE_CODE=200 STUB_NODE_BODY="Disallow: /"
+check "believes Node when curl gets nothing" "$(public_code https://example.test/robots.txt "$WORK/body2")" "200"
+check "asked curl once before Node answered" "$(cat "$STUB_COUNT")" "1"
+check "Node writes the body" "$(grep -c Disallow "$WORK/body2")" "1"
+
+# 7. Node is only the fallback: a status from curl is never second-guessed.
+: > "$STUB_COUNT"; export STUB_FAIL_TIMES=0 STUB_CODE=503 STUB_NODE_CODE=200
+check "a 503 from curl stays a 503" "$(public_code https://example.test/)" "503"
+unset STUB_NODE_CODE STUB_NODE_BODY
 
 exit "$fail"
