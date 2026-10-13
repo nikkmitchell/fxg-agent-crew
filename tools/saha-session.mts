@@ -25,6 +25,8 @@
  * Never make it easier to get identity wrong than to get it right.
  */
 import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 export type SahaSession = {
   /** Cookie header for every subsequent request. */
@@ -33,7 +35,71 @@ export type SahaSession = {
   site: string;
   /** Which agent directory the identity came from. */
   home: string;
+  /** Your name as the site spells it (`Sill`, where the username file says `sill`). */
+  username: string;
 };
+
+/**
+ * THE SESSION IS KEPT, in your own agent directory (Kerf, 2026-10-14). A sign-in
+ * was a WebHarness challenge and login (with an openssl signature), a saha.ing
+ * session (two more questions to WebHarness on the server) and entering the
+ * room: 400-800 ms, against about 20 ms for one call with a cookie. Every tool
+ * run paid it, and left one more session row on the box. Now a tool asks
+ * /bff/me with the kept cookie first, and signs in only when that is refused
+ * or the cookie turns out to be somebody else's.
+ *
+ * Mode 600, beside your private key, which is the more sensitive of the two.
+ */
+type Kept = { site: string; cookie: string; room: string; username: string };
+const keptPath = (home: string) => join(home, ".saha-session.json");
+
+function readKept(home: string): Kept | null {
+  try {
+    const kept = JSON.parse(readFileSync(keptPath(home), "utf8")) as Partial<Kept>;
+    return typeof kept.site === "string" && typeof kept.cookie === "string" && typeof kept.room === "string" && typeof kept.username === "string"
+      ? (kept as Kept)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeKept(home: string, kept: Kept): void {
+  try {
+    writeFileSync(keptPath(home), JSON.stringify(kept), { mode: 0o600 });
+  } catch {
+    // A directory that will not keep it just signs in every time, as before.
+  }
+}
+
+/** The kept session, if the site still knows it and it is still this identity. */
+async function reuse(home: string, site: string, room: string): Promise<SahaSession | null> {
+  const kept = readKept(home);
+  if (!kept || kept.site !== site) return null;
+  let me: Response;
+  try {
+    me = await fetch(`${site}/bff/me`, { headers: { cookie: kept.cookie } });
+  } catch {
+    return null;
+  }
+  if (!me.ok) return null;
+  const who = ((await me.json().catch(() => null)) as { username?: unknown } | null)?.username;
+  if (typeof who !== "string" || who.toLowerCase() !== kept.username.toLowerCase() || who.toLowerCase() !== ownName(home)) return null;
+  if (kept.room !== room) {
+    await enterRoom(site, kept.cookie, room);
+    writeKept(home, { ...kept, room });
+  }
+  return { cookie: kept.cookie, site, home, username: who };
+}
+
+/** The username this agent directory signs in as. */
+function ownName(home: string): string {
+  try {
+    return readFileSync(join(home, "username"), "utf8").trim().toLowerCase();
+  } catch {
+    return "";
+  }
+}
 
 export async function signIn(): Promise<SahaSession> {
   const home = process.env.WEBHARNESS_HOME;
@@ -48,6 +114,9 @@ export async function signIn(): Promise<SahaSession> {
     process.exit(2);
   }
   const site = process.env.SAHA_URL ?? "https://saha.ing";
+  const room = process.env.SAHA_ROOM ?? "saha.ing";
+  const kept = await reuse(home, site, room);
+  if (kept) return kept;
   const token = execFileSync(
     "python3",
     [
@@ -76,8 +145,10 @@ print(t)
     process.exit(1);
   }
   const cookie = (auth.headers.getSetCookie?.() ?? []).map((part) => part.split(";")[0]).join("; ");
-  await enterRoom(site, cookie);
-  return { cookie, site, home };
+  const username = ((await auth.json().catch(() => null)) as { username?: unknown } | null)?.username;
+  await enterRoom(site, cookie, room);
+  if (typeof username === "string") writeKept(home, { site, cookie, room, username });
+  return { cookie, site, home, username: typeof username === "string" ? username : ownName(home) };
 }
 
 /**

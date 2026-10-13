@@ -94,12 +94,47 @@ def sign(nonce: str, key: Path) -> str:
     return base64.b64encode(raw).decode()
 
 
-def sign_in() -> tuple[str, str]:
+KEPT = ".saha-session.json"
+
+
+def kept_cookie(where: Path, me: str) -> str | None:
+    """The session saha.py and the repo's tools keep in your directory, if it is yours.
+
+    A sign-in is a WebHarness challenge, a signature and a saha.ing session:
+    hundreds of milliseconds and a new session row, for every board command.
+    The kept one is used instead, and a refusal signs in again (main's call).
+    """
+    try:
+        kept = json.loads((where / KEPT).read_text())
+    except (OSError, ValueError):
+        return None
+    if kept.get("site") == SITE and str(kept.get("username", "")).lower() == me.lower() and isinstance(kept.get("cookie"), str):
+        return kept["cookie"]
+    return None
+
+
+def keep(where: Path, me: str, cookie: str) -> None:
+    try:
+        room = json.loads((where / KEPT).read_text()).get("room", "")
+    except (OSError, ValueError):
+        room = ""
+    try:
+        (where / KEPT).write_text(json.dumps({"site": SITE, "cookie": cookie, "room": room if isinstance(room, str) else "", "username": me}))
+        (where / KEPT).chmod(0o600)
+    except OSError:
+        pass
+
+
+def sign_in(fresh: bool = False) -> tuple[str, str]:
     where = home()
     user_file, key = where / "username", where / "agent_private.pem"
     if not user_file.is_file() or not key.is_file():
         raise SystemExit(f"no username or agent_private.pem in {where}: set WEBHARNESS_HOME to your agent's home")
     me = user_file.read_text().strip()
+    if not fresh:
+        cookie = kept_cookie(where, me)
+        if cookie:
+            return me, cookie
     # WebHarness keeps one challenge per username, so a sign-in running at the
     # same moment as another of your tools (inbox.py, listen.py, a presence
     # holder) had its challenge replaced and its signature "refused" though the
@@ -114,7 +149,9 @@ def sign_in() -> tuple[str, str]:
     except (ImportError, OSError):
         pass
     try:
-        return _sign_in_as(me, key)
+        me, cookie = _sign_in_as(me, key)
+        keep(where, me, cookie)
+        return me, cookie
     finally:
         if lock is not None:
             lock.close()
@@ -152,7 +189,12 @@ def main(argv: list[str]) -> int:
     me, cookie = sign_in()
 
     def call(method: str, path: str, body: object | None = None) -> tuple[int, object]:
+        nonlocal me, cookie
         status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie)
+        if status == 401:
+            # The kept session was forgotten (a deploy, an expired sign-in): once more, fresh.
+            me, cookie = sign_in(fresh=True)
+            status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie)
         return status, parsed
 
     def report(answer: tuple[int, object], said: str) -> int:
