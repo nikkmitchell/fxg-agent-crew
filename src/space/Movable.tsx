@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import * as THREE from "three";
 import { PANEL_Y, facingPoint, placementRefusal, scaleOf } from "../../shared/panel-place";
@@ -9,9 +9,7 @@ import { PANEL_HALF_LIFE, follow, followVec3 } from "../../shared/smooth-follow"
 import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
 import type { ArrangeMode } from "./usePanelArrange";
 import type { Placement } from "../../shared/space-wire";
-import { claimPointer } from "./pointer-claim";
-import { grabHold } from "./grab-hold";
-import { space } from "../space-client";
+import { useGrab } from "./use-grab";
 import { CARD_INK } from "../../shared/card-paint";
 
 /**
@@ -138,7 +136,6 @@ export function Movable({
   children: React.ReactNode;
 }) {
   const group = useRef<THREE.Group>(null);
-  const [dragging, setDragging] = useState(false);
 
   /**
    * WHY IT WOULD NOT MOVE, SAID ON THE PANEL ITSELF.
@@ -164,18 +161,6 @@ export function Movable({
   /** How the panel is being held: how far along the ray, and where on it. */
   const held = useRef<Grab | null>(null);
 
-  /**
-   * Whether a grab is in progress, so it is let go of EXACTLY ONCE.
-   *
-   * A release arrives by two roads and both are needed. In a window the DOM
-   * `pointerup` on the window is what reliably ends a drag that has left the
-   * panel behind; in a headset there are no window pointer events at all, and
-   * only R3F's own `onPointerUp` ever arrives. A mouse gets both, so the panel
-   * was saved twice per drag — caught by watching the requests, which showed two
-   * identical PUTs for every drag. Harmless while both carry the same target,
-   * and one easing frame away from saving two different places.
-   */
-  const grabbing = useRef(false);
 
   /**
    * What a resize needs, which is not what a move needs.
@@ -188,57 +173,8 @@ export function Movable({
    */
   const sizing = useRef({ along: 1, from: 1, scale: 1, centre: { x: 0, y: 0, z: 0 } as Vec3 });
 
-  /**
-   * Which pointer is doing the dragging.
-   *
-   * A headset has two, and without this the other hand brushing the panel
-   * mid-drag would take it over. It also means a move event from a pointer that
-   * never grabbed anything is ignored rather than treated as a drag.
-   */
-  const grabbedPointer = useRef<number | null>(null);
-  const camera = useThree((state) => state.camera);
-  const gl = useThree((state) => state.gl);
   const invalidate = useThree((state) => state.invalidate);
-
-  const scratch = useMemo(() => ({ caster: new THREE.Raycaster(), ndc: new THREE.Vector2() }), []);
-
   const vec = (v: { x: number; y: number; z: number }): Vec3 => ({ x: v.x, y: v.y, z: v.z });
-
-  /**
-   * The ray an R3F event was cast along — mouse or controller, the same field.
-   *
-   * This is what lets one piece of maths serve both rooms. A window builds this
-   * ray from the camera and a cursor; a headset builds it from a controller's
-   * pose. Neither fact reaches this file.
-   */
-  const rayOf = useCallback(
-    (event: ThreeEvent<PointerEvent>): Ray => ({
-      origin: vec(event.ray.origin),
-      direction: vec(event.ray.direction),
-    }),
-    [],
-  );
-
-  /**
-   * The same ray, rebuilt from a raw window pointer event.
-   *
-   * Needed because R3F only delivers events while the ray is over one of our
-   * meshes, and a drag that has carried the panel out from under the pointer
-   * must keep steering — see the window listener below.
-   */
-  const rayFromScreen = useCallback(
-    (clientX: number, clientY: number): Ray | null => {
-      const rect = gl.domElement.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return null;
-      scratch.ndc.set(
-        ((clientX - rect.left) / rect.width) * 2 - 1,
-        -(((clientY - rect.top) / rect.height) * 2 - 1),
-      );
-      scratch.caster.setFromCamera(scratch.ndc, camera);
-      return { origin: vec(scratch.caster.ray.origin), direction: vec(scratch.caster.ray.direction) };
-    },
-    [camera, gl, scratch],
-  );
 
   /**
    * WHERE THE POINTER SAYS THE PANEL SHOULD BE — not where it is.
@@ -273,25 +209,13 @@ export function Movable({
     invalidate();
   }, [invalidate]);
 
-  /**
-   * NOBODY ELSE MAY MOVE IT WHILE YOU DO — see grab-hold.ts. The grab starts
-   * at once and claims the panel in the background; if somebody else already
-   * has it, the drag ends in your hand and the room says who.
-   */
-  const cancelled = useRef<(why: string) => void>(() => undefined);
-  const hold = useMemo(
-    () => grabHold({ thing: `panel:${place.id}`, api: personal ? async () => undefined : space.hold, refused: (why) => cancelled.current(why) }),
-    [place.id, personal],
-  );
 
   /** Take hold, along a ray, at the point on the panel the ray struck. */
   const begin = useCallback(
     (ray: Ray | null, struck: Vec3 | null, kind: "move" | "resize" = "move") => {
       const node = group.current;
       if (!ray || !node) return;
-      grabbing.current = true;
       gesture.current = kind;
-      hold.take();
       const centre = vec(node.position);
 
       if (kind === "resize") {
@@ -303,9 +227,8 @@ export function Movable({
       } else {
         held.current = beginGrab(ray, centre);
       }
-      setDragging(true);
     },
-    [hold, place],
+    [place],
   );
 
   const drag = useCallback(
@@ -394,11 +317,8 @@ export function Movable({
     invalidate();
   });
 
-  const release = useCallback(() => {
-    if (!grabbing.current) return;
-    grabbing.current = false;
+  const release = useCallback((): Promise<unknown> | void => {
     const node = group.current;
-    setDragging(false);
     held.current = null;
     if (!node) return;
     /**
@@ -421,7 +341,6 @@ export function Movable({
     };
     const refused = personal ? null : placementRefusal(next);
     if (refused) {
-      hold.release();
       // Drop the target as well, or the ease carries on pulling the panel back
       // toward the place the server just refused.
       putBack();
@@ -431,80 +350,46 @@ export function Movable({
     onTrouble(null);
     setSays(null);
     const saved = Promise.resolve(onPlaced(next));
-    hold.release(saved);
     // REFUSED BY THE ROOM, not just by the rule above — somebody else was
     // holding it, say, and this drag was over before the claim came back. The
     // panel goes back to where everybody else can see it, not left where the
     // room said no.
     void saved.then((why) => {
-      if (typeof why !== "string" || grabbing.current) return;
+      if (typeof why !== "string" || grabber.current()) return;
       putBack();
       setSays(why);
     });
-  }, [hold, onPlaced, onTrouble, place.id, putBack, refuse]);
+    // The hold is let go once this lands (use-grab.ts).
+    return saved;
+  }, [onPlaced, onTrouble, personal, place.id, putBack, refuse]);
 
   /**
-   * While dragging, the whole window listens — FROM THE MOMENT OF THE GRAB.
-   *
-   * Not the bar: a pointer moving faster than React re-renders leaves a small
-   * DOM element behind within the first few pixels, and the panel would stop
-   * following halfway through every drag.
-   *
-   * And not a `useEffect` gated on the dragging flag, which is the obvious
-   * shape and has a hole in it: an effect does not run until React has
-   * re-rendered, so a drag that starts and finishes inside that gap never
-   * receives a single `pointermove`. The panel survived that because its whole
-   * face also carries `onPointerMove`, which covers a drag that stays on the
-   * panel; the Go table had no such second path and simply did not move. Same
-   * bug, one of them visible. A flick of a controller is faster than a render,
-   * so the window is listening before the press handler returns.
+   * THE GRAB ITSELF is use-grab.ts, shared with everything else that is carried
+   * (Kerf, 2026-10-14): the window listening from the moment of the grab, R3F
+   * steering for a headset, one pointer, letting go exactly once, and the hold
+   * that keeps it to one mover at a time.
    */
-  const stopListening = useRef<(() => void) | null>(null);
+  const grabber = useRef<() => boolean>(() => false);
+  const { held: dragging, holding, take, steer, letGo } = useGrab<"move" | "resize">({
+    thing: `panel:${place.id}`,
+    personal,
+    begin: (ray, struck, kind) => begin(ray, struck, kind),
+    drag: (ray) => drag(ray),
+    // Wheel up is negative, and wheel up should send it away from you.
+    wheel: (deltaY) => reachBy(-deltaY * WHEEL_REACH),
+    release: () => release(),
+    /**
+     * SOMEBODY ELSE HAS IT. The drag ends where it is, exactly as a release would
+     * end it, except that nothing is saved and the panel goes back.
+     */
+    refused: (why) => {
+      held.current = null;
+      putBack();
+      refuse(why);
+    },
+  });
+  grabber.current = holding;
 
-  const listenWhileDragging = useCallback(() => {
-    stopListening.current?.();
-    const move = (event: PointerEvent) => drag(rayFromScreen(event.clientX, event.clientY));
-    const up = () => { stopListening.current?.(); release(); };
-    const wheel = (event: WheelEvent) => {
-      if (gesture.current !== "move") return;
-      // Or the page scrolls underneath the room while somebody is placing a
-      // panel, which moves the canvas out from under the drag.
-      event.preventDefault();
-      // Wheel up is negative, and wheel up should send it away from you.
-      reachBy(-event.deltaY * WHEEL_REACH);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
-    window.addEventListener("wheel", wheel, { passive: false });
-    stopListening.current = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-      window.removeEventListener("wheel", wheel);
-      stopListening.current = null;
-    };
-  }, [drag, rayFromScreen, reachBy, release]);
-
-  // Never leave a listener behind on a panel that has gone away — nor a claim
-  // on it being renewed every few seconds by a drag that no longer exists.
-  useEffect(() => () => stopListening.current?.(), []);
-  useEffect(() => () => hold.release(), [hold]);
-
-  /**
-   * SOMEBODY ELSE HAS IT. The drag ends where it is, exactly as a release would
-   * end it, except that nothing is saved and the panel goes back.
-   */
-  cancelled.current = (why: string) => {
-    if (!grabbing.current) return;
-    grabbing.current = false;
-    grabbedPointer.current = null;
-    stopListening.current?.();
-    held.current = null;
-    setDragging(false);
-    putBack();
-    refuse(why);
-  };
 
   // Follow the authoritative place whenever it changes and we are not the one
   // moving it — somebody else dragging a panel must move it here too.
@@ -522,31 +407,6 @@ export function Movable({
   // The bar is a room panel's, but never more than a fifth of a small panel's height.
   const barHeight = Math.min(BAR_HEIGHT, Math.max(0.12, size.height * 0.2));
 
-  const take = (kind: "move" | "resize") => (event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation();
-    // Tell the look-drag this press is spoken for, or arranging a panel also
-    // swings the camera round the room.
-    claimPointer(event.nativeEvent);
-    grabbedPointer.current = event.pointerId;
-    // Capture, so the drag survives the ray slipping off the panel for a frame.
-    // Guarded because it is not there on every pointer.
-    (event.target as { setPointerCapture?: (id: number) => void } | null)
-      ?.setPointerCapture?.(event.pointerId);
-    begin(rayOf(event), event.point ? vec(event.point) : null, kind);
-    listenWhileDragging();
-  };
-
-  const steer = (event: ThreeEvent<PointerEvent>) => {
-    if (grabbedPointer.current !== event.pointerId) return;
-    event.stopPropagation();
-    drag(rayOf(event));
-  };
-
-  const letGo = (event: ThreeEvent<PointerEvent>) => {
-    if (grabbedPointer.current !== event.pointerId) return;
-    grabbedPointer.current = null;
-    release();
-  };
 
   return (
     <group ref={group}>

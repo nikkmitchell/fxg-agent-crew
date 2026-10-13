@@ -29,6 +29,7 @@ describe("grab handles work in a headset", () => {
   const cases = [
     { file: "Movable.tsx", takes: /\btake\(/, what: "panels" },
     { file: "RoomItems.tsx", takes: /\btakeTable\b/, what: "the Go table" },
+    { file: "modules/ModuleItems.tsx", takes: /\bcarry\.take\b|\btake\b/, what: "things from spaces" },
   ];
 
   for (const { file, takes, what } of cases) {
