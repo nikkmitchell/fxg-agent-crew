@@ -328,7 +328,7 @@ export default function App() {
           onReturnToLobby={returnToLobby}
           roomStartsEntered={roomStartsEntered}
         />
-        {liveRoomOpen ? <LiveRoomPanel preferredRoom={roomControlsRoom} onClose={() => setLiveRoomOpen(false)} /> : null}
+        {liveRoomOpen ? <LiveRoomPanel preferredRoom={roomControlsRoom} onClose={() => setLiveRoomOpen(false)} onSignedOut={viewer.recheck} /> : null}
       </main>
     );
   }
@@ -424,7 +424,7 @@ export default function App() {
 
       </main>
 
-      {liveRoomOpen ? <LiveRoomPanel preferredRoom={roomControlsRoom} onClose={() => setLiveRoomOpen(false)} /> : null}
+      {liveRoomOpen ? <LiveRoomPanel preferredRoom={roomControlsRoom} onClose={() => setLiveRoomOpen(false)} onSignedOut={viewer.recheck} /> : null}
     </div>
   );
 }

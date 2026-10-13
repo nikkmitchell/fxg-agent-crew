@@ -87,9 +87,18 @@ function CollapsedRun({ entry }: { entry: Extract<TranscriptEntry, { kind: "coll
  * Aura, which is exactly what Nikk found.
  *
  * `onClose` is optional so this can also be embedded without a dismissal.
+ *
+ * `onSignedOut` tells the app. Signing out here ends the saha.ing session
+ * itself, and the app used to go on drawing signed-in pages whose every call
+ * failed, with this panel offering a second sign-in form that could put a
+ * different account under the first one's name in the rail.
  */
-export function LiveRoomPanel({ onClose, preferredRoom = null }: { onClose?: () => void; preferredRoom?: string | null }) {
-  const { state, login, logout, selectRoom, showRoomPicker, retry, sendMessage, retryMessage, dismissMessage } = useWebharnessRoom(preferredRoom);
+export function LiveRoomPanel({ onClose, preferredRoom = null, onSignedOut }: { onClose?: () => void; preferredRoom?: string | null; onSignedOut?: () => void }) {
+  const { state, login, logout: signOutHere, selectRoom, showRoomPicker, retry, sendMessage, retryMessage, dismissMessage } = useWebharnessRoom(preferredRoom);
+  const logout = async () => {
+    await signOutHere();
+    onSignedOut?.();
+  };
 
   /**
    * Anything the server has not confirmed yet. Acknowledged items drop off:
