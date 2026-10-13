@@ -38,6 +38,8 @@ export function createMovement(options: {
   player: THREE.Object3D;
   camera: THREE.Camera;
   comfort?: Comfort;
+  /** "right": only the right button drags to look, leaving the left to the space. */
+  look?: "any" | "right";
 }): Movement {
   const { renderer, player, camera } = options;
   const comfort = options.comfort ?? DEFAULT_COMFORT;
@@ -85,6 +87,7 @@ export function createMovement(options: {
   const canvas = renderer.domElement;
   const down = (event: PointerEvent) => {
     if (renderer.xr.isPresenting) return;
+    if (options.look === "right" && event.button !== 2) return;
     dragging = { x: event.clientX, y: event.clientY };
   };
   const move = (event: PointerEvent) => {
@@ -99,6 +102,9 @@ export function createMovement(options: {
     dragging = null;
   };
   canvas.addEventListener("pointerdown", down);
+  // Looking with the right button would open the browser's menu on every drag.
+  const noMenu = (event: Event) => event.preventDefault();
+  if (options.look === "right") canvas.addEventListener("contextmenu", noMenu);
   addEventListener("pointermove", move);
   addEventListener("pointerup", up);
 
@@ -200,6 +206,7 @@ export function createMovement(options: {
       removeEventListener("keydown", keyDown);
       removeEventListener("keyup", keyUp);
       canvas.removeEventListener("pointerdown", down);
+      canvas.removeEventListener("contextmenu", noMenu);
       removeEventListener("pointermove", move);
       removeEventListener("pointerup", up);
       for (const mesh of Object.values(balls)) player.remove(mesh);

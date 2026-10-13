@@ -53,6 +53,11 @@ export type JoinOptions = ConnectOptions & {
   /** The rig that carries the camera; made for you when the camera has none. */
   player?: THREE.Object3D;
   movement?: boolean;
+  /**
+   * Which mouse button drags to look on a computer: "any" (the default), or
+   * "right" to leave the left button to the space (a drawing space draws with it).
+   */
+  look?: "any" | "right";
   menu?: boolean;
   vrButton?: boolean;
   /** Voice chat (listening automatic, microphone by choice). */
@@ -169,7 +174,7 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
     // Catalogue bodies need this space's ticket; a guest draws stand-ins instead of asking and being refused.
     return ticket ? `${absolute}?ticket=${encodeURIComponent(ticket)}` : null;
   });
-  const movement = options.movement === false ? null : createMovement({ renderer, player, camera, comfort: options.comfort });
+  const movement = options.movement === false ? null : createMovement({ renderer, player, camera, comfort: options.comfort, look: options.look });
   const voice = options.voice === false ? null : createVoice(room, { server, send: (message) => room.send(message), onSignal: (listener) => room.on("signal", listener) });
   const menu = options.menu === false ? null : createWristMenu({ renderer, player, camera });
   let voiceNote: string | null = null;

@@ -133,7 +133,8 @@ any of it:
   `room.on("state", …)`, `room.say(text)`, `room.on("say", …)`.
 
 Turn any part off: `joinSaha({ …, movement: false, menu: false, vrButton: false,
-badge: false })`. Give your own rig with `player`. `connectSaha()` is the connection alone,
+badge: false })`. `look: "right"` keeps the left mouse button for your space (to draw,
+drag or aim) and looks with the right one. Give your own rig with `player`. `connectSaha()` is the connection alone,
 for a page without three.js. Coming next: voice chat.
 
 The kit is built from saha.ing's own movement code (`src/kit/`, using
