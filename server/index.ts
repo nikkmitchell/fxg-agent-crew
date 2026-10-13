@@ -37,18 +37,11 @@ import { AgentVoices, registerVoiceRoutes } from "./space/voices.js";
 import { registerIceRoutes } from "./space/ice.js";
 import { registerGuideRoutes, voiceAllGuides } from "./space/guides.js";
 import { registerBowlRoutes } from "./space/bowl.js";
+import { registerMomentRoutes } from "./space/moments.js";
 import { RoomGardens, registerGardenRoutes } from "./space/garden.js";
 import { RoomMindfulnessCards, registerMindfulnessRoutes } from "./space/mindfulness.js";
-import { registerFireRoutes } from "./space/fire.js";
-import { registerDriftRoutes } from "./space/driftwood.js";
-import { registerWheelRoutes } from "./space/wheel.js";
-import { registerLanternRoutes } from "./space/lantern.js";
 import { RoomSkies, registerStarRoutes } from "./space/stars.js";
-import { registerIncenseRoutes } from "./space/incense.js";
 import { RoomVases, registerVaseRoutes } from "./space/vase.js";
-import { registerSoundBathRoutes } from "./space/sound-bath.js";
-import { registerHourglassRoutes } from "./space/hourglass.js";
-import { registerBoatRoutes } from "./space/boats.js";
 import { RoomCairns, registerCairnRoutes } from "./space/cairn.js";
 import { RoomCranes, registerCraneRoutes } from "./space/cranes.js";
 import { RoomPiecesStore, registerPiecesRoutes } from "./space/pieces.js";
@@ -532,31 +525,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       cairns: roomCairns,
       announce: (room, event) => hubFor(room).broadcast({ type: "cairn", event }),
     });
-    registerBoatRoutes(scoped, {
-      config,
-      sessions,
-      announce: (room, boat) => hubFor(room).broadcast({ type: "boat", boat }),
-    });
-    registerHourglassRoutes(scoped, {
-      config,
-      sessions,
-      announce: (room, glass) => hubFor(room).broadcast({ type: "hourglass", glass }),
-    });
-    registerSoundBathRoutes(scoped, {
-      config,
-      sessions,
-      announce: (room, bath) => hubFor(room).broadcast({ type: "bath", bath }),
-    });
     registerVaseRoutes(scoped, {
       config,
       sessions,
       vases: roomVases,
       announce: (room, event) => hubFor(room).broadcast({ type: "vase", event }),
-    });
-    registerIncenseRoutes(scoped, {
-      config,
-      sessions,
-      announce: (room, sticks) => hubFor(room).broadcast({ type: "incense", sticks }),
     });
     registerStarRoutes(scoped, {
       config,
@@ -564,25 +537,11 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       skies: roomSkies,
       announce: (room, event) => hubFor(room).broadcast({ type: "stars", event }),
     });
-    registerLanternRoutes(scoped, {
+    // Boats, lanterns, driftwood, the fire, incense, the hourglass, the wheel, the sound bath.
+    registerMomentRoutes(scoped, {
       config,
       sessions,
-      announce: (room, lantern) => hubFor(room).broadcast({ type: "lantern", lantern }),
-    });
-    registerWheelRoutes(scoped, {
-      config,
-      sessions,
-      announce: (room, push) => hubFor(room).broadcast({ type: "wheel", push }),
-    });
-    registerFireRoutes(scoped, {
-      config,
-      sessions,
-      announce: (room, offering) => hubFor(room).broadcast({ type: "fire", offering }),
-    });
-    registerDriftRoutes(scoped, {
-      config,
-      sessions,
-      announce: (room, drift) => hubFor(room).broadcast({ type: "driftwood", drift }),
+      tell: (room, message) => hubFor(room).broadcast(message),
     });
     registerGardenRoutes(scoped, {
       config,
