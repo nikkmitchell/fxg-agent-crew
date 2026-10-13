@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Text } from "@react-three/drei";
 import { applyCairnEvent, emptyCairn, stoneHeights, type Cairn } from "../../shared/cairn";
-import { onCairnChange } from "./cairn-events";
+import { onCairnChange } from "./room-events";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
 

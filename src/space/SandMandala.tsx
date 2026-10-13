@@ -11,7 +11,7 @@ import {
   type Mandala,
   type PlatePoint,
 } from "../../shared/mandala";
-import { onMandalaChange } from "./mandala-events";
+import { onMandalaChange } from "./room-events";
 import { goHandInput } from "./go-hand-input";
 import { WristButton } from "./Backdrop";
 import { space } from "../space-client";

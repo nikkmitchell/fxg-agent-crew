@@ -1,20 +1,6 @@
 import type { Helper } from "../../shared/helpers";
+import { deliverRoomEvent } from "./room-events";
 import { bowlStruck } from "./bowl-strikes";
-import { gardenChanged } from "./garden-events";
-import { offered } from "./fire-events";
-import { drifted } from "./driftwood-events";
-import { mandalaChanged } from "./mandala-events";
-import { wheelPushed } from "./wheel-events";
-import { lanternReleased } from "./lantern-events";
-import { starsChanged } from "./star-events";
-import { incenseLit } from "./incense-events";
-import { vaseChanged } from "./vase-events";
-import { bathChanged } from "./bath-events";
-import { hourglassTurned } from "./hourglass-events";
-import { boatLaunched } from "./boat-events";
-import { cairnChanged } from "./cairn-events";
-import { cranesChanged } from "./crane-events";
-import { piecesChanged } from "./pieces-events";
 import { registerItemSocket, settleItemAction } from "./item-socket";
 import { setAgentsHiddenForEveryone } from "./agents-hidden";
 import { registerCallSocket, settleCall } from "../call-socket";
@@ -318,69 +304,8 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
           setHelpers(message.helpers);
           return;
         }
-        if (message.type === "pieces") {
-          piecesChanged(message.event);
-          return;
-        }
-        if (message.type === "cranes") {
-          cranesChanged(message.event);
-          return;
-        }
-        if (message.type === "cairn") {
-          cairnChanged(message.event);
-          return;
-        }
-        if (message.type === "boat") {
-          boatLaunched(message.boat);
-          return;
-        }
-        if (message.type === "hourglass") {
-          hourglassTurned(message.glass);
-          return;
-        }
-        if (message.type === "bath") {
-          bathChanged(message.bath);
-          return;
-        }
-        if (message.type === "vase") {
-          vaseChanged(message.event);
-          return;
-        }
-        if (message.type === "incense") {
-          incenseLit(message.sticks);
-          return;
-        }
-        if (message.type === "stars") {
-          starsChanged(message.event);
-          return;
-        }
-        if (message.type === "lantern") {
-          lanternReleased(message.lantern);
-          return;
-        }
-        if (message.type === "wheel") {
-          wheelPushed(message.push);
-          return;
-        }
-        if (message.type === "mandala") {
-          mandalaChanged(message.event);
-          return;
-        }
-        if (message.type === "driftwood") {
-          // A word on driftwood: Shore.tsx floats it out.
-          drifted(message.drift);
-          return;
-        }
-        if (message.type === "fire") {
-          // A word for the ember fire: EmberFire.tsx burns it.
-          offered(message.offering);
-          return;
-        }
-        if (message.type === "garden") {
-          // The sand garden changed: GardenTray.tsx applies it.
-          gardenChanged(message.event);
-          return;
-        }
+        // The room's objects (cairn, vase, fire, ...): room-events.ts.
+        if (deliverRoomEvent(message)) return;
         if (message.type === "mindfulnessPageChanged") return;
         // Only the Spaces page cares which branch a space's bench follows.
         if (message.type === "benchChanged") return;

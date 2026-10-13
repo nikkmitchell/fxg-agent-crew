@@ -10,7 +10,7 @@ import {
   type Garden,
   type GardenPoint,
 } from "../../shared/garden";
-import { onGardenChange } from "./garden-events";
+import { onGardenChange } from "./room-events";
 import { goHandInput } from "./go-hand-input";
 import { space } from "../space-client";
 

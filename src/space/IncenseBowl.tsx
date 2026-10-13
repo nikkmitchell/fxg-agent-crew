@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { burning, leftOf, type Stick } from "../../shared/incense";
-import { onIncense } from "./incense-events";
+import { onIncense } from "./room-events";
 import { WristButton } from "./Backdrop";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";

@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import { PAPERS, PER_STRING, THOUSAND, applyCraneEvent, craneAt, noCranes, type Cranes } from "../../shared/cranes";
-import { onCranesChange } from "./crane-events";
+import { onCranesChange } from "./room-events";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
 

@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { audio } from "./breath-sound";
 import { DRIFT_WORDS, driftAt, type Drift } from "../../shared/driftwood";
-import { onDrift } from "./driftwood-events";
+import { onDrift } from "./room-events";
 import { space } from "../space-client";
 
 /**

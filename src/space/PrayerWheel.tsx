@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { spinAfter, type WheelPush } from "../../shared/wheel";
-import { onWheelPush } from "./wheel-events";
+import { onWheelPush } from "./room-events";
 import { goHandInput } from "./go-hand-input";
 import { audio } from "./breath-sound";
 import { space } from "../space-client";

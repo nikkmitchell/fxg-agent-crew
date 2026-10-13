@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { LANTERN_WORD, lanternAt, stillAloft, type Lantern } from "../../shared/lantern";
-import { onLantern } from "./lantern-events";
+import { onLantern } from "./room-events";
 import { WristButton } from "./Backdrop";
 import { Typing3D } from "./Typing3D";
 import { space } from "../space-client";

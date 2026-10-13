@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { READY_WORDS, OFFERING_LONGEST, sparkAt, type Offering } from "../../shared/fire";
-import { onOffering } from "./fire-events";
+import { onOffering } from "./room-events";
 import { crackle, fireLevel, rumble, whoosh } from "./fire-sound";
 import { WristButton } from "./Backdrop";
 import { Typing3D } from "./Typing3D";

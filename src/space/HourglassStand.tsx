@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { topAt, type Hourglass } from "../../shared/hourglass";
-import { onHourglass } from "./hourglass-events";
+import { onHourglass } from "./room-events";
 import { space } from "../space-client";
 
 /**

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { BATH_SECONDS, bathScore, notesBetween } from "../../shared/sound-bath";
 import { BOWLS } from "../../shared/bowl";
-import { onBath } from "./bath-events";
+import { onBath } from "./room-events";
 import { ringBowl, singBowl } from "./bowl-sound";
 import { soundGong, GONG_AT } from "./GongStand";
 import { ringTube, CHIME_NOTES } from "./WindChimes";

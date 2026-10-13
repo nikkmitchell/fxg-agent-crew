@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { type ThreeEvent } from "@react-three/fiber";
 import { FLOWERS, REACH, applyVaseEvent, emptyVase, type Stem, type Vase } from "../../shared/ikebana";
-import { onVaseChange } from "./vase-events";
+import { onVaseChange } from "./room-events";
 import { WristButton } from "./Backdrop";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";

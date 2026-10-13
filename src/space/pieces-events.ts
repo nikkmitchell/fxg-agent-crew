@@ -1,18 +1,10 @@
 import { useEffect, useState } from "react";
-import { parsePieces, type PiecesEvent } from "../../shared/room-pieces";
+import { parsePieces } from "../../shared/room-pieces";
 import { space } from "../space-client";
+import { onPiecesChange } from "./room-events";
 
-/** Toggles on the guide board, as they arrive over the room socket (shared/room-pieces.ts). */
-const listeners = new Set<(event: PiecesEvent) => void>();
-
-export function onPiecesChange(listener: (event: PiecesEvent) => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function piecesChanged(event: PiecesEvent): void {
-  for (const listener of listeners) listener(event);
-}
+/** Toggles on the guide board arrive through room-events.ts; this keeps the hidden list current. */
+export { onPiecesChange, piecesChanged } from "./room-events";
 
 /**
  * The pieces this room has hidden, kept current. Each event carries the whole

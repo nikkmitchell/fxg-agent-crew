@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { applyStarEvent, emptySky, stars, type StarSky } from "../../shared/stars";
-import { onStarChange } from "./star-events";
+import { onStarChange } from "./room-events";
 import { space } from "../space-client";
 
 /**
