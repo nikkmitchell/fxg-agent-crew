@@ -27,6 +27,7 @@ import json
 import os
 import sys
 import time
+import urllib.parse
 
 sys.path.insert(0, os.path.expanduser("~/.webharness"))
 import inbox  # noqa: E402
@@ -60,10 +61,24 @@ def main() -> int:
     # START FROM NOW, not from the beginning. Replaying a day of history as
     # "new" on every restart would bury whatever is actually new.
     after = None
+    # Messages still being streamed when we first saw them: id -> updatedAt.
+    # WebHarness lets a reply be written in pieces (POST .../messages/stream,
+    # then deltas, then done), and the guide it gives agents says to do that.
+    # Such a message arrives with streaming: true and its final text later,
+    # UNDER THE SAME ID — so a cursor that moved past it never saw it again,
+    # and a streamed reply was never heard here at all. They are asked for by
+    # id until they finish (streamIds, at most 20, per the WebHarness API).
+    pending: dict[int, str] = {}
     backoff = BACKOFF_START
 
     while True:
-        query = "?limit=1" if after is None else f"?afterId={after}&wait={WAIT_SECONDS}"
+        if after is None:
+            query = "?limit=1"
+        else:
+            query = f"?afterId={after}&wait={WAIT_SECONDS}"
+            if pending:
+                query += "&streamIds=" + ",".join(str(i) for i in pending)
+                query += "&sinceUpdatedAt=" + urllib.parse.quote(min(pending.values()))
         try:
             code, payload = inbox.request(
                 "GET", f"/api/rooms/{room}/messages{query}", token=token,
@@ -98,11 +113,34 @@ def main() -> int:
 
         backoff = BACKOFF_START
         messages = payload.get("messages") or []
+        if after is None:
+            # The newest message is where "now" is, not news: it was said
+            # before this listener started, and emitting it made every restart
+            # re-deliver one old message as if it had just arrived. An empty
+            # room starts at 0 — leaving the cursor unset there re-asked
+            # ?limit=1 with no wait, as fast as the server would answer.
+            after = max((int(m["id"]) for m in messages if m.get("id") is not None), default=0)
+            for message in messages:
+                if message.get("streaming") and message.get("id") is not None:
+                    pending[int(message["id"])] = message.get("updatedAt") or ""
+            continue
         for message in messages:
-            if message.get("id") is not None:
-                after = max(after or 0, int(message["id"]))
-            if message.get("streaming"):
+            if message.get("id") is None:
                 continue
+            ident = int(message["id"])
+            if message.get("recalled"):
+                pending.pop(ident, None)
+                continue
+            if message.get("streaming"):
+                after = max(after, ident)
+                pending[ident] = message.get("updatedAt") or pending.get(ident, "")
+                while len(pending) > 20:
+                    pending.pop(next(iter(pending)))
+                continue
+            finished_stream = pending.pop(ident, None) is not None
+            if ident <= after and not finished_stream:
+                continue  # already delivered
+            after = max(after, ident)
             # CASEFOLDED. `me` comes from the username file and WebHarness
             # echoes its own spelling — `sill` against `Sill` — so a
             # case-sensitive check made every one of my own posts look like

@@ -218,6 +218,13 @@ def main():
                                   "createdAt": m.get("createdAt"),
                                   "content": m.get("content", "")} for m in fresh],
                 })
+            elif after is None and not messages:
+                # AN EMPTY ROOM WITH NO MARK YET. The next pass would ask
+                # ?limit=50 again with no wait, and an empty room answers that
+                # at once, every time: thousands of requests a second against
+                # a fake server (Kerf, 2026-10-14). Mark 0 makes the next pass
+                # a long poll like any other.
+                write_mark(room, 0)
             elif highest is not None:
                 # NOTHING TO DELIVER STILL MOVES THE MARK, and leaving it still
                 # was a hot loop nobody could see. A poll whose only message is
@@ -231,6 +238,13 @@ def main():
                 # over here is either my own words or somebody's completed
                 # message that was already handed over.
                 write_mark(room, highest)
+
+            if messages and not settled:
+                # Only a streaming draft is past the mark. It is answered at
+                # once on every poll until its writer says done, which can be
+                # minutes, and the mark must not pass it (above) — so slow down
+                # rather than ask as fast as the server answers.
+                time.sleep(1)
 
         if waiting:
             print(json.dumps({"wokeAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
