@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { onRoomWelcome } from "./room-events";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -93,9 +94,16 @@ export function MindfulnessPanel({ subscribe }: {
         if (live) setNotice(error instanceof Error ? error.message : "The room page could not be refreshed.");
       });
     });
+    // And on every welcome: a change made while the socket was down, or another room's page (room-events.ts).
+    const stopWelcome = onRoomWelcome(() => {
+      void loadLatest().catch((error: unknown) => {
+        if (live) setNotice(error instanceof Error ? error.message : "The room page could not be refreshed.");
+      });
+    });
     return () => {
       live = false;
       unsubscribe();
+      stopWelcome();
     };
   }, [loadLatest, subscribe]);
 
