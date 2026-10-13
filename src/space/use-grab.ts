@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { useThree, type ThreeEvent } from "@react-three/fiber";
+import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import type { Ray, Vec3 } from "../../shared/grab-move";
 import { space } from "../space-client";
 import { grabHold } from "./grab-hold";
@@ -28,9 +28,23 @@ import { claimPointer } from "./pointer-claim";
  *   background and let go only after the save lands; if somebody else has it,
  *   the grab ends in your hand and `refused` says who.
  *
+ * - NEARER AND FURTHER, the one direction a ray cannot point. The mouse wheel,
+ *   and in a headset the thumbstick pushed forward or pulled back while you
+ *   hold — which only the settings menu had (Nikk, 6213), so a panel or a
+ *   table could not be pushed away at all in a headset. Both arrive as metres.
+ *   The stick's forward axis is free here: walking is off and the right stick
+ *   turns (Immersive.tsx).
+ *
  * What a move DOES — carry, ease, resize, turn to face you — is the caller's,
  * passed in as callbacks, read fresh on every event.
  */
+
+/** Metres a notch of the mouse wheel pushes a held thing away. */
+export const WHEEL_REACH = 0.0022;
+/** Metres a second a thumbstick held fully forward pushes it away. */
+export const STICK_REACH_PER_SECOND = 1.5;
+/** Below this a resting thumbstick's drift is not a push. */
+const STICK_DEAD_ZONE = 0.2;
 export function useGrab<Kind extends string = "move">(options: {
   /** What the server's holds are keyed by: "panel:<id>" or "item:<id>". */
   thing: string;
@@ -40,8 +54,8 @@ export function useGrab<Kind extends string = "move">(options: {
   begin: (ray: Ray, struck: Vec3 | null, kind: Kind) => void;
   /** The pointer moved while it was held. */
   drag: (ray: Ray) => void;
-  /** The wheel turned while it was held (the event's deltaY). The page does not scroll. */
-  wheel?: (deltaY: number) => void;
+  /** Push it away (positive) or pull it in, in metres: the wheel, or a thumbstick. */
+  reach?: (metres: number) => void;
   /** Let go: save, and answer with the save, so the hold is let go only once it lands. */
   release: () => Promise<unknown> | void;
   /** Somebody else has it. The grab has already ended; put it back and say this. */
@@ -116,10 +130,11 @@ export function useGrab<Kind extends string = "move">(options: {
     };
     const up = () => finish();
     const wheel = (event: WheelEvent) => {
-      if (!grabbing.current || !latest.current.wheel) return;
+      if (!grabbing.current || !latest.current.reach) return;
       // Or the page scrolls underneath the room, moving the canvas out from under the drag.
       event.preventDefault();
-      latest.current.wheel(event.deltaY);
+      // Wheel up is negative, and wheel up should send it away from you.
+      latest.current.reach(-event.deltaY * WHEEL_REACH);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -133,6 +148,17 @@ export function useGrab<Kind extends string = "move">(options: {
       stopListening.current = null;
     };
   };
+
+  // The thumbstick, while held: forward is negative on the axis, and pushes away.
+  useFrame((_, delta) => {
+    if (!grabbing.current || !latest.current.reach) return;
+    let push = 0;
+    for (const source of gl.xr.getSession()?.inputSources ?? []) {
+      const y = source.gamepad?.axes[3] ?? 0;
+      if (Math.abs(y) > STICK_DEAD_ZONE) push = -y;
+    }
+    if (push !== 0) latest.current.reach(push * STICK_REACH_PER_SECOND * delta);
+  });
 
   // Never leave a listener behind on a thing that has gone away, nor a claim on
   // it being renewed every few seconds by a grab that no longer exists.

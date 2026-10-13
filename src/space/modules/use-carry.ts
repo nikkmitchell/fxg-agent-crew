@@ -8,7 +8,7 @@ import { useGrab } from "../use-grab";
 /**
  * CARRYING A THING: a thing from a space, or the Go table (RoomItems.tsx).
  * Press its MOVE handle and it goes where the pointer goes, at the distance it
- * was taken from (the wheel pushes and pulls on a computer), and is saved where
+ * was taken from (the wheel or a thumbstick pushes and pulls), and is saved where
  * it is let go. The grab itself — both input roads, one carrier, letting go
  * once — is use-grab.ts, the same as the panels'.
  *
@@ -20,9 +20,6 @@ import { useGrab } from "../use-grab";
  * creep backwards along its own path.
  */
 type Place = { x: number; y: number; z: number; rotationY: number };
-
-/** How far a notch of the wheel pushes a thing away from you; a panel's, too. */
-const WHEEL_REACH = 0.0022;
 
 export function useCarry(options: {
   id: string;
@@ -63,9 +60,9 @@ export function useCarry(options: {
       target.current = { x: to.x, y: clamp(to.y, -0.5, 5), z: to.z };
       invalidate();
     },
-    wheel: (deltaY) => {
+    reach: (metres) => {
       if (!grab.current) return;
-      grab.current = pushPull(grab.current, -deltaY * WHEEL_REACH);
+      grab.current = pushPull(grab.current, metres);
       invalidate();
     },
     release: () => {

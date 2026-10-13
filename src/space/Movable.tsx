@@ -56,8 +56,6 @@ import { CARD_INK } from "../../shared/card-paint";
  * undone a moment later.
  */
 
-/** How far a notch of the wheel pushes a panel away from you. */
-const WHEEL_REACH = 0.0022;
 
 /**
  * How tall the drag bar along the top of a panel is.
@@ -375,8 +373,7 @@ export function Movable({
     personal,
     begin: (ray, struck, kind) => begin(ray, struck, kind),
     drag: (ray) => drag(ray),
-    // Wheel up is negative, and wheel up should send it away from you.
-    wheel: (deltaY) => reachBy(-deltaY * WHEEL_REACH),
+    reach: (metres) => reachBy(metres),
     release: () => release(),
     /**
      * SOMEBODY ELSE HAS IT. The drag ends where it is, exactly as a release would

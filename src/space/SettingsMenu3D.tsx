@@ -5,6 +5,8 @@ import { MENU, hitMenu, layOutMenu, menuPixel, menuSignature, type MenuLayout, t
 import { paintMenu } from "./menu-paint";
 import { NO_OFFSET, clampOffset, type MenuOffset } from "./menu-move";
 import { claimPointer } from "./pointer-claim";
+import { useGrab } from "./use-grab";
+import type { Ray } from "../../shared/grab-move";
 
 /**
  * The headset settings menu, in the room: one plane with the whole menu
@@ -55,9 +57,8 @@ export function SettingsMenu3D({ model, position = [0, 0, 0] }: { model: MenuMod
    * the mouse wheel pushes it away or pulls it in. It moves WITH the pointer,
    * from where you grabbed it, never jumping to where you happen to aim.
    */
-  const carrying = useRef<{ distance: number; grab: THREE.Vector3; pointer: number; ray: THREE.Ray } | null>(null);
+  const carrying = useRef<{ distance: number; grab: THREE.Vector3; ray: THREE.Ray } | null>(null);
   const camera = useThree((state) => state.camera);
-  const gl = useThree((state) => state.gl);
   const facing = useMemo(() => new THREE.Vector3(), []);
 
   /** Put the menu so the grabbed point is `distance` along `ray`. */
@@ -72,24 +73,52 @@ export function SettingsMenu3D({ model, position = [0, 0, 0] }: { model: MenuMod
     invalidate();
   };
 
-  // Every frame: face whoever is looking (Nikk, 6213: "always be pointing at
-  // you"), and while carrying, let a thumbstick push the menu away or pull it in.
-  useFrame((_, delta) => {
+  // Every frame: face whoever is looking (Nikk, 6213: "always be pointing at you").
+  useFrame(() => {
     const node = mesh.current;
     if (!node) return;
     camera.getWorldPosition(facing);
     node.lookAt(facing);
-    const held = carrying.current;
-    if (!held) return;
-    let push = 0;
-    for (const source of gl.xr.getSession()?.inputSources ?? []) {
-      const y = source.gamepad?.axes[3] ?? 0;
-      if (Math.abs(y) > 0.2) push = -y;
-    }
-    if (push !== 0) {
-      held.distance = Math.max(0.3, held.distance * (1 + push * delta * 1.5));
+  });
+
+  /**
+   * THE GRAB IS THE ONE EVERYTHING ELSE USES (use-grab.ts): window listeners
+   * from the moment of the grab, so a fast mouse that leaves the menu behind
+   * keeps carrying it; one pointer; the wheel and the thumbstick for nearer and
+   * further. Personal, so no hold is asked of the room. Only where it goes is
+   * the menu's own: an offset from where it opens, in the controls' frame.
+   */
+  const toRay = (ray: Ray) => new THREE.Ray(
+    new THREE.Vector3(ray.origin.x, ray.origin.y, ray.origin.z),
+    new THREE.Vector3(ray.direction.x, ray.direction.y, ray.direction.z).normalize(),
+  );
+  const { holding, take, steer, letGo } = useGrab({
+    thing: "menu:settings",
+    personal: true,
+    begin: (ray, struck) => {
+      const node = mesh.current;
+      if (!node || !struck) return;
+      const point = new THREE.Vector3(struck.x, struck.y, struck.z);
+      const along = toRay(ray);
+      // Where the menu's centre is from the point you took hold of.
+      carrying.current = { distance: along.origin.distanceTo(point), grab: node.getWorldPosition(new THREE.Vector3()).sub(point), ray: along };
+      setPressed("move");
+    },
+    drag: (ray) => carryTo(toRay(ray)),
+    // Close to you, so nearer and further are proportional: a notch of the wheel
+    // (0.22 m elsewhere) is the 8% it always was here.
+    reach: (metres) => {
+      const held = carrying.current;
+      if (!held) return;
+      held.distance = Math.max(0.3, held.distance * (1 + metres / 2.75));
       carryTo(held.ray);
-    }
+    },
+    release: () => {
+      carrying.current = null;
+    },
+    refused: () => {
+      carrying.current = null;
+    },
   });
 
   // One canvas per size. The height never changes (5445); the width changes
@@ -131,50 +160,24 @@ export function SettingsMenu3D({ model, position = [0, 0, 0] }: { model: MenuMod
       position={[position[0] + offset.x, position[1] + offset.y, position[2] + offset.z]}
       onPointerDown={(event) => {
         if (targetAt(event)?.id !== "move") return;
-        event.stopPropagation();
-        claimPointer(event.nativeEvent);
-        const node = mesh.current;
-        if (!node) return;
-        // Where the menu's centre is from the point you took hold of.
-        const centre = node.getWorldPosition(new THREE.Vector3());
-        carrying.current = {
-          distance: event.ray.origin.distanceTo(event.point),
-          grab: centre.sub(event.point),
-          pointer: event.pointerId,
-          ray: event.ray.clone(),
-        };
-        // Keep the moves coming when the ray slips off the menu mid-carry.
-        (event.target as unknown as Element | null)?.setPointerCapture?.(event.pointerId);
-        setPressed("move");
+        take("move")(event);
       }}
       onPointerUp={(event) => {
-        const held = carrying.current;
-        if (!held || held.pointer !== event.pointerId) return;
+        if (!holding()) return;
         event.stopPropagation();
         claimPointer(event.nativeEvent);
-        carrying.current = null;
-        (event.target as unknown as Element | null)?.releasePointerCapture?.(event.pointerId);
-
+        letGo(event);
       }}
       onPointerMove={(event) => {
         event.stopPropagation();
-        const held = carrying.current;
-        if (held && held.pointer === event.pointerId) {
-          carryTo(event.ray);
+        if (holding()) {
+          steer(event);
           return;
         }
         const id = targetAt(event)?.id ?? null;
         if (id !== hover) setHover(id);
       }}
       onPointerLeave={() => setHover(null)}
-      onWheel={(event) => {
-        const held = carrying.current;
-        if (!held) return;
-        event.stopPropagation();
-        // Mouse wheel while holding: away or closer.
-        held.distance = Math.max(0.3, held.distance * (event.deltaY > 0 ? 1.08 : 1 / 1.08));
-        carryTo(held.ray);
-      }}
       onClick={(event) => {
         event.stopPropagation();
         const target = targetAt(event);
