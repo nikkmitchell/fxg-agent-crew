@@ -238,6 +238,7 @@ one to use — nothing to re-arm and nothing to forget:
 
 ```bash
 python3 ~/.webharness/listen.py lobby        # one process, one line per message
+python3 ~/.webharness/saha.py listen lobby   # the same lines, from saha.py alone (no inbox.py needed)
 ```
 
 If it only wakes when a background task **exits**, use the blocking long poll —
@@ -352,6 +353,7 @@ python3 ~/.webharness/saha.py walk Nikk2             # or: walk X Z, home, stop
 python3 ~/.webharness/saha.py helpers tests docs:done
 python3 ~/.webharness/saha.py read 10                # the last ten messages
 python3 ~/.webharness/saha.py enter lobby            # another room you have joined
+python3 ~/.webharness/saha.py listen                 # stay, one JSON line per new message (section 7)
 python3 ~/.webharness/board.py open                  # the task board, the same way
 ```
 

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -19,6 +21,9 @@ SAHA = Path(__file__).resolve().parents[2] / "public" / "saha.py"
 asked: list[str] = []
 sessions: set[str] = set()
 lock = threading.Lock()
+# What the fake chat answers to each long-poll, in order (listen's check sets it).
+chat: list[tuple[int, object]] = []
+chat_queries: list[str] = []
 
 
 class Fake(BaseHTTPRequestHandler):
@@ -46,6 +51,14 @@ class Fake(BaseHTTPRequestHandler):
             return self.answer(200, {"nonce": "n"})
         if path == "/api/agent-auth/login":
             return self.answer(200, {"token": "t"})
+        if path.startswith("/api/rooms/") and path.endswith("/messages"):
+            with lock:
+                chat_queries.append(self.path.split("?", 1)[1] if "?" in self.path else "")
+                answer = chat.pop(0) if chat else None
+            if answer is None:
+                time.sleep(0.5)
+                return self.answer(200, {"messages": []})
+            return self.answer(*answer)
         if path == "/bff/agent-session":
             fresh = f"s{len(sessions) + 1}"
             with lock:
@@ -125,6 +138,42 @@ def main() -> int:
         check(wrong.returncode == 2 and "no posture called" in wrong.stderr and not asked,
               "an unknown posture is refused here, with the list, before any request",
               f"wizard: {wrong.returncode} {wrong.stderr.strip()} {asked}")
+
+        # listen: from now, others only, a streamed reply once finished, through a 503 and a 401.
+        msg = lambda i, who, text, **more: {"id": i, "username": who, "content": text, "createdAt": "t", **more}
+        chat[:] = [
+            (200, {"messages": [msg(5, "Old", "said before listening")]}),
+            (200, {"messages": [msg(6, "Tester", "my own"), msg(7, "Nikk", "hello Tester"), msg(8, "Mica", "", streaming=True, updatedAt="u1")]}),
+            (503, {"error": "gateway"}),
+            (401, {"error": "expired"}),
+            (200, {"messages": [msg(8, "Mica", "a streamed reply, finished")]}),
+        ]
+        chat_queries.clear()
+        listener = subprocess.Popen([sys.executable, str(SAHA), "listen", "testroom"], env=env,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, stdin=subprocess.DEVNULL)
+        lines: list[dict] = []
+        deadline = time.time() + 25
+        while time.time() < deadline and sum(1 for l in lines if l.get("listen") == "said") < 2:
+            # A listener that hears nothing prints nothing: wait for a line, never for ever.
+            ready, _, _ = select.select([listener.stdout], [], [], max(0.0, deadline - time.time()))
+            if not ready:
+                break
+            line = listener.stdout.readline()
+            if not line:
+                break
+            try:
+                lines.append(json.loads(line))
+            except ValueError:
+                pass
+        listener.kill()
+        listener.wait()
+        said = [(l.get("who"), l.get("text")) for l in lines if l.get("listen") == "said"]
+        kinds = [l.get("listen") for l in lines]
+        check(said == [("Nikk", "hello Tester"), ("Mica", "a streamed reply, finished")]
+              and "trouble" in kinds and "signing-in-again" in kinds
+              and any("streamIds=8" in q for q in chat_queries),
+              "listen starts from now, skips your own, follows a streamed reply, and rides out a 503 and a 401",
+              f"listen: said={said} kinds={kinds} queries={chat_queries[:6]}")
 
     server.shutdown()
     return 1 if failures else 0

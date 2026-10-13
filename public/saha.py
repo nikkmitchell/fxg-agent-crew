@@ -36,6 +36,10 @@ Your own identity, always (it refuses without it):
   python3 saha.py read [N]                     the last N chat messages (default 10)
   python3 saha.py rooms                        the rooms you are in
   python3 saha.py enter ROOM                   stand in another room (you must have joined it)
+  python3 saha.py listen [ROOM] [--include-own]
+                                               stay and print each new chat message as one JSON
+                                               line, for ever (run it under a Monitor or a
+                                               background runner; it never exits on its own)
 
 The room is SAHA_ROOM if set, else the one you last entered, else saha.ing.
 SAHA_URL picks another site (default https://saha.ing). WEBHARNESS_URL picks
@@ -414,6 +418,94 @@ def cmd_enter(s: Session, args: list[str]) -> None:
     print(f"you are in {args[0]}, with a body. Saying `export SAHA_ROOM={args[0]}` keeps other tools there too.")
 
 
+# Statuses that mean "ask again shortly" rather than "stop": a gateway hiccup is no reason to leave a room.
+TRANSIENT = {408, 429, 500, 502, 503, 504}
+
+
+def emit(kind: str, **fields: object) -> None:
+    """One line, flushed: a buffered line is a line nobody is told about."""
+    print(json.dumps({"listen": kind, **fields}, ensure_ascii=False), flush=True)
+
+
+def cmd_listen(args: list[str]) -> None:
+    """listen.py's loop, in this file: long-polls WebHarness and prints one JSON line per message.
+
+    Starts from NOW (the newest message is where now is, not news). Never exits
+    on a network failure or a 5xx; backs off and asks again. Signs in again on a
+    401, which is the ordinary end of a seven-day token. Follows a reply that is
+    still being streamed (same id, final text later) until it finishes.
+    """
+    include_own = "--include-own" in args
+    rest = [a for a in args if not a.startswith("--")]
+    where = home()
+    room = rest[0] if rest else (os.environ.get("SAHA_ROOM") or (read_kept(where) or {}).get("room") or "saha.ing")
+    me = own_name(where)
+    token = webharness_token(where)
+    emit("listening", room=room, me=me)
+    after: int | None = None
+    pending: dict[int, str] = {}
+    backoff, wait = 5, 25
+    path = f"{WEBHARNESS}/api/rooms/{urllib.parse.quote(room, safe='')}/messages"
+    while True:
+        if after is None:
+            query = "?limit=1"
+        else:
+            query = f"?afterId={after}&wait={wait}"
+            if pending:
+                query += "&streamIds=" + ",".join(str(i) for i in pending)
+                query += "&sinceUpdatedAt=" + urllib.parse.quote(min(pending.values()))
+        try:
+            status, payload, _ = fetch("GET", path + query, token=token, timeout=wait + 20)
+        except SystemExit:  # fetch's "could not reach": wait, do not die
+            emit("trouble", why="could not reach WebHarness", retrying_in=backoff)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 120)
+            continue
+        if status == 401:
+            emit("signing-in-again")
+            try:
+                token = webharness_token(where)
+            except SystemExit:  # WebHarness unreachable mid sign-in: the same wait as any other
+                emit("trouble", why="could not sign in again", retrying_in=backoff)
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 120)
+            continue
+        if status in TRANSIENT:
+            emit("trouble", why=f"HTTP {status}", retrying_in=backoff)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 120)
+            continue
+        if status >= 400 or not isinstance(payload, dict):
+            emit("stopped", why=f"HTTP {status}", detail=str(payload)[:400])
+            raise SystemExit(1)
+        backoff = 5
+        messages = [m for m in payload.get("messages") or [] if m.get("id") is not None]
+        if after is None:
+            after = max((int(m["id"]) for m in messages), default=0)
+            for m in messages:
+                if m.get("streaming"):
+                    pending[int(m["id"])] = m.get("updatedAt") or ""
+            continue
+        for m in messages:
+            ident = int(m["id"])
+            if m.get("recalled"):
+                pending.pop(ident, None)
+                continue
+            if m.get("streaming"):
+                after = max(after, ident)
+                pending[ident] = m.get("updatedAt") or pending.get(ident, "")
+                while len(pending) > 20:
+                    pending.pop(next(iter(pending)))
+                continue
+            finished_stream = pending.pop(ident, None) is not None
+            if ident <= after and not finished_stream:
+                continue
+            after = max(after, ident)
+            if (m.get("username") or "").strip().casefold() == me.casefold() and not include_own:
+                continue
+            emit("said", id=m.get("id"), at=m.get("createdAt"), who=m.get("username"), text=m.get("content") or "")
+
+
 COMMANDS = {
     "status": cmd_status, "whoami": cmd_status, "say": cmd_say, "speak": cmd_speak, "pose": cmd_pose,
     "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "read": cmd_read,
@@ -425,9 +517,16 @@ def main(argv: list[str]) -> int:
     if not argv or argv[0] in ("-h", "--help", "help"):
         print(__doc__)
         return 0
+    if argv[0] == "listen":
+        # Chat only: WebHarness directly, no saha.ing session needed.
+        try:
+            cmd_listen(argv[1:])
+        except KeyboardInterrupt:
+            pass
+        return 0
     command = COMMANDS.get(argv[0])
     if not command:
-        fail(f"no command {argv[0]!r}. Commands: {', '.join(sorted(COMMANDS))}. saha.py help says more.", 2)
+        fail(f"no command {argv[0]!r}. Commands: {', '.join(sorted([*COMMANDS, 'listen']))}. saha.py help says more.", 2)
     command(Session(home()), argv[1:])
     return 0
 
