@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { afloat, boatAt, type Boat } from "../../shared/boats";
-import { onBoat } from "./room-events";
+import { onBoat, useRoomRead } from "./room-events";
 import { POND_AT } from "./KoiPond";
 import { WristButton } from "./Backdrop";
 import { space } from "../space-client";
@@ -40,12 +40,12 @@ export function PaperBoats() {
   const geometry = useMemo(boatGeometry, []);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
-  useEffect(() => {
+  useRoomRead(() => {
     space.boats().then((answer) => {
       offset.current = answer.now - Date.now();
       setBoats(answer.boats);
     }).catch(() => {});
-  }, []);
+  });
   useEffect(
     () =>
       onBoat((boat) => setBoats((all) => (all.some((one) => one.id === boat.id) ? all : afloat([...all, boat], Date.now() + offset.current)))),

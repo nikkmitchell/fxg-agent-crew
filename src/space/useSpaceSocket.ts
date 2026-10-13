@@ -1,5 +1,5 @@
 import type { Helper } from "../../shared/helpers";
-import { deliverRoomEvent } from "./room-events";
+import { deliverRoomEvent, roomWelcomed } from "./room-events";
 import { bowlStruck } from "./bowl-strikes";
 import { registerItemSocket, settleItemAction } from "./item-socket";
 import { setAgentsHiddenForEveryone } from "./agents-hidden";
@@ -354,6 +354,8 @@ export function useSpaceSocket(enabled: boolean, room: number = 0): SpaceConnect
           // for on every (re)connect, so a missed broadcast is caught up here.
           space.meditation().then((answer) => setMeditation(answer.meditation)).catch(() => undefined);
           space.helpers().then((answer) => setHelpers(answer.helpers)).catch(() => undefined);
+          // And every object in the room reads its state again (room-events.ts, useRoomRead).
+          roomWelcomed();
         }
         onSnapshot.current?.();
       });

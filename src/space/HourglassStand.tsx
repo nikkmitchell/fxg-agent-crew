@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { topAt, type Hourglass } from "../../shared/hourglass";
-import { onHourglass } from "./room-events";
+import { onHourglass, useRoomRead } from "./room-events";
 import { space } from "../space-client";
 
 /**
@@ -23,12 +23,12 @@ export function HourglassStand() {
   const bottom = useRef<THREE.Mesh>(null);
   const thread = useRef<THREE.Mesh>(null);
 
-  useEffect(() => {
+  useRoomRead(() => {
     space.hourglass().then((answer) => {
       offset.current = answer.now - Date.now();
       setGlass(answer.glass);
     }).catch(() => {});
-  }, []);
+  });
   useEffect(
     () =>
       onHourglass((next) => {

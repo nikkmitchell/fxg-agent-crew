@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { spinAfter, type WheelPush } from "../../shared/wheel";
-import { onWheelPush } from "./room-events";
+import { onWheelPush, useRoomRead } from "./room-events";
 import { goHandInput } from "./go-hand-input";
 import { audio } from "./breath-sound";
 import { space } from "../space-client";
@@ -84,9 +84,9 @@ export function PrayerWheel({ you }: { you: string | null }) {
   }, []);
   useEffect(() => () => texture.dispose(), [texture]);
 
-  useEffect(() => {
+  useRoomRead(() => {
     space.wheel().then((answer) => setTurns(answer.turns)).catch(() => {});
-  }, []);
+  });
   useEffect(
     () =>
       onWheelPush((push: WheelPush) => {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { burning, leftOf, type Stick } from "../../shared/incense";
-import { onIncense } from "./room-events";
+import { onIncense, useRoomRead } from "./room-events";
 import { WristButton } from "./Backdrop";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
@@ -56,12 +56,12 @@ export function IncenseBowl() {
   const offset = useRef(0);
   const [, tick] = useState(0);
 
-  useEffect(() => {
+  useRoomRead(() => {
     space.incense().then((answer) => {
       offset.current = answer.now - Date.now();
       setSticks(answer.sticks);
     }).catch(() => {});
-  }, []);
+  });
   useEffect(() => onIncense((next) => setSticks(next)), []);
   // Burn down visibly: redraw every few seconds.
   useEffect(() => {

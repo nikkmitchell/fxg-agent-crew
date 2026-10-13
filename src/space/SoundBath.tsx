@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { BATH_SECONDS, bathScore, notesBetween } from "../../shared/sound-bath";
 import { BOWLS } from "../../shared/bowl";
-import { onBath } from "./room-events";
+import { onBath, useRoomRead } from "./room-events";
 import { ringBowl, singBowl } from "./bowl-sound";
 import { soundGong, GONG_AT } from "./GongStand";
 import { ringTube, CHIME_NOTES } from "./WindChimes";
@@ -26,13 +26,13 @@ export function SoundBath() {
   const score = useMemo(() => bathScore(), []);
   const [, tick] = useState(0);
 
-  useEffect(() => {
+  useRoomRead(() => {
     space.soundBath().then((answer) => {
       offset.current = answer.now - Date.now();
       setStartedAt(answer.startedAt);
       if (answer.startedAt) played.current = (answer.now - answer.startedAt) / 1000;
     }).catch(() => {});
-  }, []);
+  });
   useEffect(
     () =>
       onBath((bath) => {

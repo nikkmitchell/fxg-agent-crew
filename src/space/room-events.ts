@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { Boat } from "../../shared/boats";
 import type { CairnEvent } from "../../shared/cairn";
 import type { CraneEvent } from "../../shared/cranes";
@@ -53,6 +54,29 @@ export const [onPiecesChange, piecesChanged] = channel<PiecesEvent>();
 export const [onStarChange, starsChanged] = channel<StarEvent>();
 export const [onVaseChange, vaseChanged] = channel<VaseEvent>();
 export const [onWheelPush, wheelPushed] = channel<WheelPush>();
+
+/**
+ * THE ROOM SAID WELCOME: its socket opened, opened again after a drop or a
+ * deploy, or opened in another room (a door, the room menu). Each object read
+ * what it shows once, when it first appeared, so a stone laid during a drop,
+ * or the whole of the room you had just walked into, never reached it: after
+ * an in-place switch between two rooms with gardens, the cairn, the vase and the
+ * garden went on showing the room you had left, with the new room's changes
+ * applied on top (Kerf, 2026-10-14). useSpaceSocket says welcome; every object
+ * reads again (useRoomRead). The guide board's pieces already did, their own way.
+ */
+export const [onRoomWelcome, roomWelcomed] = channel<void>();
+
+/** Read what this object shows now, and again whenever the room says welcome. `read` replaces it whole. */
+export function useRoomRead(read: () => void): void {
+  const latest = useRef(read);
+  latest.current = read;
+  useEffect(() => {
+    const again = () => latest.current();
+    again();
+    return onRoomWelcome(again);
+  }, []);
+}
 
 type RoomEventType = "pieces" | "cranes" | "cairn" | "boat" | "hourglass" | "bath" | "vase" | "incense" | "stars"
   | "lantern" | "wheel" | "mandala" | "driftwood" | "fire" | "garden";

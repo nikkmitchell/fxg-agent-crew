@@ -11,7 +11,7 @@ import {
   type Mandala,
   type PlatePoint,
 } from "../../shared/mandala";
-import { onMandalaChange } from "./room-events";
+import { onMandalaChange, useRoomRead } from "./room-events";
 import { goHandInput } from "./go-hand-input";
 import { WristButton } from "./Backdrop";
 import { space } from "../space-client";
@@ -120,7 +120,7 @@ export function SandMandala() {
       setMandala(answer.mandala);
     }).catch(() => {});
   }, []);
-  useEffect(read, [read]);
+  useRoomRead(read);
   useEffect(
     () =>
       onMandalaChange((event) => {

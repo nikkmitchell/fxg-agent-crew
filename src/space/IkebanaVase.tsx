@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { type ThreeEvent } from "@react-three/fiber";
 import { FLOWERS, REACH, applyVaseEvent, emptyVase, type Stem, type Vase } from "../../shared/ikebana";
-import { onVaseChange } from "./room-events";
+import { onVaseChange, useRoomRead } from "./room-events";
 import { WristButton } from "./Backdrop";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
@@ -93,7 +93,7 @@ export function IkebanaVase() {
       setVase(answer.vase);
     }).catch(() => {});
   }, []);
-  useEffect(read, [read]);
+  useRoomRead(read);
   useEffect(
     () =>
       onVaseChange((event) => {

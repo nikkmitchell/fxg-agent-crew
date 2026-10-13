@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { LANTERN_WORD, lanternAt, stillAloft, type Lantern } from "../../shared/lantern";
-import { onLantern } from "./room-events";
+import { onLantern, useRoomRead } from "./room-events";
 import { WristButton } from "./Backdrop";
 import { Typing3D } from "./Typing3D";
 import { space } from "../space-client";
@@ -60,7 +60,7 @@ export function Lanterns({ you }: { you: string | null }) {
   /** Server clock minus ours, so every lantern is where the room thinks it is. */
   const offset = useRef(0);
 
-  useEffect(() => {
+  useRoomRead(() => {
     space
       .lanterns()
       .then((answer) => {
@@ -68,7 +68,7 @@ export function Lanterns({ you }: { you: string | null }) {
         setSky(answer.lanterns);
       })
       .catch(() => {});
-  }, []);
+  });
   useEffect(
     () =>
       onLantern((lantern) => {

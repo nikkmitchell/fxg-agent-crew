@@ -10,7 +10,7 @@ import {
   type Garden,
   type GardenPoint,
 } from "../../shared/garden";
-import { onGardenChange } from "./room-events";
+import { onGardenChange, useRoomRead } from "./room-events";
 import { goHandInput } from "./go-hand-input";
 import { space } from "../space-client";
 
@@ -113,7 +113,7 @@ export function GardenTray() {
       setGarden(answer.garden);
     }).catch(() => {});
   }, []);
-  useEffect(read, [read]);
+  useRoomRead(read);
   useEffect(
     () =>
       onGardenChange((event) => {

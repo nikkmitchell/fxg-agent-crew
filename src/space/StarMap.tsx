@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { applyStarEvent, emptySky, stars, type StarSky } from "../../shared/stars";
-import { onStarChange } from "./room-events";
+import { onStarChange, useRoomRead } from "./room-events";
 import { space } from "../space-client";
 
 /**
@@ -28,7 +28,7 @@ export function StarMap() {
       setSky(answer.sky);
     }).catch(() => {});
   }, []);
-  useEffect(read, [read]);
+  useRoomRead(read);
   useEffect(
     () =>
       onStarChange((event) => {
