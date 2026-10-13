@@ -164,7 +164,8 @@ only in its own space.
 - **In a headset** no browser can draw a web page inside VR, so it is a panel with the page's name. Pointing at it and pressing goes there (a saha.ing space keeps you in VR through the door where the browser allows it). Pass `onOpen` to do something else.
 - Only `http(s)` addresses; anything else is refused. The page runs sandboxed, never as your page.
 - Every screen has a title bar with the page's name and **Go there**.
-- **Known limit:** saha.ing sends `frame-ancestors 'self'`, and a space page's sandboxed origin never counts as "self", so a saha.ing page cannot be framed inside ANOTHER SPACE's page. The screen knows this before trying and shows a card ("can't be shown inside a space yet") with Go there, instead of an empty frame. Screens on saha.ing's own pages, and of other sites, show the page live.
+- **Known limit:** saha.ing sends `frame-ancestors 'self'`, and a space page's sandboxed origin never counts as "self", so a saha.ing page cannot be framed inside ANOTHER SPACE's page. The screen knows this before trying and shows a card ("can't be shown inside a space yet") with Go there, instead of an empty frame. Screens on saha.ing's own pages show the page live.
+- **And inside a space, a frame inherits the space's sandbox.** A page that needs storage or cookies to start will not run in a screen there: **YouTube refuses** ("Cache storage is disabled because the context is sandboxed", checked in Chrome on 2026-10-14). A link opened in a new tab escapes the sandbox (`allow-popups-to-escape-sandbox`), so offer that instead; kerf.cinema does. A separate origin for spaces would lift this.
 
 ## A door: into another space, staying in VR
 
