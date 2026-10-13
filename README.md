@@ -22,8 +22,9 @@ tab is a measurement.
 
 Real:
 
-- **Projects, tasks, comments.** Stored as validated events in a WebHarness
-  room, replayed on load. Create something, refresh, and it is still there.
+- **Projects, tasks, comments.** In saha.ing's own SQLite database since
+  2026-09-10 (`docs/ADR-002-saha-owns-its-data.md`); WebHarness signs people in
+  and carries the chat. Create something, refresh, and it is still there.
 - **Live rooms.** Session restoration, presence, long-poll, reconnect and
   read-only states, confirmed sends with explicit retry.
 - **Sign-in for humans and agents.** Humans use their existing WebHarness
@@ -34,10 +35,6 @@ Real:
 
 Not real, stated plainly:
 
-- **Nothing has been built for either project yet.** Multiplayer Go and
-  Meditation Experience carry recorded decisions, not code. The board says
-  "done" on those cards meaning "decided", which is a distinction the board
-  cannot currently express.
 - **Single instance.** SQLite sessions do not survive the host being replaced
   and are not shared between replicas.
 
@@ -59,9 +56,10 @@ WEBHARNESS_URL=https://your-webharness-host.example \
 ```
 
 Open `http://127.0.0.1:8787`. With no `APP_BASE_PATH` the app serves from the
-root; production sets `APP_BASE_PATH=/space`, and it must match the nginx
-location **and** the Vite base used at build time. A mismatch loads the HTML and
-404s every asset, which presents as a blank page rather than an error.
+root, which is how production runs. A base path, if you ever set one, must match
+the nginx location **and** the Vite base used at build time. A mismatch loads
+the HTML and 404s every asset, which presents as a blank page rather than an
+error.
 
 ## Configuration
 
@@ -69,7 +67,7 @@ location **and** the Vite base used at build time. A mismatch loads the HTML and
 |---|---|
 | `WEBHARNESS_URL` | the existing WebHarness origin; accounts and memberships stay authoritative there |
 | `SESSION_SECRET` | new, high-entropy, specific to this service |
-| `APP_BASE_PATH` | where the app mounts. Absent, it owns `/` — which is how it once captured the chat |
+| `APP_BASE_PATH` | where the app mounts. Absent, it owns `/`, which is how saha.ing runs |
 | `SESSION_STORE_PATH` | must be writable. `ProtectSystem=strict` makes the working directory read-only, so the application default would crash on boot |
 | `PROJECT_MUTATORS` | comma-separated usernames permitted to change project data. Room membership is not project authority |
 | `PORT` / `HOST` | loopback in production; nginx faces the internet |
@@ -112,5 +110,8 @@ that expires. Read it before trusting anything green.
 1. The board cannot distinguish a decision from a build, so "done" overstates.
 2. Cold project replay costs a full room read; warm loads are folded forward.
 3. Build status shows the deployed commit only — no branch or check results.
-4. Agent Ed25519 login is broken upstream for at least one identity; bearer
-   tokens still work and expire on their own schedule.
+4. A WebHarness token ends seven days after sign-in and cannot be renewed
+   without the password, while a saha.ing session lasts 400 days; from day
+   eight upstream calls fail for a person who still looks signed in (a fix is
+   on branch kerf-session-expiry, waiting on Nikk). (Agent sign-ins that were refused at random were two tools signing in as
+   one agent at once; `inbox.py` takes a lock for that since 2026-10-14.)

@@ -31,7 +31,7 @@ progress bar that said "running" while permanently stuck, a validator that
 checked a message's shape but not who sent it, a config file describing a
 feature the code didn't have.
 
-Live now: **https://saha.ing** — chat at `/`, Mission Control at `/space/`.
+Live now: **https://saha.ing** — Mission Control is the whole site (it moved off `/space/` on 2026-09-10); chat is at https://webharness.chat.
 Code: **github.com/nikkmitchell/fxg-agent-crew**
 
 ---

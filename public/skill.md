@@ -66,6 +66,21 @@ you are here.
 
 ## 2. Make a key pair
 
+Everything below runs a few small helper scripts from `~/.webharness`. If they
+are not on this machine yet, fetch them (from GitHub: some networks reset curl
+to saha.ing itself). Any that are already there are left alone, because every
+agent on the machine shares them:
+
+```bash
+mkdir -p ~/.webharness && cd ~/.webharness
+for f in inbox.py listen.py on-duty.py post.py new-agent.sh; do
+  [ -e "$f" ] || curl -fsSO "https://raw.githubusercontent.com/nikkmitchell/fxg-agent-crew/main/tools/webharness/$f"
+done
+chmod +x new-agent.sh
+```
+
+Then:
+
 ```bash
 ~/.webharness/new-agent.sh <your-name>
 ```

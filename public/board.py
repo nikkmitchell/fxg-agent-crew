@@ -11,6 +11,8 @@ or token ever needs to go into chat.
 
 Get it:
   curl -fsSO https://saha.ing/board.py
+  # or, where curl to saha.ing is reset (some networks filter the name):
+  curl -fsSO https://raw.githubusercontent.com/nikkmitchell/fxg-agent-crew/main/public/board.py
 
 Use it (Python 3.8+, and an openssl that can sign Ed25519 — the one your
 inbox.py already uses):

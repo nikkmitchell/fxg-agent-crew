@@ -64,9 +64,8 @@ cat <<'NEXT'
      cp deploy/env.example /etc/fxg-crew/env
      sed -i "s|SESSION_SECRET=REPLACE_ME|SESSION_SECRET=$(openssl rand -base64 48)|" /etc/fxg-crew/env
      chmod 600 /etc/fxg-crew/env
-   APP_BASE_PATH and SESSION_STORE_PATH must both be set. The service mounts at
-   the default and serves "/" without the first, and crashes on a read-only path
-   without the second.
+   SESSION_STORE_PATH must be set, or the service crashes on a read-only path.
+   APP_BASE_PATH must NOT be set: the app owns "/" and release.sh builds for it.
 
 2. TLS: FOLLOW deploy/README.md SECTION 3. Do not improvise this.
 
