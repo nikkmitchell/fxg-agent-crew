@@ -9,12 +9,12 @@
  *    succeeded on an immediate retry with the same key; one observed cycle
  *    needed three attempts.
  *
- *    The CAUSE IS NOT ESTABLISHED. It is tempting to call it a nonce/validation
- *    race, but that agent's key later stopped verifying altogether, and the
- *    account may have had overlapping key registrations — so credential or
- *    identity confusion is at least as plausible as anything server-side, and
- *    the sample was never counted properly. What is observed is the retry
- *    behaviour, not the reason for it.
+ *    THE AGENT-LOGIN CAUSE IS NOW MEASURED (Kerf, 2026-10-14): WebHarness keeps
+ *    one outstanding challenge per username, so two sign-ins for the same agent
+ *    at once refuse one of them — four rounds out of four in parallel, never
+ *    in sequence. tools/webharness/inbox.py now takes a lock around sign-in.
+ *    Why a token that already signed in would be refused once is still not
+ *    established, so the retry below stays.
  *
  * *    The retry is justified by consequence rather than by diagnosis: treating a
  *    first 401 as "session invalid" would sign people out on a transient

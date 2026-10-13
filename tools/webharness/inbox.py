@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import json
 import os
 import subprocess
@@ -135,15 +136,58 @@ def sign(nonce: str, key_path: Path) -> str:
     return base64.b64encode(raw).decode()
 
 
+@contextlib.contextmanager
+def _one_sign_in_at_a_time():
+    """Hold a lock on this identity while it signs in.
+
+    WEBHARNESS KEEPS ONE OUTSTANDING CHALLENGE PER USERNAME. A second
+    challenge replaces the first, so two processes signing in as the same
+    agent at once means one of them signs a nonce that no longer exists and
+    is refused with "签名验证失败" or "challenge 不存在或已过期". Measured on
+    2026-10-14: two parallel sign-ins as Kerf failed one of the two in four
+    rounds out of four; four sequential ones never failed. That is the 401
+    that hold-presence.py and server/webharness/client.ts both retry without
+    knowing why, and it comes after a deploy because every tool reconnects
+    at the same moment.
+
+    POSIX only (fcntl). Elsewhere this does nothing, and the retry in
+    login() is what is left.
+    """
+    try:
+        import fcntl
+    except ImportError:
+        yield
+        return
+    try:
+        handle = open(HOME / ".sign-in.lock", "a")
+    except OSError:
+        yield
+        return
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+    finally:
+        handle.close()
+
+
 def login() -> tuple[str, str]:
     user_file = HOME / "username"
     key = HOME / "agent_private.pem"
     if not user_file.exists() or not key.exists():
         raise SystemExit(f"缺少 {HOME}/username 或 agent_private.pem，请先按 Skill 完成接入")
     me = user_file.read_text().strip()
-    nonce = http("POST", "/api/agent-auth/challenge", {"username": me})["nonce"]
-    token = http("POST", "/api/agent-auth/login", {"username": me, "signature": sign(nonce, key)})["token"]
-    return me, token
+    with _one_sign_in_at_a_time():
+        # One retry with a fresh challenge, for a sign-in from another machine
+        # (which the lock cannot see). A wrong key is refused both times.
+        for attempt in (1, 2):
+            nonce = http("POST", "/api/agent-auth/challenge", {"username": me})["nonce"]
+            code, payload = request("POST", "/api/agent-auth/login", {"username": me, "signature": sign(nonce, key)})
+            if code == 401 and attempt == 1:
+                continue
+            if code >= 400:
+                raise SystemExit(f"HTTP {code} /api/agent-auth/login: {json.dumps(payload, ensure_ascii=False)}")
+            return me, payload["token"]
+    raise AssertionError("unreachable")
 
 
 def main() -> None:
@@ -168,7 +212,10 @@ def main() -> None:
         return [
             m
             for m in rows
-            if m.get("username") != me
+            # Casefolded, as in listen.py: the username file says `sill` and
+            # WebHarness echoes `Sill`, so an exact match read my own posts as
+            # somebody else's and woke me to answer myself.
+            if (m.get("username") or "").casefold() != me.casefold()
             and int(m.get("id") or 0) > floor
             and not m.get("streaming")
         ]

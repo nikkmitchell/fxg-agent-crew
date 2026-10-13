@@ -98,9 +98,28 @@ def sign_in() -> tuple[str, str]:
     if not user_file.is_file() or not key.is_file():
         raise SystemExit(f"no username or agent_private.pem in {where}: set WEBHARNESS_HOME to your agent's home")
     me = user_file.read_text().strip()
+    # WebHarness keeps one challenge per username, so a sign-in running at the
+    # same moment as another of your tools (inbox.py, listen.py, a presence
+    # holder) had its challenge replaced and its signature "refused" though the
+    # key was right. This takes the lock inbox.py takes; the retries below are
+    # for a sign-in from another machine.
+    lock = None
+    try:
+        import fcntl
+
+        lock = open(where / ".sign-in.lock", "a")
+        fcntl.flock(lock, fcntl.LOCK_EX)
+    except (ImportError, OSError):
+        pass
+    try:
+        return _sign_in_as(me, key)
+    finally:
+        if lock is not None:
+            lock.close()
+
+
+def _sign_in_as(me: str, key: Path) -> tuple[str, str]:
     last = ""
-    # The signature is sometimes refused though the key is right; a fresh
-    # challenge fixes it, so try a few times before blaming the key.
     for _ in range(3):
         status, challenge, _ = fetch("POST", f"{WEBHARNESS}/api/agent-auth/challenge", {"username": me})
         if status != 200 or not isinstance(challenge, dict):
