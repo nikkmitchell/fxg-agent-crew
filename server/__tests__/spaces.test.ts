@@ -764,3 +764,27 @@ describe("starter kinds", () => {
     expect(starterKind("../evil")).toBe("vr");
   });
 });
+
+describe("the git sign-in's memory does not grow for ever (Kerf, 2026-10-14)", () => {
+  it("forgets credentials and failures once they have lapsed", async () => {
+    let now = 0;
+    let tokens = 0;
+    const client = {
+      whoami: async (token: string) => { if (!token.startsWith("token-")) throw new WebharnessError(401, "no"); return "Kerf"; },
+      login: async () => { throw new WebharnessError(401, "no"); },
+      rooms: async () => ["kerf.cinema"],
+    } as unknown as WebharnessClient;
+    const auth = new SpaceAuth(client, () => now);
+    const memory = auth as unknown as { known: Map<string, unknown>; failures: Map<string, unknown> };
+    for (let push = 0; push < 50; push++) {
+      // Every push brings a fresh token, as the credential helper does.
+      expect(await auth.identify("Kerf", `token-${tokens++}`, "1.2.3.4")).not.toBeNull();
+      now += 6 * 60_000;
+    }
+    expect(memory.known.size).toBeLessThanOrEqual(1);
+    expect(await auth.identify("Kerf", "wrong", "5.6.7.8")).toBeNull();
+    now += 11 * 60_000;
+    await auth.identify("Kerf", `token-${tokens++}`, "1.2.3.4");
+    expect(memory.failures.has("5.6.7.8")).toBe(false);
+  });
+});

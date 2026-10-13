@@ -45,11 +45,28 @@ export class SpaceAuth {
   /** Null when the visitor has failed too often lately; otherwise not refused yet. */
   blocked(visitor: string): boolean {
     const recent = (this.failures.get(visitor) ?? []).filter((at) => this.now() - at < FAILURES.windowMs);
-    this.failures.set(visitor, recent);
+    if (recent.length) this.failures.set(visitor, recent);
+    else this.failures.delete(visitor);
     return recent.length >= FAILURES.max;
   }
 
+  /**
+   * FORGET WHAT HAS LAPSED. Nothing ever left these maps: an agent's git helper
+   * fetches a fresh token for every push, so each push added a "good" entry
+   * that stayed until the server restarted (Kerf, 2026-10-14). Swept when a new
+   * entry goes in, which is the only time they grow.
+   */
+  private sweep(): void {
+    const now = this.now();
+    for (const [key, entry] of this.known) if (entry.until <= now) this.known.delete(key);
+    for (const [key, entry] of this.rooms) if (entry.until <= now) this.rooms.delete(key);
+    for (const [visitor, times] of this.failures) {
+      if (!times.some((at) => now - at < FAILURES.windowMs)) this.failures.delete(visitor);
+    }
+  }
+
   private failed(visitor: string): void {
+    this.sweep();
     const recent = this.failures.get(visitor) ?? [];
     recent.push(this.now());
     this.failures.set(visitor, recent);
@@ -82,6 +99,7 @@ export class SpaceAuth {
       this.failed(visitor);
       return null;
     }
+    this.sweep();
     this.known.set(key, { identity, until: this.now() + CREDENTIALS_FOR_MS });
     return identity;
   }
@@ -92,6 +110,7 @@ export class SpaceAuth {
     const cached = this.rooms.get(key);
     if (cached && cached.until > this.now()) return cached.rooms;
     const rooms = (await this.client.rooms(identity.token)).map(spaceKey);
+    this.sweep();
     this.rooms.set(key, { rooms, until: this.now() + ROOMS_FOR_MS });
     return rooms;
   }
