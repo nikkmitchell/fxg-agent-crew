@@ -213,10 +213,21 @@ log "ship  (commit ${SHA:0:8})"
 # Nikk's headset, seconds after a deploy (2026-09-27). The protect rule keeps
 # old files in dist/assets; the prune after the transfer removes those more
 # than a week old, by which time no open page can still want them.
+# LOCAL DEVELOPMENT OUTPUT NEVER SHIPS (Kerf, 2026-10-14). The tree goes over
+# whole, and git-ignored is not rsync-ignored: a worktree that had run the room
+# harness sent its demo space repositories, its blobs and a dev signing key
+# (.dev-spaces.tickets-key) to /opt/fxg-crew on every release. Production keeps
+# its own under /var/lib/fxg-crew, so nothing live was replaced — but a key file
+# has no business on a box it was not made for. dist/ and dist-server/ are
+# git-ignored too and DO ship, which is why this is a list and not .gitignore.
+# server/__tests__/release-excludes.test.ts runs rsync with exactly this list.
+LOCAL_ONLY=(--exclude '.dev-*' --exclude '*.tickets-key' --exclude output --exclude .harness-run --exclude .playwright-cli --exclude __pycache__ --exclude '*.pyc' --exclude .DS_Store)
+
 ship_tree() {
   local rc=0
   rsync -acz --delete --partial --timeout=60 \
     --exclude node_modules --exclude .git --exclude 'dist/.vite' --exclude 'DEPLOYED_*' \
+    "${LOCAL_ONLY[@]}" \
     --filter='P /dist/assets/*' \
     -e "${SSH[*]}" ./ "$TARGET:$REMOTE/" || rc=$?
   [ "$rc" = 0 ] || printf '\033[33m  rsync exited %s\033[0m\n' "$rc" >&2
