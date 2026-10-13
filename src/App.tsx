@@ -389,12 +389,28 @@ export default function App() {
           {projectName ? <small>{projectName}</small> : null}
         </button>
 
-        <span className="rail-identity">
+        {/* Your face opens Settings, where Sign out is: it is where people look. */}
+        <button
+          type="button"
+          className="rail-identity"
+          aria-label={session ? `Signed in as ${session.username}: settings and sign out` : "Settings"}
+          title={session ? `${session.username}: settings and sign out` : "Settings"}
+          onClick={() => setSettingsOpen(true)}
+        >
           <Identity username={session?.username} kind={session?.kind} size={32} />
-        </span>
+        </button>
       </aside>
 
-      {settingsOpen ? <Settings you={session?.username ?? null} onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsOpen ? (
+        <Settings
+          you={session?.username ?? null}
+          onClose={() => setSettingsOpen(false)}
+          onSignedOut={() => {
+            setSettingsOpen(false);
+            viewer.recheck();
+          }}
+        />
+      ) : null}
 
       <main className="workroom" id="workroom" tabIndex={-1}>
         {/*
