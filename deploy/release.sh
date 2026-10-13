@@ -387,13 +387,8 @@ upgrade=$("${SSH[@]}" "$TARGET" "grep -c 'proxy_set_header Upgrade' /etc/nginx/s
 # The grep above proves the config says the right words. This proves a real
 # upgrade completes. curl reports 101 and then sits there holding the socket
 # open, which is correct behaviour and looks like a hang — hence --max-time and
-# the exit code being ignored. %{http_code} is written regardless.
-ws() {
-  curl -sS -o /dev/null -w '%{http_code}' --http1.1 -N --max-time 6 \
-    -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
-    -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
-    "$1" 2>/dev/null || true
-}
+# the exit code being ignored. %{http_code} is written regardless. (The public
+# handshake, further down, is public_ws_code in public-check.sh.)
 app_ws=$("${SSH[@]}" "$TARGET" "curl -sS -o /dev/null -w '%{http_code}' --http1.1 -N --max-time 6 -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' http://127.0.0.1:8787$BASE/bff/space/socket 2>/dev/null || true")
 [ "$app_ws" = "101" ] || fail "$BASE/bff/space/socket returned $app_ws to a handshake, expected 101 — the space socket is not registered"
 
@@ -457,11 +452,8 @@ if [ -n "${PUBLIC_URL:-}" ]; then
   # the headers spelled out, the 101 is the server's answer, not curl's.
   # Three tries here too: a handshake that never left this machine says as
   # little about nginx as a timed-out GET says about the site.
-  for attempt in 1 2 3; do
-    pub_ws=$(ws "${PUBLIC_URL%/}/bff/space/socket")
-    [ "$pub_ws" != "000" ] && break
-    [ "$attempt" != "3" ] && sleep 2
-  done
+  # Through Node too when curl gets nothing (public-check.sh), as for the pages.
+  pub_ws=$(public_ws_code "${PUBLIC_URL%/}/bff/space/socket")
   # 000 IS NOT A VERDICT ON NGINX. It means curl got no HTTP status at all, so
   # the handshake never arrived and nginx cannot be the accused. This message
   # used to say "nginx is not upgrading" for a 000 and sent me reading vhost

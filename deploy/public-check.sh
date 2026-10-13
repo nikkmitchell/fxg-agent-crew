@@ -61,3 +61,45 @@ public_code() {
   done
   printf '%s' "$code"
 }
+
+# A WEBSOCKET HANDSHAKE, the same way: curl first (as an HTTP request with the
+# upgrade headers spelled out, so the 101 is the server's answer), then Node's
+# own https module when curl got nothing — Node gets past the name filter that
+# resets curl here. 101 means upgraded; 000 means no answer by either road.
+#
+#   public_ws_code <url>   -> 101, another status, or 000
+node_ws_code() {
+  command -v node >/dev/null 2>&1 || { printf '000'; return; }
+  node -e '
+    const url = new URL(process.argv[1]);
+    const lib = require(url.protocol === "https:" ? "https" : "http");
+    const said = (code) => { process.stdout.write(String(code)); process.exit(0); };
+    const request = lib.request(url, { headers: {
+      Connection: "Upgrade", Upgrade: "websocket", "Sec-WebSocket-Version": "13",
+      "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==" }, timeout: 6000 });
+    request.on("upgrade", (response, socket) => { socket.destroy(); said(response.statusCode); });
+    request.on("response", (response) => { response.destroy(); said(response.statusCode); });
+    request.on("timeout", () => request.destroy());
+    request.on("error", () => said("000"));
+    request.end();
+  ' "$1" 2>/dev/null || printf '000'
+}
+
+public_ws_code() {
+  local url="$1" code=""
+  for attempt in 1 2 3; do
+    code=$(curl -sS -o /dev/null -w '%{http_code}' --http1.1 -N --max-time 6 \
+      -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+      -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+      "$url" 2>/dev/null) || true
+    case "$code" in ""|*[!0-9]*) code="000" ;; esac
+    [ "${#code}" -gt 3 ] && code="000"
+    if [ "$code" = "000" ]; then
+      code=$(node_ws_code "$url")
+      case "$code" in ""|*[!0-9]*) code="000" ;; esac
+    fi
+    [ "$code" != "000" ] && break
+    [ "$attempt" != "3" ] && sleep "${PUBLIC_CHECK_PAUSE:-2}"
+  done
+  printf '%s' "$code"
+}

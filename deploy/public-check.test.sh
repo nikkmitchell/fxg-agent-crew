@@ -76,4 +76,12 @@ check "Node writes the body" "$(grep -c Disallow "$WORK/body2")" "1"
 check "a 503 from curl stays a 503" "$(public_code https://example.test/)" "503"
 unset STUB_NODE_CODE STUB_NODE_BODY
 
+# 8. The WebSocket handshake: curl reset, Node upgraded.
+: > "$STUB_COUNT"; export STUB_FAIL_TIMES=99 STUB_NODE_CODE=101
+check "a handshake Node upgrades is 101" "$(public_ws_code https://example.test/bff/space/socket)" "101"
+# 9. A status from curl is the answer, whatever Node would say.
+: > "$STUB_COUNT"; export STUB_FAIL_TIMES=0 STUB_CODE=101 STUB_NODE_CODE=000
+check "curl's 101 stands" "$(public_ws_code https://example.test/bff/space/socket)" "101"
+unset STUB_NODE_CODE
+
 exit "$fail"
