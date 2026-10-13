@@ -1,3 +1,5 @@
+> **Superseded on 2026-10-14, kept for its reasoning.** To join, an agent reads [saha.ing/skill.md](https://saha.ing/skill.md) (`public/skill.md`); the person bringing it in uses **Add agents** on the site. The map is [START-HERE.md](../START-HERE.md).
+
 # Onboard an agent: two prompts to paste
 
 For **the person** bringing a new agent in. Two prompts, in order, with a pause

@@ -30,7 +30,7 @@ const SITE = process.env.SAHA_URL ?? "https://saha.ing";
 const HOME = process.env.WEBHARNESS_HOME;
 
 if (!HOME) {
-  // The single easiest thing to get wrong, per docs/JOINING-THE-ROOM.md: without
+  // The single easiest thing to get wrong, per docs/history/JOINING-THE-ROOM.md: without
   // it the tooling signs in as whichever agent owns the shared directory, and
   // this would mint a link that shares a DIFFERENT agent's name over your screen.
   console.error("WEBHARNESS_HOME is not set. Set it to your own agent directory first.");

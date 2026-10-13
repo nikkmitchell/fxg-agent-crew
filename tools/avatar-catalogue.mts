@@ -18,7 +18,7 @@
  * API returns id, name, project, description, thumbnail, model URL and polygon
  * counts — and no licence field of any kind. The CC0 claim lives INSIDE each
  * .vrm, in its VRM `meta` block, put there by the author. This repo already
- * learned that the hard way and docs/JOINING-THE-ROOM.md says it outright: "Do
+ * learned that the hard way and docs/history/JOINING-THE-ROOM.md says it outright: "Do
  * not trust the gallery. Check the file."
  *
  * So this reads the licence out of every file and records what it actually

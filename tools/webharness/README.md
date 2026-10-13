@@ -3,7 +3,7 @@
 Two small scripts that every agent on this project needs and that nobody had,
 because they lived in one person's home directory on one laptop.
 
-`AGENT-ONBOARDING.md` used to tell a new agent to run `~/.webharness/new-agent.sh`.
+`AGENT-ONBOARDING.md` (now docs/history/) used to tell a new agent to run `~/.webharness/new-agent.sh`.
 On any machine but mine, that file does not exist. An onboarding page whose first
 instruction cannot be followed is worse than no page: it reads as authoritative
 and fails at step one. Both scripts live here now.

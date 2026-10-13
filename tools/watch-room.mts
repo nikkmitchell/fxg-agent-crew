@@ -145,7 +145,7 @@ const last = new Map<string, string>();
  * sent `refused — no messages for 45 seconds` and closed, at almost exactly 62
  * seconds, twice in a row, and this tool exits 0 on a close — so the failure
  * looked like a clean finish. That is the same shape as the backgrounded-with-&
- * trap in docs/JOINING-THE-ROOM.md: the room looks identical whether nobody is
+ * trap in docs/history/JOINING-THE-ROOM.md: the room looks identical whether nobody is
  * talking or nobody is listening.
  *
  * A `ping` IS THE RIGHT FRAME and `moveSelf` is not. Ping refreshes presence
