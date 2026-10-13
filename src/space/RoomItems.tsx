@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { RoundedBox, Text } from "@react-three/drei";
-import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { isGoItem, type GoRoomItem, type RoomItem } from "../../shared/room-items";
 import { legalGoMoves } from "../../shared/go-rules";
@@ -11,7 +11,6 @@ import { goHandInput } from "./go-hand-input";
 import { hasSeenGoGuide, rememberGoGuide, type GoGuideStorage } from "./go-guide";
 import { space } from "../space-client";
 import { claimPointer } from "./pointer-claim";
-import { beginGrab, clamp, grabbedTo, pushPull, type Grab, type Ray, type Vec3 } from "../../shared/grab-move";
 import { CONFIRM_DELETE_MS, goSettingCost, goSettingFor, goSettingRequest } from "./GoTableSettings";
 import { GO_TABLE_POINTERS, fitFont, goControls, goControlsShown } from "./go-controls";
 import { goSnap, type GoMove } from "./go-snap";
@@ -22,7 +21,7 @@ import { canPass, clockLine, lastPassLine, noMoveLine, passLabel, resultRows, sc
 import { goTableWriter } from "./go-table-writer";
 import { bambooPixels, goTextureRepeat, rockPixels, stonePixels } from "./go-textures";
 import { RockForm } from "./RockForm";
-import { grabHold } from "./grab-hold";
+import { useCarry } from "./modules/use-carry";
 import { clockNow } from "../../shared/go-clock";
 
 /** Under the desk top (0.705 − half its 0.075), facing down: MOVE from below. */
@@ -634,7 +633,6 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
   };
   const [notice, setNotice] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [carrying, setCarrying] = useState(false);
   const pending = useRef(false), held = useRef<THREE.Mesh>(null);
   const contacts = useRef({ left: idleGoTouch(), right: idleGoTouch() });
   const lastHeld = useRef<Point3 | null>(null);
@@ -792,133 +790,25 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
    * reasons it is not a cast at a level plane are written down there.
    */
   const body = useRef<THREE.Group>(null);
-  const grab = useRef<Grab | null>(null);
-  const grabbedPointer = useRef<number | null>(null);
-  const want = useRef<Vec3 | null>(null);
-  const gl = useThree((state) => state.gl);
-  const camera = useThree((state) => state.camera);
-  const invalidate = useThree((state) => state.invalidate);
-  const caster = useMemo(() => ({ ray: new THREE.Raycaster(), ndc: new THREE.Vector2() }), []);
-  const asVec = (v: { x: number; y: number; z: number }): Vec3 => ({ x: v.x, y: v.y, z: v.z });
-
   /**
-   * ONE CARRIER AT A TIME — where Nikk found it: two people carried this table
-   * at once, and because a carry is retried after "the table changed", both
-   * succeeded and the later simply overwrote the earlier. The carry claims the
-   * table in the background (grab-hold.ts); if somebody else has it, the table
-   * leaves your hand and the notice says who.
+   * ONE CARRY, THE SAME AS A THING FROM A SPACE (use-carry.ts). This table had
+   * its own copy of all of it — the grab, the window and headset steering, the
+   * wheel, the one-carrier hold, letting go once, putting back on a refusal —
+   * line for line, which is how the two were bound to drift (Nikk, 2026-10-14:
+   * "the movement for objects ... happens differently in many places").
    */
-  const refusedCarry = useRef<(why: string) => void>(() => undefined);
-  const tableHold = useMemo(
-    () => grabHold({ thing: `item:${item.id}`, api: space.hold, refused: (why) => refusedCarry.current(why) }),
-    [item.id],
-  );
-  useEffect(() => () => tableHold.release(), [tableHold]);
-
-  /**
-   * Back where the room has it. Needed by hand: the group's position is a prop,
-   * and a prop that has not changed is not applied again, so a table let go of
-   * without a new position would stay wherever the carry had left it.
-   */
-  const putTableBack = useCallback(() => {
-    const node = body.current, at = latest.current.position;
-    if (node) node.position.set(at.x, at.y, at.z);
-    invalidate();
-  }, [invalidate]);
-
-  const rayFromScreen = useCallback((clientX: number, clientY: number): Ray | null => {
-    const rect = gl.domElement.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return null;
-    caster.ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -(((clientY - rect.top) / rect.height) * 2 - 1));
-    caster.ray.setFromCamera(caster.ndc, camera);
-    return { origin: asVec(caster.ray.ray.origin), direction: asVec(caster.ray.ray.direction) };
-  }, [camera, gl, caster]);
-
-  const steerTable = useCallback((ray: Ray | null) => {
-    const hold = grab.current;
-    if (!ray || !hold) return;
-    const to = grabbedTo(ray, hold);
-    // The server keeps a table's height between -0.5 and 5; stopping the
-    // gesture at the limit beats letting it run and refusing it at the end.
-    want.current = { x: to.x, y: clamp(to.y, -0.5, 5), z: to.z };
-    invalidate();
-  }, [invalidate]);
-
-  /**
-   * LET GO EXACTLY ONCE. A mouse delivers the release twice — the window's
-   * `pointerup` and the bar's own — while a headset delivers only the bar's.
-   */
-  const dropTable = useCallback(() => {
-    if (!grab.current) return;
-    const at = want.current;
-    grab.current = null; want.current = null; grabbedPointer.current = null;
-    setCarrying(false);
-    if (!at) { tableHold.release(); return; }
-    const place = { position: { x: at.x, y: at.y, z: at.z, rotationY: item.position.rotationY } };
+  const carry = useCarry({
+    id: item.id,
+    position: item.position,
+    body,
     // Where it was put does not depend on anything else about the table.
-    const saved = configure(place, () => place);
-    // Let go of the claim only once the save has landed, or it could arrive
-    // first and let somebody else in ahead of this very drop.
-    tableHold.release(saved);
-    void saved.then((ok) => { if (!ok && !grab.current) putTableBack(); });
-  }, [item.position.rotationY, putTableBack, tableHold]);
-
-  /**
-   * THE LISTENERS GO ON AT THE MOMENT OF THE GRAB, not on the next render.
-   *
-   * They used to be a `useEffect` gated on a `carrying` state flag, which is
-   * the obvious shape and is wrong: the effect does not run until React has
-   * re-rendered, so a drag that starts and finishes inside that gap never gets
-   * a single `pointermove` and the table does not move at all. I found it by
-   * dragging the bar and watching the position not change — three times, while
-   * blaming my aim, because a grab that takes hold and then ignores you looks
-   * exactly like a grab that missed.
-   *
-   * A flick of a controller is faster than a render. So the window is listening
-   * before this handler returns.
-   */
-  const letGoOfTable = useRef<(() => void) | null>(null);
-
-  const listenWhileCarrying = useCallback(() => {
-    letGoOfTable.current?.();
-    const move = (event: PointerEvent) => steerTable(rayFromScreen(event.clientX, event.clientY));
-    const up = () => { letGoOfTable.current?.(); dropTable(); };
-    const wheel = (event: WheelEvent) => {
-      if (!grab.current) return;
-      event.preventDefault();
-      grab.current = pushPull(grab.current, -event.deltaY * 0.0022);
-      invalidate();
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
-    window.addEventListener("wheel", wheel, { passive: false });
-    letGoOfTable.current = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-      window.removeEventListener("wheel", wheel);
-      letGoOfTable.current = null;
-    };
-  }, [steerTable, rayFromScreen, dropTable, invalidate]);
-
-  // Never leave a listener behind on a table that has gone away.
-  useEffect(() => () => letGoOfTable.current?.(), []);
-
-  refusedCarry.current = (why: string) => {
-    if (!grab.current) return;
-    letGoOfTable.current?.();
-    grab.current = null; want.current = null; grabbedPointer.current = null;
-    setCarrying(false);
-    putTableBack();
-    setNotice(why);
-  };
-
-  useFrame(() => {
-    const node = body.current, at = want.current;
-    if (!node || !at) return;
-    node.position.set(at.x, at.y, at.z);
+    save: (to) => {
+      const place = { position: to };
+      return configure(place, () => place);
+    },
+    notice: setNotice,
   });
+  const { carrying, steerByRay, dropByRay } = carry;
 
   const returnStone = usePress(() => void act({ action: "return" }));
   const takeTable = (event: ThreeEvent<PointerEvent>) => {
@@ -926,32 +816,8 @@ function GoTable({ item, reducedMotion, context }: { item: GoRoomItem; reducedMo
       setNotice("Place or return the flying stone before moving the table.");
       return;
     }
-    event.stopPropagation();
-    claimPointer(event.nativeEvent);
-    grab.current = beginGrab(
-      { origin: asVec(event.ray.origin), direction: asVec(event.ray.direction) },
-      { x: item.position.x, y: item.position.y, z: item.position.z },
-    );
-    tableHold.take();
-    grabbedPointer.current = event.pointerId;
-    (event.target as { setPointerCapture?: (id: number) => void } | null)?.setPointerCapture?.(event.pointerId);
     setNotice("");
-    setCarrying(true);
-    listenWhileCarrying();
-  };
-  // STEERED AND RELEASED FROM R3F TOO, not only from the window: a headset
-  // delivers no window pointer events, so a handle relying on the window could
-  // be picked up in a headset and never moved or put down. Shared by MOVE on
-  // top and MOVE underneath.
-  const steerByRay = (event: ThreeEvent<PointerEvent>) => {
-    if (grabbedPointer.current !== event.pointerId) return;
-    event.stopPropagation();
-    steerTable({ origin: asVec(event.ray.origin), direction: asVec(event.ray.direction) });
-  };
-  const dropByRay = (event: ThreeEvent<PointerEvent>) => {
-    if (grabbedPointer.current !== event.pointerId) return;
-    letGoOfTable.current?.();
-    dropTable();
+    carry.take(event);
   };
 
   /**
