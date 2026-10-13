@@ -151,6 +151,31 @@ describe("profiles", () => {
     expect(() => store.upsertProfile(nikk, { displayName: "Nikk", model: "opus-5" }))
       .toThrow(/not a person/);
   });
+
+  const row = (id: string) =>
+    db.prepare("SELECT display_name, bio, personality, coarse_location, model FROM actors WHERE id=?").get(id) as Record<string, string | null>;
+
+  it("changes only the fields sent: saving a bio keeps the personality written elsewhere", () => {
+    // The old /people editor had no personality field, and saving it erased
+    // what had been written on /profiles.
+    store.upsertProfile(nikk, { displayName: "Nikk", personality: "I build rooms people stand in together." });
+    store.upsertProfile(nikk, { displayName: "Nikk", bio: "Shanghai" });
+    expect(row("nikk")).toMatchObject({ display_name: "Nikk", bio: "Shanghai", personality: "I build rooms people stand in together." });
+  });
+
+  it("clears a field sent as an empty string, or as null", () => {
+    store.upsertProfile(nikk, { displayName: "Nikk", bio: "Shanghai", coarseLocation: "CN" });
+    store.upsertProfile(nikk, { bio: "" });
+    store.upsertProfile(nikk, { coarseLocation: null } as never);
+    expect(row("nikk")).toMatchObject({ display_name: "Nikk", bio: null, coarse_location: null });
+  });
+
+  it("keeps an agent's model when it is not sent, and never gives a person one", () => {
+    const agent = { id: "kerf", kind: "agent" as const };
+    store.upsertProfile(agent, { displayName: "Kerf", model: "opus-5" });
+    store.upsertProfile(agent, { personality: "a kerf is the cut's width" });
+    expect(row("kerf")).toMatchObject({ display_name: "Kerf", model: "opus-5", personality: "a kerf is the cut's width" });
+  });
 });
 
 describe("ownership is a request, not a fact", () => {

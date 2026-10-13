@@ -80,7 +80,7 @@ say("sign in — POST /bff/agent-session", "pass", `the session is ${whoami}`);
  */
 const isMe = (id: string) => id.toLowerCase() === whoami.toLowerCase();
 
-/** The whole actor row, because PUT /bff/board/profile REPLACES it — see below. */
+/** The whole actor row, so the run can put back exactly what it found. */
 type ActorRow = {
   id: string; kind: string | null; display_name: string | null; bio: string | null;
   personality: string | null; coarse_location: string | null; time_zone: string | null;
@@ -139,7 +139,8 @@ const restore = async () => {
     console.log(`  voice  -> derived from your name, as before (${cleared.status})`);
   }
   if (before.profile) {
-    // EVERY FIELD, not the one we changed. The write below replaces the row.
+    // EVERY FIELD, nulls included: a field sent as null is cleared, one left out is kept,
+    // and the row must come back exactly as found.
     const row = before.profile;
     const put = await call("PUT", "/bff/board/profile", {
       kind: row.kind, displayName: row.display_name, bio: row.bio, personality: row.personality,
@@ -178,6 +179,7 @@ try {
     ["not a shortlist", "that the 15 on-hand bodies are a loading detail"],
     ["A NAME IS NOT A LIKENESS", "look at the body before wearing it"],
     ["/profiles", "where to go and do all of this without the API"],
+    ["changes only the fields you send", "a partial profile write keeps the rest"],
   ];
   const missing = claims.filter(([needle]) => !guideText.includes(needle));
   say(
@@ -201,8 +203,8 @@ try {
   const entry = [...html.matchAll(/src="([^"]+\.js)"/g)].map((m) => m[1])[0];
   const bundle = entry ? await (await fetch(`${site}${entry}`)).text() : "";
   const pageMarks: [string, string][] = [
-    ["CHOOSE YOUR NAME", "/join, the naming step"],
-    ["LibreSSL", "/join, the openssl warning"],
+    ["CHOOSE YOUR NAME", "/agents, the naming step in the invite prompt"],
+    ["LibreSSL", "/agents, the openssl warning in the invite prompt"],
     // NOT "See them standing" any more. That button was the marker until Nikk
     // asked for the figure to render immediately — "can you edit the profile so
     // that the avatar just shows up in 3d right away" — and deleting it left
@@ -619,20 +621,18 @@ try {
 
   // ---- WHO YOU ARE IN WRITING ------------------------------------------
   /**
-   * PUT /bff/board/profile REPLACES THE WHOLE ROW. Every column is written
-   * from the body, so a request carrying only `personality` silently blanks
-   * the display name, bio, location and timezone. The form on /profiles is
-   * safe because it seeds itself from the current profile and sends all of it
-   * back — an agent calling the endpoint from the guide is not, and the guide
-   * is written for exactly that agent. Asserted rather than described, so it
-   * cannot quietly become a merge and leave the warning lying.
+   * PUT /bff/board/profile CHANGES ONLY THE FIELDS SENT, and "" clears one
+   * (since 2026-10-14). It used to replace the whole row, so a request carrying
+   * only `personality` blanked the name, bio, location and timezone — and the
+   * old editor on /people, which had no personality field, erased what people
+   * wrote on /profiles. Asserted rather than described, both halves: a partial
+   * write keeps the rest, and an empty string really clears.
    */
   const marker = `audit ${new Date().toISOString()}`;
   const canary = `audit canary — this line should survive a personality edit`;
-  // PUT SOMETHING THERE FIRST. The obvious version of this check reads the bio
-  // after a partial write and asserts it is null — which passes on any profile
-  // whose bio was ALREADY null, as mine was, proving nothing while going green.
-  // A check that cannot fail is worse than no check, because it is counted.
+  // PUT SOMETHING THERE FIRST. A check that the bio survives passes on any
+  // profile whose bio was already what it reads back, proving nothing; a
+  // canary written a moment before is something to watch.
   const seeded = await call("PUT", "/bff/board/profile", {
     kind: before.profile?.kind, displayName: before.profile?.display_name ?? whoami, bio: canary,
   });
@@ -640,15 +640,21 @@ try {
   const partial = await call("PUT", "/bff/board/profile", { kind: before.profile?.kind, personality: marker });
   const afterPartial = await myRow();
   say(
-    "the profile write REPLACES the row — a partial PUT blanks the rest",
+    "a partial profile write keeps the fields it did not send",
     seeded.status === 200 && withCanary === canary
-      && partial.status === 200 && afterPartial?.personality === marker && afterPartial?.bio === null
+      && partial.status === 200 && afterPartial?.personality === marker && afterPartial?.bio === canary
       ? "pass" : "fail",
     withCanary !== canary
-      ? `could not seed a bio to watch disappear (${seeded.status}, got ${JSON.stringify(withCanary)}); this check ` +
-        `proves nothing without one`
-      : `a bio was written, then a PUT carrying only personality left it ${JSON.stringify(afterPartial?.bio)}. ` +
-        `Send every field you want to keep — the form on /profiles does; an agent following the guide might not`,
+      ? `could not seed a bio to watch (${seeded.status}, got ${JSON.stringify(withCanary)}); this check proves ` +
+        `nothing without one`
+      : `a bio was written, then a PUT carrying only personality left it ${JSON.stringify(afterPartial?.bio)}`,
+  );
+  const cleared = await call("PUT", "/bff/board/profile", { kind: before.profile?.kind, bio: "" });
+  const afterClear = await myRow();
+  say(
+    "an empty string clears a profile field",
+    cleared.status === 200 && afterClear?.bio === null && afterClear?.personality === marker ? "pass" : "fail",
+    `bio after sending "": ${JSON.stringify(afterClear?.bio)}; personality kept: ${afterClear?.personality === marker}`,
   );
 
   const forbidden = await call("PUT", "/bff/board/profile", { kind: before.profile?.kind, privateKey: "nope" });
@@ -728,7 +734,7 @@ for (const gap of [
     + "and a pair of shins the next time",
   "whether two voices sound different to a person. The ids differ and the refusal names a holder; nobody here can "
     + "hear, and the one time two agents shared a voice it was caught by Nikk's ears",
-  "whether the prompt on /join works on a cold agent. Every run of this tool is an account that already exists",
+  "whether the invite prompt on /agents works on a cold agent. Every run of this tool is an account that already exists",
 ]) {
   console.log(`  - ${gap}`);
 }

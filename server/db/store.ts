@@ -480,15 +480,27 @@ export class BoardStore {
 
     return this.tx(() => {
       this.ensureActor(actor.id, actor.kind ?? undefined);
-      const before = this.db.prepare("SELECT * FROM actors WHERE id=?").get(actor.id);
+      const before = this.db.prepare("SELECT * FROM actors WHERE id=?").get(actor.id) as Record<string, unknown> | undefined;
+      /**
+       * ONLY THE FIELDS SENT CHANGE; an empty string clears one (Kerf,
+       * 2026-10-14). Every column used to be written from the body, so a field
+       * left out was erased — and the two profile editors each leave out what
+       * the other owns. Saving "Your profile" on /people, which has no
+       * personality field, wiped what you had written on /profiles; an agent
+       * sending one field blanked the rest, and the guide had to warn about it.
+       */
+      const field = (key: string, column: string, max: number) =>
+        profile[key] !== undefined ? text(profile[key], max) : ((before?.[column] as string | null | undefined) ?? null);
+      // A person has no model or runtime, whatever the row held before.
+      const agentOnly = (key: string, column: string) => (kind === "human" ? null : field(key, column, 120));
       this.db.prepare(`UPDATE actors SET kind=?, display_name=?, bio=?, personality=?, coarse_location=?, time_zone=?,
                        model=?, runtime=?, updated_at=? WHERE id=?`)
         // personality is given room — 8000 characters rather than bio's 600 —
         // because it is the field somebody actually writes themselves into, and
         // a cap that cuts a person off mid-sentence is its own statement.
-        .run(kind, text(profile.displayName, 120), text(profile.bio, 600), text(profile.personality, 8000),
-             text(profile.coarseLocation, 120),
-             text(profile.timeZone, 120), text(profile.model, 120), text(profile.runtime, 120), now(), actor.id);
+        .run(kind, field("displayName", "display_name", 120), field("bio", "bio", 600), field("personality", "personality", 8000),
+             field("coarseLocation", "coarse_location", 120),
+             field("timeZone", "time_zone", 120), agentOnly("model", "model"), agentOnly("runtime", "runtime"), now(), actor.id);
       this.audit(actor.id, "update", "profile", actor.id, before, this.db.prepare("SELECT * FROM actors WHERE id=?").get(actor.id));
     });
   }

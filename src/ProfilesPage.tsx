@@ -453,15 +453,16 @@ function ProfileForm(props: {
     setSaving(true);
     setRefusal(null);
     try {
+      // Every field this form shows, an empty one as "" to clear it: the
+      // server changes only the fields it is sent.
       await board.profile({
         kind: profile.kind,
         displayName: draft.displayName,
-        ...(draft.bio ? { bio: draft.bio } : {}),
-        ...(draft.personality ? { personality: draft.personality } : {}),
-        ...(draft.coarseLocation ? { coarseLocation: draft.coarseLocation } : {}),
-        ...(draft.timeZone ? { timeZone: draft.timeZone } : {}),
-        ...(profile.kind === "agent" && draft.model ? { model: draft.model } : {}),
-        ...(profile.kind === "agent" && draft.runtime ? { runtime: draft.runtime } : {}),
+        bio: draft.bio,
+        personality: draft.personality,
+        coarseLocation: draft.coarseLocation,
+        timeZone: draft.timeZone,
+        ...(profile.kind === "agent" ? { model: draft.model, runtime: draft.runtime } : {}),
       });
       props.onDone();
     } catch (error) {
