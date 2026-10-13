@@ -123,6 +123,9 @@ any of it:
   arrows walk (left/right turn), drag to look, E rises and Q sinks.
 - **Enter VR**, with a player rig made around your camera so a headset starts you where
   the camera was, facing the same way.
+- **Arriving beside, not inside**: everyone starts where your camera is, so if somebody
+  already stands there you arrive a step to their right (or left, or further round), not
+  inside them with their name tag in your face (`src/kit/arrive.ts`).
 - **A wrist menu in VR** (turn your left wrist toward you): Back to saha.ing, Leave VR,
   plus your own buttons (`buttons: [{ label, onPress }]`). On a computer the badge has a
   Back to saha.ing link.

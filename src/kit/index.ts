@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { arrivalSpot } from "./arrive";
 import { VRButton } from "three/addons/webxr/VRButton.js";
 import type { Comfort } from "../space/comfort";
 import { connectSaha, type ConnectOptions, type SahaRoom } from "./connect";
@@ -98,6 +99,19 @@ export function joinSaha(options: JoinOptions): JoinedRoom {
   const room = connectSaha(options) as JoinedRoom;
   const player = rigFor(scene, camera, options.player);
   room.player = player;
+  // Arriving beside whoever is already there, not inside them (arrive.ts). Once:
+  // "ready" comes again on every reconnect, and by then you stand where you chose.
+  let arrived = false;
+  room.on("ready", () => {
+    if (arrived) return;
+    arrived = true;
+    const others = [...room.people.values()]
+      .filter((person) => person.id !== room.you?.id && person.p)
+      .map((person) => ({ x: person.p![0], z: person.p![2] }));
+    const spot = arrivalSpot({ x: player.position.x, z: player.position.z }, others, player.rotation.y);
+    player.position.x = spot.x;
+    player.position.z = spot.z;
+  });
   const server = (options.server ?? new URL(options.href ?? location.href).origin).replace(/\/$/, "");
   room.openScreen = (url, at, extra) => openScreen({ server, ...extra, scene, camera, renderer, url, at });
   const doors = new Set<Door>();
