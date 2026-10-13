@@ -409,6 +409,8 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 .tab-rooms p { margin: 0 0 18px; color: var(--muted); font-size: 14px; line-height: 1.6; }
 .primary-action { min-height: 44px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--ink); color: white; font-size: 14px; font-weight: 700; cursor: pointer; }
 .primary-action:hover { opacity: .9; }
+/* A link dressed as the button (Open screen sharing): centred like one, not underlined like a link. */
+a.primary-action { display: inline-flex; align-items: center; text-decoration: none; box-sizing: border-box; }
 
 /* FULL WIDTH. This was capped at 1120px, which on a wide screen left the board
    in a column with the rest of the window empty beside it — six lanes squeezed
@@ -535,6 +537,17 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 @media (max-width: 760px) {
   .board-columns { grid-auto-columns: minmax(80vw, 1fr); }
   .board-column { max-height: none; }
+}
+/* THE BOARD FITS THE WINDOW, under the tabs: every title stands on one bottom
+   edge you can see, and a long column scrolls inside itself, newest end first,
+   as the rules above intend. Since the tabs moved to the top (7c8992b) nothing
+   bounded its height, so the board grew to its longest column: with sixteen
+   cards in Backlog the titles were 3,400 px down the page and the other columns'
+   cards sat out of sight below empty space (Kerf, 2026-10-14). The row is
+   minmax(0, 1fr) so a long column cannot stretch it past the window. */
+@media (min-width: 761px) {
+  .workroom:has(> .project-workspace--board) { height: calc(100dvh - 54px); box-sizing: border-box; }
+  .board-columns { grid-auto-rows: minmax(0, 1fr); }
 }
 
 .kind-progress { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
