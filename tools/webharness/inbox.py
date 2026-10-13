@@ -220,6 +220,9 @@ def main() -> None:
             and not m.get("streaming")
         ]
 
+    # A message still streaming keeps its id when it finishes, so the
+    # watermark must stay below it or the finished reply is never delivered.
+    drafts = {int(m["id"]) for m in messages if m.get("id") and m.get("streaming")}
     incoming = replyable(messages, after)
     max_id = max([after] + [int(m["id"]) for m in messages if m.get("id")])
     # 长轮询时若只看到别人的流式草稿，再按新水位挂起，避免空转
@@ -227,8 +230,11 @@ def main() -> None:
         query = f"afterId={max_id}&wait={wait}"
         payload = http("GET", f"/api/rooms/{room}/messages?{query}", token=token, timeout=timeout)
         messages = payload.get("messages") or []
+        drafts |= {int(m["id"]) for m in messages if m.get("id") and m.get("streaming")}
         incoming = replyable(messages, max_id)
         max_id = max([max_id] + [int(m["id"]) for m in messages if m.get("id")])
+    if drafts:
+        max_id = min(max_id, min(drafts) - 1)
     if not args.peek and max_id > after:
         watermark.write_text(str(max_id))
     last_id = after

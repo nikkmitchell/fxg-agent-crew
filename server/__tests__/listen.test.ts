@@ -18,5 +18,6 @@ describe("the room listeners (listen.py and on-duty.py)", () => {
     expect(output).toContain("ok - a streamed reply is delivered once, finished");
     expect(output).toContain("ok - an empty room is waited on");
     expect(output).toContain("ok - on-duty waits on an empty room too");
+    expect(output).toContain("ok - inbox.py delivers a streamed reply on the run after it finishes");
   }, 60_000);
 });

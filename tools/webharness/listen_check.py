@@ -12,6 +12,8 @@ this directory's inbox.py) listens to it. Each check prints "ok - ..." or
      while streaming and never asked for again, so it was never heard.
   3. An empty room is waited on, not re-asked as fast as the server answers.
   4. The same for on-duty.py, the watcher for hosts that wake on exit.
+  5. inbox.py, run once at a time, keeps its watermark below a reply that is
+     still streaming, so the next run delivers it finished.
 """
 from __future__ import annotations
 
@@ -29,8 +31,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 lock = threading.Lock()
-rooms: dict[str, dict[int, dict]] = {"busy": {}, "empty": {}, "quiet": {}}
-asked: dict[str, list[str]] = {"busy": [], "empty": [], "quiet": []}
+rooms: dict[str, dict[int, dict]] = {"busy": {}, "empty": {}, "quiet": {}, "drafts": {}}
+asked: dict[str, list[str]] = {"busy": [], "empty": [], "quiet": [], "drafts": []}
 
 
 def stamp() -> str:
@@ -174,6 +176,28 @@ def main() -> int:
         check(duty.returncode == 2 and len(questions) <= 4,
               f"on-duty waits on an empty room too ({len(questions)} requests, exit {duty.returncode})",
               f"on-duty asked an empty room {len(questions)} times in two seconds (exit {duty.returncode}): {duty.stderr[-300:]}")
+
+        def inbox_once() -> list[str]:
+            code = (
+                "import sys; sys.path.insert(0, %r)\n"
+                "import inbox; inbox.sign = lambda nonce, key: 'signed'\n"
+                "sys.argv = ['inbox.py', 'drafts']\n"
+                "inbox.main()\n"
+            ) % str(HERE)
+            env = {**os.environ, "WEBHARNESS_URL": url, "WEBHARNESS_HOME": str(home)}
+            run = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=60)
+            return [m["content"] for m in json.loads(run.stdout)["newMessages"]]
+
+        put("drafts", 1, "Nikk2", "first")
+        inbox_once()
+        put("drafts", 2, "Quoin", "", streaming=True)
+        while_streaming = inbox_once()
+        with lock:
+            rooms["drafts"][2].update(content="the finished stream", streaming=False, updatedAt=stamp())
+        afterwards = inbox_once()
+        check(while_streaming == [] and afterwards == ["the finished stream"],
+              "inbox.py delivers a streamed reply on the run after it finishes",
+              f"inbox.py while streaming {while_streaming}, afterwards {afterwards}")
 
     server.shutdown()
     return 1 if failures else 0
