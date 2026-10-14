@@ -199,6 +199,14 @@ describe("mood boards", () => {
     await app.close();
   });
 
+  it("takes a file whose name is not proper percent-encoding as it came, not as a server error (Kerf, 2026-10-14)", async () => {
+    const { app, as } = boot();
+    const upload = await app.inject({ method: "POST", url: "/bff/board/blobs",
+      headers: { cookie: as("nikk"), "content-type": "image/png", "x-filename": "100%25 sure %E0%A4%A.png" }, payload: png() });
+    expect(upload.statusCode).toBe(200);
+    await app.close();
+  });
+
   it("serves the bytes back, cacheable and unable to run", async () => {
     const { app, as } = boot();
     const h = { cookie: as("nikk") };

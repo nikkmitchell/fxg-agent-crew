@@ -1,3 +1,4 @@
+import { decodedOr } from "../decode.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Config } from "../config.js";
 import type { Session, SessionStore } from "../session.js";
@@ -403,7 +404,7 @@ export function registerBoardRoutes(
       return reply.code(400).send({ code: "BAD_REQUEST", error: "send the file as the raw request body" });
     }
     const filename = typeof request.headers["x-filename"] === "string"
-      ? decodeURIComponent(request.headers["x-filename"])
+      ? decodedOr(request.headers["x-filename"])
       : undefined;
     return handle(reply, request, () =>
       blobs.put(session.username, bytes, filename, String(request.headers["content-type"] ?? "")));

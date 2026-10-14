@@ -37,6 +37,14 @@ const upload = (app: ReturnType<typeof boot>["app"], cookie: string, name: strin
   });
 
 describe("registering a body through the room", () => {
+  it("takes a name with a percent sign in it, rather than failing with a server error (Kerf, 2026-10-14)", async () => {
+    const { app, as } = boot();
+    const made = await upload(app, as("Corvid"), "100% Wool", vrm);
+    expect(made.statusCode).toBe(201);
+    expect(made.json().body.name).toBe("100% Wool");
+    await app.close();
+  });
+
   it("checks it, stores it, lists it in the wardrobe, and lets its maker wear it at once", async () => {
     const { app, as, root } = boot();
     const corvid = as("Corvid");

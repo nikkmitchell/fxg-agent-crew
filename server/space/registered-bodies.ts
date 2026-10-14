@@ -1,3 +1,4 @@
+import { decodedOr } from "../decode.js";
 import { mkdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { resolve } from "node:path";
@@ -196,7 +197,7 @@ export function registerRegisteredBodyRoutes(
       if (!check.ok) return refuse(reply, 400, "the platform check refused this file", { errors: check.errors, warnings: check.warnings });
 
       // A display name, kept short and free of control characters; the key is its letters and digits.
-      const asked = decodeURIComponent(request.params.name).replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 40);
+      const asked = decodedOr(request.params.name).replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 40);
       const name = asked || (check.info.title ? nameFromTitle(check.info.title) : null) || "";
       const key = bodyKey(name);
       if (key.length < 2 || key.length > 32) return refuse(reply, 400, "give the body a name of 2 to 32 letters or digits");
@@ -235,7 +236,7 @@ export function registerRegisteredBodyRoutes(
     async (request, reply) => {
       const session = requireSession(request, reply);
       if (!session) return reply;
-      const key = bodyKey(decodeURIComponent(request.params.name));
+      const key = bodyKey(decodedOr(request.params.name));
       const found = deps.registry.get(key);
       if (!found) return refuse(reply, 404, "no body is registered under that name");
       if (found.ownerKey !== actorKey(session.username)) return refuse(reply, 403, `${found.name} is ${found.owner}'s; only they can change its picture`);
@@ -264,7 +265,7 @@ export function registerRegisteredBodyRoutes(
   app.delete<{ Params: { name: string } }>("/bff/space/registered/:name", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const key = bodyKey(decodeURIComponent(request.params.name));
+    const key = bodyKey(decodedOr(request.params.name));
     const found = deps.registry.get(key);
     if (!found) return refuse(reply, 404, "no body is registered under that name");
     if (found.ownerKey !== actorKey(session.username) && session.kind === "agent") {
