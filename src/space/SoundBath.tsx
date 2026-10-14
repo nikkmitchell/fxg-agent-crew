@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { clockOffset } from "../../shared/meditation";
 import { useFrame } from "@react-three/fiber";
 import { BATH_SECONDS, bathScore, notesBetween } from "../../shared/sound-bath";
 import { BOWLS } from "../../shared/bowl";
@@ -27,8 +28,9 @@ export function SoundBath() {
   const [, tick] = useState(0);
 
   useRoomRead(() => {
+    const sent = Date.now();
     space.soundBath().then((answer) => {
-      offset.current = answer.now - Date.now();
+      offset.current = clockOffset(answer.now, sent, Date.now());
       setStartedAt(answer.startedAt);
       if (answer.startedAt) played.current = (answer.now - answer.startedAt) / 1000;
     }).catch(() => {});
@@ -79,8 +81,9 @@ export function SoundBath() {
         textSize={0.38}
         tone={startedAt ? "muted" : "live"}
         onTap={() => {
+          const sent = Date.now();
           space.changeSoundBath(startedAt ? "stop" : "start").then((answer) => {
-            offset.current = answer.now - Date.now();
+            offset.current = clockOffset(answer.now, sent, Date.now());
             played.current = 0;
             setStartedAt(answer.startedAt);
           }).catch(() => {});

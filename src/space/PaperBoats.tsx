@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { clockOffset } from "../../shared/meditation";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { afloat, boatAt, type Boat } from "../../shared/boats";
@@ -41,8 +42,9 @@ export function PaperBoats() {
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   useRoomRead(() => {
+    const sent = Date.now();
     space.boats().then((answer) => {
-      offset.current = answer.now - Date.now();
+      offset.current = clockOffset(answer.now, sent, Date.now());
       setBoats(answer.boats);
     }).catch(() => {});
   });
@@ -69,8 +71,9 @@ export function PaperBoats() {
   });
 
   const float = () => {
+    const sent = Date.now();
     space.floatBoat().then((answer) => {
-      offset.current = answer.now - Date.now();
+      offset.current = clockOffset(answer.now, sent, Date.now());
       setBoats((all) => (all.some((one) => one.id === answer.boat.id) ? all : [...all, answer.boat]));
     }).catch(() => {});
   };

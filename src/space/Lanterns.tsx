@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { clockOffset } from "../../shared/meditation";
 import * as THREE from "three";
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
@@ -61,10 +62,11 @@ export function Lanterns({ you }: { you: string | null }) {
   const offset = useRef(0);
 
   useRoomRead(() => {
+    const sent = Date.now();
     space
       .lanterns()
       .then((answer) => {
-        offset.current = answer.now - Date.now();
+        offset.current = clockOffset(answer.now, sent, Date.now());
         setSky(answer.lanterns);
       })
       .catch(() => {});
@@ -84,10 +86,11 @@ export function Lanterns({ you }: { you: string | null }) {
 
   const release = (word: string) => {
     setNote(null);
+    const sent = Date.now();
     space
       .releaseLantern(word)
       .then((answer) => {
-        offset.current = answer.now - Date.now();
+        offset.current = clockOffset(answer.now, sent, Date.now());
         setSky((all) => (all.some((one) => one.id === answer.lantern.id) ? all : [...all, answer.lantern]));
       })
       .catch((error: unknown) => setNote(error instanceof Error ? error.message : "The lantern did not go up."));
