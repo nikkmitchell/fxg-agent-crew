@@ -127,7 +127,12 @@ describe("pollMessages", () => {
       signal: controller.signal,
     });
 
-    expect(fetchMock.mock.calls[0][1].signal).toBe(controller.signal);
+    // Joined with the client's own time limit, so not the same object: what matters
+    // is that the browser leaving still cancels the request upstream.
+    const sent = fetchMock.mock.calls[0][1].signal as AbortSignal;
+    expect(sent.aborted).toBe(false);
+    controller.abort();
+    expect(sent.aborted).toBe(true);
   });
 
   it("escapes room names so they cannot break out of the path", async () => {
