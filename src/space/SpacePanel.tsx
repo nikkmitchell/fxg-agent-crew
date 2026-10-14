@@ -1,8 +1,9 @@
 import type { FinishedSpace } from "../../shared/finished-spaces";
 import { useFinishedRoom } from "./modules/use-finished";
 import { inFrontOf, useLibrary } from "./modules/use-library";
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../ErrorBoundary";
+import { lazyRetrying } from "../lazy-retry";
 import { markInXr } from "../client-errors";
 import { useSpaceSocket } from "./useSpaceSocket";
 import { DEFAULT_COMFORT, type Comfort } from "./comfort";
@@ -64,11 +65,19 @@ function ShareScreenLink() {
  * assumed, because the way this breaks is silent: one stray top-level import
  * pulls the whole thing back into the main chunk and everything still works.
  */
-const Scene = lazy(() => import("./Scene"));
+const Scene = lazyRetrying(() => import("./Scene"));
 /** Also behind the boundary: it imports the XR store, and that pulls in WebXR. */
-const HeadsetControls = lazy(() => import("./HeadsetControls"));
-const EnterHeadsetButton = lazy(() =>
-  import("./HeadsetControls").then((module) => ({ default: module.EnterHeadsetButton })),
+const HeadsetControls = lazyRetrying(() => import("./HeadsetControls"));
+const EnterHeadsetButton = lazyRetrying(
+  () => import("./HeadsetControls").then((module) => ({ default: module.EnterHeadsetButton })),
+  (module) => ({ default: module.EnterHeadsetButton as typeof import("./HeadsetControls").EnterHeadsetButton }),
+);
+
+/** When a small optional part did not arrive: say so where it would have been, and offer the reload that fetches it. */
+const partMissing = (what: string) => () => (
+  <p className="space-room-trouble" role="alert">
+    {what} did not load. <button type="button" onClick={() => location.reload()}>Reload</button>
+  </p>
 );
 
 /**
@@ -360,9 +369,11 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
           "nothing happened" is the least debuggable outcome there is. */}
       {headsetAvailable ? (
         <div className="space-enter-bar">
+          <ErrorBoundary where="headset-button" fallback={partMissing("The headset button")}>
           <Suspense fallback={null}>
             <EnterHeadsetButton inHeadset={inHeadset} />
           </Suspense>
+          </ErrorBoundary>
         </div>
       ) : null}
       <div className="space-canvas" ref={canvasBox}>
@@ -473,9 +484,11 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
         ) : null}
         {/* The headset's settings stay beside the view; the button is above it. */}
         {headsetAvailable === null ? null : headsetAvailable ? (
+          <ErrorBoundary where="headset-controls" fallback={partMissing("The headset settings")}>
           <Suspense fallback={null}>
             <HeadsetControls comfort={comfort} setComfort={setComfort} />
           </Suspense>
+          </ErrorBoundary>
         ) : (
           <p className="muted-note">
             This browser reports no immersive VR support, so there is no headset button. The room

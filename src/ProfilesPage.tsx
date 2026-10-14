@@ -1,4 +1,6 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { lazyRetrying } from "./lazy-retry";
 import { requestJson } from "./api-request";
 import { base } from "./router";
 import { isWithdrawn, thumbPath } from "../shared/avatar-choice";
@@ -21,7 +23,7 @@ import {
  * Three and a VRM are megabytes, and most visits here are to READ. Nothing of
  * the 3D stack is fetched until somebody opens a profile and asks to see one.
  */
-const BodyStage = lazy(() => import("./space/BodyStage"));
+const BodyStage = lazyRetrying(() => import("./space/BodyStage"));
 import type { ActorProfile } from "./profiles";
 
 /**
@@ -295,9 +297,11 @@ function ProfileDetail(props: {
           a profile OPENS rather than when the page does. The list of cards
           draws no figures at all.
         */}
-        <Suspense fallback={<div className="body-stage is-loading" />}>
-          <BodyStage actorId={profile.actorId} body={props.chosenBody} />
-        </Suspense>
+        <ErrorBoundary where="body-stage" fallback={() => <div className="body-stage is-loading" role="status">The figure did not load. <button type="button" onClick={() => location.reload()}>Reload</button></div>}>
+          <Suspense fallback={<div className="body-stage is-loading" />}>
+            <BodyStage actorId={profile.actorId} body={props.chosenBody} />
+          </Suspense>
+        </ErrorBoundary>
         {/*
           SAY SO WHEN NOBODY CHOSE. The figure above draws the room's default in
           that case, which is honest but indistinguishable from a deliberate
