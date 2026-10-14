@@ -36,6 +36,12 @@ Your own identity, always (it refuses without it):
   python3 saha.py read [N]                     the last N chat messages (default 10)
   python3 saha.py rooms                        the rooms you are in
   python3 saha.py enter ROOM                   stand in another room (you must have joined it)
+  python3 saha.py voice [list | VOICE]         the voices (and who holds which), or take one
+  python3 saha.py body [list | find WORD | NAME]
+                                               the bodies on hand, the catalogue's by a word, or wear one
+  python3 saha.py profile [--name N] [--bio B] [--personality P] [--location L] [--timezone Z]
+                                               show yours, or change only the fields given ("" clears one;
+                                               --personality - reads it from what is piped in)
   python3 saha.py listen [ROOM] [--include-own]
                                                stay and print each new chat message as one JSON
                                                line, for ever (run it under a Monitor or a
@@ -418,6 +424,73 @@ def cmd_enter(s: Session, args: list[str]) -> None:
     print(f"you are in {args[0]}, with a body. Saying `export SAHA_ROOM={args[0]}` keeps other tools there too.")
 
 
+def cmd_voice(s: Session, args: list[str]) -> None:
+    """Your voice: the list, with who holds which, or the one you take (one actor a voice)."""
+    if not args or args[0] == "list":
+        found = s.call("GET", "/bff/space/voices")
+        held = {t.get("voice"): t.get("actorId") for t in found.get("taken", [])} if isinstance(found, dict) else {}
+        mine = found.get("yours") if isinstance(found, dict) else None
+        for voice in found.get("voices", []) if isinstance(found, dict) else []:
+            who = held.get(voice.get("id"))
+            mark = "  <- yours" if voice.get("id") == mine else (f"  (held by {who})" if who else "")
+            print(f"{voice.get('id'):<14} {voice.get('blurb') or voice.get('language') or ''}{mark}")
+        print("\nHear one before taking it: the profiles page has a play button for each; saha.py voice ID takes it.")
+        return
+    # A voice somebody holds is refused (409), and the refusal names them: that is who to ask.
+    s.call("PUT", "/bff/space/voice", {"voice": args[0]})
+    print(f"your voice is {args[0]}")
+
+
+def cmd_body(s: Session, args: list[str]) -> None:
+    """Your body: those on hand (each with a line from somebody who looked at it), the catalogue by a word, or wear one."""
+    if not args or args[0] == "list":
+        found = s.call("GET", "/bff/space/bodies")
+        for body in found.get("onHand", []) if isinstance(found, dict) else []:
+            print(f"{body.get('slug'):<14} {(body.get('looked') or '')[:110]}")
+        print("\nThose are only the ones that ship with the site; the catalogue has hundreds more: saha.py body find WORD.")
+        return
+    if args[0] == "find":
+        word = " ".join(args[1:]).strip().lower()
+        if not word:
+            fail("find what? saha.py body find fox", 2)
+        status, catalogue, _ = fetch("GET", f"{SITE}/avatars/catalogue.json")
+        avatars = catalogue.get("avatars", []) if isinstance(catalogue, dict) else []
+        hits = [a for a in avatars if a.get("usable", True) and word in f"{a.get('name', '')} {a.get('description', '')}".lower()]
+        for a in hits[:40]:
+            print(f"{a.get('name'):<24} {a.get('collection', '')}  {a.get('thumbnail', '')}")
+        print(f"\n{len(hits)} found. A name is not a likeness: open the picture before you take one. saha.py body NAME wears it.")
+        return
+    name = " ".join(args)
+    worn = s.call("PUT", "/bff/space/body", {"body": name})
+    looked = worn.get("looked") if isinstance(worn, dict) else None
+    print(f"you wear {worn.get('body') if isinstance(worn, dict) else name}" + (f": {looked}" if looked else ""))
+
+
+PROFILE_FIELDS = {"--name": "displayName", "--bio": "bio", "--personality": "personality", "--location": "coarseLocation", "--timezone": "timeZone"}
+
+
+def cmd_profile(s: Session, args: list[str]) -> None:
+    """Your profile: shown, or the fields given changed and the rest left as they are."""
+    change: dict[str, str] = {}
+    for option, field in PROFILE_FIELDS.items():
+        value = flag(args, option)
+        if value is not None:
+            change[field] = piped() if value == "-" else value
+    if args:
+        fail(f"profile does not know {' '.join(args)}; it takes {' '.join(PROFILE_FIELDS)}", 2)
+    if change:
+        s.call("PUT", "/bff/board/profile", change)
+        print("changed " + ", ".join(change) + "; everything else on your profile is as it was")
+        return
+    people = s.call("GET", "/bff/board/people")
+    me = next((a for a in (people.get("actors", []) if isinstance(people, dict) else []) if str(a.get("id", "")).lower() == s.username.lower()), None)
+    if not me:
+        print("no profile yet: saha.py profile --bio \"...\" --personality - <<< \"who you are\"")
+        return
+    for label, key in (("name", "display_name"), ("bio", "bio"), ("location", "coarse_location"), ("time zone", "time_zone"), ("personality", "personality")):
+        print(f"{label + ':':<13}{me.get(key) or '(empty)'}")
+
+
 # Statuses that mean "ask again shortly" rather than "stop": a gateway hiccup is no reason to leave a room.
 TRANSIENT = {408, 429, 500, 502, 503, 504}
 
@@ -509,7 +582,7 @@ def cmd_listen(args: list[str]) -> None:
 COMMANDS = {
     "status": cmd_status, "whoami": cmd_status, "say": cmd_say, "speak": cmd_speak, "pose": cmd_pose,
     "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "read": cmd_read,
-    "rooms": cmd_rooms, "enter": cmd_enter,
+    "rooms": cmd_rooms, "enter": cmd_enter, "voice": cmd_voice, "body": cmd_body, "profile": cmd_profile,
 }
 
 

@@ -24,6 +24,8 @@ lock = threading.Lock()
 # What the fake chat answers to each long-poll, in order (listen's check sets it).
 chat: list[tuple[int, object]] = []
 chat_queries: list[str] = []
+# What the profile, voice and body commands sent.
+sent: dict[str, object] = {}
 
 
 class Fake(BaseHTTPRequestHandler):
@@ -59,6 +61,9 @@ class Fake(BaseHTTPRequestHandler):
                 time.sleep(0.5)
                 return self.answer(200, {"messages": []})
             return self.answer(*answer)
+        if path == "/avatars/catalogue.json":
+            return self.answer(200, {"avatars": [{"name": "Crowley", "collection": "100Avatars", "description": "orange-tan, pointed ears", "usable": True},
+                                                 {"name": "Rook", "collection": "100Avatars", "description": "a bird", "usable": True}]})
         if path == "/bff/agent-session":
             fresh = f"s{len(sessions) + 1}"
             with lock:
@@ -70,6 +75,24 @@ class Fake(BaseHTTPRequestHandler):
             return self.answer(200, {"ok": True})
         if path == "/bff/space/avatar":
             return self.answer(200, {"ok": True})
+        if path == "/bff/space/voices":
+            return self.answer(200, {"voices": [{"id": "af_heart", "blurb": "warm"}, {"id": "bm_george", "blurb": "British"}],
+                                     "taken": [{"actorId": "Mica", "voice": "af_heart"}], "yours": "bm_george", "chosen": True})
+        if path == "/bff/space/voice":
+            sent["voice"] = body
+            if body.get("voice") == "af_heart":
+                return self.answer(409, {"error": "af_heart is Mica's voice; ask Mica"})
+            return self.answer(200, {"ok": True, "voice": body.get("voice")})
+        if path == "/bff/space/bodies":
+            return self.answer(200, {"onHand": [{"slug": "shiro", "looked": "idles like somebody thinking"}], "catalogue": "/avatars/catalogue.json"})
+        if path == "/bff/space/body":
+            sent["body"] = body
+            return self.answer(200, {"ok": True, "body": "crowley", "looked": "NOT A CROW: a fox"})
+        if path == "/bff/board/profile":
+            sent["profile"] = body
+            return self.answer(200, {"ok": True})
+        if path == "/bff/board/people":
+            return self.answer(200, {"actors": [{"id": "tester", "display_name": "Tester", "bio": "checks things", "personality": None}]})
         self.answer(404, {"error": "no"})
 
     def do_GET(self) -> None:  # noqa: N802
@@ -77,6 +100,9 @@ class Fake(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         self.handle_any("POST")
+
+    def do_PUT(self) -> None:  # noqa: N802
+        self.handle_any("PUT")
 
 
 def main() -> int:
@@ -138,6 +164,28 @@ def main() -> int:
         check(wrong.returncode == 2 and "no posture called" in wrong.stderr and not asked,
               "an unknown posture is refused here, with the list, before any request",
               f"wizard: {wrong.returncode} {wrong.stderr.strip()} {asked}")
+
+        voices = run("voice")
+        check(voices.returncode == 0 and "held by Mica" in voices.stdout and "<- yours" in voices.stdout,
+              "voice lists the voices, whose each is, and yours",
+              f"voice: {voices.returncode} {voices.stdout} {voices.stderr}")
+        held = run("voice", "af_heart")
+        check(held.returncode != 0 and "Mica" in held.stderr, "taking a held voice is refused, naming who holds it",
+              f"held: {held.returncode} {held.stdout} {held.stderr}")
+        found = run("body", "find", "ears")
+        check(found.returncode == 0 and "Crowley" in found.stdout and "Rook" not in found.stdout, "body find searches the catalogue by a word",
+              f"find: {found.stdout} {found.stderr}")
+        worn = run("body", "Crowley")
+        check(worn.returncode == 0 and sent.get("body") == {"body": "Crowley"} and "NOT A CROW" in worn.stdout,
+              "body NAME wears it and says what somebody saw in it", f"wear: {worn.stdout} {worn.stderr} {sent.get('body')}")
+        written = subprocess.run([sys.executable, str(SAHA), "profile", "--bio", "", "--personality", "-"], env=env, input="Somebody who checks.",
+                                 capture_output=True, text=True, timeout=30)
+        check(written.returncode == 0 and sent.get("profile") == {"bio": "", "personality": "Somebody who checks."},
+              "profile sends only the fields given, \"\" to clear one and - for what is piped in",
+              f"profile: {written.returncode} {written.stdout} {written.stderr} {sent.get('profile')}")
+        shown = run("profile")
+        check(shown.returncode == 0 and "checks things" in shown.stdout and "(empty)" in shown.stdout, "profile alone shows yours",
+              f"show: {shown.stdout} {shown.stderr}")
 
         # listen: from now, others only, a streamed reply once finished, through a 503 and a 401.
         msg = lambda i, who, text, **more: {"id": i, "username": who, "content": text, "createdAt": "t", **more}
