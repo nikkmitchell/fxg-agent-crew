@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { jointIn, poseIn } from "../space/xr-pose";
 import type { Hand, Input, Off, Person, PressEvent, StrikeEvent, Tip } from "./types";
 
 /**
@@ -307,7 +308,7 @@ export class InputHub {
       if (source.hand && frame.getJointPose) {
         const joints: Partial<Record<XRHandJoint, THREE.Vector3>> = {};
         for (const [name, joint] of source.hand) {
-          const pose = frame.getJointPose(joint, referenceSpace);
+          const pose = jointIn(frame, joint, referenceSpace);
           if (pose) {
             const value = toRoom(new THREE.Vector3().setFromMatrixPosition(matrix.fromArray(pose.transform.matrix)));
             if ([value.x, value.y, value.z].every(Number.isFinite)) joints[name] = value;
@@ -318,7 +319,7 @@ export class InputHub {
       const finger = source.hand?.get("index-finger-tip");
       const space = finger ?? source.gripSpace;
       if (!space) continue;
-      const pose = finger ? frame.getJointPose?.(finger, referenceSpace) : frame.getPose(space, referenceSpace);
+      const pose = finger ? jointIn(frame, finger, referenceSpace) : poseIn(frame, space, referenceSpace);
       if (!pose) continue;
       const reference = new THREE.Vector3().setFromMatrixPosition(matrix.fromArray(pose.transform.matrix));
       const id = `${source.handedness}:${finger ? "finger" : "controller"}`;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { poseIn, viewerIn } from "./xr-pose";
 import { WindowUpGear } from "./WindowUpGear";
 import { roomBoards, useArrivalClearance } from "./arrival-clearance";
 import { controllerFaceButtons, isPressed } from "./controller-mic";
@@ -524,7 +525,7 @@ export function ImmersivePlayer({
     group: THREE.Group,
   ): Pose | null => {
     if (!space || !frame || !originSpace) return null;
-    const located = frame.getPose(space, originSpace);
+    const located = poseIn(frame, space, originSpace);
     if (!located) return null;
     scratch.matrix.fromArray(located.transform.matrix).premultiply(group.matrixWorld);
     scratch.matrix.decompose(scratch.position, scratch.quaternion, scratch.scale);
@@ -650,7 +651,7 @@ export function ImmersivePlayer({
    */
   const localPose = (space: XRSpace | undefined | null, frame: XRFrame | undefined): { p: Vec; q: Quat } | null => {
     if (!space || !frame || !originSpace) return null;
-    const located = frame.getPose(space, originSpace);
+    const located = poseIn(frame, space, originSpace);
     if (!located) return null;
     const { position: p, orientation: o } = located.transform;
     return { p: { x: p.x, y: p.y, z: p.z }, q: { x: o.x, y: o.y, z: o.z, w: o.w } };
@@ -679,7 +680,7 @@ export function ImmersivePlayer({
     if (!wrist || !joints || !wristSpace || !frame) return wrist;
     const positions = FINGER_JOINT_NAMES.map((name) => {
       const space = joints.get(name as XRHandJoint);
-      const located = space ? frame.getPose(space, wristSpace) : undefined;
+      const located = space ? poseIn(frame, space, wristSpace) : undefined;
       return located && !located.emulatedPosition ? located.transform.position : null;
     });
     // The WebXR wrist: -Z toward the fingertips, -Y out of the palm.
@@ -717,7 +718,7 @@ export function ImmersivePlayer({
 
     // RIGHT TURNS, about the head so the person stays on the spot.
     if (right.state.phase === "active" && right.ball && frame && originSpace) {
-      const viewer = frame.getViewerPose(originSpace);
+      const viewer = viewerIn(frame, originSpace);
       if (viewer) {
         const o = viewer.transform.orientation;
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion(o.x, o.y, o.z, o.w));
@@ -898,7 +899,7 @@ export function ImmersivePlayer({
     // Fingertip contact on hands; grip contact on controllers. Carrying always
     // follows the palm convention that the room already shares over the socket.
     // The head in the same frame as the hands, for "in front of your face".
-    const viewer = frame && originSpace ? frame.getViewerPose(originSpace) : null;
+    const viewer = frame && originSpace ? viewerIn(frame, originSpace) : null;
     const gestureHead = viewer
       ? {
           p: { x: viewer.transform.position.x, y: viewer.transform.position.y, z: viewer.transform.position.z },
@@ -919,11 +920,11 @@ export function ImmersivePlayer({
      */
     const controllerGrips = [leftController, rightController].flatMap((controller) => {
       const grip = controller?.inputSource.gripSpace;
-      const pose = grip && frame && originSpace ? frame.getPose(grip, originSpace) : null;
+      const pose = grip && frame && originSpace ? poseIn(frame, grip, originSpace) : null;
       return pose && !pose.emulatedPosition ? [pose.transform.position] : [];
     });
     const holdsController = (wristSpace: XRSpace | undefined): boolean => {
-      const wristPose = wristSpace && frame && originSpace ? frame.getPose(wristSpace, originSpace) : null;
+      const wristPose = wristSpace && frame && originSpace ? poseIn(frame, wristSpace, originSpace) : null;
       if (!wristPose) return false;
       const w = wristPose.transform.position;
       return controllerGrips.some((g) => Math.hypot(g.x - w.x, g.y - w.y, g.z - w.z) < 0.2);
@@ -939,7 +940,7 @@ export function ImmersivePlayer({
       // folded, and that read as a fist and cancelled Nikk's recording (5070).
       // Treat it as lost, which the gesture already rides out.
       const wristSpace = input?.inputSource.hand.get("wrist");
-      const guessed = wristSpace && frame && originSpace ? frame.getPose(wristSpace, originSpace)?.emulatedPosition === true : false;
+      const guessed = wristSpace && frame && originSpace ? poseIn(frame, wristSpace, originSpace)?.emulatedPosition === true : false;
       const holding = holdsController(wristSpace);
       // Hands in use, for hiding the touch buttons: a real hand, not a guessed
       // one and not one holding a controller (see handsTracked).
