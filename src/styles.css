@@ -325,12 +325,15 @@ h1 { max-width: 720px; margin-bottom: 18px; font-family: "Instrument Serif", ser
 /* Mood board. A free surface rather than a grid: arranging things by eye is the
    point, and a grid would make it a list with pictures. */
 .moodboard { margin-top: 14px; }
-.moodboard-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
-.moodboard-head h3 { margin: 0; font-size: 15px; }
+/* The name, then its three actions together on the right (space-between had scattered them across the page). */
+.moodboard-head { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; flex-wrap: wrap; }
+.moodboard-head h3 { margin: 0 auto 0 0; font-size: 15px; }
 .moodboard-add input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 /* The label is the control, so it must look and focus like one — a file input
    hidden behind a span is invisible to the keyboard otherwise. */
-.moodboard-add span { display: inline-block; padding: 6px 11px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); font-size: 12px; font-weight: 700; cursor: pointer; }
+/* Add images is a label round a hidden file input: its text wears the button, the label nothing, so it is not a box in a box. */
+label.moodboard-add { padding: 0; border: 0; background: none; }
+.moodboard-add span { display: inline-block; padding: 7px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-size: 13px; cursor: pointer; }
 .moodboard-add:focus-within span { outline: 2px solid var(--cobalt); outline-offset: 2px; }
 /* Grows with the window rather than sitting in a 340px box.
    A mood board is arranged by eye, and judging an arrangement through a
@@ -1286,7 +1289,8 @@ a.text-button { display: inline-flex; align-items: center; text-decoration: none
 /* /meditate: the guided meditations without a headset (src/MeditatePage.tsx). */
 .meditate-page { max-width: 640px; }
 .meditate-choices { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
-.meditate-voice { display: block; margin: 8px 0 16px; }
+.meditate-voice { display: flex; align-items: center; gap: 8px; margin: 8px 0 16px; font-weight: 700; font-size: 14px; }
+.meditate-voice select { min-height: 36px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 400; }
 .meditate-now { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 0; }
 .meditate-circle { border-radius: 50%; background: radial-gradient(circle, #8fe3d6 0%, #8fe3d655 55%, transparent 72%); transition: width 0.1s linear, height 0.1s linear; }
 .meditate-phase { font-size: 20px; font-weight: 700; letter-spacing: 0.08em; }
