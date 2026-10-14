@@ -149,7 +149,7 @@ export class SpaceLive {
     }
     room.members.add(member);
     room.dirty = true;
-    this.send(member, { t: "hello", you: person, guest: person === null, space, state: this.store.state(space), people: this.people(room) });
+    this.send(member, { t: "hello", you: person, guest: person === null, space, state: this.store.state(space), people: this.people(room), now: this.now() });
     if (person) this.send(member, { t: "items", items: this.store.items(person.name) });
 
     return {

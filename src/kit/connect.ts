@@ -44,6 +44,15 @@ export type SahaRoom = {
   on(event: "event", listener: (name: string, data: unknown, from: string) => void): () => void;
   /** Send a moment to everyone else in the space now, not kept (a note struck). JSON, up to 1 KB. */
   emit(name: string, data?: unknown): void;
+  /**
+   * THE SPACE'S CLOCK: milliseconds like Date.now(), but the same moment for
+   * everyone here, whatever their own device's clock says (set from saha.ing's
+   * when you arrive, to within the time a message takes to reach you). Use it
+   * for anything everyone should see or hear at once: a film's position, a
+   * beat, a countdown. Date.now() on a device a few seconds out puts that
+   * person a few seconds out of step.
+   */
+  now(): number;
   /** For the kit's own parts (voice): any message the wire takes. */
   send(message: unknown): void;
   /** Everyone but you. */
@@ -128,7 +137,10 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
     socket.send(JSON.stringify(message));
   };
 
+  /** saha.ing's clock minus this device's, from the last hello. */
+  let clockOffset = 0;
   const room: SahaRoom = {
+    now: () => Date.now() + clockOffset,
     space,
     ticket,
     you: null,
@@ -230,6 +242,7 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
         return;
       }
       if (message.t === "hello") {
+        if (typeof message.now === "number" && Number.isFinite(message.now)) clockOffset = message.now - Date.now();
         room.you = message.you;
         room.guest = message.guest;
         room.state = message.state ?? {};

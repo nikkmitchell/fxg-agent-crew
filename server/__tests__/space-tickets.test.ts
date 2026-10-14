@@ -150,3 +150,13 @@ describe("leave every space (Baiwei, 6395: \"Can you kick my presence out of tha
     live.stop();
   });
 });
+
+describe("the space's clock (Kerf, 2026-10-14)", () => {
+  it("says hello with saha.ing's time, so every page in the space can keep the same one", () => {
+    const live = new SpaceLive(store, () => null, () => 1_800_000_000_000);
+    const page = socket();
+    live.join("kerf.beats", page.live, nikk, { page: "page-cccccccc" });
+    expect((page.sent.find((m) => m.t === "hello") as unknown as { now: number }).now).toBe(1_800_000_000_000);
+    live.stop();
+  });
+});

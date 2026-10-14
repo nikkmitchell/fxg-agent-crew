@@ -73,7 +73,8 @@ export type KitPerson = {
 };
 
 export type ServerMessage =
-  | { t: "hello"; you: KitPerson | null; guest: boolean; space: string; state: Record<string, unknown>; people: KitPerson[] }
+  /** `now`: the server's clock when it said hello, so every page in the space can keep one time (room.now()). */
+  | { t: "hello"; you: KitPerson | null; guest: boolean; space: string; state: Record<string, unknown>; people: KitPerson[]; now?: number }
   | { t: "people"; people: KitPerson[] }
   | { t: "set"; k: string; v: unknown; by: string }
   | { t: "say"; id: string; name: string; text: string; at: number }
