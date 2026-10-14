@@ -1,5 +1,21 @@
+import { useState } from "react";
 import { enterRoom } from "./xr-store";
 import type { Comfort } from "./comfort";
+
+/**
+ * What to tell somebody whose headset would not open the room. It was an
+ * unhandled rejection and nothing on screen: the client error log has Nikk's
+ * "SecurityError: ... requestSession ... The page is not visible" (2026-10-12),
+ * the browser refusing because it thought the page was behind something.
+ */
+export function refusalText(error: unknown): string {
+  const name = error instanceof Error ? error.name : "";
+  const message = error instanceof Error ? error.message : String(error);
+  if (name === "SecurityError" && /not visible/i.test(message)) {
+    return "The browser thought this page was not in front when the headset asked for it. Press the button again.";
+  }
+  return `The headset did not open the room (${message || "no reason given"}). Press the button again.`;
+}
 
 /**
  * The button that puts you in the room.
@@ -14,10 +30,18 @@ import type { Comfort } from "./comfort";
  * anything that does belongs outside the main bundle.
  */
 export function EnterHeadsetButton({ inHeadset }: { inHeadset: boolean }) {
+  const [trouble, setTrouble] = useState<string | null>(null);
+  const enter = () => {
+    setTrouble(null);
+    enterRoom().catch((error: unknown) => setTrouble(refusalText(error)));
+  };
   return (
-    <button type="button" className="primary-action space-enter-headset" onClick={() => void enterRoom()}>
-      {inHeadset ? "You are in the room" : "Enter in your headset"}
-    </button>
+    <>
+      <button type="button" className="primary-action space-enter-headset" onClick={enter}>
+        {inHeadset ? "You are in the room" : "Enter in your headset"}
+      </button>
+      {trouble ? <p className="space-room-trouble" role="alert">{trouble}</p> : null}
+    </>
   );
 }
 
