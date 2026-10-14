@@ -1099,7 +1099,7 @@ KEEP, AS BUILT
   - /kit/three-bridge.js (server/spaces/three-bridge.ts, served at routes.ts:877);
   - /kit/three/* (:881);
   - the room's import map (index.html:23);
-  - globalThis.__SAHA_THREE__ (src/main.tsx:16).
+  - globalThis.__SAHA_THREE__ (src/space/modules/room-three.ts, imported by both module loaders).
 - The room item of kind "module":
   - ModuleRoomItem, parseModuleItem, MODULE_SCALE and isFullView (shared/room-items.ts:80-137);
   - POST, PATCH and DELETE /bff/space/items and addModule (server/space/items.ts:84-151).

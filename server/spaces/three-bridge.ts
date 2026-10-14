@@ -11,7 +11,7 @@ import * as THREE from "three";
  * loaders would belong to a second copy the room's renderer only half knows.
  *
  * So the room's import map points "three" here, and this module hands out the
- * copy the room put on globalThis.__SAHA_THREE__ (src/main.tsx), export by
+ * copy the room put on globalThis.__SAHA_THREE__ (src/space/modules/room-three.ts), export by
  * export. three's addons (/kit/three/addons/...) import "three" too, and get
  * the same copy the same way.
  */

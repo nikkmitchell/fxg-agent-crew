@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import "./room-three";
 
 /**
  * RUN A THING FROM A SPACE, RIGHT HERE (Nikk, 2026-10-01: "run the code for
