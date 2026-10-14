@@ -1312,7 +1312,7 @@ a.text-button { display: inline-flex; align-items: center; text-decoration: none
 .space-card header a { color: var(--cobalt); overflow-wrap: anywhere; }
 .space-details { margin-top: 12px; }
 .space-details ul { padding-left: 18px; }
-.space-rooms { display: flex; flex-wrap: wrap; gap: 8px; }
+.space-rooms { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
 .space-deploys { padding-left: 20px; font-size: 13px; line-height: 1.6; }
 .space-deploys li { margin-bottom: 6px; overflow-wrap: anywhere; }
 /* The code browser (SpacesPage.tsx, SpaceCode). */
