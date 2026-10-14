@@ -242,7 +242,13 @@ export function connectSaha(options: ConnectOptions = {}): SahaRoom {
         return;
       }
       if (message.t === "hello") {
-        if (typeof message.now === "number" && Number.isFinite(message.now)) clockOffset = message.now - Date.now();
+        // AS OF WHEN IT ARRIVED, not when this page got round to it: a page busy loading three.js
+        // handled its hello seconds late, and a clock set from Date.now() then was seconds behind
+        // (two viewers of one film 1.8 s apart, measured 2026-10-14). The event's own time says when
+        // it arrived; counted back on Date.now() so the device's clock, wherever it is, stays one clock.
+        const stamped = typeof event.timeStamp === "number" && Number.isFinite(event.timeStamp) && event.timeStamp !== 0;
+        const waited = stamped ? Math.max(0, performance.now() - event.timeStamp) : 0;
+        if (typeof message.now === "number" && Number.isFinite(message.now)) clockOffset = message.now - (Date.now() - waited);
         room.you = message.you;
         room.guest = message.guest;
         room.state = message.state ?? {};
