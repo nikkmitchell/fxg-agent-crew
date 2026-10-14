@@ -173,3 +173,24 @@ describe("only requests that can safely repeat are retried", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("a WebHarness that never answers (Kerf, 2026-10-14)", () => {
+  it("fails a request at its limit, as upstream unavailable, instead of holding it for Node's five minutes", async () => {
+    const { createServer } = await import("node:http");
+    const { classify } = await import("../webharness/errors.js");
+    const silent = createServer(() => { /* accepts, never answers */ });
+    await new Promise<void>((resolve) => silent.listen(0, "127.0.0.1", resolve));
+    const port = (silent.address() as { port: number }).port;
+    const client = new WebharnessClient(`http://127.0.0.1:${port}`, { requestMs: 150, longPollMs: 400 });
+    const started = Date.now();
+    const error = await client.request("/api/rooms", { token: "t" }).catch((caught: unknown) => caught);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(classify(error)).toMatchObject({ status: 502, code: "UPSTREAM_UNAVAILABLE" });
+    // A long-poll, which brings its own signal, gets the longer limit and still ends.
+    const polled = Date.now();
+    await client.request("/api/rooms/x/messages", { token: "t", signal: new AbortController().signal }).catch(() => undefined);
+    expect(Date.now() - polled).toBeGreaterThanOrEqual(350);
+    silent.closeAllConnections();
+    silent.close();
+  });
+});

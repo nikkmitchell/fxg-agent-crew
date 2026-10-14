@@ -79,7 +79,18 @@ export type RequestOptions = {
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export class WebharnessClient {
-  constructor(private readonly baseUrl: string) {}
+  /**
+   * HOW LONG ANY ONE REQUEST MAY TAKE. There was no limit but Node's own, five
+   * minutes, so a WebHarness that accepted a connection and never answered held
+   * every sign-in, room list and message send behind it for that long. A long-poll
+   * (which passes its own signal) waits at most 30 s by design, so it gets 45.
+   * A request past its limit fails as "upstream unavailable" (502), like any
+   * other WebHarness that cannot be reached.
+   */
+  constructor(
+    private readonly baseUrl: string,
+    private readonly limits: { requestMs: number; longPollMs: number } = { requestMs: 20_000, longPollMs: 45_000 },
+  ) {}
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const attempt = () => this.rawRequest<T>(path, options);
@@ -111,11 +122,12 @@ export class WebharnessClient {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (options.token) headers.Authorization = `Bearer ${options.token}`;
 
+    const limit = AbortSignal.timeout(options.signal ? this.limits.longPollMs : this.limits.requestMs);
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: options.method ?? "GET",
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      signal: options.signal,
+      signal: options.signal ? AbortSignal.any([options.signal, limit]) : limit,
     });
 
     if (!response.ok) {
