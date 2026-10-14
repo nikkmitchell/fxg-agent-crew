@@ -43,6 +43,22 @@ describe("the lobby's doors", () => {
     expect(doors[2].detail).toBe("space · 2 here");
   });
 
+  it("gives a published space one door: its public room is not a second, empty way in, unless it is yours (Kerf, 2026-10-14)", () => {
+    const doors = lobbyDoors([room("saha.ing"), room("garden")], [room("Kerf.Cinema"), room("garden"), room("Art")], "saha.ing", [
+      { name: "kerf.cinema", title: "Kerf's cinema", here: 0 },
+      { name: "garden", title: "A garden", here: 0 },
+    ]);
+    expect(doors.map((door) => [door.room, door.kind])).toEqual([
+      ["saha.ing", "here"],
+      // Yours: the room where its builders see their workbench stays.
+      ["garden", "enter"],
+      ["A garden", "space"],
+      ["Kerf's cinema", "space"],
+      // Not "Kerf.Cinema" to join: the space's door is the way in.
+      ["Art", "join"],
+    ]);
+  });
+
   it("draws no doors until the lists arrive, rather than claiming you are in nothing", () => {
     expect(lobbyDoors(null, null, "lobby")).toEqual([]);
     expect(lobbyDoors([room("saha.ing")], null, "lobby").map((door) => door.room)).toEqual(["saha.ing"]);

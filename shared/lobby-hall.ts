@@ -69,9 +69,13 @@ export function lobbyDoors(
   for (const space of [...(spaces ?? [])].sort((a, b) => a.title.localeCompare(b.title))) {
     doors.push({ room: space.title, kind: "space", space: space.name, detail: space.here ? `space · ${space.here} here` : "space" });
   }
+  // ONE DOOR PER PUBLISHED SPACE (the rule splitDoors keeps for finished ones): its public room of the
+  // same name, to join, was a second way in, to an empty room beside the space (Kerf, 2026-10-14). A member's
+  // own door to it stays above: that room is where its builders see their workbench.
+  const published = new Set((spaces ?? []).map((space) => roomKey(space.name)));
   for (const room of [...(publicRooms ?? [])].sort(byName)) {
     const key = roomKey(room.roomName);
-    if (seen.has(key)) continue;
+    if (seen.has(key) || published.has(key)) continue;
     seen.add(key);
     doors.push({ room: room.roomName, kind: "join", detail: detail(room) || "public" });
   }
