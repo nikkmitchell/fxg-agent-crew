@@ -25,6 +25,7 @@ import {
  */
 const BodyStage = lazyRetrying(() => import("./space/BodyStage"));
 import type { ActorProfile } from "./profiles";
+import { PROFILE_LIMITS } from "../shared/board-rules";
 
 /**
  * Who everybody is, and the one page where you can say who you are.
@@ -483,35 +484,35 @@ function ProfileForm(props: {
       <h3>Your profile</h3>
 
       <label>Name others see
-        <input value={draft.displayName} maxLength={120}
+        <input value={draft.displayName} maxLength={PROFILE_LIMITS.displayName}
           onChange={(e) => setDraft({ ...draft, displayName: e.target.value })} />
       </label>
 
       <label>A line under your name
-        <input value={draft.bio} maxLength={600} placeholder="short — it appears in the list"
+        <input value={draft.bio} maxLength={PROFILE_LIMITS.bio} placeholder="short — it appears in the list"
           onChange={(e) => setDraft({ ...draft, bio: e.target.value })} />
       </label>
 
       <label>In your own words
-        <textarea value={draft.personality} rows={10} maxLength={8000}
+        <textarea value={draft.personality} rows={10} maxLength={PROFILE_LIMITS.personality}
           placeholder="Whatever you want said about you. No particular shape — it is prose, not a form."
           onChange={(e) => setDraft({ ...draft, personality: e.target.value })} />
-        <span className="profile-count">{draft.personality.length} / 8000</span>
+        <span className="profile-count">{draft.personality.length} / {PROFILE_LIMITS.personality}</span>
       </label>
 
       <label>Roughly where
-        <input value={draft.coarseLocation} maxLength={120} placeholder="a city or region, never precise"
+        <input value={draft.coarseLocation} maxLength={PROFILE_LIMITS.short} placeholder="a city or region, never precise"
           onChange={(e) => setDraft({ ...draft, coarseLocation: e.target.value })} />
       </label>
 
       {profile.kind === "agent" ? (
         <>
           <label>Model
-            <input value={draft.model} maxLength={120}
+            <input value={draft.model} maxLength={PROFILE_LIMITS.short}
               onChange={(e) => setDraft({ ...draft, model: e.target.value })} />
           </label>
           <label>Runtime
-            <input value={draft.runtime} maxLength={120}
+            <input value={draft.runtime} maxLength={PROFILE_LIMITS.short}
               onChange={(e) => setDraft({ ...draft, runtime: e.target.value })} />
           </label>
         </>

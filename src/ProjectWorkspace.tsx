@@ -7,7 +7,7 @@ import { describeProgress, kindLabel } from "./task-kind";
 import { BOARD_COLUMNS, calculateProjectProgress } from "./project-model";
 import { nextUnclaimed, priorityLabel } from "./priority";
 import { byArrival } from "./board-order";
-import { ROLES, canManageMembership, membersOf, type Membership, type Role } from "./membership";
+import { ROLES, canManageMembership, leavesNoManager, membersOf, type Membership, type Role } from "./membership";
 import { Identity } from "./Identity";
 import type { ActorProfile } from "./profiles";
 import { board, toCrewProject, toCrewTask, toProfile } from "./board-client";
@@ -23,7 +23,6 @@ type ProjectState = {
   projects: CrewProject[];
   tasks: CrewTask[];
   memberships?: Membership[];
-  projectCreators?: Record<string, string>;
   profiles?: ActorProfile[];
 };
 type Me = { username: string; kind?: "human" | "agent" };
@@ -750,9 +749,8 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         {(() => {
           const memberships = state.memberships ?? [];
           const members = membersOf(memberships, selected.id);
-          const creator = state.projectCreators?.[selected.id];
-          const canManage =
-            me !== null && canManageMembership(memberships, selected.id, me.username, creator);
+          const creator = selected.createdBy;
+          const canManage = me !== null && canManageMembership(memberships, selected.id, me.username, creator);
 
           return (
             <>
@@ -761,7 +759,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                 <p className="muted-note">
                   Nobody has been added to this project yet.{" "}
                   {creator ? (
-                    <>Only <b>{creator}</b>, who created it, can add the first member.</>
+                    <>Only <b>{creator}</b>, who created it, can add the first member, and has to make somebody a manager.</>
                   ) : (
                     // No recorded creator means the bootstrap is closed. Saying
                     // so is better than an empty list that looks like a bug.
@@ -773,8 +771,25 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                   {members.map((member) => (
                     <li key={member.actorId}>
                       <b>{member.actorId}</b>
-                      <span className="member-roles">{member.roles.join(", ")}</span>
+                      <span className="member-roles">{member.roles.length > 0 ? member.roles.join(", ") : "member"}</span>
                       <small>added by {member.grantedBy}</small>
+                      {canManage ? (() => {
+                        // The server refuses this too; greyed out here so the refusal is never a surprise.
+                        const last = leavesNoManager(memberships, selected.id, member.actorId, { action: "revoke" });
+                        return (
+                          <button
+                            type="button"
+                            className="member-remove"
+                            disabled={busy || last}
+                            title={last
+                              ? "The last manager cannot be removed: make somebody else a manager first."
+                              : `Remove ${member.actorId} from this project`}
+                            onClick={() => void write(() => board.membership(selected.id, member.actorId, "revoke"))}
+                          >
+                            Remove
+                          </button>
+                        );
+                      })() : null}
                     </li>
                   ))}
                 </ul>
@@ -790,8 +805,10 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                     const data = new FormData(form);
                     const actorId = String(data.get("actorId") ?? "").trim();
                     const roles = ROLES.filter((role) => data.getAll("roles").includes(role)) as Role[];
-                    if (!actorId || roles.length === 0) {
-                      setError("A member needs a name and at least one role.");
+                    // No role is plain membership, which is what lets somebody card their
+                    // own work; a role is an extra hat (the server's rule, and the room's).
+                    if (!actorId) {
+                      setError("A member needs a name.");
                       return;
                     }
                     void write(() => board.membership(selected.id, actorId, "grant", roles))

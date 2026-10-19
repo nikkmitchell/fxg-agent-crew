@@ -4,9 +4,12 @@ import { coverings, nextSpot } from "../../shared/board-overlap.js";
 import {
   BOARD_LIMITS,
   FORBIDDEN_PROFILE_KEYS,
+  PROFILE_LIMITS,
   canTransition,
   hasProjectAuthority,
   isRole,
+  leavesNoManager,
+  mayManageMembership,
   isStatus,
   type Role,
   type Status,
@@ -482,15 +485,14 @@ export class BoardStore {
       const field = (key: string, column: string, max: number) =>
         profile[key] !== undefined ? text(profile[key], max) : ((before?.[column] as string | null | undefined) ?? null);
       // A person has no model or runtime, whatever the row held before.
-      const agentOnly = (key: string, column: string) => (kind === "human" ? null : field(key, column, 120));
+      const agentOnly = (key: string, column: string) => (kind === "human" ? null : field(key, column, PROFILE_LIMITS.short));
       this.db.prepare(`UPDATE actors SET kind=?, display_name=?, bio=?, personality=?, coarse_location=?, time_zone=?,
                        model=?, runtime=?, updated_at=? WHERE id=?`)
-        // personality is given room — 8000 characters rather than bio's 600 —
-        // because it is the field somebody actually writes themselves into, and
-        // a cap that cuts a person off mid-sentence is its own statement.
-        .run(kind, field("displayName", "display_name", 120), field("bio", "bio", 600), field("personality", "personality", 8000),
-             field("coarseLocation", "coarse_location", 120),
-             field("timeZone", "time_zone", 120), agentOnly("model", "model"), agentOnly("runtime", "runtime"), now(), actor.id);
+        // The limits are shared/board-rules.ts's, the ones the profile page types against.
+        .run(kind, field("displayName", "display_name", PROFILE_LIMITS.displayName), field("bio", "bio", PROFILE_LIMITS.bio),
+             field("personality", "personality", PROFILE_LIMITS.personality),
+             field("coarseLocation", "coarse_location", PROFILE_LIMITS.short),
+             field("timeZone", "time_zone", PROFILE_LIMITS.short), agentOnly("model", "model"), agentOnly("runtime", "runtime"), now(), actor.id);
       this.audit(actor.id, "update", "profile", actor.id, before, this.db.prepare("SELECT * FROM actors WHERE id=?").get(actor.id));
     });
   }
@@ -527,6 +529,11 @@ export class BoardStore {
       } else if (action === "confirm") {
         if (actor.id !== agentId) throw new Refused("only the agent can confirm who operates it", "NOT_THE_AGENT");
         if (!existing) throw new Refused("there is no claim to confirm", "NOT_FOUND");
+        // Confirming answers a claim; an ended link has none. Without this the
+        // agent alone could put a person's name back on itself after they left.
+        if (existing.state === "revoked") {
+          throw new Refused("that link was ended; the person has to claim it again", "NOT_FOUND");
+        }
         this.db.prepare("UPDATE ownerships SET state='verified', settled_at=? WHERE agent_id=? AND owner_id=?")
           .run(now(), agentId, ownerId);
       } else {
@@ -702,16 +709,18 @@ export class BoardStore {
       // active or revoked. A revoked membership is still evidence that this
       // project has been administered by somebody, and the way back in is that
       // person or another manager — never a stranger.
-      const everGranted = (this.db.prepare("SELECT COUNT(*) c FROM memberships WHERE project_id = ?")
-        .get(projectId) as { c: number }).c;
-      const isManager = (this.db.prepare("SELECT roles FROM memberships WHERE project_id=? AND actor_id=? AND active=1")
-        .get(projectId, actor.id) as { roles: string } | undefined);
-      const managerRoles: string[] = isManager ? JSON.parse(isManager.roles) : [];
-      // A manager may. Nobody else may — not an owner of a member agent, not
-      // someone holding a card in the project, and not somebody who arrived
-      // after the last manager left.
-      if (everGranted > 0 && !managerRoles.includes("manager")) {
+      // The rule itself is shared/board-rules.ts's, the one the UI reads to offer the control.
+      const rows = (this.db.prepare("SELECT project_id, actor_id, roles, active FROM memberships WHERE project_id = ?")
+        .all(projectId) as { project_id: string; actor_id: string; roles: string; active: number }[])
+        .map((row) => ({ projectId: row.project_id, actorId: row.actor_id, roles: JSON.parse(row.roles) as string[], active: row.active === 1 }));
+      const project = this.db.prepare("SELECT created_by FROM projects WHERE id = ?").get(projectId) as
+        | { created_by: string } | undefined;
+      if (!project) throw new Refused(`no project called ${projectId}`, "NOT_FOUND");
+      if (!mayManageMembership(rows, projectId, actor.id, project.created_by)) {
         throw new Refused("only a project manager can change who belongs to it", "PROJECT_PERMISSION_REQUIRED");
+      }
+      if (leavesNoManager(rows, projectId, actorId, action === "grant" ? { action, roles: clean } : { action })) {
+        throw new Refused("that would leave the project with no manager, and nobody could ever change who belongs to it again; make somebody else a manager first", "LAST_MANAGER");
       }
       this.ensureActor(actorId);
       if (action === "grant") {

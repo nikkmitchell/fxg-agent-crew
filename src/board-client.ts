@@ -113,6 +113,7 @@ export function toCrewProject(row: Record<string, any>) {
     summary: row.summary ?? "",
     goals: row.goals ?? [],
     steps: [],
+    ...(typeof row.created_by === "string" ? { createdBy: row.created_by } : {}),
   };
 }
 

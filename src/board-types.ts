@@ -85,4 +85,6 @@ export type CrewProject = {
   summary: string;
   goals: string[];
   steps: Array<{ id: string; title: string; status: "not_started" | "in_progress" | "done" }>;
+  /** Who made it: the only actor who may seed an empty project's membership. */
+  createdBy?: string;
 };

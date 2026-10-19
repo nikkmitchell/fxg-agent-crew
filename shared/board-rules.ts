@@ -53,6 +53,14 @@ export const nextStatuses = (from: Status): readonly Status[] => ALLOWED[from];
  * data. Silently stripping is worse than refusing, because the sender is told
  * their field was saved.
  */
+/**
+ * How long each profile field may be, for the server that refuses a longer one
+ * and the page that stops you typing past it. personality gets room because it
+ * is the field somebody writes themselves into; a cap that cuts a person off
+ * mid-sentence is its own statement. Over the cap is refused, never truncated.
+ */
+export const PROFILE_LIMITS = { displayName: 120, bio: 600, personality: 8000, short: 120 } as const;
+
 export const FORBIDDEN_PROFILE_KEYS = [
   "ip", "ipAddress", "hostname", "host",
   "token", "accessToken", "bearer", "key", "privateKey", "publicKey",
@@ -76,4 +84,53 @@ export function hasProjectAuthority(
 }
 
 export const isRole = (value: unknown): value is Role => (ROLES as readonly string[]).includes(value as string);
+
+/** A membership as the store keeps it and the board API hands it to the UI: revoked rows included. */
+export type MembershipRow = { projectId: string; actorId: string; roles: readonly string[]; active: boolean };
+
+const sameActor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+/**
+ * MAY THIS ACTOR CHANGE WHO BELONGS TO THIS PROJECT? One rule, for the server that
+ * enforces it and the UI that offers the control (it was two, and they disagreed).
+ *
+ * A manager may. Nobody else may: not an owner of a member agent, not someone
+ * holding a card in the project, not somebody who arrived after the last manager
+ * left. THE BOOTSTRAP is a project that has NEVER had a membership row, active or
+ * revoked, and only its recorded creator may seed it: otherwise no project could
+ * gain its first member, and a project nobody has administered would be anyone's
+ * to take. "Never had" and "has none right now" are different, and conflating
+ * them was a privilege escalation: revoking the last manager re-opened the
+ * bootstrap to anyone. (Making a project makes its creator a manager, so an
+ * empty one is a leftover; no recorded creator means nobody may seed it.)
+ */
+export function mayManageMembership(
+  rows: readonly MembershipRow[],
+  projectId: string,
+  actorId: string,
+  creator: string | null | undefined,
+): boolean {
+  const ofProject = rows.filter((row) => row.projectId === projectId);
+  if (ofProject.length === 0) return typeof creator === "string" && sameActor(creator, actorId);
+  return ofProject.some((row) => row.active && sameActor(row.actorId, actorId) && row.roles.includes("manager"));
+}
+
+/**
+ * WOULD THIS CHANGE LEAVE A PROJECT WITH NO MANAGER? Revoking the last one,
+ * granting them a set of roles without "manager", or seeding a project's first
+ * member without making anybody a manager: each leaves a project nobody can ever
+ * administer again (it has had a member, so the bootstrap is closed), a state
+ * with no way out that looks like a successful action. Refused.
+ */
+export function leavesNoManager(
+  rows: readonly MembershipRow[],
+  projectId: string,
+  actorId: string,
+  change: { action: "grant"; roles: readonly string[] } | { action: "revoke" },
+): boolean {
+  const others = rows.filter((row) =>
+    row.projectId === projectId && row.active && row.roles.includes("manager") && !sameActor(row.actorId, actorId));
+  const stillManages = change.action === "grant" && change.roles.includes("manager");
+  return others.length === 0 && !stillManages;
+}
 export const isStatus = (value: unknown): value is Status => (STATUSES as readonly string[]).includes(value as string);

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "../db/open.js";
 import { BoardStore, Refused } from "../db/store.js";
 import { coverings } from "../../shared/board-overlap.js";
+import { PROFILE_LIMITS } from "../../shared/board-rules.js";
 
 /**
  * The rules survive the move off event sourcing.
@@ -147,6 +148,14 @@ describe("profiles", () => {
     expect(rows).toEqual([{ id: "nikk", display_name: "Nikk" }]);
   });
 
+  it("takes a personality up to its limit and REFUSES one longer, rather than truncating it", () => {
+    // A cut-off sentence saved as if whole is worse than a refusal the writer can see.
+    const limit = PROFILE_LIMITS.personality;
+    expect(() => store.upsertProfile(nikk, { personality: "a".repeat(limit) })).not.toThrow();
+    expect(() => store.upsertProfile(nikk, { personality: "b".repeat(limit + 1) })).toThrow(/exceeds/);
+    expect((row("nikk").personality ?? "").length).toBe(limit);
+  });
+
   it("refuses a runtime on a person", () => {
     expect(() => store.upsertProfile(nikk, { displayName: "Nikk", model: "opus-5" }))
       .toThrow(/not a person/);
@@ -200,6 +209,22 @@ describe("ownership is a request, not a fact", () => {
     expect(() => store.actOnOwnership(stranger, "claude-nikk2mbp", "nikk", "revoke")).toThrow(/not your link/);
     store.actOnOwnership(claude, "claude-nikk2mbp", "nikk", "revoke");
     expect((db.prepare("SELECT state FROM ownerships").get() as { state: string }).state).toBe("revoked");
+  });
+
+  it("does not let the agent revive a link that was ended", () => {
+    // Confirming answers a claim. Once either side ends the link there is no
+    // claim left, and the agent saying "nikk operates me" again on its own
+    // would put a person's name on an agent they walked away from.
+    store.actOnOwnership(nikk, "claude-nikk2mbp", "nikk", "declare");
+    store.actOnOwnership(claude, "claude-nikk2mbp", "nikk", "confirm");
+    store.actOnOwnership(nikk, "claude-nikk2mbp", "nikk", "revoke");
+
+    expect(() => store.actOnOwnership(claude, "claude-nikk2mbp", "nikk", "confirm")).toThrow(/claim it again/);
+    expect((db.prepare("SELECT state FROM ownerships").get() as { state: string }).state).toBe("revoked");
+
+    store.actOnOwnership(nikk, "claude-nikk2mbp", "nikk", "declare");
+    store.actOnOwnership(claude, "claude-nikk2mbp", "nikk", "confirm");
+    expect((db.prepare("SELECT state FROM ownerships").get() as { state: string }).state).toBe("verified");
   });
 });
 
@@ -368,11 +393,46 @@ describe("can the bootstrap be abused", () => {
     // The bootstrap exists so a brand-new project is usable by its creator.
     // The question is whether "no members yet" and "no members any more" are
     // distinguishable — because if they are not, revoking the last manager
-    // reopens the project to the entire world.
-    store.actOnMembership(nikk, "saha", "nikk", "revoke");
+    // reopens the project to the entire world. (Revoking the last manager is
+    // refused now, below; this is the state an older store could reach.)
+    db.prepare("UPDATE memberships SET active = 0 WHERE project_id = 'saha'").run();
 
     expect(() => store.actOnMembership(stranger, "saha", "stranger", "grant", ["manager"]))
       .toThrow(/only a project manager/);
+  });
+
+  it("refuses to revoke the last manager, which would leave nobody able to administer it", () => {
+    expect(() => store.actOnMembership(nikk, "saha", "nikk", "revoke")).toThrow(
+      expect.objectContaining({ code: "LAST_MANAGER" }),
+    );
+    // Nor by re-granting them without the role.
+    expect(() => store.actOnMembership(nikk, "saha", "nikk", "grant", ["engineering"])).toThrow(
+      expect.objectContaining({ code: "LAST_MANAGER" }),
+    );
+    expect(db.prepare("SELECT active, roles FROM memberships WHERE actor_id = 'nikk'").get())
+      .toEqual({ active: 1, roles: '["manager"]' });
+  });
+
+  it("lets a manager step down once somebody else manages", () => {
+    store.actOnMembership(nikk, "saha", "claude-nikk2mbp", "grant", ["manager"]);
+    expect(() => store.actOnMembership(nikk, "saha", "nikk", "revoke")).not.toThrow();
+  });
+
+  it("lets only the recorded creator seed a project nobody has administered", () => {
+    // Making a project makes its creator a manager, so an empty one is a
+    // leftover; it must not be the first passer-by's to take.
+    db.prepare("INSERT INTO projects (id,name,summary,created_by,created_at,updated_at) VALUES ('empty','Empty','','nikk','t','t')").run();
+    expect(() => store.actOnMembership(stranger, "empty", "stranger", "grant", ["manager"]))
+      .toThrow(/only a project manager/);
+    // And the creator's first grant has to make somebody a manager, or it is locked for good.
+    expect(() => store.actOnMembership(nikk, "empty", "claude-nikk2mbp", "grant", ["engineering"]))
+      .toThrow(expect.objectContaining({ code: "LAST_MANAGER" }));
+    expect(() => store.actOnMembership(nikk, "empty", "nikk", "grant", ["manager"])).not.toThrow();
+  });
+
+  it("says a missing project is missing", () => {
+    expect(() => store.actOnMembership(nikk, "nowhere", "nikk", "grant", ["manager"]))
+      .toThrow(expect.objectContaining({ code: "NOT_FOUND" }));
   });
 
   it("still lets a genuinely new project bootstrap", () => {
