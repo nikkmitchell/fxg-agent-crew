@@ -32,6 +32,9 @@ sent: dict[str, object] = {}
 rooms = {"testroom": True, "openroom": False}
 # Pings the fake room's socket heard (stand's check).
 pings: list[bytes] = []
+# How many times arrivals asked who is here, and whether its scene is on.
+presence_calls: list[int] = []
+presence_scene: list[int] = []
 # What go played, in order (go's check).
 go_moves: list[object] = []
 # What screen sent: (content type, bytes) per picture, ("DELETE", 0) when taken down.
@@ -111,6 +114,14 @@ class Fake(BaseHTTPRequestHandler):
             self.close_connection = True
             return
         if path == "/bff/space/presence":
+            if presence_scene:  # arrivals' check: somebody new is there from the second look on
+                with lock:
+                    presence_calls.append(1)
+                    calls = len(presence_calls)
+                people = [{"actorId": "Tester", "connected": True, "kind": "agent"}, {"actorId": "Nikk2", "connected": True, "kind": "human"}]
+                if calls >= 2:
+                    people.append({"actorId": "Newcomer", "connected": True, "kind": "human"})
+                return self.answer(200, {"people": people})
             return self.answer(200, {"people": [{"actorId": "Tester", "connected": False}]})
         if path == "/bff/space/showing":
             if method == "PUT":
@@ -337,6 +348,19 @@ def main() -> int:
         check(refused.returncode == 1 and "Screen Recording" in refused.stdout,
               "screen stops and says a person must grant Screen Recording when no picture can be taken",
               f"no picture: {refused.returncode} {refused.stdout} {refused.stderr}")
+
+        (home / "seen-in-testroom.json").write_text('["nikk2"]')
+        with lock:
+            presence_calls.clear()
+            presence_scene.append(1)
+        arrived = run("arrivals", "--once", "--every", "2")
+        presence_scene.clear()
+        lines = [json.loads(one) for one in arrived.stdout.splitlines() if one.startswith("{")]
+        check(arrived.returncode == 0 and lines[:1] == [{"presence": "watching", "here": ["Nikk2"], "room": "testroom"}]
+              and {"presence": "joined", "who": "Newcomer", "kind": "human", "firstVisit": True, "room": "testroom"} in lines
+              and "newcomer" in (home / "seen-in-testroom.json").read_text(),
+              "arrivals says who is here, then who joins and whether it is their first visit, and remembers them",
+              f"arrivals: {arrived.returncode} {arrived.stdout} {arrived.stderr}")
 
         listed_go = run("go")
         uncoloured = run("go", "play", "D4")

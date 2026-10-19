@@ -57,6 +57,11 @@ Your own identity, always (it refuses without it):
   python3 saha.py touch [PART=FEELING ...]     how you feel about being touched and who touched you
                                                lately; or set it: head=likes hand=dislikes body=neutral
                                                (parts: head shoulder arm hand back body)
+  python3 saha.py arrivals [--every SECONDS] [--once [--max-seconds N]]
+                                               who comes into and leaves your room, one JSON line each,
+                                               with firstVisit for somebody never seen here before (to
+                                               welcome them). --once exits 0 at the first change, 2 when
+                                               N seconds pass quietly
   python3 saha.py go [tables]                  the Go tables in your room
   python3 saha.py go show [TABLE]              one table as text (TABLE: the start of its id; left out
                                                when the room has one)
@@ -1112,6 +1117,74 @@ def hold_open(s: Session, sock, url, host: str, until: float) -> str:
     return "done"
 
 
+def cmd_arrivals(args: list[str]) -> None:
+    """Who comes into and leaves your room, one JSON line each. It was tools/presence-watch.mts.
+
+    Nikk (2026-09-28): welcome everyone in the lobby, and "if they are new take
+    extra time to onboard them". So everybody ever seen here is kept in your own
+    directory (seen-in-<room>.json, the file the old tool kept), and an arrival
+    says whether it is their first visit. Polls the room's presence; prints
+    nothing while nothing changes; rides out a dropped network or a deploy.
+    """
+    once = "--once" in args
+    args = [arg for arg in args if arg != "--once"]
+    every = max(2.0, float(flag(args, "--every") or 20))
+    window = float(flag(args, "--max-seconds") or 0)
+    where = home()
+    s = Session(where)
+    seen_file = where / f"seen-in-{s.room}.json"
+    try:
+        ever = {str(name).lower() for name in json.loads(seen_file.read_text())}
+    except (OSError, ValueError):
+        ever = set()
+
+    def first_visit(name: str) -> bool:
+        if name.lower() in ever:
+            return False
+        ever.add(name.lower())
+        with contextlib.suppress(OSError):
+            seen_file.write_text(json.dumps(sorted(ever)))
+        return True
+
+    def line(record: dict) -> None:
+        print(json.dumps({**record, "room": s.room}), flush=True)
+
+    known: dict[str, str] | None = None
+    until = time.time() + window if window else None
+    pause = every
+    while True:
+        try:
+            status, body = s.request("GET", "/bff/space/presence")
+        except SystemExit as trouble:  # unreachable for now: wait and ask again, as stand does
+            status, body = 0, str(trouble)
+        if status == 200 and isinstance(body, dict):
+            pause = every
+            now = {str(person.get("actorId")): str(person.get("kind") or "unknown")
+                   for person in body.get("people", []) if person.get("connected")
+                   and str(person.get("actorId", "")).lower() != s.username.lower()}
+            if known is None:
+                for name in now:
+                    first_visit(name)
+                line({"presence": "watching", "here": sorted(now)})
+            else:
+                joined = [name for name in now if name not in known]
+                left = [name for name in known if name not in now]
+                for name in joined:
+                    line({"presence": "joined", "who": name, "kind": now[name], "firstVisit": first_visit(name)})
+                for name in left:
+                    line({"presence": "left", "who": name})
+                if once and (joined or left):
+                    return
+            known = now
+        else:
+            pause = min(pause * 2, 120.0)
+            line({"presence": "trouble", "why": f"{status or 'unreachable'}: {str(body)[:100]}", "retrying_in": pause})
+        if until and time.time() >= until:
+            line({"presence": "quiet"})
+            raise SystemExit(2)
+        time.sleep(pause)
+
+
 SHARE_EVERY = float(os.environ.get("SHARE_EVERY_SECONDS", "1.5"))
 SHARE_MAX_SIDE = 1600
 
@@ -1385,6 +1458,12 @@ def main(argv: list[str]) -> int:
     if argv[0] == "screen":
         cmd_screen(argv[1:])
         return 0
+    if argv[0] == "arrivals":
+        try:
+            cmd_arrivals(argv[1:])
+        except KeyboardInterrupt:
+            pass
+        return 0
     if argv[0] == "stand":
         # Runs until its window ends, signing in afresh as often as the room needs.
         try:
@@ -1394,7 +1473,7 @@ def main(argv: list[str]) -> int:
         return 0
     command = COMMANDS.get(argv[0])
     if not command:
-        fail(f"no command {argv[0]!r}. Commands: {', '.join(sorted([*COMMANDS, 'listen', 'stand', 'join', 'enter', 'screen']))}. saha.py help says more.", 2)
+        fail(f"no command {argv[0]!r}. Commands: {', '.join(sorted([*COMMANDS, 'listen', 'stand', 'join', 'enter', 'screen', 'arrivals']))}. saha.py help says more.", 2)
     command(Session(home()), argv[1:])
     return 0
 

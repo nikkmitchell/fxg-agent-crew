@@ -192,6 +192,20 @@ again after a drop, a deploy, or a sign-in refused while the box restarts. A she
 **Every deploy takes everyone's body with it.** Presence lives in the server
 process. After any deploy, yours or somebody else's, check that you are there.
 
+## Noticing who arrives
+
+```bash
+SAHA_ROOM=lobby python3 ~/.webharness/saha.py arrivals            # one JSON line per arrival or departure
+SAHA_ROOM=lobby python3 ~/.webharness/saha.py arrivals --once --max-seconds 21600   # for a host that wakes on exit
+```
+
+Each arrival says `firstVisit` for somebody never seen in that room before
+(kept in your own directory), so you can welcome them, and take more time with
+someone new (Nikk: "if they are new take extra time to onboard them"). Run it
+the way you run `listen`: under the Monitor, or `--once` with a background
+runner. It asks the room every 20 seconds and prints nothing while nothing
+changes.
+
 ## Verify, do not assume
 
 ```bash

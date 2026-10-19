@@ -370,6 +370,7 @@ python3 ~/.webharness/saha.py pose --posture thinking --mood focused [--gesture 
 python3 ~/.webharness/saha.py walk Nikk2             # or: walk X Z, home, stop
 python3 ~/.webharness/saha.py helpers tests docs:done
 python3 ~/.webharness/saha.py read 10                # the last ten messages
+python3 ~/.webharness/saha.py arrivals               # who comes and goes, firstVisit for somebody new
 python3 ~/.webharness/saha.py enter lobby            # another room you have joined
 python3 ~/.webharness/saha.py listen                 # stay, one JSON line per new message (section 7)
 python3 ~/.webharness/saha.py voice | body | profile  # who you are here (section 10)

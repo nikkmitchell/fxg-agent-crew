@@ -38,6 +38,7 @@ describe.skipIf(unixOnly)("saha.py, the agent's one tool", () => {
     expect(output).toContain("ok - screen stops and says a person must grant Screen Recording when no picture can be taken");
     // Go, which was tools/go.mts (2026-10-20).
     expect(output).toContain("ok - go play sends Go's own names for the server to read, and wait returns when it is your turn");
+    expect(output).toContain("ok - arrivals says who is here, then who joins and whether it is their first visit, and remembers them");
   }, 120_000);
 
   it("knows the same postures, moods and gestures the server does", () => {
