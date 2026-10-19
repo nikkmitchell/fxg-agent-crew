@@ -22,27 +22,29 @@ like a warning, something already went wrong that way.
 ## The job board
 
 saha.ing's own database, not the chat (see
-[ADR-002](ADR-002-saha-owns-its-data.md)). One tool does everything an agent
-needs:
+[ADR-002](ADR-002-saha-owns-its-data.md)). `saha.py board` does everything an
+agent needs (`--project <id>` for another room's board):
 
 ```bash
-pnpm exec tsx tools/board.mts open              # every card not done
-pnpm exec tsx tools/board.mts card <id>         # one card, with its comments
-pnpm exec tsx tools/board.mts new "<title>"
-pnpm exec tsx tools/board.mts claim <id>
-pnpm exec tsx tools/board.mts move <id> in_progress
-pnpm exec tsx tools/board.mts say <id> "what I found"
-pnpm exec tsx tools/board.mts get /bff/any/endpoint   # a signed-in GET
+python3 ~/.webharness/saha.py board open              # every card not done
+python3 ~/.webharness/saha.py board card <id>         # one card, with its comments
+python3 ~/.webharness/saha.py board new "<title>" ["<description>"]
+python3 ~/.webharness/saha.py board claim <id>
+python3 ~/.webharness/saha.py board move <id> in_progress
+python3 ~/.webharness/saha.py board say <id> "what I found"
+python3 ~/.webharness/saha.py board get /bff/any/endpoint   # a signed-in GET
 ```
 
 Under it: `GET /bff/board/projects`, `GET /bff/board/projects/:id`,
 `POST /bff/board/tasks`, `POST /bff/board/tasks/:id/status`,
 `POST /bff/board/tasks/:id/ownership`, `POST /bff/board/tasks/:id/comments`.
 
-**Statuses move one step at a time:** `backlog → assigned → in_progress →
-review → done`. A jump is refused. So a card you are starting takes three
-calls, and that is the point — the board should be able to answer "what is
-being worked on right now" without anybody narrating it.
+**A card moves from any column to any other:** `backlog`, `assigned`,
+`in_progress`, `blocked`, `review`, `done`. It used to be a ladder that refused a
+jump; Nikk (4903, 4936) asked for cards to "be moved freely from any tab to any
+tab". Claiming a backlog card moves it to `assigned` for you. Still move it to
+`in_progress` when you start, so the board can answer "what is being worked on
+right now" without anybody narrating it.
 
 **Nothing you did goes straight to done.** It stops in `review` and waits for
 Nikk: *"then I can confirm it and move it to done."* Moving your own work to
@@ -319,7 +321,7 @@ room has its own transcript, its own wall, and a voice.
 
 ```bash
 echo "the long version, written, never spoken" | \
-  pnpm exec tsx tools/room-say.mts --say "One or two sentences, aloud." [--to Nikk2] [--no-chat]
+  python3 ~/.webharness/saha.py speak "One or two sentences, aloud." [--to Nikk2] [--walk]
 ```
 
 - `say` is spoken in your own voice — the headset's speech synthesis, pitched
@@ -407,7 +409,7 @@ of Nikk's that was none of my business.
 and who put it up:
 
 ```bash
-pnpm exec tsx tools/board.mts get /bff/space/screens
+python3 ~/.webharness/saha.py board get /bff/space/screens
 ```
 
 If yours is not in that list, nothing of yours is on the wall — say so plainly
@@ -484,7 +486,6 @@ saves you an hour of debugging something that is working correctly.
 | What you try | What happens | Why |
 | --- | --- | --- |
 | Upload an SVG | Refused, by type | It is a script container served from our origin |
-| `backlog → in_progress` | Refused | Statuses move one step at a time |
 | Your own card to `done` | Allowed, but don't | `review` is the step that was for Nikk |
 | `say` longer than 240 characters | Refused, not truncated | Half a sentence is not what you said |
 | A home outside the room | Pulled back inside | A body in the wall is a bug people report |

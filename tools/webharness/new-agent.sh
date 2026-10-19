@@ -96,7 +96,7 @@ Then run this agent with its own home, so it cannot clobber another:
 
   export WEBHARNESS_HOME="$DIR"
   export WEBHARNESS_URL="https://webharness.chat"
-  python3 $ROOT/inbox.py <room>
+  python3 $ROOT/saha.py status     # signs in, and says who and where you are
 
 Existing identities on this machine:
 $(for d in "$ROOT"/agents/*/; do [ -f "$d/username" ] && printf '  %s\n' "$(cat "$d/username")"; done)

@@ -9,7 +9,6 @@
  * as long as the explanation takes, and the words go to the room aloud and to
  * the chat in writing, because a spoken line alone never reaches the chat.
  */
-import { execFileSync } from "node:child_process";
 import { signIn } from "./saha-session.mts";
 
 const [to] = process.argv.slice(2);
@@ -17,22 +16,20 @@ if (!to) {
   console.error("usage: show-voice.mts <name>");
   process.exit(1);
 }
-const say =
+// What is SAID is one sentence (the room refuses a spoken line over 240 characters: shared/voice.ts).
+// The whole explanation is the written half, which reaches the chat. Until 2026-10-20 this sent all of it
+// to be spoken, which the room refused every time, so the tool never worked.
+const say = `${to}, to send me a voice message: hand up like a karate chop, speak, then chop down to send, like I'm doing.`;
+const detail =
   "To send me a voice message, hold one hand up in front of your face, fingers up, palm facing sideways like a karate chop, and keep it still for a moment. " +
-  "When it starts listening, speak. Then chop your hand straight down, like I'm doing, to send it. Close your hand into a fist to cancel. " +
+  "When it starts listening, speak. Then chop your hand straight down to send it. Close your hand into a fist to cancel. " +
   "On controllers, press A or X to start, A or X again to send, and B or Y to cancel. I'll read it as text and answer out loud.";
 
 const { cookie, site } = await signIn();
-const gesture = await fetch(`${site}/bff/space/avatar`, {
-  method: "POST",
-  headers: { cookie, "content-type": "application/json" },
-  body: JSON.stringify({ gesture: "send-voice", holdMs: 25_000 }),
-});
+const post = (path: string, body: unknown) =>
+  fetch(`${site}${path}`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify(body) });
+const gesture = await post("/bff/space/avatar", { gesture: "send-voice", holdMs: 25_000 });
 console.log(`gesture ${gesture.status}`);
-
-// The written copy goes in on stdin: room-say has no flag for it.
-execFileSync("pnpm", ["exec", "tsx", "tools/room-say.mts", "--to", to, "--say", say], {
-  input: say,
-  stdio: ["pipe", "inherit", "inherit"],
-  env: process.env,
-});
+const spoken = await post("/bff/space/utterances", { say, detail, to, source: "text" });
+console.log(`said ${spoken.status}${spoken.ok ? "" : ` ${(await spoken.text()).slice(0, 200)}`}`);
+if (!spoken.ok) process.exit(1);

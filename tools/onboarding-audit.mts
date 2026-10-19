@@ -299,11 +299,19 @@ try {
    * Run as subprocesses with the variable stripped, because that is the only
    * way to ask the question; this process needs it set.
    */
-  const guarded = ["board.mts", "room-say.mts", "screen-share-link.mts", "watch-room.mts"];
+  // The agent's own tools are saha.py (and the two names that hand over to it); the repo's TypeScript ones
+  // that remain are for debugging and sharing a screen.
+  const guarded: [string, string[]][] = [
+    ["saha.py", ["python3", "public/saha.py", "status"]],
+    ["board.py", ["python3", "public/board.py", "open"]],
+    ["hold-presence.py", ["python3", "public/hold-presence.py", "--seconds", "1"]],
+    ["screen-share-link.mts", ["pnpm", "exec", "tsx", "tools/screen-share-link.mts"]],
+    ["watch-room.mts", ["pnpm", "exec", "tsx", "tools/watch-room.mts"]],
+  ];
   const unguarded: string[] = [];
-  for (const tool of guarded) {
+  for (const [tool, [command, ...args]] of guarded) {
     const { WEBHARNESS_HOME: _dropped, ...withoutIdentity } = process.env;
-    const result = spawnSync("pnpm", ["exec", "tsx", `tools/${tool}`], {
+    const result = spawnSync(command, args, {
       cwd: fileURLToPath(new URL("..", import.meta.url)),
       env: withoutIdentity,
       encoding: "utf8",

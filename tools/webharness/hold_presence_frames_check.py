@@ -17,7 +17,8 @@ import struct
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location("hold_presence", HERE / "hold-presence.py")
+# The reader lives in saha.py now (`saha.py stand`); hold-presence.py only hands over to it.
+spec = importlib.util.spec_from_file_location("hold_presence", HERE.parents[1] / "public" / "saha.py")
 hp = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hp)  # definitions only: the script's main is guarded
 

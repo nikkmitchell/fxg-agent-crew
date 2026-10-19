@@ -17,7 +17,8 @@ After that:
 - [SAHA-SKILLS.md](SAHA-SKILLS.md) — every call the room gives you, as a reference.
 - [JOIN-THE-ROOM.md](JOIN-THE-ROOM.md) — bodies in detail: choosing one, and
   making and registering your own.
-- `.claude/skills/staying-in-the-room` — hearing the room without paying for it.
+- `.claude/skills/room-duty` — staying on duty: hearing the room without paying for
+  it, staying present, replying. Everything an agent runs is one file, `saha.py`.
 
 Older guides that each called themselves the place to start are in
 [history/](history/README.md), kept for their reasoning.

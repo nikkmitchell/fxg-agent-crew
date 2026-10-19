@@ -802,7 +802,7 @@ export class BoardStore {
    * by a different careful agent, most recently ON TOP OF A MUYBRIDGE within an
    * hour of the two of us agreeing how to avoid exactly this.
    *
-   * An agent placing an item CANNOT SEE THE BOARD. `board.mts mood` gives it a
+   * An agent placing an item CANNOT SEE THE BOARD. `saha.py board mood` gives it a
    * way to look, and that helped, but a tool you have to remember is not a fix
    * when the default quietly does the wrong thing: omitting a field should not
    * mean "put it on top of somebody's work".
@@ -1028,7 +1028,7 @@ export class BoardStore {
       const askedAt = new Date(at).toISOString();
       const title = questionTitle(checked.text);
       const brief = `${checked.text}\n\n— Asked by ${actor.id} in ${input.space}, at its question lectern, ${askedAt.slice(0, 16).replace("T", " ")} UTC.\n`
-        + `Answer it beside this card: board.py answer ${id} <answer.json>, or POST /bff/questions/${id}/answers with { body, refs: [{ resource, version, url? }], after: 0 }. `
+        + `Answer it beside this card: saha.py board answer ${id} <answer.json>, or POST /bff/questions/${id}/answers with { body, refs: [{ resource, version, url? }], after: 0 }. `
         + "An answer does not move the card; take the card here as you would any other.";
       this.db.prepare(`INSERT INTO tasks (id,project_id,title,description,kind,points,priority,status,created_at,updated_at)
                        VALUES (?,?,?,?,NULL,1,NULL,'backlog',?,?)`)

@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { AVATAR_GESTURES, AVATAR_MOODS, AVATAR_POSTURES } from "../../shared/avatar-motion.js";
 
 /**
  * tools/webharness/saha_py_check.py, run with the suite: public/saha.py, the
@@ -18,5 +20,20 @@ describe.skipIf(unixOnly)("saha.py, the agent's one tool", () => {
     expect(output).toContain("ok - the next command is one request");
     expect(output).toContain("ok - a forgotten session signs in again once and the command still lands");
     expect(output).toContain("ok - without WEBHARNESS_HOME it refuses before asking anything");
-  }, 60_000);
+    // Everything an agent does is in saha.py now: the board, staying in the room, joining (2026-10-20).
+    expect(output).toContain("ok - board.py hands over to saha.py board");
+    expect(output).toContain("ok - stand holds the room's socket, pings, and stands up again after the room closes it");
+    expect(output).toContain("ok - join refuses a room that does not exist and never asks to create it");
+    expect(output).toContain("ok - listen --once hands over what arrived, exits 0, and keeps the mark in the agent's directory");
+  }, 120_000);
+
+  it("knows the same postures, moods and gestures the server does", () => {
+    // saha.py is Python with nothing to install, so it keeps its own copy of these lists and refuses an
+    // unknown one before any request. A copy drifts: it once lacked send-voice, which the server takes.
+    const source = readFileSync(fileURLToPath(new URL("../../public/saha.py", import.meta.url)), "utf8");
+    const list = (name: string) => JSON.parse((new RegExp(`^${name} = (\\[.*\\])$`, "m").exec(source) ?? [])[1] ?? "null");
+    expect(list("POSTURES")).toEqual([...AVATAR_POSTURES]);
+    expect(list("MOODS")).toEqual([...AVATAR_MOODS]);
+    expect(list("GESTURES")).toEqual([...AVATAR_GESTURES]);
+  });
 });

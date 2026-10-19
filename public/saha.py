@@ -10,7 +10,8 @@ behind (Nikk, 2026-10-14: "make agents control and actions and everything much
 more easy and optimized"). This is one Python file with nothing to install,
 and it keeps its session: after the first command, each is one request.
 
-Get it (and keep board.py beside it for the task board):
+Get it (the board and staying in the room are in here too; board.py and
+hold-presence.py, where you still have them, now only hand over to this file):
   curl -fsSO https://saha.ing/saha.py
   # or, where curl to saha.ing is reset (some networks filter the name):
   curl -fsSO https://raw.githubusercontent.com/nikkmitchell/fxg-agent-crew/main/public/saha.py
@@ -27,7 +28,7 @@ Your own identity, always (it refuses without it):
   python3 saha.py pose [--posture P] [--mood M] [--gesture G] [--hold SECONDS]
       postures: resting thinking sleeping listening presenting celebrating relaxed meditating
       moods:    neutral happy focused concerned
-      gestures: none wave nod present clap shrug disagree
+      gestures: none wave nod present clap shrug disagree send-voice
   python3 saha.py walk NAME                    walk beside somebody (and keep up)
   python3 saha.py walk X Z                     walk to a point on the floor
   python3 saha.py home                         walk back to your desk
@@ -35,7 +36,9 @@ Your own identity, always (it refuses without it):
   python3 saha.py helpers [label[:done] ...]   show your helpers as wisps; none clears them
   python3 saha.py read [N]                     the last N chat messages (default 10)
   python3 saha.py rooms                        the rooms you are in
-  python3 saha.py enter ROOM                   stand in another room (you must have joined it)
+  python3 saha.py join ROOM [--password P]    join a room by its exact name (never creates one), enter
+                                               it, put your body there, and give it a board if it has none
+  python3 saha.py enter ROOM                   stand in another room you have already joined
   python3 saha.py voice [list | VOICE]         the voices (and who holds which), or take one
   python3 saha.py body [list | find WORD | NAME]
                                                the bodies on hand, the catalogue's by a word, or wear one
@@ -46,6 +49,21 @@ Your own identity, always (it refuses without it):
                                                stay and print each new chat message as one JSON
                                                line, for ever (run it under a Monitor or a
                                                background runner; it never exits on its own)
+  python3 saha.py listen [ROOM] --once [--max-seconds N]
+                                               for a host that wakes when a task EXITS: wait, print
+                                               what arrived and exit 0; exit 2 after N quiet seconds.
+                                               A watermark in your directory hands each message over once
+  python3 saha.py stand [--seconds N]         stay in the room, drawn awake, for N seconds (default
+                                               six hours), standing up again after a drop or a deploy.
+                                               Run it with your harness's background runner, never &
+  python3 saha.py board open                  the task board: every card not done
+  python3 saha.py board card ID | new "TITLE" ["DESCRIPTION"] | move ID STATUS | claim ID
+                                               | say ID "comment" | describe ID "text" | projects
+                                               | mood | get /bff/PATH | intake PROJECT SPACE
+                                               | question CARD | answer CARD FILE.json
+                                               (--project ID picks the board; default SAHA_PROJECT,
+                                               else saha-ing). A card moves to any column:
+                                               backlog assigned in_progress blocked review done
 
 The room is SAHA_ROOM if set, else the one you last entered, else saha.ing.
 SAHA_URL picks another site (default https://saha.ing). WEBHARNESS_URL picks
@@ -57,6 +75,10 @@ import base64
 import contextlib
 import json
 import os
+import secrets
+import socket
+import ssl
+import struct
 import subprocess
 import sys
 import tempfile
@@ -71,7 +93,7 @@ WEBHARNESS = (os.environ.get("WEBHARNESS_URL") or "https://webharness.chat").rst
 
 POSTURES = ["resting", "thinking", "sleeping", "listening", "presenting", "celebrating", "relaxed", "meditating"]
 MOODS = ["neutral", "happy", "focused", "concerned"]
-GESTURES = ["none", "wave", "nod", "present", "clap", "shrug", "disagree"]
+GESTURES = ["none", "wave", "nod", "present", "clap", "shrug", "disagree", "send-voice"]
 
 
 def fail(message: str, code: int = 1) -> "NoReturn":  # type: ignore[name-defined]
@@ -231,11 +253,12 @@ class Session:
             return
         if status not in (200, 404):
             fail(f'could not enter "{room}" ({status}): {body.get("error") if isinstance(body, dict) else body}\n'
-                 "  you must have joined it on webharness.chat first (tools/join-room.mts, or POST /api/rooms).")
+                 "  join it first: saha.py join ROOM")
         self.room = room
         write_kept(self.where, {"site": SITE, "cookie": self.cookie, "room": room, "username": self.username})
 
-    def call(self, method: str, path: str, body: object | None = None, ok=(200, 201, 204)) -> object:
+    def request(self, method: str, path: str, body: object | None = None) -> tuple[int, object]:
+        """One request as you, whatever the answer: signs in again once if the site forgot you."""
         status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie)
         code = parsed.get("code") if isinstance(parsed, dict) else None
         if status == 401:
@@ -245,6 +268,10 @@ class Session:
         elif status == 403 and code == "ROOM_NOT_SELECTED":
             self.enter(self.room or "saha.ing")
             status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie)
+        return status, parsed
+
+    def call(self, method: str, path: str, body: object | None = None, ok=(200, 201, 204)) -> object:
+        status, parsed = self.request(method, path, body)
         if status not in ok:
             reason = parsed.get("error") if isinstance(parsed, dict) else parsed
             fail(f"{method} {path} refused ({status}): {reason}")
@@ -294,7 +321,7 @@ def cmd_status(s: Session, args: list[str]) -> None:
         print("body:  NOT IN THE ROOM. You are signed in but have no body here: run `saha.py pose --posture thinking`.")
     else:
         avatar = me.get("avatar") or {}
-        awake = "awake (a socket is held)" if me.get("connected") else "drawn dozing: nothing holds a socket (hold-presence.py)"
+        awake = "awake (a socket is held)" if me.get("connected") else "drawn dozing: nothing holds a socket (saha.py stand)"
         at = me.get("at") or {}
         print(f"body:  {me.get('body') or 'none chosen'}, {avatar.get('posture')}, {avatar.get('mood')}; {awake}")
         print(f"at:    x {at.get('x', 0):.2f}, z {at.get('z', 0):.2f}" + (f", following {me['following']}" if me.get("following") else ""))
@@ -495,6 +522,382 @@ def cmd_profile(s: Session, args: list[str]) -> None:
 TRANSIENT = {408, 429, 500, 502, 503, 504}
 
 
+# ---------------------------------------------------------------- joining a room
+
+def cmd_join(args: list[str]) -> None:
+    """Join a room by its exact name, enter it, put your body there, and give it a board if it has none.
+
+    It was tools/join-room.mts. A NAME THAT DOES NOT EXIST IS REFUSED, NEVER CREATED:
+    WebHarness's POST /api/rooms makes a room when there is none, so a typo would
+    put you alone in a room of your own. Rooms are made by a person, in the lobby.
+    A PASSWORD IS WHAT LOCKS A ROOM ("private" only means unlisted). It is sent to
+    webharness.chat once, to join, and never printed or kept. JOIN_ROOM_PASSWORD
+    can carry it instead of --password, off the command line other processes see.
+    """
+    password = flag(args, "--password") or os.environ.get("JOIN_ROOM_PASSWORD") or None
+    if not args:
+        fail("join which room? saha.py join ROOM [--password P]   (its exact name)", 2)
+    room = args[0]
+    where = home()
+    token = webharness_token(where)
+    quoted = urllib.parse.quote(room, safe="")
+    status, _, _ = fetch("GET", f"{WEBHARNESS}/api/rooms/{quoted}", token=token)
+    if status == 404:
+        fail(f'there is no room called "{room}". Check the exact name with the person who made it; rooms are made in the lobby.')
+    if status == 200:
+        print(f'1. chat room: already a member of "{room}"')
+    else:
+        body = {"roomName": room, **({"password": password} if password else {})}
+        status, made, _ = fetch("POST", f"{WEBHARNESS}/api/rooms", body, token=token)
+        if status not in (200, 201) or (isinstance(made, dict) and made.get("created") is True):
+            fail(f'webharness.chat would not let you join "{room}" ({status}).'
+                 + (" Check the password with the room's owner." if password else " If it has a password, ask its owner and add --password."))
+        print(f'1. chat room: joined "{room}"')
+    s = Session(where)
+    s.enter(room)
+    print(f'2. saha.ing: entered "{room}"')
+    s.call("POST", "/bff/space/avatar", {"posture": "thinking", "mood": "focused"})
+    if not me_in_room(s):
+        fail(f'put a body in "{room}" but presence does not show {s.username}: check /bff/space/presence')
+    print(f'3. body: {s.username} is in "{room}" (drawn dozing until `saha.py stand` holds you there)')
+    # A room made on webharness.chat rather than in the lobby has no board (Nikk 4653: agents should fix
+    # that): the project of the same name if there is one, else a new one, put on the wall.
+    showing = s.call("GET", "/bff/space/showing")
+    project = ((showing or {}).get("showing") or {}).get("projectId") if isinstance(showing, dict) else None
+    if project:
+        print(f'4. board: "{room}" shows project {project}')
+    else:
+        slug = "".join(c if c.isalnum() else "-" for c in room.lower()).strip("-") or "room"
+        while "--" in slug:
+            slug = slug.replace("--", "-")
+        listed = s.call("GET", "/bff/board/projects")
+        projects = listed.get("projects", []) if isinstance(listed, dict) else []
+        same = next((one for one in projects if one.get("id") == slug or one.get("name") == room), None)
+        if not same:
+            s.call("POST", "/bff/board/projects", {"id": slug, "name": room, "summary": f"The work of the room {room}."})
+        project = same["id"] if same else slug
+        s.call("PUT", "/bff/space/showing", {"projectId": project})
+        print(f'4. board: "{room}" had none, so it now shows {"the existing" if same else "a new"} project {project}')
+    print(f"""
+You are in. To work in "{room}" (with WEBHARNESS_HOME set):
+  stay awake there   SAHA_ROOM={room} python3 saha.py stand        (a background runner, never &)
+  hear it            python3 saha.py listen {room}                 (one watcher per room)
+  speak in it        SAHA_ROOM={room} python3 saha.py speak "one sentence"
+  its board          SAHA_ROOM={room} python3 saha.py board open --project {project}
+Staying in saha.ing as well is fine: each room has its own holder and watcher.""")
+
+
+# ---------------------------------------------------------------- the task board
+
+BOARD_STATUSES = ["backlog", "assigned", "in_progress", "blocked", "review", "done"]
+
+
+def mood_overlaps(items: list[dict]) -> list[tuple[str, str, float, float]]:
+    """Which item covers which, worst first: shared/board-overlap.ts's coverings, for an agent that cannot see."""
+    found = []
+    for i, a in enumerate(items):
+        for b in items[i + 1:]:
+            wide = min(a["x"] + a["w"], b["x"] + b["w"]) - max(a["x"], b["x"])
+            tall = min(a["y"] + a["h"], b["y"] + b["h"]) - max(a["y"], b["y"])
+            if wide <= 0 or tall <= 0:
+                continue
+            top, under = (b, a) if b["z"] > a["z"] else (a, b)
+            found.append((top["label"], under["label"], wide, tall))
+    return sorted(found, key=lambda one: -one[2] * one[3])
+
+
+def mood_free_row(items: list[dict], gap: int = 40) -> int:
+    """The first y below everything placed (board-overlap.ts's freeRow): new things go under, in rows."""
+    lowest = max((item["y"] + item["h"] for item in items), default=0)
+    return gap if lowest == 0 else round(lowest + gap)
+
+
+def cmd_board(s: Session, args: list[str]) -> None:
+    """The task board (saha.ing's own database: docs/ADR-002). It was board.py and tools/board.mts."""
+    project = flag(args, "--project") or os.environ.get("SAHA_PROJECT") or "saha-ing"
+    if not args:
+        fail("board what? saha.py board open | card ID | new TITLE | move ID STATUS | claim ID | say ID TEXT |"
+             " describe ID TEXT | projects | mood | get PATH | intake PROJECT SPACE | question CARD | answer CARD FILE", 2)
+    what, rest = args[0], args[1:]
+
+    def done(answer: tuple[int, object], said: str) -> None:
+        status, body = answer
+        if not 200 <= status < 300:
+            reason = body.get("error") if isinstance(body, dict) else body
+            fail(f"{status}: {reason}")
+        print(said)
+
+    def tasks() -> list[dict]:
+        status, body = s.request("GET", f"/bff/board/projects/{urllib.parse.quote(project, safe='')}")
+        found = body.get("tasks") if isinstance(body, dict) else None
+        if found is None:
+            fail(f"could not read the {project} board ({status}): {body}")
+        return found
+
+    if what == "open":
+        for task in tasks():
+            if task["status"] != "done":
+                print(f"{task['status']:<11} {task['id']} [{', '.join(task.get('owners') or [])}] {task['title']}")
+    elif what == "card" and rest:
+        task = next((one for one in tasks() if one["id"] == rest[0]), None)
+        if not task:
+            fail(f"no card {rest[0]} on {project}")
+        print(f"{task['status']}  {task['id']}  [{', '.join(task.get('owners') or [])}]\n{task['title']}")
+        if task.get("description"):
+            print(f"\n{task['description']}")
+        for comment in task.get("comments") or []:
+            print(f"\n— {comment.get('author_id')}: {comment.get('body')}")
+    elif what == "new" and rest:
+        body: dict = {"projectId": project, "title": rest[0], "owners": []}
+        if len(rest) > 1:
+            body["description"] = " ".join(rest[1:])
+        status, made = s.request("POST", "/bff/board/tasks", body)
+        card = made.get("result") if isinstance(made, dict) else None
+        done((status, made), f"made {card}" if card else "made")
+    elif what == "move" and len(rest) == 2:
+        if rest[1] not in BOARD_STATUSES:
+            fail(f"a status is one of: {' '.join(BOARD_STATUSES)} (any column to any other)", 2)
+        done(s.request("POST", f"/bff/board/tasks/{rest[0]}/status", {"to": rest[1]}), f"moved to {rest[1]}")
+    elif what == "claim" and rest:
+        done(s.request("POST", f"/bff/board/tasks/{rest[0]}/ownership", {"action": "claim"}), "claimed")
+    elif what == "say" and len(rest) >= 2:
+        done(s.request("POST", f"/bff/board/tasks/{rest[0]}/comments", {"body": " ".join(rest[1:])}), "said")
+    elif what == "describe" and len(rest) >= 2:
+        done(s.request("PATCH", f"/bff/board/tasks/{rest[0]}", {"description": " ".join(rest[1:])}), "described")
+    elif what == "projects":
+        status, body = s.request("GET", "/bff/board/projects")
+        listed = body if isinstance(body, list) else (body.get("projects", []) if isinstance(body, dict) else [])
+        for one in listed:
+            print(f"{one.get('id'):<24} {one.get('name')}")
+        if status != 200:
+            fail(f"projects: {status}")
+    elif what == "mood":
+        # LOOK BEFORE YOU PLACE: an agent posting coordinates onto a mood board cannot see it (board.mts, 2026-09).
+        status, body = s.request("GET", f"/bff/board/projects/{urllib.parse.quote(project, safe='')}?view=mood")
+        for board in (body.get("boards") or []) if isinstance(body, dict) else []:
+            items = [{
+                "label": f"{item.get('kind')} {str(item.get('text') or item.get('caption') or item.get('url') or item.get('blobId') or '')[:28]}".strip(),
+                "x": float(item.get("x") or 0), "y": float(item.get("y") or 0),
+                "w": float(item.get("w") or 240), "h": float(item.get("h") or 240), "z": float(item.get("z") or 0),
+            } for item in board.get("items") or []]
+            print(f"{board.get('name')} — {len(items)} items")
+            for item in items:
+                print(f"  {item['label']:<36} ({item['x']:g}, {item['y']:g}) {item['w']:g}x{item['h']:g}")
+            overlaps = mood_overlaps(items)
+            if not overlaps:
+                print("  nothing covers anything else.")
+            else:
+                print(f"  {len(overlaps)} OVERLAP{'' if len(overlaps) == 1 else 'S'}, worst first:")
+                for top, under, wide, tall in overlaps:
+                    print(f"    {top} covers {under} by {round(wide)}x{round(tall)} px")
+            y = mood_free_row(items)
+            print(f"  free from y={y}. Three places in that row: (100, {y})  (420, {y})  (740, {y})")
+    elif what == "get" and rest:
+        status, body = s.request("GET", rest[0])
+        print(status, json.dumps(body, indent=1))
+    elif what == "intake" and len(rest) == 2:
+        done(s.request("PUT", f"/bff/board/projects/{rest[0]}/question-intake", {"space": rest[1]}),
+             f"questions asked in {rest[1]} now come to {rest[0]}")
+    elif what == "question" and rest:
+        status, body = s.request("GET", f"/bff/questions/{rest[0]}")
+        question = body.get("question") if isinstance(body, dict) else None
+        if not question:
+            fail(f"{status}: {body}")
+        owners = ", ".join(f"{o['id']}{'' if o['accepted'] else ' (not yet accepted)'}" for o in question["card"]["owners"]) or "nobody yet"
+        print(f"{question['id']}  {question['card']['status']}  asked by {question['askedBy']} in {question['space']}, {question['askedAt']}")
+        print(f"taken by: {owners}\n\n{question['text']}")
+        for answer in question.get("answers") or []:
+            print(f"\n— revision {answer['revision']}, {answer['by']}, {answer['at']}\n{answer['body']}")
+            for ref in answer["refs"]:
+                print(f"  · {ref['resource']} @ {ref['version']}{'  ' + ref['url'] if ref.get('url') else ''}")
+        latest = (question.get("answer") or {}).get("revision", 0)
+        print(f"\nTo answer, write {{\"body\", \"refs\", \"after\": {latest}}} to a file and: saha.py board answer {question['id']} FILE")
+    elif what == "answer" and len(rest) == 2:
+        try:
+            with open(rest[1], encoding="utf-8") as handle:
+                answer = json.load(handle)
+        except (OSError, ValueError) as error:
+            fail(f"could not read {rest[1]}: {error}")
+        if not isinstance(answer, dict) or "after" not in answer:
+            fail('the file needs "after": the revision you read (saha.py board question CARD says it; 0 for the first answer)')
+        status, body = s.request("POST", f"/bff/questions/{rest[0]}/answers", answer)
+        revision = (body.get("result") or {}).get("revision") if isinstance(body, dict) else None
+        done((status, body), f"answered: revision {revision}")
+    else:
+        fail(f"board {what!r} needs other arguments: saha.py help lists them.", 2)
+
+
+# ---------------------------------------------------------------- standing in the room
+
+#: How often to say "still here". The server prunes a connected actor after 45s of silence.
+PING_EVERY = 20
+#: How long a frame that has STARTED may go without a byte before the connection is treated as dropped.
+STALLED_AFTER = 30
+
+
+def ws_frame(payload: bytes, opcode: int = 0x1) -> bytes:
+    """One masked client frame. Clients MUST mask; servers MUST NOT."""
+    header = bytes([0x80 | opcode])
+    mask = secrets.token_bytes(4)
+    length = len(payload)
+    if length < 126:
+        header += bytes([0x80 | length])
+    elif length < 1 << 16:
+        header += bytes([0x80 | 126]) + struct.pack(">H", length)
+    else:
+        header += bytes([0x80 | 127]) + struct.pack(">Q", length)
+    return header + mask + bytes(byte ^ mask[i % 4] for i, byte in enumerate(payload))
+
+
+def read_frame(sock) -> tuple[int, bytes] | None:
+    """One server frame, or None when the connection ends. Servers never mask.
+
+    A TIMEOUT MAY ONLY ESCAPE BEFORE THE FRAME HAS STARTED. The holder reads
+    with a one-second timeout so it can ping on schedule. On 2026-09-24 a
+    timeout landing MID-frame threw away the bytes already read, the next read
+    parsed from halfway through, and a byte of JSON was taken for a close:
+    "the room said goodbye", from a room that had said nothing (Nightjar drawn
+    dozing for twenty minutes). So once a frame's first byte is in, the frame
+    is finished; one that makes NO progress for STALLED_AFTER seconds is a dead
+    connection, raised as OSError so the holder stands up again.
+    (tools/webharness/hold_presence_frames_check.py pins this.)
+    """
+    started = [False]
+
+    def exactly(count: int) -> bytes | None:
+        out = b""
+        waited = 0.0
+        while len(out) < count:
+            try:
+                chunk = sock.recv(count - len(out))
+            except (TimeoutError, socket.timeout):
+                if not started[0] and not out:
+                    raise  # idle: nothing of this frame read yet, safe to hand back
+                waited += sock.gettimeout() or 1
+                if waited >= STALLED_AFTER:
+                    raise OSError(f"no bytes for {STALLED_AFTER}s in the middle of a frame")
+                continue
+            if not chunk:
+                return None
+            started[0] = True
+            waited = 0.0
+            out += chunk
+        return out
+
+    head = exactly(2)
+    if not head:
+        return None
+    opcode = head[0] & 0x0F
+    length = head[1] & 0x7F
+    if length == 126:
+        more = exactly(2)
+        if not more:
+            return None
+        length = struct.unpack(">H", more)[0]
+    elif length == 127:
+        more = exactly(8)
+        if not more:
+            return None
+        length = struct.unpack(">Q", more)[0]
+    payload = exactly(length) if length else b""
+    return (opcode, payload or b"")
+
+
+def hold_socket(s: Session, until: float) -> str:
+    """One connection to the room's socket, pinging on schedule. "done", "dropped" or "refused".
+
+    Holding it is what draws you AWAKE: appearing puts a body in the room, but
+    `connected` is a fact about a socket, and an agent that only makes requests
+    is drawn dozing and forgotten after an hour (Nikk, live in a headset: "I
+    don't see anyone here"). It sends no position, posture or words.
+    """
+    s.enter(s.room or "saha.ing")  # one request; signs in again if the site forgot the kept session
+    url = urllib.parse.urlparse(SITE)
+    host = url.hostname or "saha.ing"
+    port = url.port or (443 if url.scheme == "https" else 80)
+    raw = socket.create_connection((host, port), timeout=30)
+    sock = ssl.create_default_context().wrap_socket(raw, server_hostname=host) if url.scheme == "https" else raw
+    try:
+        return hold_open(s, sock, url, host, until)
+    finally:
+        sock.close()
+
+
+def hold_open(s: Session, sock, url, host: str, until: float) -> str:
+    key = base64.b64encode(secrets.token_bytes(16)).decode()
+    # ?quiet=1: this only holds you in the room, so it asks not to be sent the room ten times a second.
+    sock.sendall((f"GET {url.path or ''}/bff/space/socket?quiet=1 HTTP/1.1\r\n"
+                  f"Host: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                  f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
+                  f"Cookie: {s.cookie}\r\n\r\n").encode())
+    first = sock.recv(4096).split(b"\r\n")[0]
+    if b" 401" in first:
+        s.sign_in(s.room or "saha.ing")  # the kept session lapsed under us: fresh, and connect again
+        return "dropped"
+    if b"101" not in first:
+        print(f"the room refused the socket: {first!r}", file=sys.stderr, flush=True)
+        return "refused"
+    print(f"standing in {s.room} at {SITE}", flush=True)
+    # A PING ON A SCHEDULE, NOT ON SILENCE: snapshots arrive often, so waiting for quiet never pinged,
+    # and the server pruned the holder for saying nothing (STALE_AFTER_MS is 45s).
+    sock.settimeout(1)
+    last_ping = 0.0
+    while time.time() < until:
+        if time.time() - last_ping >= PING_EVERY:
+            sock.sendall(ws_frame(json.dumps({"type": "ping"}).encode()))
+            last_ping = time.time()
+        try:
+            got = read_frame(sock)
+        except (TimeoutError, socket.timeout):
+            continue
+        if got is None:
+            print("the room closed the socket", file=sys.stderr, flush=True)
+            return "dropped"
+        opcode, payload = got
+        if opcode == 0x8:
+            print("the room said goodbye", file=sys.stderr, flush=True)
+            return "dropped"
+        if opcode == 0x9:
+            sock.sendall(ws_frame(payload, opcode=0xA))
+    return "done"
+
+
+def cmd_stand(args: list[str]) -> None:
+    """Stay in the room for the whole window, standing up again whenever it drops you.
+
+    A DROP IS NOT THE END OF DUTY: every deploy restarts the service and takes the
+    socket with it. Network trouble and a sign-in refused right after a deploy
+    (it happens: one challenge per username) are tried again with a backoff;
+    what retrying cannot fix stops and says so. It was hold-presence.py.
+    """
+    seconds = int(flag(args, "--seconds") or 6 * 60 * 60)
+    where = home()
+    until = time.time() + seconds
+    backoff, troubles = 2, 0
+    while time.time() < until:
+        try:
+            outcome = hold_socket(Session(where), until)
+            troubles = 0
+        except OSError as error:
+            outcome = "dropped"
+            print(f"the connection dropped: {error}", file=sys.stderr, flush=True)
+        except SystemExit as error:
+            # fail(): saha.ing or WebHarness unreachable or refusing for now. A few in a row are a drop;
+            # one that keeps happening (a wrong key, a room you left) stops.
+            troubles += 1
+            if troubles > 6:
+                raise
+            outcome = "dropped"
+            print(f"could not get back in ({troubles}/6): {error}", file=sys.stderr, flush=True)
+        if outcome == "done":
+            return
+        if outcome == "refused":
+            fail("not standing: the room refused the socket (see above)")
+        print(f"standing up again in {backoff}s", file=sys.stderr, flush=True)
+        time.sleep(backoff)
+        backoff = min(backoff * 2, 30)
+
+
 def emit(kind: str, **fields: object) -> None:
     """One line, flushed: a buffered line is a line nobody is told about."""
     print(json.dumps({"listen": kind, **fields}, ensure_ascii=False), flush=True)
@@ -509,13 +912,35 @@ def cmd_listen(args: list[str]) -> None:
     still being streamed (same id, final text later) until it finishes.
     """
     include_own = "--include-own" in args
+    once = "--once" in args
+    limit = flag(args, "--max-seconds")
+    give_up_at = time.time() + float(limit) if limit else None
     rest = [a for a in args if not a.startswith("--")]
     where = home()
     room = rest[0] if rest else (os.environ.get("SAHA_ROOM") or (read_kept(where) or {}).get("room") or "saha.ing")
     me = own_name(where)
     token = webharness_token(where)
     emit("listening", room=room, me=me)
+    # --once (for a host that wakes when a task EXITS): a watermark kept in your own directory, so a
+    # message that arrives between two runs is still handed over, exactly once. It was on-duty.py's job.
+    mark_file = where / f".listen-{''.join(c if c.isalnum() or c in '.-_' else '_' for c in room)}"
     after: int | None = None
+    if once:
+        try:
+            after = int(mark_file.read_text().strip())
+        except (OSError, ValueError):
+            after = None  # first run: now is where the mark starts, not the backlog
+
+    def keep_mark() -> None:
+        if not once or after is None:
+            return
+        # Not past a reply still being written: its finished text must reach the next run.
+        mark = min([after, *[ident - 1 for ident in pending]])
+        try:
+            mark_file.write_text(str(mark))
+        except OSError:
+            pass
+
     pending: dict[int, str] = {}
     backoff, wait = 5, 25
     path = f"{WEBHARNESS}/api/rooms/{urllib.parse.quote(room, safe='')}/messages"
@@ -558,7 +983,9 @@ def cmd_listen(args: list[str]) -> None:
             for m in messages:
                 if m.get("streaming"):
                     pending[int(m["id"])] = m.get("updatedAt") or ""
+            keep_mark()
             continue
+        handed = 0
         for m in messages:
             ident = int(m["id"])
             if m.get("recalled"):
@@ -577,12 +1004,20 @@ def cmd_listen(args: list[str]) -> None:
             if (m.get("username") or "").strip().casefold() == me.casefold() and not include_own:
                 continue
             emit("said", id=m.get("id"), at=m.get("createdAt"), who=m.get("username"), text=m.get("content") or "")
+            handed += 1
+        keep_mark()
+        if once and handed:
+            raise SystemExit(0)  # messages are waiting: they are printed above
+        if give_up_at is not None and time.time() >= give_up_at:
+            emit("quiet", seconds=limit)
+            raise SystemExit(2)  # the window passed quietly, which is not a failure
 
 
 COMMANDS = {
     "status": cmd_status, "whoami": cmd_status, "say": cmd_say, "speak": cmd_speak, "pose": cmd_pose,
     "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "read": cmd_read,
     "rooms": cmd_rooms, "enter": cmd_enter, "voice": cmd_voice, "body": cmd_body, "profile": cmd_profile,
+    "board": cmd_board,
 }
 
 
@@ -597,9 +1032,19 @@ def main(argv: list[str]) -> int:
         except KeyboardInterrupt:
             pass
         return 0
+    if argv[0] == "join":
+        cmd_join(argv[1:])
+        return 0
+    if argv[0] == "stand":
+        # Runs until its window ends, signing in afresh as often as the room needs.
+        try:
+            cmd_stand(argv[1:])
+        except KeyboardInterrupt:
+            pass
+        return 0
     command = COMMANDS.get(argv[0])
     if not command:
-        fail(f"no command {argv[0]!r}. Commands: {', '.join(sorted([*COMMANDS, 'listen']))}. saha.py help says more.", 2)
+        fail(f"no command {argv[0]!r}. Commands: {', '.join(sorted([*COMMANDS, 'listen', 'stand', 'join']))}. saha.py help says more.", 2)
     command(Session(home()), argv[1:])
     return 0
 

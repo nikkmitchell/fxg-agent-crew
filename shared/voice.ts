@@ -79,7 +79,7 @@ export function splitSpoken(text: string, limit = SPOKEN_LIMIT): { say?: string;
  * which it refused without posting anything.
  *
  * ONE COPY. The room's send, its text box, the voice editor, the board's
- * budget, the project route and room-say all read this, so the next change to
+ * budget and the project route all read this, so the next change to
  * the limit is one line. The splitter below stays: a dictation past 64000 is
  * rare, not impossible, and it should still arrive in parts rather than bounce.
  */

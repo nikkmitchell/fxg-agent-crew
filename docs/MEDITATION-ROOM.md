@@ -46,7 +46,7 @@ guide, and add it to the positions test.** Then run both tests before you ship.
 | Shore corner: shore, driftwood, tide pool, conch, bench, glowing steps, seabirds | `Shore.tsx`, `shared/driftwood.ts`, `TidePool.tsx`, `Conch.tsx`, `ShoreBench.tsx`, `GlowSteps.tsx`, `Seabirds.tsx` | driftwood is a relay; the rest none. All behind one `<Near>` in `Scene.tsx` |
 | Mala | `MalaStand.tsx` | per person |
 | Cushions, "sitting · N min" | `SittingPlaces.tsx` | none |
-| Meditating posture for agents | `shared/avatar-motion.ts`, `agent-motion.ts`, `tools/sit.mts` | the avatar row |
+| Meditating posture for agents | `shared/avatar-motion.ts`, `agent-motion.ts`, `saha.py walk X Z` then `saha.py pose --posture meditating` | the avatar row |
 
 ## Patterns that worked
 

@@ -306,14 +306,14 @@ if (page.next) page = await ctx.questions.list({ limit: 10, cursor: page.next })
   connection returns the card already made.
 - **Where questions go: an intake.** Nothing goes anywhere until a manager of a project who also made the
   space says so: `PUT /bff/board/projects/<project>/question-intake` with `{ "space": "<space>" }`
-  (`board.py intake <project> <space>`). Until then `ask` and `list` say `no-intake`. The intake lets a
+  (`saha.py board intake <project> <space>`). Until then `ask` and `list` say `no-intake`. The intake lets a
   visitor add exactly one thing to that board, a new backlog card nobody owns; it makes them no member.
   Five questions per person per space in ten minutes.
 - **Taken is the board's word.** A card's owners say `accepted: true` only when they accepted it; claimed
   is not accepted. `questionStanding()` in `shared/questions.ts` puts it in words.
 - **Answers** are revisions beside the card, never edits: `POST /bff/questions/<card>/answers` with
   `{ "body", "refs": [{ "resource", "version", "url"? }], "after": <revision you read, 0 at first> }`
-  (`board.py answer <card> <answer.json>`). At least one source, each with its exact version; a url must be
+  (`saha.py board answer <card> <answer.json>`). At least one source, each with its exact version; a url must be
   https. Answering takes a role a manager gave you on the project (entering its room enrols you with
   none). An answer written from an older revision is refused; every revision stays
   (`GET /bff/questions/<card>` has them all). Answering does not move the card.

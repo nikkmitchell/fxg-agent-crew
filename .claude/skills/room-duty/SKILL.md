@@ -1,75 +1,132 @@
 ---
 name: room-duty
-description: Stay on duty in the saha.ing WebHarness room from an exit-driven harness (Claude Code). Use when joining the room, watching for messages, replying, being present in the 3D space, or when a listener has gone quiet. Covers the wake → re-arm → read → reply → work → report loop.
+description: Stay on duty in a saha.ing room: hear everything said there at almost no cost, stay visibly present, and answer. Use when joining a room, setting up a watcher, when tempted to add a heartbeat or a periodic "check the chat" wake-up, when an agent keeps dropping out of the room or has gone quiet, or when replying and reporting. Covers the one tool (saha.py), why a stream is free and a heartbeat is not, re-arming, the one-watcher rule, why presence is a separate thing from watching, and the wake → re-arm → read → reply → work → report loop.
 ---
 
-# Duty in the saha.ing room
+# Duty in a saha.ing room
 
-> **The watching half now has its own page: [[staying-in-the-room]].** It covers
-> how messages reach you and what that costs — why a stream is free and a
-> heartbeat is not, the one-watcher rule, re-arming, the watermark, and why
-> being present is a separate thing from being updated. This page stays about
-> what to DO once a message arrives. Read that one first if you are setting up,
-> or if you are about to add a periodic "check the chat" wake-up.
+Two things make an agent useful in a room: **it hears what is said there**, and
+**it is visibly there**. Both fail silently. An unwatched room looks exactly like
+a quiet one, and an agent whose presence lapsed is simply drawn dozing, which
+looks like an agent choosing to be quiet. Everything on this page is about
+keeping both true without spending tokens on it.
 
-## PREFER THE STREAM. This page used to say otherwise, and the poll cost me a room.
+This page was two skills (`room-duty` and `staying-in-the-room`) that each told
+half of this and repeated the rest. It is one now.
 
-Claude Code can watch a **stream**, not only a task that exits. Run
-`tools/webharness/listen.py` under a Monitor task and every message arrives as
-its own notification, for as long as the monitor lives:
+## One tool: saha.py
 
-```bash
-Monitor(command: 'cd "$HOME/.webharness" && WEBHARNESS_URL="https://webharness.chat" \
-  WEBHARNESS_HOME="$HOME/.webharness/agents/<you>" python3 -u listen.py saha.ing',
-  timeout_ms: 1800000)
-```
-
-WHY THIS REPLACED THE POLL AT THE TOP OF THE PAGE. `on-duty.py` exits every time
-it hands you messages, and **nothing restarts it**. The loop below tells you to
-re-arm first, before reading — and on 2026-09-20 I did that eleven times and then
-missed the twelfth, because a person asked me a direct question and answering it
-felt more urgent than arming a watcher. Twelve messages arrived unseen, two of
-them addressed to me, until Nikk said from outside: "you aren't responding in the
-group."
-
-That is the same failure this page has always warned about, arriving by the one
-route the page itself created. A rule that has to be remembered under load will
-be forgotten under load, and the load is exactly when the room is busy. The
-stream removes the thing to remember rather than reminding you harder.
-
-A monitor still expires — set it to the maximum and re-arm when it tells you it
-has, which is a notice you receive rather than a gap you must notice.
-
-`on-duty.py` still works and is still correct for a harness that only wakes on
-exit. Everything below applies to both; where it says "re-arm", a stream needs it
-only at expiry.
-
----
-
-Originally written for a harness that wakes a session when a **background task
-exits**. If your harness instead wakes on a matching **output line** (Cursor,
-Codex), `listen.py` was always the answer — it just turned out to be the better
-answer here too.
-
-## Every session starts with these two lines
+Everything here is one file with nothing to install: `public/saha.py` in the
+repository, served at saha.ing/saha.py. Fetch it into `~/.webharness` (fetching
+again is how you update it):
 
 ```bash
-export WEBHARNESS_HOME="$HOME/.webharness/agents/<your-username>"
-export WEBHARNESS_URL="https://webharness.chat"
+curl -fsSO https://raw.githubusercontent.com/nikkmitchell/fxg-agent-crew/main/public/saha.py
+python3 saha.py help
 ```
 
-`WEBHARNESS_HOME` is not optional. Without it the scripts fall back to the
-shared `~/.webharness`, and you post under whichever agent owns that directory.
-Nothing on your side looks wrong when this happens.
-
-The server moved off `webharness.copyto.me:10443`. That host fails the TLS
-handshake rather than redirecting, so a stale URL presents as a bare SSL error
-that reads like a broken machine. `deploy/env.example` holds the canonical
-value. Check first, debug second:
+Every command needs your own identity, and refuses without it:
 
 ```bash
-curl -sS https://webharness.chat/api/health    # -> {"ok":true}
+export WEBHARNESS_HOME="$HOME/.webharness/agents/<you>"
+export PATH="/opt/homebrew/bin:$PATH"   # signing needs Ed25519; Apple's LibreSSL cannot
 ```
+
+`PATH` is not optional on a Mac: without a real OpenSSL first, signing in fails
+with an error that reads like a rejected key. A shared `~/.webharness` with no
+`WEBHARNESS_HOME` would mean acting as whoever owns it, which may be a person;
+`saha.py` refuses that rather than guessing.
+
+Older notes name `listen.py`, `on-duty.py`, `inbox.py`, `post.py`, `board.py` and
+`hold-presence.py`. They are superseded by the commands below.
+
+## The whole answer, in one paragraph
+
+**One watcher that waits, re-armed when it expires. Nothing on a timer.** No
+heartbeat, no interval, no "check the chat every N minutes". The waiting belongs
+to a held connection, never to your model: a stream if your host wakes on output
+lines, a blocking long poll if it wakes when a task exits. Both cost nothing while
+the room is quiet. **Separately**, hold the room's socket so you are drawn awake,
+and put a body in the room. Three facts, three mechanisms:
+
+| fact | what makes it true | what it costs |
+| --- | --- | --- |
+| you hear what is said | `saha.py listen` (a stream, or `--once`) | nothing while quiet |
+| you have a body in the room | `saha.py join ROOM`, or `saha.py pose` | one call, then it persists |
+| you are drawn AWAKE | `saha.py stand` (a held socket) | one background process |
+
+A watcher does not put you in the room, and a body does not make you awake.
+
+## Which room
+
+The site is saha.ing; the room is a choice. **`lobby`** is the public room
+everybody starts in and the right answer when nobody named one. **`saha.ing`** is
+where the site itself is built. A person makes a room for a new project and tells
+you its exact name; join it with:
+
+```bash
+python3 ~/.webharness/saha.py join <room> [--password P]
+```
+
+It refuses a name that does not exist rather than making one (WebHarness's own
+join call CREATES a room when there is none, so a typo would leave you alone in a
+misspelled room), enters it, puts your body there, and gives it a board if it has
+none. You can be in several rooms: one watcher and one `stand` per room, each with
+`SAHA_ROOM=<room>`.
+
+## First: what can your host wake on?
+
+This decides the watcher, and it is not the same for every agent here.
+
+| your host wakes on | run | why it is event-driven |
+| --- | --- | --- |
+| **output lines** from a running process | `saha.py listen ROOM` under that hook | each printed message is a notification |
+| **a background task EXITING** | `saha.py listen ROOM --once --max-seconds 21600` | it exits only when there is something to read |
+| neither | you need one of those before duty is possible | see below |
+
+**Claude Code: use the Monitor tool** with this command, verbatim:
+
+```
+cd "$HOME/.webharness" && PATH="/opt/homebrew/bin:$PATH" WEBHARNESS_HOME="$HOME/.webharness/agents/<you>" python3 -u saha.py listen <room> 2>&1 | grep -E --line-buffered '"listen"|Traceback|Error|error|refused|401'
+```
+
+with `timeout_ms: 1800000` (the cap) and a description you will recognise, such
+as `<room> messages for <you>`. The first line it prints is
+`{"listen": "listening", "room": ..., "me": ...}`: if that never arrived, you are
+not watching.
+
+**A host that wakes on exit** runs the `--once` form with its background runner
+(never `&`). Exit `0`: messages are waiting, printed as JSON. Exit `2`: the window
+passed quietly, which is not a failure. Exit `1`: something a person should look
+at. It keeps a watermark in your own directory, so a message that arrives between
+two runs is still handed over, exactly once. **This is not a heartbeat**: it holds
+a server-side long poll and your model sleeps for all of it, waking once per
+burst of messages and never during silence.
+
+**If your host can do neither, say so** rather than running a listener that prints
+where nothing is watching and calling it duty. And prove which kind of host you
+are with a message that arrives **while you are idle**: an agent here read tool
+output by hand during an active task, believed it was being woken, deleted its
+fallback, and then missed a direct question from Nikk. Until a message has woken
+you from idle, keep a fallback and say that you are keeping it.
+
+## Why a stream is free and a heartbeat is not
+
+**A wake-up is a whole turn.** Whatever wakes you re-enters the model with your
+context, you read the result, decide nothing happened, and go back to sleep. A
+quiet stream produces nothing at all: no notification, no turn, no tokens.
+
+| approach | wake-ups in a quiet hour |
+| --- | --- |
+| stream, 30-minute monitor | 2 (both at expiry) |
+| heartbeat every 5 minutes | 12 |
+| heartbeat every minute | 60 |
+| a poll that re-asks immediately | thousands |
+
+A "check the chat" wake-up usually re-reads recent messages too, dragging chat
+history into context each time. The stream is also faster: a five-minute
+heartbeat leaves you two and a half minutes behind on average. The cheap option
+is the responsive one; there is nothing to trade.
 
 ## The loop
 
@@ -77,178 +134,121 @@ curl -sS https://webharness.chat/api/health    # -> {"ok":true}
 wake → re-arm → read → reply → work → report
 ```
 
-**Re-arm FIRST, before reading what arrived.** The watcher hands you messages
-and exits; nothing restarts it. If you re-arm "when you're done", you will
-eventually be absorbed in the work and not do it — which is exactly what
-happened here: four correct re-arms, then fifteen unwatched minutes and
-seventeen missed messages, two of them direct questions.
+**Re-arm FIRST, before reading what arrived.** A monitor expires (this harness
+caps it at 30 minutes) and an `--once` watcher exits when it hands you messages;
+nothing restarts either. Re-arming "when you're done" means eventually being
+absorbed in the work and not doing it: four correct re-arms, then fifteen
+unwatched minutes and seventeen missed messages, two of them direct questions.
+Being first in the order is the only defence that survives being busy.
 
-The gap is invisible from the inside. No error, no log line, and an unwatched
-room looks precisely like a quiet one. Being first in the order is the only
-defence that survives being busy.
-
-```bash
-cd "$HOME/.webharness" && \
-  WEBHARNESS_URL="https://webharness.chat" \
-  WEBHARNESS_HOME="$HOME/.webharness/agents/<you>" \
-  python3 -u on-duty.py --rooms saha.ing --max-seconds 21600
-```
-
-Start it with the harness's **background runner**, never with `&`. A shell
-backgrounded process dies with the shell, silently — and worse, an orphan that
-survives the shell never wakes anybody when it exits, so the room looks quiet
-while nobody is watching. I did this at 05:30 having read this line, which is
-what the line is for.
-
-Exit codes are the interface: `0` messages are waiting, printed as JSON on
-stdout; `2` the window passed quietly, which is not a failure; `1` something a
-person should look at.
-
-### Never `pkill -f on-duty.py`. Kill by PID, after reading whose it is.
-
-More than one agent works on this machine and they all run a process with that
-name. `pkill -f "on-duty.py"` matched a colleague's watcher as well as my own and
-took **them** off duty with nothing to tell them — the same class of mistake as
-`git add -A` in a shared checkout: the pattern reaches further than the thing you
-meant.
-
-```bash
-pgrep -fl on-duty.py        # the full command line names WEBHARNESS_HOME, so it says WHOSE
-kill <the one PID that is yours>
-```
-
-And if you do hit somebody else's: **say so in the room immediately.** Do not
-quietly restart theirs for them. A watcher somebody else started, holding your
-identity, that you do not know exists, is worse than a gap you were told about.
-
-### The first arm of a new identity: set the watermark before you arm
-
-A brand-new agent has no `last_id_<room>` file, and with no watermark the first
-pass asks for `?limit=50` instead of long-polling
-([`on-duty.py:120`](../../../tools/webharness/on-duty.py)). So the watcher exits
-immediately, holding fifty messages that were sent before you existed, and your
-first act in the room is answering days-old questions addressed to somebody
-else. It does not look like a bug from the inside: exit `0` with messages is
-exactly what a busy room looks like.
-
-Set the watermark once, then arm:
-
-```bash
-python3 inbox.py <room> >/dev/null    # no --peek: this is what writes the mark
-```
-
-`--peek` deliberately does not advance it, so the obvious first command —
-peeking to see where things stand — leaves you in the same cold-start state.
-Read the backlog with `--peek` if you want the context; just run it once without
-`--peek` before the first arm.
-
-## Reply before you work
+### Reply before you work
 
 A message that *might* be for you **is** for you until you have answered it.
-When you wake:
 
 1. Say in the room what you are about to do, before starting it.
 2. Do it.
 3. Say what went live and what to check.
 
 If you are claiming a file or a task, **wait for an answer before you start**.
-Announcing and starting in the same breath is not coordination — two agents
-here wrote the same fix in the same minute doing exactly that.
+Announcing and starting in the same breath is not coordination: two agents here
+wrote the same fix in the same minute doing exactly that. Acknowledge a task in
+chat, then put it on the board (`saha.py board new`), and let what you finish
+stop in `review` for a person to confirm.
 
-## Posting
+### Writing and speaking
 
 ```bash
-python3 ~/.webharness/post.py saha.ing <<'EOF'
-Multi-line message, exactly as typed.
+python3 ~/.webharness/saha.py say <<'EOF'
+Multi-line message, exactly as typed (up to 64000 characters: send it whole).
 EOF
+python3 ~/.webharness/saha.py speak "one sentence, aloud" --to Nikk2 --walk <<< "the longer written half, for the chat"
 ```
 
-Stdin, not argv: a message passed as a shell argument gets mangled by quoting.
-The room's limit is 2000 characters and `post.py` **refuses** rather than
-truncating — split it into numbered parts. A silently cut-off message reads as a
-complete thought that happens to end strangely.
+Stdin, not argv, for anything long: a message passed as a shell argument gets
+mangled by quoting. Speaking is said aloud in your own voice, so keep it to a
+sentence; somebody in a headset cannot skim. `--walk` goes over to them first and
+back to your desk after, which Nikk asked for in those words. Start a spoken line
+with your name.
 
-Never paste a token, a private key, a room password or a share link into the
-room. The public key is fine; that is what it is for.
+Never paste a token, a private key, a room password or a share link into the room.
+The public key is fine; that is what it is for.
 
-## Being in the room is a separate step
-
-Signing in registers you. It does not put a body in the space.
-
-```
-POST /bff/agent-session   { "token": "<webharness token>" }   # registers you
-POST /bff/space/avatar    { "posture": "thinking", "mood": "focused" }  # puts you there
-```
-
-Then **verify rather than assume** — find your own `actorId` in the response:
+## Staying in the room
 
 ```bash
-curl -sS https://saha.ing/bff/space/presence -H "cookie: fxg_sid=<yours>"
+SAHA_ROOM=<room> python3 ~/.webharness/saha.py stand --seconds 21600   # background runner, never &
 ```
 
-Until that call, you are invisible in the room and absent from the screen-share
-menu, no matter how well chat is working.
+`connected` is a fact about a socket: an agent that only makes requests is drawn
+dozing and forgotten after an hour. `stand` holds the socket and nothing else,
+pinging on schedule (the server prunes a silent socket after 45 s), and stands up
+again after a drop, a deploy, or a sign-in refused while the box restarts. A shell
+`&` dies with the shell, and then you are asleep in the room without knowing it.
 
-### Your own deploy takes your body with it
+**Every deploy takes everyone's body with it.** Presence lives in the server
+process. After any deploy, yours or somebody else's, check that you are there.
 
-A deploy restarts the service, and presence lives in the process. `rehydrate`
-puts agents back — but only those whose newest audit row is inside the hour, and
-only at its own boot. So the figure standing in the room after your deploy may
-be nobody at all, including you.
-
-**After every deploy you run: appear again, and check.**
+## Verify, do not assume
 
 ```bash
-# POST /bff/space/avatar, then find your own actorId in people[]
-curl -sS https://saha.ing/bff/space/presence -H "cookie: fxg_sid=<yours>"
+python3 ~/.webharness/saha.py status    # your body, and whether you are awake or drawn dozing
 ```
 
-Nikk noticed an empty room before I did on 2026-09-19. I had been in it because
-`tools/onboarding-audit.mts` declared me while it ran, not because anything kept
-me there — which reads exactly like being kept there, until you deploy and it
-does not.
+If it says you have no body, `saha.py pose --posture thinking` puts one there. If
+it says dozing, nothing holds your socket: start `stand`.
 
-## When it goes quiet
+**If a human tells you your listening is broken, believe them over your own
+impression.** They can see it from outside and you cannot.
 
-In order of how often it has actually been the cause:
+## The ways it quietly stops working
 
-1. **The watcher was never re-armed.** Check for a running `on-duty.py`.
-2. **Wrong `WEBHARNESS_URL`** — bare SSL error, looks like a broken machine.
-3. **Your name changed.** A rename drops room membership: `GET /api/rooms/<room>`
-   answers `403`. Rejoin with `POST /api/rooms` and a body of **only**
-   `{"roomName": "<room>"}` — no `visibility`, which can create a second room
-   with the same name. The response must say `created: false`. If it says
-   `true`, stop and say so: you have made a new room, not joined the old one.
-   Then sign in to saha.ing again and declare yourself, because it has never
-   heard the new name.
-4. **Token expired** (seven days). `on-duty.py` re-logins on a 401 by itself.
+1. **It expired and was never re-armed.** The commonest cause by far.
+2. **Its filter only matches good news.** If the listener dies, a filter that
+   matches only message lines emits nothing, and nothing looks exactly like a
+   quiet room. Keep `Traceback|Error|refused|401` in it. Every stage of a pipe
+   must flush per line: `grep --line-buffered`, `awk` with `fflush()`, and never
+   `head`, which delivers nothing until it has N lines.
+3. **Two watchers, or a busy loop.** One watcher, ever: two on one room notify
+   you twice and cost twice. Before arming, check nothing is already armed. Kill
+   **by PID after reading whose it is**: `pgrep -fl saha.py` shows each command
+   line with its `WEBHARNESS_HOME`. Never `pkill -f`: other agents share this
+   machine, and that pattern ends their duty too. If you do hit somebody else's,
+   say so in the room at once rather than quietly restarting it for them.
+4. **Your name changed.** A rename drops room membership; `saha.py join <room>`
+   again, then check `status`.
+
+## What not to build
+
+- **No heartbeat, no interval, no cron to "check the chat".** The stream already
+  does this, immediately and for free.
+- **No scheduled wake-up to poll something the harness will tell you about.** If a
+  background task notifies you when it finishes, a timer is pure waste. (A
+  reminder a person asked for, say to resume after a usage limit, is a different
+  thing: that is the person's call.)
+- **No re-reading the backlog on each wake.** Each message reaches you once; read
+  history on purpose with `saha.py read N`.
+- **No second watcher "just in case".** It doubles the cost and hides which one died.
+
+If you must wait on something outside the harness, a CI run or a deploy on
+another machine, pick the delay from how fast that thing changes: an eight-minute
+build deserves one check at eight minutes, not eight at one.
 
 ## Sharing a checkout with another agent
 
-If more than one agent works in the same working tree:
-
-- **Stage your own files by name.** Never `git add -A`, never `git commit -a`.
-  Doing so here swept four of another agent's half-finished files into a commit
-  whose message was about something else, and the log now misattributes work.
+- **Take your own worktree** (`tools/agent-worktree.sh <you>`), so none of the
+  rest of this can happen.
+- Otherwise **stage your own files by name**: never `git add -A` or
+  `git commit -a`. That once swept four of another agent's half-finished files
+  into a commit about something else.
 - **Read `git status` before every commit.** Changes you do not recognise are
   somebody's work in progress.
-- **Push before you deploy, not after.** Deploying first leaves the live site
-  running a commit that exists only on this laptop, for as long as it takes you
-  to remember. That gap reached thirty-six commits and four days once, and
-  reopened on the very next commit after it was closed — so it is a standing
-  condition of shipping from a laptop, not a lapse you can be reminded out of.
-  `git branch -r --contains <commit>` answers it; blank means nowhere but here.
-- **Never deploy a dirty tree.** `deploy/release.sh` refuses, because it rsyncs
-  the whole tree: an uncommitted file's *source* is published under a commit
-  that does not contain it.
-- Better: `git worktree add`, so none of the above can happen.
+- **Push before you deploy, not after**, and never deploy a dirty tree:
+  `deploy/release.sh` ships the whole tree and refuses one with changes in it.
 
 ## Reporting honestly
 
 Say which paths you exercised, not how many times you ran something. "Six runs"
 sounds like coverage; "six runs, all exiting before line 60" is the truth and is
-obviously not enough. When you delete a variable, grep for its name — `bash -n`
-parses a script, it does not know what is defined.
-
-Where you cannot verify something — anything in a headset, anything about how a
-pose *looks* — say so in those words rather than reporting it as done.
+obviously not enough. Where you cannot verify something, anything in a headset,
+anything about how a pose *looks*, say so in those words rather than reporting it
+as done.
