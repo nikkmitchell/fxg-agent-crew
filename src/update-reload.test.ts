@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { hasUnsentText, holdReload, holdSession, reloadDecision, startUpdateReload, updateWaiting } from "./update-reload";
+import { buildOfPage, hasUnsentText, holdReload, holdSession, reloadDecision, startUpdateReload, updateWaiting } from "./update-reload";
 
 const state = (over: Partial<Parameters<typeof reloadDecision>[0]> = {}) => ({
   loadedWith: "aaa", serverHas: "aaa", held: false, unsentText: false, hidden: false, ...over,
@@ -164,3 +164,26 @@ describe("offering a new version instead of forcing it", () => {
     stop();
   });
 });
+
+describe("which build a page is", () => {
+  const page = (entry: string, style: string) => `<!doctype html><html><head>
+    <link rel="icon" href="data:image/svg+xml,x" />
+    <script type="module" crossorigin src="/assets/${entry}"></script>
+    <link rel="modulepreload" crossorigin href="/assets/router-tnBOVXzy.js">
+    <link rel="stylesheet" crossorigin href="/assets/${style}">
+  </head><body><div id="root"></div></body></html>`;
+
+  it("is the hashed files it loads, so it changes exactly when the page's code does", () => {
+    const today = buildOfPage(page("index-DNkY5gG6.js", "index-BkqHnIzL.css"));
+    expect(today).toBe("/assets/index-BkqHnIzL.css /assets/index-DNkY5gG6.js /assets/router-tnBOVXzy.js");
+    expect(buildOfPage(page("index-DNkY5gG6.js", "index-BkqHnIzL.css"))).toBe(today);
+    expect(buildOfPage(page("index-Zz9.js", "index-BkqHnIzL.css"))).not.toBe(today);
+    // A stylesheet-only change is a new build too.
+    expect(buildOfPage(page("index-DNkY5gG6.js", "index-New1.css"))).not.toBe(today);
+  });
+
+  it("is nothing on a development server, which serves source, so it never reloads anybody", () => {
+    expect(buildOfPage('<script type="module" src="/src/main.tsx"></script>')).toBeNull();
+  });
+});
+

@@ -8,10 +8,16 @@ import { base } from "./router";
  * to... go and refresh". Every deploy ended with "reload to get it", and a
  * headset is the worst place to be asked to reload.
  *
- * WHAT COUNTS AS NEWER. `/bff/build` names the commit the release script
- * deployed. The page remembers the first one it sees and reloads when that
- * changes. A server not started by the release script reports no commit, so a
- * development server never reloads anybody.
+ * WHAT COUNTS AS NEWER: THE PAGE ITSELF. The hashed files index.html loads
+ * (`/assets/index-…js` and the rest) change exactly when the page's code does.
+ * The page remembers the first set it sees and reloads when that changes. A
+ * development server serves source, not hashed assets, so it never reloads
+ * anybody.
+ *
+ * It asked `/bff/build` for the deployed commit until 2026-10-20. That needs a
+ * session, so a signed-out page (the sign-in page left open, a visitor) got a
+ * 401 every 15 seconds for ever (1,278 in four days) and never reloaded at all,
+ * and a deploy that changed only the server reloaded every headset for nothing.
  *
  * NOT WHILE SOMEBODY IS MID-SENTENCE. A reload throws away a recording in
  * progress and anything typed and not sent, and losing what somebody said is
@@ -203,6 +209,15 @@ const textFieldsOnPage = (): TextField[] =>
     controlled: isControlled(node),
   }));
 
+/**
+ * Which build a copy of index.html loads: its hashed script and stylesheet
+ * files, in order. null when it loads none, which is a development server.
+ */
+export function buildOfPage(html: string): string | null {
+  const files = [...html.matchAll(/(?:src|href)=["']([^"']*\/assets\/[^"']+\.(?:js|css))["']/g)].map((found) => found[1]!);
+  return files.length > 0 ? [...new Set(files)].sort().join(" ") : null;
+}
+
 const CHECK_MS = 15_000;
 const RETRY_WHILE_WAITING_MS = 2_000;
 
@@ -211,10 +226,10 @@ export function startUpdateReload(options: {
   reload?: () => void;
 } = {}): () => void {
   const fetchCommit = options.fetchCommit ?? (async () => {
-    const response = await fetch(`${base}/bff/build`, { credentials: "same-origin", cache: "no-store" });
+    // The page as the server would serve it now: public, so signed out works too.
+    const response = await fetch(`${base}/`, { credentials: "same-origin", cache: "no-store" });
     if (!response.ok) return null;
-    const body = (await response.json()) as { commit?: string | null };
-    return body.commit ?? null;
+    return buildOfPage(await response.text());
   });
   const reload = options.reload ?? (() => window.location.reload());
   let loadedWith: string | null = null;
@@ -231,7 +246,7 @@ export function startUpdateReload(options: {
   const check = async () => {
     try {
       const commit = await fetchCommit();
-      // Signed out, or a server with no record: nothing to compare against.
+      // A development server: nothing to compare against.
       if (commit) {
         loadedWith ??= commit;
         serverHas = commit;
