@@ -1,3 +1,4 @@
+import { sameActor } from "../shared/board-rules";
 import { useState } from "react";
 import type { CrewTask } from "./board-types";
 import type { ActorProfile, Ownership } from "./profiles";
@@ -51,8 +52,8 @@ export function actorsFrom(
         owns: [],
         awaitingAcceptance: [],
         comments: 0,
-        ownedBy: ownerships.find((o) => o.agentActorId === username && o.state !== "revoked"),
-        ownerOf: ownerships.filter((o) => o.ownerActorId === username && o.state !== "revoked"),
+        ownedBy: ownerships.find((o) => sameActor(o.agentActorId, username) && o.state !== "revoked"),
+        ownerOf: ownerships.filter((o) => sameActor(o.ownerActorId, username) && o.state !== "revoked"),
       };
       byName.set(username, actor);
     }
@@ -227,7 +228,7 @@ export function People({
                 <dt>Projects</dt>
                 <dd>
                   {(() => {
-                    const mine = memberships.filter((m) => m.actorId === actor.username && m.active);
+                    const mine = memberships.filter((m) => sameActor(m.actorId, actor.username) && m.active);
                     if (mine.length === 0) return <span className="unknown">in no project</span>;
                     return mine
                       .map((m) => {

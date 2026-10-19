@@ -185,6 +185,24 @@ describe("a PERSON in the room is enrolled when they sign in", () => {
     await app.close();
   });
 
+  /**
+   * ONE PERSON, NOT ONE PER SPELLING. WebHarness's login ignores case, and the
+   * session was named as typed: "Steven" and "steven" became two actors five
+   * seconds apart (live, 2026-10-13). The session takes WebHarness's spelling.
+   */
+  it("names the session as WebHarness spells the person, not as they typed it", async () => {
+    upstreamForPeople("steven", ["saha.ing"]);
+    const { app, membership, sessions } = boot();
+    const answer = await logIn(app, "Steven");
+    expect(answer.statusCode).toBe(200);
+    expect(answer.json()).toEqual({ username: "steven" });
+    const sid = String(answer.headers["set-cookie"]).match(/=([^;]+)/)?.[1] ?? "";
+    expect(sessions.get(sid)?.username).toBe("steven");
+    expect(membership("steven")).toEqual({ roles: "[]", active: 1 });
+    expect(membership("Steven")).toBeUndefined();
+    await app.close();
+  });
+
   /** The one rule this path promises, for people too. */
   it("does not undo a membership a manager revoked", async () => {
     upstreamForPeople("baiwei2", ["saha.ing"]);

@@ -1,3 +1,4 @@
+import { sameActor } from "../shared/board-rules";
 import { voiceFor } from "../shared/voice-choice";
 
 /**
@@ -89,8 +90,8 @@ export function standingOf(
 ) {
   const live = (o: OwnershipLink) => o.state !== "revoked";
   return {
-    operatedBy: ownerships.filter((o) => live(o) && o.agentActorId === actorId),
-    operates: ownerships.filter((o) => live(o) && o.ownerActorId === actorId),
-    projects: memberships.filter((m) => m.actorId === actorId && m.active).map((m) => m.projectId),
+    operatedBy: ownerships.filter((o) => live(o) && sameActor(o.agentActorId, actorId)),
+    operates: ownerships.filter((o) => live(o) && sameActor(o.ownerActorId, actorId)),
+    projects: memberships.filter((m) => sameActor(m.actorId, actorId) && m.active).map((m) => m.projectId),
   };
 }

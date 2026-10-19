@@ -10,6 +10,7 @@ import {
   isRole,
   leavesNoManager,
   mayManageMembership,
+  sameActor,
   isStatus,
   type Role,
   type Status,
@@ -405,18 +406,21 @@ export class BoardStore {
       this.ensureActor(actor.id, actor.kind ?? undefined);
 
       if (action === "claim") {
-        this.db.prepare("INSERT OR IGNORE INTO task_owners (task_id,actor_id,accepted) VALUES (?,?,0)").run(id, actor.id);
+        // Folding case: an owner under another spelling already holds it (see sameActor).
+        if (!this.db.prepare("SELECT 1 FROM task_owners WHERE task_id=? AND actor_id=? COLLATE NOCASE").get(id, actor.id)) {
+          this.db.prepare("INSERT INTO task_owners (task_id,actor_id,accepted) VALUES (?,?,0)").run(id, actor.id);
+        }
         if (task.status === "backlog") {
           this.db.prepare("UPDATE tasks SET status='assigned', updated_at=? WHERE id=?").run(now(), id);
         }
       } else if (action === "accept") {
-        const owns = this.db.prepare("SELECT 1 FROM task_owners WHERE task_id=? AND actor_id=?").get(id, actor.id);
+        const owns = this.db.prepare("SELECT 1 FROM task_owners WHERE task_id=? AND actor_id=? COLLATE NOCASE").get(id, actor.id);
         // Accepting a card nobody gave you is not a thing; the refusal says so
         // rather than silently creating the ownership it implies.
         if (!owns) throw new Refused("you can only accept a card you own", "NOT_AN_OWNER");
-        this.db.prepare("UPDATE task_owners SET accepted=1 WHERE task_id=? AND actor_id=?").run(id, actor.id);
+        this.db.prepare("UPDATE task_owners SET accepted=1 WHERE task_id=? AND actor_id=? COLLATE NOCASE").run(id, actor.id);
       } else {
-        this.db.prepare("DELETE FROM task_owners WHERE task_id=? AND actor_id=?").run(id, actor.id);
+        this.db.prepare("DELETE FROM task_owners WHERE task_id=? AND actor_id=? COLLATE NOCASE").run(id, actor.id);
       }
       this.db.prepare("UPDATE tasks SET assignee_id = (SELECT actor_id FROM task_owners WHERE task_id=? LIMIT 1) WHERE id=?")
         .run(id, id);
@@ -516,31 +520,36 @@ export class BoardStore {
     return this.tx(() => {
       this.ensureActor(agentId);
       this.ensureActor(ownerId);
-      const existing = this.db.prepare("SELECT * FROM ownerships WHERE agent_id=? AND owner_id=?")
+      const existing = this.db.prepare("SELECT * FROM ownerships WHERE agent_id=? COLLATE NOCASE AND owner_id=? COLLATE NOCASE")
         .get(agentId, ownerId) as Record<string, unknown> | undefined;
 
       if (action === "declare") {
-        if (actor.id !== ownerId) throw new Refused("you may only claim an agent as your own", "NOT_YOURS");
+        if (!sameActor(actor.id, ownerId)) throw new Refused("you may only claim an agent as your own", "NOT_YOURS");
         // A claim is a REQUEST. Anyone can say an agent is theirs; only the
         // agent saying so makes it true.
-        this.db.prepare(`INSERT INTO ownerships (agent_id,owner_id,state,claimed_at) VALUES (?,?,'pending',?)
-                         ON CONFLICT(agent_id,owner_id) DO UPDATE SET state='pending', claimed_at=excluded.claimed_at`)
-          .run(agentId, ownerId, now());
+        if (existing) {
+          // The link as first spelled, not a second row under another spelling.
+          this.db.prepare("UPDATE ownerships SET state='pending', claimed_at=? WHERE agent_id=? AND owner_id=?")
+            .run(now(), existing.agent_id as string, existing.owner_id as string);
+        } else {
+          this.db.prepare("INSERT INTO ownerships (agent_id,owner_id,state,claimed_at) VALUES (?,?,'pending',?)")
+            .run(agentId, ownerId, now());
+        }
       } else if (action === "confirm") {
-        if (actor.id !== agentId) throw new Refused("only the agent can confirm who operates it", "NOT_THE_AGENT");
+        if (!sameActor(actor.id, agentId)) throw new Refused("only the agent can confirm who operates it", "NOT_THE_AGENT");
         if (!existing) throw new Refused("there is no claim to confirm", "NOT_FOUND");
         // Confirming answers a claim; an ended link has none. Without this the
         // agent alone could put a person's name back on itself after they left.
         if (existing.state === "revoked") {
           throw new Refused("that link was ended; the person has to claim it again", "NOT_FOUND");
         }
-        this.db.prepare("UPDATE ownerships SET state='verified', settled_at=? WHERE agent_id=? AND owner_id=?")
+        this.db.prepare("UPDATE ownerships SET state='verified', settled_at=? WHERE agent_id=? COLLATE NOCASE AND owner_id=? COLLATE NOCASE")
           .run(now(), agentId, ownerId);
       } else {
         // Either side may end it; neither may end it on the other's behalf.
-        if (actor.id !== agentId && actor.id !== ownerId) throw new Refused("not your link to end", "NOT_YOURS");
+        if (!sameActor(actor.id, agentId) && !sameActor(actor.id, ownerId)) throw new Refused("not your link to end", "NOT_YOURS");
         if (!existing) throw new Refused("there is no link to end", "NOT_FOUND");
-        this.db.prepare("UPDATE ownerships SET state='revoked', settled_at=? WHERE agent_id=? AND owner_id=?")
+        this.db.prepare("UPDATE ownerships SET state='revoked', settled_at=? WHERE agent_id=? COLLATE NOCASE AND owner_id=? COLLATE NOCASE")
           .run(now(), agentId, ownerId);
       }
       this.audit(actor.id, action, "ownership", `${agentId}:${ownerId}`, existing, undefined);
@@ -722,15 +731,18 @@ export class BoardStore {
       if (leavesNoManager(rows, projectId, actorId, action === "grant" ? { action, roles: clean } : { action })) {
         throw new Refused("that would leave the project with no manager, and nobody could ever change who belongs to it again; make somebody else a manager first", "LAST_MANAGER");
       }
-      this.ensureActor(actorId);
+      // The member as their row spells them: revoking "Steven" must end the
+      // "steven" row, not report success and change nothing (see sameActor).
+      const target = rows.find((row) => sameActor(row.actorId, actorId))?.actorId ?? actorId;
+      this.ensureActor(target);
       if (action === "grant") {
         this.db.prepare(`INSERT INTO memberships (project_id,actor_id,roles,active,granted_by,granted_at)
                          VALUES (?,?,?,1,?,?)
                          ON CONFLICT(project_id,actor_id) DO UPDATE SET roles=excluded.roles, active=1,
                            granted_by=excluded.granted_by, granted_at=excluded.granted_at`)
-          .run(projectId, actorId, JSON.stringify(clean), actor.id, now());
+          .run(projectId, target, JSON.stringify(clean), actor.id, now());
       } else {
-        this.db.prepare("UPDATE memberships SET active=0 WHERE project_id=? AND actor_id=?").run(projectId, actorId);
+        this.db.prepare("UPDATE memberships SET active=0 WHERE project_id=? AND actor_id=?").run(projectId, target);
       }
       this.audit(actor.id, action, "membership", `${projectId}:${actorId}`, undefined, { roles: clean });
     }, { actorId: actor.id, action: `${action} membership`, target: `${projectId}:${actorId}` });

@@ -388,6 +388,45 @@ describe("what was asked, attested by us and not signed", () => {
   });
 });
 
+describe("one person, however they are spelled", () => {
+  // WebHarness handed the same person over as "Steven" and "steven" five
+  // seconds apart (live, 2026-10-13). The room folds case; the board must too.
+  const steven = { id: "steven", kind: "human" as const };
+  const Steven = { id: "Steven", kind: "human" as const };
+
+  it("lets a member act under the other spelling", () => {
+    store.actOnMembership(nikk, "saha", "steven", "grant", []);
+    expect(() => store.createTask(Steven, { projectId: "saha", title: "mine" })).not.toThrow();
+  });
+
+  it("revokes the row however the manager typed the name", () => {
+    store.actOnMembership(nikk, "saha", "steven", "grant", []);
+    store.actOnMembership(nikk, "saha", "Steven", "revoke");
+    expect(db.prepare("SELECT actor_id, active FROM memberships WHERE lower(actor_id) = 'steven'").all())
+      .toEqual([{ actor_id: "steven", active: 0 }]);
+    expect(() => store.createTask(steven, { projectId: "saha", title: "nope" })).toThrow(/not a member/);
+  });
+
+  it("keeps one card owner, and lets them accept under the other spelling", () => {
+    store.actOnMembership(nikk, "saha", "steven", "grant", []);
+    const id = store.createTask(nikk, { projectId: "saha", title: "A card", owners: ["steven"] }) as string;
+    store.setOwnership(Steven, id, "claim");
+    expect(() => store.setOwnership(Steven, id, "accept")).not.toThrow();
+    expect(db.prepare("SELECT actor_id, accepted FROM task_owners WHERE task_id = ?").all(id))
+      .toEqual([{ actor_id: "steven", accepted: 1 }]);
+  });
+
+  it("keeps one ownership link, and lets the agent confirm under the other spelling", () => {
+    const nikkAgain = { id: "Nikk", kind: "human" as const };
+    const claudeAgain = { id: "Claude-Nikk2mbp", kind: "agent" as const };
+    store.actOnOwnership(nikk, "claude-nikk2mbp", "nikk", "declare");
+    store.actOnOwnership(nikkAgain, "Claude-Nikk2mbp", "Nikk", "declare");
+    store.actOnOwnership(claudeAgain, "Claude-Nikk2mbp", "Nikk", "confirm");
+    expect(db.prepare("SELECT agent_id, owner_id, state FROM ownerships").all())
+      .toEqual([{ agent_id: "claude-nikk2mbp", owner_id: "nikk", state: "verified" }]);
+  });
+});
+
 describe("can the bootstrap be abused", () => {
   it("does NOT let anyone grant themselves manager once every member is revoked", () => {
     // The bootstrap exists so a brand-new project is usable by its creator.

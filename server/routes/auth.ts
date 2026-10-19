@@ -100,9 +100,20 @@ export function registerAuthRoutes(
    * account made here is signed in by exactly the path everyone else uses:
    * same session, same enrolment, same cookie.
    */
-  async function signInWithPassword(username: string, password: string, request: FastifyRequest, reply: FastifyReply) {
+  async function signInWithPassword(typed: string, password: string, request: FastifyRequest, reply: FastifyReply) {
     try {
-      const token = await client.login(username, password);
+      const token = await client.login(typed, password);
+      /**
+       * WEBHARNESS'S SPELLING OF YOU, NOT THE ONE YOU TYPED. Its login ignores
+       * case, and the session used to be named as typed, so a person who typed
+       * "Steven" one day and "steven" the next was two actors on the board
+       * (live, 2026-10-13, five seconds apart), and a member under one spelling
+       * was refused their own cards under the other. /api/me says who the token
+       * belongs to; the agent sign-in already took its name from there. If it
+       * cannot answer, the typed name is what there is.
+       */
+      const identity = await client.identify(token).catch(() => null);
+      const username = identity?.username?.trim() || typed;
       const sid = sessions.createUnselected(username, token);
       onSessionRoomsChanged(username);
       roomsChecked.add(sid);
@@ -121,12 +132,8 @@ export function registerAuthRoutes(
        * AWAITED, like the agent's, so the first edit after signing in works.
        */
       await enrolFromToken(username, null, token, request.log);
-      // Best effort: the sign-in has already succeeded, and not knowing the
-      // kind only means it is learned later, as before.
-      void client
-        .identify(token)
-        .then((identity) => record(identity.username, identity.kind, identity.ownerName))
-        .catch(() => undefined);
+      // Not knowing the kind only means it is learned later, as before.
+      if (identity) record(identity.username, identity.kind, identity.ownerName);
 
       reply.setCookie(config.cookieName, sid, {
         httpOnly: true,

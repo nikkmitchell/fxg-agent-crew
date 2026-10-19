@@ -7,6 +7,14 @@
  * for a change the server will refuse.
  */
 
+/**
+ * ONE PERSON, HOWEVER THEY ARE SPELLED. The room folds case everywhere
+ * (shared/space-layout.ts actorKey), and WebHarness has handed the same person
+ * over as "Steven" and "steven" five seconds apart; the board compared exactly,
+ * so a member signed in under the other spelling was refused their own cards.
+ */
+export const sameActor = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
+
 export const STATUSES = ["backlog", "assigned", "in_progress", "blocked", "review", "done"] as const;
 export type Status = (typeof STATUSES)[number];
 
@@ -99,15 +107,13 @@ export function hasProjectAuthority(
   projectId: string,
   actorId: string,
 ): boolean {
-  return memberships.some((m) => m.projectId === projectId && m.actorId === actorId && m.active);
+  return memberships.some((m) => m.projectId === projectId && sameActor(m.actorId, actorId) && m.active);
 }
 
 export const isRole = (value: unknown): value is Role => (ROLES as readonly string[]).includes(value as string);
 
 /** A membership as the store keeps it and the board API hands it to the UI: revoked rows included. */
 export type MembershipRow = { projectId: string; actorId: string; roles: readonly string[]; active: boolean };
-
-const sameActor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 /**
  * MAY THIS ACTOR CHANGE WHO BELONGS TO THIS PROJECT? One rule, for the server that
