@@ -14,6 +14,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -31,6 +32,8 @@ sent: dict[str, object] = {}
 rooms = {"testroom": True, "openroom": False}
 # Pings the fake room's socket heard (stand's check).
 pings: list[bytes] = []
+# What go played, in order (go's check).
+go_moves: list[object] = []
 # What screen sent: (content type, bytes) per picture, ("DELETE", 0) when taken down.
 frames: list[tuple[str, int]] = []
 # The room each session last entered: saha.ing holds a session in ONE room.
@@ -135,6 +138,18 @@ class Fake(BaseHTTPRequestHandler):
             return self.answer(200, {"ok": True})
         if path == "/bff/space/avatar":
             return self.answer(200, {"ok": True})
+        if path == "/bff/space/go":
+            query = urllib.parse.parse_qs(self.path.partition("?")[2])
+            to_play = "White" if go_moves else "Black"
+            mine = (query.get("as") or [""])[0].capitalize()
+            return self.answer(200, {"tables": [{"id": "t1abcdef", "size": 9, "surface": "bamboo", "players": ["Black", "White"],
+                                                 "stones": len(go_moves), "revision": len(go_moves), "ended": False, "toPlay": to_play,
+                                                 "lifted": None, **({"yourColour": mine, "yourTurn": mine == to_play} if mine else {}),
+                                                 "text": f"BOARD with {len(go_moves)} stones; to play: {to_play}"}]})
+        if path == "/bff/space/items/t1abcdef/action":
+            with lock:
+                go_moves.append(body)
+            return self.answer(200, {"item": {}})
         if path == "/bff/space/screens/frame" and method == "PUT":
             with lock:
                 frames.append((self.headers.get("Content-Type") or "", len(body) if isinstance(body, bytes) else -1))
@@ -322,6 +337,19 @@ def main() -> int:
         check(refused.returncode == 1 and "Screen Recording" in refused.stdout,
               "screen stops and says a person must grant Screen Recording when no picture can be taken",
               f"no picture: {refused.returncode} {refused.stdout} {refused.stderr}")
+
+        listed_go = run("go")
+        uncoloured = run("go", "play", "D4")
+        check(listed_go.returncode == 0 and "Black to play" in listed_go.stdout and uncoloured.returncode == 2
+              and "--as" in uncoloured.stderr and not go_moves,
+              "go lists the tables, and play refuses without --as before any move",
+              f"go: {listed_go.stdout} {listed_go.stderr} / {uncoloured.returncode} {uncoloured.stderr} {go_moves}")
+        played_go = run("go", "play", "D4", "--as", "black")
+        waited = run("go", "wait", "--as", "white", "--every", "2")
+        check(played_go.returncode == 0 and go_moves == [{"action": "play", "at": "D4", "as": "black", "revision": 0}]
+              and "BOARD with 1 stones" in played_go.stdout and waited.returncode == 0 and "to play: White" in waited.stdout,
+              "go play sends Go's own names for the server to read, and wait returns when it is your turn",
+              f"play: {played_go.stdout} {played_go.stderr} {go_moves} / wait: {waited.returncode} {waited.stdout} {waited.stderr}")
 
         undecided = run("remember", "fact", "the board moves any column")
         check(undecided.returncode == 2 and "--shared" in undecided.stderr and not asked,

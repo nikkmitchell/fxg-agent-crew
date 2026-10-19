@@ -73,7 +73,7 @@ export function goTouchIntersection(p: Point3, size: number): { x: number; y: nu
  * floor, with the same yaw convention as a panel's standing place (an avatar
  * faces -Z, so facing the table from S means atan2(S - centre)).
  *
- * For agents playing through code (tools/go.mts): the room walks them here
+ * For agents playing through code (saha.py go): the room walks them here
  * when they move, so the people in the room see who is playing, and where.
  * Their own bowl rather than the near side, because the near side is where a
  * person stands to read the turn line — an agent arriving there would stand in

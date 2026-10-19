@@ -7,6 +7,7 @@ import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import type { Session, SessionStore } from "../session.js";
 import { roomKey } from "../../shared/space-room.js";
 import { placeGoStone } from "../../shared/go-rules.js";
+import { GO_NAMES, goBoardText, goColourOf, goCoordName, parseGoCoord } from "../../shared/go-text.js";
 import { CLOCK_PRESETS, clockNow, presetOf, settleTurn, startClock } from "../../shared/go-clock.js";
 import { goTableEntityId } from "./destinations.js";
 import { heldBySentence, type Holds } from "./holds.js";
@@ -69,7 +70,13 @@ export class RoomItems {
   }
 }
 
-export type ItemActionBody = { action?: unknown; x?: unknown; y?: unknown; hand?: unknown; colour?: unknown; revision?: unknown };
+export type ItemActionBody = {
+  action?: unknown; x?: unknown; y?: unknown; hand?: unknown; colour?: unknown; revision?: unknown;
+  /** A point as Go names it ("D4"), for agents: instead of x and y. */
+  at?: unknown;
+  /** A colour by name, glyph or bowl number ("white", "O", "1"), for agents: instead of colour. */
+  as?: unknown;
+};
 export type ItemActionAnswer = { status: number; payload: Record<string, unknown> };
 
 export function registerRoomItemRoutes(app: FastifyInstance, options: {
@@ -92,6 +99,27 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
   const publish = (room: string, by: string) => { const items = options.items.all(room); options.announce(room, items, by); return items; };
   app.get("/bff/space/items", async (request, reply) => {
     const session = requireSession(request, reply); return session ? reply.send({ items: options.items.all(spaceRoomOf(session)) }) : reply;
+  });
+  /**
+   * THE GO TABLES, AS AN AGENT READS THEM: each board as text, whose turn it is
+   * by name, and (with ?as=white) whether it is yours. What a terminal needs to
+   * play, with the text rules kept here rather than copied into every tool.
+   */
+  app.get<{ Querystring: { as?: string } }>("/bff/space/go", async (request, reply) => {
+    const session = requireSession(request, reply); if (!session) return reply;
+    const tables = options.items.all(spaceRoomOf(session)).filter(isGoItem);
+    return reply.send({ tables: tables.map((table) => {
+      const players = GO_NAMES.slice(0, table.colours.length);
+      const yours = request.query.as ? goColourOf(request.query.as, table.colours.length) : null;
+      const toPlay = table.ended || table.liftedColour !== null ? null : players[table.activeColour] ?? null;
+      return {
+        id: table.id, size: table.size, surface: table.surface ?? "bamboo", players, stones: table.stones.length,
+        revision: table.revision, ended: Boolean(table.ended), toPlay,
+        lifted: table.liftedColour !== null ? { colour: players[table.liftedColour] ?? null, by: table.carrier?.by ?? null } : null,
+        ...(request.query.as ? { yourColour: yours === null ? null : players[yours], yourTurn: yours !== null && toPlay === players[yours] } : {}),
+        text: goBoardText(table),
+      };
+    }) });
   });
   app.post<{ Body: { kind?: unknown; source?: unknown; view?: unknown; position?: unknown; scale?: unknown } }>("/bff/space/items", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
@@ -338,6 +366,25 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     // Moves and stones are the Go table's; a thing from a space acts through its own code.
     if (item.kind !== "go") return answer(400, { code: "NOT_A_GAME", error: "Only a Go table takes moves." });
     if (body.revision !== undefined && body.revision !== item.revision) return answer(409, { code: "TABLE_CHANGED", error: "The table changed. Try again." });
+    /**
+     * GO'S OWN NAMES, READ HERE, for agents playing from a terminal (saha.py go).
+     * "D4" and "white" are turned into the point and the bowl by shared/go-text.ts,
+     * the same rules the text board is drawn with, so no tool keeps its own copy
+     * of which way the rows run or that there is no column I.
+     */
+    if (body.at !== undefined) {
+      const point = typeof body.at === "string" ? parseGoCoord(body.at, item.size) : null;
+      if (!point) {
+        const last = goCoordName(item.size - 1, 0, item.size)[0];
+        return answer(400, { code: "NOT_A_POINT", error: `"${String(body.at)}" is not a point on a ${item.size}×${item.size} board: columns A–${last} without I, rows 1–${item.size} up from the near side` });
+      }
+      body = { ...body, ...point };
+    }
+    if (body.as !== undefined) {
+      const colour = goColourOf(String(body.as), item.colours.length);
+      if (colour === null) return answer(400, { code: "NOT_SEATED", error: `"${String(body.as)}" is not seated at this table; it has ${GO_NAMES.slice(0, item.colours.length).join(", ")}` });
+      body = { ...body, colour };
+    }
     // Recorded only AFTER the table is saved: the room walks an agent to its
     // seat on this row, and must never do that for a move that did not happen.
     let played: { colour: number; x: number; y: number } | null = null;
@@ -390,7 +437,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       if (item.clock) item.clock = settleTurn(item.clock, mover, Date.now());
     } else if (body.action === "play") {
       // A whole move in one request, for agents and their programs playing
-      // through code (tools/go.mts). Lift-then-place is two requests with a
+      // through code (saha.py go). Lift-then-place is two requests with a
       // stone in the air between them, and a program that dies in between
       // leaves it hanging over everybody's game. This names the colour it is
       // playing, so it can never play somebody else's turn by being quick.

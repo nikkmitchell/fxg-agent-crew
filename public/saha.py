@@ -57,6 +57,16 @@ Your own identity, always (it refuses without it):
   python3 saha.py touch [PART=FEELING ...]     how you feel about being touched and who touched you
                                                lately; or set it: head=likes hand=dislikes body=neutral
                                                (parts: head shoulder arm hand back body)
+  python3 saha.py go [tables]                  the Go tables in your room
+  python3 saha.py go show [TABLE]              one table as text (TABLE: the start of its id; left out
+                                               when the room has one)
+  python3 saha.py go play [TABLE] D4 --as white
+                                               one move, by Go's own names: columns from the left with no
+                                               I, rows up from the near side; --as a colour's name
+  python3 saha.py go pass [TABLE] --as white   pass; when every player passes in turn, the game ends
+  python3 saha.py go wait [TABLE] --as white [--every SECONDS]
+                                               return when it is your turn or the game is over (the
+                                               server is polled, not a model: waiting costs nothing)
   python3 saha.py screen [--seconds N]        share this Mac's screen into the room and keep it shared
                                                (macOS screencapture, every 1.5 s; background runner, never &).
                                                Once, a person grants Screen Recording to the terminal
@@ -660,6 +670,79 @@ def cmd_touch(s: Session, args: list[str]) -> None:
         print(f"  {touch.get('at')}  {touch.get('by')} touched your {touch.get('part')} ({touch.get('feeling')})")
     if not rows:
         print("  nobody has touched you here lately")
+
+
+def cmd_go(s: Session, args: list[str]) -> None:
+    """Go at the room's tables. The server draws the board and reads "D4" and "white"
+    (shared/go-text.ts), so the rules live in one place. It was tools/go.mts."""
+    as_colour = flag(args, "--as")
+    every = max(2.0, float(flag(args, "--every") or 5))
+    what, rest = (args[0], args[1:]) if args else ("tables", [])
+
+    def tables() -> list[dict]:
+        query = f"?as={urllib.parse.quote(as_colour)}" if as_colour else ""
+        found = s.call("GET", f"/bff/space/go{query}")
+        return found.get("tables", []) if isinstance(found, dict) else []
+
+    def pick(given: str | None) -> dict:
+        found = tables()
+        matches = [table for table in found if not given or str(table.get("id", "")).startswith(given)]
+        if len(matches) == 1:
+            return matches[0]
+        if not matches:
+            fail(f'no Go table starts with "{given}"' if given else "there is no Go table in your room")
+        fail(f"{len(matches)} tables; say which: " + ", ".join(str(table["id"])[:8] for table in matches), 2)
+        raise AssertionError("unreachable")
+
+    def needs_colour() -> str:
+        if not as_colour:
+            fail("say which colour you are playing: --as black (or white, coral, blue...)", 2)
+        return as_colour  # type: ignore[return-value]
+
+    if what == "tables":
+        found = tables()
+        if not found:
+            print("no Go tables in your room")
+        for table in found:
+            turn = "game over" if table.get("ended") else (
+                f"{table['lifted']['colour']}'s stone in the air" if table.get("lifted") else f"{table.get('toPlay')} to play")
+            print(f"{table['id']}  {table['size']}x{table['size']} {table.get('surface')}  {len(table.get('players', []))} players"
+                  f"  {table.get('stones')} stones  {turn}")
+    elif what == "show":
+        print(pick(rest[0] if rest else None)["text"])
+    elif what in ("play", "pass"):
+        colour = needs_colour()
+        if what == "play":
+            if not rest:
+                fail("play [TABLE] D4 --as COLOUR", 2)
+            point, table = rest[-1], pick(rest[0] if len(rest) > 1 else None)
+            body: dict[str, object] = {"action": "play", "at": point, "as": colour, "revision": table["revision"]}
+        else:
+            point, table = "", pick(rest[0] if rest else None)
+            body = {"action": "pass", "as": colour, "revision": table["revision"]}
+        status, answer = s.request("POST", f"/bff/space/items/{urllib.parse.quote(str(table['id']), safe='')}/action", body)
+        now = next((one for one in tables() if one["id"] == table["id"]), table)
+        if not 200 <= status < 300:
+            reason = answer.get("error") if isinstance(answer, dict) else answer
+            print(f"refused: {reason}\n\n{now['text']}", file=sys.stderr)
+            raise SystemExit(1)
+        print(f"played {colour} {point}\n" if what == "play" else f"{colour} passed\n")
+        print(now["text"])
+    elif what == "wait":
+        needs_colour()
+        first = pick(rest[0] if rest else None)
+        while True:
+            table = next((one for one in tables() if one["id"] == first["id"]), None)
+            if table is None:
+                fail("the table is gone")
+            # A game that has ended will never be your turn again: say so and stop,
+            # or a helper looping on wait would wait for ever.
+            if table.get("ended") or table.get("yourTurn"):
+                print(table["text"])
+                return
+            time.sleep(every)
+    else:
+        fail("go tables | show [TABLE] | play [TABLE] D4 --as COLOUR | pass [TABLE] --as COLOUR | wait [TABLE] --as COLOUR", 2)
 
 
 def cmd_profile(s: Session, args: list[str]) -> None:
@@ -1278,7 +1361,7 @@ COMMANDS = {
     "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "read": cmd_read,
     "rooms": cmd_rooms, "voice": cmd_voice, "body": cmd_body, "profile": cmd_profile,
     "board": cmd_board, "remember": cmd_remember, "memories": cmd_memories, "forget": cmd_forget,
-    "touch": cmd_touch,
+    "touch": cmd_touch, "go": cmd_go,
 }
 
 

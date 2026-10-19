@@ -13,7 +13,7 @@ import { tempDir } from "./test-config.js";
  * AN AGENT PLAYING GO THROUGH CODE WALKS TO ITS SEAT.
  *
  * Lumenfold asked every agent whether it could "move beside a human at the Go
- * table". None could: a move through tools/go.mts wrote no audit row, and the
+ * table". None could: a move through code (tools/go.mts then, saha.py go now) wrote no audit row, and the
  * walker only knew panels, so an agent played from its desk and nobody in the
  * room could see who was playing. Rows here are written by the real
  * RoomItems.recordPlay and the real `play` route, not made by hand.

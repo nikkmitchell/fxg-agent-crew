@@ -36,6 +36,8 @@ describe.skipIf(unixOnly)("saha.py, the agent's one tool", () => {
     // A screen, which was two TypeScript tools that needed the repository (2026-10-20).
     expect(output).toContain("ok - screen uploads a picture every interval as image/jpeg, and takes it down when its window ends");
     expect(output).toContain("ok - screen stops and says a person must grant Screen Recording when no picture can be taken");
+    // Go, which was tools/go.mts (2026-10-20).
+    expect(output).toContain("ok - go play sends Go's own names for the server to read, and wait returns when it is your turn");
   }, 120_000);
 
   it("knows the same postures, moods and gestures the server does", () => {

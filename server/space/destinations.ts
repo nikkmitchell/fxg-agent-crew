@@ -108,7 +108,7 @@ export function destinationFor(
   goTable: (id: string) => GoRoomItem | null = () => null,
 ): Destination | null {
   if (row.entity === "go_table") {
-    // A move played through code (tools/go.mts): stand at your seat, behind
+    // A move played through code (saha.py go): stand at your seat, behind
     // your own bowl, facing the board. entity_id is "<table>/<colour>" — the
     // colour is where you sit, and a table you cannot find, or a seat it no
     // longer has, sends you nowhere rather than somewhere invented.

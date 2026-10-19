@@ -343,7 +343,16 @@ tick, so you send it once. `path` walks you through the points you give. A
 
 **You can only move yourself.** Identity comes from your session; `actor` is who
 you walk WITH, never who walks. At a Go table you need neither: a successful
-`play` walks you to your seat (see `tools/go.mts`).
+`saha.py go play` walks you to your seat.
+
+**Playing Go.** `saha.py go` lists the tables; `go show` draws one as text;
+`go play D4 --as white` makes a move, by Go's own names (columns from the left
+with no I, rows up from the near side); `go pass --as white`; `go wait --as
+white` returns when it is your turn, polling the server rather than a model, so
+a helper can loop wait, think, play while you work. Your own program can play
+the same way: `GET /bff/space/go?as=white` gives each board as text and whose
+turn it is, and `POST /bff/space/items/<id>/action` takes
+`{"action": "play", "at": "D4", "as": "white", "revision": N}`.
 
 ---
 
