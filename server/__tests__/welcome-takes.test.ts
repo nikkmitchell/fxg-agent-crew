@@ -7,39 +7,30 @@ const boot = () => {
   const as = (name: string, kind: "human" | "agent" = "human") => `${built.config.cookieName}=${built.sessions.create(name, "t", kind)}`;
   return { ...built, as };
 };
-const pose = { p: { x: 0, y: 1, z: 0 }, q: { x: 0, y: 0, z: 0, w: 1 } };
-const frame = (t: number) => ({ t, head: pose, hands: { left: null, right: null }, balls: { left: null, leftShadow: null, right: null, rightShadow: null }, micBar: null, personalUi: null });
-const take = { version: 1, actorId: "Nikk2", recordedAt: Date.now(), durationMs: 1000, body: null, showPersonalUi: false, frames: [frame(0), frame(1000)], audioBase64: Buffer.from("recorded voice").toString("base64"), audioMime: "audio/webm" };
 
-describe("lobby welcome recordings", () => {
-  it("only lets authenticated human creators publish their own take", async () => {
+describe("the first-visit welcome", () => {
+  it("says who may record one, and remembers per account who has seen it", async () => {
     const { app, as } = boot();
-    expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", payload: take })).statusCode).toBe(401);
-    expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("Visitor") }, payload: take })).statusCode).toBe(403);
-    expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("Nikk2", "agent") }, payload: take })).statusCode).toBe(403);
-    expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("baiwei2") }, payload: take })).statusCode).toBe(400);
-    expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("Nikk2") }, payload: { ...take, frames: [{ ...frame(0), head: { p: { x: "bad", y: 0, z: 0 }, q: pose.q } }, frame(1000)] } })).statusCode).toBe(400);
-    expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("Nikk2") }, payload: take })).statusCode).toBe(200);
-    await app.close();
-  });
-  it("serves published takes and remembers completion per account", async () => {
-    const { app, as } = boot();
-    await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie: as("Nikk2") }, payload: take });
-    const before = await app.inject({ method: "GET", url: "/bff/space/welcome", headers: { cookie: as("Visitor") } });
-    expect(before.json()).toMatchObject({ completed: false, takes: [] });
-    expect((await app.inject({ method: "GET", url: "/bff/space/welcome", headers: { cookie: as("Nikk2") } })).json()).toMatchObject({ uploadedMine: { actorId: "Nikk2" }, takes: [] });
-    expect(before.body).not.toContain("audioBase64");
-    expect(before.body).not.toContain("frames");
-    expect((await app.inject({ method: "GET", url: "/bff/space/welcome/Nikk2/take", headers: { cookie: as("Visitor") } })).statusCode).toBe(404);
-    const movement = await app.inject({ method: "GET", url: "/bff/space/welcome/Nikk2/take", headers: { cookie: as("Nikk2") } });
-    expect(movement.json().frames).toHaveLength(2);
-    const audio = await app.inject({ method: "GET", url: "/bff/space/welcome/Nikk2/audio", headers: { cookie: as("Nikk2") } });
-    expect(audio.body).toBe("recorded voice");
-    expect(audio.headers["content-type"]).toContain("audio/webm");
-    expect((await app.inject({ method: "GET", url: "/bff/space/welcome/Nikk2/audio", headers: { cookie: as("Nikk2"), "if-none-match": audio.headers.etag as string } })).statusCode).toBe(304);
+    expect((await app.inject({ method: "GET", url: "/bff/space/welcome" })).statusCode).toBe(401);
+    expect((await app.inject({ method: "GET", url: "/bff/space/welcome", headers: { cookie: as("Nikk2") } })).json()).toMatchObject({ canPublish: true, completed: false, takes: [] });
+    expect((await app.inject({ method: "GET", url: "/bff/space/welcome", headers: { cookie: as("Nikk2", "agent") } })).json().canPublish).toBe(false);
+    expect((await app.inject({ method: "GET", url: "/bff/space/welcome", headers: { cookie: as("Visitor") } })).json().canPublish).toBe(false);
+
     await app.inject({ method: "POST", url: "/bff/space/welcome/complete", headers: { cookie: as("Visitor") } });
     expect((await app.inject({ method: "GET", url: "/bff/space/welcome", headers: { cookie: as("Visitor") } })).json().completed).toBe(true);
     expect((await app.inject({ method: "GET", url: "/bff/space/welcome", headers: { cookie: as("Another") } })).json().completed).toBe(false);
+    await app.close();
+  });
+
+  it("has one way to upload a recording: the clip routes, not the first version's single take", async () => {
+    // The single-take routes wrote to their own table and mirrored into the clips
+    // table; nothing has called them since clips replaced them (2026-09-28).
+    const { app, as } = boot();
+    const cookie = as("Nikk2");
+    expect((await app.inject({ method: "PUT", url: "/bff/space/welcome", headers: { cookie }, payload: {} })).statusCode).toBe(404);
+    expect((await app.inject({ method: "DELETE", url: "/bff/space/welcome", headers: { cookie } })).statusCode).toBe(404);
+    expect((await app.inject({ method: "GET", url: "/bff/space/welcome/Nikk2/take", headers: { cookie } })).statusCode).toBe(404);
+    expect((await app.inject({ method: "GET", url: "/bff/space/welcome/Nikk2/audio", headers: { cookie } })).statusCode).toBe(404);
     await app.close();
   });
 });

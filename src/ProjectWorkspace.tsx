@@ -689,7 +689,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         <div className="signin-callout" role="status">
           <strong>Sign in to see and change projects.</strong>
           <p>
-            Projects are read from the room's durable log, which needs an authenticated session.
+            Projects are read from saha.ing's board, which needs you signed in.
             Nothing is shown here rather than an empty board, because an empty board and a
             signed-out one look identical and mean different things.
           </p>

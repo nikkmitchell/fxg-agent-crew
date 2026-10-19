@@ -90,7 +90,7 @@ export function People({
   memberships = [],
   projects = [],
   session,
-  onPublish,
+  onOwnership,
 }: {
   tasks: CrewTask[];
   profiles: ActorProfile[];
@@ -106,25 +106,25 @@ export function People({
   memberships?: Membership[];
   projects?: Array<{ id: string; name: string }>;
   session: Session | null;
-  /** Absent when the page is rendered read-only, e.g. in a test. */
-  onPublish?: (payload: unknown) => Promise<void>;
+  /** Claim, confirm or end who operates an agent. Absent when the page is read-only, e.g. in a test. */
+  onOwnership?: (agentActorId: string, ownerActorId: string, action: "declare" | "confirm" | "revoke") => Promise<void>;
 }) {
   const actors = actorsFrom(tasks, profiles, ownerships, session);
   const [actionError, setActionError] = useState("");
 
   /**
-   * Publish one ownership intent.
+   * Ask for one ownership change.
    *
-   * The event carries WHAT WAS ASKED FOR, never the resulting state. Whether it
-   * is allowed is decided by the reducer from the authenticated author, so a
+   * The request carries WHAT WAS ASKED FOR, never the resulting state. Whether
+   * it is allowed is decided by the server from the signed-in caller, so a
    * claimant cannot confirm their own claim by writing the other side's id into
    * the body. These buttons cannot grant anything; they can only ask.
    */
   const act = async (agentActorId: string, ownerActorId: string, action: "declare" | "confirm" | "revoke") => {
-    if (!onPublish) return;
+    if (!onOwnership) return;
     setActionError("");
     try {
-      await onPublish({ type: "ownership.acted", agentActorId, ownerActorId, action });
+      await onOwnership(agentActorId, ownerActorId, action);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Could not save");
     }
@@ -268,7 +268,7 @@ export function People({
                 * action they cannot take and invites a refusal they will read as
                 * a fault.
                 */}
-              {(canDeclareOwner || canConfirm || canRevoke) && onPublish && session ? (
+              {(canDeclareOwner || canConfirm || canRevoke) && onOwnership && session ? (
                 <p className="person-actions">
                   {canDeclareOwner ? (
                     <>
@@ -322,8 +322,8 @@ export function People({
   return (
     <section className="people">
       <p className="muted-note">
-        Built from the durable log — a declared profile, a task owned, or a comment written. Nobody
-        appears because they were mentioned.
+        Built from the board — a profile, a task owned, or a comment written. Nobody appears
+        because they were mentioned.
       </p>
 
       {editor}

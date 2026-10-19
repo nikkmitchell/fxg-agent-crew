@@ -13,7 +13,6 @@ const SAMPLE_MS = 50;
 type Capture = Omit<AvatarFrame, "t">;
 type Pending = { mouth: ReturnType<typeof streamMouth>; startAt: number; recordedAt: number; lastAt: number; frames: AvatarFrame[]; stream: MediaStream; mix: ReturnType<typeof avatarAudioMix>; media: MediaRecorder; chunks: Blob[]; ownMedia: MediaRecorder | null; ownChunks: Blob[]; revoked: Set<string>; actorId: string; body: string | null; showPersonalUi: boolean; includeHumans: boolean; includeAgents: boolean };
 type PublishedTake = { id: string; actorId: string; durationMs: number; publishedAt: string };
-type UploadedTake = Pick<PublishedTake, "actorId" | "publishedAt">;
 type UploadedClip = { id: string; actorId: string; title: string; durationMs: number; uploadedAt: string; active: boolean };
 
 /** A recorded mouth, to two places: nothing at all when it was not measured. */
@@ -33,7 +32,6 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
   const consented = useRef(new Set<string>());
   const consentedAtStart = useRef(new Set<string>());
   const [published, setPublished] = useState<PublishedTake[]>([]);
-  const [uploadedMine, setUploadedMine] = useState<UploadedTake | null>(null);
   const [uploadedClips, setUploadedClips] = useState<UploadedClip[]>([]);
   const [uploadedClip, setUploadedClip] = useState<UploadedClip | null>(null);
   const [welcomeCompleted, setWelcomeCompleted] = useState(true);
@@ -53,9 +51,8 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
   const refreshWelcome = useCallback(async () => {
     const response = await fetch(`${base}/bff/space/welcome`, { credentials: "same-origin" });
     if (!response.ok) throw new Error("Could not load welcome recordings.");
-    const data = await response.json() as { canPublish: boolean; uploadedMine: UploadedTake | null; completed: boolean; takes: PublishedTake[] };
+    const data = await response.json() as { canPublish: boolean; completed: boolean; takes: PublishedTake[] };
     setCanPublish(data.canPublish);
-    setUploadedMine(data.uploadedMine);
     setWelcomeCompleted(data.completed);
     setPublished(data.takes);
     const clipsResponse = await fetch(`${base}/bff/space/welcome/clips`, { credentials: "same-origin" });
@@ -387,5 +384,5 @@ export function useAvatarRecorder(owner: string | null, callMicrophone: () => Me
     if (playerUrl.current) URL.revokeObjectURL(playerUrl.current);
   }, []);
 
-  return { status, take, takes, selectTake: (id: string) => { stopPlayback(); setTake(takes.find((item) => item.id === id) ?? null); }, rename, includeHumans, setIncludeHumans, includeAgents, setIncludeAgents, allowInOthersClips, setRecordingConsent, uploadedClips, uploadedClip, selectUploadedClip: (id: string) => setUploadedClip(uploadedClips.find((item) => item.id === id) ?? null), setClipActive, activeTake, published, uploadedMine, welcomeCompleted, canPublish, playing, showPersonalUi, setShowPersonalUi: choosePersonalUi, notice, capture, start, stop, play, playWelcome, playUploaded, finishWelcome, publish, unpublish, stopPlayback, discard, player };
+  return { status, take, takes, selectTake: (id: string) => { stopPlayback(); setTake(takes.find((item) => item.id === id) ?? null); }, rename, includeHumans, setIncludeHumans, includeAgents, setIncludeAgents, allowInOthersClips, setRecordingConsent, uploadedClips, uploadedClip, selectUploadedClip: (id: string) => setUploadedClip(uploadedClips.find((item) => item.id === id) ?? null), setClipActive, activeTake, published, welcomeCompleted, canPublish, playing, showPersonalUi, setShowPersonalUi: choosePersonalUi, notice, capture, start, stop, play, playWelcome, playUploaded, finishWelcome, publish, unpublish, stopPlayback, discard, player };
 }
