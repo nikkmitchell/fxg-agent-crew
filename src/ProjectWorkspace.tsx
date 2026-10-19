@@ -5,6 +5,7 @@ import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
 import { BOARD_COLUMNS, calculateProjectProgress } from "./project-model";
+import { STATUS_LABELS, nextStatuses, sameActor, type Status } from "../shared/board-rules";
 import { nextUnclaimed, priorityLabel } from "./priority";
 import { byArrival } from "./board-order";
 import { ROLES, canManageMembership, leavesNoManager, membersOf, type Membership, type Role } from "./membership";
@@ -515,6 +516,10 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
    * mutation handlers and the signed-in identity; lifting it out would mean
    * threading six props through for no gain.
    */
+  /** Whether the signed-in person is among these, however either is spelled. */
+  const mine = (names: readonly string[] | undefined) =>
+    !!me?.username && !!names?.some((name) => sameActor(name, me.username));
+
   const renderCard = (task: CrewTask) => (
     <article
       className={glowAt(nowMs, task.fresh) > 0 ? "task-card task-card--fresh" : "task-card"}
@@ -644,10 +649,34 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
                     <div className="task-actions">
                       {!task.owners?.length ? <button disabled={busy || !me} onClick={() => void updateTask(task, "claim")}>Claim</button> : null}
-                      {task.owners?.includes(me?.username ?? "") && !task.acceptedBy?.includes(me?.username ?? "")
+                      {mine(task.owners) && !mine(task.acceptedBy)
                         ? <button disabled={busy} onClick={() => void updateTask(task, "accept")}>Accept</button> : null}
-                      {task.acceptedBy?.includes(me?.username ?? "") && task.status === "assigned"
+                      {mine(task.acceptedBy) && task.status === "assigned"
                         ? <button disabled={busy} onClick={() => void updateTask(task, "start")}>Start</button> : null}
+                      {/*
+                        * ANY COLUMN TO ANY OTHER (Nikk, 4903), as the room's
+                        * board and saha.py already move them. This page could
+                        * only Start, so a card could not reach review, done or
+                        * blocked from the web at all. The server says whether
+                        * you may; the list is the rules' own.
+                        */}
+                      {me ? (
+                        <select
+                          className="task-move"
+                          aria-label={`Move ${task.title} to another column`}
+                          value=""
+                          disabled={busy}
+                          onChange={(event) => {
+                            const to = event.target.value as Status;
+                            if (to) void write(() => board.transition(task.id, to));
+                          }}
+                        >
+                          <option value="">Move to…</option>
+                          {nextStatuses(task.status as Status).map((to) => (
+                            <option key={to} value={to}>{STATUS_LABELS[to]}</option>
+                          ))}
+                        </select>
+                      ) : null}
                     </div>
                   </article>
   );

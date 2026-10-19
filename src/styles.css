@@ -523,6 +523,7 @@ a.text-button { display: inline-flex; align-items: center; text-decoration: none
 .task-card .task-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .task-card .task-actions button { min-height: 32px; padding: 0 10px; border: 1px solid var(--line); background: var(--canvas); color: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .task-card .task-actions button:hover:not([disabled]) { background: var(--ink); color: white; border-color: var(--ink); }
+.task-card .task-actions .task-move { min-height: 32px; padding: 0 6px; border: 1px solid var(--line); background: var(--canvas); color: inherit; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 
 /* My work reuses the board card, so a person can act on their own work from
  * their own page. Laid out as a readable column rather than a grid: this is a
