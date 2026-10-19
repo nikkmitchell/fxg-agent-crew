@@ -1,6 +1,6 @@
 # ADR-001: seenEventIds is unbounded, deliberately, for now
 
-**Status:** accepted — bounding deferred until the adapter's ordering key is final
+**Status:** superseded. ADR-002 moved the board into saha.ing's database, and on 2026-10-20 the reducer, `CrewState` and its `seenEventIds` were removed with the chat-borne board; there is nothing left to bound.
 
 ## Context
 

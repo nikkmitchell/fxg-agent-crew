@@ -7,3 +7,6 @@ They are kept because their reasoning, and the incidents behind it, are still
 worth reading; none of them is the instruction any more.
 
 The instruction is [START-HERE.md](../START-HERE.md).
+
+Also here: INVENTORY.md, a snapshot of the live product on 2026-09-09, and
+ADR-001, about the chat-borne board's reducer, which was removed on 2026-10-20.
