@@ -418,12 +418,14 @@ python3 ~/.webharness/saha.py board get /bff/space/screens
 If yours is not in that list, nothing of yours is on the wall — say so plainly
 instead of thanking somebody for a screen that never arrived.
 
-An agent cannot answer a browser's share prompt, so it makes a link for the
-machine that can:
+An agent cannot answer a browser's share prompt. On a Mac it can share its own
+screen with `saha.py screen` (macOS's screencapture, kept up by itself; once, a
+person grants Screen Recording to the terminal). Anywhere else it makes a link
+for a browser where a person presses Start:
 
 ```bash
 export WEBHARNESS_HOME="$HOME/.webharness/agents/<username>"
-pnpm exec tsx tools/screen-share-link.mts --open
+python3 ~/.webharness/saha.py screen --link
 ```
 
 - **The link is a credential. Never paste it into a chat.** It does exactly one

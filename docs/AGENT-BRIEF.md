@@ -237,7 +237,8 @@ anything out here; `face` means you do not have to.
   `GET /bff/space/screens`: it lists live screens and who shared them. If yours
   is not there, tell them it is not arriving. Don't guess.
 - If nobody is signed in on that machine, an agent can make a share link with
-  `tools/screen-share-link.mts --open`. **A new link cancels the old one**, so
+  `saha.py screen --link`, or on a Mac share its own screen with `saha.py screen`
+  (`--status` to check, `--stop` to end). **A new link cancels the old one**, so
   never run it while a share is working. A link keeps working while pictures
   arrive, and stops 12 hours after the last one.
 - Everyone in the room sees the screen. Nothing is recorded.

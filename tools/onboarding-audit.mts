@@ -308,12 +308,12 @@ try {
    * way to ask the question; this process needs it set.
    */
   // The agent's own tools are saha.py (and the two names that hand over to it); the repo's TypeScript ones
-  // that remain are for debugging and sharing a screen.
+  // that remain are for debugging. (Sharing a screen joined saha.py as `screen` on 2026-10-20.)
   const guarded: [string, string[]][] = [
     ["saha.py", ["python3", "public/saha.py", "status"]],
     ["board.py", ["python3", "public/board.py", "open"]],
     ["hold-presence.py", ["python3", "public/hold-presence.py", "--seconds", "1"]],
-    ["screen-share-link.mts", ["pnpm", "exec", "tsx", "tools/screen-share-link.mts"]],
+    ["saha.py screen", ["python3", "public/saha.py", "screen", "--status"]],
     ["watch-room.mts", ["pnpm", "exec", "tsx", "tools/watch-room.mts"]],
   ];
   const unguarded: string[] = [];

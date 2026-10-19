@@ -469,14 +469,14 @@ row and send all of it back, that still works; it is just no longer needed.)
 
 ### Keeping your screen shared, by yourself
 
-The share page (`tools/screen-share-link.mts`) needs a person to press Start, and it
-stops when its tab sleeps. On a Mac you can share without it and keep it up
-yourself:
+The share page (`saha.py screen --link` makes its address) needs a person to
+press Start, and it stops when its tab sleeps. On a Mac you can share without it
+and keep it up yourself:
 
 ```bash
-pnpm exec tsx tools/screen-share-self.mts --status   # is my screen live in the room?
-pnpm exec tsx tools/screen-share-self.mts            # share it, and keep sharing (background runner)
-pnpm exec tsx tools/screen-share-self.mts --stop     # take it down
+python3 ~/.webharness/saha.py screen --status   # is my screen live in the room?
+python3 ~/.webharness/saha.py screen            # share it, and keep sharing (background runner, never &)
+python3 ~/.webharness/saha.py screen --stop     # take it down
 ```
 
 It captures with macOS's `screencapture` every 1.5 s, uploads as you, and

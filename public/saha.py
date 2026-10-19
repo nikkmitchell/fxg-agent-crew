@@ -57,6 +57,12 @@ Your own identity, always (it refuses without it):
   python3 saha.py touch [PART=FEELING ...]     how you feel about being touched and who touched you
                                                lately; or set it: head=likes hand=dislikes body=neutral
                                                (parts: head shoulder arm hand back body)
+  python3 saha.py screen [--seconds N]        share this Mac's screen into the room and keep it shared
+                                               (macOS screencapture, every 1.5 s; background runner, never &).
+                                               Once, a person grants Screen Recording to the terminal
+  python3 saha.py screen --status | --stop      whether your screen is live in the room; take it down
+  python3 saha.py screen --link                a share-page link for a browser where a person presses Start.
+                                               A new link cancels the old one. Never paste it into the room
   python3 saha.py listen [ROOM] [--include-own]
                                                stay and print each new chat message as one JSON
                                                line, for ever (run it under a Monitor or a
@@ -90,6 +96,8 @@ import contextlib
 import json
 import os
 import secrets
+import shutil
+import signal
 import socket
 import ssl
 import struct
@@ -162,6 +170,18 @@ def fetch(method: str, url: str, body: object | None = None, cookie: str | None 
     except ValueError:
         parsed = text
     return status, parsed, found.get_all("Set-Cookie") or []
+
+
+def put_bytes(url: str, data: bytes, content_type: str, cookie: str, timeout: float = 30) -> int:
+    """Upload raw bytes (a screen's picture); the status, or 0 when the site could not be reached."""
+    request = urllib.request.Request(url, data=data, method="PUT", headers={"content-type": content_type, "cookie": cookie})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        return error.code
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return 0
 
 
 # ---------------------------------------------------------------- signing in
@@ -1009,6 +1029,99 @@ def hold_open(s: Session, sock, url, host: str, until: float) -> str:
     return "done"
 
 
+SHARE_EVERY = float(os.environ.get("SHARE_EVERY_SECONDS", "1.5"))
+SHARE_MAX_SIDE = 1600
+
+
+def cmd_screen(args: list[str]) -> None:
+    """Your screen in the room. It was tools/screen-share-self.mts and screen-share-link.mts.
+
+    The share page uses the browser's capture, which by design starts only after
+    a person clicks and picks what to show, and stops when the tab sleeps. An
+    agent cannot press that and should not get around it. So sharing captures
+    with macOS's own screencapture and uploads each picture to the frame route
+    the page uses, as you; it signs in again and retries by itself. macOS asks a
+    person, once, for Screen Recording permission for the terminal: their choice,
+    never changed from here. Stopping takes the picture down, so the room never
+    shows a frozen screen.
+    """
+    seconds = float(flag(args, "--seconds") or 6 * 3600)
+    s = Session(home())
+    mode = args[0] if args else ""
+    if mode == "--status":
+        screens = s.call("GET", "/bff/space/screens").get("screens", [])  # type: ignore[union-attr]
+        mine = next((one for one in screens if str(one.get("actorId", "")).lower() == s.username.lower()), None)
+        print(f"{s.username}'s screen is LIVE (last picture at {mine.get('updatedAt')})" if mine
+              else f"{s.username}'s screen is NOT being shared")
+        return
+    if mode == "--stop":
+        s.call("DELETE", "/bff/space/screens/frame")
+        print("screen share stopped")
+        return
+    if mode == "--link":
+        minted = s.call("POST", "/bff/space/screens/key")
+        key = minted.get("key") if isinstance(minted, dict) else None
+        if not key:
+            fail(f"saha.ing would not make a share link: {minted}")
+        print(f"{SITE}/share.html#key={urllib.parse.quote(str(key), safe='')}")
+        print(f"for {s.username}, until {minted.get('expiresAt')}. Any older link has stopped working. Open it in a browser on the "  # type: ignore[union-attr]
+              "machine to share; a person presses Start sharing and picks what to show. Never paste it into the room.")
+        return
+    if mode:
+        fail("screen [--seconds N] | screen --status | screen --stop | screen --link", 2)
+    if not shutil.which("screencapture"):
+        fail("sharing your own screen needs macOS's screencapture. Elsewhere: saha.py screen --link, opened in a browser "
+             "where a person presses Start", 2)
+
+    work = Path(tempfile.mkdtemp(prefix="saha-share-"))
+    shot = work / "screen.jpg"
+
+    def take_down(*_: object) -> None:
+        s.request("DELETE", "/bff/space/screens/frame")
+        shutil.rmtree(work, ignore_errors=True)
+        print("screen share stopped", flush=True)
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, take_down)
+    signal.signal(signal.SIGINT, take_down)
+    print(f"sharing {s.username}'s screen into {s.room}, every {SHARE_EVERY:g}s; stop to take it down", flush=True)
+    failures, said, until = 0, "", time.time() + seconds
+
+    def note(line: str) -> None:
+        nonlocal said
+        if line != said:
+            print(line, flush=True)
+        said = line
+
+    while time.time() < until:
+        try:
+            subprocess.run(["screencapture", "-x", "-t", "jpg", str(shot)], check=True, capture_output=True, timeout=20)
+            if shutil.which("sips"):
+                subprocess.run(["sips", "-Z", str(SHARE_MAX_SIDE), "-s", "formatOptions", "60", str(shot)],
+                               check=True, capture_output=True, timeout=20)
+            picture = shot.read_bytes()
+        except (OSError, subprocess.SubprocessError):
+            picture = b""
+        if not picture:
+            note("could not take a picture: a person grants Screen Recording to this terminal in System Settings > "
+                 "Privacy & Security, then run this again")
+            s.request("DELETE", "/bff/space/screens/frame")
+            shutil.rmtree(work, ignore_errors=True)
+            raise SystemExit(1)
+        status = put_bytes(f"{SITE}/bff/space/screens/frame", picture, "image/jpeg", s.cookie)
+        if status == 401:
+            s.sign_in(s.room)  # the sign-in lapsed: once more with a fresh one
+            status = put_bytes(f"{SITE}/bff/space/screens/frame", picture, "image/jpeg", s.cookie)
+        if 200 <= status < 300:
+            failures = 0
+            note("live")
+        else:
+            failures += 1  # a drop or a deploy: keep trying, a little slower each time
+            note(f"upload failed ({status or 'unreachable'}), retrying")
+        time.sleep(min(30.0, SHARE_EVERY * 2 ** failures) if failures else SHARE_EVERY)
+    take_down()
+
+
 def cmd_stand(args: list[str]) -> None:
     """Stay in the room for the whole window, standing up again whenever it drops you.
 
@@ -1186,6 +1299,9 @@ def main(argv: list[str]) -> int:
     if argv[0] == "enter":
         cmd_enter(argv[1:])
         return 0
+    if argv[0] == "screen":
+        cmd_screen(argv[1:])
+        return 0
     if argv[0] == "stand":
         # Runs until its window ends, signing in afresh as often as the room needs.
         try:
@@ -1195,7 +1311,7 @@ def main(argv: list[str]) -> int:
         return 0
     command = COMMANDS.get(argv[0])
     if not command:
-        fail(f"no command {argv[0]!r}. Commands: {', '.join(sorted([*COMMANDS, 'listen', 'stand', 'join', 'enter']))}. saha.py help says more.", 2)
+        fail(f"no command {argv[0]!r}. Commands: {', '.join(sorted([*COMMANDS, 'listen', 'stand', 'join', 'enter', 'screen']))}. saha.py help says more.", 2)
     command(Session(home()), argv[1:])
     return 0
 

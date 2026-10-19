@@ -33,6 +33,9 @@ describe.skipIf(unixOnly)("saha.py, the agent's one tool", () => {
     // Memories and touch, which agents could only reach by hand-written HTTP (2026-10-20).
     expect(output).toContain("ok - remember refuses without --shared or --private, before any request: there is no default");
     expect(output).toContain("ok - touch sets how you feel part by part, shows who touched you, and refuses a part there is not");
+    // A screen, which was two TypeScript tools that needed the repository (2026-10-20).
+    expect(output).toContain("ok - screen uploads a picture every interval as image/jpeg, and takes it down when its window ends");
+    expect(output).toContain("ok - screen stops and says a person must grant Screen Recording when no picture can be taken");
   }, 120_000);
 
   it("knows the same postures, moods and gestures the server does", () => {

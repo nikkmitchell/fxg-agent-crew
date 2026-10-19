@@ -31,6 +31,8 @@ sent: dict[str, object] = {}
 rooms = {"testroom": True, "openroom": False}
 # Pings the fake room's socket heard (stand's check).
 pings: list[bytes] = []
+# What screen sent: (content type, bytes) per picture, ("DELETE", 0) when taken down.
+frames: list[tuple[str, int]] = []
 # The room each session last entered: saha.ing holds a session in ONE room.
 entered: dict[str, str] = {}
 
@@ -51,7 +53,11 @@ class Fake(BaseHTTPRequestHandler):
 
     def handle_any(self, method: str) -> None:
         length = int(self.headers.get("Content-Length") or 0)
-        body = json.loads(self.rfile.read(length) or b"null") if length else None
+        raw = self.rfile.read(length) if length else b""
+        try:
+            body = json.loads(raw) if raw else None
+        except ValueError:
+            body = raw  # a picture, not JSON (screen's check)
         path = self.path.split("?")[0]
         with lock:
             asked.append(f"{method} {path}")
@@ -129,6 +135,19 @@ class Fake(BaseHTTPRequestHandler):
             return self.answer(200, {"ok": True})
         if path == "/bff/space/avatar":
             return self.answer(200, {"ok": True})
+        if path == "/bff/space/screens/frame" and method == "PUT":
+            with lock:
+                frames.append((self.headers.get("Content-Type") or "", len(body) if isinstance(body, bytes) else -1))
+            return self.answer(200, {"ok": True})
+        if path == "/bff/space/screens/frame" and method == "DELETE":
+            with lock:
+                frames.append(("DELETE", 0))
+            return self.answer(200, {"ok": True})
+        if path == "/bff/space/screens":
+            live = [one for one in frames if one[0] != "DELETE"] and frames[-1][0] != "DELETE"
+            return self.answer(200, {"screens": [{"actorId": "Tester", "updatedAt": "2026-10-20T08:00:00Z"}] if live else []})
+        if path == "/bff/space/screens/key":
+            return self.answer(200, {"key": "k3y/with+odd=chars", "expiresAt": "2026-10-20T20:00:00Z"})
         if path == "/bff/space/memories" and method == "POST":
             sent["memory"] = body
             return self.answer(200, {"ok": True, "memory": {"id": "m1", **body}, "privacy": "shared: anybody in the room can read this."})
@@ -280,6 +299,29 @@ def main() -> int:
         shown = run("profile")
         check(shown.returncode == 0 and "checks things" in shown.stdout and "(empty)" in shown.stdout, "profile alone shows yours",
               f"show: {shown.stdout} {shown.stderr}")
+
+        # screen: a stand-in screencapture writes a picture to the file it is given; sips does nothing.
+        (bin_dir / "screencapture").write_text('#!/bin/sh\nfor last; do :; done\nprintf "JPEGBYTES" > "$last"\n')
+        (bin_dir / "screencapture").chmod(0o755)
+        (bin_dir / "sips").write_text("#!/bin/sh\nexit 0\n")
+        (bin_dir / "sips").chmod(0o755)
+        shared = subprocess.run([sys.executable, str(SAHA), "screen", "--seconds", "2"], env={**env, "SHARE_EVERY_SECONDS": "0.4"},
+                                capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
+        pictures = [one for one in frames if one[0] == "image/jpeg" and one[1] == len("JPEGBYTES")]
+        check(shared.returncode == 0 and len(pictures) >= 2 and frames[-1] == ("DELETE", 0) and "live" in shared.stdout,
+              "screen uploads a picture every interval as image/jpeg, and takes it down when its window ends",
+              f"screen: {shared.returncode} {shared.stdout} {shared.stderr} {frames}")
+        status_off = run("screen", "--status")
+        linked = run("screen", "--link")
+        check("NOT being shared" in status_off.stdout and "share.html#key=k3y%2Fwith%2Bodd%3Dchars" in linked.stdout,
+              "screen --status says it is down after stopping, and --link prints the share page with the key escaped",
+              f"status/link: {status_off.stdout} {status_off.stderr} / {linked.stdout} {linked.stderr}")
+        (bin_dir / "screencapture").write_text("#!/bin/sh\nexit 1\n")
+        refused = subprocess.run([sys.executable, str(SAHA), "screen", "--seconds", "2"], env=env,
+                                 capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
+        check(refused.returncode == 1 and "Screen Recording" in refused.stdout,
+              "screen stops and says a person must grant Screen Recording when no picture can be taken",
+              f"no picture: {refused.returncode} {refused.stdout} {refused.stderr}")
 
         undecided = run("remember", "fact", "the board moves any column")
         check(undecided.returncode == 2 and "--shared" in undecided.stderr and not asked,
