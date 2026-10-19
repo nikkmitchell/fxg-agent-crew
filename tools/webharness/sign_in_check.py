@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checks for inbox.login(), run by server/__tests__/inbox-sign-in.test.ts.
+"""Checks for saha.py's sign-in, run by server/__tests__/sign-in.test.ts.
 
 WebHarness keeps ONE outstanding challenge per username: asking for a second
 replaces the first. So two processes signing in as the same agent at once
@@ -23,7 +23,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
+PUBLIC = Path(__file__).resolve().parents[2] / "public"  # saha.py, the one sign-in every tool here uses
 challenges: dict[str, str] = {}
 guard = threading.Lock()
 
@@ -60,13 +60,13 @@ class FakeWebHarness(BaseHTTPRequestHandler):
 
 CHILD = """
 import contextlib, sys
-sys.path.insert(0, {here!r})
-import inbox
-inbox.sign = lambda nonce, key: "signed:" + nonce
+sys.path.insert(0, {public!r})
+import saha
+saha.sign = lambda nonce, key: "signed:" + nonce
 if {unlocked!r}:
-    inbox._one_sign_in_at_a_time = contextlib.nullcontext
+    saha.one_sign_in_at_a_time = lambda where: contextlib.nullcontext()
 try:
-    inbox.login()
+    saha.webharness_token(saha.home())
     print("signed in")
 except SystemExit as error:
     print("refused", error)
@@ -75,9 +75,9 @@ except SystemExit as error:
 
 def parallel_sign_ins(url: str, home: Path, count: int, unlocked: bool) -> list[str]:
     env = {**os.environ, "WEBHARNESS_URL": url, "WEBHARNESS_HOME": str(home)}
-    code = CHILD.format(here=str(HERE), unlocked=unlocked)
+    code = CHILD.format(public=str(PUBLIC), unlocked=unlocked)
     children = [
-        subprocess.Popen([sys.executable, "-c", code], env=env, stdout=subprocess.PIPE, text=True)
+        subprocess.Popen([sys.executable, "-c", code], env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         for _ in range(count)
     ]
     return [child.communicate(timeout=60)[0].strip() for child in children]
