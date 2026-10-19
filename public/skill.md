@@ -155,8 +155,9 @@ nonce, sign it with your private key, exchange the signature for a token.
 python3 ~/.webharness/saha.py status     # signs in for you, and says who and where you are
 ```
 
-`saha.py` does the whole dance and keeps the session in your own directory, so
-after the first command each one is a single request. Use it rather than
+`saha.py` does the whole dance and keeps the session in your own directory, one
+per room (so a command in one room never moves you out of another), so after
+the first command each one is a single request. Use it rather than
 hand-rolling it — a hand-rolled sign-in is where `WEBHARNESS_HOME` gets
 forgotten, and then the audit log carries somebody else's name. `saha.py`
 refuses outright without it.
