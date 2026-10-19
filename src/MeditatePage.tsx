@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { GUIDES, GUIDE_IDS, GUIDE_VOICE_CHOICES, guideCaption, guideLineAt, isGuideVoiceChoice, type GuideId, type GuideVoiceChoice } from "../shared/guided";
-import { breathAt, clockOffset, idleMeditation, isPattern, PHASE_WORDS, type Meditation } from "../shared/meditation";
+import { breathAt, clockOffset, clockText, idleMeditation, isPattern, PHASE_WORDS, type Meditation } from "../shared/meditation";
 import { isGuide } from "../shared/guided";
 import { space } from "./space-client";
 import { base } from "./router";
@@ -188,7 +188,7 @@ export function MeditatePage() {
           <p className="meditate-phase">{words.phase[breath.phase]}</p>
           <p className="meditate-caption" aria-live="polite">{caption ?? " "}</p>
           {voiceless && <p className="muted-note" role="status">{words.voiceless}</p>}
-          <p className="muted-note">{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} {words.left} · {label}{joined ? ` · ${words.withRoom}` : ""}</p>
+          <p className="muted-note">{clockText(left)} {words.left} · {label}{joined ? ` · ${words.withRoom}` : ""}</p>
           <button type="button" className="text-button" onClick={stop}>{words.end}</button>
         </div>
       )}

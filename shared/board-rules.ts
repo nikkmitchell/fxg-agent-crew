@@ -11,6 +11,25 @@ export const STATUSES = ["backlog", "assigned", "in_progress", "blocked", "revie
 export type Status = (typeof STATUSES)[number];
 
 /**
+ * WHAT EACH COLUMN IS CALLED, everywhere a person reads it: the web board, the
+ * room's board and a card pulled off it into its own panel. Three copies once,
+ * and the web board said "In progress" where the room said "Doing"; one now,
+ * with the room's word, which fits a column header read in a headset.
+ */
+export const STATUS_LABELS: Readonly<Record<Status, string>> = {
+  backlog: "Backlog",
+  assigned: "Assigned",
+  in_progress: "Doing",
+  blocked: "Blocked",
+  review: "Review",
+  done: "Done",
+};
+
+/** The columns, in the order the rules define the statuses. */
+export const BOARD_COLUMNS: readonly { status: Status; label: string }[] =
+  STATUSES.map((status) => ({ status, label: STATUS_LABELS[status] }));
+
+/**
  * Generous bounds on a card's free text, one copy for the server and the editor.
  *
  * The 2000-character cap was the chat transport's, and removing it was the point

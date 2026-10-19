@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin, VRMUtils, type VRM } from "@pixiv/three-vrm";
 import type { KitPerson } from "../../shared/space-kit";
 import type { SahaRoom } from "./connect";
+import { faceFrontZOf, faceRoomYaw, posesMirrored } from "../space/vrm-facing";
 
 /**
  * EVERYONE ELSE, DRAWN: a figure per person with their name, where they
@@ -15,11 +16,6 @@ import type { SahaRoom } from "./connect";
  */
 
 /** Which way a VRM's face points out of the file: VRM 0 faces -Z, VRM 1 +Z (as src/space/vrm-model.ts). */
-function faceFrontZOf(vrm: VRM): number {
-  const stated = vrm.lookAt?.faceFront.z;
-  if (stated !== undefined && Math.abs(stated) > 0.01) return stated;
-  return vrm.meta?.metaVersion === "0" ? -1 : 1;
-}
 
 const SAY_MS = 9000;
 
@@ -126,13 +122,15 @@ export function drawOthers(
         }
         VRMUtils.removeUnnecessaryVertices(vrm.scene);
         VRMUtils.combineSkeletons(vrm.scene);
-        vrm.scene.rotation.y = faceFrontZOf(vrm) > 0 ? Math.PI : 0;
-        // Arms down, relaxed, rather than the file's T-pose.
+        vrm.scene.rotation.y = faceRoomYaw(faceFrontZOf(vrm));
+        // Arms down, relaxed, rather than the file's T-pose; mirrored on a VRM 1
+        // body, or its arms rise instead of hanging (the room's rule, Mica 6861).
         const bone = (name: "leftUpperArm" | "rightUpperArm") => vrm.humanoid.getNormalizedBoneNode(name);
         const left = bone("leftUpperArm");
         const right = bone("rightUpperArm");
-        if (left) left.rotation.z = 1.2;
-        if (right) right.rotation.z = -1.2;
+        const down = posesMirrored(vrm) ? -1.2 : 1.2;
+        if (left) left.rotation.z = down;
+        if (right) right.rotation.z = -down;
         const holder = new THREE.Group();
         holder.add(vrm.scene);
         scene.add(holder);

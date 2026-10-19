@@ -295,10 +295,8 @@ export const PHASE_WORDS: Record<BreathStep["phase"], string> = {
   rest: "REST",
 };
 
-export function clockText(seconds: number): string {
-  const whole = Math.max(0, Math.ceil(seconds));
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
-}
+/** "m:ss", rounding up, so the last second shows as 0:01 not 0:00: the Go clock's, one copy. */
+export { clockText } from "./go-clock.js";
 
 /** The closing line: the time, and how many people did it together. */
 export function doneLine(session: Meditation): string {

@@ -1,4 +1,4 @@
-import { STATUSES, type Status } from "./board-rules.js";
+import { BOARD_COLUMNS, STATUSES, STATUS_LABELS, type Status } from "./board-rules.js";
 
 /**
  * Where every card sits on the work board, in the room.
@@ -89,14 +89,7 @@ export type BoardScroller = {
  * reason: it is where a card goes when it cannot go forward, and a person in a
  * headset needs somewhere to put it.
  */
-export const BOARD_COLUMNS: readonly { status: Status; label: string }[] = [
-  { status: "backlog", label: "Backlog" },
-  { status: "assigned", label: "Assigned" },
-  { status: "in_progress", label: "Doing" },
-  { status: "blocked", label: "Blocked" },
-  { status: "review", label: "Review" },
-  { status: "done", label: "Done" },
-];
+export { BOARD_COLUMNS };
 
 /**
  * How tall a card is, as a fraction of its width.
@@ -151,8 +144,7 @@ export const BOARD = {
   padding: 0.03,
 } as const;
 
-const columnLabel = (status: Status): string =>
-  BOARD_COLUMNS.find((column) => column.status === status)?.label ?? status;
+const columnLabel = (status: Status): string => STATUS_LABELS[status] ?? status;
 
 /**
  * Lay the board out.

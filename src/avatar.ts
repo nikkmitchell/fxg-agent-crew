@@ -19,6 +19,8 @@
  *    contrast figure on this project; measuring is how that stops happening.
  */
 
+import { contrast, luminance } from "../shared/room-theme";
+
 const hashSeed = (seed: string): number =>
   [...seed].reduce((hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16_777_619) >>> 0, 2_166_136_261);
 
@@ -40,20 +42,9 @@ const PALETTES = [
 
 const INKS = ["#141517", "#ffffff"] as const;
 
-const channel = (value: number): number =>
-  value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-
-export function relativeLuminance(hex: string): number {
-  const n = Number.parseInt(hex.slice(1), 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => channel(v / 255));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/** WCAG 2.x contrast ratio. Order of arguments does not matter. */
-export function contrastRatio(a: string, b: string): number {
-  const [high, low] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
-  return (high + 0.05) / (low + 0.05);
-}
+/** WCAG 2.x luminance and contrast ratio (order of arguments does not matter): shared/room-theme.ts's. */
+export const relativeLuminance = luminance;
+export const contrastRatio = contrast;
 
 /** The ink with the most contrast against this background — measured, not chosen. */
 export function readableInk(background: string): string {

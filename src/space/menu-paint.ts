@@ -1,5 +1,6 @@
 import { MENU, type LaidRow, type MenuLayout, type Rect } from "./menu-layout";
 import { UI_FONT, UI_INK } from "../../shared/ui-ink";
+import { fitOne } from "../../shared/thing-ui";
 
 /**
  * Draw a laid-out settings menu into a 2D canvas.
@@ -40,17 +41,9 @@ function font(context: CanvasRenderingContext2D, size: number, weight = 500): vo
   context.font = `${weight} ${size}px ${FONT}`;
 }
 
-/** The text, cut with an ellipsis until it fits `width`. */
+/** The text, cut with an ellipsis until it fits `width`: shared/thing-ui.ts's fitOne, at the context's font. */
 export function fitText(measure: (text: string) => number, text: string, width: number): string {
-  if (measure(text) <= width) return text;
-  let low = 0;
-  let high = text.length;
-  while (low < high) {
-    const mid = Math.ceil((low + high) / 2);
-    if (measure(`${text.slice(0, mid).trimEnd()}…`) <= width) low = mid;
-    else high = mid - 1;
-  }
-  return low > 0 ? `${text.slice(0, low).trimEnd()}…` : "…";
+  return fitOne((value) => measure(value), text, 0, width);
 }
 
 /**

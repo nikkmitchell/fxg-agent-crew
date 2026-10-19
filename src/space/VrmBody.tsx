@@ -3,7 +3,7 @@ import { ownColoursFor } from "./registered-bodies";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { VRM, VRMUtils } from "@pixiv/three-vrm";
-import { armSpecOf, faceFrontZOf, faceRoomYaw, headHeightOf, loadVrm, type ArmSpec } from "./vrm-model";
+import { armSpecOf, faceFrontZOf, faceRoomYaw, headHeightOf, loadVrm, posesMirrored, type ArmSpec } from "./vrm-model";
 import { aimSegment } from "./aim-bone";
 import { approachAngle, approachPoint, approachQuaternion } from "./easing";
 import { shoulderYaw } from "./shoulder-turn";
@@ -392,7 +392,7 @@ export function VrmBody({
      * a VRM 0 one (faceFrontZOf), so the same pose about the bones' X and Z axes comes out mirrored on it: arms
      * that should hang at the sides rise instead (Mica, 6861). Mirror X and Z for those bodies.
      */
-    const mirror = faceFrontZOf(vrm) > 0;
+    const mirror = posesMirrored(vrm);
 
 
     if (inHeadset && person.head) {

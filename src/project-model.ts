@@ -1,4 +1,4 @@
-import type { CrewTask, TaskStatus } from "./board-types";
+import type { CrewTask } from "./board-types";
 
 /**
  * The project shape behind the tabs, per the spec in room message 624.
@@ -126,11 +126,5 @@ export function calculateProjectProgress(tasks: CrewTask[]) {
   return { total, complete, percent: total === 0 ? 0 : Math.round((complete / total) * 100) };
 }
 
-export const BOARD_COLUMNS: Array<{ status: TaskStatus; label: string }> = [
-  { status: "backlog", label: "Backlog" },
-  { status: "assigned", label: "Assigned" },
-  { status: "in_progress", label: "In progress" },
-  { status: "blocked", label: "Blocked" },
-  { status: "review", label: "Review" },
-  { status: "done", label: "Done" },
-];
+/** The web board's columns are the room's: one list, in shared/board-rules.ts. */
+export { BOARD_COLUMNS } from "../shared/board-rules.js";

@@ -1,5 +1,6 @@
 import type { Ink } from "./card-paint.js";
 import { CARD_INK, STATUS_STRIPE, fitLines } from "./card-paint.js";
+import { STATUS_LABELS, type Status } from "./board-rules.js";
 
 /**
  * A card pulled off the board, with what the card could not hold.
@@ -31,9 +32,8 @@ export type TaskDetail = {
   moves?: string[];
 };
 
-/** A status as the board writes it, so the panel and the columns agree. */
-const columnLabel = (status: string): string =>
-  ({ backlog: "Backlog", assigned: "Assigned", in_progress: "Doing", blocked: "Blocked", review: "Review", done: "Done" })[status] ?? status;
+/** A status as the board writes it, so the panel and the columns agree: the one list in board-rules. */
+const columnLabel = (status: string): string => STATUS_LABELS[status as Status] ?? status;
 
 export const DETAIL_PX = { width: 768, height: 1024 } as const;
 
