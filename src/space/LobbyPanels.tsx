@@ -20,7 +20,7 @@ import {
   type WardrobeTab,
 } from "../../shared/lobby-panels";
 import { base } from "../router";
-import { makeInkCanvas, measureWith } from "./ink-canvas";
+import { makeInkCanvas, measureWith, paintInk, roundedRect } from "./ink-canvas";
 import { claimPointer } from "./pointer-claim";
 
 /**
@@ -208,7 +208,7 @@ export function WardrobePanel({
   );
 }
 
-/** Like drawInk (ink-canvas.ts), plus pictures fitted inside their box and centred text. */
+/** drawInk (ink-canvas.ts), plus pictures fitted inside their box. */
 function drawPanelInk(context: CanvasRenderingContext2D, ink: readonly PanelInk[], images: ReadonlyMap<string, HTMLImageElement>): void {
   context.clearRect(0, 0, context.canvas.width, context.canvas.height);
   for (const item of ink) {
@@ -223,7 +223,7 @@ function drawPanelInk(context: CanvasRenderingContext2D, ink: readonly PanelInk[
       const scale = Math.min(item.width / img.naturalWidth, item.height / img.naturalHeight);
       const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
       context.save();
-      rounded(context, item.x, item.y, item.width, item.height, 6);
+      roundedRect(context, item.x, item.y, item.width, item.height, 6);
       context.clip();
       context.fillStyle = LOBBY_INK.edge; // the room's theme, as everywhere else on the panel
       context.fillRect(item.x, item.y, item.width, item.height);
@@ -231,28 +231,7 @@ function drawPanelInk(context: CanvasRenderingContext2D, ink: readonly PanelInk[
       context.restore();
       continue;
     }
-    context.fillStyle = item.fill;
-    if (item.kind === "text") {
-      context.font = `${item.weight === "bold" ? "600 " : ""}${item.size}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
-      context.textBaseline = "alphabetic";
-      context.textAlign = item.align ?? "left";
-      context.fillText(item.text, item.x, item.y);
-    } else if (item.kind === "rect" && item.radius) {
-      rounded(context, item.x, item.y, item.width, item.height, item.radius);
-      context.fill();
-    } else {
-      context.fillRect(item.x, item.y, item.width, item.height);
-    }
+    // Everything else is ordinary ink, lettered in the font that measured it.
+    paintInk(context, [item]);
   }
-}
-
-function rounded(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number): void {
-  const r = Math.min(radius, width / 2, height / 2);
-  context.beginPath();
-  context.moveTo(x + r, y);
-  context.arcTo(x + width, y, x + width, y + height, r);
-  context.arcTo(x + width, y + height, x, y + height, r);
-  context.arcTo(x, y + height, x, y, r);
-  context.arcTo(x, y, x + width, y, r);
-  context.closePath();
 }

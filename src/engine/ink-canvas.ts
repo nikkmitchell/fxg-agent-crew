@@ -31,6 +31,15 @@ export function drawInk(canvas: Canvas2D, ink: readonly Ink[]): void {
   const context = (canvas as { getContext(kind: "2d"): Context2D | null }).getContext("2d");
   if (!context) return;
   context.clearRect(0, 0, canvas.width, canvas.height);
+  paintInk(context, ink);
+}
+
+/**
+ * Paint ink onto a context without clearing it: for a surface that draws more
+ * than ink (the lobby's pictures) and must still letter it in the same font
+ * that measured it. The lobby kept its own copy of this loop, in another font.
+ */
+export function paintInk(context: Context2D, ink: readonly Ink[]): void {
   for (const item of ink) {
     context.fillStyle = item.fill;
     if (item.kind === "text") {
@@ -59,7 +68,8 @@ export function drawInk(canvas: Canvas2D, ink: readonly Ink[]): void {
   }
 }
 
-function roundedRect(
+/** A rounded rectangle path. `roundRect` is not in every engine we run in. */
+export function roundedRect(
   context: Context2D,
   x: number,
   y: number,

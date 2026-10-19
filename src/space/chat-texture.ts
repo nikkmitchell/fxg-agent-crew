@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { avatarRecipe } from "../avatar";
 import { bubbleFor, chatInk } from "../../shared/room-theme";
 import { scrollThumb } from "../../shared/chat-scroll";
+import { roundedRect } from "./ink-canvas";
 import type { RoomMessage } from "./useRoomFeed";
 
 /**
@@ -57,24 +58,6 @@ export type ChatPaint = {
 /** What a paint laid out, so the caller can keep its scroll in range. */
 export type ChatExtent = { content: number; view: number };
 
-/** A rounded rectangle path. `roundRect` is not in every engine we run in. */
-function roundedRect(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-): void {
-  const r = Math.min(radius, width / 2, height / 2);
-  context.beginPath();
-  context.moveTo(x + r, y);
-  context.arcTo(x + width, y, x + width, y + height, r);
-  context.arcTo(x + width, y + height, x, y + height, r);
-  context.arcTo(x, y + height, x, y, r);
-  context.arcTo(x, y, x + width, y, r);
-  context.closePath();
-}
 
 /**
  * Split one message body into lines that fit.

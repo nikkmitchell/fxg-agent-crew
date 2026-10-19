@@ -15,6 +15,7 @@ import {
 } from "../../shared/screens";
 import type { WirePerson } from "../../shared/space-wire";
 import { makeLabelTexture } from "./label-texture";
+import { frameTexture } from "./frame-texture";
 
 /**
  * Everybody's shared screen: a person's in a row above the panels, an agent's
@@ -89,36 +90,13 @@ function useSharedScreens(base: string): { screens: ScreenSummary[]; shown: Map<
               { credentials: "same-origin", cache: "no-store" },
             );
             if (!response.ok || cancelled) return;
-            /**
-             * DECODED THROUGH AN <img>, NOT createImageBitmap — the same choice
-             * StillPanel made after a Quest drew its photographs upside down:
-             * WebGL's flip flag is not specified to apply to an ImageBitmap,
-             * and browsers disagree about it. The object URL is revoked once
-             * decoded so a screen refreshing every second does not leak one a
-             * second.
-             */
-            const url = URL.createObjectURL(await response.blob());
-            let image: HTMLImageElement;
-            try {
-              image = await new Promise<HTMLImageElement>((resolve, reject) => {
-                const element = new Image();
-                element.onload = () => resolve(element);
-                element.onerror = () => reject(new Error("the frame could not be decoded"));
-                element.src = url;
-              });
-            } finally {
-              URL.revokeObjectURL(url);
-            }
-            if (cancelled) return;
-            const texture = new THREE.Texture(image);
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.flipY = true;
-            texture.needsUpdate = true;
+            const { texture, width, height } = await frameTexture(await response.blob());
+            if (cancelled) { texture.dispose(); return; }
             held.current.get(screen.actorId)?.texture.dispose();
             held.current.set(screen.actorId, {
               texture,
-              imageWidth: image.naturalWidth,
-              imageHeight: image.naturalHeight,
+              imageWidth: width,
+              imageHeight: height,
               seq: screen.seq,
             });
             setShown(new Map(held.current));

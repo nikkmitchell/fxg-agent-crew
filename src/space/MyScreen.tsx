@@ -6,6 +6,7 @@ import type { Placement } from "../../shared/space-wire";
 import { Movable } from "./Movable";
 import { ScreenFace } from "./ScreenWall";
 import { useMyScreenLive, useScreenShare } from "./screen-share";
+import { frameTexture } from "./frame-texture";
 
 /**
  * MY OWN SCREEN, OPENED FOR ME (Nikk, 7227: "there isn't a way to open it, if I
@@ -53,24 +54,8 @@ export function MyScreen({ base, you, onTrouble }: { base: string; you: string; 
         }
         const next = response.headers.get("x-screen-seq");
         if (next !== null && next === seq.current) return;
-        // Through an <img>, as ScreenWall does: an ImageBitmap's flip is not specified, and a Quest drew them upside down.
-        const url = URL.createObjectURL(await response.blob());
-        let image: HTMLImageElement;
-        try {
-          image = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const element = new Image();
-            element.onload = () => resolve(element);
-            element.onerror = () => reject(new Error("the frame could not be decoded"));
-            element.src = url;
-          });
-        } finally {
-          URL.revokeObjectURL(url);
-        }
-        if (cancelled) return;
-        const fresh = new THREE.Texture(image);
-        fresh.colorSpace = THREE.SRGBColorSpace;
-        fresh.flipY = true;
-        fresh.needsUpdate = true;
+        const { texture: fresh } = await frameTexture(await response.blob());
+        if (cancelled) { fresh.dispose(); return; }
         held?.dispose();
         held = fresh;
         seq.current = next;
