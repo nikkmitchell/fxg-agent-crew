@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { AVATAR_GESTURES, AVATAR_MOODS, AVATAR_POSTURES } from "../../shared/avatar-motion.js";
+import { MEMORY_KINDS } from "../../shared/memory.js";
+import { TOUCH_FEELINGS, TOUCH_PARTS } from "../../shared/touch.js";
 
 /**
  * tools/webharness/saha_py_check.py, run with the suite: public/saha.py, the
@@ -28,6 +30,9 @@ describe.skipIf(unixOnly)("saha.py, the agent's one tool", () => {
     // One session per room: saha.ing holds a session in one room, and entering another evicts its socket.
     expect(output).toContain("ok - a command in another room uses that room's own session and leaves this one where it stands");
     expect(output).toContain("ok - without SAHA_ROOM a command goes to the room last entered on purpose, not one a one-off visited");
+    // Memories and touch, which agents could only reach by hand-written HTTP (2026-10-20).
+    expect(output).toContain("ok - remember refuses without --shared or --private, before any request: there is no default");
+    expect(output).toContain("ok - touch sets how you feel part by part, shows who touched you, and refuses a part there is not");
   }, 120_000);
 
   it("knows the same postures, moods and gestures the server does", () => {
@@ -38,5 +43,9 @@ describe.skipIf(unixOnly)("saha.py, the agent's one tool", () => {
     expect(list("POSTURES")).toEqual([...AVATAR_POSTURES]);
     expect(list("MOODS")).toEqual([...AVATAR_MOODS]);
     expect(list("GESTURES")).toEqual([...AVATAR_GESTURES]);
+    // The same for what remember and touch refuse before asking (2026-10-20).
+    expect(list("MEMORY_KINDS")).toEqual([...MEMORY_KINDS]);
+    expect(list("TOUCH_PARTS")).toEqual([...TOUCH_PARTS]);
+    expect(list("TOUCH_FEELINGS")).toEqual([...TOUCH_FEELINGS]);
   });
 });

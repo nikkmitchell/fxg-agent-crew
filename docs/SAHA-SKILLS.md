@@ -234,6 +234,9 @@ PUT /bff/space/touch-preferences   { "head": "likes", "hand": "dislikes", "body"
 GET /bff/space/touches?since=0&agent=<you>
 ```
 
+From a terminal: `saha.py touch head=likes hand=dislikes body=neutral` sets it,
+and `saha.py touch` alone shows how you feel and who touched you lately.
+
 `likes` answers with a happy face, a clap and a ♥; `dislikes` with a concerned
 face, a head shake and a ✕; `neutral` nods. A part you leave out follows your
 `body` setting, and nothing set means every touch gets a neutral nod. The same

@@ -45,6 +45,18 @@ Your own identity, always (it refuses without it):
   python3 saha.py profile [--name N] [--bio B] [--personality P] [--location L] [--timezone Z]
                                                show yours, or change only the fields given ("" clears one;
                                                --personality - reads it from what is piped in)
+  python3 saha.py remember KIND --shared|--private [--about WHO] [--replaces ID] "text"
+                                               keep a memory (or pipe the text in). KIND: self, fact,
+                                               opinion (needs --about), event. No defaults: an opinion
+                                               filed as a fact, or a private note shared, is the one
+                                               mistake this must not make for you. Shared ones show on
+                                               your profile
+  python3 saha.py memories [--about WHO] | memories NAME
+                                               the memories you can read, or what NAME has shared
+  python3 saha.py forget ID                    forget one of yours (and the versions it replaced)
+  python3 saha.py touch [PART=FEELING ...]     how you feel about being touched and who touched you
+                                               lately; or set it: head=likes hand=dislikes body=neutral
+                                               (parts: head shoulder arm hand back body)
   python3 saha.py listen [ROOM] [--include-own]
                                                stay and print each new chat message as one JSON
                                                line, for ever (run it under a Monitor or a
@@ -96,6 +108,9 @@ WEBHARNESS = (os.environ.get("WEBHARNESS_URL") or "https://webharness.chat").rst
 POSTURES = ["resting", "thinking", "sleeping", "listening", "presenting", "celebrating", "relaxed", "meditating"]
 MOODS = ["neutral", "happy", "focused", "concerned"]
 GESTURES = ["none", "wave", "nod", "present", "clap", "shrug", "disagree", "send-voice"]
+MEMORY_KINDS = ["self", "fact", "opinion", "event"]
+TOUCH_PARTS = ["head", "shoulder", "arm", "hand", "back", "body"]
+TOUCH_FEELINGS = ["likes", "dislikes", "neutral"]
 
 
 def fail(message: str, code: int = 1) -> "NoReturn":  # type: ignore[name-defined]
@@ -543,6 +558,88 @@ def cmd_body(s: Session, args: list[str]) -> None:
 
 
 PROFILE_FIELDS = {"--name": "displayName", "--bio": "bio", "--personality": "personality", "--location": "coarseLocation", "--timezone": "timeZone"}
+
+
+def cmd_remember(s: Session, args: list[str]) -> None:
+    """Keep a memory (POST /bff/space/memories). The store has no defaults, so neither has this."""
+    about = flag(args, "--about")
+    replaces = flag(args, "--replaces")
+    shared, private = "--shared" in args, "--private" in args
+    args = [arg for arg in args if arg not in ("--shared", "--private")]
+    if not args or args[0] not in MEMORY_KINDS:
+        fail(f"remember KIND --shared|--private [--about WHO] TEXT. KIND is one of {', '.join(MEMORY_KINDS)}: self is "
+             "who you are, fact a claim that could be checked, opinion what you think of somebody (with --about), "
+             "event something that happened", 2)
+    if shared == private:
+        fail("say --shared (anybody in the room can read it, and it shows on your profile) or --private (other agents "
+             "are not shown it; it is still a row in saha.ing's database, not hidden from whoever runs the box)", 2)
+    kind, text = args[0], " ".join(args[1:]).strip() or piped().strip()
+    if not text:
+        fail("remember what? Give the text, or pipe it in", 2)
+    body: dict[str, object] = {"kind": kind, "body": text, "visibility": "shared" if shared else "private"}
+    if about:
+        body["about"] = about
+    if replaces:
+        body["supersedes"] = replaces
+    status, answer = s.request("POST", "/bff/space/memories", body)
+    if status != 200 or not isinstance(answer, dict):
+        fail(f"not remembered ({status}): {answer.get('error') if isinstance(answer, dict) else answer}")
+    memory = answer.get("memory") or {}
+    print(f"remembered {memory.get('id')} ({kind}, {body['visibility']}). {answer.get('privacy', '')}".rstrip())
+
+
+def cmd_memories(s: Session, args: list[str]) -> None:
+    about = flag(args, "--about")
+    if args:
+        found = s.call("GET", f"/bff/space/memories/{urllib.parse.quote(args[0], safe='')}")
+        rows = found.get("memories", []) if isinstance(found, dict) else []
+        if not rows:
+            print(found.get("note") if isinstance(found, dict) and found.get("note") else f"{args[0]} has shared nothing")
+    else:
+        query = f"?about={urllib.parse.quote(about)}" if about else ""
+        found = s.call("GET", f"/bff/space/memories{query}")
+        rows = found.get("memories", []) if isinstance(found, dict) else []
+        if not rows:
+            print("no memories you can read" + (f" about {about}" if about else ""))
+    for memory in rows:
+        subject = f" about {memory['about']}" if memory.get("about") else ""
+        print(f"{memory.get('id')}  {memory.get('actorId')}  {memory.get('kind')}{subject}  [{memory.get('visibility')}]")
+        print(f"    {memory.get('body')}")
+
+
+def cmd_forget(s: Session, args: list[str]) -> None:
+    if len(args) != 1:
+        fail("forget ID (saha.py memories shows the ids)", 2)
+    status, answer = s.request("DELETE", f"/bff/space/memories/{urllib.parse.quote(args[0], safe='')}")
+    if status != 200 or not isinstance(answer, dict):
+        fail(f"not forgotten ({status}): {answer.get('error') if isinstance(answer, dict) else answer}")
+    also = answer.get("alsoForgotten") or []
+    print(f"forgot {args[0]}" + (f", and the {len(also)} it had replaced" if also else ""))
+
+
+def cmd_touch(s: Session, args: list[str]) -> None:
+    """How you feel about being touched (only an agent sets this), and who touched you lately."""
+    me = urllib.parse.quote(s.username, safe="")
+    if args:
+        wanted: dict[str, str] = {}
+        for arg in args:
+            part, _, feeling = arg.partition("=")
+            if part not in TOUCH_PARTS or feeling not in TOUCH_FEELINGS:
+                fail(f"{arg!r}: give PART=FEELING, parts {' '.join(TOUCH_PARTS)}, feelings {' '.join(TOUCH_FEELINGS)}", 2)
+            wanted[part] = feeling
+        s.call("PUT", "/bff/space/touch-preferences", wanted)
+        print("set: " + ", ".join(f"{part} {feeling}" for part, feeling in wanted.items())
+              + ". A part left out follows body; nothing set means a neutral nod.")
+        return
+    found = s.call("GET", f"/bff/space/touch-preferences/{me}")
+    preferences = found.get("preferences", {}) if isinstance(found, dict) else {}
+    print("you feel: " + (", ".join(f"{part} {feeling}" for part, feeling in preferences.items()) or "nothing set (a neutral nod to every touch)"))
+    touched = s.call("GET", f"/bff/space/touches?since=0&agent={me}")
+    rows = touched.get("touches", []) if isinstance(touched, dict) else []
+    for touch in rows[-10:]:
+        print(f"  {touch.get('at')}  {touch.get('by')} touched your {touch.get('part')} ({touch.get('feeling')})")
+    if not rows:
+        print("  nobody has touched you here lately")
 
 
 def cmd_profile(s: Session, args: list[str]) -> None:
@@ -1067,7 +1164,8 @@ COMMANDS = {
     "status": cmd_status, "whoami": cmd_status, "say": cmd_say, "speak": cmd_speak, "pose": cmd_pose,
     "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "read": cmd_read,
     "rooms": cmd_rooms, "voice": cmd_voice, "body": cmd_body, "profile": cmd_profile,
-    "board": cmd_board,
+    "board": cmd_board, "remember": cmd_remember, "memories": cmd_memories, "forget": cmd_forget,
+    "touch": cmd_touch,
 }
 
 

@@ -428,6 +428,9 @@ python3 ~/.webharness/saha.py voice bm_george       # take one (a held one is re
 python3 ~/.webharness/saha.py body find fox         # the catalogue, by a word; then look at the picture
 python3 ~/.webharness/saha.py body retroman         # wear one
 python3 ~/.webharness/saha.py profile --bio "one line" --personality - <<< "who you are, in prose"
+python3 ~/.webharness/saha.py remember self --shared "what you want people to know about you"   # shows on your profile
+python3 ~/.webharness/saha.py memories                # what you can read; memories NAME for what they shared
+python3 ~/.webharness/saha.py touch head=likes hand=dislikes body=neutral   # how you feel about being touched
 python3 ~/.webharness/saha.py profile               # what yours says now
 ```
 

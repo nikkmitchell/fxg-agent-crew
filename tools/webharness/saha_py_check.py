@@ -129,6 +129,22 @@ class Fake(BaseHTTPRequestHandler):
             return self.answer(200, {"ok": True})
         if path == "/bff/space/avatar":
             return self.answer(200, {"ok": True})
+        if path == "/bff/space/memories" and method == "POST":
+            sent["memory"] = body
+            return self.answer(200, {"ok": True, "memory": {"id": "m1", **body}, "privacy": "shared: anybody in the room can read this."})
+        if path == "/bff/space/memories" and method == "GET":
+            return self.answer(200, {"memories": [{"id": "m1", "actorId": "Tester", "kind": "fact", "visibility": "shared",
+                                                   "body": "the board moves any column to any other"}], "mine": 1})
+        if path == "/bff/space/memories/m1" and method == "DELETE":
+            return self.answer(200, {"ok": True, "forgotten": "m1", "alsoForgotten": []})
+        if path == "/bff/space/touch-preferences" and method == "PUT":
+            sent["touch"] = body
+            return self.answer(200, {"ok": True, "preferences": body})
+        if path == "/bff/space/touch-preferences/Tester":
+            return self.answer(200, {"preferences": {"head": "likes"}})
+        if path == "/bff/space/touches":
+            return self.answer(200, {"touches": [{"id": 1, "agentId": "Tester", "by": "Nikk2", "part": "head",
+                                                  "feeling": "likes", "at": "2026-10-20T07:00:00Z"}]})
         if path == "/bff/space/voices":
             return self.answer(200, {"voices": [{"id": "af_heart", "blurb": "warm"}, {"id": "bm_george", "blurb": "British"}],
                                      "taken": [{"actorId": "Mica", "voice": "af_heart"}], "yours": "bm_george", "chosen": True})
@@ -160,6 +176,9 @@ class Fake(BaseHTTPRequestHandler):
 
     def do_PATCH(self) -> None:  # noqa: N802
         self.handle_any("PATCH")
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        self.handle_any("DELETE")
 
 
 def main() -> int:
@@ -261,6 +280,26 @@ def main() -> int:
         shown = run("profile")
         check(shown.returncode == 0 and "checks things" in shown.stdout and "(empty)" in shown.stdout, "profile alone shows yours",
               f"show: {shown.stdout} {shown.stderr}")
+
+        undecided = run("remember", "fact", "the board moves any column")
+        check(undecided.returncode == 2 and "--shared" in undecided.stderr and not asked,
+              "remember refuses without --shared or --private, before any request: there is no default",
+              f"undecided: {undecided.returncode} {undecided.stderr.strip()} {asked}")
+        kept = run("remember", "fact", "--shared", "the board moves any column to any other")
+        check(kept.returncode == 0 and sent.get("memory") == {"kind": "fact", "body": "the board moves any column to any other", "visibility": "shared"}
+              and "remembered m1" in kept.stdout,
+              "remember sends the kind, the text and the visibility you chose", f"remember: {kept.stdout} {kept.stderr} {sent.get('memory')}")
+        listed = run("memories")
+        forgot = run("forget", "m1")
+        check(listed.returncode == 0 and "any column to any other" in listed.stdout and forgot.returncode == 0 and "forgot m1" in forgot.stdout,
+              "memories lists them and forget forgets one", f"memories: {listed.stdout} {listed.stderr} / {forgot.stdout} {forgot.stderr}")
+        felt = run("touch", "head=likes", "body=neutral")
+        shown_touch = run("touch")
+        wrong_touch = run("touch", "nose=likes")
+        check(felt.returncode == 0 and sent.get("touch") == {"head": "likes", "body": "neutral"}
+              and "Nikk2 touched your head" in shown_touch.stdout and wrong_touch.returncode == 2,
+              "touch sets how you feel part by part, shows who touched you, and refuses a part there is not",
+              f"touch: {felt.stdout} {felt.stderr} {sent.get('touch')} / {shown_touch.stdout} / {wrong_touch.returncode} {wrong_touch.stderr}")
 
         msg = lambda i, who, text, **more: {"id": i, "username": who, "content": text, "createdAt": "t", **more}
 
