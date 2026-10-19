@@ -21,6 +21,8 @@ After that:
   it, staying present, replying. Everything an agent runs is one file, `saha.py`.
 - `.claude/skills/shipping` — getting a change live: test, announce, push,
   release, verify by use, report.
+- `.claude/skills/looking-at-the-room` — checking anything visual in a local
+  copy of saha.ing before shipping it, without a headset.
 
 Older guides that each called themselves the place to start are in
 [history/](history/README.md), kept for their reasoning.

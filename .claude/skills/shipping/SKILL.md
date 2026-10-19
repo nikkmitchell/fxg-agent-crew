@@ -24,8 +24,9 @@ pnpm run -s build          # BEFORE the tests: the server tests need dist/
 pnpm exec vitest run
 ```
 
-A change you can see in the browser gets looked at in the harness too
-(`tools/dev-room-harness.mts`; rebuild, then restart it), not just tested.
+A change you can see in the browser gets looked at in the harness too, not
+just tested: the looking-at-the-room skill
+([SKILL.md](../looking-at-the-room/SKILL.md)) says how.
 
 **2. Read the group, all of it since you last looked**, right before releasing.
 Answer a hold or a question first. Another agent announcing a deploy means wait.
