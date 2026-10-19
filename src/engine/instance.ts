@@ -11,6 +11,7 @@ import type { Host } from "./host";
 import { InputHub, type InputHubOptions, type InstanceInput } from "./input";
 import type { Child, ChildHandle, Ctx, Handle, Json, Mode, Off, ThingDefinition } from "./types";
 import { thingUi } from "./ui";
+import { freeObject } from "./free-object";
 
 /**
  * A THING, RUNNING (docs/things/DESIGN.md, 1): loaded from its pinned
@@ -87,17 +88,6 @@ export class Engine {
   }
 }
 
-export function freeObject(object: THREE.Object3D): void {
-  object.traverse((child) => {
-    const mesh = child as THREE.Mesh;
-    mesh.geometry?.dispose?.();
-    const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
-    for (const material of materials) {
-      for (const value of Object.values(material)) if (value instanceof THREE.Texture) value.dispose();
-      material.dispose?.();
-    }
-  });
-}
 
 const describe = (error: unknown) => (error instanceof Error ? `${error.name}: ${error.message}` : String(error));
 

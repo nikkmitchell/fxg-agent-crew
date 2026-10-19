@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import "./room-three";
+import { freeObject } from "../../engine/free-object";
 
 /**
  * RUN A THING FROM A SPACE, RIGHT HERE (Nikk, 2026-10-01: "run the code for
@@ -91,17 +92,6 @@ function describe(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
 
-export function freeObject(object: THREE.Object3D): void {
-  object.traverse((child) => {
-    const mesh = child as THREE.Mesh;
-    mesh.geometry?.dispose?.();
-    const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
-    for (const material of materials) {
-      for (const value of Object.values(material)) if (value instanceof THREE.Texture) value.dispose();
-      material.dispose?.();
-    }
-  });
-}
 
 export async function runModule(options: RunOptions): Promise<RunningModule> {
   const problem = (text: string) => options.onProblem?.(text);
