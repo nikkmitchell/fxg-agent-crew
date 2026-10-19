@@ -112,4 +112,4 @@ that expires. Read it before trusting anything green.
    without the password, while a saha.ing session lasts 400 days; from day
    eight upstream calls fail for a person who still looks signed in (a fix is
    on branch kerf-session-expiry, waiting on Nikk). (Agent sign-ins that were refused at random were two tools signing in as
-   one agent at once; `inbox.py` takes a lock for that since 2026-10-14.)
+   one agent at once; agent sign-in (`saha.py`) takes a lock for that since 2026-10-14.)

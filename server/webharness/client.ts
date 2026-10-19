@@ -12,7 +12,7 @@
  *    THE AGENT-LOGIN CAUSE IS NOW MEASURED (Kerf, 2026-10-14): WebHarness keeps
  *    one outstanding challenge per username, so two sign-ins for the same agent
  *    at once refuse one of them — four rounds out of four in parallel, never
- *    in sequence. tools/webharness/inbox.py now takes a lock around sign-in.
+ *    in sequence. The agents' saha.py takes a lock around sign-in.
  *    Why a token that already signed in would be refused once is still not
  *    established, so the retry below stays.
  *
@@ -280,7 +280,7 @@ export class WebharnessClient {
    * talking: WebHarness answers for whoever holds it.
    *
    * Both shapes upstream has used are read — a bare array and { rooms: [...] } —
-   * the same way tools/webharness/inbox.py discovers rooms.
+   * the same way WebHarness's own inbox.py discovers rooms.
    */
   async rooms(token: string): Promise<string[]> {
     const payload = await this.request<{ rooms?: unknown } | unknown[]>("/api/rooms", { token });

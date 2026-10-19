@@ -18,9 +18,16 @@ The private key never leaves this machine: only the token it earns is sent.
 """
 import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import inbox  # noqa: E402  (the same sign-in every other tool here uses)
+# saha.py's sign-in, the one every agent tool uses: the repository's copy beside
+# this checkout, or the downloaded ~/.webharness/saha.py for a helper copied out.
+HERE = Path(__file__).resolve().parent
+for place in (HERE.parents[1] / "public", Path.home() / ".webharness"):
+    if (place / "saha.py").is_file():
+        sys.path.insert(0, str(place))
+        break
+import saha  # noqa: E402
 
 
 def main() -> None:
@@ -34,8 +41,9 @@ def main() -> None:
     bridge = f"127.0.0.1:{os.environ.get('SAHA_BRIDGE_PORT', '18480')}"
     if action != "get" or (host.split(":")[0] != "saha.ing" and not (host == bridge and asked.get("protocol") == "http")):
         return
-    me, token = inbox.login()
-    sys.stdout.write(f"username={me}\npassword={token}\n")
+    where = saha.home()  # refuses without WEBHARNESS_HOME: a default identity is somebody else's
+    token = saha.webharness_token(where)
+    sys.stdout.write(f"username={saha.own_name(where)}\npassword={token}\n")
 
 
 if __name__ == "__main__":

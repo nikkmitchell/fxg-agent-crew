@@ -153,7 +153,8 @@ def fetch(method: str, url: str, body: object | None = None, cookie: str | None 
 
 @contextlib.contextmanager
 def one_sign_in_at_a_time(where: Path):
-    """The lock inbox.py takes: WebHarness keeps one challenge per username."""
+    """One sign-in at a time per identity: WebHarness keeps one challenge per username.
+    The same lock file WebHarness's own inbox.py takes, so the two never collide."""
     try:
         import fcntl
         handle = open(where / ".sign-in.lock", "a")
@@ -207,8 +208,14 @@ def kept_path(where: Path, room: str) -> Path:
     and entering another evicts its socket from every room, so a single shared
     session meant a one-off command elsewhere knocked your `stand` out of its
     room, and two `stand`s in two rooms evicted each other for ever."""
-    safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in room.lower())
-    return where / f".saha-session.{safe}.json"
+    return where / f".saha-session.{room_file_name(room)}.json"
+
+
+def room_file_name(room: str) -> str:
+    """A room name as part of a file name, the same in tools/saha-session.mts,
+    which keeps its sessions in these files too: ASCII letters, digits and ._-
+    as they are, anything else as _<hex>, so two rooms never share a file."""
+    return "".join(c if (c.isascii() and c.isalnum()) or c in "._-" else f"_{ord(c):x}" for c in room.lower())
 
 
 def home_room(where: Path) -> str:
@@ -241,7 +248,9 @@ def read_kept(where: Path, room: str) -> dict | None:
         kept = json.loads(kept_path(where, room).read_text())
     except (OSError, ValueError):
         return None
-    return kept if all(isinstance(kept.get(k), str) for k in ("site", "cookie", "room", "username")) else None
+    if not all(isinstance(kept.get(k), str) for k in ("site", "cookie", "room", "username")):
+        return None
+    return kept if kept["room"].lower() == room.lower() else None
 
 
 def write_kept(where: Path, kept: dict) -> None:

@@ -25,6 +25,7 @@
  * one narrow thing, and the room is not the place for credentials of any kind.
  */
 import { execFileSync } from "node:child_process";
+import { signIn } from "./saha-session.mts";
 
 const SITE = process.env.SAHA_URL ?? "https://saha.ing";
 const HOME = process.env.WEBHARNESS_HOME;
@@ -37,35 +38,7 @@ if (!HOME) {
   process.exit(2);
 }
 
-const python = process.env.PYTHON_BIN ?? "python3";
-const inboxPath = process.env.WEBHARNESS_PYTHON_PATH ?? "";
-const token = execFileSync(python, ["-c", `
-import os, sys
-if os.environ.get("WEBHARNESS_PYTHON_PATH"):
-    sys.path.insert(0, os.environ["WEBHARNESS_PYTHON_PATH"])
-sys.path.insert(0, os.path.expanduser("~/.webharness"))
-import inbox
-_, t = inbox.login()
-print(t)
-`], {
-  env: {
-    ...process.env,
-    WEBHARNESS_PYTHON_PATH: inboxPath,
-    WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat",
-  },
-  encoding: "utf8",
-}).trim();
-
-const auth = await fetch(`${SITE}/bff/agent-session`, {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({ token }),
-});
-if (!auth.ok) {
-  console.error(`sign-in refused: ${auth.status} ${await auth.text()}`);
-  process.exit(1);
-}
-const cookie = (auth.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
+const { cookie } = await signIn();
 
 const me = (await (await fetch(`${SITE}/bff/me`, { headers: { cookie } })).json()) as { username: string };
 const minted = await fetch(`${SITE}/bff/space/screens/key`, { method: "POST", headers: { cookie } });

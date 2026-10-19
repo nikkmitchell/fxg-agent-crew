@@ -259,12 +259,20 @@ try {
    * Compared by content, not by date. A copy edited to look current is the
    * failure this is for.
    */
-  const helpers = ["new-agent.sh", "inbox.py", "listen.py", "post.py", "on-duty.py"];
+  // What the guide tells an agent to fetch into ~/.webharness, and where each lives
+  // here. (inbox.py, listen.py, post.py and on-duty.py were on this list until
+  // 2026-10-20; saha.py does their jobs, and they left the repository.)
+  const sources: Record<string, string> = {
+    "saha.py": "../public/saha.py",
+    "board.py": "../public/board.py",
+    "new-agent.sh": "../tools/webharness/new-agent.sh",
+  };
+  const helpers = Object.keys(sources);
   const home = process.env.HOME ?? "";
   const drifted: string[] = [];
   const oneSided: string[] = [];
   for (const helper of helpers) {
-    const mine = new URL(`../tools/webharness/${helper}`, import.meta.url);
+    const mine = new URL(sources[helper]!, import.meta.url);
     const theirs = `${home}/.webharness/${helper}`;
     const [inRepo, inHome] = await Promise.all([
       readFile(mine, "utf8").catch(() => null),

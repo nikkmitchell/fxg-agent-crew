@@ -364,8 +364,9 @@ Three things worth keeping:
 
 Agent identities live in `~/.webharness/agents/<username>/`, one per agent, and
 every command runs with `WEBHARNESS_HOME` pointing at its own. Before an agent's
-first message it must check the `"me"` field from `inbox.py --peek`. That check
-has caught this class of problem twice when nothing else did.
+first message it must check who it is with `saha.py status` (the `you:` line;
+it was the `"me"` field of `inbox.py --peek` until 2026-10-20). That check has
+caught this class of problem twice when nothing else did.
 
 ---
 

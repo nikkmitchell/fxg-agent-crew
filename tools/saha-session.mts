@@ -27,6 +27,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export type SahaSession = {
   /** Cookie header for every subsequent request. */
@@ -51,12 +52,36 @@ export type SahaSession = {
  * Mode 600, beside your private key, which is the more sensitive of the two.
  */
 type Kept = { site: string; cookie: string; room: string; username: string };
-const keptPath = (home: string) => join(home, ".saha-session.json");
 
-function readKept(home: string): Kept | null {
+/**
+ * ONE SESSION PER ROOM, IN THE FILES saha.py KEEPS (2026-10-20). The site holds a
+ * session in one room at a time, and entering another evicts its socket from
+ * every room. This kept ONE session and re-entered it wherever a tool was
+ * pointed, so `SAHA_ROOM=x` on any tool knocked the agent's `stand` out of its
+ * own room. Now a room's session lives in `.saha-session.<room>.json`, named
+ * exactly as public/saha.py names it, so the TypeScript tools and saha.py share
+ * one store and one session per room.
+ */
+export const roomFileName = (room: string): string =>
+  [...room.toLowerCase()].map((c) => (/^[a-z0-9._-]$/.test(c) ? c : `_${c.codePointAt(0)!.toString(16)}`)).join("");
+const keptPath = (home: string, room: string) => join(home, `.saha-session.${roomFileName(room)}.json`);
+
+/** The room a tool uses when SAHA_ROOM is not set: the one last joined or entered with saha.py. */
+function homeRoom(home: string): string {
   try {
-    const kept = JSON.parse(readFileSync(keptPath(home), "utf8")) as Partial<Kept>;
+    const named = readFileSync(join(home, ".saha-room"), "utf8").trim();
+    if (named) return named;
+  } catch {
+    // none chosen yet
+  }
+  return "saha.ing";
+}
+
+function readKept(home: string, room: string): Kept | null {
+  try {
+    const kept = JSON.parse(readFileSync(keptPath(home, room), "utf8")) as Partial<Kept>;
     return typeof kept.site === "string" && typeof kept.cookie === "string" && typeof kept.room === "string" && typeof kept.username === "string"
+      && kept.room.toLowerCase() === room.toLowerCase()
       ? (kept as Kept)
       : null;
   } catch {
@@ -66,15 +91,15 @@ function readKept(home: string): Kept | null {
 
 function writeKept(home: string, kept: Kept): void {
   try {
-    writeFileSync(keptPath(home), JSON.stringify(kept), { mode: 0o600 });
+    writeFileSync(keptPath(home, kept.room), JSON.stringify(kept), { mode: 0o600 });
   } catch {
     // A directory that will not keep it just signs in every time, as before.
   }
 }
 
-/** The kept session, if the site still knows it and it is still this identity. */
+/** The kept session for this room, if the site still knows it and it is still this identity. */
 async function reuse(home: string, site: string, room: string): Promise<SahaSession | null> {
-  const kept = readKept(home);
+  const kept = readKept(home, room);
   if (!kept || kept.site !== site) return null;
   let me: Response;
   try {
@@ -85,10 +110,6 @@ async function reuse(home: string, site: string, room: string): Promise<SahaSess
   if (!me.ok) return null;
   const who = ((await me.json().catch(() => null)) as { username?: unknown } | null)?.username;
   if (typeof who !== "string" || who.toLowerCase() !== kept.username.toLowerCase() || who.toLowerCase() !== ownName(home)) return null;
-  if (kept.room !== room) {
-    await enterRoom(site, kept.cookie, room);
-    writeKept(home, { ...kept, room });
-  }
   return { cookie: kept.cookie, site, home, username: who };
 }
 
@@ -114,26 +135,10 @@ export async function signIn(): Promise<SahaSession> {
     process.exit(2);
   }
   const site = process.env.SAHA_URL ?? "https://saha.ing";
-  const room = process.env.SAHA_ROOM ?? "saha.ing";
+  const room = process.env.SAHA_ROOM ?? homeRoom(home);
   const kept = await reuse(home, site, room);
   if (kept) return kept;
-  const token = execFileSync(
-    "python3",
-    [
-      "-c",
-      `
-import os, sys
-sys.path.insert(0, os.path.expanduser("~/.webharness"))
-import inbox
-_, t = inbox.login()
-print(t)
-`,
-    ],
-    {
-      env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
-      encoding: "utf8",
-    },
-  ).trim();
+  const token = webharnessToken();
 
   const auth = await fetch(`${site}/bff/agent-session`, {
     method: "POST",
@@ -149,6 +154,26 @@ print(t)
   await enterRoom(site, cookie, room);
   if (typeof username === "string") writeKept(home, { site, cookie, room, username });
   return { cookie, site, home, username: typeof username === "string" ? username : ownName(home) };
+}
+
+/**
+ * A WebHarness token, from public/saha.py's sign-in: the one every agent tool
+ * uses (with its lock, since WebHarness keeps one challenge per name). It was
+ * ~/.webharness/inbox.py, a hand-kept copy outside this repository. The key
+ * stays in your directory; only the token it earns comes back.
+ */
+export function webharnessToken(): string {
+  return execFileSync(
+    "python3",
+    // The repository's saha.py by path, ahead of any saha.py in the working directory.
+    ["-c", "import sys; sys.path.insert(0, sys.argv[1]); import saha; print(saha.webharness_token(saha.home()))",
+      fileURLToPath(new URL("../public", import.meta.url))],
+    {
+      env: { ...process.env, WEBHARNESS_URL: process.env.WEBHARNESS_URL ?? "https://webharness.chat" },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "inherit"],
+    },
+  ).trim();
 }
 
 /**

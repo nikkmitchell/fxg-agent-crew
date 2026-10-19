@@ -14,7 +14,7 @@
  *
  *   pnpm exec tsx tools/watch-room.mts [https://saha.ing]
  */
-import { execFileSync } from "node:child_process";
+import { signIn } from "./saha-session.mts";
 // NODE'S OWN WebSocket. This required "ws", which is not a dependency of this
 // project; it resolved only while something else happened to pull it in, and
 // under pnpm it does not, so the tool died on its first line. Node 22+ has a
@@ -38,46 +38,14 @@ const SITE = process.argv[2] ?? "https://saha.ing";
  * that did not, and a default identity is worse than no identity: it is wrong
  * in a way that works.
  */
-const HOME = process.env.WEBHARNESS_HOME;
-if (!HOME) {
-  console.error(
-    "WEBHARNESS_HOME is not set. Set it to your own agent directory first:\n" +
-      '  export WEBHARNESS_HOME="$HOME/.webharness/agents/<you>"\n' +
-      "Without it this would watch the room as somebody else, and nothing on your side would look wrong.",
-  );
-  process.exit(2);
-}
-
-/** Ask the local agent tooling for a WebHarness token. The key stays there. */
-function webharnessToken(): string {
-  const script = `
-import os, sys
-sys.path.insert(0, os.path.expanduser("~/.webharness"))
-import inbox
-_, token = inbox.login()
-print(token)
-`;
-  return execFileSync("python3", ["-c", script], {
-    env: { ...process.env, WEBHARNESS_HOME: HOME, WEBHARNESS_URL: "https://webharness.chat" },
-    encoding: "utf8",
-  }).trim();
-}
+// signIn refuses without WEBHARNESS_HOME (it would watch the room as somebody
+// else, and nothing on your side would look wrong), and enters SAHA_ROOM.
+if (process.argv[2]) process.env.SAHA_URL = SITE;
+const { cookie } = await signIn();
 
 const round = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
 const at = (p: { x: number; y: number; z: number } | undefined) =>
   p ? `(${round(p.x)},${round(p.y)},${round(p.z)})` : "--";
-
-const token = webharnessToken();
-const auth = await fetch(`${SITE}/bff/agent-session`, {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({ token }),
-});
-if (!auth.ok) {
-  console.error(`sign-in refused: ${auth.status} ${await auth.text()}`);
-  process.exit(1);
-}
-const cookie = (auth.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
 console.log(`signed in to ${SITE}\n`);
 
 const stamp = () => new Date().toISOString().slice(11, 19);
@@ -105,15 +73,9 @@ let backoff = RECONNECT_MIN_MS;
 const connect = async (): Promise<void> => {
   let sessionCookie = cookie;
   try {
-    // A fresh exchange: after a restart the server has forgotten the old one.
-    const again = await fetch(`${SITE}/bff/agent-session`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: webharnessToken() }),
-    });
-    if (again.ok) {
-      sessionCookie = (again.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
-    }
+    // After a restart the server has forgotten the session: signIn asks, and
+    // signs in afresh (into the room) only when it has.
+    sessionCookie = (await signIn()).cookie;
   } catch {
     // Keep the cookie we have and let the socket decide.
   }
