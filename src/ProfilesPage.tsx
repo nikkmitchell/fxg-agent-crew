@@ -96,6 +96,8 @@ export function ProfilesPage({ me }: { me: string | null }) {
   const [catalogue, setCatalogue] = useState<CatalogueBody[]>([]);
   const [ownerships, setOwnerships] = useState<Ownership[]>([]);
   const [memberships, setMemberships] = useState<Membership[]>([]);
+  // Project names by id, so a membership reads as the project people know.
+  const [projectNames, setProjectNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [here, setHere] = useState<Presence>([]);
   const [looking, setLooking] = useState<string | null>(null);
   const [trouble, setTrouble] = useState<string | null>(null);
@@ -123,6 +125,10 @@ export function ProfilesPage({ me }: { me: string | null }) {
       // show these two, and they belong beside the person they are about.
       setOwnerships((people.ownerships ?? []) as Ownership[]);
       setMemberships((people.memberships ?? []) as Membership[]);
+      // Names are a nicety: without them a membership still shows, by its id.
+      board.projects()
+        .then((list) => setProjectNames(new Map(list.projects.map((row) => [String(row.id), String(row.name ?? row.id)]))))
+        .catch(() => undefined);
       setVoices(voiceAnswer);
       setBodies(bodyAnswer);
       // Presence is a nice-to-have: the page is still true without it, so a
@@ -199,6 +205,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
           catalogue={catalogue}
           ownerships={ownerships}
           memberships={memberships}
+          projectNames={projectNames}
           here={isHere(open.actorId)}
           chosenVoice={voiceOf(open.actorId)}
           voiceIsChosen={voiceWasChosen(open.actorId, voices.taken)}
@@ -219,6 +226,7 @@ function ProfileDetail(props: {
   catalogue: CatalogueBody[];
   ownerships: Ownership[];
   memberships: Membership[];
+  projectNames: ReadonlyMap<string, string>;
   here: boolean;
   chosenVoice: string | null;
   voiceIsChosen: boolean;
@@ -342,7 +350,7 @@ function ProfileDetail(props: {
 
       <section className="profile-block">
         <h3>Standing</h3>
-        <Standing actorId={profile.actorId} ownerships={props.ownerships} memberships={props.memberships} />
+        <Standing actorId={profile.actorId} ownerships={props.ownerships} memberships={props.memberships} projectNames={props.projectNames} />
       </section>
 
       <section className="profile-block">
@@ -781,7 +789,7 @@ function MemoryWriter({ onWritten }: { onWritten: () => void }) {
  * for this instrument — and membership is permission. Drawing them as one list
  * would quietly assert the thing the schema goes out of its way to prevent.
  */
-function Standing(props: { actorId: string; ownerships: Ownership[]; memberships: Membership[] }) {
+function Standing(props: { actorId: string; ownerships: Ownership[]; memberships: Membership[]; projectNames: ReadonlyMap<string, string> }) {
   const { operatedBy, operates, projects } = standingOf(props.actorId, props.ownerships, props.memberships);
 
   if (!operatedBy.length && !operates.length && !projects.length) {
@@ -799,7 +807,7 @@ function Standing(props: { actorId: string; ownerships: Ownership[]; memberships
         <li key={`of-${o.agentActorId}`}>Operates <strong>{o.agentActorId}</strong></li>
       ))}
       {projects.length ? (
-        <li>Member of {projects.join(", ")}</li>
+        <li>Member of {projects.map((id) => props.projectNames.get(id) ?? id).join(", ")}</li>
       ) : (
         <li className="profile-absent">No project membership — which is separate from who operates them.</li>
       )}
