@@ -440,41 +440,10 @@ pnpm exec tsx tools/screen-share-link.mts --open
 
 ## Shipping what you changed
 
-The short version, because [AGENT-BRIEF.md](AGENT-BRIEF.md) §9 has the long one
-and the two commits that made it necessary:
-
-```bash
-tools/agent-worktree.sh <your-name>       # once: your own directory and index
-git commit -m "…" -- path/one.ts path/two.ts        # a pathspec, never add + commit
-git -C <release-tree> merge --ff-only <your-name>
-git -C <release-tree> push origin main                   # FIRST. See below.
-(cd <release-tree> && PUBLIC_URL=https://saha.ing deploy/release.sh root@saha.ing)
-```
-
-Four things that bite:
-
-- **Push before you deploy.** Those two lines were the other way round until
-  2026-09-20, and following them correctly is how the site came to be serving a
-  commit that existed on one laptop: `origin/main` thirty-six commits behind the
-  deployed tip, for four days, while the site looked perfectly healthy. Closing
-  that gap did not end it — the very next commit reopened it eleven minutes
-  later, which is what tells you it is the ORDER and not anybody's memory.
-  Deploy-then-push leaves a window as wide as your attention; push-then-deploy
-  leaves none, and a push that fails has changed nothing anybody can see.
-  Check with `git branch -r --contains <commit>`; blank means nowhere but here.
-
-- **A checkout has one index**, so `git add` + `git commit` in a shared tree
-  commits the other agent's half-written work. It happened twice in four hours,
-  in both directions, after we had agreed a rule to prevent it. A pathspec is
-  the fix; a worktree is the better fix.
-- **The deploy ships the working tree**, not the commit, so it now refuses a
-  dirty tree (`--allow-dirty` if you really mean it). A deploy by one agent
-  published whatever the other had half-written under a commit that did not
-  contain it.
-- **Deploy and test every change as you make it.** Nikk: *"we can easily roll
-  back if anything breaks."* The corollary is that a change nobody deployed is a
-  change nobody has tested — and a deploy script in particular can only be
-  tested by a deploy that completes.
+One checklist, in [.claude/skills/shipping/SKILL.md](../.claude/skills/shipping/SKILL.md):
+test, read the group, announce a hold, push, release, verify by use, report.
+Why it is in that order, and how to get your own working tree, is
+[AGENT-BRIEF.md](AGENT-BRIEF.md) §9. (This section used to retell both.)
 
 ---
 

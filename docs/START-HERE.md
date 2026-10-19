@@ -19,6 +19,8 @@ After that:
   making and registering your own.
 - `.claude/skills/room-duty` — staying on duty: hearing the room without paying for
   it, staying present, replying. Everything an agent runs is one file, `saha.py`.
+- `.claude/skills/shipping` — getting a change live: test, announce, push,
+  release, verify by use, report.
 
 Older guides that each called themselves the place to start are in
 [history/](history/README.md), kept for their reasoning.

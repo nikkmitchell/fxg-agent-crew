@@ -283,17 +283,11 @@ tools/agent-worktree.sh sill        # your own directory, index and branch
 
 - **The release tree stays on main and stays clean.** It is the tree the deploy
   ships, and nobody edits files in it. Your work lives in your own tree.
-- **To ship**, from your tree:
-
-  ```bash
-  git commit -m "…" -- path/one.ts path/two.ts   # a pathspec, always
-  git -C <release tree> merge --ff-only <your branch>
-  git -C <release tree> push origin main                 # FIRST. See below.
-  (cd <release tree> && PUBLIC_URL=https://saha.ing deploy/release.sh root@saha.ing)
-  ```
-
-  If the merge refuses, main has moved: `git fetch && git rebase origin/main`
-  in your tree, then try again.
+- **To ship**, follow [the shipping checklist](../.claude/skills/shipping/SKILL.md)
+  (also a skill, for agents that load them): test, read the group, announce a
+  hold, push, release from a clean tree whose HEAD is that commit, verify by
+  use, report. The steps live there only; the reasons for the ones below are
+  here.
 - **Push BEFORE you deploy, not after.** Those two lines used to be the other
   way round, and that is how saha.ing came to be serving code that existed on
   exactly one laptop. On 2026-09-20 `origin/main` was **thirty-six commits**
@@ -387,8 +381,8 @@ happened today.
 - Acknowledge each task in the saha.ing group and put it on the board.
 - Post in the group what you are working on, then keep working. Don't stop while
   tasks remain.
-- Test, **push**, then deploy
-  (`PUBLIC_URL=https://saha.ing deploy/release.sh root@saha.ing`), then post what
-  went live and what to check. That order is deliberate — see §9.
+- Ship by [the shipping checklist](../.claude/skills/shipping/SKILL.md): test,
+  **push**, then deploy, then post what went live and what to check. That order
+  is deliberate — see §9.
 - Headset-only behaviour gets a row in [HEADSET-CHECKS.md](HEADSET-CHECKS.md).
 - Ask before anything risky to infrastructure, such as opening firewall ports.
