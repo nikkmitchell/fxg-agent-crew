@@ -1,4 +1,4 @@
-import type { CrewTask } from "./event-core";
+import type { CrewTask } from "./board-types";
 
 /**
  * The order cards stack in a column: newest arrival first.

@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
  * that returned a partial board as complete, a page size above the server's
  * silent cap turning an empty first page into "end of history". Each was fixed
  * where it was found, which is why it kept coming back. A fourth copy appeared
- * in tools/board-dump.mts while this very card was being worked on.
+ * in a terminal board dump while this very card was being worked on.
  *
  * So: adding a new reader fails the build until someone says which kind it is.
  */
@@ -32,28 +32,13 @@ const root = resolve(here, "../..");
  * allowlist that only covered reads would quietly accept a new writer.
  */
 const CLASSIFIED: Record<string, "exhaustive" | "bounded-window" | "write"> = {
-  // Folds the board from the whole room. Uses drainPages; reads until a short
-  // page proves the end, and throws rather than returning a partial result.
-  "server/webharness/project-cache.ts": "exhaustive",
   // Live Chat. Asks for the most recent 50 and polls FORWARD; there is no
   // backwards paging because upstream's `before` cursor does not page. Reports
   // mayHaveEarlier so the transcript can say where it starts.
   "server/webharness/longpoll.ts": "bounded-window",
-  // Terminal equivalent of the board fold. Same drainPages.
-  "tools/board-dump.mts": "exhaustive",
-  // Appends a crew-event to the room. Refuses over the chat limit before
-  // sending, so the durable log never receives something upstream will reject.
-  "server/routes/projects.ts": "write",
   // Ask Librarian (Mica 7386): ONE line per question, as the asker, in the room it
   // was asked in; recorded per card so a resend never posts it twice.
   "server/index.ts": "write",
-  // The one-time import for ADR-002. Same drainPages, and it compares what it
-  // wrote against a fold of the room before declaring success.
-  "tools/import-from-chat.mts": "exhaustive",
-  // Post-cutover detector. Deliberately a BOUNDED WINDOW: it reads only after
-  // the recorded watermark, because everything before it was applied correctly
-  // and reporting it would be a false alarm about work that succeeded.
-  "tools/legacy-detector.mts": "bounded-window",
   // Two things: it POSTs a chat message, and its GET delegates straight to
   // pollMessages. It has no traversal of its own, which is the point — an
   // earlier version of this project had three.
@@ -88,12 +73,12 @@ describe("room-history readers", () => {
     expect(found).toEqual(Object.keys(CLASSIFIED).sort());
   });
 
-  it("the exhaustive ones use the shared traversal rather than their own loop", () => {
-    for (const [file, kind] of Object.entries(CLASSIFIED)) {
-      if (kind !== "exhaustive") continue;
-      const source = readFileSync(resolve(root, file), "utf8");
-      expect(source, file).toMatch(/drainPages/);
-    }
+  it("nothing reads the whole room any more", () => {
+    // Every exhaustive reader folded the chat into the old board, and went with it on 2026-10-20 (the
+    // board is saha.ing's own database, ADR-002), along with drainPages, their shared traversal. A new
+    // reader of the whole history should bring a shared traversal back (git history has drainPages)
+    // rather than its own loop: a hand-rolled one is the defect that shipped three times here.
+    expect(Object.entries(CLASSIFIED).filter(([, kind]) => kind === "exhaustive")).toEqual([]);
   });
 
   it("the bounded one declares its boundary rather than leaving it implicit", () => {
@@ -102,9 +87,7 @@ describe("room-history readers", () => {
       const source = readFileSync(resolve(root, file), "utf8");
       // A window that does not report being a window is indistinguishable from
       // the whole record, which is the failure this project exists to prevent.
-      // The detector declares its boundary as a cutover watermark rather than
-      // a page flag, so either is accepted — but it must declare one.
-      expect(source, file).toMatch(/mayHaveEarlier|after_id/);
+      expect(source, file).toMatch(/mayHaveEarlier/);
     }
   });
 });

@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { boardInUrl, currentProject, useCurrentProject } from "./current-project";
-import type { CrewProject, CrewTask } from "./event-core";
+import type { CrewProject, CrewTask } from "./board-types";
 import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
@@ -12,7 +12,7 @@ import { Identity } from "./Identity";
 import type { ActorProfile } from "./profiles";
 import { board, toCrewProject, toCrewTask, toProfile } from "./board-client";
 import { MoodBoard, type Board } from "./MoodBoard";
-import { briefBudget, describeBudget } from "../shared/message-budget";
+import { briefBudget, describeBudget } from "../shared/brief-budget";
 import { ApiError } from "./api-request";
 import { bff } from "./bff-client";
 import { DONE_LIMIT, boardIsLively, foldDone, glowAt, shownStatus } from "../shared/board-freshness";
@@ -54,9 +54,11 @@ function TaskAgeStamp({ createdAt, nowMs, compact = false }: { createdAt?: strin
  * not the real limit, so the writer saw neither the wall they hit nor the one
  * still coming.
  *
- * The budget is MEASURED against the exact encoder the BFF uses, not estimated,
- * and recomputed on every keystroke because the cost of a character depends on
- * the character — a quote or a newline costs two.
+ * The budget is the server's own limit on a brief (shared/board-rules.ts
+ * BOARD_LIMITS, the one copy both read), counted the way the server counts,
+ * and recomputed on every keystroke. It once measured the whole card as a chat
+ * message, as before the board moved into saha.ing's database, and refused
+ * briefs the server would have taken (2026-10-20).
  */
 function BriefForm({
   task,
@@ -68,7 +70,7 @@ function BriefForm({
   onSave: (task: CrewTask, description: string) => void | Promise<void>;
 }) {
   const [text, setText] = useState(task.description ?? "");
-  const budget = briefBudget(task as unknown as Record<string, unknown>, text);
+  const budget = briefBudget(text);
   const said = describeBudget(budget);
 
   return (

@@ -10,6 +10,17 @@
 export const STATUSES = ["backlog", "assigned", "in_progress", "blocked", "review", "done"] as const;
 export type Status = (typeof STATUSES)[number];
 
+/**
+ * Generous bounds on a card's free text, one copy for the server and the editor.
+ *
+ * The 2000-character cap was the chat transport's, and removing it was the point
+ * of ADR-002 — but "the transport limit is gone" is not "there is no limit".
+ * Unbounded text is a storage and context denial-of-service: one client bug
+ * writes a 500MB brief, and every reader of that board then pays for it. Chosen
+ * far above any honest use; a longer brief is a document and belongs behind a link.
+ */
+export const BOARD_LIMITS = { description: 100_000, comment: 50_000, title: 500 } as const;
+
 export const ROLES = ["manager", "ui", "testing", "engineering", "research"] as const;
 export type Role = (typeof ROLES)[number];
 

@@ -9,7 +9,7 @@ type Db = import("node:sqlite").DatabaseSync;
  *
  * The whole point of ADR-002 is in this file. Answering "which cards are in
  * review" used to mean pulling about a thousand chat messages and folding them;
- * `tools/board-dump.mts` exists only because there was no way to simply ask.
+ * A terminal tool (board-dump, retired 2026-10-20) existed only because there was no way to simply ask.
  * Now it is a SELECT with an index behind it.
  *
  * Reads take no authority argument. Board contents are visible to anyone with a

@@ -416,11 +416,15 @@ is written down.
 
 | reader | kind | contract |
 |---|---|---|
-| `server/webharness/project-cache.ts` | exhaustive | `drainPages`. Reads until a short page proves the end; throws rather than returning a partial board. |
-| `tools/board-dump.mts` | exhaustive | Same `drainPages`. |
 | `server/webharness/longpoll.ts` | **bounded window** | Most recent 50, then polls forward. No backwards paging. Reports `mayHaveEarlier`. |
 | `server/routes/rooms.ts` | write | POSTs a message; its GET delegates to `longpoll` and has no traversal of its own. |
-| `server/routes/projects.ts` | write | Appends a crew-event, refusing over the chat limit (`MESSAGE_LIMIT`, 64000). |
+| `server/index.ts` | write | Ask Librarian: one line per question, as the asker. |
+
+**2026-10-20:** the exhaustive readers (`project-cache.ts`, `board-dump.mts`, the
+ADR-002 importer) and the crew-event writer (`routes/projects.ts`) folded or wrote
+the old chat-borne board. Nothing had called them since the cutover of 2026-09-10
+(no live requests in 14 days, `legacy_writes` empty), so they went, with
+`drain-pages.ts`, the reducer (`src/event-core.ts`) and the crew-event schema.
 
 `server/__tests__/history-readers.test.ts` fails the build when a file appears
 that reads or writes room history and is not on that list. The reason it is a

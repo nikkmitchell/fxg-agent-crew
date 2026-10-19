@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { byArrival } from "./board-order";
-import type { CrewTask } from "./event-core";
+import type { CrewTask } from "./board-types";
 
 const task = (id: string, over: Partial<CrewTask> = {}): CrewTask =>
   ({ id, title: id, status: "backlog", ...over }) as CrewTask;

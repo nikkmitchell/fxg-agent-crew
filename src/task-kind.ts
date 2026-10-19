@@ -1,4 +1,4 @@
-import type { CrewTask, TaskKind } from "./event-core";
+import type { CrewTask, TaskKind } from "./board-types";
 
 export type KindProgress = {
   kind: TaskKind | "unspecified";

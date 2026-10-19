@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describeProgress, progressByKind } from "./task-kind";
-import type { CrewTask } from "./event-core";
+import type { CrewTask } from "./board-types";
 
 const task = (id: string, status: string, kind?: string): CrewTask =>
   ({ id, title: id, status, points: 1, ...(kind ? { kind } : {}) }) as unknown as CrewTask;

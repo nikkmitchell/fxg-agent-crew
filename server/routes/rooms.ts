@@ -6,7 +6,7 @@ import type { Session, SessionStore } from "../session.js";
 import { WebharnessClient, WebharnessError } from "../webharness/client.js";
 import { classify } from "../webharness/errors.js";
 import { pollMessages } from "../webharness/longpoll.js";
-import { validateTransportMessage } from "../../shared/crew-events.js";
+import { validateTransportMessage } from "../../shared/transport-message.js";
 import { CHAT_MESSAGE_LIMIT, splitForChat } from "../../shared/voice.js";
 import { makeRequireSession } from "../require-session.js";
 import { isRoomName, roomKey } from "../../shared/space-room.js";

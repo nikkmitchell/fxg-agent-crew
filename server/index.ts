@@ -24,7 +24,6 @@ import { makeRequireSession, spaceRoomOf } from "./require-session.js";
 import { WebharnessClient } from "./webharness/client.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
-import { registerProjectRoutes } from "./routes/projects.js";
 import { registerBuildRoutes } from "./routes/build.js";
 import { registerBoardRoutes } from "./routes/board.js";
 import { SpaceHub, registerSpaceEntryRoute, registerSpaceRoutes } from "./space/socket.js";
@@ -414,7 +413,6 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       created: giveRoomItsProject,
       joined: enrolInRoom,
     });
-    registerProjectRoutes(scoped, config, sessions, client);
     registerBuildRoutes(scoped, config, sessions);
     registerBoardRoutes(
       scoped,

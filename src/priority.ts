@@ -1,4 +1,4 @@
-import type { CrewTask } from "./event-core";
+import type { CrewTask } from "./board-types";
 
 export const PRIORITY_LABELS: Record<number, string> = {
   1: "now",

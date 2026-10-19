@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { recentActivity } from "./recent-activity";
-import type { CrewTask } from "./event-core";
+import type { CrewTask } from "./board-types";
 
 const task = (id: string, title: string, comments: Array<[string, string, string]>): CrewTask => ({
   id,

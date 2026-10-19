@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CrewTask } from "./event-core";
+import type { CrewTask } from "./board-types";
 import type { ActorProfile, Ownership } from "./profiles";
 import { Identity } from "./Identity";
 import type { Session } from "./use-session";

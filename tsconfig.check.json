@@ -21,8 +21,7 @@
     "server/**/*.ts",
     "shared/**/*.ts",
     "tools/**/*.ts",
-    "tools/**/*.mts",
-    "src/event-core.ts"
+    "tools/**/*.mts"
   ],
   "exclude": []
 }

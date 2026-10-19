@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { MOOD_REACH, onTheBoard } from "../../shared/mood-3d.js";
 import { coverings, nextSpot } from "../../shared/board-overlap.js";
 import {
+  BOARD_LIMITS,
   FORBIDDEN_PROFILE_KEYS,
   canTransition,
   hasProjectAuthority,
@@ -47,19 +48,8 @@ export class Refused extends Error {
 
 const now = () => new Date().toISOString();
 
-/**
- * Generous bounds on free text.
- *
- * The 2000-character cap was the chat transport's, and removing it was the
- * point of ADR-002 — but "the transport limit is gone" is not "there is no
- * limit". Unbounded TEXT is a storage and context denial-of-service: one client
- * bug writes a 500MB brief, and every reader of that board then pays for it.
- *
- * Chosen to be far above any honest use. A brief is a brief; if 100,000
- * characters is not enough, the thing being written is a document and belongs
- * behind a link.
- */
-export const LIMITS = { description: 100_000, comment: 50_000, title: 500 } as const;
+/** The bounds on a card's text: shared/board-rules.ts, the one copy the editor reads too. */
+export const LIMITS = BOARD_LIMITS;
 
 const bounded = (value: string, max: number, what: string) => {
   if (value.length > max) {

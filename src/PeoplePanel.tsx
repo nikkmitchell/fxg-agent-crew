@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import type { CrewTask } from "./event-core";
+import type { CrewTask } from "./board-types";
 import type { ActorProfile, Ownership } from "./profiles";
 import type { Membership } from "./membership";
 import { board, toCrewProject, toCrewTask, toProfile } from "./board-client";
-import type { CrewProject } from "./event-core";
+import type { CrewProject } from "./board-types";
 import { People } from "./People";
 import type { Session } from "./use-session";
 import { ApiError } from "./api-request";

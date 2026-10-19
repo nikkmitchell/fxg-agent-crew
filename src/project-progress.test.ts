@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CrewTask } from "./event-core";
+import type { CrewTask } from "./board-types";
 import { calculateProjectProgress } from "./project-model";
 
 describe("calculateProjectProgress", () => {

@@ -1,4 +1,4 @@
-import type { CrewTask } from "./event-core";
+import type { CrewTask } from "./board-types";
 
 export type ActivityEntry = {
   taskId: string;

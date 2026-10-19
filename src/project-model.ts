@@ -1,4 +1,4 @@
-import type { CrewTask, TaskStatus } from "./event-core";
+import type { CrewTask, TaskStatus } from "./board-types";
 
 /**
  * The project shape behind the tabs, per the spec in room message 624.
