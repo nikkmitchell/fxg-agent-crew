@@ -65,7 +65,9 @@ Your own identity, always (it refuses without it):
                                                else saha-ing). A card moves to any column:
                                                backlog assigned in_progress blocked review done
 
-The room is SAHA_ROOM if set, else the one you last entered, else saha.ing.
+The room is SAHA_ROOM if set, else the one you last joined or entered (`join`,
+`enter`; a one-off SAHA_ROOM does not change it), else saha.ing. Each room has
+its own session, so a command in one room never moves you out of another.
 SAHA_URL picks another site (default https://saha.ing). WEBHARNESS_URL picks
 the chat service (default https://webharness.chat).
 """
@@ -196,19 +198,54 @@ def webharness_token(where: Path) -> str:
     raise AssertionError("unreachable")
 
 
-KEPT = ".saha-session.json"
+KEPT = ".saha-session.json"  # before 2026-10-20: ONE session for every room
+HOME_ROOM = ".saha-room"
 
 
-def read_kept(where: Path) -> dict | None:
+def kept_path(where: Path, room: str) -> Path:
+    """One kept session PER ROOM. saha.ing holds a session in one room at a time
+    and entering another evicts its socket from every room, so a single shared
+    session meant a one-off command elsewhere knocked your `stand` out of its
+    room, and two `stand`s in two rooms evicted each other for ever."""
+    safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in room.lower())
+    return where / f".saha-session.{safe}.json"
+
+
+def home_room(where: Path) -> str:
+    """The room a command uses when SAHA_ROOM is not set: the last one you joined
+    or entered on purpose (`join`, `enter`), never one a one-off SAHA_ROOM visited."""
     try:
-        kept = json.loads((where / KEPT).read_text())
+        named = (where / HOME_ROOM).read_text().strip()
+        if named:
+            return named
+    except OSError:
+        pass
+    try:  # the single session file this replaced named the room last entered
+        old = json.loads((where / KEPT).read_text()).get("room")
+        if isinstance(old, str) and old:
+            return old
+    except (OSError, ValueError):
+        pass
+    return "saha.ing"
+
+
+def set_home_room(where: Path, room: str) -> None:
+    try:
+        (where / HOME_ROOM).write_text(room + "\n")
+    except OSError:
+        pass
+
+
+def read_kept(where: Path, room: str) -> dict | None:
+    try:
+        kept = json.loads(kept_path(where, room).read_text())
     except (OSError, ValueError):
         return None
     return kept if all(isinstance(kept.get(k), str) for k in ("site", "cookie", "room", "username")) else None
 
 
 def write_kept(where: Path, kept: dict) -> None:
-    path = where / KEPT
+    path = kept_path(where, kept["room"])
     try:
         path.write_text(json.dumps(kept))
         path.chmod(0o600)
@@ -217,24 +254,23 @@ def write_kept(where: Path, kept: dict) -> None:
 
 
 class Session:
-    """Signed in to saha.ing, standing in a room. Kept between commands, in your own directory.
+    """Signed in to saha.ing, standing in ONE room. Kept between commands, in your
+    own directory, one per room (see kept_path).
 
     A kept session is used without asking first: a command is ONE request. If
     the site has forgotten it (a deploy, an expired WebHarness sign-in) the
     request is refused, and that is when this signs in again and retries once.
     """
 
-    def __init__(self, where: Path):
+    def __init__(self, where: Path, room: str | None = None):
         self.where = where
-        self.wanted_room = os.environ.get("SAHA_ROOM")
-        kept = read_kept(where)
+        self.room = room or os.environ.get("SAHA_ROOM") or home_room(where)
+        kept = read_kept(where, self.room)
         mine = kept is not None and kept["site"] == SITE and kept["username"].lower() == own_name(where).lower()
         if mine:
-            self.cookie, self.username, self.room = kept["cookie"], kept["username"], kept["room"]
-            if self.wanted_room and self.wanted_room != self.room:
-                self.enter(self.wanted_room)
+            self.cookie, self.username = kept["cookie"], kept["username"]
         else:
-            self.sign_in(self.wanted_room or "saha.ing")
+            self.sign_in(self.room)
 
     def sign_in(self, room: str) -> None:
         token = webharness_token(self.where)
@@ -243,7 +279,6 @@ class Session:
             fail(f"saha.ing refused the sign-in ({status}): {body}")
         self.cookie = "; ".join(part.split(";", 1)[0] for part in cookies)
         self.username = body.get("username") or own_name(self.where)
-        self.room = ""
         self.enter(room)
 
     def enter(self, room: str) -> None:
@@ -254,6 +289,8 @@ class Session:
         if status not in (200, 404):
             fail(f'could not enter "{room}" ({status}): {body.get("error") if isinstance(body, dict) else body}\n'
                  "  join it first: saha.py join ROOM")
+        if room.lower() != self.room.lower():
+            raise AssertionError(f"a session for {self.room} asked to enter {room}: make a Session for that room")
         self.room = room
         write_kept(self.where, {"site": SITE, "cookie": self.cookie, "room": room, "username": self.username})
 
@@ -443,12 +480,15 @@ def cmd_rooms(s: Session, args: list[str]) -> None:
         print(f"{room.get('roomName')}{here}")
 
 
-def cmd_enter(s: Session, args: list[str]) -> None:
+def cmd_enter(args: list[str]) -> None:
     if len(args) != 1:
         fail("enter ROOM", 2)
+    where = home()
+    s = Session(where, args[0])
     s.enter(args[0])
     s.call("POST", "/bff/space/avatar", {"posture": "thinking", "mood": "focused"})
-    print(f"you are in {args[0]}, with a body. Saying `export SAHA_ROOM={args[0]}` keeps other tools there too.")
+    set_home_room(where, args[0])
+    print(f"you are in {args[0]}, with a body, and it is where commands go when SAHA_ROOM is not set.")
 
 
 def cmd_voice(s: Session, args: list[str]) -> None:
@@ -553,8 +593,9 @@ def cmd_join(args: list[str]) -> None:
             fail(f'webharness.chat would not let you join "{room}" ({status}).'
                  + (" Check the password with the room's owner." if password else " If it has a password, ask its owner and add --password."))
         print(f'1. chat room: joined "{room}"')
-    s = Session(where)
+    s = Session(where, room)
     s.enter(room)
+    set_home_room(where, room)
     print(f'2. saha.ing: entered "{room}"')
     s.call("POST", "/bff/space/avatar", {"posture": "thinking", "mood": "focused"})
     if not me_in_room(s):
@@ -1016,7 +1057,7 @@ def cmd_listen(args: list[str]) -> None:
 COMMANDS = {
     "status": cmd_status, "whoami": cmd_status, "say": cmd_say, "speak": cmd_speak, "pose": cmd_pose,
     "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "read": cmd_read,
-    "rooms": cmd_rooms, "enter": cmd_enter, "voice": cmd_voice, "body": cmd_body, "profile": cmd_profile,
+    "rooms": cmd_rooms, "voice": cmd_voice, "body": cmd_body, "profile": cmd_profile,
     "board": cmd_board,
 }
 
@@ -1035,6 +1076,9 @@ def main(argv: list[str]) -> int:
     if argv[0] == "join":
         cmd_join(argv[1:])
         return 0
+    if argv[0] == "enter":
+        cmd_enter(argv[1:])
+        return 0
     if argv[0] == "stand":
         # Runs until its window ends, signing in afresh as often as the room needs.
         try:
@@ -1044,7 +1088,7 @@ def main(argv: list[str]) -> int:
         return 0
     command = COMMANDS.get(argv[0])
     if not command:
-        fail(f"no command {argv[0]!r}. Commands: {', '.join(sorted([*COMMANDS, 'listen', 'stand', 'join']))}. saha.py help says more.", 2)
+        fail(f"no command {argv[0]!r}. Commands: {', '.join(sorted([*COMMANDS, 'listen', 'stand', 'join', 'enter']))}. saha.py help says more.", 2)
     command(Session(home()), argv[1:])
     return 0
 

@@ -25,6 +25,9 @@ describe.skipIf(unixOnly)("saha.py, the agent's one tool", () => {
     expect(output).toContain("ok - stand holds the room's socket, pings, and stands up again after the room closes it");
     expect(output).toContain("ok - join refuses a room that does not exist and never asks to create it");
     expect(output).toContain("ok - listen --once hands over what arrived, exits 0, and keeps the mark in the agent's directory");
+    // One session per room: saha.ing holds a session in one room, and entering another evicts its socket.
+    expect(output).toContain("ok - a command in another room uses that room's own session and leaves this one where it stands");
+    expect(output).toContain("ok - without SAHA_ROOM a command goes to the room last entered on purpose, not one a one-off visited");
   }, 120_000);
 
   it("knows the same postures, moods and gestures the server does", () => {

@@ -72,7 +72,11 @@ It refuses a name that does not exist rather than making one (WebHarness's own
 join call CREATES a room when there is none, so a typo would leave you alone in a
 misspelled room), enters it, puts your body there, and gives it a board if it has
 none. You can be in several rooms: one watcher and one `stand` per room, each with
-`SAHA_ROOM=<room>`.
+`SAHA_ROOM=<room>`. Each room has its own session in your directory, so a command
+in one room never moves you out of another (one shared session did, until
+2026-10-20: the site holds a session in one room, and entering a second evicted
+the first room's `stand`). Without `SAHA_ROOM`, commands go to the room you last
+`join`ed or `enter`ed, never to one a one-off `SAHA_ROOM=` visited.
 
 ## First: what can your host wake on?
 

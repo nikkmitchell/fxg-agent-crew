@@ -31,6 +31,8 @@ sent: dict[str, object] = {}
 rooms = {"testroom": True, "openroom": False}
 # Pings the fake room's socket heard (stand's check).
 pings: list[bytes] = []
+# The room each session last entered: saha.ing holds a session in ONE room.
+entered: dict[str, str] = {}
 
 
 class Fake(BaseHTTPRequestHandler):
@@ -122,6 +124,8 @@ class Fake(BaseHTTPRequestHandler):
             sent["task"] = body
             return self.answer(201, {"result": "c3"})
         if path == "/bff/space/enter":
+            with lock:
+                entered[sid] = body["roomName"]
             return self.answer(200, {"ok": True})
         if path == "/bff/space/avatar":
             return self.answer(200, {"ok": True})
@@ -191,10 +195,11 @@ def main() -> int:
         check(first.returncode == 0 and "/api/agent-auth/login" in " ".join(asked) and "POST /bff/space/avatar" in asked,
               "the first command signs in, enters the room and acts",
               f"first run: {first.returncode} {first.stderr.strip()} {asked}")
-        kept = json.loads((home / ".saha-session.json").read_text())
-        check(kept.get("username") == "Tester" and oct((home / ".saha-session.json").stat().st_mode & 0o777) == "0o600",
-              "the session is kept in the agent's directory, readable only by it",
-              f"kept: {kept}")
+        kept_file = home / ".saha-session.testroom.json"
+        kept = json.loads(kept_file.read_text()) if kept_file.exists() else {}
+        check(kept.get("username") == "Tester" and oct(kept_file.stat().st_mode & 0o777) == "0o600",
+              "the session is kept in the agent's directory, one per room, readable only by it",
+              f"kept: {kept} {sorted(p.name for p in home.iterdir())}")
 
         second = run("pose", "--mood", "happy")
         check(second.returncode == 0 and asked == ["POST /bff/space/avatar"],
@@ -207,6 +212,23 @@ def main() -> int:
         check(third.returncode == 0 and asked.count("POST /bff/space/avatar") == 2 and "POST /bff/agent-session" in asked,
               "a forgotten session signs in again once and the command still lands",
               f"after forgetting: {third.returncode} {asked} {third.stderr.strip()}")
+
+        # A one-off command in another room must not move this room's session:
+        # entering evicts a session's socket from every other room, so a shared
+        # session knocked `stand` out of its room (Sill, 2026-10-20).
+        here_sid = json.loads(kept_file.read_text())["cookie"].split("=", 1)[1]
+        elsewhere = run("pose", "--mood", "focused", environ={**env, "SAHA_ROOM": "otherroom"})
+        check(elsewhere.returncode == 0 and "POST /bff/agent-session" in asked and entered.get(here_sid) == "testroom"
+              and (home / ".saha-session.otherroom.json").exists(),
+              "a command in another room uses that room's own session and leaves this one where it stands",
+              f"elsewhere: {elsewhere.returncode} {asked} {entered} {elsewhere.stderr.strip()}")
+        bare = {k: v for k, v in env.items() if k != "SAHA_ROOM"}
+        moved = run("enter", "testroom", environ=bare)
+        after = run("pose", "--mood", "happy", environ=bare)
+        check(moved.returncode == 0 and after.returncode == 0 and asked == ["POST /bff/space/avatar"]
+              and (home / ".saha-room").read_text().strip() == "testroom" and entered.get(here_sid) == "testroom",
+              "without SAHA_ROOM a command goes to the room last entered on purpose, not one a one-off visited",
+              f"home: {moved.returncode} {after.returncode} {asked} {moved.stderr.strip()} {after.stderr.strip()}")
 
         refused = run("status", environ={k: v for k, v in env.items() if k != "WEBHARNESS_HOME"})
         check(refused.returncode == 2 and "WEBHARNESS_HOME" in refused.stderr and not asked,
