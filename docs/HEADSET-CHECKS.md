@@ -234,3 +234,16 @@ their sides, as they do in the room. Before this they rose instead, because the
 kit lowered every body's arms by the same angle and a VRM 1 body is imported
 half a turn round. Checked by test (src/space/vrm-facing.test.ts) and in the
 built kit; nobody has looked at it in a space yet.
+
+## A finished space's Update, and mindfulness Back (2026-10-20)
+
+1. **Finished space Update.** Enter a finished space (Plaza at dusk, Meditation,
+   Open Source Library, Review Studio, The Stacks). Open ⚙ and the **Library**
+   tab: it should say what the space is (whose thing, which branch, who
+   published it) and offer **Update to the newest on <branch>**. Pressing it
+   should say "Updated to the newest version." or why not. It had no way in
+   from 2026-10-07 until now. Checked on the menu's model only.
+2. **Mindfulness Back.** In a mindfulness practice, go to the end and press
+   **Back**: you should be on the last step, not the one before it. On the
+   first step, **Back** should return to the choice of practice. Checked by
+   test only.
