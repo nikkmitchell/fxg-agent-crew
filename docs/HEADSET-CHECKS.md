@@ -228,8 +228,8 @@ eyes.
 ## Spaces: other people's bodies at rest (2026-10-20)
 
 In any space built on saha.ing's kit (Kerf's cinema, sound room, beat table),
-look at somebody wearing a **VRM 1** body (a body chosen recently from the
-catalogue; the older on-hand ones are VRM 0). Their arms should hang down at
+look at somebody wearing a **VRM 1** body (`tools/check-avatar.mts` says which
+version a body file is). Their arms should hang down at
 their sides, as they do in the room. Before this they rose instead, because the
 kit lowered every body's arms by the same angle and a VRM 1 body is imported
 half a turn round. Checked by test (src/space/vrm-facing.test.ts) and in the
