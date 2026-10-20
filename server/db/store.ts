@@ -51,6 +51,23 @@ function checkedPriority(value: unknown): number | null {
   return value;
 }
 
+/**
+ * A card's owners: a list of names, each once however it is spelled. A string
+ * where a list belongs used to be walked letter by letter, making an owner of
+ * each letter, and "Sill" beside "sill" made two owners of one person.
+ */
+function checkedOwners(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Refused("owners is a list of names", "BAD_OWNERS");
+  const owners: string[] = [];
+  for (const raw of value) {
+    const name = typeof raw === "string" ? raw.trim() : "";
+    if (!name || name.length > 128) throw new Refused("each owner is a name, at most 128 characters", "BAD_OWNERS");
+    if (!owners.some((already) => sameActor(already, name))) owners.push(name);
+  }
+  return owners;
+}
+
 /** A card's kind: build, decision, or null for nobody said. Refused in words, not as a database error. */
 function checkedKind(value: unknown): "build" | "decision" | null {
   if (value === null || value === "build" || value === "decision") return value;
@@ -210,6 +227,21 @@ export class BoardStore {
   }
 
   /** Record that we have seen someone, without claiming anything about them. */
+  /**
+   * THE ACTOR A NAME MEANS, as first recorded, for a name somebody TYPED (an
+   * owner on a card, a member granted, an agent claimed). Made only when nobody
+   * by any spelling exists. ensureActor matches exactly, so a manager typing
+   * "Steven" made a second actor beside the "steven" who signs in (live,
+   * 2026-10-13, five seconds apart). See sameActor.
+   */
+  actorIdFor(name: string, kind?: "human" | "agent"): string {
+    const found = this.db.prepare("SELECT id FROM actors WHERE id = ? COLLATE NOCASE ORDER BY (id = ?) DESC LIMIT 1")
+      .get(name, name) as { id: string } | undefined;
+    const id = found?.id ?? name;
+    this.ensureActor(id, kind);
+    return id;
+  }
+
   ensureActor(id: string, kind?: "human" | "agent"): void {
     const existing = this.db.prepare("SELECT id, kind FROM actors WHERE id = ?").get(id) as
       | { id: string; kind: string | null }
@@ -347,6 +379,7 @@ export class BoardStore {
     if (!input.title.trim()) throw new Refused("a card needs a title");
     bounded(input.title.trim(), LIMITS.title, "title");
     if (input.description) bounded(input.description.trim(), LIMITS.description, "brief");
+    const owners = checkedOwners(input.owners);
     return this.tx(() => {
       this.ensureActor(actor.id, actor.kind ?? undefined);
       this.assertAuthority(actor.id, input.projectId);
@@ -355,10 +388,12 @@ export class BoardStore {
                        VALUES (?,?,?,?,?,?,?,?,?,?)`)
         .run(id, input.projectId, input.title.trim(), input.description?.trim() || null,
              checkedKind(input.kind ?? null), checkedPoints(input.points ?? 1), checkedPriority(input.priority ?? null),
-             (input.owners?.length ? "assigned" : "backlog"), now(), now());
-      for (const owner of input.owners ?? []) {
-        this.ensureActor(owner);
-        this.db.prepare("INSERT INTO task_owners (task_id,actor_id,accepted) VALUES (?,?,0)").run(id, owner);
+             (owners.length ? "assigned" : "backlog"), now(), now());
+      for (const name of owners) {
+        const owner = this.actorIdFor(name);
+        // Putting yourself on your own card is taking it, which is agreeing to it (see setOwnership).
+        this.db.prepare("INSERT INTO task_owners (task_id,actor_id,accepted) VALUES (?,?,?)")
+          .run(id, owner, sameActor(owner, actor.id) ? 1 : 0);
       }
       this.audit(actor.id, "create", "task", id, undefined, { title: input.title });
       return id;
@@ -537,19 +572,19 @@ export class BoardStore {
    * agent, so this is recorded as confirmed; a link either side revoked here
    * stays revoked.
    */
-  recordUpstreamOwner(agentId: string, ownerId: string): void {
-    this.ensureActor(agentId, "agent");
-    this.ensureActor(ownerId);
+  recordUpstreamOwner(agentName: string, ownerName: string): void {
+    const agentId = this.actorIdFor(agentName, "agent");
+    const ownerId = this.actorIdFor(ownerName);
     this.db.prepare(`INSERT INTO ownerships (agent_id,owner_id,state,claimed_at,settled_at) VALUES (?,?,'verified',?,?)
                      ON CONFLICT(agent_id,owner_id) DO UPDATE SET state='verified', settled_at=excluded.settled_at
                      WHERE ownerships.state = 'pending'`)
       .run(agentId, ownerId, now(), now());
   }
 
-  actOnOwnership(actor: Actor, agentId: string, ownerId: string, action: "declare" | "confirm" | "revoke") {
+  actOnOwnership(actor: Actor, agentName: string, ownerName: string, action: "declare" | "confirm" | "revoke") {
     return this.tx(() => {
-      this.ensureActor(agentId);
-      this.ensureActor(ownerId);
+      const agentId = this.actorIdFor(agentName);
+      const ownerId = this.actorIdFor(ownerName);
       const existing = this.db.prepare("SELECT * FROM ownerships WHERE agent_id=? COLLATE NOCASE AND owner_id=? COLLATE NOCASE")
         .get(agentId, ownerId) as Record<string, unknown> | undefined;
 
@@ -583,7 +618,7 @@ export class BoardStore {
           .run(now(), agentId, ownerId);
       }
       this.audit(actor.id, action, "ownership", `${agentId}:${ownerId}`, existing, undefined);
-    }, { actorId: actor.id, action: `${action} ownership`, target: `${agentId}:${ownerId}` });
+    }, { actorId: actor.id, action: `${action} ownership`, target: `${agentName}:${ownerName}` });
   }
 
   /**
@@ -763,8 +798,7 @@ export class BoardStore {
       }
       // The member as their row spells them: revoking "Steven" must end the
       // "steven" row, not report success and change nothing (see sameActor).
-      const target = rows.find((row) => sameActor(row.actorId, actorId))?.actorId ?? actorId;
-      this.ensureActor(target);
+      const target = rows.find((row) => sameActor(row.actorId, actorId))?.actorId ?? this.actorIdFor(actorId);
       if (action === "grant") {
         this.db.prepare(`INSERT INTO memberships (project_id,actor_id,roles,active,granted_by,granted_at)
                          VALUES (?,?,?,1,?,?)

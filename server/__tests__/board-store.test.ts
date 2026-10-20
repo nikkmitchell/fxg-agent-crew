@@ -416,6 +416,34 @@ describe("what a card's priority, kind and points may be", () => {
   });
 });
 
+describe("who a new card belongs to", () => {
+  it("takes a list of names, each once however spelled, and refuses a string or a blank", () => {
+    store.actOnMembership(nikk, "saha", "claude-nikk2mbp", "grant", []);
+    const id = store.createTask(nikk, { projectId: "saha", title: "x", owners: ["claude-nikk2mbp", " Claude-Nikk2mbp "] }) as string;
+    expect(db.prepare("SELECT actor_id FROM task_owners WHERE task_id = ?").all(id)).toEqual([{ actor_id: "claude-nikk2mbp" }]);
+    // A string used to be walked letter by letter: an owner per letter.
+    expect(() => store.createTask(nikk, { projectId: "saha", title: "x", owners: "Sill" as never })).toThrow(expect.objectContaining({ code: "BAD_OWNERS" }));
+    expect(() => store.createTask(nikk, { projectId: "saha", title: "x", owners: ["  "] })).toThrow(expect.objectContaining({ code: "BAD_OWNERS" }));
+    expect(db.prepare("SELECT COUNT(*) AS n FROM actors WHERE length(id) <= 1").get()).toEqual({ n: 0 });
+  });
+
+  it("means the actor already there, however a typed name is spelled, rather than making a second", () => {
+    store.ensureActor("steven", "human");
+    store.actOnMembership(nikk, "saha", "Steven", "grant", []);
+    store.createTask(nikk, { projectId: "saha", title: "x", owners: ["STEVEN"] });
+    store.actOnOwnership(nikk, "Claude-Nikk2mbp", "Nikk", "declare");
+    const ids = (db.prepare("SELECT id FROM actors ORDER BY id").all() as { id: string }[]).map((row) => row.id);
+    expect(ids.filter((id) => id.toLowerCase() === "steven")).toEqual(["steven"]);
+    expect(ids.filter((id) => id.toLowerCase() === "nikk")).toEqual(["nikk"]);
+    expect(db.prepare("SELECT actor_id FROM memberships WHERE lower(actor_id) = 'steven'").all()).toEqual([{ actor_id: "steven" }]);
+  });
+
+  it("counts you as agreed when you put yourself on your own card", () => {
+    const id = store.createTask(nikk, { projectId: "saha", title: "mine", owners: ["Nikk"] }) as string;
+    expect(db.prepare("SELECT accepted FROM task_owners WHERE task_id = ?").get(id)).toEqual({ accepted: 1 });
+  });
+});
+
 describe("taking a card", () => {
   it("is agreeing to it: a card you claim yourself is accepted", () => {
     const id = aTask();

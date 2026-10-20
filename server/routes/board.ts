@@ -29,6 +29,7 @@ const CODES: Record<string, number> = {
   LAST_MANAGER: 409,
   BAD_PRIORITY: 400,
   BAD_KIND: 400,
+  BAD_OWNERS: 400,
   BAD_POINTS: 400,
   CONFLICT: 409,
   NOT_FOUND: 404,
