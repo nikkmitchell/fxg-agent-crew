@@ -7,7 +7,7 @@ import { BoardStore, Refused } from "../db/store.js";
 import { BlobStore, MAX_BYTES, QUOTA_BYTES, QUOTA_FILES, orphanReport } from "../db/blobs.js";
 import type { Role, Status } from "../../shared/board-rules.js";
 import { makeRequireSession, spaceRoomOf } from "../require-session.js";
-import { pageSize, readQuestionCursor } from "../../shared/questions.js";
+import { pageSize, questionStanding, readQuestionCursor } from "../../shared/questions.js";
 
 /**
  * The board API. saha.ing's own data, served from saha.ing's own database.
@@ -550,7 +550,10 @@ export function registerBoardRoutes(
   app.get<{ Params: { id: string } }>("/bff/questions/:id", async (request, reply) => {
     if (!requireSession(request, reply)) return reply;
     const question = reads.question(request.params.id);
-    return question ? reply.send({ question }) : reply.code(404).send({ code: "NOT_FOUND", error: `no question ${request.params.id}` });
+    // Where it stands, in shared/questions.ts's words, so no tool keeps its own reading of the card.
+    return question
+      ? reply.send({ question: { ...question, standing: questionStanding(question) } })
+      : reply.code(404).send({ code: "NOT_FOUND", error: `no question ${request.params.id}` });
   });
 
   app.post<{ Params: { id: string }; Body: { body?: unknown; refs?: unknown; after?: unknown } }>("/bff/questions/:id/answers", async (request, reply) => {

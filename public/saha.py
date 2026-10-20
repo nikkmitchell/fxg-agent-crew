@@ -972,9 +972,9 @@ def cmd_board(s: Session, args: list[str]) -> None:
         question = body.get("question") if isinstance(body, dict) else None
         if not question:
             fail(f"{status}: {body}")
-        owners = ", ".join(f"{o['id']}{'' if o['accepted'] else ' (not yet accepted)'}" for o in question["card"]["owners"]) or "nobody yet"
         print(f"{question['id']}  {question['card']['status']}  asked by {question['askedBy']} in {question['space']}, {question['askedAt']}")
-        print(f"taken by: {owners}\n\n{question['text']}")
+        # The server's words for where it stands (shared/questions.ts), not a reading of its own.
+        print(f"{question.get('standing') or question['card']['status']}\n\n{question['text']}")
         for answer in question.get("answers") or []:
             print(f"\n— revision {answer['revision']}, {answer['by']}, {answer['at']}\n{answer['body']}")
             for ref in answer["refs"]:

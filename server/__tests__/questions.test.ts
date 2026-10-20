@@ -291,6 +291,8 @@ describe("the routes", () => {
     expect([badCursor.statusCode, badCursor.json().code]).toEqual([400, "BAD_CURSOR"]);
     const one = await app.inject({ method: "GET", url: `/bff/questions/${question.id}`, cookies: as("Baiwei") });
     expect(one.json().question.answers).toHaveLength(1);
+    // Where it stands, in shared/questions.ts's words, for saha.py and any tool to print as is.
+    expect(one.json().question.standing).toBe("answered (revision 1)");
 
     // Closing the intake ends asking; the questions already asked stay on the board.
     const closed = await app.inject({ method: "DELETE", url: `/bff/board/projects/${project}/question-intake?space=${SPACE}`, cookies: as("Mica") });
