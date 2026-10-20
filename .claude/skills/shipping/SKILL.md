@@ -12,6 +12,9 @@ wrong without it.
 
 ## The loop
 
+Each step runs only if the one before it succeeded. Chaining them, join with
+`&&`, never `;`: a `;` once pushed a commit whose test had just failed.
+
 Work in your own tree (`tools/agent-worktree.sh <you>`), on a branch, and commit
 with a pathspec (`git commit -m "…" -- <paths>`). Read `git diff --cached --stat`
 before every commit: changes you do not recognise are somebody else's work.
