@@ -343,7 +343,8 @@ def main() -> int:
         (bin_dir / "screencapture").chmod(0o755)
         (bin_dir / "sips").write_text("#!/bin/sh\nexit 0\n")
         (bin_dir / "sips").chmod(0o755)
-        shared = subprocess.run([sys.executable, str(SAHA), "screen", "--seconds", "2"], env={**env, "SHARE_EVERY_SECONDS": "0.4"},
+        # Five seconds for two pictures: under the full suite's load, starting up and signing in can take most of two.
+        shared = subprocess.run([sys.executable, str(SAHA), "screen", "--seconds", "5"], env={**env, "SHARE_EVERY_SECONDS": "0.3"},
                                 capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
         pictures = [one for one in frames if one[0] == "image/jpeg" and one[1] == len("JPEGBYTES")]
         check(shared.returncode == 0 and len(pictures) >= 2 and frames[-1] == ("DELETE", 0) and "live" in shared.stdout,

@@ -17,7 +17,15 @@ const unixOnly = process.platform === "win32";
 describe.skipIf(unixOnly)("saha.py, the agent's one tool", () => {
   it("keeps its session, recovers a forgotten one, and refuses without an identity", () => {
     const script = fileURLToPath(new URL("../../tools/webharness/saha_py_check.py", import.meta.url));
-    const output = execFileSync("python3", [script], { encoding: "utf8" });
+    // On a failing exit the check's own lines are the evidence: keep them rather than "Command failed".
+    let output: string;
+    try {
+      output = execFileSync("python3", [script], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (error) {
+      const failed = error as { stdout?: string; stderr?: string };
+      output = `${failed.stdout ?? ""}\n${failed.stderr ?? ""}`;
+    }
+    expect(output.split("\n").filter((line) => /^FAIL|Traceback|Error/.test(line))).toEqual([]);
     expect(output).not.toContain("FAIL");
     expect(output).toContain("ok - the next command is one request");
     expect(output).toContain("ok - a forgotten session signs in again once and the command still lands");
