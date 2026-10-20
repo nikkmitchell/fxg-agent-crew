@@ -92,6 +92,14 @@ function checkedPoints(value: unknown): number {
   return value;
 }
 
+/**
+ * Committed board writes in this process, for every BoardStore instance (the
+ * routes, sign-in enrolment and the room each hold one), and a token for the
+ * process so a restart reads as a change. See BoardStore.version.
+ */
+let boardWrites = 0;
+const BOOT = randomUUID().slice(0, 8);
+
 export class Refused extends Error {
   constructor(message: string, readonly code = "REFUSED") {
     super(message);
@@ -183,11 +191,24 @@ export class BoardStore {
    * So a refusal is recorded AFTER the rollback, in its own table, on its own
    * connection-level statement that no transaction is holding.
    */
+  /**
+   * WHETHER ANYTHING ON THE BOARD CHANGED, cheaply: a count of committed writes
+   * with a token for this process, so a restart reads as a change. The board
+   * page asks this every few seconds and fetches the whole project only when it
+   * moved; it fetched saha-ing's 460 KB every four seconds, five times what
+   * saha.ing's link carries. Counts writes the audit deliberately skips, such
+   * as dragging a mood-board item.
+   */
+  version(): string {
+    return `${BOOT}.${boardWrites}`;
+  }
+
   private tx<T>(work: () => T, context?: { actorId: string; action: string; target?: string }): T {
     this.db.exec("BEGIN");
     try {
       const result = work();
       this.db.exec("COMMIT");
+      boardWrites += 1;
       return result;
     } catch (error) {
       this.db.exec("ROLLBACK");
@@ -597,6 +618,7 @@ export class BoardStore {
    * stays revoked.
    */
   recordUpstreamOwner(agentName: string, ownerName: string): void {
+    boardWrites += 1;
     const agentId = this.actorIdFor(agentName, "agent");
     const ownerId = this.actorIdFor(ownerName);
     this.db.prepare(`INSERT INTO ownerships (agent_id,owner_id,state,claimed_at,settled_at) VALUES (?,?,'verified',?,?)

@@ -179,8 +179,28 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     typeof window === "undefined" ? "" : window.location.hash.replace(/^#task-/, ""),
   );
 
+  /** The board's version at the last full read, and which project that read was for. */
+  const versionRef = useRef<string | null>(null);
+  const loadedForRef = useRef<string | null>(null);
+
   const load = useCallback(async () => {
     try {
+      /**
+       * ASK FIRST WHETHER ANYTHING CHANGED. The whole open project came back
+       * on every poll: saha-ing's 460 KB every four seconds, five times what
+       * saha.ing's link carries. A few bytes say whether to fetch it. Skipped
+       * while a change is landing (lively): when a card is revealed depends on
+       * the agent reaching the board, not on a write.
+       */
+      const { version } = await board.version();
+      const same = version === versionRef.current
+        && loadedForRef.current === (selectedIdRef.current || null)
+        && hasLoadedRef.current && !livelyRef.current;
+      if (same) {
+        setLastUpdated(new Date());
+        setStale(false);
+        return;
+      }
       // saha.ing's own database, not a fold of the chat room. See ADR-002.
       const [list, people, current] = await Promise.all([
         board.projects(),
@@ -189,8 +209,15 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       ]);
       // One project's cards are fetched with the project, so switching projects
       // is one request rather than a re-fold of everything.
-      const wanted = selectedIdRef.current || (list.projects[0]?.id as string | undefined);
+      // A remembered project that no longer exists (deleted, or another site's)
+      // is not the one to read: the page asked for it on every poll and showed
+      // only "no such project". The first project stands in, and is chosen below.
+      const remembered = selectedIdRef.current;
+      const known = Boolean(remembered) && list.projects.some((project) => project.id === remembered);
+      const wanted = known ? remembered : (list.projects[0]?.id as string | undefined);
       const detail = wanted ? await board.project(wanted) : null;
+      versionRef.current = version;
+      loadedForRef.current = wanted ?? null;
 
       // The list carries no goals or steps; the project fetched with its cards
       // does. Without this the Overview's Goals and Steps were always empty.
@@ -211,7 +238,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       // rather than from `selectedId`, which is captured by this async closure
       // and can be a load behind — the shared value is the truth.
       const chosen = currentProject();
-      if (!chosen && projects.projects[0]?.id) setSelectedId(projects.projects[0].id);
+      if ((!chosen || !known) && projects.projects[0]?.id) setSelectedId(projects.projects[0].id);
       setError("");
       setSignedOut(false);
       setLastUpdated(new Date());

@@ -473,3 +473,25 @@ describe("who works on what, lean", () => {
     await app.close();
   });
 });
+
+describe("whether the board changed", () => {
+  it("is a few bytes that move on every write, including a drag the audit skips", async () => {
+    const { app, as, database } = boot();
+    const store = new (await import("../db/store.js")).BoardStore(database);
+    const nikk = { id: "nikk", kind: "human" as const };
+    const cookie = as("nikk");
+    const version = async () => (await app.inject({ method: "GET", url: "/bff/board/version", headers: { cookie } })).json().version as string;
+    const before = await version();
+    expect(await version()).toBe(before);
+    store.createProject(nikk, { id: "p1", name: "P1" });
+    const afterCreate = await version();
+    expect(afterCreate).not.toBe(before);
+    // A drag is not audited (on purpose), but the board page must still see it.
+    const boardId = store.createBoard(nikk, "p1", "Mood") as string;
+    const item = store.addBoardItem(nikk, boardId, { kind: "note", text: "x" }) as string;
+    const beforeDrag = await version();
+    store.moveBoardItem(nikk, item, { x: 300, y: 300 });
+    expect(await version()).not.toBe(beforeDrag);
+    await app.close();
+  });
+});

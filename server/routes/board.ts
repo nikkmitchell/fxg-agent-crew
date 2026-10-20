@@ -165,6 +165,12 @@ export function registerBoardRoutes(
 
   // ------------------------------------------------------------------- reads
 
+  /** Whether anything on the board changed since a version you hold: a few bytes to ask, every few seconds. */
+  app.get("/bff/board/version", async (request, reply) => {
+    if (!requireSession(request, reply)) return reply;
+    return reply.header("cache-control", "no-store").send({ version: store.version() });
+  });
+
   app.get("/bff/board/work", async (request, reply) => {
     if (!requireSession(request, reply)) return reply;
     return reply.send({ tasks: reads.work() });
