@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STILL_AFTER_MS, Stillness, hiddenAsStill, isStill } from "./stillness";
+import { STILL_AFTER_MS, Stillness, hiddenAsStill, isStill, settle } from "./stillness";
 import type { WirePerson } from "./space-wire";
 
 /**
@@ -122,5 +122,17 @@ describe("who the setting hides", () => {
     ];
     expect(hiddenAsStill(people, "nikk2")).toEqual(["Corvid"]);
     expect(hiddenAsStill(people, null)).toEqual(["Nikk2", "Corvid"]);
+  });
+});
+
+describe("one point held still (the silence bell's heads, the fireflies' hands)", () => {
+  it("stays settled within the drift, keeping when it settled, and starts again when it leaves", () => {
+    const first = settle(undefined, { x: 0, y: 1.6, z: 0 }, 100, 0.05);
+    expect(first.since).toBe(100);
+    const wobble = settle(first, { x: 0.03, y: 1.61, z: 0 }, 200, 0.05);
+    expect(wobble).toBe(first);
+    const moved = settle(wobble, { x: 0.4, y: 1.6, z: 0 }, 300, 0.05);
+    expect(moved.since).toBe(300);
+    expect(moved.anchor).toEqual({ x: 0.4, y: 1.6, z: 0 });
   });
 });

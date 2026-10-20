@@ -5,6 +5,7 @@ import { Text } from "@react-three/drei";
 import type { WirePerson } from "../../shared/space-wire";
 import { ringBowl } from "./bowl-sound";
 import { sameActor } from "../../shared/board-rules";
+import { settle, type Settled } from "../../shared/stillness";
 
 /**
  * THE SILENCE BELL: a small bronze bell hanging in a wooden frame. It rings by
@@ -21,12 +22,11 @@ export const STILL_SECONDS = 30;
 /** How far a head may drift and still count as still, in metres. */
 const DRIFT = 0.06;
 
-export type Track = { anchor: { x: number; y: number; z: number }; since: number };
+export type Track = Settled;
 
 /** Follow one head: it stays still while it keeps within DRIFT of where it settled. */
 export function follow(track: Track | undefined, head: { x: number; y: number; z: number }, now: number): Track {
-  if (track && Math.hypot(head.x - track.anchor.x, head.y - track.anchor.y, head.z - track.anchor.z) < DRIFT) return track;
-  return { anchor: { ...head }, since: now };
+  return settle(track, head, now, DRIFT);
 }
 
 /** Everyone still long enough, and at least two of them? `now` and `since` in seconds. */

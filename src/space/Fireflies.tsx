@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import type { WirePerson } from "../../shared/space-wire";
 import { selfPose } from "./self-pose";
 import { sameActor } from "../../shared/board-rules";
+import { settle, type Settled } from "../../shared/stillness";
 
 /**
  * FIREFLIES drifting over the left of the room, between the garden and the
@@ -43,7 +44,7 @@ export function Fireflies({ peopleRef, you }: { peopleRef: MutableRefObject<Wire
   const colours = useMemo(() => new Float32Array(COUNT * 3), []);
   const matrix = useMemo(() => new THREE.Matrix4(), []);
   /** Each hand's resting place and how long it has been still, by key. */
-  const stillness = useRef(new Map<string, { at: Hand; since: number }>());
+  const stillness = useRef(new Map<string, Settled>());
   /** Which firefly is on which hand, and how far it has come. */
   const landed = useRef(new Map<number, { hand: string; progress: number }>());
   const shown = useRef(Array.from({ length: COUNT }, () => new THREE.Vector3()));
@@ -72,11 +73,9 @@ export function Fireflies({ peopleRef, you }: { peopleRef: MutableRefObject<Wire
         stillness.current.delete(key);
         continue;
       }
-      if (!was || Math.hypot(hand.x - was.at.x, hand.y - was.at.y, hand.z - was.at.z) > STILL_METRES) {
-        stillness.current.set(key, { at: { ...hand }, since: now });
-      } else if ((now - was.since) / 1000 > STILL_SECONDS) {
-        still.set(key, hand);
-      }
+      const held = settle(was, hand, now, STILL_METRES);
+      stillness.current.set(key, held);
+      if (held === was && (now - held.since) / 1000 > STILL_SECONDS) still.set(key, hand);
     }
     for (const key of [...stillness.current.keys()]) if (!hands.has(key)) stillness.current.delete(key);
 

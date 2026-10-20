@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { notePixels, paintNote, readableInk } from "./mood-paint.js";
 import type { Ink } from "./card-paint.js";
 import type { MoodItem } from "./mood-3d.js";
+import { readableInk as inkOn } from "./room-theme.js";
 
 const measure = (text: string, size: number) => text.length * size * 0.55;
 const said = (ink: Ink[]) => ink.flatMap((i) => (i.kind === "text" ? [i.text] : [])).join("   ");
@@ -25,6 +26,18 @@ describe("ink you can read on a colour", () => {
     // full". A naive average calls them the same and puts white on the green.
     expect(readableInk("#00ff00")).toBe("#121212");
     expect(readableInk("#0000ff")).toBe("#f6f4ee");
+  });
+
+  it("agrees with the web board's swatch on every colour: one rule, not two", () => {
+    // The swatch on /mood picks near-black or white by contrast; the note in the
+    // room used a brightness cut-off, and the two disagreed on mid tones such as
+    // #e05050 and #808080. Both use room-theme's readableInk now. (Their inks
+    // differ a shade, so right at the crossover, about #7a7a7a, either is as legible.)
+    for (const colour of ["#e05050", "#808080", "#2e8b57", "#ff8c00", "#6244a8", "#f7e7a1", "#10233f"]) {
+      // src/avatar.ts readableInk, which the swatch calls: near-black or white.
+      const web = inkOn(colour, ["#141517", "#ffffff"]) === "#141517";
+      expect(readableInk(colour) === "#121212", colour).toBe(web);
+    }
   });
 });
 

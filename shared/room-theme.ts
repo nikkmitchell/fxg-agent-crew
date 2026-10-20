@@ -124,11 +124,12 @@ export function applyRoomTheme(useDark: boolean): void {
   Object.assign(CHAT_INK, theme.chat);
 }
 
-/** WCAG relative luminance of a #rrggbb colour. */
+/** WCAG relative luminance of a colour: #rrggbb, #rgb, with or without the #. */
 export function luminance(hex: string): number {
-  const value = hex.replace("#", "");
+  const bare = hex.trim().replace("#", "");
+  const value = bare.length === 3 ? [...bare].map((c) => c + c).join("") : bare;
   const channel = (offset: number) => {
-    const c = parseInt(value.slice(offset, offset + 2), 16) / 255;
+    const c = (parseInt(value.slice(offset, offset + 2), 16) || 0) / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   };
   return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
@@ -138,6 +139,17 @@ export function luminance(hex: string): number {
 export function contrast(a: string, b: string): number {
   const [light, darker] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (light + 0.05) / (darker + 0.05);
+}
+
+/**
+ * The ink with the most contrast against this background — measured, not
+ * chosen. The one rule for text on a colour: avatar initials, the mood board's
+ * swatches and its notes in the room. The notes had their own brightness
+ * cut-off until 2026-10-21, so a swatch's label could be dark on the web board
+ * and light on the same note in the room.
+ */
+export function readableInk<Ink extends string>(background: string, inks: readonly [Ink, Ink]): Ink {
+  return contrast(inks[1], background) > contrast(inks[0], background) ? inks[1] : inks[0];
 }
 
 /** Blend two #rrggbb colours: `amount` 0 is all `a`, 1 is all `b`. */

@@ -1,4 +1,4 @@
-import { actorKey } from "./space-layout.js";
+import { actorKey } from "./board-rules.js";
 import type { HandPose, Pose, WirePerson } from "./space-wire.js";
 
 /**
@@ -25,6 +25,22 @@ import type { HandPose, Pose, WirePerson } from "./space-wire.js";
  * else. See room-preferences.ts.
  */
 export const STILL_AFTER_MS = 5 * 60_000;
+
+type Point = { x: number; y: number; z: number };
+
+/** Where a point settled, and since when (in whatever clock the caller keeps). */
+export type Settled = { anchor: Point; since: number };
+
+/**
+ * One point held still, as the room's instruments ask it (a head under the
+ * silence bell, a hand in the fireflies): it stays settled while it keeps within
+ * `drift` metres of where it came to rest, and starts again from here when it
+ * leaves. Both instruments carried their own copy until 2026-10-21.
+ */
+export function settle(track: Settled | undefined, at: Point, now: number, drift: number): Settled {
+  if (track && Math.hypot(at.x - track.anchor.x, at.y - track.anchor.y, at.z - track.anchor.z) <= drift) return track;
+  return { anchor: { x: at.x, y: at.y, z: at.z }, since: now };
+}
 
 type Seen = Pick<WirePerson, "actorId" | "at" | "facing" | "head" | "hands" | "avatar" | "moving">;
 

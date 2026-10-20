@@ -1,6 +1,7 @@
 import type { Ink } from "./card-paint.js";
 import { CARD_INK, fitLines } from "./card-paint.js";
 import type { MoodItem } from "./mood-3d.js";
+import { readableInk as inkOn } from "./room-theme.js";
 
 /**
  * Everything on a mood board that is not a picture.
@@ -35,15 +36,9 @@ export function notePixels(item: { w: number; h: number }): { width: number; hei
     : { width: Math.max(1, Math.round((NOTE_LONG_SIDE * w) / h)), height: NOTE_LONG_SIDE };
 }
 
-/** Black or white, whichever can be read on this background. */
+/** The note's near-black or paper white, whichever reads on this background (room-theme's rule). */
 export function readableInk(hex: string): string {
-  const value = hex.replace("#", "");
-  const full = value.length === 3 ? value.split("").map((c) => c + c).join("") : value;
-  const r = parseInt(full.slice(0, 2), 16) || 0;
-  const g = parseInt(full.slice(2, 4), 16) || 0;
-  const b = parseInt(full.slice(4, 6), 16) || 0;
-  // Rec. 709 luma: green carries most of the perceived brightness.
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? "#121212" : "#f6f4ee";
+  return inkOn(hex, ["#121212", "#f6f4ee"]);
 }
 
 const looksLikeColour = (text: string) => /^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(text.trim());

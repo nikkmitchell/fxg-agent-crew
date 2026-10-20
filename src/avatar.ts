@@ -19,7 +19,7 @@
  *    contrast figure on this project; measuring is how that stops happening.
  */
 
-import { contrast, luminance } from "../shared/room-theme";
+import { contrast, luminance, readableInk as inkOn } from "../shared/room-theme";
 
 const hashSeed = (seed: string): number =>
   [...seed].reduce((hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16_777_619) >>> 0, 2_166_136_261);
@@ -46,9 +46,9 @@ const INKS = ["#141517", "#ffffff"] as const;
 export const relativeLuminance = luminance;
 export const contrastRatio = contrast;
 
-/** The ink with the most contrast against this background — measured, not chosen. */
+/** Near-black or white on this background, by shared/room-theme.ts's rule. */
 export function readableInk(background: string): string {
-  return [...INKS].sort((a, b) => contrastRatio(b, background) - contrastRatio(a, background))[0];
+  return inkOn(background, INKS);
 }
 
 export type AvatarRecipe = {
