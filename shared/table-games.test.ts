@@ -35,6 +35,18 @@ describe("tabletop rules", () => {
     expect(s.winner).toBe(2);
     expect(legalGameMoves("chess", s)).toHaveLength(0);
   });
+  it("detects a third repeated chess position from the full move history", () => {
+    let s = initialGame("chess");
+    for (let i = 0; i < 2; i++)
+      for (const [from, to] of [
+        [62, 45],
+        [6, 21],
+        [45, 62],
+        [21, 6],
+      ])
+        s = play("chess", s, { from, to });
+    expect(s.winner).toBe(0);
+  });
   it("casts kings only after clearing their path and includes promotion choices", () => {
     let s = initialGame("chess");
     for (const [from, to] of [
@@ -184,6 +196,15 @@ describe("tabletop rules", () => {
     for (const to of [0, 1, 2, 4, 3, 5, 7, 6, 8])
       s = play("tic-tac-toe", s, { to });
     expect(s.winner).toBe(0);
+  });
+  it("places the first table ahead and later rows away from the arriving viewer", () => {
+    const first = defaultGameItem("first", "chess", "Skein");
+    expect(first.position.x).toBe(0);
+    expect(first.position.z).toBeLessThan(4);
+    for (let i = 1; i < 9; i++)
+      expect(
+        defaultGameItem(String(i), "chess", "Skein", i).position.z,
+      ).toBeLessThan(first.position.z);
   });
   it("round-trips a persisted table and rejects malformed stored grids", () => {
     const i = defaultGameItem("g", "checkers", "Skein");

@@ -42,6 +42,10 @@ describe("shared game tables", () => {
         (await act("Spectator", { action: "move", column: 0, revision: 2 }))
           .statusCode,
       ).toBe(403);
+      expect(
+        (await act("Spectator", { action: "cancel-reset", revision: 2 }))
+          .statusCode,
+      ).toBe(403);
       const moved = await act("Alice", {
         action: "move",
         column: 0,

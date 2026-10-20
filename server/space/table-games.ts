@@ -56,6 +56,13 @@ export function actOnTableGame(
       item.resetBy = [];
     }
   } else if (body.action === "cancel-reset") {
+    if (!item.seats.some((n) => same(n, by)))
+      return {
+        error: "Only a seated player can cancel a new-game request.",
+        status: 403,
+      };
+    if (!item.resetBy.some((n) => same(n, by)))
+      return { error: "You have no pending new-game request.", status: 409 };
     item.resetBy = item.resetBy.filter((n) => !same(n, by));
   } else if (body.action === "resign") {
     if (!same(item.seats[item.state.turn - 1], by))

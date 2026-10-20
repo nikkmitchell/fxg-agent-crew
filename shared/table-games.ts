@@ -85,9 +85,9 @@ export function defaultGameItem(
     game,
     revision: 0,
     position: {
-      x: (ordinal % 3) * 2.3 - 2.3,
+      x: [0, -2.3, 2.3][ordinal % 3],
       y: 0,
-      z: 3.4 + Math.floor(ordinal / 3) * 2.3,
+      z: 3.15 - Math.floor((ordinal + 2) / 3) * 2.3,
       rotationY: 0,
     },
     scale: 1,
