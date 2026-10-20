@@ -18,6 +18,7 @@
  * page be you IN THAT SPACE and nowhere else. Opened any other way, the page
  * is a guest: it sees everyone and nobody sees it.
  */
+import { spacePath } from "./spaces.js";
 
 export type Vec3 = [number, number, number];
 export type Quat = [number, number, number, number];
@@ -205,7 +206,7 @@ export function spaceEntryPath(space: string, ticket: string, where = `/s/${spac
  * plain branch name or a plain path inside the site is ignored, never followed.
  */
 export function goTarget(space: string, branch: unknown, page: unknown, branchOk: (name: string) => boolean): string {
-  const base = typeof branch === "string" && branch && branch !== "main" && branchOk(branch) ? `/s/${space}/@${branch}/` : `/s/${space}/`;
+  const base = typeof branch === "string" && branch && branchOk(branch) ? spacePath(space, branch) : spacePath(space);
   const inside = typeof page === "string" && /^[A-Za-z0-9._\/-]{1,200}$/.test(page) && !page.split("/").some((part) => part === ".." || part.startsWith(".")) ? page.replace(/^\/+/, "") : "";
   return base + inside;
 }

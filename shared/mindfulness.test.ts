@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   EMPTY_MINDFULNESS,
   MINDFULNESS_PRACTICES,
+  backMindfulness,
   chooseMindfulness,
   normalizeMindfulnessText,
   nextMindfulness,
@@ -113,3 +114,18 @@ describe("the room's optional mindfulness practices", () => {
     expect(preview.targets.map((target) => target.id)).toEqual(["cancel-remove", "confirm-remove"]);
   });
 });
+
+describe("going back a step", () => {
+  it("from the end returns to the last step, and from the first to the choice of practice", () => {
+    // The panel kept its own copy, which went back two screens from the end and stuck at the first step.
+    const steps = MINDFULNESS_PRACTICES.find((practice) => practice.id === "grounding")!.steps.length;
+    let view = chooseMindfulness(EMPTY_MINDFULNESS, "grounding");
+    for (let i = 0; i < steps; i += 1) view = nextMindfulness(view);
+    expect(view.complete).toBe(true);
+    const fromEnd = backMindfulness(view);
+    expect(fromEnd).toMatchObject({ complete: false, step: steps - 1 });
+    expect(backMindfulness({ ...fromEnd, step: 1 })).toMatchObject({ step: 0 });
+    expect(backMindfulness({ ...fromEnd, step: 0 })).toEqual(EMPTY_MINDFULNESS);
+  });
+});
+

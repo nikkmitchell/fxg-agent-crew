@@ -196,7 +196,3 @@ export function SettingsMenu3D({ model, position = [0, 0, 0] }: { model: MenuMod
   );
 }
 
-/** The menu's size in metres, for placing things around it. */
-export function menuSizeMetres(layout: Pick<MenuLayout, "width" | "height">) {
-  return { width: layout.width / MENU.pxPerMetre, height: layout.height / MENU.pxPerMetre };
-}

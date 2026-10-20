@@ -10,11 +10,6 @@
  */
 export const controllerFaceButtons = { talk: false, cancel: false };
 
-export function clearControllerFaceButtons(): void {
-  controllerFaceButtons.talk = false;
-  controllerFaceButtons.cancel = false;
-}
-
 type ButtonState = { state?: "default" | "touched" | "pressed" } | undefined;
 
 /** Is this face button down right now? Touched is not pressed. */

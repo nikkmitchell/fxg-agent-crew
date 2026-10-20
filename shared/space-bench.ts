@@ -28,6 +28,7 @@
  * yourself). Paths are inside the published folder, like every URL of the
  * space.
  */
+import { spacePath } from "./spaces.js";
 
 export type BenchPiece = {
   id: string;
@@ -189,6 +190,6 @@ export function moduleUrl(space: string, deployId: string, path: string): string
 
 /** The URL of a piece in a deploy, with the deploy id so a new push is a new URL (no stale cache). */
 export function pieceUrl(space: string, branch: string, path: string, deployId: string): string {
-  const root = branch === "main" ? `/s/${space}/` : `/s/${space}/@${branch}/`;
+  const root = spacePath(space, branch);
   return `${root}${path}?v=${encodeURIComponent(deployId)}`;
 }

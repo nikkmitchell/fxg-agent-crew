@@ -62,10 +62,6 @@ export async function listAvatarTakes(actorId: string): Promise<AvatarTake[]> {
   }
 }
 
-export async function loadAvatarTake(actorId: string): Promise<AvatarTake | null> {
-  return (await listAvatarTakes(actorId))[0] ?? null;
-}
-
 export async function saveAvatarTake(take: AvatarTake): Promise<void> {
   const db = await database();
   try {

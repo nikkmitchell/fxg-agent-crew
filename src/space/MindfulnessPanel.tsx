@@ -7,6 +7,7 @@ import { Text } from "@react-three/drei";
 import {
   EMPTY_MINDFULNESS,
   MINDFULNESS_CANVAS,
+  backMindfulness,
   chooseMindfulness,
   mindfulnessTargetAt,
   nextMindfulness,
@@ -190,7 +191,9 @@ export function MindfulnessPanel({ subscribe }: {
       setView({ id: "bright-spot", step: 0, complete: false, note: "" });
       setScreen("practice");
     } else if (id === "back") {
-      setView({ ...view, step: Math.max(0, view.step - 1), complete: false });
+      // shared/mindfulness.ts's, which the panel had a copy of that skipped the last step from the end
+      // and stuck at the first; back from the end is the last step, back from the first is the choice.
+      setView(backMindfulness(view));
     } else if (id === "next") {
       setView(nextMindfulness(view));
     } else if (id === "write") {

@@ -14,6 +14,7 @@ import {
   siteFile,
   spaceKey,
   spaceNameProblem,
+  spacePath,
   type DeployRecord,
 } from "../../shared/spaces.js";
 import type { Session } from "../session.js";
@@ -303,7 +304,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       createdBy,
       createdAt,
       gitPath: `/git/${name}.git`,
-      sitePath: `/s/${name}/`,
+      sitePath: spacePath(name),
       live: publicDeploy(store.live(name, LIVE_BRANCH)),
       public: shown.public,
       title: shown.title,
@@ -555,7 +556,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     ).map((branch) => ({
       branch,
       head: heads.get(branch) ?? null,
-      sitePath: branch === LIVE_BRANCH ? `/s/${space}/` : `/s/${space}/@${branch}/`,
+      sitePath: spacePath(space, branch),
       live: publicDeploy(store.live(space, branch)),
     }));
     return reply.header("cache-control", "no-store").send({

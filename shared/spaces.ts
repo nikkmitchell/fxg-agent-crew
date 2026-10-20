@@ -132,8 +132,13 @@ export function gitUrl(origin: string, space: string): string {
   return `${origin}/git/${space}.git`;
 }
 
-export function siteUrl(origin: string, space: string, branch = LIVE_BRANCH): string {
-  return branch === LIVE_BRANCH ? `${origin}/s/${space}/` : `${origin}/s/${space}/@${branch}/`;
+/**
+ * WHERE A SPACE IS: /s/<space>/ live, /s/<space>/@<branch>/ for a branch's
+ * preview. One rule for the server's routes, the Spaces page, the kit and the
+ * bench, which each wrote it out for themselves.
+ */
+export function spacePath(space: string, branch: string = LIVE_BRANCH): string {
+  return branch === LIVE_BRANCH ? `/s/${space}/` : `/s/${space}/@${branch}/`;
 }
 
 /**
