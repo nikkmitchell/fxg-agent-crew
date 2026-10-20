@@ -5,6 +5,7 @@ import {
   BOARD_LIMITS,
   FORBIDDEN_PROFILE_KEYS,
   PROFILE_LIMITS,
+  ROLES,
   canTransition,
   hasProjectAuthority,
   isPriority,
@@ -440,6 +441,9 @@ export class BoardStore {
 
   transitionTask(actor: Actor, id: string, to: Status, blocker?: string) {
     if (!isStatus(to)) throw new Refused(`${to} is not a status`);
+    // What is in the way, in words and bounded like a comment; anything else used to fail as "not saved".
+    if (blocker !== undefined && blocker !== null && typeof blocker !== "string") throw new Refused("blocker is a sentence saying what is in the way");
+    const why = to === "blocked" && blocker?.trim() ? bounded(blocker.trim(), LIMITS.comment, "blocker") : null;
     return this.tx(() => {
       const before = this.taskRow(id);
       this.assertAuthority(actor.id, before.project_id as string);
@@ -449,7 +453,7 @@ export class BoardStore {
         throw new Refused(`${from} → ${to} is not a legal move`, "ILLEGAL_TRANSITION");
       }
       this.db.prepare("UPDATE tasks SET status = ?, blocker = ?, updated_at = ? WHERE id = ?")
-        .run(to, to === "blocked" ? (blocker ?? null) : null, now(), id);
+        .run(to, why, now(), id);
       this.audit(actor.id, "transition", "task", id, { status: from }, { status: to });
     }, { actorId: actor.id, action: "transition task", target: id });
   }
@@ -772,7 +776,15 @@ export class BoardStore {
   }
 
   actOnMembership(actor: Actor, projectId: string, actorId: string, action: "grant" | "revoke", roles: Role[] = []) {
-    const clean = roles.filter(isRole);
+    /**
+     * EVERY ROLE ASKED FOR, OR A REFUSAL. Unknown ones used to be dropped in
+     * silence, so "admin" or "Manager" granted a plain member and said it had
+     * worked; and a string where the list belongs failed as "not saved".
+     */
+    if (!Array.isArray(roles)) throw new Refused(`roles is a list: ${ROLES.join(", ")}`, "BAD_ROLE");
+    const unknown = roles.filter((role) => !isRole(role));
+    if (unknown.length) throw new Refused(`no role called ${unknown.map(String).join(", ")}; the roles are ${ROLES.join(", ")}`, "BAD_ROLE");
+    const clean = [...new Set(roles)];
     return this.tx(() => {
       // "Never had a member" and "has no member RIGHT NOW" are different, and
       // conflating them was a privilege escalation: revoking the last manager

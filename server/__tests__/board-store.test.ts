@@ -416,6 +416,27 @@ describe("what a card's priority, kind and points may be", () => {
   });
 });
 
+describe("saying what blocks a card", () => {
+  it("keeps the reason, trimmed and bounded like a comment, and refuses something that is not words", () => {
+    const id = aTask();
+    store.transitionTask(nikk, id, "blocked", "  waiting on the headset check  ");
+    expect(db.prepare("SELECT blocker FROM tasks WHERE id = ?").get(id)).toEqual({ blocker: "waiting on the headset check" });
+    const other = aTask();
+    expect(() => store.transitionTask(nikk, other, "blocked", "x".repeat(60_000))).toThrow(expect.objectContaining({ code: "TOO_LONG" }));
+    expect(() => store.transitionTask(nikk, other, "blocked", { why: 1 } as never)).toThrow(/sentence/);
+  });
+});
+
+describe("granting roles", () => {
+  it("refuses a role that does not exist, or roles that are not a list, instead of granting a plain member", () => {
+    expect(() => store.actOnMembership(nikk, "saha", "claude-nikk2mbp", "grant", ["admin"] as never)).toThrow(/no role called admin; the roles are/);
+    expect(() => store.actOnMembership(nikk, "saha", "claude-nikk2mbp", "grant", "manager" as never)).toThrow(expect.objectContaining({ code: "BAD_ROLE" }));
+    expect(db.prepare("SELECT COUNT(*) AS n FROM memberships WHERE actor_id = 'claude-nikk2mbp'").get()).toEqual({ n: 0 });
+    store.actOnMembership(nikk, "saha", "claude-nikk2mbp", "grant", ["ui", "ui", "testing"]);
+    expect(db.prepare("SELECT roles FROM memberships WHERE actor_id = 'claude-nikk2mbp'").get()).toEqual({ roles: '["ui","testing"]' });
+  });
+});
+
 describe("who a new card belongs to", () => {
   it("takes a list of names, each once however spelled, and refuses a string or a blank", () => {
     store.actOnMembership(nikk, "saha", "claude-nikk2mbp", "grant", []);

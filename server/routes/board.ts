@@ -30,6 +30,7 @@ const CODES: Record<string, number> = {
   BAD_PRIORITY: 400,
   BAD_KIND: 400,
   BAD_OWNERS: 400,
+  BAD_ROLE: 400,
   BAD_POINTS: 400,
   CONFLICT: 409,
   NOT_FOUND: 404,
