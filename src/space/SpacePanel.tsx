@@ -1,4 +1,3 @@
-import type { FinishedSpace } from "../../shared/finished-spaces";
 import { useFinishedRoom } from "./modules/use-finished";
 import { inFrontOf, useLibrary } from "./modules/use-library";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
@@ -503,28 +502,3 @@ export function SpacePanel({ startEntered = false, onReturnToLobby }: { startEnt
   );
 }
 
-/** Inside a finished space: what it is, and bringing it up to its branch's newest version (shared/finished-spaces.ts). */
-export function FinishedNote({ finished }: { finished: FinishedSpace }) {
-  const [notice, setNotice] = useState<string | null>(null);
-  return (
-    <section className="space-voice" aria-label="Finished space">
-      <h2>{finished.title}</h2>
-      <p className="muted-note">
-        A finished space: {finished.space}&apos;s {finished.entry} ({finished.branch}), as published by {finished.by}. Its work
-        controls are hidden; a push changes it only when it is updated.
-      </p>
-      <button
-        type="button"
-        onClick={() => {
-          setNotice("Updating…");
-          bff.updateFinished(finished.room)
-            .then(() => setNotice("Updated to the newest version."))
-            .catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not update it."));
-        }}
-      >
-        Update to the newest version
-      </button>
-      {notice ? <p role="status">{notice}</p> : null}
-    </section>
-  );
-}

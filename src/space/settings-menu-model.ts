@@ -143,6 +143,14 @@ export type SettingsMenuInput = {
 
   // LIBRARY: things from spaces' git (src/space/modules/use-library.ts)
   library: Library | null;
+  /**
+   * INSIDE A FINISHED SPACE (shared/finished-spaces.ts): what it is, and
+   * bringing it up to its branch's newest version. The Library's tab shows this
+   * instead, since a finished space hides the work tools. It was a panel on the
+   * room page until that page became only the view (7c8992b), and nothing
+   * showed it after: no way to update a finished space, from 2026-10-07.
+   */
+  finished?: { title: string; space: string; entry: string; branch: string; by: string; notice: string | null; update: () => void } | null;
 
   // ACTIVITY ITEMS
   goTables: readonly { size: number; players: number }[];
@@ -374,6 +382,18 @@ function activitySections(s: SettingsMenuInput): MenuSection[] {
  * one offers, and what this room has brought in.
  */
 function librarySections(s: SettingsMenuInput): MenuSection[] {
+  if (s.finished) {
+    const finished = s.finished;
+    return [{
+      title: finished.title,
+      rows: [
+        note(`A finished space: ${finished.space}'s ${finished.entry} (${finished.branch}), as published by ${finished.by}. ` +
+          "Its work controls are hidden; a push changes it only when it is updated."),
+        { kind: "action" as const, label: `Update to the newest on ${finished.branch}`, value: "Update", tone: "accent" as const, onTap: finished.update },
+        ...(finished.notice ? [note(finished.notice)] : []),
+      ],
+    }];
+  }
   const library = s.library;
   if (!library) return [{ title: "Library", rows: [note("The library is not available here.")] }];
   const sections: MenuSection[] = [];

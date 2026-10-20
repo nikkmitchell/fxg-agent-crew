@@ -297,3 +297,25 @@ describe("Browse all things and spaces (Nikk 7447)", () => {
     expect(second.filter((row) => /^t\d\d/.test(row.label))).toHaveLength(5);
   });
 });
+
+describe("inside a finished space", () => {
+  it("shows what it is and how to bring it up to its branch's newest version, in place of the work tools", () => {
+    let updated = 0;
+    const finished = { title: "Tidal Stillness", space: "meditation.ar", entry: "tide", branch: "main", by: "Mica", notice: null, update: () => { updated += 1; } };
+    const sections = settingsSections(input("library", { library: null, finished }));
+    expect(sections.map((section) => section.title)).toEqual(["Tidal Stillness"]);
+    const rows = sections[0]!.rows;
+    expect(rows[0]).toMatchObject({ kind: "note" });
+    expect((rows[0] as { label: string }).label).toContain("meditation.ar's tide (main), as published by Mica");
+    const update = rows.find((row) => row.kind === "action") as { label: string; onTap: () => void };
+    expect(update.label).toBe("Update to the newest on main");
+    update.onTap();
+    expect(updated).toBe(1);
+  });
+
+  it("says what came of an update", () => {
+    const finished = { title: "T", space: "s", entry: "e", branch: "main", by: "Mica", notice: "Updated to the newest version.", update: () => undefined };
+    const rows = settingsSections(input("library", { library: null, finished }))[0]!.rows;
+    expect(rows.at(-1)).toEqual({ kind: "note", label: "Updated to the newest version." });
+  });
+});

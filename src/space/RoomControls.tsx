@@ -1076,7 +1076,9 @@ export function RoomControls({
   const [upVisible, setUpVisible] = useState(false);
   // Which room the scene should hide agents in, if you asked it to.
   useEffect(() => setCurrentRoomForAgents(currentRoom), [currentRoom]);
-  const finishedHere = useFinishedRoom(currentRoom) !== null;
+  const finishedRecord = useFinishedRoom(currentRoom);
+  const finishedHere = finishedRecord !== null;
+  const [finishedNotice, setFinishedNotice] = useState<string | null>(null);
   // THE LIBRARY tab (src/space/modules): things from spaces' git, brought in in front of you.
   const library = useLibrary({
     enabled: true,
@@ -1309,6 +1311,18 @@ export function RoomControls({
     goTo: setView,
     // In a finished space the Library is a work tool, so it is not offered (use-finished.ts).
     library: finishedHere ? null : library,
+    finished: finishedRecord
+      ? {
+          title: finishedRecord.title, space: finishedRecord.space, entry: finishedRecord.entry,
+          branch: finishedRecord.branch, by: finishedRecord.by, notice: finishedNotice,
+          update: () => {
+            setFinishedNotice("Updating…");
+            bff.updateFinished(finishedRecord.room)
+              .then(() => setFinishedNotice("Updated to the newest version."))
+              .catch((error: unknown) => setFinishedNotice(error instanceof Error ? error.message : "Could not update it."));
+          },
+        }
+      : null,
     voice: {
       on: voice.on,
       starting: voice.starting,
