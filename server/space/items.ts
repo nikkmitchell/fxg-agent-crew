@@ -1,3 +1,5 @@
+import {defaultGameItem, isTableGame, gameBoardText, legalGameMoves, gameSide} from "../../shared/table-games.js";
+import {actOnTableGame} from "./table-games.js";
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyInstance, FastifyReply } from "fastify";
@@ -71,7 +73,7 @@ export class RoomItems {
 }
 
 export type ItemActionBody = {
-  action?: unknown; x?: unknown; y?: unknown; hand?: unknown; colour?: unknown; revision?: unknown;
+  side?: unknown; from?: unknown; to?: unknown; column?: unknown; promotion?: unknown; action?: unknown; x?: unknown; y?: unknown; hand?: unknown; colour?: unknown; revision?: unknown;
   /** A point as Go names it ("D4"), for agents: instead of x and y. */
   at?: unknown;
   /** A colour by name, glyph or bowl number ("white", "O", "1"), for agents: instead of colour. */
@@ -121,9 +123,18 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       };
     }) });
   });
-  app.post<{ Body: { kind?: unknown; source?: unknown; view?: unknown; position?: unknown; scale?: unknown } }>("/bff/space/items", async (request, reply) => {
+  app.get('/bff/space/games',async(request,reply)=>{
+    const session=requireSession(request,reply);if(!session)return reply;
+    return reply.send({games:options.items.all(spaceRoomOf(session)).filter(i=>i.kind==='game').map(item=>({...item,text:gameBoardText(item),sides:[gameSide(item.game,1),gameSide(item.game,2)],legalMoves:legalGameMoves(item.game,item.state)}))});
+  });
+  app.post<{ Body: { game?: unknown; kind?: unknown; source?: unknown; view?: unknown; position?: unknown; scale?: unknown } }>("/bff/space/items", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
     if (locked(spaceRoomOf(session))) return reply.code(403).send(LOCKED);
+    if (request.body?.kind === "game") {
+      if (!isTableGame(request.body.game)) return reply.code(400).send({error:"Choose chess, checkers, connect-four, reversi or tic-tac-toe."});
+      const room=spaceRoomOf(session), item=defaultGameItem(randomUUID(),request.body.game,session.username,options.items.all(room).filter(i=>i.kind==='game').length);
+      options.items.insert(room,item,session.username);publish(room,session.username);return reply.code(201).send({item});
+    }
     if (request.body?.kind === "module") return addModule(request.body, session, reply);
     if (request.body?.kind !== "go") return reply.code(400).send({ code: "BAD_KIND", error: "a room item is a Go table, or a module from a space" });
     const room = spaceRoomOf(session); const item = options.items.add(room, session.username); publish(room, session.username); return reply.code(201).send({ item });
@@ -213,6 +224,13 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (change?.revision !== undefined && change.revision !== item.revision) {
       request.log.info({ tableChangeRefused: { who: session.username, table: item.id, sent: change.revision, now: item.revision } }, "table change refused: stale revision");
       return reply.code(409).send({ code: "TABLE_CHANGED", error: "The table changed. Try again." });
+    }
+    if (item.kind === 'game') {
+      const heldBy=options.holds?.heldByOther(room,`item:${item.id}`,session.username);
+      if(heldBy)return reply.code(409).send({code:'HELD',error:heldBySentence(heldBy)});
+      if(change?.position!==undefined){const p=readPosition(change.position);if(!p)return reply.code(400).send({error:'Choose a position inside the room.'});item.position=p;}
+      if(change?.scale!==undefined){const n=readScale(change.scale);if(n===null)return reply.code(400).send({error:'Choose a valid table scale.'});item.scale=n;}
+      item.revision++;options.items.save(room,item,session.username);publish(room,session.username);return reply.send({item});
     }
     if (isModuleItem(item)) {
       // A thing from a space: where it stands, how big, and (a space) model or full size.
@@ -363,6 +381,11 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (locked(room)) return { status: 403, payload: LOCKED };
     const answer = (status: number, payload: Record<string, unknown>): ItemActionAnswer => ({ status, payload });
     const item = options.items.one(room, id); if (!item) return answer(404, { error: "room item not found" });
+    if(item.kind==='game'){
+      const result=actOnTableGame(item,username,body);
+      if('error'in result)return answer(result.status,{error:result.error,item:options.items.one(room,id)});
+      options.items.save(room,result,username);publish(room,username);return answer(200,{item:result});
+    }
     // Moves and stones are the Go table's; a thing from a space acts through its own code.
     if (item.kind !== "go") return answer(400, { code: "NOT_A_GAME", error: "Only a Go table takes moves." });
     if (body.revision !== undefined && body.revision !== item.revision) return answer(409, { code: "TABLE_CHANGED", error: "The table changed. Try again." });

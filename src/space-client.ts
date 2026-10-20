@@ -1,3 +1,4 @@
+import type {TableGame} from "../shared/table-games";
 import type { Helper } from "../shared/helpers";
 import type { Garden, GardenChange, GardenEvent } from "../shared/garden";
 import type { Mandala, MandalaChange, MandalaEvent } from "../shared/mandala";
@@ -157,6 +158,8 @@ export const space = {
   /** Delete a table for good. Answers with the room's tables as they now are. */
   removeRoomItem: (id: string) =>
     requestJson<{ items: RoomItem[] }>(`${root}/items/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  addTableGame: (game:TableGame) => requestJson<{item:RoomItem}>(`${root}/items`,{method:'POST',body:JSON.stringify({kind:'game',game})}),
+  actOnTableGame: (id:string,action:Record<string,unknown>) => actOnItem<{item:RoomItem}>(id,action,()=>requestJson<{item:RoomItem}>(`${root}/items/${encodeURIComponent(id)}/action`,{method:'POST',body:JSON.stringify(action)})),
   addRoomItem: () => requestJson<{ item: RoomItem }>(`${root}/items`, {
     method: "POST", body: JSON.stringify({ kind: "go" }),
   }),

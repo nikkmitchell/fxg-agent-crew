@@ -1,3 +1,4 @@
+import {TABLE_GAMES,GAME_NAMES,type TableGame} from "../../shared/table-games";
 import type { Formation } from "../../shared/agent-home";
 import type { RoomMenuRow } from "../../shared/room-switch";
 import type { MenuRow, MenuSection, MenuTab } from "./menu-layout";
@@ -153,9 +154,11 @@ export type SettingsMenuInput = {
   finished?: { title: string; space: string; entry: string; branch: string; by: string; notice: string | null; update: () => void } | null;
 
   // ACTIVITY ITEMS
+  gameTables?: readonly string[];
   goTables: readonly { size: number; players: number }[];
   orbHere: boolean;
   addGoTable: () => void;
+  addTableGame?: (game:TableGame) => void;
   setOrb: (shown: boolean) => void;
 
   // WORK ITEMS
@@ -363,14 +366,16 @@ function activitySections(s: SettingsMenuInput): MenuSection[] {
       title: "Add to this room",
       rows: [
         { kind: "action", label: "Add a Go table", tone: "accent", value: "for everyone", onTap: s.addGoTable },
+        ... (s.addTableGame ? TABLE_GAMES.map(game=>({kind:'action' as const,label:`Add ${GAME_NAMES[game]}`,value:'shared table',onTap:()=>s.addTableGame?.(game)})) : []),
         { kind: "toggle", label: "Breathing orb", detail: s.orbHere ? "In this room for everyone" : "Not in this room", on: s.orbHere, onTap: () => s.setOrb(!s.orbHere) },
       ],
     },
     {
       title: "In this room",
       rows: [
+        ...(s.gameTables??[]).map(name=>note(`${name} · shared game`)),
         ...s.goTables.map((table) => note(`Go table · ${table.size}×${table.size} · ${table.players} playing`)),
-        note(s.goTables.length ? "Set a table up with the gear on its corner; drag its base to move it." : "No Go tables yet. Add one, then use the gear on its corner."),
+        note((s.gameTables?.length??0)>0?"Take a seat to play; hold a game table’s Move bar to place it.":s.goTables.length ? "Set a table up with the gear on its corner; drag its base to move it." : "No tables yet. Add a game above."),
       ],
     },
   ];

@@ -247,3 +247,13 @@ built kit; nobody has looked at it in a space yet.
    **Back**: you should be on the last step, not the one before it. On the
    first step, **Back** should return to the choice of practice. Checked by
    test only.
+
+## Shared tabletop games (Skein)
+
+In a work room, open Settings → Activity items and add Chess, Checkers, Connect
+Four, Reversi or Tic-tac-toe. Take different seats with two people; play moves
+with controller release and tracked-hand pointers. Check the highlighted moves,
+chess promotion choice, a multiple checkers jump and both faces of Connect Four.
+Hold the Move bar and use the thumbstick to place each table at arm’s length.
+Check text size, comfort and reach; try reconnecting one headset mid-game.
+Browser clicks and two room sockets passed locally; no headset pass is claimed.

@@ -1,3 +1,5 @@
+import {TableGameTable} from "./TableGames";
+import type {GameRoomItem} from "../../shared/table-games";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { RoundedBox, Text } from "@react-three/drei";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
@@ -1041,6 +1043,7 @@ export function RoomItems({ items, reducedMotion, you = null, peopleRef, onItem,
   const context = { you, peopleRef: peopleRef ?? emptyPeople, items, reservations, onItem: onItem ?? (() => {}), onRemoved: onRemoved ?? (() => {}) };
   return <group onPointerDown={(event) => { claimPointer(event.nativeEvent); event.stopPropagation(); }}>
     {/* Go tables here; things from spaces are drawn by ModuleItems (src/space/modules). */}
+    {items.filter((i):i is GameRoomItem=>i.kind==='game').map(item=><TableGameTable key={item.id} item={item} you={you} onItem={context.onItem} onRemoved={context.onRemoved}/>)}
     {items.filter(isGoItem).map((item) => <GoTable key={item.id} item={item} reducedMotion={reducedMotion} context={context} />)}
   </group>;
 }

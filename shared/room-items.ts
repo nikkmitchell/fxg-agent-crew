@@ -1,3 +1,4 @@
+import {parseGameItem, type GameRoomItem} from "./table-games.js";
 import type { GoClock } from "./go-clock.js";
 export const GO_SIZES = [5, 9, 13, 19, 25] as const;
 export type GoSize = (typeof GO_SIZES)[number];
@@ -102,7 +103,7 @@ export const MODULE_SCALE = { min: 0.01, max: 5, model: 0.05 } as const;
 /** A space as a model stands this high, on its plinth: a table's height. */
 export const MODEL_HEIGHT = 0.8;
 
-export type RoomItem = GoRoomItem | ModuleRoomItem;
+export type RoomItem = GoRoomItem | ModuleRoomItem | GameRoomItem;
 
 export const isGoItem = (item: RoomItem): item is GoRoomItem => item.kind === "go";
 export const isModuleItem = (item: RoomItem): item is ModuleRoomItem => item.kind === "module";
@@ -179,6 +180,7 @@ export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
 export function parseRoomItem(value: unknown): RoomItem | null {
   if (!value || typeof value !== "object") return null;
   if ((value as { kind?: unknown }).kind === "module") return parseModuleItem(value);
+  if ((value as {kind?:unknown}).kind === "game") return parseGameItem(value);
   const item = value as Partial<GoRoomItem>;
   if (item.kind !== "go" || typeof item.id !== "string" || !isGoSize(item.size)) return null;
   if (!Array.isArray(item.colours) || item.colours.length < 2 || item.colours.length > GO_COLOURS.length) return null;

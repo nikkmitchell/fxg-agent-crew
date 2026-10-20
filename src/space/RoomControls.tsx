@@ -1,3 +1,4 @@
+import {GAME_NAMES} from "../../shared/table-games";
 import { useFinishedRoom } from "./modules/use-finished";
 import { useLibrary } from "./modules/use-library";
 import type { Meditation } from "../../shared/meditation";
@@ -1438,8 +1439,10 @@ export function RoomControls({
       goRoom("lobby", !(myRooms ?? []).some((room) => room.roomName.toLowerCase() === "lobby"));
     },
     toFrontPage: returnToLobby,
+    gameTables: roomItems.filter(i=>i.kind==='game').map(i=>GAME_NAMES[i.game]),
     goTables: roomItems.filter(isGoItem).map((item) => ({ size: item.size, players: item.colours.length })),
     orbHere: meditation?.shown === true,
+    addTableGame: (game) => void space.addTableGame(game).catch((error:unknown)=>setNotice(error instanceof Error?error.message:'Could not add the game.')),
     addGoTable: () =>
       void space.addRoomItem().catch((error: unknown) => setNotice(error instanceof Error ? error.message : "Could not add the table.")),
     // THE BREATHING ORB, AS AN ITEM (Nikk 4757): whether it is here is per
