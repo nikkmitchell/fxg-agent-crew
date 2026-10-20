@@ -32,15 +32,12 @@ export function PeoplePanel({ session }: { session: Session | null }) {
       // The database, not a fold of the room. People, ownership and membership
       // are rows now; the tasks come with whichever project is open, because
       // this surface only needs them to say who owns what.
-      const [people, list] = await Promise.all([board.people(), board.projects()]);
+      // Three requests, not one per project: board.work() is every card, lean.
+      const [people, list, work] = await Promise.all([board.people(), board.projects(), board.work()]);
       const projects = (list.projects ?? []) as Array<Record<string, unknown>>;
-      const details = await Promise.all(
-        projects.map((project) => board.project(String(project.id))),
-      );
 
       setData({
-        tasks: details.flatMap((detail) =>
-          ((detail?.tasks ?? []) as Array<Record<string, unknown>>).map(toCrewTask)) as CrewTask[],
+        tasks: work.tasks.map(toCrewTask) as CrewTask[],
         profiles: (people.actors ?? []).map((row) => toProfile(row as Record<string, unknown>)) as ActorProfile[],
         ownerships: (people.ownerships ?? []) as Ownership[],
         memberships: (people.memberships ?? []) as Membership[],

@@ -19,6 +19,8 @@ export const board = {
   projects: () => call<{ projects: Array<Record<string, unknown>> }>("/projects"),
   project: (id: string) => call<Record<string, unknown>>(`/projects/${encodeURIComponent(id)}`),
   people: () => call<{ actors: unknown[]; ownerships: unknown[]; memberships: unknown[] }>("/people"),
+  /** Every project's cards, lean: owners, who accepted, comment authors; no words. For who works on what. */
+  work: () => call<{ tasks: Array<Record<string, unknown>> }>("/work"),
   history: (entity: string, id: string) =>
     call<{ history: unknown[] }>(`/history/${entity}/${encodeURIComponent(id)}`),
 

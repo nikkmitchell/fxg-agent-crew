@@ -454,3 +454,22 @@ describe("names that are not words", () => {
     await app.close();
   });
 });
+
+describe("who works on what, lean", () => {
+  it("gives every card's owners, acceptances and comment authors, and none of the words", async () => {
+    const { app, as, database } = boot();
+    const store = new (await import("../db/store.js")).BoardStore(database);
+    const nikk = { id: "nikk", kind: "human" as const };
+    store.createProject(nikk, { id: "p1", name: "P1" });
+    const id = store.createTask(nikk, { projectId: "p1", title: "A card", description: "a long private brief" }) as string;
+    store.setOwnership(nikk, id, "claim");
+    store.addComment(nikk, id, "words nobody needs here");
+    const answer = await app.inject({ method: "GET", url: "/bff/board/work", headers: { cookie: as("nikk") } });
+    expect(answer.statusCode).toBe(200);
+    const [task] = answer.json().tasks;
+    expect(task).toMatchObject({ id, project_id: "p1", title: "A card", owners: ["nikk"], acceptedBy: ["nikk"], comments: [{ author_id: "nikk" }] });
+    expect(answer.body).not.toContain("words nobody needs here");
+    expect(answer.body).not.toContain("a long private brief");
+    await app.close();
+  });
+});

@@ -27,6 +27,35 @@ export class BoardReads {
   }
 
   /**
+   * WHO WORKS ON WHAT, across every project, in three queries: each card's
+   * title, status, owners and who accepted, and one entry per comment naming
+   * its author, without its words. The people page fetched every project's
+   * whole screen for this, every comment and brief included: 600 KB for 35
+   * projects on saha.ing's slow link.
+   */
+  work() {
+    const tasks = this.db.prepare("SELECT id, project_id, title, status, points, assignee_id FROM tasks ORDER BY created_at")
+      .all() as Array<{ id: string } & Record<string, unknown>>;
+    const owners = this.db.prepare("SELECT task_id, actor_id, accepted FROM task_owners")
+      .all() as Array<{ task_id: string; actor_id: string; accepted: number }>;
+    const authors = this.db.prepare("SELECT task_id, author_id FROM comments")
+      .all() as Array<{ task_id: string; author_id: string }>;
+    const byTask = <T extends { task_id: string }>(rows: T[]) => {
+      const map = new Map<string, T[]>();
+      for (const row of rows) map.set(row.task_id, [...(map.get(row.task_id) ?? []), row]);
+      return map;
+    };
+    const ownersOf = byTask(owners);
+    const authorsOf = byTask(authors);
+    return tasks.map((task) => ({
+      ...task,
+      owners: (ownersOf.get(task.id) ?? []).map((o) => o.actor_id),
+      acceptedBy: (ownersOf.get(task.id) ?? []).filter((o) => o.accepted === 1).map((o) => o.actor_id),
+      comments: (authorsOf.get(task.id) ?? []).map((c) => ({ author_id: c.author_id })),
+    }));
+  }
+
+  /**
    * Everything one project's screen needs, in a handful of queries rather than
    * one per card. The N+1 version was measurably fine at this size and would
    * stop being fine exactly when the board got interesting.

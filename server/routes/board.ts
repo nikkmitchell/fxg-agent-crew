@@ -165,6 +165,11 @@ export function registerBoardRoutes(
 
   // ------------------------------------------------------------------- reads
 
+  app.get("/bff/board/work", async (request, reply) => {
+    if (!requireSession(request, reply)) return reply;
+    return reply.send({ tasks: reads.work() });
+  });
+
   app.get("/bff/board/projects", async (request, reply) => {
     if (!requireSession(request, reply)) return reply;
     return reply.send({ projects: reads.projects() });
