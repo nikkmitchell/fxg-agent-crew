@@ -10,6 +10,7 @@ import { makeRequireSession } from "../require-session.js";
 import type { SessionStore } from "../session.js";
 import { WebharnessError, type WebharnessClient } from "../webharness/client.js";
 import type { RoomItems } from "./items.js";
+import { sameActor } from "../../shared/board-rules.js";
 
 /**
  * FINISHED SPACES, KEPT (shared/finished-spaces.ts). One row per room that is
@@ -136,7 +137,8 @@ export function registerFinishedRoutes(app: FastifyInstance, options: {
     if (!session) return reply;
     const finished = options.finished.get(request.params.room);
     if (!finished) return reply.code(404).send({ error: "There is no finished space by that name." });
-    if (session.username !== finished.by && !options.config.projectMutators.includes(session.username)) {
+    // However either is spelled (sameActor): an exact match refused the publisher signed in as "nikk2".
+    if (!sameActor(session.username, finished.by) && !options.config.projectMutators.some((name) => sameActor(name, session.username))) {
       return reply.code(403).send({ code: "NOT_ITS_PUBLISHER", error: `Only ${finished.by}, who published or last updated it, can unpublish ${finished.title}.` });
     }
     options.finished.remove(finished.room);
