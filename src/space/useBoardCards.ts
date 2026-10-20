@@ -146,6 +146,18 @@ export function useBoardCards(projectId: string | null): BoardFeed {
     }
   }, [projectId]);
 
+  // ANOTHER PROJECT IS ANOTHER BOARD: nothing of the last one stays on the wall
+  // or in the mood-board choices while the new one loads. (A failed poll of the
+  // SAME project keeps its cards; that is a different thing, handled in read.)
+  useEffect(() => {
+    rows.current = {};
+    boards.current = [];
+    setCards([]);
+    setMoodBoards([]);
+    setProjectName(null);
+    setLoaded(false);
+  }, [projectId]);
+
   useEffect(() => {
     live.current = true;
     void read();

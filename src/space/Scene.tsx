@@ -712,7 +712,10 @@ export default function Scene({
    * settings panel is on the arc for both now, so the lists have to be there
    * for both.
    */
-  const showingChoices = useRoomShowing(true, connection.showing);
+  const showingChoices = useRoomShowing(
+    true,
+    connection.showing.projectId && boardFeed.loaded ? boardFeed.moodBoards : null,
+  );
   /**
    * The two reading panels, as rows.
    *

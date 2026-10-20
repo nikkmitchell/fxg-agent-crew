@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { board } from "../board-client";
 import { space } from "../space-client";
 import { ApiError } from "../api-request";
-import type { Showing } from "../../shared/space-wire";
 
 /**
  * Choosing what the whole room looks at.
@@ -22,9 +21,18 @@ export type RoomShowingChoices = {
   choose: (choice: { projectId: string | null; boardId: string | null }) => void;
 };
 
-export function useRoomShowing(enabled: boolean, showing: Showing): RoomShowingChoices {
+/**
+ * `boards` are the mood boards of whichever project the ROOM is on, so the list
+ * offered is always the list that is legal (the server refuses a board from
+ * elsewhere). They come from the caller, which already holds that project's
+ * detail for the wall (useBoardCards): this hook read the whole project again
+ * for them, 460 KB for saha-ing, on every entry to the room.
+ */
+export function useRoomShowing(
+  enabled: boolean,
+  boards: { id: string; title: string }[] | null,
+): RoomShowingChoices {
   const [projects, setProjects] = useState<{ id: string; name: string }[] | null>(null);
-  const [boards, setBoards] = useState<{ id: string; title: string }[] | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,36 +54,6 @@ export function useRoomShowing(enabled: boolean, showing: Showing): RoomShowingC
       cancelled = true;
     };
   }, [enabled]);
-
-  // The mood boards of whichever project the ROOM is on, so the list offered is
-  // always the list that is legal — the server refuses a board from elsewhere,
-  // and offering one would be inviting a refusal.
-  useEffect(() => {
-    if (!enabled || !showing.projectId) {
-      setBoards(null);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      try {
-        // Through the project detail, which already carries its boards —
-        // rather than a second endpoint that would return the same rows.
-        const detail = (await board.project(showing.projectId as string)) as {
-          boards?: { id: string; title?: string; name?: string }[];
-        };
-        const list = (detail.boards ?? []).map((moodBoard) => ({
-          id: moodBoard.id,
-          title: moodBoard.title ?? moodBoard.name ?? moodBoard.id,
-        }));
-        if (!cancelled) setBoards(list);
-      } catch {
-        if (!cancelled) setBoards(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, showing.projectId]);
 
   const choose = useCallback((choice: { projectId: string | null; boardId: string | null }) => {
     setRefusal(null);
