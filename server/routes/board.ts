@@ -306,10 +306,11 @@ export function registerBoardRoutes(
       const session = requireSession(request, reply);
       if (!session) return reply;
       const { agentId, ownerId, action } = request.body ?? {};
-      if (!agentId || !ownerId || (action !== "declare" && action !== "confirm" && action !== "revoke")) {
+      if (typeof agentId !== "string" || !agentId.trim() || typeof ownerId !== "string" || !ownerId.trim()
+        || (action !== "declare" && action !== "confirm" && action !== "revoke")) {
         return reply.code(400).send({ code: "BAD_REQUEST", error: "agentId, ownerId and a valid action are required" });
       }
-      return handle(reply, request, () => store.actOnOwnership(actorOf(session), agentId, ownerId, action));
+      return handle(reply, request, () => store.actOnOwnership(actorOf(session), agentId.trim(), ownerId.trim(), action));
     });
 
   app.post<{ Body: { projectId?: string; actorId?: string; action?: string; roles?: Role[] } }>(
@@ -317,10 +318,11 @@ export function registerBoardRoutes(
       const session = requireSession(request, reply);
       if (!session) return reply;
       const { projectId, actorId, action, roles } = request.body ?? {};
-      if (!projectId || !actorId || (action !== "grant" && action !== "revoke")) {
+      if (typeof projectId !== "string" || !projectId || typeof actorId !== "string" || !actorId.trim()
+        || (action !== "grant" && action !== "revoke")) {
         return reply.code(400).send({ code: "BAD_REQUEST", error: "projectId, actorId and grant|revoke are required" });
       }
-      return handle(reply, request, () => store.actOnMembership(actorOf(session), projectId, actorId, action, roles ?? []));
+      return handle(reply, request, () => store.actOnMembership(actorOf(session), projectId, actorId.trim(), action, roles ?? []));
     });
 
   // ------------------------------------------------------------- mood boards

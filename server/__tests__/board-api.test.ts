@@ -437,3 +437,20 @@ describe("being told what a mood-board item covers", () => {
     await app.close();
   });
 });
+
+describe("names that are not words", () => {
+  it("are refused with a reason, never reach the database as a server error", async () => {
+    const { app, as } = boot();
+    const cookie = as("nikk");
+    for (const [url, payload] of [
+      ["/bff/board/membership", { projectId: "saha", actorId: 7, action: "grant" }],
+      ["/bff/board/membership", { projectId: "saha", actorId: "   ", action: "grant" }],
+      ["/bff/board/ownership", { agentId: { name: "x" }, ownerId: "nikk", action: "declare" }],
+    ] as const) {
+      const answer = await app.inject({ method: "POST", url, headers: { cookie }, payload });
+      expect(answer.statusCode, `${url} ${JSON.stringify(payload)}`).toBe(400);
+      expect(answer.json().code).toBe("BAD_REQUEST");
+    }
+    await app.close();
+  });
+});
