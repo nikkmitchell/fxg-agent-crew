@@ -1494,4 +1494,16 @@ export const MIGRATIONS: Migration[] = [
                       AND lower(a.actor_id) = lower(task_owners.actor_id));
     `,
   },
+  {
+    id: 56,
+    name: "priorities are 1 to 5 or untriaged",
+    sql: `
+      -- The store took any value until 2026-10-20, and SQLite's priority > 0 let
+      -- the word 'normal' through (text sorts above numbers): two cards on
+      -- saha.ing. A priority nobody can read is untriaged, which is honest.
+      UPDATE tasks SET priority = NULL
+      WHERE priority IS NOT NULL AND (typeof(priority) != 'integer' OR priority NOT BETWEEN 1 AND 5);
+      UPDATE tasks SET points = 1 WHERE typeof(points) != 'integer' OR points < 0;
+    `,
+  },
 ];

@@ -388,6 +388,34 @@ describe("what was asked, attested by us and not signed", () => {
   });
 });
 
+describe("what a card's priority, kind and points may be", () => {
+  it("takes priority 1 to 5 or null, and refuses a word or another number, saying the scale", () => {
+    const id = aTask();
+    expect(() => store.updateTask(nikk, id, { priority: 3 })).not.toThrow();
+    expect(() => store.updateTask(nikk, id, { priority: null })).not.toThrow();
+    // saha.ing stored "normal" on two cards before this.
+    expect(() => store.updateTask(nikk, id, { priority: "normal" as never })).toThrow(expect.objectContaining({ code: "BAD_PRIORITY" }));
+    expect(() => store.updateTask(nikk, id, { priority: 7 })).toThrow(/1 \(now\).*5 \(someday\)/);
+    expect(() => store.createTask(nikk, { projectId: "saha", title: "x", priority: 2.5 })).toThrow(expect.objectContaining({ code: "BAD_PRIORITY" }));
+  });
+
+  it("refuses a kind or points that the database would have let through or failed on", () => {
+    const id = aTask();
+    expect(() => store.updateTask(nikk, id, { kind: "urgent" as never })).toThrow(expect.objectContaining({ code: "BAD_KIND" }));
+    expect(() => store.updateTask(nikk, id, { points: "lots" as never })).toThrow(expect.objectContaining({ code: "BAD_POINTS" }));
+    expect(() => store.updateTask(nikk, id, { points: -1 })).toThrow(expect.objectContaining({ code: "BAD_POINTS" }));
+    expect(() => store.updateTask(nikk, id, { kind: "decision", points: 3 })).not.toThrow();
+  });
+
+  it("migration 56 makes an unreadable priority untriaged", async () => {
+    const { MIGRATIONS } = await import("../db/schema.js");
+    const id = aTask();
+    db.prepare("UPDATE tasks SET priority = 'normal' WHERE id = ?").run(id);
+    db.exec(MIGRATIONS.find((migration) => migration.id === 56)!.sql);
+    expect(db.prepare("SELECT priority FROM tasks WHERE id = ?").get(id)).toEqual({ priority: null });
+  });
+});
+
 describe("taking a card", () => {
   it("is agreeing to it: a card you claim yourself is accepted", () => {
     const id = aTask();

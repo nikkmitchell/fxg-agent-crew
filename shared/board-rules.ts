@@ -33,6 +33,17 @@ export const STATUS_LABELS: Readonly<Record<Status, string>> = {
   done: "Done",
 };
 
+/**
+ * HOW SOON A CARD MATTERS: 1 is now, 5 is someday, and no priority is
+ * "untriaged", which is not the same as unimportant. The server refuses anything
+ * else; it once stored the word "normal" on two cards, which SQLite's
+ * `priority > 0` check let through (text sorts above every number), and the
+ * board then ordered and labelled them as nothing at all.
+ */
+export const PRIORITY_LABELS: Readonly<Record<number, string>> = { 1: "now", 2: "next", 3: "soon", 4: "later", 5: "someday" };
+export const isPriority = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value in PRIORITY_LABELS;
+
 /** The columns, in the order the rules define the statuses. */
 export const BOARD_COLUMNS: readonly { status: Status; label: string }[] =
   STATUSES.map((status) => ({ status, label: STATUS_LABELS[status] }));

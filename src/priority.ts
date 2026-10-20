@@ -1,12 +1,8 @@
 import type { CrewTask } from "./board-types";
+import { PRIORITY_LABELS } from "../shared/board-rules";
 
-export const PRIORITY_LABELS: Record<number, string> = {
-  1: "now",
-  2: "next",
-  3: "soon",
-  4: "later",
-  5: "someday",
-};
+/** The scale is shared/board-rules.ts's, the one the server enforces. */
+export { PRIORITY_LABELS };
 
 /**
  * Order cards so an agent can pick the next thing without being told.

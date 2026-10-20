@@ -91,6 +91,8 @@ Your own identity, always (it refuses without it):
                                                Run it with your harness's background runner, never &
   python3 saha.py board open                  the task board: every card not done
   python3 saha.py board card ID | new "TITLE" ["DESCRIPTION"] | move ID STATUS | claim ID | accept ID | release ID
+                                               | priority ID 1-5|none (1 now, 2 next, 3 soon, 4 later, 5 someday)
+                                               | kind ID build|decision|none
                                                | say ID "comment" | describe ID "text" | projects
                                                | mood | get /bff/PATH | intake PROJECT SPACE
                                                | question CARD | answer CARD FILE.json
@@ -871,7 +873,7 @@ def cmd_board(s: Session, args: list[str]) -> None:
     """The task board (saha.ing's own database: docs/ADR-002). It was board.py and tools/board.mts."""
     project = flag(args, "--project") or os.environ.get("SAHA_PROJECT") or "saha-ing"
     if not args:
-        fail("board what? saha.py board open | card ID | new TITLE | move ID STATUS | claim ID | accept ID | release ID | say ID TEXT |"
+        fail("board what? saha.py board open | card ID | new TITLE | move ID STATUS | claim ID | accept ID | release ID | priority ID 1-5|none | kind ID build|decision|none | say ID TEXT |"
              " describe ID TEXT | projects | mood | get PATH | intake PROJECT SPACE | question CARD | answer CARD FILE", 2)
     what, rest = args[0], args[1:]
 
@@ -920,6 +922,13 @@ def cmd_board(s: Session, args: list[str]) -> None:
         done(s.request("POST", f"/bff/board/tasks/{rest[0]}/ownership", {"action": "accept"}), "accepted")
     elif what == "release" and rest:
         done(s.request("POST", f"/bff/board/tasks/{rest[0]}/ownership", {"action": "release"}), "released: it is not yours any more")
+    elif what == "priority" and len(rest) == 2:
+        # 1 now, 2 next, 3 soon, 4 later, 5 someday; none for untriaged (the server refuses anything else).
+        value = None if rest[1] in ("none", "-") else (int(rest[1]) if rest[1].isdigit() else rest[1])
+        done(s.request("PATCH", f"/bff/board/tasks/{rest[0]}", {"priority": value}), f"priority {rest[1]}")
+    elif what == "kind" and len(rest) == 2:
+        done(s.request("PATCH", f"/bff/board/tasks/{rest[0]}", {"kind": None if rest[1] in ("none", "-") else rest[1]}),
+             f"kind {rest[1]}")
     elif what == "say" and len(rest) >= 2:
         done(s.request("POST", f"/bff/board/tasks/{rest[0]}/comments", {"body": " ".join(rest[1:])}), "said")
     elif what == "describe" and len(rest) >= 2:

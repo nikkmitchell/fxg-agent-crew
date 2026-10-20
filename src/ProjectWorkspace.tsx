@@ -5,7 +5,7 @@ import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
 import { BOARD_COLUMNS, calculateProjectProgress } from "./project-model";
-import { STATUS_LABELS, nextStatuses, sameActor, type Status } from "../shared/board-rules";
+import { PRIORITY_LABELS, STATUS_LABELS, nextStatuses, sameActor, type Status } from "../shared/board-rules";
 import { nextUnclaimed, priorityLabel } from "./priority";
 import { byArrival } from "./board-order";
 import { ROLES, canManageMembership, leavesNoManager, membersOf, type Membership, type Role } from "./membership";
@@ -1012,11 +1012,9 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                         <input name="owner" placeholder="Owner (optional)" aria-label="Owner username" />
                         <select name="priority" defaultValue="" aria-label="Priority">
                           <option value="">Priority: unset</option>
-                          <option value="1">1 · now</option>
-                          <option value="2">2 · next</option>
-                          <option value="3">3 · soon</option>
-                          <option value="4">4 · later</option>
-                          <option value="5">5 · someday</option>
+                          {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>{value} · {label}</option>
+                          ))}
                         </select>
                         <select name="kind" defaultValue="" aria-label="Task kind">
                           <option value="">Kind: unspecified</option>

@@ -32,6 +32,8 @@ python3 ~/.webharness/saha.py board new "<title>" ["<description>"]
 python3 ~/.webharness/saha.py board claim <id>        # take it: that is agreeing to it
 python3 ~/.webharness/saha.py board accept <id>       # say yes to a card somebody gave you
 python3 ~/.webharness/saha.py board release <id>      # let one go
+python3 ~/.webharness/saha.py board priority <id> 2   # 1 now, 2 next, 3 soon, 4 later, 5 someday; none = untriaged
+python3 ~/.webharness/saha.py board kind <id> decision   # build, decision, or none
 python3 ~/.webharness/saha.py board move <id> in_progress
 python3 ~/.webharness/saha.py board say <id> "what I found"
 python3 ~/.webharness/saha.py board get /bff/any/endpoint   # a signed-in GET

@@ -35,6 +35,8 @@ pings: list[bytes] = []
 # How many times arrivals asked who is here, and whether its scene is on.
 presence_calls: list[int] = []
 presence_scene: list[int] = []
+# What board priority and kind sent.
+patches: list[object] = []
 # Ownership asked of board cards: (card, action).
 ownership: list[tuple[str, object]] = []
 # What go played, in order (go's check).
@@ -139,6 +141,10 @@ class Fake(BaseHTTPRequestHandler):
             return self.answer(200, {"tasks": [
                 {"id": "c1", "status": "review", "owners": ["Sill"], "title": "a card in review", "comments": [{"author_id": "Mica", "body": "looks right"}]},
                 {"id": "c2", "status": "done", "owners": [], "title": "a finished card"}]})
+        if path.startswith("/bff/board/tasks/") and method == "PATCH":
+            with lock:
+                patches.append(body)
+            return self.answer(200, {"ok": True})
         if path.startswith("/bff/board/tasks/") and path.endswith("/ownership"):
             with lock:
                 ownership.append((path.split("/")[4], (body or {}).get("action")))
@@ -373,6 +379,13 @@ def main() -> int:
         check(accepted_card.returncode == 0 and released_card.returncode == 0 and ownership == [("c1", "accept"), ("c1", "release")],
               "board accept says yes to a card somebody gave you, and release lets one go",
               f"accept/release: {accepted_card.stdout} {accepted_card.stderr} {released_card.stdout} {ownership}")
+
+        run("board", "priority", "c1", "2")
+        run("board", "priority", "c1", "none")
+        run("board", "kind", "c1", "decision")
+        check(patches[-3:] == [{"priority": 2}, {"priority": None}, {"kind": "decision"}],
+              "board priority sends a number (none clears it) and board kind sends the kind",
+              f"patches: {patches}")
 
         listed_go = run("go")
         uncoloured = run("go", "play", "D4")

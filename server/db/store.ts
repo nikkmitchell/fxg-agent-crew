@@ -7,6 +7,7 @@ import {
   PROFILE_LIMITS,
   canTransition,
   hasProjectAuthority,
+  isPriority,
   isRole,
   leavesNoManager,
   mayManageMembership,
@@ -41,6 +42,25 @@ function refuseOffTheBoard(at: { x: number; y: number; w?: number; h?: number })
   if (!onTheBoard({ x: at.x, y: at.y, w: at.w ?? 1, h: at.h ?? 1 })) {
     throw new Refused(`a board item must sit within ${MOOD_REACH} px of the origin, with a real size`, "OFF_THE_BOARD");
   }
+}
+
+/** A card's priority, 1 (now) to 5 (someday), or null for untriaged; anything else is refused. */
+function checkedPriority(value: unknown): number | null {
+  if (value === null) return null;
+  if (!isPriority(value)) throw new Refused("priority is 1 (now), 2 (next), 3 (soon), 4 (later), 5 (someday), or null for untriaged", "BAD_PRIORITY");
+  return value;
+}
+
+/** A card's kind: build, decision, or null for nobody said. Refused in words, not as a database error. */
+function checkedKind(value: unknown): "build" | "decision" | null {
+  if (value === null || value === "build" || value === "decision") return value;
+  throw new Refused("kind is build, decision, or null for nobody said", "BAD_KIND");
+}
+
+/** Points are a whole number, 0 or more. SQLite's `points >= 0` lets a word through. */
+function checkedPoints(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) throw new Refused("points are a whole number, 0 or more", "BAD_POINTS");
+  return value;
 }
 
 export class Refused extends Error {
@@ -334,7 +354,7 @@ export class BoardStore {
       this.db.prepare(`INSERT INTO tasks (id,project_id,title,description,kind,points,priority,status,created_at,updated_at)
                        VALUES (?,?,?,?,?,?,?,?,?,?)`)
         .run(id, input.projectId, input.title.trim(), input.description?.trim() || null,
-             input.kind ?? null, input.points ?? 1, input.priority ?? null,
+             checkedKind(input.kind ?? null), checkedPoints(input.points ?? 1), checkedPriority(input.priority ?? null),
              (input.owners?.length ? "assigned" : "backlog"), now(), now());
       for (const owner of input.owners ?? []) {
         this.ensureActor(owner);
@@ -371,9 +391,9 @@ export class BoardStore {
       if (patch.description !== undefined) {
         set("description", patch.description?.trim() ? bounded(patch.description.trim(), LIMITS.description, "brief") : null);
       }
-      if (patch.kind !== undefined) set("kind", patch.kind);
-      if (patch.points !== undefined) set("points", patch.points);
-      if (patch.priority !== undefined) set("priority", patch.priority);
+      if (patch.kind !== undefined) set("kind", checkedKind(patch.kind));
+      if (patch.points !== undefined) set("points", checkedPoints(patch.points));
+      if (patch.priority !== undefined) set("priority", checkedPriority(patch.priority));
       if (!sets.length) return;
 
       set("updated_at", now());
