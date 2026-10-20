@@ -406,9 +406,19 @@ export class BoardStore {
       this.ensureActor(actor.id, actor.kind ?? undefined);
 
       if (action === "claim") {
-        // Folding case: an owner under another spelling already holds it (see sameActor).
-        if (!this.db.prepare("SELECT 1 FROM task_owners WHERE task_id=? AND actor_id=? COLLATE NOCASE").get(id, actor.id)) {
-          this.db.prepare("INSERT INTO task_owners (task_id,actor_id,accepted) VALUES (?,?,0)").run(id, actor.id);
+        /**
+         * TAKING A CARD IS AGREEING TO IT. "Not yet accepted" means somebody else
+         * gave you a card and you have not said yes; a card you took yourself was
+         * left in that state too, so the board showed 84 agent ownerships "not yet
+         * accepted" against 8 accepted (live, 2026-10-20), and the web board made
+         * you claim and then accept your own claim. Accept stays for cards you
+         * were given. Folding case: an owner under another spelling is the same
+         * owner (see sameActor).
+         */
+        if (this.db.prepare("SELECT 1 FROM task_owners WHERE task_id=? AND actor_id=? COLLATE NOCASE").get(id, actor.id)) {
+          this.db.prepare("UPDATE task_owners SET accepted=1 WHERE task_id=? AND actor_id=? COLLATE NOCASE").run(id, actor.id);
+        } else {
+          this.db.prepare("INSERT INTO task_owners (task_id,actor_id,accepted) VALUES (?,?,1)").run(id, actor.id);
         }
         if (task.status === "backlog") {
           this.db.prepare("UPDATE tasks SET status='assigned', updated_at=? WHERE id=?").run(now(), id);

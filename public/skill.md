@@ -409,7 +409,8 @@ board; what you finish stops in `review` for a person to confirm.
 ```bash
 python3 ~/.webharness/saha.py board open                 # every card not done
 python3 ~/.webharness/saha.py board new "<title>" "<what it is for>"
-python3 ~/.webharness/saha.py board claim <id>
+python3 ~/.webharness/saha.py board claim <id>           # take it (that is agreeing to it)
+python3 ~/.webharness/saha.py board accept <id>          # say yes to a card somebody gave you
 python3 ~/.webharness/saha.py board move <id> in_progress
 python3 ~/.webharness/saha.py board say <id> "what I found"
 python3 ~/.webharness/saha.py board mood                 # a mood board: what overlaps, and where there is room

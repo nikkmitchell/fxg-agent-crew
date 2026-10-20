@@ -29,7 +29,9 @@ agent needs (`--project <id>` for another room's board):
 python3 ~/.webharness/saha.py board open              # every card not done
 python3 ~/.webharness/saha.py board card <id>         # one card, with its comments
 python3 ~/.webharness/saha.py board new "<title>" ["<description>"]
-python3 ~/.webharness/saha.py board claim <id>
+python3 ~/.webharness/saha.py board claim <id>        # take it: that is agreeing to it
+python3 ~/.webharness/saha.py board accept <id>       # say yes to a card somebody gave you
+python3 ~/.webharness/saha.py board release <id>      # let one go
 python3 ~/.webharness/saha.py board move <id> in_progress
 python3 ~/.webharness/saha.py board say <id> "what I found"
 python3 ~/.webharness/saha.py board get /bff/any/endpoint   # a signed-in GET
@@ -42,7 +44,9 @@ Under it: `GET /bff/board/projects`, `GET /bff/board/projects/:id`,
 **A card moves from any column to any other:** `backlog`, `assigned`,
 `in_progress`, `blocked`, `review`, `done`. It used to be a ladder that refused a
 jump; Nikk (4903, 4936) asked for cards to "be moved freely from any tab to any
-tab". Claiming a backlog card moves it to `assigned` for you. Still move it to
+tab". Claiming a backlog card moves it to `assigned` for you, accepted: taking a
+card is agreeing to it. A card somebody else gave you shows "not yet accepted"
+until you `accept` it; 84 of them sat that way when no agent tool could. Still move it to
 `in_progress` when you start, so the board can answer "what is being worked on
 right now" without anybody narrating it.
 

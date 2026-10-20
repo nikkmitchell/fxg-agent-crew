@@ -35,6 +35,8 @@ pings: list[bytes] = []
 # How many times arrivals asked who is here, and whether its scene is on.
 presence_calls: list[int] = []
 presence_scene: list[int] = []
+# Ownership asked of board cards: (card, action).
+ownership: list[tuple[str, object]] = []
 # What go played, in order (go's check).
 go_moves: list[object] = []
 # What screen sent: (content type, bytes) per picture, ("DELETE", 0) when taken down.
@@ -137,6 +139,10 @@ class Fake(BaseHTTPRequestHandler):
             return self.answer(200, {"tasks": [
                 {"id": "c1", "status": "review", "owners": ["Sill"], "title": "a card in review", "comments": [{"author_id": "Mica", "body": "looks right"}]},
                 {"id": "c2", "status": "done", "owners": [], "title": "a finished card"}]})
+        if path.startswith("/bff/board/tasks/") and path.endswith("/ownership"):
+            with lock:
+                ownership.append((path.split("/")[4], (body or {}).get("action")))
+            return self.answer(200, {"ok": True})
         if path.startswith("/bff/board/tasks/") and path.endswith("/status"):
             sent["status"] = body
             return self.answer(200, {"ok": True})
@@ -361,6 +367,12 @@ def main() -> int:
               and "newcomer" in (home / "seen-in-testroom.json").read_text(),
               "arrivals says who is here, then who joins and whether it is their first visit, and remembers them",
               f"arrivals: {arrived.returncode} {arrived.stdout} {arrived.stderr}")
+
+        accepted_card = run("board", "accept", "c1")
+        released_card = run("board", "release", "c1")
+        check(accepted_card.returncode == 0 and released_card.returncode == 0 and ownership == [("c1", "accept"), ("c1", "release")],
+              "board accept says yes to a card somebody gave you, and release lets one go",
+              f"accept/release: {accepted_card.stdout} {accepted_card.stderr} {released_card.stdout} {ownership}")
 
         listed_go = run("go")
         uncoloured = run("go", "play", "D4")

@@ -90,7 +90,7 @@ Your own identity, always (it refuses without it):
                                                six hours), standing up again after a drop or a deploy.
                                                Run it with your harness's background runner, never &
   python3 saha.py board open                  the task board: every card not done
-  python3 saha.py board card ID | new "TITLE" ["DESCRIPTION"] | move ID STATUS | claim ID
+  python3 saha.py board card ID | new "TITLE" ["DESCRIPTION"] | move ID STATUS | claim ID | accept ID | release ID
                                                | say ID "comment" | describe ID "text" | projects
                                                | mood | get /bff/PATH | intake PROJECT SPACE
                                                | question CARD | answer CARD FILE.json
@@ -871,7 +871,7 @@ def cmd_board(s: Session, args: list[str]) -> None:
     """The task board (saha.ing's own database: docs/ADR-002). It was board.py and tools/board.mts."""
     project = flag(args, "--project") or os.environ.get("SAHA_PROJECT") or "saha-ing"
     if not args:
-        fail("board what? saha.py board open | card ID | new TITLE | move ID STATUS | claim ID | say ID TEXT |"
+        fail("board what? saha.py board open | card ID | new TITLE | move ID STATUS | claim ID | accept ID | release ID | say ID TEXT |"
              " describe ID TEXT | projects | mood | get PATH | intake PROJECT SPACE | question CARD | answer CARD FILE", 2)
     what, rest = args[0], args[1:]
 
@@ -914,7 +914,12 @@ def cmd_board(s: Session, args: list[str]) -> None:
             fail(f"a status is one of: {' '.join(BOARD_STATUSES)} (any column to any other)", 2)
         done(s.request("POST", f"/bff/board/tasks/{rest[0]}/status", {"to": rest[1]}), f"moved to {rest[1]}")
     elif what == "claim" and rest:
-        done(s.request("POST", f"/bff/board/tasks/{rest[0]}/ownership", {"action": "claim"}), "claimed")
+        done(s.request("POST", f"/bff/board/tasks/{rest[0]}/ownership", {"action": "claim"}), "claimed (taking it is agreeing to it)")
+    elif what == "accept" and rest:
+        # A card somebody gave you: until you say yes it shows "not yet accepted".
+        done(s.request("POST", f"/bff/board/tasks/{rest[0]}/ownership", {"action": "accept"}), "accepted")
+    elif what == "release" and rest:
+        done(s.request("POST", f"/bff/board/tasks/{rest[0]}/ownership", {"action": "release"}), "released: it is not yours any more")
     elif what == "say" and len(rest) >= 2:
         done(s.request("POST", f"/bff/board/tasks/{rest[0]}/comments", {"body": " ".join(rest[1:])}), "said")
     elif what == "describe" and len(rest) >= 2:

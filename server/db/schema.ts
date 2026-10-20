@@ -1478,4 +1478,20 @@ export const MIGRATIONS: Migration[] = [
       CREATE UNIQUE INDEX review_rounds_request ON review_rounds (created_by, request_key) WHERE request_key IS NOT NULL;
     `,
   },
+  {
+    id: 55,
+    name: "a card you took yourself is accepted",
+    sql: `
+      -- Taking a card is agreeing to it (2026-10-20). Claims made before then
+      -- were left "not yet accepted" (143 of 180 such ownerships on saha.ing).
+      -- The audit says which ownerships were the owner's own claim; only those
+      -- are marked accepted. A card somebody else gave you still waits for you.
+      UPDATE task_owners SET accepted = 1
+      WHERE accepted = 0
+        AND EXISTS (SELECT 1 FROM audit a
+                    WHERE a.action = 'claim' AND a.entity = 'task'
+                      AND a.entity_id = task_owners.task_id
+                      AND lower(a.actor_id) = lower(task_owners.actor_id));
+    `,
+  },
 ];

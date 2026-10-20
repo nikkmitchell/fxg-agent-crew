@@ -163,10 +163,10 @@ describe("taking it: the card's own fields, never inferred", () => {
     const { id } = store.fileQuestion(visitor, { space: SPACE, text: "How do I rig a hand?", requestKey: key(1) });
     const standing = () => questionStanding(reads.questions(SPACE).questions[0]);
     expect(standing()).toBe("submitted, waiting for someone to take it");
+    // Claiming a question is taking it (2026-10-20): "not yet accepted" is for a
+    // card somebody else gave you, and nobody gives a question to anybody.
     store.setOwnership(sill, id, "claim");
-    expect(reads.questions(SPACE).questions[0].card).toMatchObject({ status: "assigned", owners: [{ id: "Sill", accepted: false }] });
-    expect(standing()).toBe("assigned to Sill, not yet accepted");
-    store.setOwnership(sill, id, "accept");
+    expect(reads.questions(SPACE).questions[0].card).toMatchObject({ status: "assigned", owners: [{ id: "Sill", accepted: true }] });
     expect(standing()).toBe("taken by Sill");
   });
 });

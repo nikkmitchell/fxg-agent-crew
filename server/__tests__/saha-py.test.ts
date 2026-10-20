@@ -39,6 +39,8 @@ describe.skipIf(unixOnly)("saha.py, the agent's one tool", () => {
     // Go, which was tools/go.mts (2026-10-20).
     expect(output).toContain("ok - go play sends Go's own names for the server to read, and wait returns when it is your turn");
     expect(output).toContain("ok - arrivals says who is here, then who joins and whether it is their first visit, and remembers them");
+    // 84 agent ownerships sat "not yet accepted" because no agent tool could accept (2026-10-20).
+    expect(output).toContain("ok - board accept says yes to a card somebody gave you, and release lets one go");
   }, 120_000);
 
   it("knows the same postures, moods and gestures the server does", () => {

@@ -388,6 +388,23 @@ describe("what was asked, attested by us and not signed", () => {
   });
 });
 
+describe("taking a card", () => {
+  it("is agreeing to it: a card you claim yourself is accepted", () => {
+    const id = aTask();
+    store.setOwnership(nikk, id, "claim");
+    expect(db.prepare("SELECT actor_id, accepted FROM task_owners WHERE task_id = ?").all(id))
+      .toEqual([{ actor_id: "nikk", accepted: 1 }]);
+  });
+
+  it("leaves a card somebody else gave you waiting for your yes, until you accept or claim it", () => {
+    store.actOnMembership(nikk, "saha", "claude-nikk2mbp", "grant", []);
+    const id = aTask(["claude-nikk2mbp"]);
+    expect(db.prepare("SELECT accepted FROM task_owners WHERE task_id = ?").get(id)).toEqual({ accepted: 0 });
+    store.setOwnership(claude, id, "accept");
+    expect(db.prepare("SELECT accepted FROM task_owners WHERE task_id = ?").get(id)).toEqual({ accepted: 1 });
+  });
+});
+
 describe("one person, however they are spelled", () => {
   // WebHarness handed the same person over as "Steven" and "steven" five
   // seconds apart (live, 2026-10-13). The room folds case; the board must too.
@@ -679,5 +696,21 @@ describe("moving out from underneath something", () => {
     }) as string;
     store.moveBoardItem(nikk, mover, { x: 2000, y: 2000 });
     expect(store.overlapsOf(mover)).toEqual({ covers: [], coveredBy: [] });
+  });
+});
+
+describe("migration 55: past self-claims", () => {
+  it("accepts an ownership the owner claimed, and leaves one somebody else gave them waiting", async () => {
+    const { MIGRATIONS } = await import("../db/schema.js");
+    store.actOnMembership(nikk, "saha", "claude-nikk2mbp", "grant", []);
+    const claimed = aTask();
+    const given = aTask(["claude-nikk2mbp"]);
+    // As claims were before 2026-10-20: the owner's own claim left unaccepted.
+    db.prepare("INSERT INTO task_owners (task_id, actor_id, accepted) VALUES (?, 'Nikk', 0)").run(claimed);
+    db.prepare("INSERT INTO audit (at, actor_id, action, entity, entity_id) VALUES ('t', 'nikk', 'claim', 'task', ?)").run(claimed);
+    db.exec(MIGRATIONS.find((migration) => migration.id === 55)!.sql);
+    const accepted = (task: string) => db.prepare("SELECT accepted FROM task_owners WHERE task_id = ?").get(task);
+    expect(accepted(claimed)).toEqual({ accepted: 1 });
+    expect(accepted(given)).toEqual({ accepted: 0 });
   });
 });
