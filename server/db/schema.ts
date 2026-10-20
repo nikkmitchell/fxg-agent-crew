@@ -1506,4 +1506,21 @@ export const MIGRATIONS: Migration[] = [
       UPDATE tasks SET points = 1 WHERE typeof(points) != 'integer' OR points < 0;
     `,
   },
+  {
+    id: 57,
+    name: "a project's headline steps",
+    sql: `
+      -- The new-project form has asked for one to ten headline steps since the
+      -- board moved here (ADR-002), and they were thrown away: nowhere kept
+      -- them, so every project's Overview showed "Steps" over nothing.
+      CREATE TABLE project_steps (
+        project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        id          TEXT NOT NULL,
+        position    INTEGER NOT NULL,
+        title       TEXT NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'not_started' CHECK (status IN ('not_started','in_progress','done')),
+        PRIMARY KEY (project_id, id)
+      );
+    `,
+  },
 ];

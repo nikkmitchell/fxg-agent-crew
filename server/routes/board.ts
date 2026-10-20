@@ -31,6 +31,7 @@ const CODES: Record<string, number> = {
   BAD_KIND: 400,
   BAD_OWNERS: 400,
   BAD_ROLE: 400,
+  BAD_STEP: 400,
   BAD_POINTS: 400,
   CONFLICT: 409,
   NOT_FOUND: 404,
@@ -230,14 +231,21 @@ export function registerBoardRoutes(
 
   // ------------------------------------------------------------------ writes
 
-  app.post<{ Body: { id?: string; name?: string; summary?: string; goals?: string[] } }>(
+  app.post<{ Body: { id?: string; name?: string; summary?: string; goals?: string[]; steps?: string[] } }>(
     "/bff/board/projects", async (request, reply) => {
       const session = requireSession(request, reply);
       if (!session) return reply;
       return handle(reply, request, () => store.createProject(actorOf(session), {
         id: request.body?.id, name: request.body?.name ?? "", summary: request.body?.summary,
-        goals: request.body?.goals,
+        goals: request.body?.goals, steps: request.body?.steps,
       }));
+    });
+
+  app.post<{ Params: { id: string; step: string }; Body: { status?: unknown } }>(
+    "/bff/board/projects/:id/steps/:step", async (request, reply) => {
+      const session = requireSession(request, reply);
+      if (!session) return reply;
+      return handle(reply, request, () => store.setStepStatus(actorOf(session), request.params.id, request.params.step, request.body?.status));
     });
 
   app.post<{ Body: Record<string, never> }>("/bff/board/tasks", async (request, reply) => {

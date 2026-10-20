@@ -69,6 +69,17 @@ function checkedOwners(value: unknown): string[] {
   return owners;
 }
 
+/** A project's headline steps: none, or one to ten titles in words. */
+function checkedSteps(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Refused("steps is a list of titles", "BAD_STEP");
+  const steps = value.map((raw) => (typeof raw === "string" ? raw.trim() : ""));
+  if (steps.some((title) => !title)) throw new Refused("each step is a title in words", "BAD_STEP");
+  if (steps.length > 10) throw new Refused("a project has at most ten headline steps", "BAD_STEP");
+  for (const title of steps) bounded(title, LIMITS.title, "step");
+  return steps;
+}
+
 /** A card's kind: build, decision, or null for nobody said. Refused in words, not as a database error. */
 function checkedKind(value: unknown): "build" | "decision" | null {
   if (value === null || value === "build" || value === "decision") return value;
@@ -345,10 +356,11 @@ export class BoardStore {
 
   // ---------------------------------------------------------------- projects
 
-  createProject(actor: Actor, input: { id?: string; name: string; summary?: string; goals?: string[] }) {
+  createProject(actor: Actor, input: { id?: string; name: string; summary?: string; goals?: string[]; steps?: string[] }) {
     const id = (input.id ?? slug(input.name)).trim();
     if (!id) throw new Refused("project id is required");
     if (!input.name.trim()) throw new Refused("project name is required");
+    const steps = checkedSteps(input.steps);
 
     return this.tx(() => {
       this.ensureActor(actor.id, actor.kind ?? undefined);
@@ -360,6 +372,10 @@ export class BoardStore {
       (input.goals ?? []).forEach((text, position) => {
         this.db.prepare("INSERT INTO project_goals (project_id, position, text) VALUES (?,?,?)")
           .run(id, position, text);
+      });
+      steps.forEach((title, position) => {
+        this.db.prepare("INSERT INTO project_steps (project_id, id, position, title) VALUES (?,?,?,?)")
+          .run(id, `step-${position + 1}`, position, title);
       });
       // THE BOOTSTRAP. Someone has to be able to act on a brand new project, and
       // the only defensible someone is whoever created it. Without this, a new
@@ -826,6 +842,24 @@ export class BoardStore {
       }
       this.audit(actor.id, action, "membership", `${projectId}:${actorId}`, undefined, { roles: clean });
     }, { actorId: actor.id, action: `${action} membership`, target: `${projectId}:${actorId}` });
+  }
+
+  /**
+   * Where a project is on one of its headline steps. A member of the project
+   * may say: the same authority as moving its cards.
+   */
+  setStepStatus(actor: Actor, projectId: string, stepId: string, status: unknown) {
+    if (status !== "not_started" && status !== "in_progress" && status !== "done") {
+      throw new Refused("a step is not_started, in_progress or done", "BAD_STEP");
+    }
+    return this.tx(() => {
+      this.assertAuthority(actor.id, projectId);
+      const before = this.db.prepare("SELECT status FROM project_steps WHERE project_id = ? AND id = ?").get(projectId, stepId) as
+        | { status: string } | undefined;
+      if (!before) throw new Refused(`no step ${stepId} on ${projectId}`, "NOT_FOUND");
+      this.db.prepare("UPDATE project_steps SET status = ? WHERE project_id = ? AND id = ?").run(status, projectId, stepId);
+      this.audit(actor.id, "step", "project", projectId, before, { step: stepId, status });
+    }, { actorId: actor.id, action: "set step", target: `${projectId}:${stepId}` });
   }
 
   // ------------------------------------------------------------ mood boards

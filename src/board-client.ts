@@ -22,8 +22,11 @@ export const board = {
   history: (entity: string, id: string) =>
     call<{ history: unknown[] }>(`/history/${entity}/${encodeURIComponent(id)}`),
 
-  createProject: (body: { id?: string; name: string; summary?: string; goals?: string[] }) =>
+  createProject: (body: { id?: string; name: string; summary?: string; goals?: string[]; steps?: string[] }) =>
     call<{ result: string }>("/projects", { method: "POST", body: JSON.stringify(body) }),
+  /** Where a project is on one of its headline steps. */
+  setStep: (projectId: string, stepId: string, status: "not_started" | "in_progress" | "done") =>
+    call(`/projects/${encodeURIComponent(projectId)}/steps/${encodeURIComponent(stepId)}`, { method: "POST", body: JSON.stringify({ status }) }),
   createTask: (body: Record<string, unknown>) =>
     call<{ result: string }>("/tasks", { method: "POST", body: JSON.stringify(body) }),
   updateTask: (id: string, patch: Record<string, unknown>) =>
@@ -112,7 +115,7 @@ export function toCrewProject(row: Record<string, any>) {
     name: row.name,
     summary: row.summary ?? "",
     goals: row.goals ?? [],
-    steps: [],
+    steps: Array.isArray(row.steps) ? row.steps : [],
     ...(typeof row.created_by === "string" ? { createdBy: row.created_by } : {}),
   };
 }

@@ -38,6 +38,8 @@ export class BoardReads {
 
     const goals = (this.db.prepare("SELECT text FROM project_goals WHERE project_id=? ORDER BY position")
       .all(projectId) as Array<{ text: string }>).map((g) => g.text);
+    const steps = this.db.prepare("SELECT id, title, status FROM project_steps WHERE project_id=? ORDER BY position")
+      .all(projectId) as Array<{ id: string; title: string; status: string }>;
 
     const tasks = this.db.prepare(`
       SELECT t.*,
@@ -93,7 +95,7 @@ export class BoardReads {
     }
 
     return {
-      project: { ...project, goals },
+      project: { ...project, goals, steps },
       tasks: tasks.map((task) => ({
         ...task,
         lastChange: lastChange.get(task.id as string) ?? null,

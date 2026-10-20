@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "../db/open.js";
 import { BoardStore, Refused } from "../db/store.js";
+import { BoardReads } from "../db/reads.js";
 import { coverings } from "../../shared/board-overlap.js";
 import { PROFILE_LIMITS } from "../../shared/board-rules.js";
 
@@ -413,6 +414,33 @@ describe("what a card's priority, kind and points may be", () => {
     db.prepare("UPDATE tasks SET priority = 'normal' WHERE id = ?").run(id);
     db.exec(MIGRATIONS.find((migration) => migration.id === 56)!.sql);
     expect(db.prepare("SELECT priority FROM tasks WHERE id = ?").get(id)).toEqual({ priority: null });
+  });
+});
+
+describe("a project's headline steps", () => {
+  it("keeps the steps the new-project form asks for, in order, and reads them back with the goals", () => {
+    store.createProject(nikk, { id: "stepped", name: "Stepped", goals: ["a goal"], steps: ["Sketch", " Build ", "Ship"] });
+    const project = new BoardReads(db).project("stepped")!.project as { goals: string[]; steps: { id: string; title: string; status: string }[] };
+    expect(project.goals).toEqual(["a goal"]);
+    expect(project.steps).toEqual([
+      { id: "step-1", title: "Sketch", status: "not_started" },
+      { id: "step-2", title: "Build", status: "not_started" },
+      { id: "step-3", title: "Ship", status: "not_started" },
+    ]);
+  });
+
+  it("lets a member say where a step is, and nobody else", () => {
+    store.createProject(nikk, { id: "stepped", name: "Stepped", steps: ["Sketch"] });
+    store.setStepStatus(nikk, "stepped", "step-1", "in_progress");
+    expect(db.prepare("SELECT status FROM project_steps WHERE id = 'step-1'").get()).toEqual({ status: "in_progress" });
+    expect(() => store.setStepStatus(stranger, "stepped", "step-1", "done")).toThrow(/not a member/);
+    expect(() => store.setStepStatus(nikk, "stepped", "step-1", "finished")).toThrow(expect.objectContaining({ code: "BAD_STEP" }));
+    expect(() => store.setStepStatus(nikk, "stepped", "step-9", "done")).toThrow(expect.objectContaining({ code: "NOT_FOUND" }));
+  });
+
+  it("refuses more than ten steps, or a step that is not words", () => {
+    expect(() => store.createProject(nikk, { id: "many", name: "Many", steps: Array.from({ length: 11 }, (_, i) => `s${i}`) })).toThrow(/at most ten/);
+    expect(() => store.createProject(nikk, { id: "blank", name: "Blank", steps: ["ok", "  "] })).toThrow(expect.objectContaining({ code: "BAD_STEP" }));
   });
 });
 

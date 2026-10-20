@@ -4,7 +4,7 @@ import type { CrewProject, CrewTask } from "./board-types";
 import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
-import { BOARD_COLUMNS, calculateProjectProgress } from "./project-model";
+import { BOARD_COLUMNS, calculateProjectProgress, stepProgress } from "./project-model";
 import { PRIORITY_LABELS, STATUS_LABELS, nextStatuses, sameActor, type Status } from "../shared/board-rules";
 import { nextUnclaimed, priorityLabel } from "./priority";
 import { byArrival } from "./board-order";
@@ -192,8 +192,13 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       const wanted = selectedIdRef.current || (list.projects[0]?.id as string | undefined);
       const detail = wanted ? await board.project(wanted) : null;
 
+      // The list carries no goals or steps; the project fetched with its cards
+      // does. Without this the Overview's Goals and Steps were always empty.
+      const fuller = (detail?.project ?? null) as Record<string, unknown> | null;
       const projects: ProjectState = {
-        projects: list.projects.map((row) => toCrewProject(row as Record<string, unknown>)),
+        projects: list.projects.map((row) => toCrewProject(
+          fuller && (row as Record<string, unknown>).id === fuller.id ? { ...(row as Record<string, unknown>), ...fuller } : row as Record<string, unknown>,
+        )),
         tasks: ((detail?.tasks ?? []) as Array<Record<string, unknown>>).map(toCrewTask) as CrewTask[],
         memberships: (people.memberships ?? []) as Membership[],
         profiles: (people.actors ?? []).map((row) => toProfile(row as Record<string, unknown>)) as ActorProfile[],
@@ -439,7 +444,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     const stepTitles = String(data.get("steps") ?? "").split("\n").map((value) => value.trim()).filter(Boolean).slice(0, 10);
     if (!name || !summary || !goal || stepTitles.length === 0) return setError("Name, summary, goal, and at least one step are required.");
     const id = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now().toString(36)}`;
-    await write(() => board.createProject({ id, name, summary, goals: [goal] }));
+    await write(() => board.createProject({ id, name, summary, goals: [goal], steps: stepTitles }));
     setSelectedId(id);
     form.reset();
   };
@@ -765,8 +770,33 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
             card was a decision. */}
         <p className="kind-progress">{describeProgress(tasks)}</p>
 
-        <h3>Goals</h3><ul>{selected.goals.map((goal) => <li key={goal}>{goal}</li>)}</ul>
-        <h3>Steps</h3><ol>{selected.steps.map((step) => <li key={step.id} data-status={step.status}>{step.title}</li>)}</ol>
+        <h3>Goals</h3>
+        {selected.goals.length ? <ul>{selected.goals.map((goal) => <li key={goal}>{goal}</li>)}</ul> : <p className="muted-note">No goals were written for this project.</p>}
+        <h3>Steps</h3>
+        {selected.steps.length ? (
+          <>
+            <p className="kind-progress">{(() => { const p = stepProgress(selected.steps); return `${p.done} of ${p.total} steps done`; })()}</p>
+            <ol className="project-steps">
+              {selected.steps.map((step) => (
+                <li key={step.id} data-status={step.status}>
+                  <span>{step.title}</span>
+                  {me ? (
+                    <select
+                      aria-label={`${step.title}: where it is`}
+                      value={step.status}
+                      disabled={busy}
+                      onChange={(event) => void write(() => board.setStep(selected.id, step.id, event.target.value as "not_started" | "in_progress" | "done"))}
+                    >
+                      <option value="not_started">not started</option>
+                      <option value="in_progress">in progress</option>
+                      <option value="done">done</option>
+                    </select>
+                  ) : <small>{step.status.replace("_", " ")}</small>}
+                </li>
+              ))}
+            </ol>
+          </>
+        ) : <p className="muted-note">No headline steps were written for this project.</p>}
 
         {/*
           * Live updates, derived from the comments already loaded rather than
