@@ -4,7 +4,6 @@ import type { BoardCard } from "../../shared/board-3d";
 import type { TaskDetail } from "../../shared/card-detail";
 import type { MoodItem } from "../../shared/mood-3d";
 import { isStatus, nextStatuses } from "../../shared/board-rules";
-import { board as boardApi } from "../board-client";
 
 /**
  * The work board's cards, for the room.
@@ -84,8 +83,17 @@ export function useBoardCards(projectId: string | null): BoardFeed {
    * Cheaper to make it impossible than to watch for it.
    */
   const inFlight = useRef(false);
+  /**
+   * WHICH WRITE THE CARDS ON SCREEN CAME FROM, and for which project. The poll
+   * asks /bff/board/version (a few bytes) and reads the project only when it
+   * moved: saha-ing's whole project is 460 KB, and every open room re-read it
+   * every twelve seconds over a link that carries about 21 KB a second. The
+   * Work page has asked this way since c66b0f1. A refresh after your own
+   * move skips the question.
+   */
+  const seen = useRef<{ version: string; projectId: string } | null>(null);
 
-  const read = useCallback(async () => {
+  const read = useCallback(async (force = false) => {
     if (!projectId) {
       setCards([]);
       setProjectName(null);
@@ -95,6 +103,11 @@ export function useBoardCards(projectId: string | null): BoardFeed {
     if (inFlight.current) return;
     inFlight.current = true;
     try {
+      const version = await board.version().then((answer) => answer.version, () => null);
+      if (!force && version && seen.current?.version === version && seen.current.projectId === projectId) {
+        setTrouble(null);
+        return;
+      }
       const project = (await board.project(projectId)) as {
         tasks?: Record<string, unknown>[];
         boards?: Record<string, unknown>[];
@@ -121,6 +134,7 @@ export function useBoardCards(projectId: string | null): BoardFeed {
       );
       setLoaded(true);
       setTrouble(null);
+      seen.current = version ? { version, projectId } : null;
     } catch (error) {
       if (!live.current) return;
       // KEEP THE OLD CARDS. A board that empties because one poll failed is a
@@ -188,10 +202,10 @@ export function useBoardCards(projectId: string | null): BoardFeed {
       z: Number(one.z ?? 0),
       ...(one.text ? { text: String(one.text) } : {}),
       ...(one.caption && !one.text ? { text: String(one.caption) } : {}),
-      ...(one.blob_id ? { src: boardApi.blobUrl(String(one.blob_id)) } : one.url ? { src: String(one.url) } : {}),
+      ...(one.blob_id ? { src: board.blobUrl(String(one.blob_id)) } : one.url ? { src: String(one.url) } : {}),
       ...(one.added_by ? { addedBy: String(one.added_by) } : {}),
     }));
   }, []);
 
-  return { cards, loaded, trouble, detailOf, moodItemsOf, moodBoards, projectName, refresh: () => void read() };
+  return { cards, loaded, trouble, detailOf, moodItemsOf, moodBoards, projectName, refresh: () => void read(true) };
 }
