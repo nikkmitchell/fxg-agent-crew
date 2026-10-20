@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  GRAZING,
   REACH,
   beginGrab,
-  beginPlaneGrab,
-  draggedOnPlane,
   grabbedTo,
-  onLevelPlane,
   pushPull,
   unit,
   type Ray,
@@ -180,47 +176,6 @@ describe("pushing it away and pulling it in", () => {
     const ray = looking(0);
     const grab = beginGrab(ray, { x: 0, y: 1.62, z: -400 });
     expect(grab.distance).toBe(REACH.furthest);
-  });
-});
-
-describe("things that stand on the floor", () => {
-  it("meets the floor where you would expect", () => {
-    const hit = onLevelPlane(looking(-45), 0)!;
-    expect(hit).not.toBeNull();
-    expect(hit.y).toBe(0);
-    // 45 degrees down from 1.62 up is 1.62 along the ground.
-    expect(Math.hypot(hit.x, hit.z)).toBeCloseTo(1.62, 6);
-  });
-
-  it("CALLS A GRAZING RAY A MISS rather than answering with a wild number", () => {
-    expect(onLevelPlane(looking(-1), 0)).toBeNull();
-    expect(onLevelPlane(looking(0), 0)).toBeNull();
-    expect(onLevelPlane(looking(1), 0)).toBeNull();
-    // Just past the threshold it answers again.
-    const steep = (Math.asin(GRAZING) * 180) / Math.PI + 0.5;
-    expect(onLevelPlane(looking(-steep), 0)).not.toBeNull();
-  });
-
-  it("does not put things behind you when you look up", () => {
-    expect(onLevelPlane(looking(30), 0)).toBeNull();
-  });
-
-  it("keeps a table held where it was grabbed, and keeps it on the floor", () => {
-    const ray = looking(-30);
-    const table = { x: 0.4, y: 0, z: -2.2 };
-    const offset = beginPlaneGrab(ray, table, 0)!;
-    expect(offset).not.toBeNull();
-    const back = draggedOnPlane(ray, offset, 0)!;
-    expect(apart(back, table)).toBeLessThan(1e-9);
-
-    const moved = draggedOnPlane(looking(-30, 25), offset, 0)!;
-    expect(moved.y).toBe(0);
-    expect(moved.x).toBeGreaterThan(table.x);
-  });
-
-  it("refuses to start a grab it could not steer", () => {
-    expect(beginPlaneGrab(looking(-1), { x: 0, y: 0, z: -2 }, 0)).toBeNull();
-    expect(draggedOnPlane(looking(-1), { x: 0, y: 0, z: 0 }, 0)).toBeNull();
   });
 });
 

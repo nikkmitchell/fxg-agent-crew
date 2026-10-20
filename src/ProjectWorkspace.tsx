@@ -16,7 +16,7 @@ import { MoodBoard, type Board } from "./MoodBoard";
 import { briefBudget, describeBudget } from "../shared/brief-budget";
 import { ApiError } from "./api-request";
 import { bff } from "./bff-client";
-import { DONE_LIMIT, boardIsLively, foldDone, glowAt, shownStatus } from "../shared/board-freshness";
+import { DONE_LIMIT, boardIsGlowing, boardIsLively, foldDone, glowAt, shownStatus } from "../shared/board-freshness";
 import { taskAgeStamp } from "./task-age";
 
 
@@ -308,17 +308,21 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   const selected = state.projects.find((project) => project.id === selectedId);
   const tasks = state.tasks.filter((task) => task.projectId === selectedId);
   /**
-   * NOW, for the glow. Ticks once a second only while something is glowing or
-   * waiting to be revealed; a still board does not re-render for nothing.
+   * NOW, for the glow. Ticks once a second while a change is landing, then every
+   * thirty seconds while anything is still fading (the glow fades over an hour);
+   * a still board does not re-render for nothing. It ticked only while lively,
+   * forty-five seconds, so a card stayed stuck at that brightness until the
+   * board next changed, which boardIsGlowing, unused, was written to prevent.
    */
   const [nowMs, setNowMs] = useState(() => Date.now());
   const lively = boardIsLively(tasks, nowMs);
+  const glowing = boardIsGlowing(tasks, nowMs);
   livelyRef.current = lively;
   useEffect(() => {
-    if (!lively) return;
-    const timer = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    if (!lively && !glowing) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), lively ? 1_000 : 30_000);
     return () => window.clearInterval(timer);
-  }, [lively]);
+  }, [lively, glowing]);
   useEffect(() => {
     // A fresh load can bring a new change while the clock is idle.
     setNowMs(Date.now());

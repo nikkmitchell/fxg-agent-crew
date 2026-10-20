@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { SCREEN_LIMITS } from "../../shared/screens";
+import { SCREEN_LIMITS, captureSize } from "../../shared/screens";
 
 /**
  * SHARE MY SCREEN FROM THE ROOM'S OWN SETTINGS (Nikk, 7227: "add it as an
@@ -98,9 +98,7 @@ async function tick(video: HTMLVideoElement, canvas: HTMLCanvasElement): Promise
   if (sending || !stream || !video.videoWidth) return;
   sending = true;
   try {
-    const scale = Math.min(1, SCREEN_LIMITS.width / video.videoWidth, SCREEN_LIMITS.height / video.videoHeight);
-    const width = Math.max(1, Math.round(video.videoWidth * scale));
-    const height = Math.max(1, Math.round(video.videoHeight * scale));
+    const { width, height } = captureSize(video.videoWidth, video.videoHeight);
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;

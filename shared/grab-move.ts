@@ -141,49 +141,11 @@ export function pushPull(grab: Grab, by: number, limits: { nearest: number; furt
 }
 
 /**
- * How steeply a ray must meet a level plane before the answer is worth having.
- *
- * THIS CONSTANT IS THE BUG, WRITTEN DOWN. Below this angle the hit point is so
- * far away, and moves so fast, that it is noise rather than an intention. A
- * grazing ray is a MISS, and a thing that stays put is better than a thing
- * that leaps across the room.
- *
- * 0.12 is about seven degrees: from standing eye height that puts the furthest
- * usable hit on the floor at roughly thirteen metres, which is past the far
- * wall.
+ * NOT A CAST AT A LEVEL PLANE. Things on the floor (the Go table) were once
+ * dragged to wherever the ray met the floor, which needed a cut-off angle below
+ * which the hit was noise and the table leapt across the room: the bug, written
+ * down as a constant. Everything is now carried the one way above (grabbedTo,
+ * through use-carry.ts): held at the distance it was taken at, the wheel for
+ * nearer and further (Nikk, 2026-10-14). The plane cast and its tests went on
+ * 2026-10-20, when only the tests still used them.
  */
-export const GRAZING = 0.12;
-
-/**
- * Where a ray meets a level plane, or null if it never usefully does.
- *
- * This is for things that live ON THE FLOOR — a table is furniture, and
- * furniture that can be lifted into the air by pointing upward is a worse
- * table. Panels hang in the air and use `grabbedTo` instead.
- */
-export function onLevelPlane(ray: Ray, y: number): Vec3 | null {
-  const d = unit(ray.direction);
-  if (Math.abs(d.y) < GRAZING) return null;
-  const travel = (y - ray.origin.y) / d.y;
-  // Behind you is not in front of you, however the arithmetic works out.
-  if (travel <= 0) return null;
-  return { x: ray.origin.x + d.x * travel, y, z: ray.origin.z + d.z * travel };
-}
-
-/**
- * Take hold of something standing on a level plane.
- *
- * Returns the offset from the ray's hit to the thing, so it keeps being held
- * where it was grabbed. Null when the ray is grazing — the caller should
- * refuse the grab rather than start one that cannot be steered.
- */
-export function beginPlaneGrab(ray: Ray, at: Vec3, y: number): Vec3 | null {
-  const hit = onLevelPlane(ray, y);
-  return hit ? { x: at.x - hit.x, y: 0, z: at.z - hit.z } : null;
-}
-
-/** Where a thing standing on a plane goes, now that the ray points here. */
-export function draggedOnPlane(ray: Ray, offset: Vec3, y: number): Vec3 | null {
-  const hit = onLevelPlane(ray, y);
-  return hit ? { x: hit.x + offset.x, y, z: hit.z + offset.z } : null;
-}
