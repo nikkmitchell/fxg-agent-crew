@@ -377,8 +377,11 @@ export class BoardStore {
     projectId: string; title: string; description?: string;
     kind?: "build" | "decision"; points?: number; priority?: number; owners?: string[];
   }) {
-    if (!input.title.trim()) throw new Refused("a card needs a title");
+    if (typeof input.title !== "string" || !input.title.trim()) throw new Refused("a card needs a title, in words");
     bounded(input.title.trim(), LIMITS.title, "title");
+    if (input.description !== undefined && input.description !== null && typeof input.description !== "string") {
+      throw new Refused("a brief is words");
+    }
     if (input.description) bounded(input.description.trim(), LIMITS.description, "brief");
     const owners = checkedOwners(input.owners);
     return this.tx(() => {
@@ -419,12 +422,13 @@ export class BoardStore {
       const set = (column: string, value: unknown) => { sets.push(`${column} = ?`); values.push(value); };
 
       if (patch.title !== undefined) {
-        if (!patch.title.trim()) throw new Refused("a card needs a title");
+        if (typeof patch.title !== "string" || !patch.title.trim()) throw new Refused("a card needs a title, in words");
         set("title", bounded(patch.title.trim(), LIMITS.title, "title"));
       }
       // null means "cleared", undefined means "not mentioned". They are
       // different instructions and collapsing them loses a brief someone wrote.
       if (patch.description !== undefined) {
+        if (patch.description !== null && typeof patch.description !== "string") throw new Refused("a brief is words, or null to clear it");
         set("description", patch.description?.trim() ? bounded(patch.description.trim(), LIMITS.description, "brief") : null);
       }
       if (patch.kind !== undefined) set("kind", checkedKind(patch.kind));
@@ -850,6 +854,18 @@ export class BoardStore {
     blobId?: string; url?: string; text?: string; caption?: string;
     x?: number; y?: number; w?: number; h?: number;
   }) {
+    /**
+     * THE SAME BOUNDS AS EDITING ONE (editBoardItem): a note as long as a
+     * comment, a caption as long as a title. Adding had none, so a note could be
+     * any size; a kind outside the four failed in the database as "not saved".
+     */
+    if (!["image", "link", "note", "swatch"].includes(item.kind)) throw new Refused("an item is an image, a link, a note or a swatch");
+    for (const [field, value] of [["text", item.text], ["caption", item.caption], ["url", item.url], ["blobId", item.blobId]] as const) {
+      if (value !== undefined && value !== null && typeof value !== "string") throw new Refused(`${field} is words`);
+    }
+    if (item.text) bounded(item.text.trim(), LIMITS.comment, "note");
+    if (item.caption) bounded(item.caption.trim(), LIMITS.title, "caption");
+    if (item.url) bounded(item.url, 2048, "link");
     return this.tx(() => {
       this.assertAuthority(actor.id, this.boardProject(boardId));
       if (item.kind === "image" && !item.blobId) throw new Refused("an image item needs an uploaded file");

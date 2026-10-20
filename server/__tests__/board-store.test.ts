@@ -416,6 +416,27 @@ describe("what a card's priority, kind and points may be", () => {
   });
 });
 
+describe("adding to a mood board", () => {
+  it("bounds a note and a caption as editing one does, and refuses a kind or a value that is not allowed", () => {
+    const boardId = store.createBoard(nikk, "saha", "Mood") as string;
+    expect(() => store.addBoardItem(nikk, boardId, { kind: "note", text: "x".repeat(60_000) })).toThrow(expect.objectContaining({ code: "TOO_LONG" }));
+    expect(() => store.addBoardItem(nikk, boardId, { kind: "note", text: "ok", caption: "c".repeat(600) })).toThrow(expect.objectContaining({ code: "TOO_LONG" }));
+    expect(() => store.addBoardItem(nikk, boardId, { kind: "video" as never, text: "x" })).toThrow(/image, a link, a note or a swatch/);
+    expect(() => store.addBoardItem(nikk, boardId, { kind: "note", text: 5 as never })).toThrow(/text is words/);
+    expect(() => store.addBoardItem(nikk, boardId, { kind: "note", text: "a calm palette" })).not.toThrow();
+  });
+});
+
+describe("a card's words", () => {
+  it("refuses a title or brief that is not words, rather than failing as 'not saved'", () => {
+    const id = aTask();
+    expect(() => store.updateTask(nikk, id, { title: 42 as never })).toThrow(/title, in words/);
+    expect(() => store.updateTask(nikk, id, { description: { text: "x" } as never })).toThrow(/brief is words/);
+    expect(() => store.createTask(nikk, { projectId: "saha", title: "x", description: 7 as never })).toThrow(/brief is words/);
+    expect(() => store.updateTask(nikk, id, { description: null })).not.toThrow();
+  });
+});
+
 describe("saying what blocks a card", () => {
   it("keeps the reason, trimmed and bounded like a comment, and refuses something that is not words", () => {
     const id = aTask();
