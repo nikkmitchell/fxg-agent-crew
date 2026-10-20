@@ -4,7 +4,7 @@ import type { CrewProject, CrewTask } from "./board-types";
 import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
-import { BOARD_COLUMNS, calculateProjectProgress, stepProgress } from "./project-model";
+import { BOARD_COLUMNS, calculateProjectProgress, stepProgress, tasksFor } from "./project-model";
 import { PRIORITY_LABELS, STATUS_LABELS, nextStatuses, sameActor, type Status } from "../shared/board-rules";
 import { nextUnclaimed, priorityLabel } from "./priority";
 import { byArrival } from "./board-order";
@@ -382,11 +382,13 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
     return Array.from(usernames).sort((a, b) => a.localeCompare(b));
   }, [tasks, me?.username]);
   const viewedTasks = useMemo(
-    () => tasks.filter((task) => task.owners?.includes(viewedUsername) || task.assigneeId === viewedUsername),
+    () => tasksFor(tasks, viewedUsername),
     [tasks, viewedUsername],
   );
   useEffect(() => {
-    if (viewedUsername && !workOwners.includes(viewedUsername)) setViewedUsername(me?.username ?? workOwners[0] ?? "");
+    if (viewedUsername && !workOwners.some((owner) => sameActor(owner, viewedUsername)) && !(me && sameActor(me.username, viewedUsername))) {
+      setViewedUsername(me?.username ?? workOwners[0] ?? "");
+    }
   }, [me?.username, viewedUsername, workOwners]);
 
   /**

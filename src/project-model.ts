@@ -1,4 +1,5 @@
 import type { CrewTask } from "./board-types";
+import { sameActor } from "../shared/board-rules";
 
 /**
  * The project shape behind the tabs, per the spec in room message 624.
@@ -94,9 +95,14 @@ export function accept(task: BoardTask, username: string): BoardTask {
   return { ...task, acceptedBy: [...task.acceptedBy, username] };
 }
 
-/** Tasks a person is on — for the "My work" tab. */
-export function tasksFor(tasks: BoardTask[], username: string): BoardTask[] {
-  return tasks.filter((task) => task.owners.includes(username));
+/**
+ * Tasks a person is on, for the "My work" tab: an owner, or the assignee,
+ * however either is spelled (shared/board-rules.ts sameActor). The tab had its
+ * own exact-match copy, so "steven" saw an empty page of "Steven"'s cards.
+ */
+export function tasksFor<T extends { owners?: readonly string[]; assigneeId?: string }>(tasks: readonly T[], username: string): T[] {
+  return tasks.filter((task) =>
+    (task.owners ?? []).some((owner) => sameActor(owner, username)) || (task.assigneeId !== undefined && sameActor(task.assigneeId, username)));
 }
 
 /**

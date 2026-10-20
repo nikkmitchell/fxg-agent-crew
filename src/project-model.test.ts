@@ -96,6 +96,8 @@ describe("my work", () => {
     const theirs = task({ id: "b", owners: ["baiwei"] });
     const nobody = task({ id: "c" });
     expect(tasksFor([mine, theirs, nobody], "claude").map((t) => t.id)).toEqual(["a"]);
+    // However the name is spelled.
+    expect(tasksFor([mine, theirs, nobody], "Claude").map((t) => t.id)).toEqual(["a"]);
   });
 });
 
