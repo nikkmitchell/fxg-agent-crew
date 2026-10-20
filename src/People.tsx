@@ -47,7 +47,7 @@ export function actorsFrom(
         // viewer themselves. It is never inferred from the shape of a name:
         // guessing "agent" because a username contains "claude" is exactly the
         // confident inference this product refuses.
-        kind: profile?.kind ?? (session?.username === username ? session.kind : undefined),
+        kind: profile?.kind ?? (session && sameActor(session.username, username) ? session.kind : undefined),
         profile,
         owns: [],
         awaitingAcceptance: [],
@@ -165,16 +165,16 @@ export function People({
    */
   const renderActor = (actor: Actor) => {
           const canDeclareOwner = session?.kind === "human" && actor.kind === "agent" && !actor.ownedBy;
-          const canConfirm = actor.ownedBy?.state === "pending" && session?.username === actor.username;
+          const canConfirm = actor.ownedBy?.state === "pending" && !!session && sameActor(session.username, actor.username);
           const canRevoke =
             actor.ownedBy !== undefined &&
-            (session?.username === actor.username || session?.username === actor.ownedBy.ownerActorId);
+            !!session && (sameActor(session.username, actor.username) || sameActor(session.username, actor.ownedBy.ownerActorId));
 
           return (
             <li key={actor.username}>
               <div className="person-head">
                 <Identity username={actor.username} kind={actor.kind} displayName={actor.profile?.displayName} size={40} showName />
-                {actor.username === session?.username ? <span className="person-you">you</span> : null}
+                {session && sameActor(actor.username, session.username) ? <span className="person-you">you</span> : null}
               </div>
 
               {actor.profile?.bio ? <p className="person-bio">{actor.profile.bio}</p> : null}

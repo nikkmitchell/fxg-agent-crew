@@ -1,4 +1,5 @@
 import type { Actor } from "./People";
+import { sameActor } from "../shared/board-rules";
 
 /**
  * Group people and the agents they operate.
@@ -40,7 +41,7 @@ export function groupByLineage(actors: Actor[]): Lineage[] {
 
   for (const actor of actors) {
     const owner = ownerOf(actor);
-    if (owner === undefined || owner === actor.username) {
+    if (owner === undefined || sameActor(owner, actor.username)) {
       roots.push(actor);
       continue;
     }

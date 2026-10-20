@@ -1131,10 +1131,10 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
       {tab === "mine" && !signedOut ? <div>
         <p className="eyebrow">{me?.username ?? "NOT SIGNED IN"}{me?.kind ? ` / ${me.kind.toUpperCase()}` : ""}</p>
-        <h2>{viewedUsername === me?.username ? "My work" : `${viewedUsername}'s work`}</h2>
+        <h2>{me && sameActor(viewedUsername, me.username) ? "My work" : `${viewedUsername}'s work`}</h2>
         <label className="project-picker">View work for
           <select value={viewedUsername} onChange={(event) => setViewedUsername(event.target.value)}>
-            {workOwners.map((username) => <option key={username} value={username}>{username === me?.username ? `${username} (me)` : username}</option>)}
+            {workOwners.map((username) => <option key={username} value={username}>{me && sameActor(username, me.username) ? `${username} (me)` : username}</option>)}
           </select>
         </label>
         {viewedTasks.length ? (

@@ -79,7 +79,7 @@ export function canClaim(task: BoardTask, username: string): boolean {
 
 /** Only a named owner may accept, and only once. */
 export function canAccept(task: BoardTask, username: string): boolean {
-  return task.owners.includes(username) && !task.acceptedBy.includes(username);
+  return task.owners.some((owner) => sameActor(owner, username)) && !task.acceptedBy.some((who) => sameActor(who, username));
 }
 
 export function claim(task: BoardTask, username: string): BoardTask {
