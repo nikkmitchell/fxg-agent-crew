@@ -13,6 +13,7 @@ import type {
   AvatarPosture,
 } from "../../shared/avatar-motion";
 import { base } from "../router";
+import { nameHash } from "../../shared/name-hash";
 
 /**
  * A curated animation vocabulary rather than a raw file browser.
@@ -126,11 +127,7 @@ const GESTURE_CLIPS: Record<ActiveAvatarGesture, AgentAnimationClip | null> = {
   "send-voice": null,
 };
 
-const hash = (value: string): number => [...value].reduce(
-  (accumulated, character) =>
-    Math.imul(accumulated ^ character.charCodeAt(0), 16_777_619) >>> 0,
-  2_166_136_261,
-);
+const hash = nameHash;
 
 /**
  * Vary long-running poses without putting the whole room on one timer edge.

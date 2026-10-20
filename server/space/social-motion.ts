@@ -1,4 +1,5 @@
 import { WORLD, clampToWorld, type Vec3 } from "../../shared/space-layout.js";
+import { nameHash } from "../../shared/name-hash.js";
 
 /** Comfortable face-to-face spacing: close enough to talk, not body overlap. */
 export const CONVERSATION_DISTANCE = 1.35;
@@ -6,11 +7,7 @@ export const CONVERSATION_FAR = 1.8;
 
 /** Idle agents pause between small, local walks instead of pacing continuously. */
 
-const hash = (value: string): number => [...value].reduce(
-  (accumulated, character) =>
-    Math.imul(accumulated ^ character.charCodeAt(0), 16_777_619) >>> 0,
-  2_166_136_261,
-);
+const hash = nameHash;
 
 const unit = (value: string): number => hash(value) / 0xffff_ffff;
 /**

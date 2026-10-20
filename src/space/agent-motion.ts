@@ -1,4 +1,5 @@
 import { DEFAULT_AVATAR_STATE, type AvatarState } from "../../shared/avatar-motion";
+import { nameHash } from "../../shared/name-hash";
 
 export type Rotation = { x: number; y: number; z: number };
 
@@ -29,11 +30,7 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
 /** Stable phase offsets keep a crowd from breathing and blinking in lockstep. */
 function phaseOf(actorId: string): number {
-  const hash = [...actorId].reduce(
-    (value, character) => Math.imul(value ^ character.charCodeAt(0), 16_777_619) >>> 0,
-    2_166_136_261,
-  );
-  return (hash % 10_000) / 10_000;
+  return (nameHash(actorId) % 10_000) / 10_000;
 }
 
 /**

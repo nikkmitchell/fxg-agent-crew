@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { WirePerson } from "../../shared/space-wire";
 import { selfPose } from "./self-pose";
+import { colourHash } from "../../shared/name-hash";
 import { sameActor } from "../../shared/board-rules";
 
 /**
@@ -29,9 +30,7 @@ const WIDTH = 0.05;
 
 /** A colour from a name: the same person is always the same hue. */
 export function hueOf(name: string): number {
-  let hash = 0;
-  for (const char of name.toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return (hash % 360) / 360;
+  return (colourHash(name) % 360) / 360;
 }
 
 /** Whether a point on the floor plan is inside the circle. */

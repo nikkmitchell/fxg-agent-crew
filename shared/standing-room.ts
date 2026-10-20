@@ -1,4 +1,5 @@
 import type { Vec3 } from "./space-layout.js";
+import { nameHash } from "./name-hash.js";
 
 /**
  * Somewhere to stand that nobody is already standing in.
@@ -89,12 +90,9 @@ export function standingRoomNear(
 ): Vec3 {
   if (isFree(target, taken)) return target;
 
-  // FNV-1a, the same hash `deskFor` uses, so one identity gets one stable
+  // nameHash, the same one `deskFor` uses, so one identity gets one stable
   // preference rather than two systems disagreeing about where it likes to be.
-  const hash = [...seed].reduce(
-    (accumulated, character) => Math.imul(accumulated ^ character.charCodeAt(0), 16_777_619) >>> 0,
-    2_166_136_261,
-  );
+  const hash = nameHash(seed);
   const offset = hash % PER_RING;
 
   for (let ring = 1; ring <= RINGS; ring += 1) {

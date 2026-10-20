@@ -3,6 +3,7 @@ import type { Ink } from "./card-paint.js";
 import { fitLines } from "./card-paint.js";
 import type { LobbyDoor, Wearable } from "./lobby-hall.js";
 import { pageOf } from "./lobby-hall.js";
+import { colourHash } from "./name-hash.js";
 
 /**
  * THE LOBBY'S DOORS AND WARDROBE, DRAWN LIKE THE SETTINGS PANEL (Nikk2, 6974):
@@ -53,9 +54,7 @@ const action = (door: LobbyDoor) =>
 const DOOR_COLOURS = ["#5b6f8f", "#8a5a6e", "#4f7d6b", "#9a6b3f", "#6d5a8f", "#3f7a8c", "#8c4f45", "#5f7f3e"];
 /** The same room is always the same colour. */
 export const doorColour = (room: string): string => {
-  let h = 0;
-  for (const c of room.toLowerCase()) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return DOOR_COLOURS[h % DOOR_COLOURS.length];
+  return DOOR_COLOURS[colourHash(room) % DOOR_COLOURS.length];
 };
 
 export type DoorTile = { door: LobbyDoor; index: number; x: number; y: number; width: number; height: number; here: boolean; going: boolean };

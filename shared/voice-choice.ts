@@ -1,3 +1,4 @@
+import { nameHash } from "./name-hash.js";
 /**
  * Which voice an agent speaks in.
  *
@@ -182,9 +183,5 @@ export function chooseVoice(requested: unknown, offered: readonly Voice[] = VOIC
  * report. Choosing explicitly still overrides it.
  */
 export function voiceFor(actorId: string, offered: readonly Voice[] = DEFAULT_VOICES): Voice {
-  let hash = 2_166_136_261;
-  for (const character of actorId.toLowerCase()) {
-    hash = Math.imul(hash ^ character.charCodeAt(0), 16_777_619) >>> 0;
-  }
-  return offered[hash % offered.length]!;
+  return offered[nameHash(actorId.toLowerCase()) % offered.length]!;
 }
