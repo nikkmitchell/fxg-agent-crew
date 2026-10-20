@@ -51,6 +51,16 @@ describe("whose voice a profile shows", () => {
     expect(voiceWasChosen("Waffle", taken)).toBe(false);
   });
 
+  it("finds a chosen voice and body whatever the capitals, as the server does", () => {
+    // The voice store keeps the spelling somebody signed in with ("Anita"); the
+    // actor row can be an older one ("anita"). Matched exactly, the page showed
+    // them a voice and body they had not chosen.
+    const signedInAs = [{ actorId: "Anita", voice: "bf_emma" }];
+    expect(voiceOfActor("anita", signedInAs)).toBe("bf_emma");
+    expect(voiceWasChosen("anita", signedInAs)).toBe(true);
+    expect(bodyOfActor("anita", [{ actorId: "Anita", body: "shiro" }])).toBe("shiro");
+  });
+
   it("survives a missing `taken` entirely", () => {
     expect(voiceOfActor("Sill", undefined)).toBeTruthy();
     expect(voiceWasChosen("Sill", undefined)).toBe(false);

@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { WirePerson } from "../../shared/space-wire";
 import { selfPose } from "./self-pose";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * THE NEBULA: a slow, swirling cloud of three thousand points of coloured
@@ -101,7 +102,7 @@ export function Nebula({ peopleRef, you }: { peopleRef: MutableRefObject<WirePer
     if (selfPose.hands.left) all.push(selfPose.hands.left.p);
     if (selfPose.hands.right) all.push(selfPose.hands.right.p);
     for (const person of peopleRef.current ?? []) {
-      if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+      if (you && sameActor(person.actorId, you)) continue;
       if (person.hands?.left) all.push(person.hands.left.p);
       if (person.hands?.right) all.push(person.hands.right.p);
     }

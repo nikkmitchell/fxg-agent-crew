@@ -22,6 +22,7 @@
  * So `kind` is required and there is no default. A memory whose kind had to be
  * guessed would be guessed wrong in exactly the cases that matter.
  */
+import { sameActor } from "./board-rules.js";
 
 export const MEMORY_KINDS = ["self", "fact", "opinion", "event"] as const;
 export type MemoryKind = (typeof MEMORY_KINDS)[number];
@@ -162,6 +163,6 @@ export function attribution(memory: Pick<Memory, "kind" | "actorId" | "about">):
  * what private does and does not promise instead.
  */
 export function mayRead(memory: Pick<Memory, "actorId" | "visibility">, reader: string): boolean {
-  const mine = memory.actorId.toLowerCase() === reader.toLowerCase();
+  const mine = sameActor(memory.actorId, reader);
   return mine || memory.visibility === "shared";
 }

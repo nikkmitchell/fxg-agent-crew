@@ -36,15 +36,16 @@ export type ProjectMembership = { projectId: string; actorId: string; active: bo
  * their name — the same rule the server applies, so the page and the room agree.
  *
  * NEVER THE VIEWER'S. That was the bug, and it is the one thing these tests
- * exist to keep fixed.
+ * exist to keep fixed. Matched by sameActor: the voice store keeps the spelling
+ * you signed in with, and an actor row can be an older one ("anita"/"Anita").
  */
 export function voiceOfActor(actorId: string, taken: readonly VoiceHolding[] | undefined): string {
-  return taken?.find((t) => t.actorId === actorId)?.voice ?? voiceFor(actorId).id;
+  return taken?.find((t) => sameActor(t.actorId, actorId))?.voice ?? voiceFor(actorId).id;
 }
 
 /** Whether that voice was chosen, or merely fell out of their name. */
 export function voiceWasChosen(actorId: string, taken: readonly VoiceHolding[] | undefined): boolean {
-  return Boolean(taken?.some((t) => t.actorId === actorId));
+  return Boolean(taken?.some((t) => sameActor(t.actorId, actorId)));
 }
 
 /** Who holds a given voice, so a picker can say whose it is rather than "unavailable". */
@@ -54,7 +55,7 @@ export function holderOfVoice(voiceId: string, taken: readonly VoiceHolding[] | 
 
 /** The body an actor wears, or null when they have not chosen — a real state. */
 export function bodyOfActor(actorId: string, chosen: readonly BodyHolding[] | undefined): string | null {
-  return chosen?.find((c) => c.actorId === actorId)?.body ?? null;
+  return chosen?.find((c) => sameActor(c.actorId, actorId))?.body ?? null;
 }
 
 /**

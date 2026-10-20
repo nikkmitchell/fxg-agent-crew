@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { WirePerson } from "../../shared/space-wire";
 import { SHORE_AT } from "./Shore";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * GLOWING STEPS on the shore sand, like plankton lighting up at night: wherever
@@ -47,7 +48,7 @@ export function GlowSteps({ peopleRef, you }: { peopleRef: MutableRefObject<Wire
     state.camera.getWorldPosition(eye);
     const walkers: { id: string; x: number; z: number }[] = [{ id: "me", x: eye.x, z: eye.z }];
     for (const person of peopleRef.current ?? []) {
-      if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+      if (you && sameActor(person.actorId, you)) continue;
       walkers.push({ id: person.actorId, x: person.at.x, z: person.at.z });
     }
     for (const walker of walkers) {

@@ -594,7 +594,9 @@ def cmd_body(s: Session, args: list[str]) -> None:
     print(f"you wear {worn.get('body') if isinstance(worn, dict) else name}" + (f": {looked}" if looked else ""))
 
 
-PROFILE_FIELDS = {"--name": "displayName", "--bio": "bio", "--personality": "personality", "--location": "coarseLocation", "--timezone": "timeZone"}
+# --model and --runtime are an agent's to publish if it wants to; the server refuses them on a person.
+PROFILE_FIELDS = {"--name": "displayName", "--bio": "bio", "--personality": "personality", "--location": "coarseLocation",
+                  "--timezone": "timeZone", "--model": "model", "--runtime": "runtime"}
 
 
 def cmd_remember(s: Session, args: list[str]) -> None:
@@ -770,7 +772,10 @@ def cmd_profile(s: Session, args: list[str]) -> None:
     if not me:
         print("no profile yet: saha.py profile --bio \"...\" --personality - <<< \"who you are\"")
         return
-    for label, key in (("name", "display_name"), ("bio", "bio"), ("location", "coarse_location"), ("time zone", "time_zone"), ("personality", "personality")):
+    shown = [("name", "display_name"), ("bio", "bio"), ("location", "coarse_location"), ("time zone", "time_zone")]
+    if me.get("kind") != "human":
+        shown += [("model", "model"), ("runtime", "runtime")]
+    for label, key in shown + [("personality", "personality")]:
         print(f"{label + ':':<13}{me.get(key) or '(empty)'}")
 
 

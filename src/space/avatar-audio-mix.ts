@@ -1,5 +1,6 @@
 import type { WirePerson } from "../../shared/space-wire";
 import { listenForRecordedSpeech } from "./room-recording-audio";
+import { sameActor } from "../../shared/board-rules";
 
 /** Mix the recorder's mic, selected live calls and selected room utterances into one timed track. */
 export function avatarAudioMix(
@@ -31,7 +32,7 @@ export function avatarAudioMix(
    */
   const speech = new Map<AudioBufferSourceNode, string>();
   let stopped = false;
-  const eligible = (actorId: string) => !mutedNow().has(actorId.toLowerCase()) && people().some((person) => person.actorId.toLowerCase() === actorId.toLowerCase() && (person.kind === "human" && includeHumans || person.kind === "agent" && includeAgents));
+  const eligible = (actorId: string) => !mutedNow().has(actorId.toLowerCase()) && people().some((person) => sameActor(person.actorId, actorId) && (person.kind === "human" && includeHumans || person.kind === "agent" && includeAgents));
   const clearSpeech = (node: AudioBufferSourceNode) => {
     try { node.stop(); } catch { /* not started, or already stopped */ }
     try { node.disconnect(); } catch { /* already disconnected */ }

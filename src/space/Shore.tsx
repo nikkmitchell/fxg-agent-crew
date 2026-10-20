@@ -6,6 +6,7 @@ import { audio } from "./breath-sound";
 import { DRIFT_WORDS, driftAt, type Drift } from "../../shared/driftwood";
 import { onDrift } from "./room-events";
 import { space } from "../space-client";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * THE SHORE: a strip of pale sand in the back-left corner where small waves
@@ -119,7 +120,7 @@ export function Shore({ you = null }: { you?: string | null }) {
   useEffect(
     () =>
       onDrift((drift) => {
-        if (you && drift.by.toLowerCase() === you.toLowerCase()) return;
+        if (you && sameActor(drift.by, you)) return;
         launch(drift);
       }),
     [you],

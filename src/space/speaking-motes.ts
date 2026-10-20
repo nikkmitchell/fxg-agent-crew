@@ -21,6 +21,7 @@
  * of audio for it, 24 kHz mono — 14.5 characters per second. So a line's length
  * predicts how long it is spoken for, close enough for a light that fades.
  */
+import { sameActor } from "../../shared/board-rules";
 
 /** Characters per second, measured from a real Kokoro rendering. See above. */
 export const SPEECH_CHARS_PER_SECOND = 14.5;
@@ -66,7 +67,7 @@ export function pulseFor(
   alreadyStarted: number | null,
 ): { actorId: string; seconds: number } | null {
   if (!line || line.id === alreadyStarted) return null;
-  if (you && line.actorId.toLowerCase() === you.toLowerCase()) return null;
+  if (you && sameActor(line.actorId, you)) return null;
   const seconds = speakingSeconds(line.say ?? "");
   if (seconds <= 0) return null;
   return { actorId: line.actorId, seconds };

@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { SCREEN_LIMITS, captureSize } from "../../shared/screens";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * SHARE MY SCREEN FROM THE ROOM'S OWN SETTINGS (Nikk, 7227: "add it as an
@@ -64,7 +65,7 @@ export function useMyScreenLive(root: string, you: string | null): void {
         const response = await fetch(`${root}/bff/space/screens`, { credentials: "same-origin", cache: "no-store" });
         if (!response.ok || cancelled) return;
         const { screens } = (await response.json()) as { screens: { actorId: string }[] };
-        const live = screens.some((screen) => screen.actorId.toLowerCase() === you.toLowerCase());
+        const live = screens.some((screen) => sameActor(screen.actorId, you));
         if (live !== state.live) set({ live });
       } catch {
         // Next time.

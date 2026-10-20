@@ -10,6 +10,7 @@ import { Typing3D } from "./Typing3D";
 import { Near } from "./Near";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * THE EMBER FIRE (shared/fire.ts): a small fire in a ring of stones, to the
@@ -179,7 +180,7 @@ export function EmberFire({ you }: { you: string | null }) {
   useEffect(
     () =>
       onOffering((offering) => {
-        if (you && offering.by.toLowerCase() === you.toLowerCase()) return;
+        if (you && sameActor(offering.by, you)) return;
         burn(offering);
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

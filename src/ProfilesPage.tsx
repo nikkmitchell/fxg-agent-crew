@@ -5,6 +5,7 @@ import { requestJson } from "./api-request";
 import { base } from "./router";
 import { isWithdrawn, thumbPath } from "../shared/avatar-choice";
 import { board, toProfile } from "./board-client";
+import { sameActor } from "../shared/board-rules";
 import {
   bodiesFromCatalogue,
   bodyOfActor,
@@ -157,7 +158,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
 
   const bodyOf = (actorId: string) => bodyOfActor(actorId, bodies?.chosen);
   const voiceOf = (actorId: string) => voiceOfActor(actorId, voices.taken);
-  const isHere = (actorId: string) => here.some((p) => p.actorId === actorId);
+  const isHere = (actorId: string) => here.some((p) => sameActor(p.actorId, actorId));
   const open = looking ? profiles.find((p) => p.actorId === looking) ?? null : null;
 
   return (
@@ -177,7 +178,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
           <li key={profile.actorId}>
             <button
               type="button"
-              className={`profile-card${profile.actorId === me ? " is-you" : ""}`}
+              className={`profile-card${me && sameActor(profile.actorId, me) ? " is-you" : ""}`}
               onClick={() => setLooking(profile.actorId)}
             >
               <span className="profile-card-top">
@@ -235,7 +236,9 @@ function ProfileDetail(props: {
   onSaved: () => void;
 }) {
   const { profile, me, voices, chosenVoice } = props;
-  const yours = profile.actorId === me;
+  // Your sign-in spelling and your actor row's can differ in capitals; the server
+  // resolves either to you (actorIdFor), so the page must offer you the editor either way.
+  const yours = me !== null && sameActor(profile.actorId, me);
   const [memories, setMemories] = useState<Memory[] | null>(null);
   const [memoryNote, setMemoryNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);

@@ -5,6 +5,7 @@ import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
+import { sameActor } from "../../shared/board-rules.js";
 
 type Db = import("node:sqlite").DatabaseSync;
 const CREATORS = new Set(["nikk2", "baiwei2"]);
@@ -42,7 +43,7 @@ export function registerWelcomeClips(app: FastifyInstance, config: Config, sessi
     const session = requireSession(request, reply);
     if (!session) return reply;
     const allowed = (db.prepare("SELECT actor_id FROM lobby_welcome_consent WHERE allowed = 1").all() as Array<{ actor_id: string }>).map((row) => row.actor_id);
-    return { allowed, mine: allowed.some((name) => name.toLowerCase() === session.username.toLowerCase()) };
+    return { allowed, mine: allowed.some((name) => sameActor(name, session.username)) };
   });
   app.put<{ Body: { allowed?: unknown } }>("/bff/space/welcome/consent", async (request, reply) => {
     const session = requireSession(request, reply);

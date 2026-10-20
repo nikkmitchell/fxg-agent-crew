@@ -299,16 +299,9 @@ export function facingFor(openPanelIds: string[], from: Vec3 = ROOM.spawn): numb
 const DESK_ROW_Z = [7.0, 8.2];
 const DESK_COLUMN_X = [-4.5, -2.7, -0.9, 0.9, 2.7, 4.5];
 
-/**
- * Stable lookup key for one actor across the room, chat and audit trail.
- *
- * Those systems preserve the spelling they were given, so the same person is
- * currently seen as both `nikk2` and `Nikk2`. Display spelling stays on the
- * occupant; only internal identity lookups use this key.
- */
-export function actorKey(actorId: string): string {
-  return actorId.trim().toLowerCase();
-}
+/** One person however they are spelled; the rule lives in board-rules beside sameActor. */
+import { actorKey } from "./board-rules.js";
+export { actorKey };
 
 export function deskFor(actorId: string): Vec3 {
   // FNV-1a, the same hash the avatar recipe uses, so one identity has one

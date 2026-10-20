@@ -5,6 +5,7 @@ import type { WirePerson } from "../../shared/space-wire";
 import { selfPose } from "./self-pose";
 import { goHandInput } from "./go-hand-input";
 import { audio } from "./breath-sound";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * WIND CHIMES hanging just inside where people arrive: brushed tubes on
@@ -76,7 +77,7 @@ export function WindChimes({ peopleRef, you }: { peopleRef: MutableRefObject<Wir
     state.camera.getWorldPosition(eye);
     bodies.push({ x: eye.x, z: eye.z });
     for (const person of peopleRef.current ?? []) {
-      if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+      if (you && sameActor(person.actorId, you)) continue;
       bodies.push({ x: person.at.x, z: person.at.z });
     }
     for (const body of bodies) stir = Math.max(stir, stirFor(Math.hypot(body.x - CHIMES_AT.x, body.z - CHIMES_AT.z)));

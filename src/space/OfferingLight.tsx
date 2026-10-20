@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { WirePerson } from "../../shared/space-wire";
 import { selfPose } from "./self-pose";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * THE OFFERING LIGHT, Inkstone's answer (5549) to "a practice for two
@@ -54,7 +55,7 @@ export function OfferingLight({ peopleRef, you }: { peopleRef: MutableRefObject<
       { x: eye.x, z: eye.z, hands: [selfPose.hands.left?.p, selfPose.hands.right?.p].filter((h): h is NonNullable<typeof h> => Boolean(h)) },
     ];
     for (const person of peopleRef.current ?? []) {
-      if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+      if (you && sameActor(person.actorId, you)) continue;
       bodies.push({ x: person.at.x, z: person.at.z, hands: [person.hands?.left?.p, person.hands?.right?.p].filter((h): h is NonNullable<typeof h> => Boolean(h)) });
     }
     const standing = ([-1, 1] as Side[]).map((side) => bodies.find((body) => Math.hypot(body.x - markX(side), body.z - OFFERING_AT.z) < 0.55) ?? null);

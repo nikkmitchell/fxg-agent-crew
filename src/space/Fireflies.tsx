@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { WirePerson } from "../../shared/space-wire";
 import { selfPose } from "./self-pose";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * FIREFLIES drifting over the left of the room, between the garden and the
@@ -57,7 +58,7 @@ export function Fireflies({ peopleRef, you }: { peopleRef: MutableRefObject<Wire
     if (you && selfPose.hands.left) hands.set(`${you}:l`, selfPose.hands.left.p);
     if (you && selfPose.hands.right) hands.set(`${you}:r`, selfPose.hands.right.p);
     for (const person of peopleRef.current ?? []) {
-      if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+      if (you && sameActor(person.actorId, you)) continue;
       if (person.hands?.left) hands.set(`${person.actorId}:l`, person.hands.left.p);
       if (person.hands?.right) hands.set(`${person.actorId}:r`, person.hands.right.p);
     }

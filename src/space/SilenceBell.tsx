@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import type { WirePerson } from "../../shared/space-wire";
 import { ringBowl } from "./bowl-sound";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * THE SILENCE BELL: a small bronze bell hanging in a wooden frame. It rings by
@@ -47,7 +48,7 @@ export function SilenceBell({ peopleRef, you }: { peopleRef: MutableRefObject<Wi
     const heads = new Map<string, { x: number; y: number; z: number }>([["me", { x: eye.x, y: eye.y, z: eye.z }]]);
     for (const person of peopleRef.current ?? []) {
       if (!person.connected || person.kind === "agent" || !person.head) continue;
-      if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+      if (you && sameActor(person.actorId, you)) continue;
       heads.set(person.actorId, person.head.p);
     }
     for (const id of [...tracks.current.keys()]) if (!heads.has(id)) tracks.current.delete(id);

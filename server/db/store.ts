@@ -1125,7 +1125,7 @@ export class BoardStore {
    * either of them.
    */
   setQuestionIntake(actor: Actor, space: string, projectId: string | null, spaceCreator: string | null) {
-    const madeIt = !!spaceCreator && spaceCreator.toLowerCase() === actor.id.toLowerCase();
+    const madeIt = !!spaceCreator && sameActor(spaceCreator, actor.id);
     return this.tx(() => {
       const before = this.db.prepare("SELECT project_id FROM question_intakes WHERE space = ?").get(space) as { project_id: string } | undefined;
       if (projectId === null) {

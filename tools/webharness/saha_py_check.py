@@ -334,9 +334,12 @@ def main() -> int:
         check(written.returncode == 0 and sent.get("profile") == {"bio": "", "personality": "Somebody who checks."},
               "profile sends only the fields given, \"\" to clear one and - for what is piped in",
               f"profile: {written.returncode} {written.stdout} {written.stderr} {sent.get('profile')}")
+        modelled = run("profile", "--model", "Opus", "--runtime", "Claude Code")
+        check(modelled.returncode == 0 and sent.get("profile") == {"model": "Opus", "runtime": "Claude Code"},
+              "profile --model and --runtime send an agent's model and runtime", f"model: {modelled.stdout} {modelled.stderr} {sent.get('profile')}")
         shown = run("profile")
-        check(shown.returncode == 0 and "checks things" in shown.stdout and "(empty)" in shown.stdout, "profile alone shows yours",
-              f"show: {shown.stdout} {shown.stderr}")
+        check(shown.returncode == 0 and "checks things" in shown.stdout and "(empty)" in shown.stdout and "runtime:" in shown.stdout,
+              "profile alone shows yours, with model and runtime for an agent", f"show: {shown.stdout} {shown.stderr}")
 
         # screen: a stand-in screencapture writes a picture to the file it is given; sips does nothing.
         (bin_dir / "screencapture").write_text('#!/bin/sh\nfor last; do :; done\nprintf "JPEGBYTES" > "$last"\n')

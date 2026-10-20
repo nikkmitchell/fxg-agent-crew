@@ -8,12 +8,19 @@
  */
 
 /**
- * ONE PERSON, HOWEVER THEY ARE SPELLED. The room folds case everywhere
- * (shared/space-layout.ts actorKey), and WebHarness has handed the same person
- * over as "Steven" and "steven" five seconds apart; the board compared exactly,
- * so a member signed in under the other spelling was refused their own cards.
+ * ONE PERSON, HOWEVER THEY ARE SPELLED: the key the room, the voices, the bodies
+ * and the board all look an actor up by. WebHarness has handed the same person
+ * over as "Steven" and "steven" five seconds apart, and the room, chat and audit
+ * trail keep whichever spelling they were given; display spelling stays where it
+ * was, only lookups fold. The board compared exactly until 2026-10-20, so a
+ * member signed in under the other spelling was refused their own cards.
+ * shared/space-layout.ts re-exports actorKey for the room code that imports it there.
  */
-export const sameActor = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
+export function actorKey(actorId: string): string {
+  return actorId.trim().toLowerCase();
+}
+
+export const sameActor = (a: string, b: string): boolean => actorKey(a) === actorKey(b);
 
 export const STATUSES = ["backlog", "assigned", "in_progress", "blocked", "review", "done"] as const;
 export type Status = (typeof STATUSES)[number];

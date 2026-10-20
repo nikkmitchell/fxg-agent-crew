@@ -7,6 +7,7 @@ import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import { DEFAULT_SPACE_ROOM, roomKey } from "../../shared/space-room.js";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
 import { SCREEN_LIMITS, sniffImage, type ScreenSummary } from "../../shared/screens.js";
+import { sameActor } from "../../shared/board-rules.js";
 
 /**
  * Screen sharing: one picture per person, always the latest.
@@ -294,7 +295,7 @@ export function registerScreenRoutes(
     const session = requireSession(request, reply);
     if (!session) return reply;
     const wanted = typeof request.body?.for === "string" ? request.body.for.trim() : "";
-    const self = !wanted || wanted.toLowerCase() === session.username.toLowerCase();
+    const self = !wanted || sameActor(wanted, session.username);
     if (self) return reply.send(deps.keys.mint(session.username, null, spaceRoomOf(session)));
 
     if (deps.keys.kindOf(wanted) !== "agent") {
@@ -305,7 +306,7 @@ export function registerScreenRoutes(
     }
     // Spelled as the actors table spells it, so the label matches the name the
     // rest of the room uses for that agent.
-    const canonical = deps.keys.agentsOf(session.username).find((id) => id.toLowerCase() === wanted.toLowerCase());
+    const canonical = deps.keys.agentsOf(session.username).find((id) => sameActor(id, wanted));
     if (!canonical) {
       return reply.code(403).send({ code: "NOT_YOURS", error: `${wanted} is not one of your agents; add it as yours first` });
     }

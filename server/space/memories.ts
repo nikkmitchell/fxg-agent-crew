@@ -12,6 +12,7 @@ import {
   type Memory,
   type MemoryInput,
 } from "../../shared/memory.js";
+import { sameActor } from "../../shared/board-rules.js";
 
 /**
  * Where what an agent remembers is kept.
@@ -276,7 +277,7 @@ export function registerMemoryRoutes(
       });
       return reply.send({
         memories: memories.map(forReading),
-        mine: memories.filter((memory) => memory.actorId.toLowerCase() === session.username.toLowerCase()).length,
+        mine: memories.filter((memory) => sameActor(memory.actorId, session.username)).length,
       });
     },
   );

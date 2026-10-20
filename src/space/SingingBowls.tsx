@@ -6,6 +6,7 @@ import { onBowlStruck } from "./bowl-strikes";
 import { ringBowl, singBowl } from "./bowl-sound";
 import { goHandInput } from "./go-hand-input";
 import { space } from "../space-client";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * Three singing bowls on a low round table beside the orb (shared/bowl.ts).
@@ -79,7 +80,7 @@ export function SingingBowls({ you }: { you: string | null }) {
   useEffect(
     () =>
       onBowlStruck((strike: BowlStrike) => {
-        if (you && strike.by.toLowerCase() === you.toLowerCase()) return;
+        if (you && sameActor(strike.by, you)) return;
         if (strike.kind === "gong") return;
         const index = strike.bowl ?? bowlForNote(strike.note);
         sound(index, strike.kind === "sing" ? "sing" : "strike", strike.strength ?? 0.6);

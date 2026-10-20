@@ -8,6 +8,7 @@ import { goHandInput } from "./go-hand-input";
 import { audio } from "./breath-sound";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * THE GONG, for a sound bath: a big bronze disc hanging in a dark wooden
@@ -90,7 +91,7 @@ export function GongStand({ you }: { you: string | null }) {
     () =>
       onBowlStruck((one: BowlStrike) => {
         if (one.kind !== "gong") return;
-        if (you && one.by.toLowerCase() === you.toLowerCase()) return;
+        if (you && sameActor(one.by, you)) return;
         hear(one.strength ?? 0.6);
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

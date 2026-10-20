@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { breathAt, type Meditation } from "../../shared/meditation";
 import { audio } from "./breath-sound";
 import type { WirePerson } from "../../shared/space-wire";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * THE KALEIDOSCOPE DOME: for the trippy end of the room (baiwei, 5489: "Run a
@@ -154,7 +155,7 @@ export function KaleidoscopeDome({ meditation, peopleRef, you }: { meditation: M
     // How many are inside: me, and anyone else standing within the dome.
     let together = inside ? 1 : 0;
     for (const person of peopleRef?.current ?? []) {
-      if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+      if (you && sameActor(person.actorId, you)) continue;
       if (Math.hypot(person.at.x - centre.x, person.at.z - centre.z) < DOME_AT.radius - 0.1) together += 1;
     }
     const shared = together >= 2 ? 1 : 0;

@@ -74,6 +74,7 @@ import { FINGER_JOINT_NAMES, fingerAngles, fingersForWire } from "../../shared/h
 import { TOUCH_COOLDOWN_MS, agentTouchPoints, touchedPart } from "../../shared/touch";
 import type { AvatarRecorder } from "./useAvatarRecorder";
 import { recordedControl, recorderControlVisual } from "./recorder-control-visual";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * Standing in the room, rather than looking at it.
@@ -1135,7 +1136,7 @@ export function ImmersivePlayer({
         onMeditation={onMeditation}
         hiddenAsStill={stillNow}
         positionOf={(actorId) =>
-          (peopleRef.current ?? []).find((person) => person.actorId.toLowerCase() === actorId.toLowerCase())?.at ?? null
+          (peopleRef.current ?? []).find((person) => sameActor(person.actorId, actorId))?.at ?? null
         }
       />
       {/*
@@ -1365,7 +1366,7 @@ function WindowMenu(props: Omit<Parameters<typeof RoomControls>[0], "anchor" | "
       blendMode={null}
       onTogglePassthrough={() => undefined}
       hiddenAsStill={[]}
-      positionOf={(actorId) => (peopleRef.current ?? []).find((person) => person.actorId.toLowerCase() === actorId.toLowerCase())?.at ?? null}
+      positionOf={(actorId) => (peopleRef.current ?? []).find((person) => sameActor(person.actorId, actorId))?.at ?? null}
       menuOnly={close}
     />
   );

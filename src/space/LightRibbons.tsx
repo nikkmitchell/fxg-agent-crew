@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { WirePerson } from "../../shared/space-wire";
 import { selfPose } from "./self-pose";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * LIGHT RIBBONS: a glowing circle on the floor, back-right of the room. Step
@@ -110,7 +111,7 @@ export function LightRibbons({ peopleRef, you }: { peopleRef: MutableRefObject<W
         if (selfPose.hands.right) hands.push({ key: `${you}:right`, name: you, p: selfPose.hands.right.p });
       }
       for (const person of peopleRef.current ?? []) {
-        if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+        if (you && sameActor(person.actorId, you)) continue;
         if (person.hands?.left) hands.push({ key: `${person.actorId}:left`, name: person.actorId, p: person.hands.left.p });
         if (person.hands?.right) hands.push({ key: `${person.actorId}:right`, name: person.actorId, p: person.hands.right.p });
       }

@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { WirePerson } from "../../shared/space-wire";
 import { selfPose } from "./self-pose";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * HOLD THE LIGHT: a qigong exercise. Stand at the low pedestal and bring your
@@ -54,7 +55,7 @@ export function HoldTheLight({ peopleRef, you }: { peopleRef: MutableRefObject<W
     const pairs: { left: { x: number; y: number; z: number }; right: { x: number; y: number; z: number } }[] = [];
     if (selfPose.hands.left && selfPose.hands.right) pairs.push({ left: selfPose.hands.left.p, right: selfPose.hands.right.p });
     for (const person of peopleRef.current ?? []) {
-      if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+      if (you && sameActor(person.actorId, you)) continue;
       if (person.hands?.left && person.hands?.right) pairs.push({ left: person.hands.left.p, right: person.hands.right.p });
     }
     const found = pairs.map((pair) => ballBetween(pair.left, pair.right)).filter((ball): ball is NonNullable<typeof ball> => ball !== null);

@@ -7,6 +7,7 @@ import { onWheelPush, useRoomRead } from "./room-events";
 import { goHandInput } from "./go-hand-input";
 import { audio } from "./breath-sound";
 import { space } from "../space-client";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * THE PRAYER WHEEL (shared/wheel.ts): a tall painted drum on a post, back-left
@@ -91,7 +92,7 @@ export function PrayerWheel({ you }: { you: string | null }) {
     () =>
       onWheelPush((push: WheelPush) => {
         setTurns(push.turns);
-        if (you && push.by.toLowerCase() === you.toLowerCase()) return;
+        if (you && sameActor(push.by, you)) return;
         pushes.current.push({ at: performance.now(), strength: push.strength });
       }),
     [you],

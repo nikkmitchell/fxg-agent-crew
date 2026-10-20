@@ -6,6 +6,7 @@ import { queueAloud } from "./said-aloud";
 import { space } from "../space-client";
 import { holdReload, inSession } from "../update-reload";
 import { volumeAt } from "./agent-voice";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * WHETHER YOU HEAR SOMEBODY SPEAKING IN A ROOM YOU ARE STANDING IN.
@@ -108,7 +109,7 @@ export function VoiceControls({ connection }: { connection: SpaceConnection }) {
     if (!hearReplies || listening || inSession() || !shouldSpeakUtterance(utterance, you)) return;
     // In the speaker's own voice, as loud as they are near you. See agent-voice.ts.
     const people = connection.peopleRef.current ?? [];
-    const find = (id: string | null) => (id ? people.find((person) => person.actorId.toLowerCase() === id.toLowerCase()) : undefined);
+    const find = (id: string | null) => (id ? people.find((person) => sameActor(person.actorId, id)) : undefined);
     const speaker = find(utterance.actorId);
     const me = find(you);
     // The box's own rendering of this line, in the speaker's chosen voice, with

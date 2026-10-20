@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession } from "../require-session.js";
+import { sameActor } from "../../shared/board-rules.js";
 
 type Db = import("node:sqlite").DatabaseSync;
 const CREATORS = ["Nikk2", "baiwei2"];
@@ -22,9 +23,9 @@ export function registerWelcomeTakes(app: FastifyInstance, config: Config, sessi
   app.get("/bff/space/welcome", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    const rows = published().filter((row) => (JSON.parse(row.participants_json) as string[]).every((actorId) => { const consent = db.prepare("SELECT allowed,updated_at FROM lobby_welcome_consent WHERE actor_id = ?").get(actorId) as { allowed: number; updated_at: string } | undefined; return consent?.allowed === 1 && Date.parse(consent.updated_at) <= Date.parse(row.published_at); })).sort((a, b) => CREATORS.findIndex((name) => name.toLowerCase() === a.actor_id.toLowerCase()) - CREATORS.findIndex((name) => name.toLowerCase() === b.actor_id.toLowerCase()) || a.published_at.localeCompare(b.published_at));
+    const rows = published().filter((row) => (JSON.parse(row.participants_json) as string[]).every((actorId) => { const consent = db.prepare("SELECT allowed,updated_at FROM lobby_welcome_consent WHERE actor_id = ?").get(actorId) as { allowed: number; updated_at: string } | undefined; return consent?.allowed === 1 && Date.parse(consent.updated_at) <= Date.parse(row.published_at); })).sort((a, b) => CREATORS.findIndex((name) => sameActor(name, a.actor_id)) - CREATORS.findIndex((name) => sameActor(name, b.actor_id)) || a.published_at.localeCompare(b.published_at));
     const seen = db.prepare("SELECT 1 FROM lobby_welcome_seen WHERE actor_id = ?").get(session.username.toLowerCase());
-    return { canPublish: session.kind === "human" && CREATORS.some((name) => name.toLowerCase() === session.username.toLowerCase()), completed: !!seen, takes: rows.map((row) => ({ id: row.id, actorId: row.actor_id, durationMs: row.duration_ms ?? (JSON.parse(row.take_json!) as { durationMs: number }).durationMs, publishedAt: row.published_at })) };
+    return { canPublish: session.kind === "human" && CREATORS.some((name) => sameActor(name, session.username)), completed: !!seen, takes: rows.map((row) => ({ id: row.id, actorId: row.actor_id, durationMs: row.duration_ms ?? (JSON.parse(row.take_json!) as { durationMs: number }).durationMs, publishedAt: row.published_at })) };
   });
   app.post("/bff/space/welcome/complete", async (request, reply) => {
     const session = requireSession(request, reply);

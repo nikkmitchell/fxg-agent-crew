@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { WirePerson } from "../../shared/space-wire";
 import { audio } from "./breath-sound";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * THE FLOOR HARP: eight strips of light on the floor to the left of the
@@ -56,7 +57,7 @@ export function FloorHarp({ peopleRef, you }: { peopleRef: MutableRefObject<Wire
     state.camera.getWorldPosition(eye);
     const bodies: { key: string; x: number; z: number }[] = [{ key: "me", x: eye.x, z: eye.z }];
     for (const person of peopleRef.current ?? []) {
-      if (you && person.actorId.toLowerCase() === you.toLowerCase()) continue;
+      if (you && sameActor(person.actorId, you)) continue;
       bodies.push({ key: person.actorId, x: person.at.x, z: person.at.z });
     }
     const seen = new Set<string>();

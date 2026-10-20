@@ -18,6 +18,7 @@ import { VrmBody } from "./VrmBody";
 import { selfPose } from "./self-pose";
 import { LobbyWelcome } from "./LobbyWelcome";
 import { DoorsPanel, WardrobePanel } from "./LobbyPanels";
+import { sameActor } from "../../shared/board-rules";
 
 /**
  * THE LOBBY AS A FRONT HALL (shared/lobby-hall.ts has Nikk's words and the
@@ -131,7 +132,7 @@ export function LobbyHall({
 
   const allDoors = useMemo(() => lobbyDoors(mine, open, currentRoom, spaces), [mine, open, currentRoom, spaces]);
   const split = useMemo(() => splitDoors(allDoors, finished ?? []), [allDoors, finished]);
-  const me = you ? roster.find((person) => person.actorId.toLowerCase() === you.toLowerCase()) ?? null : null;
+  const me = you ? roster.find((person) => sameActor(person.actorId, you)) ?? null : null;
   const worn = me?.body ? bodyKey(me.body) : null;
 
   const go = (door: LobbyDoor) => {
