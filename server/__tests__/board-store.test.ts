@@ -840,3 +840,15 @@ describe("migration 55: past self-claims", () => {
     expect(accepted(given)).toEqual({ accepted: 0 });
   });
 });
+
+describe("the project list", () => {
+  it("is in alphabetical order whatever the capitals, as a person reads it", () => {
+    // ORDER BY name put every capitalised name before every lowercase one, so
+    // "aaaa" came after "XR.Instruments" in every project picker.
+    store.createProject(nikk, { id: "xr", name: "XR.Instruments" });
+    store.createProject(nikk, { id: "lobby", name: "lobby" });
+    store.createProject(nikk, { id: "aaaa", name: "aaaa" });
+    const names = (new BoardReads(db).projects() as { name: string }[]).map((row) => row.name);
+    expect(names).toEqual(["aaaa", "lobby", "Saha", "XR.Instruments"]);
+  });
+});

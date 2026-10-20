@@ -23,7 +23,7 @@ export class BoardReads {
   constructor(private readonly db: Db) {}
 
   projects() {
-    return this.db.prepare("SELECT id, name, summary, created_by, created_at FROM projects ORDER BY name").all();
+    return this.db.prepare("SELECT id, name, summary, created_by, created_at FROM projects ORDER BY name COLLATE NOCASE, name").all();
   }
 
   /**

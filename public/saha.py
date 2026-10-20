@@ -905,6 +905,14 @@ def cmd_board(s: Session, args: list[str]) -> None:
         if not task:
             fail(f"no card {rest[0]} on {project}")
         print(f"{task['status']}  {task['id']}  [{', '.join(task.get('owners') or [])}]\n{task['title']}")
+        # What the board page shows beside the title; only what is set.
+        facts = [f"priority {task['priority']}" if task.get("priority") else "",
+                 f"kind {task['kind']}" if task.get("kind") else "",
+                 f"{task['points']} point{'' if task['points'] == 1 else 's'}" if task.get("points") is not None else "",
+                 f"accepted by {', '.join(task['acceptedBy'])}" if task.get("acceptedBy") else "",
+                 f"blocked: {task['blocker']}" if task.get("blocker") else ""]
+        if any(facts):
+            print(" · ".join(fact for fact in facts if fact))
         if task.get("description"):
             print(f"\n{task['description']}")
         for comment in task.get("comments") or []:

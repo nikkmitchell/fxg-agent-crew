@@ -139,7 +139,8 @@ class Fake(BaseHTTPRequestHandler):
             return self.answer(201, {"ok": True})
         if path == "/bff/board/projects/saha-ing":
             return self.answer(200, {"tasks": [
-                {"id": "c1", "status": "review", "owners": ["Sill"], "title": "a card in review", "comments": [{"author_id": "Mica", "body": "looks right"}]},
+                {"id": "c1", "status": "review", "owners": ["Sill"], "title": "a card in review", "priority": 2, "kind": "build",
+                 "points": None, "acceptedBy": ["Sill"], "blocker": None, "comments": [{"author_id": "Mica", "body": "looks right"}]},
                 {"id": "c2", "status": "done", "owners": [], "title": "a finished card"}]})
         if path.startswith("/bff/board/tasks/") and method == "PATCH":
             with lock:
@@ -431,7 +432,8 @@ def main() -> int:
         check(listed.returncode == 0 and "c1" in listed.stdout and "c2" not in listed.stdout,
               "board open lists the cards not done", f"board open: {listed.stdout} {listed.stderr}")
         card = run("board", "card", "c1")
-        check(card.returncode == 0 and "looks right" in card.stdout, "board card shows a card and its comments",
+        check(card.returncode == 0 and "looks right" in card.stdout and "priority 2 · kind build · accepted by Sill" in card.stdout,
+              "board card shows a card, its priority, kind and acceptance, and its comments",
               f"board card: {card.stdout} {card.stderr}")
         moved = run("board", "move", "c1", "done")
         check(moved.returncode == 0 and sent.get("status") == {"to": "done"}, "board move sends the column, any column to any other",
