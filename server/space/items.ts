@@ -1,5 +1,11 @@
-import {defaultGameItem, isTableGame, gameBoardText, legalGameMoves, gameSide} from "../../shared/table-games.js";
-import {actOnTableGame} from "./table-games.js";
+import {
+  defaultGameItem,
+  isTableGame,
+  gameBoardText,
+  legalGameMoves,
+  gameSide,
+} from "../../shared/table-games.js";
+import { actOnTableGame } from "./table-games.js";
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyInstance, FastifyReply } from "fastify";
@@ -89,7 +95,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
    * What a space's manifest says an entry is, on the branch's live deploy, if
    * this person may use that space (server/spaces/routes.ts, describeModule).
    */
-  describeModule?: (who: { username: string; token: string }, source: { space: string; branch: string; entry: string }) => Promise<{ name: string; role: ModuleRole } | { status: number; error: string }>;
+  describeModule?: (who: { username: string; token: string }, source: { space: string; branch: string; entry: string }) => Promise<{ name: string; role: ModuleRole; games?: import("../../shared/table-games.js").GameSlots } | { status: number; error: string }>;
   /** The shared values of things from spaces (module-state.ts): read when a copy starts, forgotten with the item. */
   moduleStates?: ModuleStates;
   /** A finished space (server/space/finished.ts): its things stay as published; nothing is added, moved or taken away. */
@@ -123,9 +129,22 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
       };
     }) });
   });
-  app.get('/bff/space/games',async(request,reply)=>{
-    const session=requireSession(request,reply);if(!session)return reply;
-    return reply.send({games:options.items.all(spaceRoomOf(session)).flatMap(i=>i.kind==='module'?Object.values(i.tableGames??{}):[]).map(item=>({...item,text:gameBoardText(item),sides:[gameSide(item.game,1),gameSide(item.game,2)],legalMoves:legalGameMoves(item.game,item.state)}))});
+  app.get("/bff/space/games", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    return reply.send({
+      games: options.items
+        .all(spaceRoomOf(session))
+        .flatMap((i) =>
+          i.kind === "module" ? Object.values(i.tableGames ?? {}) : [],
+        )
+        .map((item) => ({
+          ...item,
+          text: gameBoardText(item),
+          sides: [gameSide(item.game, 1), gameSide(item.game, 2)],
+          legalMoves: legalGameMoves(item.game, item.state),
+        })),
+    });
   });
   app.post<{ Body: { game?: unknown; kind?: unknown; source?: unknown; view?: unknown; position?: unknown; scale?: unknown } }>("/bff/space/items", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
@@ -136,36 +155,90 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
   });
 
   const gameOwner = (room: string, id: string) => {
-    if (!/^[A-Za-z0-9-]{1,64}(\/[a-z0-9][a-z0-9_-]{0,31}){0,3}$/.test(id)) return null;
+    if (!/^[A-Za-z0-9-]{1,64}(\/[a-z0-9][a-z0-9_-]{0,31}){0,3}$/.test(id))
+      return null;
     const [root, ...parts] = id.split("/");
     const item = options.items.one(room, root);
     return item?.kind === "module" ? { item, key: parts.join("/") } : null;
   };
-  app.post<{ Params: { id: string }; Body: { game?: unknown } }>("/bff/space/items/:id/game", async (request, reply) => {
-    const session = requireSession(request, reply); if (!session) return reply;
-    const room = spaceRoomOf(session), owner = gameOwner(room, request.params.id);
-    if (!owner) return reply.code(404).send({ error: "No such Thing in this room." });
-    if (!isTableGame(request.body?.game)) return reply.code(400).send({ error: "Unknown table game." });
-    const { item, key } = owner;
-    const table = Object.hasOwn(item.tableGames ?? {}, key) ? item.tableGames![key] : undefined;
-    if (table) return table.game === request.body.game ? reply.send({ table }) : reply.code(409).send({ error: "This Thing already has a different game." });
-    if (Object.keys(item.tableGames ?? {}).length >= 40) return reply.code(422).send({ error: "This Thing has too many tables." });
-    const next = defaultGameItem(request.params.id, request.body.game, session.username);
-    item.tableGames = { ...item.tableGames, [key]: next };
-    item.revision++;
-    options.items.save(room, item, session.username); publish(room, session.username);
-    return reply.code(201).send({ table: next });
-  });
-  app.post<{ Params: { id: string }; Body: import("./table-games.js").GameAction }>("/bff/space/items/:id/game/action", async (request, reply) => {
-    const session = requireSession(request, reply); if (!session) return reply;
-    const room = spaceRoomOf(session), owner = gameOwner(room, request.params.id);
-    const table = owner && Object.hasOwn(owner.item.tableGames ?? {}, owner.key) ? owner.item.tableGames![owner.key] : undefined;
-    if (!owner || !table) return reply.code(404).send({ error: "No game on this Thing." });
+  app.post<{ Params: { id: string }; Body: { game?: unknown } }>(
+    "/bff/space/items/:id/game",
+    async (request, reply) => {
+      const session = requireSession(request, reply);
+      if (!session) return reply;
+      const room = spaceRoomOf(session);
+      // Match the platform policy: finished spaces lock all writes, including Go.
+      if (locked(room)) return reply.code(403).send(LOCKED);
+      const owner = gameOwner(room, request.params.id);
+      if (!owner)
+        return reply.code(404).send({ error: "No such Thing in this room." });
+      if (!isTableGame(request.body?.game))
+        return reply.code(400).send({ error: "Unknown table game." });
+      const { item, key } = owner;
+      if (
+        !Object.hasOwn(item.gameSlots ?? {}, key) ||
+        item.gameSlots![key] !== request.body.game
+      )
+        return reply
+          .code(403)
+          .send({
+            error:
+              "This Thing's manifest does not declare that game at this instance.",
+          });
+      const table = Object.hasOwn(item.tableGames ?? {}, key)
+        ? item.tableGames![key]
+        : undefined;
+      if (table)
+        return table.game === request.body.game
+          ? reply.send({ table })
+          : reply
+              .code(409)
+              .send({ error: "This Thing already has a different game." });
+      if (Object.keys(item.tableGames ?? {}).length >= 40)
+        return reply
+          .code(422)
+          .send({ error: "This Thing has too many tables." });
+      const next = defaultGameItem(
+        request.params.id,
+        request.body.game,
+        session.username,
+      );
+      item.tableGames = { ...item.tableGames, [key]: next };
+      // Match revisions are independent of placement/carry revisions.
+      options.items.save(room, item, session.username);
+      publish(room, session.username);
+      return reply.code(201).send({ table: next });
+    },
+  );
+  app.post<{
+    Params: { id: string };
+    Body: import("./table-games.js").GameAction;
+  }>("/bff/space/items/:id/game/action", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const room = spaceRoomOf(session);
+    // Match the platform policy: finished spaces lock all writes, including Go.
+    if (locked(room)) return reply.code(403).send(LOCKED);
+    const owner = gameOwner(room, request.params.id);
+    const table =
+      owner && Object.hasOwn(owner.item.tableGames ?? {}, owner.key)
+        ? owner.item.tableGames![owner.key]
+        : undefined;
+    if (!owner || !table)
+      return reply.code(404).send({ error: "No game on this Thing." });
+    if (
+      !Object.hasOwn(owner.item.gameSlots ?? {}, owner.key) ||
+      owner.item.gameSlots![owner.key] !== table.game
+    )
+      return reply
+        .code(403)
+        .send({ error: "This Thing does not declare that game." });
     const result = actOnTableGame(table, session.username, request.body ?? {});
-    if ("error" in result) return reply.code(result.status).send({ error: result.error });
+    if ("error" in result)
+      return reply.code(result.status).send({ error: result.error });
     owner.item.tableGames![owner.key] = result;
-    owner.item.revision++;
-    options.items.save(room, owner.item, session.username); publish(room, session.username);
+    options.items.save(room, owner.item, session.username);
+    publish(room, session.username);
     return reply.send({ table: result });
   });
 
@@ -218,7 +291,7 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     const view = described.role === "environment" ? "full" : described.role === "space" && body.view === "full" ? "full" : "placed";
     const position = view === "full" ? { x: 0, y: 0, z: 0, rotationY: 0 } : readPosition(body.position) ?? { x: 0, y: described.role === "space" ? MODEL_HEIGHT : 0, z: 1.5, rotationY: 0 };
     const scale = view === "full" ? 1 : readScale(body.scale) ?? (described.role === "space" ? MODULE_SCALE.model : 1);
-    const item: ModuleRoomItem = { ...draft, id: randomUUID(), name: described.name, role: described.role, view, position, scale, addedBy: session.username };
+    const item: ModuleRoomItem = { ...draft, id: randomUUID(), name: described.name, role: described.role, ...(described.games ? { gameSlots: described.games } : {}), view, position, scale, addedBy: session.username };
     if (view === "full") for (const other of options.items.all(room).filter(isFullView)) forgetItem(room, other.id);
     options.items.insert(room, item, session.username);
     publish(room, session.username);

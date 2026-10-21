@@ -15,6 +15,12 @@ const thing = (id = "game-one"): ModuleRoomItem => ({
   position: { x: 0, y: 0, z: 3, rotationY: 0 },
   scale: 1,
   addedBy: "Alice",
+  gameSlots: {
+    "": "connect-four",
+    left: "chess",
+    right: "chess",
+    root: "chess",
+  },
 });
 function boot(path = ":memory:") {
   const server = buildServer({
@@ -118,9 +124,11 @@ describe("game tables through Things", () => {
       expect((await open("game-one/left", "chess")).statusCode).toBe(201);
       expect((await open("game-one", "connect-four")).statusCode).toBe(201);
       expect((await open("game-one/root", "chess")).statusCode).toBe(201);
-      expect((await open("game-one", "connect-four")).json().table.game).toBe("connect-four");
+      expect((await open("game-one", "connect-four")).json().table.game).toBe(
+        "connect-four",
+      );
       expect((await open("game-one/right", "chess")).statusCode).toBe(201);
-      expect((await open("game-one/left", "checkers")).statusCode).toBe(409);
+      expect((await open("game-one/left", "checkers")).statusCode).toBe(403);
       await act(
         "Alice",
         { action: "join", side: 1, revision: 0 },
@@ -176,6 +184,103 @@ describe("game tables through Things", () => {
       expect(read.json().table.state.board[38]).toBe(1);
     } finally {
       await second.app.close();
+    }
+  });
+});
+
+describe("game review regressions", () => {
+  it("does not invalidate placement revisions when a match opens or advances", async () => {
+    const { app, items, open, act, headers } = boot();
+    try {
+      items.insert("saha.ing", thing(), "Alice");
+      await open();
+      await act("Alice", { action: "join", side: 1, revision: 0 });
+      await act("Alice", { action: "move", column: 3, revision: 1 });
+      const placed = await app.inject({
+        method: "PATCH",
+        url: "/bff/space/items/game-one",
+        headers: headers(),
+        payload: { revision: 0, position: { x: 1, y: 0, z: 2, rotationY: 0 } },
+      });
+      expect(placed.statusCode).toBe(200);
+      expect(placed.json().item.tableGames[""].revision).toBe(2);
+    } finally {
+      await app.close();
+    }
+  });
+  it("refuses hidden games on unrelated Things and undeclared child paths", async () => {
+    const { app, items, open } = boot();
+    try {
+      const unrelated = thing("bookcase");
+      delete unrelated.gameSlots;
+      items.insert("saha.ing", unrelated, "Alice");
+      items.insert("saha.ing", thing(), "Alice");
+      expect((await open("bookcase")).statusCode).toBe(403);
+      expect((await open("game-one/hidden", "chess")).statusCode).toBe(403);
+      expect(items.one("saha.ing", "bookcase")).not.toHaveProperty(
+        "tableGames",
+      );
+    } finally {
+      await app.close();
+    }
+  });
+  it("lets either seated player resign between turns", async () => {
+    const { app, items, open, act } = boot();
+    try {
+      items.insert("saha.ing", thing(), "Alice");
+      await open();
+      await act("Alice", { action: "join", side: 1, revision: 0 });
+      await act("Bob", { action: "join", side: 2, revision: 1 });
+      const answer = await act("Bob", { action: "resign", revision: 2 });
+      expect(answer.statusCode).toBe(200);
+      expect(answer.json().table.state.winner).toBe(1);
+    } finally {
+      await app.close();
+    }
+  });
+  it("quarantines corrupt chess history without breaking other games in the room", async () => {
+    const { app, items, open, headers } = boot();
+    try {
+      items.insert("saha.ing", thing(), "Alice");
+      await open();
+      await open("game-one/left", "chess");
+      const saved = items.one("saha.ing", "game-one") as ModuleRoomItem;
+      saved.tableGames!.left.state.moves = ["this is not SAN"];
+      items.save("saha.ing", saved, "Alice");
+      const answer = await app.inject({
+        url: "/bff/space/games",
+        headers: headers(),
+      });
+      expect(answer.statusCode).toBe(200);
+      expect(answer.json().games).toHaveLength(1);
+      expect(answer.json().games[0].game).toBe("connect-four");
+    } finally {
+      await app.close();
+    }
+  });
+  it("preserves the existing finished-space write lock", async () => {
+    const { app, items, open, act, database } = boot();
+    try {
+      items.insert("saha.ing", thing(), "Alice");
+      await open();
+      const { FinishedSpaces } = await import("../space/finished.js");
+      new FinishedSpaces(database).put({
+        room: "saha.ing",
+        title: "Finished",
+        space: "saha.ing",
+        branch: "main",
+        entry: "games-room",
+        deploy: "d1",
+        by: "Alice",
+        at: new Date().toISOString(),
+      });
+      expect((await open()).statusCode).toBe(403);
+      expect(
+        (await act("Alice", { action: "join", side: 1, revision: 0 }))
+          .statusCode,
+      ).toBe(403);
+    } finally {
+      await app.close();
     }
   });
 });

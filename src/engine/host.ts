@@ -57,8 +57,9 @@ export interface Host {
   readonly questions?: QuestionHost;
   /** Change the room this page is in, in place (ctx.rooms.go). A host without it answers "not-here". */
   readonly goToRoom?: (room: string) => Promise<void>;
-  /** Gutenberg's books (ctx.books). A host without them answers "not-here". */
+  /** Authoritative matches for manifest-declared game Things. */
   readonly games?: (instance: string) => import("./types").GameTablePort;
+  /** Gutenberg’s books (ctx.books). A host without them answers "not-here". */
   readonly books?: { shelf(n: number, order: "popular" | "title"): Promise<BookShelf>; read(id: number, page: number): Promise<BookPage>; search(query: string, cursor: string | null): Promise<BookSearch> };
   /** Review rounds (ctx.reviews). A host without them answers "not-here". */
   readonly reviews?: ReviewHost;

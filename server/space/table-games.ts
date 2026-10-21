@@ -65,14 +65,16 @@ export function actOnTableGame(
       return { error: "You have no pending new-game request.", status: 409 };
     item.resetBy = item.resetBy.filter((n) => !same(n, by));
   } else if (body.action === "resign") {
-    if (!same(item.seats[item.state.turn - 1], by))
-      return {
-        error: "Only the player whose turn it is can resign.",
-        status: 403,
-      };
+    // Either seated player can resign between turns. A solo player owning both
+    // seats resigns the active side, since both sides otherwise match.
+    const side = same(item.seats[item.state.turn - 1], by)
+      ? item.state.turn
+      : item.seats.findIndex((name) => same(name, by)) + 1;
+    if (side !== 1 && side !== 2)
+      return { error: "Take a seat before resigning.", status: 403 };
     if (item.state.winner !== null)
       return { error: "This game has already ended.", status: 409 };
-    item.state.winner = item.state.turn === 1 ? 2 : 1;
+    item.state.winner = side === 1 ? 2 : 1;
     item.resetBy = [];
   } else if (body.action === "move") {
     if (!same(item.seats[item.state.turn - 1], by))

@@ -17,6 +17,25 @@ export const GAME_NAMES: Record<TableGame, string> = {
 };
 export const isTableGame = (v: unknown): v is TableGame =>
   typeof v === "string" && (TABLE_GAMES as readonly string[]).includes(v);
+export type GameSlots = Record<string, TableGame>;
+/** Manifest grants: empty path is this Thing, otherwise a composed child path. */
+export function parseGameSlots(value: unknown): GameSlots | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value);
+  if (
+    entries.length > 40 ||
+    entries.some(
+      ([key, game]) =>
+        (key !== "" &&
+          !/^[a-z0-9][a-z0-9_-]{0,31}(\/[a-z0-9][a-z0-9_-]{0,31}){0,2}$/.test(
+            key,
+          )) ||
+        !isTableGame(game),
+    )
+  )
+    return null;
+  return Object.fromEntries(entries) as GameSlots;
+}
 export type GameMove = {
   from?: number;
   to?: number;
@@ -129,6 +148,13 @@ export function parseGameItem(v: unknown): GameRoomItem | null {
     !Array.isArray(i.resetBy)
   )
     return null;
+  if (i.game === "chess") {
+    try {
+      chessOf(s);
+    } catch {
+      return null;
+    }
+  }
   return i;
 }
 export type LegalGameMove = {
@@ -409,7 +435,7 @@ export function gameBoardText(item: GameRoomItem) {
         : item.game === "reversi"
           ? ["B", "W"]
           : item.game === "connect-four"
-            ? ["R", "Y"]
+            ? ["R", "G"]
             : ["r", "i"];
   const cells =
     item.game === "chess"

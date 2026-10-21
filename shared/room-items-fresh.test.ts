@@ -38,3 +38,12 @@ describe("a table's state on the client never goes backwards", () => {
     expect(mergeRoomItems([table("a", 1), table("b", 1)], [table("a", 1)]).map((t) => t.id)).toEqual(["a"]);
   });
 });
+
+it("merges game and placement revisions independently", async () => {
+  const { defaultGameItem } = await import("./table-games");
+  const base: import("./room-items").ModuleRoomItem = {id:"games",kind:"module",revision:4,source:{space:"saha.ing",branch:"main",entry:"chess"},name:"Chess",role:"item",view:"placed",position:{x:2,y:0,z:1,rotationY:0},scale:1,addedBy:"Alice",tableGames:{"":{...defaultGameItem("games","chess","Alice"),revision:2}}};
+  const stalePlacement = {...base, revision:3, position:{...base.position,x:0}, tableGames:{"":{...base.tableGames![""],revision:5}}};
+  const merged=mergeRoomItems([base],[stalePlacement]);
+  expect(merged[0].position.x).toBe(2);expect(merged[0].tableGames![""].revision).toBe(5);
+  const late=withFresher(merged,base);expect(late[0].tableGames![""].revision).toBe(5);
+});

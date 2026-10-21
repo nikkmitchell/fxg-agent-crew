@@ -80,3 +80,25 @@ A stale revision is HTTP 409. Retrying after a lost reply cannot move twice with
 the same revision. Match updates use the existing room-items socket broadcast;
 they cannot be overwritten through the moduleState relay. Placement and deletion
 use the normal module-item routes, and deleting a Thing deletes its matches.
+
+## Declaring game access
+
+A manifest entry must explicitly grant its game slots. For an individual table:
+`{ "id": "chess", "item": "chess.js", "games": { "": "chess" } }`.
+For a composed space with a child named left:
+`{ "id": "club", "space": "club.js", "games": { "left": "chess" } }`.
+Paths are at most three child keys, with at most 40 declared slots. Grants are
+recorded by the server when a Thing is brought in, from the validated manifest;
+a write body cannot grant itself games. Re-bring the Thing after changing its
+slot declarations. Unrelated Things and undeclared child paths are refused.
+
+Game changes advance only the match revision. Carrying/scaling uses the Thing’s
+separate placement revision, so play does not invalidate a drag. Client merges
+keep the newest revision of each match independently of placement snapshots.
+Invalid stored chess histories are quarantined when parsing saved Things, so
+one damaged match cannot break the room’s game listing.
+
+Finished spaces retain the platform’s existing write lock (also used by Go):
+opening or changing a match there is refused. This batch supports work rooms
+and composed work spaces; enabling play inside published finished spaces needs
+a separate platform policy change.

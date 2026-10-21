@@ -19,3 +19,16 @@ describe("code pieces and the catalogue", () => {
     ]);
   });
 });
+
+describe("declared game slots", () => {
+  it("keeps explicit self and composed-child grants and refuses invalid declarations", () => {
+    const read = readPieces(JSON.stringify({pieces: [
+      {id:"chess",item:"game.js",games:{"":"chess"}},
+      {id:"room",space:"game.js",games:{"left/board":"chess"}},
+      {id:"hidden",item:"game.js",games:{"../other":"chess"}},
+      {id:"unknown",item:"game.js",games:{"":"go-fish"}},
+    ]}), new Map([["game.js",100]]));
+    expect(read.pieces.map(p=>p.games)).toEqual([{"":"chess"},{"left/board":"chess"}]);
+    expect(read.problems).toHaveLength(2);
+  });
+});

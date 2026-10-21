@@ -28,6 +28,7 @@
  * yourself). Paths are inside the published folder, like every URL of the
  * space.
  */
+import { parseGameSlots, type GameSlots } from "./table-games.js";
 import { spacePath } from "./spaces.js";
 
 export type BenchPiece = {
@@ -43,6 +44,8 @@ export type BenchPiece = {
    * not the default export (Sill's instruments export createDrums and the like).
    */
   export?: string;
+  /** Authoritative game slots this Thing is allowed to open, by local child path. */
+  games?: GameSlots;
 };
 
 /**
@@ -154,8 +157,13 @@ export function readPieces(text: string, published: ReadonlyMap<string, number>)
       problems.push(`${label}: "export" must be the name of a function the module exports.`);
       continue;
     }
+    const games = item.games === undefined ? undefined : parseGameSlots(item.games);
+    if (games === null || (games && !isModuleKind(kind))) {
+      problems.push(`${label}: games must map this Thing's path (empty for itself) or up to three child keys to supported game names, at most 40.`);
+      continue;
+    }
     seen.add(item.id);
-    pieces.push({ id: item.id, name, kind, path, spin: item.spin === true, ...(typeof exported === "string" && isModuleKind(kind) ? { export: exported } : {}) });
+    pieces.push({ id: item.id, name, kind, path, spin: item.spin === true, ...(games ? { games } : {}), ...(typeof exported === "string" && isModuleKind(kind) ? { export: exported } : {}) });
   }
   return { pieces, problems };
 }

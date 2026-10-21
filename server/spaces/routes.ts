@@ -236,7 +236,7 @@ sign-in, and has no localStorage or cookies of its own.
 export type DescribeModule = (
   who: { username: string; token: string },
   source: { space: string; branch: string; entry: string },
-) => Promise<{ name: string; role: ModuleKind } | { status: number; error: string }>;
+) => Promise<{ name: string; role: ModuleKind; games?: import("../../shared/table-games.js").GameSlots } | { status: number; error: string }>;
 
 export function registerSpacesHosting(app: FastifyInstance, deps: {
   spacesRoot: string;
@@ -890,7 +890,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       // bytes: the whole deploy, which is what anybody near its things may download (the Library warns above 20 MB).
       deploy: live ? { id: live.id, commit: live.commit, message: live.message, pushedBy: live.pushedBy, createdAt: live.createdAt, bytes: live.bytes } : null,
       modules: (live?.pieces ?? []).flatMap((piece) =>
-        isModuleKind(piece.kind) ? [{ id: piece.id, name: piece.name, kind: piece.kind, export: piece.export ?? null, url: moduleUrl(space, live!.id, piece.path) }] : []),
+        isModuleKind(piece.kind) ? [{ id: piece.id, name: piece.name, kind: piece.kind, games: piece.games, export: piece.export ?? null, url: moduleUrl(space, live!.id, piece.path) }] : []),
       problems: live?.piecesProblems ?? [],
     };
   };
@@ -907,7 +907,7 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     if (!isPreviewableBranch(source.branch)) return { status: 400, error: "That is not a branch name." };
     const entry = modulesOf(space, source.branch).modules.find((module) => module.id === source.entry);
     if (!entry) return { status: 404, error: `${space} (${source.branch}) has no item, environment or space called ${source.entry}.` };
-    return { name: entry.name, role: entry.kind };
+    return { name: entry.name, role: entry.kind, games: entry.games };
   };
 
   /**

@@ -213,7 +213,10 @@ export function tableGameDefinition(
             z = (Math.floor(i / width) - (rows - 1) / 2) * CELL;
           if (!value) {
             if (game === "connect-four") {
-              for (const y of [-.02, .02]) { const hole = mesh(disk, dark, pieces, x, y, z); hole.raycast = noRaycast; }
+              for (const y of [-0.02, 0.02]) {
+                const hole = mesh(disk, dark, pieces, x, y, z);
+                hole.raycast = noRaycast;
+              }
             }
             continue;
           }
@@ -317,7 +320,7 @@ export function tableGameDefinition(
         });
         resignButton.set({
           label: resign ? "Confirm resign" : "Resign",
-          disabled: pending || !ownsTurn || state.winner !== null,
+          disabled: pending || !seated || state.winner !== null,
         });
         promotionButton?.set({
           label: `Promote: ${{ q: "Queen", r: "Rook", b: "Bishop", n: "Knight" }[promotion]}`,
@@ -476,10 +479,18 @@ export function tableGameDefinition(
         width: 1.4,
         height: 0.28,
       });
-      statusCard.object.position.set(0, game === "connect-four" ? 1.78 : 1.16, -0.87);
+      statusCard.object.position.set(
+        0,
+        game === "connect-four" ? 1.78 : 1.16,
+        -0.87,
+      );
       group.add(statusCard.object);
       const helpCard = ctx.ui.card({ text: "", width: 1.4, height: 0.2 });
-      helpCard.object.position.set(0, game === "connect-four" ? 1.55 : 0.94, -0.87);
+      helpCard.object.position.set(
+        0,
+        game === "connect-four" ? 1.55 : 0.94,
+        -0.87,
+      );
       group.add(helpCard.object);
       if (!ctx.games?.watch) {
         statusCard.set({
