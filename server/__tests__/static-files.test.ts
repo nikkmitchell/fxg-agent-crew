@@ -1,11 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { brotliDecompressSync } from "node:zlib";
 import Fastify from "fastify";
 import staticPlugin from "@fastify/static";
 import { describe, expect, it } from "vitest";
-import { HASHED_FOR_A_YEAR, staticFileOptions } from "../static-files.js";
+import { createRequire } from "node:module";
+import { dirname, relative } from "node:path";
+import { HASHED_FOR_A_YEAR, KIT_THREE_FOR_A_DAY, staticFileOptions } from "../static-files.js";
 import { precompress, qualityFor } from "../../tools/precompress.mts";
+import { copyKitThree } from "../../tools/kit-three.mts";
+import { kitThreeFile } from "../../shared/kit-three.js";
 import { tempDir } from "./test-config.js";
 
 /**
@@ -27,6 +31,8 @@ function builtSite() {
   writeFileSync(join(root, "assets", "tiny-Zz9Yy8Xx.js"), "export {};\n");
   writeFileSync(join(root, "assets", "photo-Qq1Ww2Ee.jpg"), Buffer.alloc(4096, 7));
   writeFileSync(join(root, "kit", "saha.js"), script);
+  mkdirSync(join(root, "kit", "three"));
+  writeFileSync(join(root, "kit", "three", "three.module.js"), script);
   return root;
 }
 
@@ -65,6 +71,10 @@ describe("the built site, compressed", () => {
     for (const headers of [BROWSER, {}]) {
       expect((await app.inject({ url: "/assets/index-AbCd1234.js", headers })).headers["cache-control"]).toBe(HASHED_FOR_A_YEAR);
     }
+    // The room's three for spaces keeps the day its route gave it, compressed now too.
+    const three = await app.inject({ url: "/kit/three/three.module.js", headers: BROWSER });
+    expect(three.headers["cache-control"]).toBe(KIT_THREE_FOR_A_DAY);
+    expect(three.headers["content-encoding"]).toBe("br");
     // index.html is re-read every 15 s to notice a new build; the kit keeps its name when it changes.
     for (const url of ["/", "/index.html", "/kit/saha.js"]) {
       const response = await app.inject({ url, headers: BROWSER });
@@ -114,5 +124,22 @@ describe("precompress", () => {
     expect(kept).toEqual(made);
     const copy = (root: string) => readFileSync(join(root, "assets", "index-AbCd1234.js.br"));
     expect(copy(second).equals(copy(first))).toBe(true);
+  });
+});
+
+describe("the room's three for spaces, copied into the build", () => {
+  it("copies exactly what /kit/three/ serves, from the real package", () => {
+    const three = dirname(dirname(createRequire(import.meta.url).resolve("three")));
+    const out = tempDir("kit-three-");
+    const copied = copyKitThree(three, out);
+    for (const rest of ["three.module.js", "three.core.js", "addons/loaders/GLTFLoader.js", "addons/libs/draco/draco_decoder.wasm"]) {
+      expect(existsSync(join(out, rest)), rest).toBe(true);
+    }
+    const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory() ? walk(join(dir, entry.name)) : [relative(out, join(dir, entry.name)).split("\\").join("/")]);
+    const all = walk(out);
+    expect(all.length).toBe(copied);
+    expect(all.filter((rest) => kitThreeFile(rest) === null), "nothing the route would refuse").toEqual([]);
+    expect(existsSync(join(out, "three.cjs"))).toBe(false);
   });
 });

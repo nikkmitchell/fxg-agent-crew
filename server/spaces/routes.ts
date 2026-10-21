@@ -22,6 +22,7 @@ import { doorTitle, goTarget, spaceEntryPath } from "../../shared/space-kit.js";
 import { BIG_FILE_TYPES, fairShare } from "./fair-share.js";
 import type { BrotliCopies } from "../brotli-copies.js";
 import { acceptsBrotli } from "../../shared/compressible.js";
+import { kitThreeFile } from "../../shared/kit-three.js";
 import { sahaSdkSource } from "./saha-sdk.js";
 import { threeBridgeSource } from "./three-bridge.js";
 import { catalogueOf, isModuleKind, KIT_PIECES, moduleUrl, pieceUrl, type ModuleKind } from "../../shared/space-bench.js";
@@ -1045,9 +1046,11 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   const threeRoot = dirname(dirname(createRequire(import.meta.url).resolve("three")));
   app.get("/kit/three/*", async (request, reply) => {
     const rest = siteFile(new URL(request.url, "http://placeholder").pathname.slice("/kit/three".length));
-    // Scripts, and the decoders' WebAssembly beside them (Draco, Basis: compressed glTF).
-    if (rest === null || !(rest.endsWith(".js") || (rest.startsWith("addons/libs/") && rest.endsWith(".wasm")))) return reply.code(404).send("not found");
-    const [dir, file] = rest.startsWith("addons/") ? [join(threeRoot, "examples", "jsm"), rest.slice("addons/".length)] : [join(threeRoot, "build"), rest];
+    // Scripts and the decoders' WebAssembly (shared/kit-three.ts). A built site serves
+    // its own compressed copies of these from dist/kit/three/ (tools/kit-three.mts) before this route.
+    const where = rest === null ? null : kitThreeFile(rest);
+    if (where === null) return reply.code(404).send("not found");
+    const [dir, file] = [join(threeRoot, where.dir), where.file];
     if (!(await stat(join(dir, file)).catch(() => null))?.isFile()) return reply.code(404).send("not found");
     return reply
       .header("access-control-allow-origin", "*")
