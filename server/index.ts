@@ -17,6 +17,7 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { registerRequestTrust } from "./request-trust.js";
 import websocket from "@fastify/websocket";
+import { compressJson } from "./compress-json.js";
 import staticPlugin from "@fastify/static";
 import { staticFileOptions } from "./static-files.js";
 import { loadConfig, type Config } from "./config.js";
@@ -192,6 +193,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       },
     },
   });
+  // JSON answers gzipped for a client that asks (server/compress-json.ts): at the
+  // root, before any route, so it covers all of them.
+  compressJson(app);
 
   // Who is standing where. In memory, on purpose — see server/space/presence.ts.
   // Declared postures are the one exception, kept in the database so a deploy
