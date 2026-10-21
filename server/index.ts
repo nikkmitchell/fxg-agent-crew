@@ -18,6 +18,7 @@ import cookie from "@fastify/cookie";
 import { registerRequestTrust } from "./request-trust.js";
 import websocket from "@fastify/websocket";
 import staticPlugin from "@fastify/static";
+import { staticFileOptions } from "./static-files.js";
 import { loadConfig, type Config } from "./config.js";
 import { MemorySessionStore, SqliteSessionStore, type Session, type SessionStore } from "./session.js";
 import { makeRequireSession, spaceRoomOf } from "./require-session.js";
@@ -754,11 +755,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const here = dirname(fileURLToPath(import.meta.url));
   const uiRoot = findUiRoot(here);
   const basePath = config.basePath ?? "";
-  app.register(staticPlugin, {
-    root: uiRoot,
-    prefix: basePath ? `${basePath}/` : "/",
-    wildcard: false,
-  });
+  app.register(staticPlugin, staticFileOptions(uiRoot, basePath ? `${basePath}/` : "/"));
   // SPACES: a git repository and a deployed site per room (shared/spaces.ts),
   // and the multiplayer kit their pages can load (shared/space-kit.ts).
   const spaceStore = new SpaceStore(database);
