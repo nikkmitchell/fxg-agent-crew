@@ -997,7 +997,7 @@ export function ImmersivePlayer({
     selfPose.hands.right = liveRight;
     selfPose.fingers.left = held.current.left.pose?.f;
     selfPose.fingers.right = held.current.right.pose?.f;
-    if (head && currentRoom === "lobby" && avatarRecorder.status === "recording") {
+    if (head && isLobby(currentRoom) && avatarRecorder.status === "recording") {
       const hand = (side: "left" | "right") => {
         const pose = side === "left" ? liveLeft : liveRight;
         const fingers = selfPose.fingers[side];
