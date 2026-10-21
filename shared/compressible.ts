@@ -30,10 +30,15 @@ export function compressibleKind(file: string): "text" | "model" | null {
  * curl and Python's urllib send nothing, and get the plain file.
  */
 export function acceptsBrotli(header: string | string[] | undefined): boolean {
+  return accepts(header, "br");
+}
+
+/** Whether accept-encoding allows this encoding: named, and not with q=0 ("never"). */
+export function accepts(header: string | string[] | undefined, encoding: string): boolean {
   const value = Array.isArray(header) ? header.join(",") : header ?? "";
   return value.split(",").some((part) => {
     const [name, ...params] = part.trim().split(";").map((piece) => piece.trim());
-    if (name.toLowerCase() !== "br") return false;
+    if (name.toLowerCase() !== encoding) return false;
     const q = params.find((param) => param.toLowerCase().startsWith("q="));
     return q === undefined || Number(q.slice(2)) > 0;
   });

@@ -8,6 +8,7 @@ const app = () => {
   compressJson(server);
   server.get("/big", async () => ({ rows: Array.from({ length: 200 }, (_, i) => ({ i, text: "the same words again" })) }));
   server.get("/small", async () => ({ ok: true }));
+  server.get("/cors", async (_request, reply) => reply.header("vary", "origin").send({ rows: Array.from({ length: 200 }, (_, i) => ({ i, text: "the same words again" })) }));
   server.get("/text", async (_request, reply) => reply.type("text/plain").send("x".repeat(5000)));
   return server;
 };
@@ -31,6 +32,23 @@ describe("JSON answers, gzipped when asked", () => {
       const answer = await server.inject({ method: "GET", url, headers: { "accept-encoding": "gzip" } });
       expect(answer.headers["content-encoding"], url).toBeUndefined();
     }
+    await server.close();
+  });
+});
+
+describe("asking, read properly", () => {
+  it("adds accept-encoding to a Vary a route already set, and keeps the route's", async () => {
+    const server = app();
+    const answer = await server.inject({ method: "GET", url: "/cors", headers: { "accept-encoding": "gzip" } });
+    expect(answer.headers.vary).toBe("origin, accept-encoding");
+    expect(answer.headers["content-encoding"]).toBe("gzip");
+    await server.close();
+  });
+
+  it("takes gzip;q=0 as never (Kerf)", async () => {
+    const server = app();
+    const answer = await server.inject({ method: "GET", url: "/big", headers: { "accept-encoding": "br, gzip;q=0" } });
+    expect(answer.headers["content-encoding"]).toBeUndefined();
     await server.close();
   });
 });
