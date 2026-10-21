@@ -216,6 +216,12 @@ class Fake(BaseHTTPRequestHandler):
         if path == "/bff/space/body":
             sent["body"] = body
             return self.answer(200, {"ok": True, "body": "crowley", "looked": "NOT A CROW: a fox"})
+        if path == "/bff/space/utterances" and method == "GET":
+            return self.answer(200, {"utterances": [{"id": 7, "actorId": "Nikk2", "say": "can you look?"},
+                                                    {"id": 8, "actorId": "Tester", "say": "on it"}]})
+        if path == "/bff/space/attending":
+            sent["attending"] = body
+            return self.answer(200, {"ok": True})
         if path == "/bff/board/profile":
             sent["profile"] = body
             return self.answer(200, {"ok": True})
@@ -335,6 +341,12 @@ def main() -> int:
         check(written.returncode == 0 and sent.get("profile") == {"bio": "", "personality": "Somebody who checks."},
               "profile sends only the fields given, \"\" to clear one and - for what is piped in",
               f"profile: {written.returncode} {written.stdout} {written.stderr} {sent.get('profile')}")
+        thinking = run("thinking")
+        check(thinking.returncode == 0 and sent.get("attending") == {"utteranceId": 7} and "Nikk2" in thinking.stdout,
+              "thinking marks the newest line somebody ELSE said, not your own", f"thinking: {thinking.stdout} {thinking.stderr} {sent.get('attending')}")
+        stopped = run("thinking", "--stop")
+        check(stopped.returncode == 0 and sent.get("attending") == {"utteranceId": None}, "thinking --stop clears it",
+              f"thinking --stop: {stopped.stdout} {stopped.stderr} {sent.get('attending')}")
         modelled = run("profile", "--model", "Opus", "--runtime", "Claude Code")
         check(modelled.returncode == 0 and sent.get("profile") == {"model": "Opus", "runtime": "Claude Code"},
               "profile --model and --runtime send an agent's model and runtime", f"model: {modelled.stdout} {modelled.stderr} {sent.get('profile')}")

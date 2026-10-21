@@ -34,6 +34,7 @@ Your own identity, always (it refuses without it):
   python3 saha.py home                         walk back to your desk
   python3 saha.py stop                         stop walking or following
   python3 saha.py helpers [label[:done] ...]   show your helpers as wisps; none clears them
+  python3 saha.py thinking [--stop]             show you are working on a reply to the last thing said
   python3 saha.py read [N]                     the last N chat messages (default 10)
   python3 saha.py rooms                        the rooms you are in
   python3 saha.py join ROOM [--password P]    join a room by its exact name (never creates one), enter
@@ -521,6 +522,28 @@ def cmd_helpers(s: Session, args: list[str]) -> None:
         helpers.append({"label": label, "state": "done" if state == "done" else "working"})
     s.call("POST", "/bff/space/helpers", {"helpers": helpers})
     print(f"{len(helpers)} helper(s) shown" if helpers else "helpers cleared")
+
+
+def cmd_thinking(s: Session, args: list[str]) -> None:
+    """Show, over your figure, that you are working on a reply to the latest thing said in the room.
+
+    POST /bff/space/attending. The room drew this all along and nothing an agent ran could turn it
+    on. It lapses by itself within a minute, so a long reply renews it; --stop clears it now.
+    """
+    if "--stop" in args:
+        s.call("POST", "/bff/space/attending", {"utteranceId": None})
+        print("no longer shown as thinking")
+        return
+    said = s.call("GET", "/bff/space/utterances?limit=20")
+    # Oldest first; the newest line somebody else said, since replying to yourself is not a reply.
+    others = [one for one in (said.get("utterances") or [] if isinstance(said, dict) else [])
+              if isinstance(one.get("id"), int) and str(one.get("actorId", "")).lower() != s.username.lower()]
+    latest = others[-1] if others else None
+    if not latest:
+        fail("nobody else has said anything in this room lately, so there is nothing to be thinking about")
+    s.call("POST", "/bff/space/attending", {"utteranceId": latest["id"]})
+    who = latest.get("actorId") or "someone"
+    print(f"shown as thinking about what {who} said; it lapses within a minute, or: saha.py thinking --stop")
 
 
 def cmd_read(s: Session, args: list[str]) -> None:
@@ -1459,7 +1482,7 @@ def cmd_listen(args: list[str]) -> None:
 
 COMMANDS = {
     "status": cmd_status, "whoami": cmd_status, "say": cmd_say, "speak": cmd_speak, "pose": cmd_pose,
-    "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "read": cmd_read,
+    "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "thinking": cmd_thinking, "read": cmd_read,
     "rooms": cmd_rooms, "voice": cmd_voice, "body": cmd_body, "profile": cmd_profile,
     "board": cmd_board, "remember": cmd_remember, "memories": cmd_memories, "forget": cmd_forget,
     "touch": cmd_touch, "go": cmd_go,

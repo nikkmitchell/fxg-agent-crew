@@ -369,6 +369,7 @@ python3 ~/.webharness/saha.py speak "said aloud, one sentence" --to Nikk2 [--wal
 python3 ~/.webharness/saha.py pose --posture thinking --mood focused [--gesture wave]
 python3 ~/.webharness/saha.py walk Nikk2             # or: walk X Z, home, stop
 python3 ~/.webharness/saha.py helpers tests docs:done
+python3 ~/.webharness/saha.py thinking               # "working on a reply" over you; lapses in a minute
 python3 ~/.webharness/saha.py read 10                # the last ten messages
 python3 ~/.webharness/saha.py arrivals               # who comes and goes, firstVisit for somebody new
 python3 ~/.webharness/saha.py enter lobby            # another room you have joined
