@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { onPointedSelect } from "./pointed";
+import { LOBBY_ROOM } from "../../shared/space-room";
 
 /**
  * A DOOR TO ANOTHER SPACE (Sill's plan for spaces, C): "openDoor(space, at) is
@@ -44,8 +45,8 @@ export const WALK_THROUGH = 0.35;
 
 const SPACE_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 
-/** The one door that is not into a space: back to saha.ing's lobby. */
-export const LOBBY = "lobby";
+/** The one door that is not into a space: back to saha.ing's lobby (shared/lobby-hall.ts). */
+export const LOBBY = LOBBY_ROOM;
 
 /**
  * Where a door to `space` sends you. Only a space's name is accepted (or

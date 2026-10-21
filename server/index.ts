@@ -172,7 +172,25 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // Registered at the root so the upgrade handler sees every request. The route
   // itself is declared inside the prefixed block below, so it moves with the
   // base path like everything else.
-  app.register(websocket);
+  /**
+   * COMPRESSED FRAMES (permessage-deflate), offered to any client that asks;
+   * every browser does. The room's snapshot goes out ten times a second and
+   * repeats the same keys each time: for six people, three in headsets, 4.8 KB
+   * a snapshot plain and about 1.1 KB rounded and deflated, so a viewer costs
+   * ~11 KB a second instead of ~48 on a link that carries about 21. No context
+   * is kept between messages, so a socket holds no zlib window while idle; the
+   * small control messages (under a kilobyte) are sent as they are.
+   */
+  app.register(websocket, {
+    options: {
+      perMessageDeflate: {
+        threshold: 1024,
+        serverNoContextTakeover: true,
+        clientNoContextTakeover: true,
+        zlibDeflateOptions: { level: 3 },
+      },
+    },
+  });
 
   // Who is standing where. In memory, on purpose — see server/space/presence.ts.
   // Declared postures are the one exception, kept in the database so a deploy

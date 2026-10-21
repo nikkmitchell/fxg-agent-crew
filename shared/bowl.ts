@@ -12,6 +12,7 @@
  * the room hears one note together. (Sill built the relay, e3546cb; Nightjar
  * the bowls.)
  */
+import { actorKey } from "./board-rules.js";
 
 /**
  * Three bowls, large to small, a fifth and an octave apart so any two rung
@@ -81,7 +82,7 @@ export function bowlStrength(requested: unknown): number {
 
 /** Whether `by` may ring again at `now`, given when each person last did. */
 export function mayStrike(last: Map<string, number>, by: string, now: number, rest: number = BOWL_REST_MS): boolean {
-  const before = last.get(by.toLowerCase());
+  const before = last.get(actorKey(by));
   return before === undefined || now - before >= rest;
 }
 

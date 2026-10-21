@@ -4,12 +4,14 @@ import type { RoomSummary } from "../shared/contracts";
 import { ApiError } from "./api-request";
 import { bff } from "./bff-client";
 import { base } from "./router";
+import { isLobby } from "../shared/lobby-hall";
+import { roomKey } from "../shared/space-room";
 import { useHeadsetAvailable } from "./space/useHeadsetAvailable";
 
 type ListedRoom = { room: RoomSummary; joined: boolean };
 type Action = "enter" | "join" | "create" | null;
 type JoinFocusTarget = "enter" | "name" | "password" | "primary" | "refresh";
-const sameRoom = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const sameRoom = (a: string, b: string) => roomKey(a) === roomKey(b);
 
 export function roomActionError(error: unknown): string {
   if (!(error instanceof ApiError)) return "The room did not answer. Please try again.";
@@ -100,10 +102,10 @@ export function Home({ onEnter, onOpenChat }: {
     ...discoverable.map((room) => ({ room, joined: false })),
   ];
   const chosen = all.find((item) => selected && sameRoom(item.room.roomName, selected))
-    ?? all.find((item) => item.joined && sameRoom(item.room.roomName, "lobby"))
+    ?? all.find((item) => item.joined && isLobby(item.room.roomName))
     ?? all.find((item) => item.joined && sameRoom(item.room.roomName, "saha.ing"))
     ?? all.find((item) => item.joined)
-    ?? all.find((item) => sameRoom(item.room.roomName, "lobby"))
+    ?? all.find((item) => isLobby(item.room.roomName))
     ?? all[0] ?? null;
   useEffect(() => {
     if (action !== null || !joinFocusTarget || !notice) return;
@@ -203,7 +205,7 @@ export function Home({ onEnter, onOpenChat }: {
         <h1>Find your place.</h1>
         {/* /meditate was built for a phone without a headset (2026-09-28) and
             nothing on the site led to it. */}
-        <p><a href={`${base}/meditate`}>Guided meditations, without a headset</a></p>
+        <p><a className="text-button" href={`${base}/meditate`}>Guided meditations, without a headset</a></p>
       </div>
       <div className="room-front-layout">
         <div className="room-front-directory" id="room-directory">

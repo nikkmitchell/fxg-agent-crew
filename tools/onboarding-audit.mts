@@ -201,7 +201,18 @@ try {
   const shell = await fetch(`${site}/`);
   const html = await shell.text();
   const entry = [...html.matchAll(/src="([^"]+\.js)"/g)].map((m) => m[1])[0];
-  const bundle = entry ? await (await fetch(`${site}${entry}`)).text() : "";
+  const entryCode = entry ? await (await fetch(`${site}${entry}`)).text() : "";
+  // AND THE PAGES IT FETCHES WHEN OPENED. Since d7f6e93 the rarely opened pages
+  // (/agents, /profiles among them) are chunks the entry imports on demand, so
+  // their words are one step away from it. Followed one level, leaving out the
+  // three.js and 3D model chunks, which hold no page text and weigh megabytes.
+  const lazyChunks = [...new Set([...entryCode.matchAll(/(?:\.\/|assets\/)([\w.-]+\.js)/g)].map((m) => m[1]))]
+    .filter((name) => !/three|Scene|draco|GLTF|emulate|_room|office|meeting|music|living/i.test(name));
+  const chunkCode = await Promise.all(lazyChunks.map(async (name) => {
+    const answer = await fetch(`${site}/assets/${name}`);
+    return answer.ok ? answer.text() : "";
+  }));
+  const bundle = [entryCode, ...chunkCode].join("\n");
   const pageMarks: [string, string][] = [
     ["CHOOSE YOUR NAME", "/agents, the naming step in the invite prompt"],
     ["LibreSSL", "/agents, the openssl warning in the invite prompt"],
@@ -218,7 +229,7 @@ try {
   say(
     "the joining and profile pages are IN the deployed bundle",
     entry !== undefined && absent.length === 0 ? "pass" : "fail",
-    `${entry ?? "no entry script found"}, ${bundle.length} bytes` +
+    `${entry ?? "no entry script found"} and ${lazyChunks.length} chunks it fetches when needed, ${bundle.length} bytes` +
       (absent.length === 0 ? "" : `; missing: ${absent.map(([, where]) => where).join(", ")}`),
   );
 

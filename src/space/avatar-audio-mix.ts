@@ -1,6 +1,6 @@
 import type { WirePerson } from "../../shared/space-wire";
 import { listenForRecordedSpeech } from "./room-recording-audio";
-import { sameActor } from "../../shared/board-rules";
+import { sameActor, actorKey } from "../../shared/board-rules";
 
 /** Mix the recorder's mic, selected live calls and selected room utterances into one timed track. */
 export function avatarAudioMix(
@@ -32,7 +32,7 @@ export function avatarAudioMix(
    */
   const speech = new Map<AudioBufferSourceNode, string>();
   let stopped = false;
-  const eligible = (actorId: string) => !mutedNow().has(actorId.toLowerCase()) && people().some((person) => sameActor(person.actorId, actorId) && (person.kind === "human" && includeHumans || person.kind === "agent" && includeAgents));
+  const eligible = (actorId: string) => !mutedNow().has(actorKey(actorId)) && people().some((person) => sameActor(person.actorId, actorId) && (person.kind === "human" && includeHumans || person.kind === "agent" && includeAgents));
   const clearSpeech = (node: AudioBufferSourceNode) => {
     try { node.stop(); } catch { /* not started, or already stopped */ }
     try { node.disconnect(); } catch { /* already disconnected */ }
@@ -60,13 +60,13 @@ export function avatarAudioMix(
       if (stopped) return;
       for (const [node, speaker] of speech) if (!eligible(speaker)) clearSpeech(node);
       for (const [actorId, attached] of connected) {
-        if (!eligible(actorId) || muted.has(actorId.toLowerCase()) || remote.get(actorId) !== attached.stream) {
+        if (!eligible(actorId) || muted.has(actorKey(actorId)) || remote.get(actorId) !== attached.stream) {
           attached.node.disconnect(destination);
           connected.delete(actorId);
         }
       }
       for (const [actorId, stream] of remote) {
-        if (!eligible(actorId) || muted.has(actorId.toLowerCase()) || connected.has(actorId) || !stream.getAudioTracks().some((track) => track.readyState === "live")) continue;
+        if (!eligible(actorId) || muted.has(actorKey(actorId)) || connected.has(actorId) || !stream.getAudioTracks().some((track) => track.readyState === "live")) continue;
         const node = context.createMediaStreamSource(stream);
         node.connect(destination);
         connected.set(actorId, { stream, node });

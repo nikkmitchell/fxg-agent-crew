@@ -17,10 +17,8 @@ import { WITHDRAWN_BODIES, bodyKey } from "./avatar-choice.js";
  * (src/space/LobbyHall.tsx). What goes on them is decided here, where it is
  * tested.
  */
-export const LOBBY_ROOM = "lobby";
-
-export const isLobby = (room: string | null | undefined): boolean =>
-  typeof room === "string" && roomKey(room) === LOBBY_ROOM;
+/** The lobby's name and the test for it live with roomKey (space-room.ts), which the space kit can carry. */
+export { LOBBY_ROOM, isLobby } from "./space-room.js";
 
 /**
  * One door: a room you are in (enter), are standing in (here), or could join,

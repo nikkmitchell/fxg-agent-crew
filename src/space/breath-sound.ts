@@ -8,10 +8,10 @@
  * alarm.
  */
 import type { BreathStep } from "../../shared/meditation";
-import { pageAudio } from "../engine/audio";
+import { pageAudio } from "../engine/page-audio";
 
 /**
- * THE PAGE'S ONE AUDIO CONTEXT (engine/audio.ts pageAudio), the one the room's
+ * THE PAGE'S ONE AUDIO CONTEXT (engine/page-audio.ts), the one the room's
  * voices play through and a headset tap unlocks (room-audio.ts). Every bowl,
  * chime, gong, wave, fire and mouth meter in the room comes through here. It
  * was a second context of its own until 2026-10-21, which nothing in a headset

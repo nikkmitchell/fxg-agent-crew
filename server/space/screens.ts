@@ -7,7 +7,7 @@ import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import { DEFAULT_SPACE_ROOM, roomKey } from "../../shared/space-room.js";
 import { NOT_A_PERSON } from "../../shared/space-layout.js";
 import { SCREEN_LIMITS, sniffImage, type ScreenSummary } from "../../shared/screens.js";
-import { sameActor } from "../../shared/board-rules.js";
+import { sameActor, actorKey } from "../../shared/board-rules.js";
 
 /**
  * Screen sharing: one picture per person, always the latest.
@@ -284,10 +284,10 @@ export function registerScreenRoutes(
     const session = requireSession(request, reply);
     if (!session) return reply;
     const you = session.username;
-    const agents = deps.keys.agentsOf(you).filter((id) => id.toLowerCase() !== you.toLowerCase());
+    const agents = deps.keys.agentsOf(you).filter((id) => !sameActor(id, you));
     const mine = new Set(agents.map((id) => id.toLowerCase()));
     // The rest, only so the page can offer "add one of my agents" (a claim on the board's ownerships).
-    const others = deps.keys.agents().filter((id) => id.toLowerCase() !== you.toLowerCase() && !mine.has(id.toLowerCase()));
+    const others = deps.keys.agents().filter((id) => !sameActor(id, you) && !mine.has(actorKey(id)));
     return reply.header("cache-control", "no-store").send({ you, agents, others });
   });
 

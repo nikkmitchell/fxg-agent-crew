@@ -55,6 +55,7 @@ import type { PanelChoices } from "./usePanelChoices";
 import type { PanelArrange } from "./usePanelArrange";
 import type { Showing } from "../../shared/space-wire";
 import type { RoomShowingChoices } from "./useRoomShowing";
+import { LOBBY_ROOM, isLobby } from "../../shared/lobby-hall";
 import { roomMenuRows } from "../../shared/room-switch";
 import type { RoomSummary } from "../../shared/contracts";
 import { CHAT_MESSAGE_LIMIT, type Utterance } from "../../shared/voice";
@@ -1385,7 +1386,7 @@ export function RoomControls({
         if (passthroughAvailable) onTogglePassthrough();
       },
     },
-    recorder: currentRoom === "lobby"
+    recorder: isLobby(currentRoom)
       ? {
           status: avatarRecorder.status === "recording" ? "recording" : avatarRecorder.status === "idle" ? "idle" : avatarRecorder.status === "uploading" ? "uploading" : "preparing",
           showPersonalUi: avatarRecorder.showPersonalUi,
@@ -1434,8 +1435,8 @@ export function RoomControls({
     goRoom,
     // The lobby ROOM, not the website's front page (Nikk2, 6974); joined first if you are not in it yet.
     toLobby: () => {
-      if (currentRoom?.toLowerCase() === "lobby") return;
-      goRoom("lobby", !(myRooms ?? []).some((room) => room.roomName.toLowerCase() === "lobby"));
+      if (isLobby(currentRoom)) return;
+      goRoom(LOBBY_ROOM, !(myRooms ?? []).some((room) => isLobby(room.roomName)));
     },
     toFrontPage: returnToLobby,
     goTables: roomItems.filter(isGoItem).map((item) => ({ size: item.size, players: item.colours.length })),

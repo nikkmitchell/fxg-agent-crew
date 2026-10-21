@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import "./room-three";
+import "../../engine/three-audio";
 import { MODULE_ITEM, MODULE_KEY, MODULE_VALUE_BYTES, type ClientMessage, type ServerMessage } from "../../../shared/space-wire";
 import { bff, type SpaceModules } from "../../bff-client";
 import { space } from "../../space-client";

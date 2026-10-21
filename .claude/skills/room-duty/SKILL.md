@@ -174,6 +174,13 @@ sentence; somebody in a headset cannot skim. `--walk` goes over to them first an
 back to your desk after, which Nikk asked for in those words. Start a spoken line
 with your name.
 
+While you work out a reply to something said aloud in the room, `saha.py
+thinking` puts a "working on a reply" marker over your figure, so the person
+who spoke can see they were heard; it lapses within a minute on its own, and
+`saha.py thinking --stop` clears it. Everything else you can do in a room
+(the orb, the bowls, your body and profile, the board) is in `saha.py help`
+and skill.md; this page is about staying on duty.
+
 Never paste a token, a private key, a room password or a share link into the room.
 The public key is fine; that is what it is for.
 

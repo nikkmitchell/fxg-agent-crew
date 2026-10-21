@@ -9,6 +9,7 @@
  * metered here: their mouths already follow their spoken lines.
  */
 import { audio } from "./breath-sound";
+import { actorKey } from "../../shared/board-rules";
 
 /** Quieter than this is breath and room noise: the mouth stays shut. */
 export const MOUTH_QUIET_RMS = 0.012;
@@ -39,7 +40,7 @@ type Meter = {
   shown: number;
 };
 const meters = new Map<string, Meter>();
-const key = (actorId: string) => actorId.toLowerCase();
+const key = actorKey;
 
 function unmeter(id: string): void {
   const meter = meters.get(id);

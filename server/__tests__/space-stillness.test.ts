@@ -60,3 +60,23 @@ describe("the snapshot says how long each person has been still", () => {
     await built.app.close();
   });
 });
+
+describe("the snapshot's numbers", () => {
+  it("go out to four decimals: a tenth of a millimetre, ten times a second to everyone", () => {
+    let clock = 0;
+    const presence = new Presence(() => clock);
+    const hub = new SpaceHub(presence, () => null, () => clock);
+    presence.join("Nikk2", "human", true);
+    const pose = { p: { x: 0.123456789, y: 1.6123456789, z: -2.987654321 }, q: { x: 0.1111111, y: -0.2222222, z: 0.3333333, w: 0.9012345678 } };
+    presence.moveSelf("Nikk2", { x: 1.23456789, y: 0, z: -3.3333333 }, 0.987654321,
+      { head: pose, hands: { left: { ...pose, f: Array(20).fill(0.5) }, right: null } });
+    const me = hub.snapshot().find((one) => one.actorId === "Nikk2")!;
+    expect(me.at).toMatchObject({ x: 1.2346, z: -3.3333 });
+    expect(me.facing).toBe(0.9877);
+    expect(me.head).toEqual({ p: { x: 0.1235, y: 1.6123, z: -2.9877 }, q: { x: 0.1111, y: -0.2222, z: 0.3333, w: 0.9012 } });
+    expect(me.hands.left?.f).toHaveLength(20);
+    expect(me.hands.left?.q.w).toBe(0.9012);
+    expect(me.hands.right).toBeNull();
+    hub.close();
+  });
+});

@@ -16,6 +16,7 @@ import {
 import type { WirePerson } from "../../shared/space-wire";
 import { makeLabelTexture } from "./label-texture";
 import { frameTexture } from "./frame-texture";
+import { actorKey } from "../../shared/board-rules";
 
 /**
  * Everybody's shared screen: a person's in a row above the panels, an agent's
@@ -235,7 +236,7 @@ function AgentScreen({
   useFrame((_, delta) => {
     const node = group.current;
     if (!node) return;
-    const key = actorId.toLowerCase();
+    const key = actorKey(actorId);
     const person = (peopleRef.current ?? []).find((candidate) => candidate.actorId.toLowerCase() === key);
     const wanted = person && agentScreenShown(person) ? 1 : 0;
     if (person) {
@@ -315,7 +316,7 @@ export function ScreenWall({
   const agentIds = new Set(
     (peopleRef.current ?? []).filter((person) => person.kind === "agent").map((person) => person.actorId.toLowerCase()),
   );
-  const isAgent = (screen: ScreenSummary) => screen.kind === "agent" || agentIds.has(screen.actorId.toLowerCase());
+  const isAgent = (screen: ScreenSummary) => screen.kind === "agent" || agentIds.has(actorKey(screen.actorId));
   // Your own screen is yours to open (MyScreen), never hung up a second time for you (Nikk, 7244).
   const others = ready.filter((screen) => screen.actorId.toLowerCase() !== you?.toLowerCase());
   const row = others.filter((screen) => !isAgent(screen));

@@ -55,3 +55,9 @@ export const roomKey = (room: string): string => room.trim().toLowerCase();
  */
 export const isRoomName = (room: unknown): room is string =>
   typeof room === "string" && roomKey(room).length > 0 && room.trim().length <= 200;
+
+/** saha.ing's lobby: the room every door leads back to, whatever its capitals. */
+export const LOBBY_ROOM = "lobby";
+
+export const isLobby = (room: string | null | undefined): boolean =>
+  typeof room === "string" && roomKey(room) === LOBBY_ROOM;
