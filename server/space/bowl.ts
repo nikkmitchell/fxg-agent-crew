@@ -3,6 +3,7 @@ import type { Config } from "../config.js";
 import type { SessionStore } from "../session.js";
 import { makeRequireSession, spaceRoomOf } from "../require-session.js";
 import { BOWLS, GONG_NOTE, SING_EVERY_MS, bowlIndex, bowlNote, bowlStrength, mayStrike, type BowlStrike } from "../../shared/bowl.js";
+import { actorKey } from "../../shared/board-rules.js";
 
 /**
  * POST /bff/space/bowl   { bowl?, strength?, kind?, note? }   ring a singing bowl.
@@ -28,7 +29,7 @@ export function registerBowlRoutes(app: FastifyInstance, deps: {
     if (!mayStrike(last, session.username, at, kind === "sing" ? SING_EVERY_MS : undefined)) {
       return reply.code(429).send({ code: "TOO_SOON", error: "let the bowl ring a moment first" });
     }
-    last.set(session.username.toLowerCase(), at);
+    last.set(actorKey(session.username), at);
     const bowl = bowlIndex(request.body?.bowl);
     const strike: BowlStrike = {
       by: session.username,

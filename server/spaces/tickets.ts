@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { KIT_LIMITS } from "../../shared/space-kit.js";
+import { actorKey } from "../../shared/board-rules.js";
 
 /**
  * TICKETS INTO A SPACE (shared/space-kit.ts has the why). saha.ing, which
@@ -54,7 +55,7 @@ export class SpaceTickets {
   /** Refuse every ticket this person was given before now. */
   revokeUntilNow(username: string): void {
     const at = this.now();
-    this.leftAt.set(username.toLowerCase(), at);
+    this.leftAt.set(actorKey(username), at);
     for (const [who, when] of this.leftAt) if (when < at - KIT_LIMITS.ticketMs) this.leftAt.delete(who);
   }
 
@@ -84,7 +85,7 @@ export class SpaceTickets {
     }
     if (typeof sealed.u !== "string" || typeof sealed.s !== "string" || typeof sealed.e !== "number") return null;
     if (sealed.e < this.now() || sealed.s !== space) return null;
-    const left = this.leftAt.get(sealed.u.toLowerCase());
+    const left = this.leftAt.get(actorKey(sealed.u));
     if (left !== undefined && sealed.e - KIT_LIMITS.ticketMs <= left) return null;
     return { username: sealed.u, body: typeof sealed.b === "string" ? sealed.b : null, space: sealed.s };
   }
