@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 let level = 0;
 const disconnected: string[] = [];
+let asked = 0;
 vi.mock("./breath-sound", () => ({
-  audio: () => ({
+  audio: () => (asked += 1, {
     createMediaStreamSource: (stream: { id: string }) => ({ connect: () => {}, disconnect: () => disconnected.push(stream.id) }),
     createAnalyser: () => ({
       fftSize: 0,
@@ -75,5 +76,18 @@ describe("a mouth that follows a voice (Nikk, 6222)", () => {
     expect(mouthField(null)).toEqual({});
     expect(mouthField(0.456)).toEqual({ mouth: 0.46 });
     expect(mouthField(3)).toEqual({ mouth: 1 });
+  });
+});
+
+describe("the page's audio, only when there is a voice to meter", () => {
+  it("does not start it for a room page with no calls and the microphone off", () => {
+    meterVoices(new Map(), null, null);
+    const before = asked;
+    meterVoices(new Map(), "Kerf", null);
+    meterVoices(new Map(), null, null);
+    expect(asked, "no AudioContext made outside a gesture on every page load").toBe(before);
+    meterVoices(new Map([["Sill", stream("sill-call")]]), null, null);
+    expect(asked).toBe(before + 1);
+    meterVoices(new Map(), null, null);
   });
 });

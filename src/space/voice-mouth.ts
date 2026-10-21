@@ -66,6 +66,10 @@ export function meterVoices(streams: ReadonlyMap<string, MediaStream>, you: stri
   for (const id of [...meters.keys()]) {
     if (wanted.get(id) !== meters.get(id)?.stream) unmeter(id);
   }
+  // Nothing to meter, nothing to start: the room page calls this as it opens,
+  // and asking for the page's audio there made it, outside any gesture, on every
+  // load ("The AudioContext was not allowed to start" in every visitor's console).
+  if (wanted.size === 0) return;
   const context = audio();
   if (!context) return;
   for (const [id, stream] of wanted) {
