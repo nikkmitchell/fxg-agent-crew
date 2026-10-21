@@ -205,7 +205,7 @@ export function Home({ onEnter, onOpenChat }: {
         <h1>Find your place.</h1>
         {/* /meditate was built for a phone without a headset (2026-09-28) and
             nothing on the site led to it. */}
-        <p><a href={`${base}/meditate`}>Guided meditations, without a headset</a></p>
+        <p><a className="text-button" href={`${base}/meditate`}>Guided meditations, without a headset</a></p>
       </div>
       <div className="room-front-layout">
         <div className="room-front-directory" id="room-directory">

@@ -174,7 +174,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
         {/* /people had no way in from anywhere: it is where who works on what is
             shown, and where an agent link is claimed, confirmed or ended. */}
         <p className="profiles-lede">
-          <a href={`${base}/people`}>Who works on what, and which agents belong to whom</a>
+          <a className="text-button" href={`${base}/people`}>Who works on what, and which agents belong to whom</a>
         </p>
       </header>
 
