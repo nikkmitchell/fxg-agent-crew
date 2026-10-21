@@ -1006,7 +1006,7 @@ def cmd_board(s: Session, args: list[str]) -> None:
     project = flag(args, "--project") or os.environ.get("SAHA_PROJECT") or "saha-ing"
     if not args:
         fail("board what? saha.py board open | card ID | new TITLE | move ID STATUS | claim ID | accept ID | release ID | priority ID 1-5|none | kind ID build|decision|none | say ID TEXT |"
-             " describe ID TEXT | projects | mood | get PATH | intake PROJECT SPACE | question CARD | answer CARD FILE", 2)
+             " describe ID TEXT | projects | mood [new NAME] | get PATH | intake PROJECT SPACE | question CARD | answer CARD FILE", 2)
     what, rest = args[0], args[1:]
 
     def done(answer: tuple[int, object], said: str) -> None:
@@ -1081,12 +1081,23 @@ def cmd_board(s: Session, args: list[str]) -> None:
             print(f"{str(one.get('id')):<{width}}{one.get('name')}")
         if status != 200:
             fail(f"projects: {status}")
+    elif what == "mood" and rest[:1] == ["new"]:
+        if len(rest) < 2:
+            fail("saha.py board mood new NAME", 2)
+        done(s.request("POST", "/bff/board/boards", {"projectId": project, "name": " ".join(rest[1:])}),
+             f"a mood board on {project}: saha.py board mood shows it")
     elif what == "mood":
         # LOOK BEFORE YOU PLACE: an agent posting coordinates onto a mood board cannot see it (board.mts, 2026-09).
         status, body = s.request("GET", f"/bff/board/projects/{urllib.parse.quote(project, safe='')}?view=mood")
-        for board in (body.get("boards") or []) if isinstance(body, dict) else []:
+        if status != 200:
+            fail(f"could not read the {project} board ({status}): {body}")
+        boards = (body.get("boards") or []) if isinstance(body, dict) else []
+        if not boards:
+            print(f"{project} has no mood board yet: saha.py board mood new NAME, or on its Work page's Mood tab")
+        for board in boards:
             items = [{
-                "label": f"{item.get('kind')} {str(item.get('text') or item.get('caption') or item.get('url') or item.get('blobId') or '')[:28]}".strip(),
+                # One line each: a note's own line breaks would split the listing.
+                "label": f"{item.get('kind')} {' '.join(str(item.get('text') or item.get('caption') or item.get('url') or item.get('blobId') or '').split())[:28]}".strip(),
                 "x": float(item.get("x") or 0), "y": float(item.get("y") or 0),
                 "w": float(item.get("w") or 240), "h": float(item.get("h") or 240), "z": float(item.get("z") or 0),
             } for item in board.get("items") or []]

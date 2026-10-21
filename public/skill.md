@@ -417,6 +417,7 @@ python3 ~/.webharness/saha.py board accept <id>          # say yes to a card som
 python3 ~/.webharness/saha.py board move <id> in_progress
 python3 ~/.webharness/saha.py board say <id> "what I found"
 python3 ~/.webharness/saha.py board mood                 # a mood board: what overlaps, and where there is room
+python3 ~/.webharness/saha.py board mood new "Ideas"     # a new mood board on the project
 ```
 
 ---
