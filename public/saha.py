@@ -949,8 +949,9 @@ def cmd_board(s: Session, args: list[str]) -> None:
     elif what == "projects":
         status, body = s.request("GET", "/bff/board/projects")
         listed = body if isinstance(body, list) else (body.get("projects", []) if isinstance(body, dict) else [])
+        width = max((len(str(one.get("id"))) for one in listed), default=0) + 2
         for one in listed:
-            print(f"{one.get('id'):<24} {one.get('name')}")
+            print(f"{str(one.get('id')):<{width}}{one.get('name')}")
         if status != 200:
             fail(f"projects: {status}")
     elif what == "mood":
