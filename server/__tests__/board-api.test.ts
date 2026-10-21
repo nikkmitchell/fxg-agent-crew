@@ -508,3 +508,31 @@ describe("whether the board changed", () => {
     await app.close();
   });
 });
+
+describe("a lean project read", () => {
+  it("leaves out the words of a done card's older comments, and the card's own read has them all", async () => {
+    const { app, as, database } = boot();
+    const store = new (await import("../db/store.js")).BoardStore(database);
+    const nikk = { id: "nikk", kind: "human" as const };
+    store.createProject(nikk, { id: "p1", name: "P1" });
+    const done = store.createTask(nikk, { projectId: "p1", title: "finished" }) as string;
+    const open = store.createTask(nikk, { projectId: "p1", title: "still going" }) as string;
+    store.addComment(nikk, done, "said long ago");
+    store.addComment(nikk, done, "said just now");
+    store.addComment(nikk, open, "old, but on an open card");
+    store.transitionTask(nikk, done, "done");
+    const old = new Date(Date.now() - 5 * 24 * 3600_000).toISOString();
+    database.prepare("UPDATE comments SET created_at=? WHERE body IN ('said long ago', 'old, but on an open card')").run(old);
+    const cookie = as("nikk");
+    const lean = (await app.inject({ method: "GET", url: "/bff/board/projects/p1?lean=1", headers: { cookie } })).json();
+    const finished = lean.tasks.find((t: { id: string }) => t.id === done);
+    expect(finished.comments.map((c: { body: string; lean?: boolean }) => [c.body, Boolean(c.lean)])).toEqual([["", true], ["said just now", false]]);
+    expect(lean.tasks.find((t: { id: string }) => t.id === open).comments[0].body).toBe("old, but on an open card");
+    const whole = (await app.inject({ method: "GET", url: `/bff/board/tasks/${done}/comments`, headers: { cookie } })).json();
+    expect(whole.comments.map((c: { body: string }) => c.body)).toEqual(["said long ago", "said just now"]);
+    const plain = (await app.inject({ method: "GET", url: "/bff/board/projects/p1", headers: { cookie } })).json();
+    expect(plain.tasks.find((t: { id: string }) => t.id === done).comments[0].body).toBe("said long ago");
+    expect((await app.inject({ method: "GET", url: "/bff/board/tasks/nope/comments", headers: { cookie } })).statusCode).toBe(404);
+    await app.close();
+  });
+});

@@ -29,6 +29,8 @@ export function recentActivity(tasks: CrewTask[], limit = 8): ActivityEntry[] {
 
   for (const task of tasks) {
     for (const comment of task.comments ?? []) {
+      // Words left out of a lean read (a done card's comment over two days old) have nothing to excerpt.
+      if (comment.lean) continue;
       const body = comment.body.trim();
       entries.push({
         taskId: task.id,

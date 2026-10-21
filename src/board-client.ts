@@ -17,7 +17,11 @@ const call = <T>(path: string, init?: RequestInit): Promise<T> =>
 
 export const board = {
   projects: () => call<{ projects: Array<Record<string, unknown>> }>("/projects"),
-  project: (id: string) => call<Record<string, unknown>>(`/projects/${encodeURIComponent(id)}`),
+  /** `lean`: a done card's older comments without their words; `comments` fetches them when the card is opened. */
+  project: (id: string, options: { lean?: boolean } = {}) =>
+    call<Record<string, unknown>>(`/projects/${encodeURIComponent(id)}${options.lean ? "?lean=1" : ""}`),
+  comments: (taskId: string) =>
+    call<{ comments: Array<Record<string, unknown>> }>(`/tasks/${encodeURIComponent(taskId)}/comments`),
   people: () => call<{ actors: unknown[]; ownerships: unknown[]; memberships: unknown[] }>("/people"),
   /** A few bytes saying whether anything on the board changed: ask this, fetch the rest only when it moved. */
   version: () => call<{ version: string }>("/version"),
@@ -87,6 +91,11 @@ export const board = {
  * only effect is churn. This is the seam, and it is the ONLY place that knows
  * both vocabularies.
  */
+/** One comment as the UI holds it; `lean` when its words were left out of a lean project read. */
+export function toComment(c: Record<string, any>) {
+  return { id: c.id, author: c.author_id, body: c.body ?? "", createdAt: c.created_at, ...(c.lean ? { lean: true } : {}) };
+}
+
 export function toCrewTask(row: Record<string, any>) {
   return {
     id: row.id,
@@ -104,9 +113,7 @@ export function toCrewTask(row: Record<string, any>) {
     ...(row.assignee_id ? { assigneeId: row.assignee_id } : {}),
     owners: row.owners ?? [],
     acceptedBy: row.acceptedBy ?? [],
-    comments: (row.comments ?? []).map((c: Record<string, any>) => ({
-      id: c.id, author: c.author_id, body: c.body, createdAt: c.created_at,
-    })),
+    comments: (row.comments ?? []).map(toComment),
     links: (row.links ?? []).map((l: Record<string, any>) => ({ label: l.label, href: l.href })),
     ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
     ...(row.fresh ? { fresh: row.fresh } : {}),

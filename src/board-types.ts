@@ -77,7 +77,8 @@ export type CrewTask = {
   fresh?: TaskFreshness;
 };
 
-export type TaskComment = { id: string; author: string; body: string; createdAt: string };
+/** `lean`: its words were left out of a lean project read and come when the card is opened. */
+export type TaskComment = { id: string; author: string; body: string; createdAt: string; lean?: boolean };
 
 export type CrewProject = {
   id: string;

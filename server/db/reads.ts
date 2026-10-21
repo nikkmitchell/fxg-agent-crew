@@ -60,6 +60,12 @@ export class BoardReads {
    * one per card. The N+1 version was measurably fine at this size and would
    * stop being fine exactly when the board got interesting.
    */
+  /** One card's comments in order, or null when there is no such card. */
+  comments(taskId: string): Array<Record<string, unknown>> | null {
+    if (!this.db.prepare("SELECT 1 FROM tasks WHERE id = ?").get(taskId)) return null;
+    return this.db.prepare("SELECT * FROM comments WHERE task_id = ? ORDER BY position").all(taskId) as Array<Record<string, unknown>>;
+  }
+
   project(projectId: string) {
     const project = this.db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as
       | Record<string, unknown> | undefined;

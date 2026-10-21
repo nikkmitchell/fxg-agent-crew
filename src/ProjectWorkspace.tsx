@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { boardInUrl, currentProject, useCurrentProject } from "./current-project";
-import type { CrewProject, CrewTask } from "./board-types";
+import type { CrewProject, CrewTask, TaskComment } from "./board-types";
 import { base, type Tab } from "./router";
 import { recentActivity } from "./recent-activity";
 import { describeProgress, kindLabel } from "./task-kind";
@@ -11,7 +11,7 @@ import { byArrival } from "./board-order";
 import { ROLES, canManageMembership, leavesNoManager, membersOf, type Membership, type Role } from "./membership";
 import { Identity } from "./Identity";
 import type { ActorProfile } from "./profiles";
-import { board, toCrewProject, toCrewTask, toProfile } from "./board-client";
+import { board, toComment, toCrewProject, toCrewTask, toProfile } from "./board-client";
 import { MoodBoard, type Board } from "./MoodBoard";
 import { briefBudget, describeBudget } from "../shared/brief-budget";
 import { ApiError } from "./api-request";
@@ -215,7 +215,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       const remembered = selectedIdRef.current;
       const known = Boolean(remembered) && list.projects.some((project) => project.id === remembered);
       const wanted = known ? remembered : (list.projects[0]?.id as string | undefined);
-      const detail = wanted ? await board.project(wanted) : null;
+      const detail = wanted ? await board.project(wanted, { lean: true }) : null;
       versionRef.current = version;
       loadedForRef.current = wanted ?? null;
 
@@ -513,6 +513,21 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
   const tabOf = (taskId: string) => openTab[taskId] ?? "brief";
 
   /**
+   * A done card's whole discussion, fetched when its Discussion tab opens: the
+   * board's project read leaves out the words of a done card's older comments
+   * (?lean=1, half of saha-ing's 472 KB). null when the fetch failed.
+   */
+  const [fullComments, setFullComments] = useState<Record<string, TaskComment[] | null>>({});
+  const openTabFor = (task: CrewTask, tab: "brief" | "discussion" | "links") => {
+    setOpenTab((current) => ({ ...current, [task.id]: tab }));
+    if (tab !== "discussion" || !task.comments?.some((comment) => comment.lean) || fullComments[task.id]) return;
+    void board.comments(task.id).then(
+      (answer) => setFullComments((held) => ({ ...held, [task.id]: answer.comments.map(toComment) })),
+      () => setFullComments((held) => ({ ...held, [task.id]: null })),
+    );
+  };
+
+  /**
    * Save a description.
    *
    * task.upserted REPLACES the stored card, so the whole task is sent with the
@@ -611,7 +626,7 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                             aria-selected={tabOf(task.id) === id}
                             aria-controls={`panel-${id}-${task.id}`}
                             className={tabOf(task.id) === id ? "task-tab task-tab--on" : "task-tab"}
-                            onClick={() => setOpenTab((current) => ({ ...current, [task.id]: id }))}
+                            onClick={() => openTabFor(task, id)}
                           >
                             {label}
                           </button>
@@ -655,16 +670,22 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
                       {tabOf(task.id) === "discussion" ? (
                       <div className="task-panel" role="tabpanel" id={`panel-discussion-${task.id}`} aria-labelledby={`tab-discussion-${task.id}`}>
                       {(task.comments?.length ?? 0) === 0 ? <p className="muted-note">No discussion yet.</p> : null}
-                      {task.comments?.map((comment) => (
-                        <div className="task-comment" key={comment.id}>
-                          <p className="task-comment-meta">
-                            {actorMark(comment.author, 20)}
-                            <b>{comment.author}</b>
-                            <time dateTime={comment.createdAt}>{comment.createdAt.slice(0, 16).replace("T", " ")}</time>
-                          </p>
-                          <p className="task-comment-body">{comment.body}</p>
-                        </div>
-                      ))}
+                      {task.comments?.map((comment) => {
+                        // A done card's older words come when the card is opened (lean project read).
+                        const words = comment.lean ? fullComments[task.id]?.find((full) => full.id === comment.id)?.body : comment.body;
+                        return (
+                          <div className="task-comment" key={comment.id}>
+                            <p className="task-comment-meta">
+                              {actorMark(comment.author, 20)}
+                              <b>{comment.author}</b>
+                              <time dateTime={comment.createdAt}>{comment.createdAt.slice(0, 16).replace("T", " ")}</time>
+                            </p>
+                            <p className={words === undefined ? "task-comment-body muted-note" : "task-comment-body"}>
+                              {words ?? (fullComments[task.id] === null ? "This comment could not be loaded." : "Loading…")}
+                            </p>
+                          </div>
+                        );
+                      })}
 
                       {me ? (
                         <form

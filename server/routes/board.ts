@@ -51,6 +51,9 @@ const CODES: Record<string, number> = {
   STALE_ANSWER: 409,
 };
 
+/** Comments on a done card older than this come without their words in a lean project read. */
+const LEAN_AFTER_MS = 2 * 24 * 60 * 60 * 1000;
+
 export function registerBoardRoutes(
   app: FastifyInstance,
   config: Config,
@@ -181,7 +184,7 @@ export function registerBoardRoutes(
     return reply.send({ projects: reads.projects() });
   });
 
-  app.get<{ Params: { id: string }; Querystring: { view?: string } }>("/bff/board/projects/:id", async (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: { view?: string; lean?: string } }>("/bff/board/projects/:id", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
     const requestedView = request.query.view;
@@ -210,7 +213,35 @@ export function registerBoardRoutes(
           }
         : task,
     );
+    /**
+     * ?lean=1: a finished card's older comments come without their words. On
+     * saha-ing the comments are 316 KB of a 472 KB answer, and those on done
+     * cards older than two days are half of it, re-sent to every open board on
+     * every change though nobody reads them until a card is opened (GET
+     * /bff/board/tasks/:id/comments). Count, author and time stay, so a card
+     * still says how much was said and by whom; recent ones keep their words for
+     * the page's live feed.
+     */
+    if (request.query.lean === "1") {
+      const before = Date.now() - LEAN_AFTER_MS;
+      return reply.send({
+        ...view,
+        tasks: tasks.map((task) => task.status !== "done" || !Array.isArray(task.comments) ? task : {
+          ...task,
+          comments: (task.comments as Array<Record<string, unknown>>).map((comment) =>
+            Date.parse(String(comment.created_at)) < before ? { ...comment, body: "", lean: true } : comment),
+        }),
+      });
+    }
     return reply.send({ ...view, tasks });
+  });
+
+  /** One card's whole discussion, for a card whose older comments came lean. */
+  app.get<{ Params: { id: string } }>("/bff/board/tasks/:id/comments", async (request, reply) => {
+    if (!requireSession(request, reply)) return reply;
+    const comments = reads.comments(request.params.id);
+    if (!comments) return reply.code(404).send({ code: "NOT_FOUND", error: "no such card" });
+    return reply.send({ comments });
   });
 
   app.get("/bff/board/people", async (request, reply) => {
