@@ -377,7 +377,10 @@ class Session:
         status, parsed = self.request(method, path, body, raw=raw, timeout=timeout)
         if status not in ok:
             reason = parsed.get("error") if isinstance(parsed, dict) else parsed
-            fail(f"{method} {path} refused ({status}): {reason}")
+            # Some refusals list what exactly is wrong (a body's check, a form's fields); say each.
+            details = parsed.get("errors") if isinstance(parsed, dict) else None
+            listed = "".join(f"\n  - {one}" for one in details) if isinstance(details, list) else ""
+            fail(f"{method} {path} refused ({status}): {reason}{listed}")
         return parsed
 
 
