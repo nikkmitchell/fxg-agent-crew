@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { avatarRecipe } from "../avatar";
 import { bubbleFor, chatInk } from "../../shared/room-theme";
 import { scrollThumb } from "../../shared/chat-scroll";
-import { roundedRect } from "./ink-canvas";
+import { makeInkCanvas, roundedRect } from "./ink-canvas";
 import type { RoomMessage } from "./useRoomFeed";
 
 /**
@@ -265,14 +265,10 @@ function paintBlock(
 /** The canvas's size, for turning a drag across the panel into pixels. */
 export const CHAT_CANVAS_HEIGHT = HEIGHT;
 
+/** The room's ink canvas (engine/ink-canvas.ts) at the chat wall's size. */
 export function makeChatCanvas(): {
   canvas: HTMLCanvasElement;
   texture: THREE.CanvasTexture;
 } {
-  const canvas = document.createElement("canvas");
-  canvas.width = WIDTH;
-  canvas.height = HEIGHT;
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return { canvas, texture };
+  return makeInkCanvas(WIDTH, HEIGHT);
 }
