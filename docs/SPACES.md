@@ -281,7 +281,10 @@ same-origin**). The browser treats the page as its own origin:
 
 - it **cannot** read saha.ing, call `/bff/*`, or use a visitor's saha.ing sign-in;
 - it **has no** `localStorage`, cookies or service worker of its own (these throw, so
-  wrap them in `try`);
+  wrap them in `try`). Anything a page must remember per person goes in the room's
+  shared state instead, keyed by who (kerf.grove keeps "who watered this tree, when" in
+  the tree itself: its once-an-hour rule first lived in `localStorage`, and in a space
+  that silently never held);
 - fetching its own files works: every space file is sent with
   `Access-Control-Allow-Origin: *`, so ES modules, JSON, fonts and models load normally;
   so do the kit (`/kit/saha.js`), three.js (`/kit/three/`) and avatar models.
