@@ -163,7 +163,8 @@ export function parseGameItem(v: unknown): GameRoomItem | null {
 const replayed = new Map<string, boolean>();
 const REPLAYS_KEPT = 128;
 function replayable(moves: readonly string[]): boolean {
-  const key = moves.join(" ");
+  // JSON, not a join: [] and [""] (or "e4 e5" as one move) would share a joined key (Skein).
+  const key = JSON.stringify(moves);
   const known = replayed.get(key);
   if (known !== undefined) return known;
   let ok = true;

@@ -225,4 +225,16 @@ describe("a saved chess history", () => {
       expect(parseGameItem(JSON.parse(JSON.stringify(good))), "read " + i).not.toBeNull();
     }
   });
+
+  it("is never mistaken for another history that would read the same if joined (Skein)", () => {
+    const withMoves = (moves: string[]) => {
+      const item = defaultGameItem("t", "chess", "Alice");
+      item.state = { ...item.state, moves };
+      return JSON.parse(JSON.stringify(item));
+    };
+    expect(parseGameItem(withMoves([]))).not.toBeNull();
+    expect(parseGameItem(withMoves([""]))).toBeNull();
+    expect(parseGameItem(withMoves(["e4", "e5"]))).not.toBeNull();
+    expect(parseGameItem(withMoves(["e4 e5"]))).toBeNull();
+  });
 });
