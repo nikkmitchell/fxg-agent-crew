@@ -116,6 +116,9 @@ function BriefForm({
   );
 }
 
+/** How often the people list is re-read while the board is open. */
+const PEOPLE_EVERY_MS = 5 * 60_000;
+
 export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "overview" | "board" | "mood" | "mine"> }) {
   const [state, setState] = useState<ProjectState>({ projects: [], tasks: [] });
   /** Whether a card is glowing or pending, read by the polling loop. */
@@ -181,9 +184,20 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
 
   /** The board's version at the last full read, and which project that read was for. */
   const versionRef = useRef<string | null>(null);
+  /** The people list and when it was read (see load): it changes rarely, and is 27 KB. */
+  const peopleRef = useRef<{ at: number; value: Awaited<ReturnType<typeof board.people>> } | null>(null);
   const loadedForRef = useRef<string | null>(null);
 
+  /**
+   * ONE READ AT A TIME. While a change lands the two-second beat and the board's
+   * four-second beat both fire on every fourth second, and each started its own
+   * full read of the project: they arrived in pairs. A call while one is running
+   * is that one's answer arriving.
+   */
+  const loadingRef = useRef(false);
   const load = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     try {
       /**
        * ASK FIRST WHETHER ANYTHING CHANGED. The whole open project came back
@@ -202,11 +216,16 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
         return;
       }
       // saha.ing's own database, not a fold of the chat room. See ADR-002.
+      // Everybody's profile (27 KB on saha.ing) changes rarely, and a board
+      // change re-ran all of this: it is read at most every five minutes. The
+      // memberships the page needs come fresh with the project, below.
+      const peopleAge = Date.now() - (peopleRef.current?.at ?? 0);
       const [list, people, current] = await Promise.all([
         board.projects(),
-        board.people(),
+        peopleRef.current && peopleAge < PEOPLE_EVERY_MS ? Promise.resolve(peopleRef.current.value) : board.people(),
         bff.me(),
       ]);
+      if (!peopleRef.current || peopleAge >= PEOPLE_EVERY_MS) peopleRef.current = { at: Date.now(), value: people };
       // One project's cards are fetched with the project, so switching projects
       // is one request rather than a re-fold of everything.
       // A remembered project that no longer exists (deleted, or another site's)
@@ -227,7 +246,10 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
           fuller && (row as Record<string, unknown>).id === fuller.id ? { ...(row as Record<string, unknown>), ...fuller } : row as Record<string, unknown>,
         )),
         tasks: ((detail?.tasks ?? []) as Array<Record<string, unknown>>).map(toCrewTask) as CrewTask[],
-        memberships: (people.memberships ?? []) as Membership[],
+        // The open project's own memberships, read with it, so a grant shows at the next change.
+        memberships: (Array.isArray(detail?.memberships)
+          ? [...((people.memberships ?? []) as Membership[]).filter((row) => row.projectId !== wanted), ...(detail!.memberships as Membership[])]
+          : (people.memberships ?? [])) as Membership[],
         profiles: (people.actors ?? []).map((row) => toProfile(row as Record<string, unknown>)) as ActorProfile[],
       };
       setBoards((detail?.boards ?? []) as Board[]);
@@ -262,6 +284,8 @@ export function ProjectWorkspace({ tab }: { tab: Extract<Tab, "projects" | "over
       if (!hasLoadedRef.current) {
         setError(cause instanceof Error ? cause.message : "Could not load projects");
       }
+    } finally {
+      loadingRef.current = false;
     }
   }, []);
 
