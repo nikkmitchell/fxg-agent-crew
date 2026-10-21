@@ -8,11 +8,18 @@
  * alarm.
  */
 import type { BreathStep } from "../../shared/meditation";
+import { pageAudio } from "../engine/audio";
 
-let context: AudioContext | null = null;
+/**
+ * THE PAGE'S ONE AUDIO CONTEXT (engine/audio.ts pageAudio), the one the room's
+ * voices play through and a headset tap unlocks (room-audio.ts). Every bowl,
+ * chime, gong, wave, fire and mouth meter in the room comes through here. It
+ * was a second context of its own until 2026-10-21, which nothing in a headset
+ * unlocked: it could only resume itself, and outside a gesture that may fail.
+ */
 export function audio(): AudioContext | null {
   try {
-    context ??= new AudioContext();
+    const { context } = pageAudio();
     if (context.state === "suspended") void context.resume();
     return context;
   } catch {

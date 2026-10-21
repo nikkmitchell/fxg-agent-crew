@@ -1,4 +1,5 @@
 import type { Vec3 } from "./space-layout.js";
+import { nameHash } from "./name-hash.js";
 
 /**
  * Where to stand to walk BESIDE somebody, rather than where they just were.
@@ -139,7 +140,5 @@ export function besideSpot(
  */
 export function defaultSide(followerId: string, targetId: string): "left" | "right" {
   const pair = `${followerId.toLowerCase()}->${targetId.toLowerCase()}`;
-  let hash = 2_166_136_261;
-  for (const character of pair) hash = Math.imul(hash ^ character.charCodeAt(0), 16_777_619) >>> 0;
-  return hash % 2 === 0 ? "left" : "right";
+  return nameHash(pair) % 2 === 0 ? "left" : "right";
 }

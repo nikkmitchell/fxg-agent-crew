@@ -436,6 +436,11 @@ export class BoardStore {
         this.db.prepare("INSERT INTO task_owners (task_id,actor_id,accepted) VALUES (?,?,?)")
           .run(id, owner, sameActor(owner, actor.id) ? 1 : 0);
       }
+      // The first owner, as setOwnership keeps it: a card made with owners
+      // used to leave this empty until somebody claimed or released it.
+      if (owners.length) {
+        this.db.prepare("UPDATE tasks SET assignee_id = (SELECT actor_id FROM task_owners WHERE task_id=? LIMIT 1) WHERE id=?").run(id, id);
+      }
       this.audit(actor.id, "create", "task", id, undefined, { title: input.title });
       return id;
     }, { actorId: actor.id, action: "create task", target: input.projectId });
@@ -618,13 +623,15 @@ export class BoardStore {
    * stays revoked.
    */
   recordUpstreamOwner(agentName: string, ownerName: string): void {
-    boardWrites += 1;
     const agentId = this.actorIdFor(agentName, "agent");
     const ownerId = this.actorIdFor(ownerName);
-    this.db.prepare(`INSERT INTO ownerships (agent_id,owner_id,state,claimed_at,settled_at) VALUES (?,?,'verified',?,?)
+    const { changes } = this.db.prepare(`INSERT INTO ownerships (agent_id,owner_id,state,claimed_at,settled_at) VALUES (?,?,'verified',?,?)
                      ON CONFLICT(agent_id,owner_id) DO UPDATE SET state='verified', settled_at=excluded.settled_at
                      WHERE ownerships.state = 'pending'`)
       .run(agentId, ownerId, now(), now());
+    // Only a link that changed is a board change. Counting every agent sign-in
+    // made every open board re-read its whole project each time one signed in.
+    if (Number(changes) > 0) boardWrites += 1;
   }
 
   actOnOwnership(actor: Actor, agentName: string, ownerName: string, action: "declare" | "confirm" | "revoke") {

@@ -216,6 +216,27 @@ class Fake(BaseHTTPRequestHandler):
         if path == "/bff/space/body":
             sent["body"] = body
             return self.answer(200, {"ok": True, "body": "crowley", "looked": "NOT A CROW: a fox"})
+        if path.startswith("/bff/space/registered/") and method == "PUT":
+            sent.setdefault("registered", []).append((path, self.headers.get("Content-Type"), len(body) if isinstance(body, bytes) else body))
+            if path.endswith("/thumbnail"):
+                return self.answer(200, {"ok": True})
+            return self.answer(201, {"ok": True, "replaced": False, "warnings": ["no blink"], "body": {"thumbnail": None}})
+        if path == "/bff/space/meditation":
+            if method == "POST":
+                sent["meditation"] = body
+                return self.answer(200, {"meditation": {}})
+            return self.answer(200, {"meditation": {"shown": True, "startedAt": 1, "pausedAt": None, "pattern": "calm", "minutes": 10,
+                                                    "guide": "arrive", "startedBy": "Nikk2", "together": ["Nikk2"],
+                                                    "intentions": [{"by": "Nikk2", "word": "rest"}], "candles": [{}]}})
+        if path == "/bff/space/bowl":
+            sent["bowl"] = body
+            return self.answer(200, {"ok": True})
+        if path == "/bff/space/utterances" and method == "GET":
+            return self.answer(200, {"utterances": [{"id": 7, "actorId": "Nikk2", "say": "can you look?"},
+                                                    {"id": 8, "actorId": "Tester", "say": "on it"}]})
+        if path == "/bff/space/attending":
+            sent["attending"] = body
+            return self.answer(200, {"ok": True})
         if path == "/bff/board/profile":
             sent["profile"] = body
             return self.answer(200, {"ok": True})
@@ -335,6 +356,33 @@ def main() -> int:
         check(written.returncode == 0 and sent.get("profile") == {"bio": "", "personality": "Somebody who checks."},
               "profile sends only the fields given, \"\" to clear one and - for what is piped in",
               f"profile: {written.returncode} {written.stdout} {written.stderr} {sent.get('profile')}")
+        (home / "mine.vrm").write_bytes(b"glTF" + b"\0" * 60)
+        (home / "mine.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\0" * 20)
+        registered = run("body", "register", "mine", str(home / "mine.vrm"), "--thumbnail", str(home / "mine.png"))
+        uploads = sent.get("registered") or []
+        check(registered.returncode == 0 and len(uploads) == 2
+              and uploads[0] == ("/bff/space/registered/mine", "application/octet-stream", 64)
+              and uploads[1][:2] == ("/bff/space/registered/mine/thumbnail", "image/png") and "note: no blink" in registered.stdout,
+              "body register uploads the .vrm and its picture as files and passes on the server's notes",
+              f"register: {registered.stdout} {registered.stderr} {uploads}")
+        seen = run("meditate")
+        check(seen.returncode == 0 and "running: calm, 10 min, guide arrive, started by Nikk2" in seen.stdout and "intentions: rest" in seen.stdout,
+              "meditate alone says what the orb is doing", f"meditate: {seen.stdout} {seen.stderr}")
+        led = run("meditate", "start", "--guide", "arrive", "--minutes", "5")
+        check(led.returncode == 0 and sent.get("meditation") == {"action": "start", "minutes": 5, "guide": "arrive"},
+              "meditate start sends the guide and minutes for the server to check", f"meditate start: {led.stdout} {led.stderr} {sent.get('meditation')}")
+        lit = run("meditate", "light", "for", "Ana")
+        check(lit.returncode == 0 and sent.get("meditation") == {"action": "light", "for": "for Ana"}, "meditate light sends who it is for",
+              f"light: {lit.stdout} {lit.stderr} {sent.get('meditation')}")
+        rung = run("bowl", "sing", "2")
+        check(rung.returncode == 0 and sent.get("bowl") == {"kind": "sing", "bowl": 2}, "bowl sing 2 rubs the third bowl",
+              f"bowl: {rung.stdout} {rung.stderr} {sent.get('bowl')}")
+        thinking = run("thinking")
+        check(thinking.returncode == 0 and sent.get("attending") == {"utteranceId": 7} and "Nikk2" in thinking.stdout,
+              "thinking marks the newest line somebody ELSE said, not your own", f"thinking: {thinking.stdout} {thinking.stderr} {sent.get('attending')}")
+        stopped = run("thinking", "--stop")
+        check(stopped.returncode == 0 and sent.get("attending") == {"utteranceId": None}, "thinking --stop clears it",
+              f"thinking --stop: {stopped.stdout} {stopped.stderr} {sent.get('attending')}")
         modelled = run("profile", "--model", "Opus", "--runtime", "Claude Code")
         check(modelled.returncode == 0 and sent.get("profile") == {"model": "Opus", "runtime": "Claude Code"},
               "profile --model and --runtime send an agent's model and runtime", f"model: {modelled.stdout} {modelled.stderr} {sent.get('profile')}")

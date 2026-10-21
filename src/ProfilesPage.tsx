@@ -171,6 +171,11 @@ export function ProfilesPage({ me }: { me: string | null }) {
             ? "Press a voice to hear it — the same sentence each time, so they are comparable."
             : "This box has no speech engine, so voices are named but cannot be heard."}
         </p>
+        {/* /people had no way in from anywhere: it is where who works on what is
+            shown, and where an agent link is claimed, confirmed or ended. */}
+        <p className="profiles-lede">
+          <a href={`${base}/people`}>Who works on what, and which agents belong to whom</a>
+        </p>
       </header>
 
       <ul className="profile-grid">

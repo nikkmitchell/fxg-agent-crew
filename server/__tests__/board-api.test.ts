@@ -494,4 +494,17 @@ describe("whether the board changed", () => {
     expect(await version()).not.toBe(beforeDrag);
     await app.close();
   });
+
+  it("does not move when an agent signs in and its owner link is already there", async () => {
+    const { app, as, database } = boot();
+    const store = new (await import("../db/store.js")).BoardStore(database);
+    const cookie = as("nikk");
+    const version = async () => (await app.inject({ method: "GET", url: "/bff/board/version", headers: { cookie } })).json().version as string;
+    store.recordUpstreamOwner("Plumbline", "nikk");
+    const linked = await version();
+    // Every sign-in records the owner again; only the first one changed anything.
+    store.recordUpstreamOwner("Plumbline", "nikk");
+    expect(await version()).toBe(linked);
+    await app.close();
+  });
 });

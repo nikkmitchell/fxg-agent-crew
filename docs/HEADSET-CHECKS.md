@@ -247,6 +247,12 @@ built kit; nobody has looked at it in a space yet.
    **Back**: you should be on the last step, not the one before it. On the
    first step, **Back** should return to the choice of practice. Checked by
    test only.
+3. **Room sounds in a headset.** Enter the room on a Quest, tap anything once,
+   then strike a singing bowl, the gong or the wind chimes: each should sound.
+   While somebody talks in a call, their figure's mouth should move. These
+   used to play through a second audio context that a headset tap never
+   unlocked; they share the room's one context now (2026-10-21). Checked by
+   typecheck and tests only; not heard.
 
 ## Shared tabletop games (Skein)
 

@@ -20,9 +20,9 @@
  */
 
 import { contrast, luminance, readableInk as inkOn } from "../shared/room-theme";
+import { nameHash } from "../shared/name-hash";
 
-const hashSeed = (seed: string): number =>
-  [...seed].reduce((hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16_777_619) >>> 0, 2_166_136_261);
+const hashSeed = nameHash;
 
 /**
  * Base hues. Each is a *background* only; the ink over it is chosen by

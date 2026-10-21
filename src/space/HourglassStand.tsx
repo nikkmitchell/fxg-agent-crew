@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { clockOffset } from "../../shared/meditation";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { topAt, type Hourglass } from "../../shared/hourglass";
@@ -24,8 +25,9 @@ export function HourglassStand() {
   const thread = useRef<THREE.Mesh>(null);
 
   useRoomRead(() => {
+    const sent = Date.now();
     space.hourglass().then((answer) => {
-      offset.current = answer.now - Date.now();
+      offset.current = clockOffset(answer.now, sent, Date.now());
       setGlass(answer.glass);
     }).catch(() => {});
   });
@@ -71,8 +73,9 @@ export function HourglassStand() {
         position={[0, HOURGLASS_AT.height + BULB * 1.2 + 0.02, 0]}
         onClick={(event) => {
           event.stopPropagation();
+          const sent = Date.now();
           space.turnHourglass().then((answer) => {
-            offset.current = answer.now - Date.now();
+            offset.current = clockOffset(answer.now, sent, Date.now());
             setGlass(answer.glass);
             turning.current = 1;
           }).catch(() => {});

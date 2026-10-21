@@ -19,6 +19,7 @@
  * is a guest: it sees everyone and nobody sees it.
  */
 import { spacePath } from "./spaces.js";
+import { colourHash } from "./name-hash.js";
 
 export type Vec3 = [number, number, number];
 export type Quat = [number, number, number, number];
@@ -190,9 +191,7 @@ export function bytesOf(value: unknown): number {
 
 /** A colour per name, the same on every screen, so people can tell each other apart. */
 export function colorFor(name: string): string {
-  let hash = 0;
-  for (const char of name.toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return `hsl(${hash % 360}, 65%, 58%)`;
+  return `hsl(${colourHash(name) % 360}, 65%, 58%)`;
 }
 
 /** Where a space page is entered from saha.ing: the ticket rides in the #fragment. */

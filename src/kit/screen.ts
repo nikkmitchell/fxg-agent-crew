@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { CSS3DObject, CSS3DRenderer } from "three/addons/renderers/CSS3DRenderer.js";
+import { onPointedSelect } from "./pointed";
 
 /**
  * A SCREEN IN A ROOM: any space, or any web page, on a panel you can use.
@@ -222,25 +223,14 @@ export function openScreen(options: ScreenOptions): Screen {
   place();
   layer.placers.add(place);
 
-  const raycaster = new THREE.Raycaster();
-  const origin = new THREE.Vector3();
-  const direction = new THREE.Vector3();
-  const rays = [0, 1].map((index) => renderer.xr.getController(index));
-  const onSelect = (event: { target: THREE.Object3D }) => {
-    if (!renderer.xr.isPresenting) return;
-    event.target.getWorldPosition(origin);
-    direction.set(0, 0, -1).applyQuaternion(event.target.getWorldQuaternion(new THREE.Quaternion()));
-    raycaster.set(origin, direction);
-    if (raycaster.intersectObject(panel, false).length) open(url);
-  };
-  for (const ray of rays) ray.addEventListener("select", onSelect as never);
+  const stopPointing = onPointedSelect(renderer, panel, () => open(url));
 
   return {
     group,
     url,
     close: () => {
       layer.placers.delete(place);
-      for (const ray of rays) ray.removeEventListener("select", onSelect as never);
+      stopPointing();
       layer.scene.remove(live);
       holder.remove();
       layer.users -= 1;

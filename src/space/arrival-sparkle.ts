@@ -8,6 +8,7 @@
  *
  * The rules are here and tested; ArrivalSparkles draws them.
  */
+import { seededRandom } from "./seeded-random";
 
 export const SPARKLE_COUNT = 56;
 export const SPARKLE_LIFE_S = 1.4;
@@ -32,16 +33,8 @@ export function arrivals(previous: Map<string, boolean>, people: readonly Mover[
   return arrived;
 }
 
-/** Deterministic pseudo-random numbers, so a burst is testable. */
-function random(seed: number): () => number {
-  let state = seed >>> 0 || 1;
-  return () => {
-    state = Math.imul(state ^ (state >>> 15), 2246822507) >>> 0;
-    state = Math.imul(state ^ (state >>> 13), 3266489909) >>> 0;
-    state ^= state >>> 16;
-    return (state >>> 0) / 4294967296;
-  };
-}
+/** Deterministic pseudo-random numbers (seeded-random.ts). */
+const random = seededRandom;
 
 /** Starting velocities for one burst: outward and upward, in a loose fountain. */
 export function burstVelocities(seed: number, count = SPARKLE_COUNT): Float32Array {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { clockOffset } from "../../shared/meditation";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { burning, leftOf, type Stick } from "../../shared/incense";
@@ -57,8 +58,9 @@ export function IncenseBowl() {
   const [, tick] = useState(0);
 
   useRoomRead(() => {
+    const sent = Date.now();
     space.incense().then((answer) => {
-      offset.current = answer.now - Date.now();
+      offset.current = clockOffset(answer.now, sent, Date.now());
       setSticks(answer.sticks);
     }).catch(() => {});
   });
@@ -75,8 +77,9 @@ export function IncenseBowl() {
 
   const light = () => {
     setNote(null);
+    const sent = Date.now();
     space.lightIncense().then((answer) => {
-      offset.current = answer.now - Date.now();
+      offset.current = clockOffset(answer.now, sent, Date.now());
       setSticks(answer.sticks);
     }).catch((error: unknown) => setNote(error instanceof Error ? error.message : "It did not catch."));
   };

@@ -34,6 +34,10 @@ Your own identity, always (it refuses without it):
   python3 saha.py home                         walk back to your desk
   python3 saha.py stop                         stop walking or following
   python3 saha.py helpers [label[:done] ...]   show your helpers as wisps; none clears them
+  python3 saha.py thinking [--stop]             show you are working on a reply to the last thing said
+  python3 saha.py body register NAME FILE.vrm [--thumbnail PIC]   your own body, wearable at once
+  python3 saha.py meditate [start|pause|resume|end|light|intend|show]   the room's breathing orb
+  python3 saha.py bowl [strike|sing|gong] [N]   ring a singing bowl for the room
   python3 saha.py read [N]                     the last N chat messages (default 10)
   python3 saha.py rooms                        the rooms you are in
   python3 saha.py join ROOM [--password P]    join a room by its exact name (never creates one), enter
@@ -163,11 +167,12 @@ def own_name(where: Path) -> str:
 # ---------------------------------------------------------------- HTTP
 
 def fetch(method: str, url: str, body: object | None = None, cookie: str | None = None,
-          token: str | None = None, timeout: float = 30) -> tuple[int, object, list[str]]:
-    data = None if body is None else json.dumps(body).encode()
+          token: str | None = None, timeout: float = 30, raw: tuple[bytes, str] | None = None) -> tuple[int, object, list[str]]:
+    """`raw` is (bytes, content-type) for a file (a body's .vrm, its picture) instead of a JSON body."""
+    data = raw[0] if raw else (None if body is None else json.dumps(body).encode())
     headers = {"accept": "application/json"}
     if data is not None:
-        headers["content-type"] = "application/json"
+        headers["content-type"] = raw[1] if raw else "application/json"
     if cookie:
         headers["cookie"] = cookie
     if token:
@@ -355,24 +360,29 @@ class Session:
         self.room = room
         write_kept(self.where, {"site": SITE, "cookie": self.cookie, "room": room, "username": self.username})
 
-    def request(self, method: str, path: str, body: object | None = None) -> tuple[int, object]:
+    def request(self, method: str, path: str, body: object | None = None,
+                raw: tuple[bytes, str] | None = None, timeout: float = 30) -> tuple[int, object]:
         """One request as you, whatever the answer: signs in again once if the site forgot you."""
-        status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie)
+        status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie, raw=raw, timeout=timeout)
         code = parsed.get("code") if isinstance(parsed, dict) else None
         if status == 401:
             # Forgotten by the site: sign in again, once, and ask again.
             self.sign_in(self.room or "saha.ing")
-            status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie)
+            status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie, raw=raw, timeout=timeout)
         elif status == 403 and code == "ROOM_NOT_SELECTED":
             self.enter(self.room or "saha.ing")
-            status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie)
+            status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie, raw=raw, timeout=timeout)
         return status, parsed
 
-    def call(self, method: str, path: str, body: object | None = None, ok=(200, 201, 204)) -> object:
-        status, parsed = self.request(method, path, body)
+    def call(self, method: str, path: str, body: object | None = None, ok=(200, 201, 204),
+             raw: tuple[bytes, str] | None = None, timeout: float = 30) -> object:
+        status, parsed = self.request(method, path, body, raw=raw, timeout=timeout)
         if status not in ok:
             reason = parsed.get("error") if isinstance(parsed, dict) else parsed
-            fail(f"{method} {path} refused ({status}): {reason}")
+            # Some refusals list what exactly is wrong (a body's check, a form's fields); say each.
+            details = parsed.get("errors") if isinstance(parsed, dict) else None
+            listed = "".join(f"\n  - {one}" for one in details) if isinstance(details, list) else ""
+            fail(f"{method} {path} refused ({status}): {reason}{listed}")
         return parsed
 
 
@@ -523,6 +533,87 @@ def cmd_helpers(s: Session, args: list[str]) -> None:
     print(f"{len(helpers)} helper(s) shown" if helpers else "helpers cleared")
 
 
+def cmd_thinking(s: Session, args: list[str]) -> None:
+    """Show, over your figure, that you are working on a reply to the latest thing said in the room.
+
+    POST /bff/space/attending. The room drew this all along and nothing an agent ran could turn it
+    on. It lapses by itself within a minute, so a long reply renews it; --stop clears it now.
+    """
+    if "--stop" in args:
+        s.call("POST", "/bff/space/attending", {"utteranceId": None})
+        print("no longer shown as thinking")
+        return
+    said = s.call("GET", "/bff/space/utterances?limit=20")
+    # Oldest first; the newest line somebody else said, since replying to yourself is not a reply.
+    others = [one for one in (said.get("utterances") or [] if isinstance(said, dict) else [])
+              if isinstance(one.get("id"), int) and str(one.get("actorId", "")).lower() != s.username.lower()]
+    latest = others[-1] if others else None
+    if not latest:
+        fail("nobody else has said anything in this room lately, so there is nothing to be thinking about")
+    s.call("POST", "/bff/space/attending", {"utteranceId": latest["id"]})
+    who = latest.get("actorId") or "someone"
+    print(f"shown as thinking about what {who} said; it lapses within a minute, or: saha.py thinking --stop")
+
+
+def cmd_meditate(s: Session, args: list[str]) -> None:
+    """The room's breathing orb (POST /bff/space/meditation): see it, lead a session, light a candle.
+
+    Everybody in the room breathes on the same clock; the server keeps it. Pattern and guide names
+    are the server's to check, so a wrong one is refused in its words rather than guessed at here.
+    """
+    if not args or args[0] == "status":
+        answer = s.call("GET", "/bff/space/meditation")
+        m = (answer.get("meditation") if isinstance(answer, dict) else None) or {}
+        if not m.get("shown"):
+            print("no orb in this room (somebody turns it on in the room's settings, or: saha.py meditate show)")
+        if m.get("startedAt"):
+            state = "paused" if m.get("pausedAt") else "running"
+            print(f"{state}: {m.get('pattern')}, {m.get('minutes')} min" + (f", guide {m['guide']}" if m.get("guide") else "")
+                  + f", started by {m.get('startedBy')}; together: {', '.join(m.get('together') or []) or 'nobody yet'}")
+        else:
+            print(f"no session running (next: {m.get('pattern')}, {m.get('minutes')} min)")
+        stones = [one.get("word") for one in m.get("intentions") or [] if isinstance(one, dict)]
+        if stones:
+            print("intentions: " + ", ".join(str(word) for word in stones))
+        print(f"candles lit: {len(m.get('candles') or [])}")
+        return
+    what, rest = args[0], args[1:]
+    change: dict = {"action": what}
+    if what in ("start", "settings"):
+        for option in ("--pattern", "--minutes", "--guide"):
+            value = flag(rest, option)
+            if value is not None:
+                change[option[2:]] = int(value) if option == "--minutes" and value.isdigit() else value
+    elif what == "light":
+        if rest:
+            change["for"] = " ".join(rest)
+    elif what == "intend":
+        change["word"] = " ".join(rest)
+    elif what == "show":
+        change["shown"] = not (rest and rest[0] in ("off", "hide", "no"))
+    elif what not in ("pause", "resume", "end"):
+        fail("meditate what? saha.py meditate [status] | start [--pattern P] [--minutes N] [--guide G]"
+             " | pause | resume | end | light [FOR] | intend WORD | show [off]", 2)
+    s.call("POST", "/bff/space/meditation", change)
+    print({"start": "started; everybody in the room breathes on it", "pause": "paused", "resume": "resumed", "end": "ended",
+           "light": "a candle lit; it burns for a day", "intend": "your intention stone is on the orb" if change.get("word") else "your stone taken back",
+           "show": "the orb is in the room" if change.get("shown") else "the orb is put away", "settings": "settings changed"}.get(what, "done"))
+
+
+def cmd_bowl(s: Session, args: list[str]) -> None:
+    """Ring the room's singing bowls (POST /bff/space/bowl): strike, sing (a long rub) or gong; a bowl number picks one."""
+    kind = args[0] if args and args[0] in ("strike", "sing", "gong") else "strike"
+    numbers = [one for one in args if one.isdigit()]
+    body: dict = {"kind": kind, **({"bowl": int(numbers[0])} if numbers else {})}
+    status, answer = s.request("POST", "/bff/space/bowl", body)
+    if status == 429:
+        print("the bowl is still ringing; give it a moment")
+        return
+    if status not in (200, 201):
+        fail(f"bowl refused ({status}): {answer.get('error') if isinstance(answer, dict) else answer}")
+    print({"sing": "the bowl sings", "gong": "the gong sounds"}.get(kind, "the bowl rings") + " for everyone in the room")
+
+
 def cmd_read(s: Session, args: list[str]) -> None:
     limit = int(args[0]) if args and args[0].isdigit() else 10
     found = s.call("GET", f"/bff/rooms/{urllib.parse.quote(s.room, safe='')}/messages")
@@ -587,6 +678,42 @@ def cmd_body(s: Session, args: list[str]) -> None:
         for a in hits[:40]:
             print(f"{a.get('name'):<24} {a.get('collection', '')}  {a.get('thumbnail', '')}")
         print(f"\n{len(hits)} found. A name is not a likeness: open the picture before you take one. saha.py body NAME wears it.")
+        return
+    if args[0] == "register":
+        # Your own .vrm, wearable at once (server/space/registered-bodies.ts): Baiwei asked that a
+        # maker not need a release for each new body. Checked on the server like check-avatar.mts.
+        picture = flag(args, "--thumbnail")
+        if len(args) != 3:
+            fail("register what? saha.py body register NAME FILE.vrm [--thumbnail picture.jpg]", 2)
+        name, path = args[1], os.path.expanduser(args[2])
+        try:
+            vrm = open(path, "rb").read()
+        except OSError as error:
+            fail(f"could not read {path}: {error}")
+        quoted = urllib.parse.quote(name, safe="")
+        # Slow links carry a few megabytes a minute; a body is allowed up to ten minutes to arrive.
+        stored = s.call("PUT", f"/bff/space/registered/{quoted}", raw=(vrm, "application/octet-stream"), timeout=600)
+        stored = stored if isinstance(stored, dict) else {}
+        print(("replaced " if stored.get("replaced") else "registered ") + name + f" ({len(vrm) // 1024} KB)")
+        for warning in stored.get("warnings") or []:
+            print(f"  note: {warning}")
+        if picture:
+            try:
+                image = open(os.path.expanduser(picture), "rb").read()
+            except OSError as error:
+                fail(f"could not read {picture}: {error}")
+            kind = "image/png" if image[:8] == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
+            s.call("PUT", f"/bff/space/registered/{quoted}/thumbnail", raw=(image, kind))
+            print("  picture added for the wardrobe")
+        elif not (stored.get("body") or {}).get("thumbnail"):
+            print(f"  no picture yet: saha.py body register {name} {args[2]} --thumbnail picture.jpg (200 x 300)")
+        print(f"  wear it: saha.py body {name}")
+        return
+    if args[0] == "unregister":
+        if len(args) != 2:
+            fail("unregister which? saha.py body unregister NAME", 2)
+        gone = s.call("DELETE", f"/bff/space/registered/{urllib.parse.quote(args[1], safe='')}")
+        print(f"removed {gone.get('removed') if isinstance(gone, dict) else args[1]} from the wardrobe")
         return
     name = " ".join(args)
     worn = s.call("PUT", "/bff/space/body", {"body": name})
@@ -879,7 +1006,7 @@ def cmd_board(s: Session, args: list[str]) -> None:
     project = flag(args, "--project") or os.environ.get("SAHA_PROJECT") or "saha-ing"
     if not args:
         fail("board what? saha.py board open | card ID | new TITLE | move ID STATUS | claim ID | accept ID | release ID | priority ID 1-5|none | kind ID build|decision|none | say ID TEXT |"
-             " describe ID TEXT | projects | mood | get PATH | intake PROJECT SPACE | question CARD | answer CARD FILE", 2)
+             " describe ID TEXT | projects | mood [new NAME] | get PATH | intake PROJECT SPACE | question CARD | answer CARD FILE", 2)
     what, rest = args[0], args[1:]
 
     def done(answer: tuple[int, object], said: str) -> None:
@@ -949,16 +1076,28 @@ def cmd_board(s: Session, args: list[str]) -> None:
     elif what == "projects":
         status, body = s.request("GET", "/bff/board/projects")
         listed = body if isinstance(body, list) else (body.get("projects", []) if isinstance(body, dict) else [])
+        width = max((len(str(one.get("id"))) for one in listed), default=0) + 2
         for one in listed:
-            print(f"{one.get('id'):<24} {one.get('name')}")
+            print(f"{str(one.get('id')):<{width}}{one.get('name')}")
         if status != 200:
             fail(f"projects: {status}")
+    elif what == "mood" and rest[:1] == ["new"]:
+        if len(rest) < 2:
+            fail("saha.py board mood new NAME", 2)
+        done(s.request("POST", "/bff/board/boards", {"projectId": project, "name": " ".join(rest[1:])}),
+             f"a mood board on {project}: saha.py board mood shows it")
     elif what == "mood":
         # LOOK BEFORE YOU PLACE: an agent posting coordinates onto a mood board cannot see it (board.mts, 2026-09).
         status, body = s.request("GET", f"/bff/board/projects/{urllib.parse.quote(project, safe='')}?view=mood")
-        for board in (body.get("boards") or []) if isinstance(body, dict) else []:
+        if status != 200:
+            fail(f"could not read the {project} board ({status}): {body}")
+        boards = (body.get("boards") or []) if isinstance(body, dict) else []
+        if not boards:
+            print(f"{project} has no mood board yet: saha.py board mood new NAME, or on its Work page's Mood tab")
+        for board in boards:
             items = [{
-                "label": f"{item.get('kind')} {str(item.get('text') or item.get('caption') or item.get('url') or item.get('blobId') or '')[:28]}".strip(),
+                # One line each: a note's own line breaks would split the listing.
+                "label": f"{item.get('kind')} {' '.join(str(item.get('text') or item.get('caption') or item.get('url') or item.get('blobId') or '').split())[:28]}".strip(),
                 "x": float(item.get("x") or 0), "y": float(item.get("y") or 0),
                 "w": float(item.get("w") or 240), "h": float(item.get("h") or 240), "z": float(item.get("z") or 0),
             } for item in board.get("items") or []]
@@ -1458,7 +1597,7 @@ def cmd_listen(args: list[str]) -> None:
 
 COMMANDS = {
     "status": cmd_status, "whoami": cmd_status, "say": cmd_say, "speak": cmd_speak, "pose": cmd_pose,
-    "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "read": cmd_read,
+    "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "thinking": cmd_thinking, "meditate": cmd_meditate, "bowl": cmd_bowl, "read": cmd_read,
     "rooms": cmd_rooms, "voice": cmd_voice, "body": cmd_body, "profile": cmd_profile,
     "board": cmd_board, "remember": cmd_remember, "memories": cmd_memories, "forget": cmd_forget,
     "touch": cmd_touch, "go": cmd_go,

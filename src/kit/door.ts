@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { onPointedSelect } from "./pointed";
 
 /**
  * A DOOR TO ANOTHER SPACE (Sill's plan for spaces, C): "openDoor(space, at) is
@@ -132,17 +133,8 @@ export function openDoor(options: DoorOptions): Door {
   };
 
   // Pointing at it (a controller's ray, or a pinch) and pressing.
+  const stopPointing = onPointedSelect(renderer, sign, enter);
   const raycaster = new THREE.Raycaster();
-  const origin = new THREE.Vector3();
-  const direction = new THREE.Vector3();
-  const rays = [0, 1].map((index) => renderer.xr.getController(index));
-  const onSelect = (event: { target: THREE.Object3D }) => {
-    event.target.getWorldPosition(origin);
-    direction.set(0, 0, -1).applyQuaternion(event.target.getWorldQuaternion(new THREE.Quaternion()));
-    raycaster.set(origin, direction);
-    if (raycaster.intersectObject(sign, false).length) enter();
-  };
-  for (const ray of rays) ray.addEventListener("select", onSelect as never);
 
   // Clicking it with a mouse or a finger on a screen.
   const pointer = new THREE.Vector2();
@@ -168,7 +160,7 @@ export function openDoor(options: DoorOptions): Door {
     address,
     update,
     close: () => {
-      for (const ray of rays) ray.removeEventListener("select", onSelect as never);
+      stopPointing();
       renderer.domElement.removeEventListener("click", onClick);
       scene.remove(group);
       post.dispose();

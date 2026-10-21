@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { CodeLimiter, isSignupChannel, registrationBody, signupProblem, type SignupForm } from "../../shared/signup.js";
 import { WebharnessClient, WebharnessError } from "../webharness/client.js";
+import { visitorOf } from "../visitor.js";
 
 /**
  * SIGN UP ON SAHA.ING (Nikk, 6130, 6132). See shared/signup.ts.
@@ -30,18 +31,8 @@ export function registerSignupRoutes(app: FastifyInstance, deps: {
     return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "WebHarness could not be reached. Try again in a moment." });
   };
 
-  /**
-   * WHO IS ASKING, for the per-visitor limit. The app does not trust proxies
-   * (no trustProxy), so behind nginx request.ip is 127.0.0.1 for everybody and
-   * one stranger's five codes would lock out the whole world. nginx sets
-   * X-Real-IP (deploy/nginx.conf); it is believed ONLY when the request came
-   * from the local proxy, since anyone can send that header directly.
-   */
-  const visitor = (request: FastifyRequest): string => {
-    const local = request.ip === "127.0.0.1" || request.ip === "::1" || request.ip === "::ffff:127.0.0.1";
-    const real = request.headers["x-real-ip"];
-    return local && typeof real === "string" && real ? real : request.ip;
-  };
+  /** Who is asking, for limits: server/visitor.ts. */
+  const visitor = visitorOf;
 
   app.post<{ Body: { channel?: unknown; target?: unknown } }>("/bff/signup/code", async (request, reply) => {
     const { channel, target } = request.body ?? {};

@@ -22,10 +22,11 @@
  *     the room sounds across the room. Direction is the one thing it cannot do.
  */
 
+import { nameHash } from "../../shared/name-hash";
+
 export type VoiceChoice = { voiceIndex: number | null; pitch: number; rate: number };
 
-const hash = (value: string): number =>
-  [...value.trim().toLowerCase()].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16_777_619) >>> 0, 2_166_136_261);
+const hash = (value: string): number => nameHash(value.trim().toLowerCase());
 
 /**
  * Which of `voices` an agent speaks with, and at what pitch and pace.

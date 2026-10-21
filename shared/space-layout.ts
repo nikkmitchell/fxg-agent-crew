@@ -301,15 +301,13 @@ const DESK_COLUMN_X = [-4.5, -2.7, -0.9, 0.9, 2.7, 4.5];
 
 /** One person however they are spelled; the rule lives in board-rules beside sameActor. */
 import { actorKey } from "./board-rules.js";
+import { nameHash } from "./name-hash.js";
 export { actorKey };
 
 export function deskFor(actorId: string): Vec3 {
-  // FNV-1a, the same hash the avatar recipe uses, so one identity has one
+  // nameHash, the same one the avatar recipe uses, so one identity has one
   // stable place to stand rather than two systems disagreeing about it.
-  const hash = [...actorKey(actorId)].reduce(
-    (accumulated, character) => Math.imul(accumulated ^ character.charCodeAt(0), 16_777_619) >>> 0,
-    2_166_136_261,
-  );
+  const hash = nameHash(actorKey(actorId));
   return {
     x: DESK_COLUMN_X[hash % DESK_COLUMN_X.length],
     y: 0,

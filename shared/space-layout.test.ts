@@ -11,14 +11,15 @@ import {
 /**
  * The layout has to agree with itself.
  *
- * `Presence.clampToRoom` pulls anybody outside ROOM back inside it. So a
- * position defined in this file that falls outside ROOM does not produce an
- * error — it produces figures silently stacked on the boundary, standing inside
- * one another, which is exactly what happened when the resting places were put
- * at z = 7 inside a room only 14 deep.
+ * ROOM is the furnished part of the void: the panels, the floor and the light
+ * are there, and nothing stops anybody walking past it (WORLD in
+ * space-layout.ts). A FIXED position outside it puts a desk, a spawn point or
+ * a panel out in the dark. Until the walking limit came off, presence also
+ * pulled anybody outside ROOM back to its edge, which is how resting places
+ * set at z = 7 in a room 14 deep once stacked figures inside one another.
  */
 
-/** The same margin `clampToRoom` uses, so "inside" means the same thing here. */
+/** Half a metre in from the edge of the furnished floor, where the old rail stood. */
 const MARGIN = 0.5;
 
 const insideTheRail = (at: { x: number; z: number }) =>
