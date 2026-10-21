@@ -68,6 +68,19 @@ export const SNAPSHOT_SKIP_BYTES = 32 * 1024;
 /** Whether this tick's snapshot should be queued for a socket this far behind. */
 export const wantsSnapshot = (bufferedAmount: number): boolean => bufferedAmount <= SNAPSHOT_SKIP_BYTES;
 
+/**
+ * NUMBERS AS FAR AS A FIGURE CAN SHOW THEM: four decimals, a tenth of a
+ * millimetre and far under a hundredth of a degree. Positions went out with
+ * sixteen digits each, ten times a second, to everyone in the room: a third of
+ * a snapshot was digits nobody could see, on a link that carries about 21 KB a
+ * second. (Fingers are rounded by the client already: fingersForWire.)
+ */
+const wireNumber = (value: number): number => Math.round(value * 1e4) / 1e4;
+const wireVec = <V extends { x: number; y: number; z: number }>(v: V): V => ({ ...v, x: wireNumber(v.x), y: wireNumber(v.y), z: wireNumber(v.z) });
+const wirePose = <P extends { p: { x: number; y: number; z: number }; q: { x: number; y: number; z: number; w: number } }>(pose: P): P =>
+  ({ ...pose, p: wireVec(pose.p), q: { x: wireNumber(pose.q.x), y: wireNumber(pose.q.y), z: wireNumber(pose.q.z), w: wireNumber(pose.q.w) } });
+const wireHand = wirePose;
+
 export class SpaceHub {
   readonly presence: Presence;
   /** Sockets per actor. More than one is a second tab, not a second person. */
@@ -203,16 +216,16 @@ export class SpaceHub {
       .map((occupant) => ({
         actorId: occupant.actorId,
         kind: occupant.kind,
-        at: occupant.at,
+        at: wireVec(occupant.at),
         moving: isWalking(occupant),
-        facing: occupant.facing,
+        facing: wireNumber(occupant.facing),
         because: occupant.because,
         following: occupant.following?.actorId ?? null,
         waypointsLeft: occupant.walking?.waypoints.length ?? 0,
         connected: occupant.connected,
-        head: occupant.head,
+        head: occupant.head && wirePose(occupant.head),
         standing: occupant.standing,
-        hands: occupant.hands,
+        hands: { left: occupant.hands.left && wireHand(occupant.hands.left), right: occupant.hands.right && wireHand(occupant.hands.right) },
         attending: occupant.attending ? { utteranceId: occupant.attending.utteranceId } : null,
         avatar: occupant.avatar,
         body: this.bodyOf(occupant.actorId),
