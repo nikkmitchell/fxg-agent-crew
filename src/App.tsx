@@ -1,22 +1,57 @@
-import { SpacesPage } from "./SpacesPage";
-import { AgentsPage } from "./AgentsPage";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { LiveRoomPanel } from "./LiveRoomPanel";
 import { Home } from "./Home";
 import { DEFAULT_TAB, RAIL, type Tab, base, isTab, pathForTab, tabFromPath } from "./router";
 import { ProjectWorkspace } from "./ProjectWorkspace";
-import { BuildPanel } from "./BuildPanel";
 import { Identity } from "./Identity";
 import { PeoplePanel } from "./PeoplePanel";
 import { SpacePanel } from "./space/SpacePanel";
 import { Settings } from "./Settings";
-import { SaidPanel } from "./SaidPanel";
 import { ChatFeed } from "./ChatFeed";
 import { useCurrentProject } from "./current-project";
 import { useViewer } from "./use-session";
 import SignIn, { CannotTell } from "./SignIn";
-import { ProfilesPage } from "./ProfilesPage";
-import { MeditatePage } from "./MeditatePage";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { lazyRetrying } from "./lazy-retry";
+/**
+ * PAGES FETCHED WHEN OPENED. Every page used to arrive in the first download,
+ * on a link that carries about 21 KB a second: the meditations alone carried
+ * every guide's script (29 KB gzipped), the profiles the voice list. Home, the
+ * room and the board stay in it, because they are where people land.
+ */
+const MeditatePage = lazyRetrying(
+  () => import("./MeditatePage").then((module) => ({ default: module.MeditatePage })),
+  (module) => ({ default: module.MeditatePage as typeof import("./MeditatePage").MeditatePage }),
+);
+const ProfilesPage = lazyRetrying(
+  () => import("./ProfilesPage").then((module) => ({ default: module.ProfilesPage })),
+  (module) => ({ default: module.ProfilesPage as typeof import("./ProfilesPage").ProfilesPage }),
+);
+const SpacesPage = lazyRetrying(
+  () => import("./SpacesPage").then((module) => ({ default: module.SpacesPage })),
+  (module) => ({ default: module.SpacesPage as typeof import("./SpacesPage").SpacesPage }),
+);
+const AgentsPage = lazyRetrying(
+  () => import("./AgentsPage").then((module) => ({ default: module.AgentsPage })),
+  (module) => ({ default: module.AgentsPage as typeof import("./AgentsPage").AgentsPage }),
+);
+const BuildPanel = lazyRetrying(
+  () => import("./BuildPanel").then((module) => ({ default: module.BuildPanel })),
+  (module) => ({ default: module.BuildPanel as typeof import("./BuildPanel").BuildPanel }),
+);
+const SaidPanel = lazyRetrying(
+  () => import("./SaidPanel").then((module) => ({ default: module.SaidPanel })),
+  (module) => ({ default: module.SaidPanel as typeof import("./SaidPanel").SaidPanel }),
+);
+
+/** A page fetched when opened: a quiet space while it comes, and a reload if it never does. */
+function OnDemand({ where, children }: { where: string; children: React.ReactNode }) {
+  return (
+    <ErrorBoundary where={where} fallback={() => <p role="status">This page did not load. <button type="button" onClick={() => location.reload()}>Reload</button></p>}>
+      <Suspense fallback={<section aria-busy="true" />}>{children}</Suspense>
+    </ErrorBoundary>
+  );
+}
 import { board } from "./board-client";
 import { bff } from "./bff-client";
 import { startUpdateReload } from "./update-reload";
@@ -128,7 +163,7 @@ function TabContent({
       ) : null}
 
       {tab === "people" ? <PeoplePanel session={session} /> : null}
-      {tab === "profiles" ? <ProfilesPage me={session?.username ?? null} /> : null}
+      {tab === "profiles" ? <OnDemand where="profiles"><ProfilesPage me={session?.username ?? null} /></OnDemand> : null}
 
       {/* A room inside a panel inside the room: each copy would open its own
           socket and render its own panels, recursively, until the tab died.
@@ -141,15 +176,15 @@ function TabContent({
         )
       ) : null}
 
-      {tab === "build" ? <BuildPanel /> : null}
+      {tab === "build" ? <OnDemand where="build"><BuildPanel /></OnDemand> : null}
       {/* The guided meditations without a headset (shared/guided.ts). */}
-      {tab === "meditate" ? <MeditatePage /> : null}
+      {tab === "meditate" ? <OnDemand where="meditate"><MeditatePage /></OnDemand> : null}
       {/* Add an agent (Nikk, 6142); /join opens this too since 2026-10-14. */}
-      {tab === "agents" ? <AgentsPage /> : null}
+      {tab === "agents" ? <OnDemand where="agents"><AgentsPage /></OnDemand> : null}
       {/* Each room's own git and site (shared/spaces.ts). */}
-      {tab === "spaces" ? <SpacesPage /> : null}
+      {tab === "spaces" ? <OnDemand where="spaces"><SpacesPage /></OnDemand> : null}
 
-      {tab === "said" ? <SaidPanel /> : null}
+      {tab === "said" ? <OnDemand where="said"><SaidPanel /></OnDemand> : null}
 
       {/* THE ROOM ITSELF, not a button that opens it.
           This tab used to be a sentence and an "Open chat" button, which was
