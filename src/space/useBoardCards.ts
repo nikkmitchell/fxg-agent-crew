@@ -95,7 +95,7 @@ export function useBoardCards(projectId: string | null): BoardFeed {
    * WHICH WRITE THE CARDS ON SCREEN CAME FROM, and for which project. The poll
    * asks /bff/board/version (a few bytes) and reads the project only when it
    * moved: saha-ing's whole project is 460 KB, and every open room re-read it
-   * every twelve seconds over a link that carries about 21 KB a second. The
+   * every twelve seconds, for every viewer, whether or not it had changed. The
    * Work page has asked this way since c66b0f1. A refresh after your own
    * move skips the question.
    */

@@ -34,7 +34,7 @@ export function SaidPanel() {
     const read = async () => {
       try {
         // Only what is new since the last line held: the whole sixty again
-        // every six seconds was 17 KB a poll on a link that carries about 21.
+        // every six seconds was 17 KB a poll, though usually nothing was new.
         const last = newest.current;
         const body = await space.said(KEEP, last);
         if (stopped) return;

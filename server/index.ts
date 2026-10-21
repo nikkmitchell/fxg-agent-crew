@@ -180,7 +180,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
    * every browser does. The room's snapshot goes out ten times a second and
    * repeats the same keys each time: for six people, three in headsets, 4.8 KB
    * a snapshot plain and about 1.1 KB rounded and deflated, so a viewer costs
-   * ~11 KB a second instead of ~48 on a link that carries about 21. No context
+   * ~11 KB a second instead of ~48, for each viewer. No context
    * is kept between messages, so a socket holds no zlib window while idle; the
    * small control messages (under a kilobyte) are sent as they are.
    */

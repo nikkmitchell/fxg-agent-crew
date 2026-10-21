@@ -171,8 +171,8 @@ def fetch(method: str, url: str, body: object | None = None, cookie: str | None 
           token: str | None = None, timeout: float = 30, raw: tuple[bytes, str] | None = None) -> tuple[int, object, list[str]]:
     """`raw` is (bytes, content-type) for a file (a body's .vrm, its picture) instead of a JSON body."""
     data = raw[0] if raw else (None if body is None else json.dumps(body).encode())
-    # Asked compressed: a board's project is ~470 KB as JSON and ~95 KB gzipped, over
-    # a link to saha.ing that carries about 21 KB a second (the server gzips since d963fa7).
+    # Asked compressed: a board's project is ~470 KB as JSON and ~95 KB gzipped
+    # (the server gzips since d963fa7).
     headers = {"accept": "application/json", "accept-encoding": "gzip"}
     if data is not None:
         headers["content-type"] = raw[1] if raw else "application/json"

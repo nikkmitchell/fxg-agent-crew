@@ -105,8 +105,8 @@ export type HandPose = Pose & { f?: number[] };
  * NUMBERS AS FAR AS A FIGURE CAN SHOW THEM: four decimals, a tenth of a
  * millimetre and far under a hundredth of a degree, both ways on the room's
  * socket (the server's snapshot, a headset's own moves). They went out with
- * sixteen digits each, ten times a second, on a link that carries about 21 KB
- * a second: a third of every snapshot was digits nobody could see. Fingers
+ * sixteen digits each, ten times a second, to everyone in the room: a third
+ * of every snapshot was digits nobody could see. Fingers
  * are rounded already (hand-fingers.ts fingersForWire).
  */
 export const wireNumber = (value: number): number => Math.round(value * 1e4) / 1e4;

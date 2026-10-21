@@ -15,7 +15,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { lazyRetrying } from "./lazy-retry";
 /**
  * PAGES FETCHED WHEN OPENED. Every page used to arrive in the first download,
- * on a link that carries about 21 KB a second: the meditations alone carried
+ * though most visits open none of them: the meditations alone carried
  * every guide's script (29 KB gzipped), the profiles the voice list. Home, the
  * room and the board stay in it, because they are where people land.
  */
