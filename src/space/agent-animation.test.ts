@@ -1,13 +1,18 @@
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import type { VRM } from "@pixiv/three-vrm";
 import {
   AGENT_ANIMATION_FILES,
   agentAnimationSelection,
   agentAnimationState,
   animationVariant,
+  createAgentAnimationPlayer,
   lockHorizontalHips,
   transitionClip,
+  type AgentAnimationClip,
+  type AgentAnimationSelection,
+  type AgentAnimationState,
 } from "./agent-animation";
 
 const state = (changes: Partial<Parameters<typeof agentAnimationState>[0]> = {}) =>
@@ -128,5 +133,85 @@ describe("licensed VRMA assets", () => {
     );
     expect(notice).toContain("Overte");
     expect(notice).toContain("Apache License");
+  });
+});
+
+/**
+ * A FIGURE MOVES AS SOON AS ITS IDLE ARRIVES (Kerf, 2026-10-22). The player
+ * waited for all 24 clips, about a minute on saha.ing's link, and lost all
+ * authored motion when any one failed. These drive the real player with a
+ * stand-in body (one bone) and clips handed over one at a time.
+ */
+describe("clips that arrive one at a time", () => {
+  const ANGLES: Partial<Record<AgentAnimationClip, number>> = { idle: 0.1, thinking: 0.5, walking: 0.9, talking: 1.3 };
+  const clipOf = (key: AgentAnimationClip) => {
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ANGLES[key] ?? 2);
+    return new THREE.AnimationClip(key, 1, [new THREE.QuaternionKeyframeTrack("hips.quaternion", [0, 1], [...q.toArray(), ...q.toArray()])]);
+  };
+  const setUp = (fails: AgentAnimationClip[] = []) => {
+    const scene = new THREE.Object3D();
+    const hips = new THREE.Object3D();
+    hips.name = "hips";
+    scene.add(hips);
+    const waiting = new Map<AgentAnimationClip, { give: () => void }>();
+    const asked: AgentAnimationClip[] = [];
+    const clipFor = (key: AgentAnimationClip) => {
+      asked.push(key);
+      if (key === "idle") return Promise.resolve(clipOf(key));
+      return new Promise<THREE.AnimationClip>((resolve, reject) => {
+        waiting.set(key, { give: () => (fails.includes(key) ? reject(new Error(`${key} did not arrive`)) : resolve(clipOf(key))) });
+      });
+    };
+    const give = async (...keys: AgentAnimationClip[]) => {
+      for (const key of keys) waiting.get(key)?.give();
+      await new Promise((settle) => setTimeout(settle, 0));
+    };
+    const turn = () => 2 * Math.atan2(hips.quaternion.y, hips.quaternion.w);
+    return { body: { scene, lookAt: null } as unknown as VRM, clipFor, give, asked, turn };
+  };
+  const select = (state: AgentAnimationState, clip: AgentAnimationClip, gestureClip: AgentAnimationClip | null = null, gestureToken: number | null = null) =>
+    ({ state, clip, gestureClip, gestureToken });
+  const play = (player: Awaited<ReturnType<typeof createAgentAnimationPlayer>>, selection: AgentAnimationSelection) => {
+    for (let frame = 0; frame < 4; frame += 1) player.update(0.25, selection, false);
+  };
+
+  it("starts on idle while everything else is still coming, then plays the clip asked for when it arrives", async () => {
+    const { body, clipFor, give, asked, turn } = setUp();
+    const player = await createAgentAnimationPlayer(body, clipFor);
+    expect(asked.slice(0, 4), "idle alone first, then the walk").toEqual(["idle", "walking", "walkStart", "walkStop"]);
+    play(player, select("thinking", "thinking"));
+    expect(turn(), "a stand-in from what has arrived, not the rest pose").toBeCloseTo(ANGLES.idle!, 3);
+    await give("walking", "walkStart", "walkStop");
+    await give("thinking");
+    play(player, select("thinking", "thinking"));
+    expect(turn()).toBeCloseTo(ANGLES.thinking!, 3);
+    player.dispose();
+  });
+
+  it("walks without waiting for a walk start still on its way", async () => {
+    const { body, clipFor, give, turn } = setUp();
+    const player = await createAgentAnimationPlayer(body, clipFor);
+    play(player, select("idle", "idle"));
+    await give("walking");
+    play(player, select("walking", "walking"));
+    expect(turn()).toBeCloseTo(ANGLES.walking!, 3);
+    player.dispose();
+  });
+
+  it("loses only the clip that fails to arrive", async () => {
+    const { body, clipFor, give, turn } = setUp(["gestureWave", "walkStart"]);
+    const player = await createAgentAnimationPlayer(body, clipFor);
+    await give("walking", "walkStart", "walkStop");
+    await give("talking", "thinking", "listening");
+    play(player, select("talking", "talking", "gestureWave", 1));
+    expect(turn(), "talking carries on; the wave is simply not played").toBeCloseTo(ANGLES.talking!, 3);
+    player.dispose();
+  });
+
+  it("adds nothing after it is put away", async () => {
+    const { body, clipFor, give } = setUp();
+    const player = await createAgentAnimationPlayer(body, clipFor);
+    player.dispose();
+    await expect(give("walking", "walkStart", "walkStop")).resolves.toBeUndefined();
   });
 });

@@ -263,7 +263,35 @@ type OneShot = {
   kind: "transition" | "gesture";
 };
 
-export async function createAgentAnimationPlayer(vrm: VRM): Promise<AgentAnimationPlayer> {
+/**
+ * THE ORDER A FIGURE'S CLIPS ARRIVE IN. The player used to wait for all 24
+ * (Promise.all), 1.3 MB even reduced: about a minute on saha.ing's ~21 KB/s
+ * link with every figure on its procedural fallback pose, and one clip that
+ * failed to download cost a figure all its authored motion. Now it starts the
+ * moment `idle` is here, and the rest come a few at a time, what is seen most
+ * first: walking, then talk, thought and listening, then gestures.
+ */
+export const CLIP_LOAD_ORDER: readonly AgentAnimationClip[] = [
+  "idle",
+  "walking", "walkStart", "walkStop",
+  "talking", "thinking", "listening", "idleCalm",
+  ...(Object.keys(AGENT_ANIMATION_FILES) as AgentAnimationClip[]).filter(
+    (key) => !["idle", "walking", "walkStart", "walkStop", "talking", "thinking", "listening", "idleCalm"].includes(key),
+  ),
+];
+const LOADING_AT_ONCE = 3;
+
+/** The clip to play for a selection until its own has arrived: one of the same state's, else idle. */
+function standIn(selection: AgentAnimationSelection, has: (clip: AgentAnimationClip) => boolean): AgentAnimationClip | null {
+  if (has(selection.clip)) return selection.clip;
+  return STATE_POOLS[selection.state].find(has) ?? (has("idle") ? "idle" : null);
+}
+
+export async function createAgentAnimationPlayer(
+  vrm: VRM,
+  clipFor: (key: AgentAnimationClip) => Promise<THREE.AnimationClip> = async (key) =>
+    lockHorizontalHips(createVRMAnimationClip(await loadAnimation(key), vrm)),
+): Promise<AgentAnimationPlayer> {
   if (
     vrm.lookAt &&
     !vrm.scene.children.some((child) => child instanceof VRMLookAtQuaternionProxy)
@@ -273,24 +301,28 @@ export async function createAgentAnimationPlayer(vrm: VRM): Promise<AgentAnimati
     vrm.scene.add(proxy);
   }
 
-  const entries = await Promise.all(
-    (Object.keys(AGENT_ANIMATION_FILES) as AgentAnimationClip[]).map(async (key) => {
-      const source = await loadAnimation(key);
-      const clip = lockHorizontalHips(createVRMAnimationClip(source, vrm));
-      clip.name = `agent-${key}`;
-      return [key, clip] as const;
-    }),
-  );
-
   const mixer = new THREE.AnimationMixer(vrm.scene);
-  const actions = new Map(
-    entries.map(([key, clip]) => {
-      const action = mixer.clipAction(clip);
-      action.setLoop(THREE.LoopRepeat, Infinity);
-      action.clampWhenFinished = false;
-      return [key, action] as const;
-    }),
-  );
+  const actions = new Map<AgentAnimationClip, THREE.AnimationAction>();
+  let disposed = false;
+  const add = (key: AgentAnimationClip, clip: THREE.AnimationClip) => {
+    if (disposed) return;
+    clip.name = `agent-${key}`;
+    const action = mixer.clipAction(clip);
+    action.setLoop(THREE.LoopRepeat, Infinity);
+    action.clampWhenFinished = false;
+    actions.set(key, action);
+  };
+
+  // Idle first and alone: without it there is nothing to stand in, nor to freeze for reduced motion.
+  add("idle", await clipFor("idle"));
+  const rest = CLIP_LOAD_ORDER.filter((key) => key !== "idle");
+  void (async () => {
+    for (let at = 0; at < rest.length && !disposed; at += LOADING_AT_ONCE) {
+      await Promise.all(rest.slice(at, at + LOADING_AT_ONCE).map((key) =>
+        // One clip that does not arrive costs that clip, never the figure's motion.
+        clipFor(key).then((clip) => add(key, clip), (error: unknown) => console.warn(`Agent clip ${key} unavailable`, error))));
+    }
+  })();
 
   let activeAction: THREE.AnimationAction | null = null;
   let activeBaseClip: AgentAnimationClip | null = null;
@@ -301,9 +333,11 @@ export async function createAgentAnimationPlayer(vrm: VRM): Promise<AgentAnimati
   let frozen = false;
 
   const activateBase = (selection: AgentAnimationSelection, fade = 0.28) => {
-    const next = actions.get(selection.clip);
-    if (!next) return;
-    if (activeAction === next && activeBaseClip === selection.clip) {
+    // Recorded as the stand-in, so `update` swaps in the selected clip the moment it arrives.
+    const key = standIn(selection, (clip) => actions.has(clip));
+    const next = key && actions.get(key);
+    if (!key || !next) return;
+    if (activeAction === next && activeBaseClip === key) {
       activeBaseState = selection.state;
       return;
     }
@@ -317,7 +351,7 @@ export async function createAgentAnimationPlayer(vrm: VRM): Promise<AgentAnimati
       next.fadeIn(fade);
     }
     activeAction = next;
-    activeBaseClip = selection.clip;
+    activeBaseClip = key;
     activeBaseState = selection.state;
   };
 
@@ -378,7 +412,8 @@ export async function createAgentAnimationPlayer(vrm: VRM): Promise<AgentAnimati
           activateBase(selection, 0);
         } else if (activeBaseState !== selection.state || activeBaseClip !== selection.clip) {
           const transition = transitionClip(activeBaseState, selection.state);
-          if (transition) beginOneShot(transition, "transition");
+          // A start or stop still on its way is skipped, not waited for: waiting held the walk itself back.
+          if (transition && actions.has(transition)) beginOneShot(transition, "transition");
           else activateBase(selection);
         }
 
@@ -396,6 +431,7 @@ export async function createAgentAnimationPlayer(vrm: VRM): Promise<AgentAnimati
       mixer.update(delta);
     },
     dispose() {
+      disposed = true;
       mixer.removeEventListener("finished", onFinished);
       mixer.stopAllAction();
       mixer.uncacheRoot(vrm.scene);
