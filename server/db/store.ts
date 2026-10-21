@@ -618,13 +618,15 @@ export class BoardStore {
    * stays revoked.
    */
   recordUpstreamOwner(agentName: string, ownerName: string): void {
-    boardWrites += 1;
     const agentId = this.actorIdFor(agentName, "agent");
     const ownerId = this.actorIdFor(ownerName);
-    this.db.prepare(`INSERT INTO ownerships (agent_id,owner_id,state,claimed_at,settled_at) VALUES (?,?,'verified',?,?)
+    const { changes } = this.db.prepare(`INSERT INTO ownerships (agent_id,owner_id,state,claimed_at,settled_at) VALUES (?,?,'verified',?,?)
                      ON CONFLICT(agent_id,owner_id) DO UPDATE SET state='verified', settled_at=excluded.settled_at
                      WHERE ownerships.state = 'pending'`)
       .run(agentId, ownerId, now(), now());
+    // Only a link that changed is a board change. Counting every agent sign-in
+    // made every open board re-read its whole project each time one signed in.
+    if (Number(changes) > 0) boardWrites += 1;
   }
 
   actOnOwnership(actor: Actor, agentName: string, ownerName: string, action: "declare" | "confirm" | "revoke") {
