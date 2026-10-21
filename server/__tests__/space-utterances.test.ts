@@ -235,3 +235,17 @@ describe("declaring that you are answering", () => {
     await app.close();
   });
 });
+
+describe("reading what was said", () => {
+  it("with ?after=ID, sends only what came after that line", async () => {
+    const { app, as } = boot();
+    for (const words of ["one.", "two.", "three."]) await say(app, as("nikk"), { say: words, source: "text" });
+    const all = (await app.inject({ method: "GET", url: "/bff/space/utterances", headers: { cookie: as("nikk") } })).json().utterances;
+    expect(all.map((u: { say: string }) => u.say)).toEqual(["one.", "two.", "three."]);
+    const since = (await app.inject({ method: "GET", url: `/bff/space/utterances?after=${all[0].id}`, headers: { cookie: as("nikk") } })).json().utterances;
+    expect(since.map((u: { say: string }) => u.say)).toEqual(["two.", "three."]);
+    const none = (await app.inject({ method: "GET", url: `/bff/space/utterances?after=${all[2].id}`, headers: { cookie: as("nikk") } })).json().utterances;
+    expect(none).toEqual([]);
+    await app.close();
+  });
+});

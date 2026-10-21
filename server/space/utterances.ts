@@ -80,10 +80,11 @@ export class Utterances {
    * Everything, not just what was aimed at you: the room is a shared place and
    * a conversation you can see half of is worse than one you can see none of.
    */
-  recent(limit = 50, room = DEFAULT_SPACE_ROOM): Utterance[] {
+  /** The latest `limit`, oldest first; with `after`, only those said since that id. */
+  recent(limit = 50, room = DEFAULT_SPACE_ROOM, after = 0): Utterance[] {
     const rows = this.db
-      .prepare("SELECT * FROM utterances WHERE room = ? ORDER BY id DESC LIMIT ?")
-      .all(roomKey(room), Math.max(1, Math.min(200, limit))) as Record<string, unknown>[];
+      .prepare("SELECT * FROM utterances WHERE room = ? AND id > ? ORDER BY id DESC LIMIT ?")
+      .all(roomKey(room), after, Math.max(1, Math.min(200, limit))) as Record<string, unknown>[];
     return rows.map(row).reverse();
   }
 
@@ -212,9 +213,11 @@ export function registerUtteranceRoutes(
     },
   );
 
-  app.get<{ Querystring: { limit?: string } }>("/bff/space/utterances", async (request, reply) => {
+  app.get<{ Querystring: { limit?: string; after?: string } }>("/bff/space/utterances", async (request, reply) => {
     const session = requireSession(request, reply);
     if (!session) return reply;
-    return reply.send({ utterances: utterances.recent(Number(request.query.limit ?? 50), spaceRoomOf(session)) });
+    // ?after=ID: only what was said since, so a reader polling for new lines is not sent the old ones again.
+    const after = Number(request.query.after ?? 0);
+    return reply.send({ utterances: utterances.recent(Number(request.query.limit ?? 50), spaceRoomOf(session), Number.isSafeInteger(after) && after > 0 ? after : 0) });
   });
 }

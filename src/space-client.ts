@@ -54,8 +54,8 @@ export const space = {
    * production; the socket's backfill sorted by id and was right by accident.
    * Nobody should have to open `utterances.ts` to find this out again.
    */
-  said: (limit: number) =>
-    requestJson<{ utterances: Utterance[] }>(`${root}/utterances?limit=${limit}`),
+  said: (limit: number, after = 0) =>
+    requestJson<{ utterances: Utterance[] }>(`${root}/utterances?limit=${limit}${after > 0 ? `&after=${after}` : ""}`),
 
   /** Say something. The server refuses with a sentence; `ApiError` carries it. */
   /** Where a send's time went, for the server log only. See server/space/send-timing.ts. */

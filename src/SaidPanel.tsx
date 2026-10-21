@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Transcript } from "./space/Transcript";
 import { space } from "./space-client";
 import type { Utterance } from "../shared/voice";
@@ -26,17 +26,23 @@ const KEEP = 60;
 export function SaidPanel() {
   const [heard, setHeard] = useState<Utterance[] | null>(null);
   const [failed, setFailed] = useState(false);
+  /** The id of the newest line held, so a poll asks only for what came after it. */
+  const newest = useRef(0);
 
   useEffect(() => {
     let stopped = false;
     const read = async () => {
       try {
-        const body = await space.said(KEEP);
+        // Only what is new since the last line held: the whole sixty again
+        // every six seconds was 17 KB a poll on a link that carries about 21.
+        const last = newest.current;
+        const body = await space.said(KEEP, last);
         if (stopped) return;
         setFailed(false);
         // Already oldest-first; see the note on `space.said`. Reversing it here
         // is what displayed the room backwards.
-        setHeard(body.utterances);
+        if (body.utterances.length) newest.current = body.utterances[body.utterances.length - 1].id;
+        setHeard((held) => (last && held ? [...held, ...body.utterances].slice(-KEEP) : body.utterances));
       } catch {
         // KEEP WHAT WE HAVE and say the reading stopped. Blanking the panel on
         // one failed poll would look like everybody had gone quiet, which is a
