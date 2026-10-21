@@ -26,6 +26,14 @@ import { isStatus, nextStatuses } from "../../shared/board-rules";
 
 const EVERY_MS = 12_000;
 
+/**
+ * Whose card it is, as the Work page shows it: the first of its owners.
+ * `assignee_id` is the database's cached copy, which a card made with owners
+ * never had set until 2026-10-21, so the wall showed those cards as nobody's.
+ */
+const ownerOf = (row: Record<string, unknown>): string | null =>
+  Array.isArray(row.owners) && row.owners.length ? String(row.owners[0]) : row.assignee_id ? String(row.assignee_id) : null;
+
 export type BoardFeed = {
   cards: BoardCard[];
   /**
@@ -128,7 +136,7 @@ export function useBoardCards(projectId: string | null): BoardFeed {
           id: String(row.id),
           title: String(row.title ?? "untitled"),
           status: String(row.status ?? "backlog"),
-          ...(row.assignee_id ? { assigneeId: String(row.assignee_id) } : {}),
+          ...(ownerOf(row) ? { assigneeId: ownerOf(row)! } : {}),
           ...(Array.isArray(row.comments) ? { commentCount: row.comments.length } : {}),
         })),
       );
@@ -177,7 +185,7 @@ export function useBoardCards(projectId: string | null): BoardFeed {
       title: String(row.title ?? "untitled"),
       status: String(row.status ?? "backlog"),
       ...(row.description ? { description: String(row.description) } : {}),
-      ...(row.assignee_id ? { assigneeId: String(row.assignee_id) } : {}),
+      ...(ownerOf(row) ? { assigneeId: ownerOf(row)! } : {}),
       ...(typeof row.points === "number" ? { points: row.points } : {}),
       ...(row.priority ? { priority: String(row.priority) } : {}),
       ...(row.blocker ? { blocker: String(row.blocker) } : {}),

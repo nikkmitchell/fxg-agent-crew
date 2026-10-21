@@ -852,3 +852,13 @@ describe("the project list", () => {
     expect(names).toEqual(["aaaa", "lobby", "Saha", "XR.Instruments"]);
   });
 });
+
+describe("a card's first owner", () => {
+  it("is recorded when the card is made with owners, not only when somebody claims it", () => {
+    // The room's wall read assignee_id, and a card made with owners left it
+    // empty, so the wall showed it as nobody's.
+    const id = store.createTask(nikk, { projectId: "saha", title: "with an owner", owners: ["claude-nikk2mbp"] }) as string;
+    const row = db.prepare("SELECT assignee_id FROM tasks WHERE id=?").get(id) as { assignee_id: string | null };
+    expect(row.assignee_id).toBe("claude-nikk2mbp");
+  });
+});
