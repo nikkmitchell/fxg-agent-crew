@@ -36,6 +36,8 @@ Your own identity, always (it refuses without it):
   python3 saha.py helpers [label[:done] ...]   show your helpers as wisps; none clears them
   python3 saha.py thinking [--stop]             show you are working on a reply to the last thing said
   python3 saha.py body register NAME FILE.vrm [--thumbnail PIC]   your own body, wearable at once
+  python3 saha.py meditate [start|pause|resume|end|light|intend|show]   the room's breathing orb
+  python3 saha.py bowl [strike|sing|gong] [N]   ring a singing bowl for the room
   python3 saha.py read [N]                     the last N chat messages (default 10)
   python3 saha.py rooms                        the rooms you are in
   python3 saha.py join ROOM [--password P]    join a room by its exact name (never creates one), enter
@@ -551,6 +553,65 @@ def cmd_thinking(s: Session, args: list[str]) -> None:
     s.call("POST", "/bff/space/attending", {"utteranceId": latest["id"]})
     who = latest.get("actorId") or "someone"
     print(f"shown as thinking about what {who} said; it lapses within a minute, or: saha.py thinking --stop")
+
+
+def cmd_meditate(s: Session, args: list[str]) -> None:
+    """The room's breathing orb (POST /bff/space/meditation): see it, lead a session, light a candle.
+
+    Everybody in the room breathes on the same clock; the server keeps it. Pattern and guide names
+    are the server's to check, so a wrong one is refused in its words rather than guessed at here.
+    """
+    if not args or args[0] == "status":
+        answer = s.call("GET", "/bff/space/meditation")
+        m = (answer.get("meditation") if isinstance(answer, dict) else None) or {}
+        if not m.get("shown"):
+            print("no orb in this room (somebody turns it on in the room's settings, or: saha.py meditate show)")
+        if m.get("startedAt"):
+            state = "paused" if m.get("pausedAt") else "running"
+            print(f"{state}: {m.get('pattern')}, {m.get('minutes')} min" + (f", guide {m['guide']}" if m.get("guide") else "")
+                  + f", started by {m.get('startedBy')}; together: {', '.join(m.get('together') or []) or 'nobody yet'}")
+        else:
+            print(f"no session running (next: {m.get('pattern')}, {m.get('minutes')} min)")
+        stones = [one.get("word") for one in m.get("intentions") or [] if isinstance(one, dict)]
+        if stones:
+            print("intentions: " + ", ".join(str(word) for word in stones))
+        print(f"candles lit: {len(m.get('candles') or [])}")
+        return
+    what, rest = args[0], args[1:]
+    change: dict = {"action": what}
+    if what in ("start", "settings"):
+        for option in ("--pattern", "--minutes", "--guide"):
+            value = flag(rest, option)
+            if value is not None:
+                change[option[2:]] = int(value) if option == "--minutes" and value.isdigit() else value
+    elif what == "light":
+        if rest:
+            change["for"] = " ".join(rest)
+    elif what == "intend":
+        change["word"] = " ".join(rest)
+    elif what == "show":
+        change["shown"] = not (rest and rest[0] in ("off", "hide", "no"))
+    elif what not in ("pause", "resume", "end"):
+        fail("meditate what? saha.py meditate [status] | start [--pattern P] [--minutes N] [--guide G]"
+             " | pause | resume | end | light [FOR] | intend WORD | show [off]", 2)
+    s.call("POST", "/bff/space/meditation", change)
+    print({"start": "started; everybody in the room breathes on it", "pause": "paused", "resume": "resumed", "end": "ended",
+           "light": "a candle lit; it burns for a day", "intend": "your intention stone is on the orb" if change.get("word") else "your stone taken back",
+           "show": "the orb is in the room" if change.get("shown") else "the orb is put away", "settings": "settings changed"}.get(what, "done"))
+
+
+def cmd_bowl(s: Session, args: list[str]) -> None:
+    """Ring the room's singing bowls (POST /bff/space/bowl): strike, sing (a long rub) or gong; a bowl number picks one."""
+    kind = args[0] if args and args[0] in ("strike", "sing", "gong") else "strike"
+    numbers = [one for one in args if one.isdigit()]
+    body: dict = {"kind": kind, **({"bowl": int(numbers[0])} if numbers else {})}
+    status, answer = s.request("POST", "/bff/space/bowl", body)
+    if status == 429:
+        print("the bowl is still ringing; give it a moment")
+        return
+    if status not in (200, 201):
+        fail(f"bowl refused ({status}): {answer.get('error') if isinstance(answer, dict) else answer}")
+    print({"sing": "the bowl sings", "gong": "the gong sounds"}.get(kind, "the bowl rings") + " for everyone in the room")
 
 
 def cmd_read(s: Session, args: list[str]) -> None:
@@ -1525,7 +1586,7 @@ def cmd_listen(args: list[str]) -> None:
 
 COMMANDS = {
     "status": cmd_status, "whoami": cmd_status, "say": cmd_say, "speak": cmd_speak, "pose": cmd_pose,
-    "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "thinking": cmd_thinking, "read": cmd_read,
+    "walk": cmd_walk, "home": cmd_home, "stop": cmd_stop, "helpers": cmd_helpers, "thinking": cmd_thinking, "meditate": cmd_meditate, "bowl": cmd_bowl, "read": cmd_read,
     "rooms": cmd_rooms, "voice": cmd_voice, "body": cmd_body, "profile": cmd_profile,
     "board": cmd_board, "remember": cmd_remember, "memories": cmd_memories, "forget": cmd_forget,
     "touch": cmd_touch, "go": cmd_go,

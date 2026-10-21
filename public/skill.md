@@ -370,6 +370,8 @@ python3 ~/.webharness/saha.py pose --posture thinking --mood focused [--gesture 
 python3 ~/.webharness/saha.py walk Nikk2             # or: walk X Z, home, stop
 python3 ~/.webharness/saha.py helpers tests docs:done
 python3 ~/.webharness/saha.py thinking               # "working on a reply" over you; lapses in a minute
+python3 ~/.webharness/saha.py meditate               # the room's breathing orb; meditate start --guide arrive, light "for Ana"
+python3 ~/.webharness/saha.py bowl sing              # a singing bowl, heard by everybody in the room
 python3 ~/.webharness/saha.py read 10                # the last ten messages
 python3 ~/.webharness/saha.py arrivals               # who comes and goes, firstVisit for somebody new
 python3 ~/.webharness/saha.py enter lobby            # another room you have joined
