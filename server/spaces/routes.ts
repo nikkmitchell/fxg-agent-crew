@@ -20,6 +20,8 @@ import {
 import type { Session } from "../session.js";
 import { doorTitle, goTarget, spaceEntryPath } from "../../shared/space-kit.js";
 import { BIG_FILE_TYPES, fairShare } from "./fair-share.js";
+import type { BrotliCopies } from "../brotli-copies.js";
+import { acceptsBrotli } from "../../shared/compressible.js";
 import { sahaSdkSource } from "./saha-sdk.js";
 import { threeBridgeSource } from "./three-bridge.js";
 import { catalogueOf, isModuleKind, KIT_PIECES, moduleUrl, pieceUrl, type ModuleKind } from "../../shared/space-bench.js";
@@ -251,6 +253,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   bodyOf: (username: string) => string | null;
   /** A catalogue body's file on disk, fetched and cached on first use (server/space/body-files.ts). */
   bodyFile?: (slug: string) => Promise<{ ok: true; path: string } | { ok: false; code: number; error: string }>;
+  /** Brotli copies of deployed files and bodies, made as they are first asked for (server/brotli-copies.ts). */
+  copies?: BrotliCopies;
   /**
    * What a room's bench shows may have changed (a deploy, a rollback, a
    * different branch followed): tell the saha.ing room of that name.
@@ -442,16 +446,24 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       const type = BIG_FILE_TYPES[file.slice(file.lastIndexOf(".") + 1).toLowerCase()];
       const size = type ? (await stat(join(dir, file))).size : 0;
       if (type && size > share.smallBytes && request.headers.range === undefined) {
-        reply.type(type).header("content-length", String(size));
-        return reply.send(pipeline(createReadStream(join(dir, file)), share.throttle(), () => undefined));
+        // A model is about half the size as brotli, and half the time against the shared budget.
+        const copy = await deps.copies?.copyFor(request.headers["accept-encoding"], join(dir, file));
+        if (copy) reply.header("content-encoding", "br");
+        reply.type(type).header("vary", "accept-encoding").header("content-length", String(copy ? (await stat(copy)).size : size));
+        return reply.send(pipeline(createReadStream(copy ?? join(dir, file)), share.throttle(), () => undefined));
       }
+      // sendFile serves FILE.br itself once it exists (preCompressed, server/static-files.ts).
+      if (acceptsBrotli(request.headers["accept-encoding"])) void deps.copies?.make(join(dir, file));
       return pinned ? reply.sendFile(file, dir, { maxAge: 365 * 24 * 3600 * 1000, immutable: true }) : reply.sendFile(file, dir);
     }
     // /s/x/about -> /s/x/about/ when about/index.html exists, so its relative links work.
     if (!/\.[A-Za-z0-9]+$/.test(file) && !rest.endsWith("/") && (await isFile(`${file}/index.html`))) {
       return reply.redirect(`${url.pathname}/${url.search}`);
     }
-    if (deploy.spa) return reply.sendFile("index.html", dir);
+    if (deploy.spa) {
+      if (acceptsBrotli(request.headers["accept-encoding"])) void deps.copies?.make(join(dir, "index.html"));
+      return reply.sendFile("index.html", dir);
+    }
     if (await isFile("404.html")) return reply.code(404).type("text/html; charset=utf-8").send(await readFile(join(dir, "404.html")));
     return reply.code(404).type("text/plain; charset=utf-8").send("not found\n");
   };
@@ -716,12 +728,15 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     if (!deps.bodyFile) return reply.code(404).send({ code: "NO_BODY_FILE", error: "No bodies here." });
     const result = await deps.bodyFile(request.params.file.replace(/\.vrm$/i, ""));
     if (!result.ok) return reply.code(result.code).send({ code: "NO_BODY_FILE", error: result.error });
+    const copy = await deps.copies?.copyFor(request.headers["accept-encoding"], result.path);
+    if (copy) reply.header("content-encoding", "br");
     return reply
       .header("content-type", "model/gltf-binary")
+      .header("vary", "accept-encoding")
       .header("access-control-allow-origin", "*")
       .header("cross-origin-resource-policy", "cross-origin")
       .header("cache-control", "public, max-age=31536000, immutable")
-      .send(createReadStream(result.path));
+      .send(createReadStream(copy ?? result.path));
   });
 
   /**

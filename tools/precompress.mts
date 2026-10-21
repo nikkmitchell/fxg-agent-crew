@@ -22,21 +22,16 @@
  */
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
-import { extname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { brotliCompressSync, constants } from "node:zlib";
+import { compressibleKind, SMALLEST_WORTH_COMPRESSING, WORTH_KEEPING } from "../shared/compressible.ts";
 
-const TEXT = new Set([".js", ".mjs", ".css", ".html", ".json", ".svg", ".wasm", ".md", ".py", ".txt"]);
-const MODELS = new Set([".vrm", ".vrma", ".glb", ".gltf", ".bin"]);
-/** Below this the header and the round trip cost more than the bytes saved. */
-const SMALLEST = 1024;
-/** A copy that saves less than a tenth is not worth a second file on disk. */
-const WORTH = 0.9;
 const UNUSED_FOR_MS = 14 * 24 * 3600 * 1000;
 
 export function qualityFor(file: string): number | null {
-  const ext = extname(file).toLowerCase();
-  return TEXT.has(ext) ? 11 : MODELS.has(ext) ? 9 : null;
+  const kind = compressibleKind(file);
+  return kind === "text" ? 11 : kind === "model" ? 9 : null;
 }
 
 function* files(dir: string): Generator<string> {
@@ -55,7 +50,7 @@ export function precompress(root: string, cache: string): { files: number; raw: 
     const quality = qualityFor(file);
     if (quality === null) continue;
     const bytes = readFileSync(file);
-    if (bytes.length < SMALLEST) continue;
+    if (bytes.length < SMALLEST_WORTH_COMPRESSING) continue;
     const kept = join(cache, `${createHash("sha256").update(bytes).digest("hex")}.q${quality}.br`);
     if (existsSync(kept)) {
       const now = new Date();
@@ -66,7 +61,7 @@ export function precompress(root: string, cache: string): { files: number; raw: 
       }));
     }
     const size = statSync(kept).size;
-    if (size > bytes.length * WORTH) continue;
+    if (size > bytes.length * WORTH_KEEPING) continue;
     copyFileSync(kept, `${file}.br`);
     totals.files += 1;
     totals.raw += bytes.length;

@@ -20,6 +20,7 @@ import websocket from "@fastify/websocket";
 import { compressJson } from "./compress-json.js";
 import staticPlugin from "@fastify/static";
 import { staticFileOptions } from "./static-files.js";
+import { BrotliCopies } from "./brotli-copies.js";
 import { loadConfig, type Config } from "./config.js";
 import { MemorySessionStore, SqliteSessionStore, type Session, type SessionStore } from "./session.js";
 import { makeRequireSession, spaceRoomOf } from "./require-session.js";
@@ -235,6 +236,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const inTheCatalogue = knownToTheCatalogue();
   // Bodies pulled from the collection on first use and then served off disk.
   const bodyFiles = new BodyFiles(resolve(config.bodyCacheRoot), inTheCatalogue);
+  // Spaces' files and catalogue bodies, brotli as they are first asked for (the site's are made at build).
+  const brotliCopies = new BrotliCopies();
   // Bodies their makers registered through the room, kept beside that cache so
   // the same route serves them (server/space/registered-bodies.ts).
   const registeredBodies = new RegisteredBodies(database, resolve(config.bodyCacheRoot));
@@ -733,7 +736,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       ready: () => bodyFiles.ready(),
       registered: registeredBodies,
     });
-    registerBodyFileRoutes(scoped, { config, sessions, files: bodyFiles });
+    registerBodyFileRoutes(scoped, { config, sessions, files: bodyFiles, copies: brotliCopies });
     registerRegisteredBodyRoutes(scoped, { config, sessions, registry: registeredBodies, inTheCatalogue });
     /**
      * Saying a line aloud, in the speaker's own voice. Read at call time like
@@ -767,6 +770,7 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
   // through the space's own ticketed route (spaces/routes.ts).
   const spaceLive = new SpaceLive(spaceStore, (body, space) => (isOnHand(body) ? bodyPath(body) : `/bff/spaces/${space}/body/${body}.vrm`));
   const spacesHosting = registerSpacesHosting(app, {
+    copies: brotliCopies,
     spacesRoot: config.spacesRoot,
     store: spaceStore,
     auth: new SpaceAuth(client),

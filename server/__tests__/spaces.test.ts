@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { brotliDecompressSync } from "node:zlib";
 import { DatabaseSync } from "node:sqlite";
 import Fastify, { type FastifyInstance } from "fastify";
 import staticPlugin from "@fastify/static";
@@ -16,6 +17,7 @@ import { DeployQueue } from "../spaces/deploy.js";
 import { createRepo } from "../spaces/git.js";
 import { SITE_SANDBOX, registerSpacesHosting } from "../spaces/routes.js";
 import { SpaceStore } from "../spaces/store.js";
+import { BrotliCopies } from "../brotli-copies.js";
 import { WebharnessClient, WebharnessError } from "../webharness/client.js";
 import { normaliseDir, publishDir, siteFile, spaceNameProblem } from "../../shared/spaces.js";
 import type { Session } from "../session.js";
@@ -74,7 +76,8 @@ beforeAll(async () => {
   const db = openDatabase(":memory:", DatabaseSync);
   store = new SpaceStore(db as unknown as DatabaseSync);
   app = Fastify();
-  await app.register(staticPlugin, { root: work, serve: false });
+  // As in production (server/static-files.ts): sendFile serves FILE.br when there is one.
+  await app.register(staticPlugin, { root: work, serve: false, preCompressed: true });
   await app.register(websocket);
   live = new SpaceLive(store, (body) => `/avatars/${body}.vrm`);
   const session: Session = { username: "nikk", token: "nikk-session" } as Session;
@@ -86,6 +89,7 @@ beforeAll(async () => {
     tickets: new SpaceTickets(),
     live,
     bodyOf: (username) => (username === "nikk" ? "lotus" : null),
+    copies: new BrotliCopies(),
     benchChanged: (space) => benchCalls.push(space),
     spaceDeployed: (space, branch, deployId) => deployedCalls.push([space, branch, deployId]),
     pinnedDeploys: () => pins,
@@ -811,5 +815,41 @@ describe("a repository left on the box without its space (Kerf, 2026-10-14)", ()
     expect(await (await page("/s/left.behind/")).text()).toContain("the work that was already here");
     const log = await run("git", ["--git-dir", join(root, "repos", "left.behind.git"), "log", "--format=%an", "main"]);
     expect(log.stdout.trim().split("\n")).toEqual(["someone"]);
+  });
+});
+
+describe("spaces' files, compressed (Kerf, 2026-10-22)", () => {
+  it("sends the brotli copy once it is made, through sendFile and through the shared budget alike", async () => {
+    // Over the 512 KB the shared budget lets through at once, so a model takes fair-share's path.
+    const model = "vertex 0.125 0.250 0.500\n".repeat(30_000);
+    const script = `export const words = ${JSON.stringify("a line said in the room ".repeat(800))};\n`;
+    await createRepo(root, "packed.files", [
+      { path: "index.html", content: "<p>packed</p>" },
+      { path: "orb.glb", content: model },
+      { path: "app.js", content: script },
+    ], "Kerf");
+    ROOMS.nikk.push("packed.files");
+    expect((await app.inject({ method: "POST", url: "/bff/spaces", headers: { cookie: "who=nikk" }, payload: { room: "packed.files" } })).statusCode).toBe(200);
+    const get = (url: string, encodings?: string) => app.inject({ url, headers: encodings ? { "accept-encoding": encodings } : {} });
+    const browser = "gzip, deflate, br, zstd";
+
+    for (const [url, body] of [["/s/packed.files/orb.glb", model], ["/s/packed.files/app.js", script]] as const) {
+      const first = await get(url, browser);
+      expect(first.headers["content-encoding"], `${url}: the first asker gets the plain file`).toBeUndefined();
+      expect(first.body).toBe(body);
+      let packed = first;
+      for (let tries = 0; tries < 200 && packed.headers["content-encoding"] !== "br"; tries += 1) {
+        await new Promise((settle) => setTimeout(settle, 20));
+        packed = await get(url, browser);
+      }
+      expect(packed.headers["content-encoding"], `${url}: everyone after gets the copy`).toBe("br");
+      expect(packed.headers.vary).toMatch(/accept-encoding/i);
+      expect(packed.rawPayload.length).toBeLessThan(body.length / 4);
+      expect(brotliDecompressSync(packed.rawPayload).toString()).toBe(body);
+      // curl and urllib, which do not ask, still get the plain file.
+      const plain = await get(url);
+      expect(plain.headers["content-encoding"]).toBeUndefined();
+      expect(plain.body).toBe(body);
+    }
   });
 });

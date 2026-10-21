@@ -1,4 +1,5 @@
 import { createReadStream } from "node:fs";
+import type { BrotliCopies } from "../brotli-copies.js";
 import { mkdir, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { FastifyInstance } from "fastify";
@@ -180,7 +181,7 @@ export class BodyFiles {
 
 export function registerBodyFileRoutes(
   app: FastifyInstance,
-  deps: { config: Config; sessions: SessionStore; files: BodyFiles },
+  deps: { config: Config; sessions: SessionStore; files: BodyFiles; copies?: BrotliCopies },
 ): void {
   const requireSession = makeRequireSession(deps.config, deps.sessions);
 
@@ -195,11 +196,15 @@ export function registerBodyFileRoutes(
     const asked = request.params.file.replace(/\.vrm$/i, "");
     const result = await deps.files.want(asked);
     if (!result.ok) return reply.code(result.code).send({ code: "NO_BODY_FILE", error: result.error });
+    // About half the size as brotli (server/brotli-copies.ts), made the first time it is asked for.
+    const copy = await deps.copies?.copyFor(request.headers["accept-encoding"], result.path);
+    if (copy) reply.header("content-encoding", "br");
     return reply
       .header("content-type", "model/gltf-binary")
+      .header("vary", "accept-encoding")
       // Immutable: the slug names one file in a collection that does not
       // rewrite them, so a browser and a headset should keep it.
       .header("cache-control", "public, max-age=31536000, immutable")
-      .send(createReadStream(result.path));
+      .send(createReadStream(copy ?? result.path));
   });
 }
