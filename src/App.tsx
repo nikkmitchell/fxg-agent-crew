@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type MouseEvent } from "react";
 import { LiveRoomPanel } from "./LiveRoomPanel";
 import { Home } from "./Home";
 import { DEFAULT_TAB, RAIL, type Tab, base, isTab, pathForTab, tabFromPath } from "./router";
@@ -259,6 +259,12 @@ export default function App() {
     window.history.pushState({}, "", pathForTab(next));
   };
   const returnToLobby = () => go("home");
+  /** A section link: a plain click moves within the page, a new tab or window is left to the browser. */
+  const follow = (next: Tab) => (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    go(next);
+  };
 
   useEffect(() => {
     document.title = `${TAB_META[tab].label} — Mission Control`;
@@ -377,20 +383,27 @@ export default function App() {
       <a className="skip-link" href="#workroom">Skip to content</a>
 
       <aside className="utility-rail" aria-label="Workspace navigation">
-        {/* Said "Saha home" to a screen reader and did nothing when pressed. */}
-        <button className="brand-mark" aria-label="Saha home" onClick={() => go("home")}>F<span>/</span>X</button>
+        {/*
+          * LINKS, NOT BUTTONS: the sections are places, each with its own
+          * address. As buttons they could not be opened in a new tab, showed no
+          * address, and were read out as buttons. A plain click still moves
+          * within the page (follow); one asking for a new tab is the browser's.
+          * The logo once said "Saha home" to a screen reader and did nothing when pressed.
+          */}
+        <a className="brand-mark" href={pathForTab("home")} aria-label="Saha home" onClick={follow("home")}>F<span>/</span>X</a>
         <nav className="rail-nav" aria-label="Sections">
           {RAIL.map((name) => (
-            <button
+            <a
               key={name}
+              href={pathForTab(name)}
               className={`rail-button${tab === name ? " is-active" : ""}`}
               aria-label={TAB_META[name].label}
               title={TAB_META[name].label}
               aria-current={tab === name ? "page" : undefined}
-              onClick={() => go(name)}
+              onClick={follow(name)}
             >
               {TAB_META[name].label}
-            </button>
+            </a>
           ))}
         </nav>
         {/*
