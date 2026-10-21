@@ -56,6 +56,12 @@ describe("signing up on saha.ing (Nikk, 6130)", () => {
     expect(answer.json()).toEqual({ code: "SIGNUP_REFUSED", error: "username taken" });
   });
 
+  it("says WebHarness's refusal in English, as the page around it is (seen 2026-10-22)", async () => {
+    const { server } = app({ register: async () => { throw new WebharnessError(409, "用户名已存在"); } });
+    const answer = await server.inject({ method: "POST", url: "/bff/signup", payload: form });
+    expect(answer.json()).toEqual({ code: "SIGNUP_REFUSED", error: "That name is taken. Choose another." });
+  });
+
   it("sends a code, but not twice a minute to one address nor six times an hour from one visitor", async () => {
     const { server, calls, tick } = app();
     const send = (target: string) => server.inject({ method: "POST", url: "/bff/signup/code", payload: { channel: "email", target } });

@@ -78,6 +78,30 @@ export type RequestOptions = {
  */
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+/**
+ * What WebHarness said went wrong. Read defensively: a proxy's error page is
+ * not JSON. A validation refusal (422) carries a LIST of problems rather than a
+ * sentence, and was reported as its bare status text, "Unprocessable Entity";
+ * it is read as "password: String should have at least 4 characters".
+ */
+async function detailOf(response: Response): Promise<string> {
+  try {
+    const parsed = (await response.json()) as { detail?: unknown };
+    if (typeof parsed.detail === "string") return parsed.detail;
+    if (Array.isArray(parsed.detail)) {
+      const said = parsed.detail.flatMap((item: { loc?: unknown; msg?: unknown }) => {
+        if (typeof item?.msg !== "string") return [];
+        const where = Array.isArray(item.loc) ? item.loc.filter((part) => part !== "body").join(".") : "";
+        return [where ? `${where}: ${item.msg}` : item.msg];
+      });
+      if (said.length) return said.join("; ");
+    }
+  } catch {
+    /* keep the status text */
+  }
+  return response.statusText;
+}
+
 export class WebharnessClient {
   /**
    * HOW LONG ANY ONE REQUEST MAY TAKE. There was no limit but Node's own, five
@@ -131,15 +155,7 @@ export class WebharnessClient {
     });
 
     if (!response.ok) {
-      // Read the detail defensively: a proxy error page is not JSON.
-      let detail = response.statusText;
-      try {
-        const parsed = (await response.json()) as { detail?: unknown };
-        if (typeof parsed.detail === "string") detail = parsed.detail;
-      } catch {
-        /* keep statusText */
-      }
-      throw new WebharnessError(response.status, detail);
+      throw new WebharnessError(response.status, await detailOf(response));
     }
 
     return (await response.json()) as T;
@@ -185,14 +201,7 @@ export class WebharnessClient {
       { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form },
     );
     if (!response.ok) {
-      let detail = response.statusText;
-      try {
-        const parsed = (await response.json()) as { detail?: unknown };
-        if (typeof parsed.detail === "string") detail = parsed.detail;
-      } catch {
-        /* keep statusText */
-      }
-      throw new WebharnessError(response.status, detail);
+      throw new WebharnessError(response.status, await detailOf(response));
     }
     return await response.json();
   }

@@ -1,5 +1,6 @@
 import type { BffErrorCode } from "../../shared/contracts.js";
 import { WebharnessError } from "./client.js";
+import { inEnglish } from "./in-english.js";
 
 /**
  * Translate an upstream failure into a stable code the UI can switch on.
@@ -38,6 +39,12 @@ const has = (haystack: string, ...needles: string[]) =>
   needles.some((needle) => haystack.includes(needle));
 
 export function classify(error: unknown): { code: BffErrorCode; status: number; detail: string } {
+  const classified = classifyUpstream(error);
+  // Matched on WebHarness's own (Chinese) words above; handed to the page in English.
+  return { ...classified, detail: inEnglish(classified.detail) };
+}
+
+function classifyUpstream(error: unknown): { code: BffErrorCode; status: number; detail: string } {
   if (!(error instanceof WebharnessError)) {
     return { code: "UPSTREAM_UNAVAILABLE", status: 502, detail: "upstream unavailable" };
   }

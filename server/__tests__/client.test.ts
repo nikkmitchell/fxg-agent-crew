@@ -69,6 +69,16 @@ describe("WebharnessClient", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("reads a validation refusal's list of problems, not its bare status text", async () => {
+    // As webharness.chat answered a 1-character password on 2026-10-22.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json(422, { detail: [
+      { type: "string_too_short", loc: ["body", "password"], msg: "String should have at least 4 characters", input: "1", ctx: { min_length: 4 } },
+    ] })));
+    const error = await failure(new WebharnessClient("https://example.test").request("/api/users"));
+    expect(error.status).toBe(422);
+    expect(error.detail).toBe("password: String should have at least 4 characters");
+  });
+
   it("keeps the bearer token out of thrown errors", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json(500, { detail: "boom" })));
 

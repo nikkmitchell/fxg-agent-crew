@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { agentNameProblem, publicKeyProblem, summariseAgents } from "../../shared/agents.js";
 import type { Session } from "../session.js";
 import { WebharnessClient, WebharnessError } from "../webharness/client.js";
+import { inEnglish } from "../webharness/in-english.js";
 
 /**
  * YOUR AGENTS (Nikk, 6130, 6132). See shared/agents.ts.
@@ -23,7 +24,7 @@ export function registerAgentRoutes(app: FastifyInstance, deps: {
       return reply.code(401).send({ code: "SESSION_EXPIRED", error: "Sign in again.", reauth: true });
     }
     if (error instanceof WebharnessError && error.status >= 400 && error.status < 500) {
-      return reply.code(400).send({ code: "AGENT_REFUSED", error: error.detail || "WebHarness refused that." });
+      return reply.code(400).send({ code: "AGENT_REFUSED", error: inEnglish(error.detail) || "WebHarness refused that." });
     }
     request.log.error({ err: error }, "agent upstream failed");
     return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "WebHarness could not be reached. Try again in a moment." });

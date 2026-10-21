@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { CodeLimiter, isSignupChannel, registrationBody, signupProblem, type SignupForm } from "../../shared/signup.js";
 import { WebharnessClient, WebharnessError } from "../webharness/client.js";
+import { inEnglish } from "../webharness/in-english.js";
 import { visitorOf } from "../visitor.js";
 
 /**
@@ -22,10 +23,10 @@ export function registerSignupRoutes(app: FastifyInstance, deps: {
   const limiter = deps.limiter ?? new CodeLimiter();
   const now = deps.now ?? Date.now;
 
-  /** Upstream's refusal, in its own words where it gave any. */
+  /** Upstream's refusal, in English (webharness/in-english.ts), its own words where it is not yet known. */
   const refused = (reply: FastifyReply, error: unknown, request: FastifyRequest) => {
     if (error instanceof WebharnessError && error.status >= 400 && error.status < 500) {
-      return reply.code(error.status === 429 ? 429 : 400).send({ code: "SIGNUP_REFUSED", error: error.detail || "WebHarness refused that." });
+      return reply.code(error.status === 429 ? 429 : 400).send({ code: "SIGNUP_REFUSED", error: inEnglish(error.detail) || "WebHarness refused that." });
     }
     request.log.error({ err: error }, "sign-up upstream failed");
     return reply.code(502).send({ code: "UPSTREAM_UNAVAILABLE", error: "WebHarness could not be reached. Try again in a moment." });
