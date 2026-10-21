@@ -216,6 +216,7 @@ export class ThingInstance {
     };
     const input = this.input;
     const state = bus.state(id);
+    const games = host.games?.(id);
     const props: Record<string, Json> = {};
     for (const [key, prop] of Object.entries(this.def.props ?? {})) props[key] = prop.default;
     Object.assign(props, options.props ?? {});
@@ -251,6 +252,17 @@ export class ThingInstance {
       net: {
         moment: (name, data) => bus.moment(id, name, data === undefined ? null : data),
         onMoment: (name, fn) => own(bus.onMoment(id, name, fn)),
+      },
+      games: {
+        watch: (game, fn, failed) => {
+          if (this.disposed) return () => {};
+          if (!games) { const error = new Error("Game tables require a saha.ing room host."); host.problem(id, error.message); failed?.(error); return () => {}; }
+          return own(games.watch(game, table => { if (!this.disposed) fn(table); }, error => { if (!this.disposed) failed?.(error); }));
+        },
+        action: (change) => {
+          if (this.disposed || !games) return Promise.reject(new Error("This game is not in an active saha.ing room."));
+          return games.action(change);
+        },
       },
       act: async () => {
         host.problem(id, "ctx.act and models arrive in phase 2 (the ordered log); use ctx.state and ctx.net for now.");

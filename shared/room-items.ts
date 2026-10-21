@@ -95,6 +95,8 @@ export type ModuleRoomItem = {
   position: { x: number; y: number; z: number; rotationY: number };
   scale: number;
   addedBy: string;
+  /** Server-validated matches belonging to this Thing and its composed children. */
+  tableGames?: Record<string, GameRoomItem>;
 };
 
 /** How big a placed thing may be made: a space as a model is small; an item about its own size. */
@@ -103,7 +105,7 @@ export const MODULE_SCALE = { min: 0.01, max: 5, model: 0.05 } as const;
 /** A space as a model stands this high, on its plinth: a table's height. */
 export const MODEL_HEIGHT = 0.8;
 
-export type RoomItem = GoRoomItem | ModuleRoomItem | GameRoomItem;
+export type RoomItem = GoRoomItem | ModuleRoomItem;
 
 export const isGoItem = (item: RoomItem): item is GoRoomItem => item.kind === "go";
 export const isModuleItem = (item: RoomItem): item is ModuleRoomItem => item.kind === "module";
@@ -137,6 +139,9 @@ export function parseModuleItem(value: unknown): ModuleRoomItem | null {
     position: { x: position.x, y: position.y, z: position.z, rotationY: position.rotationY },
     scale,
     addedBy: typeof item.addedBy === "string" ? item.addedBy : "",
+    ...(item.tableGames && typeof item.tableGames === "object" ? { tableGames: Object.fromEntries(
+      Object.entries(item.tableGames).filter(([key, game]) => (key === "" || /^[a-z0-9][a-z0-9_/-]{0,98}$/.test(key)) && parseGameItem(game)).map(([key, game]) => [key, parseGameItem(game)!])
+    ) } : {}),
   };
 }
 
@@ -180,7 +185,6 @@ export function defaultGoItem(id: string, ordinal = 0): GoRoomItem {
 export function parseRoomItem(value: unknown): RoomItem | null {
   if (!value || typeof value !== "object") return null;
   if ((value as { kind?: unknown }).kind === "module") return parseModuleItem(value);
-  if ((value as {kind?:unknown}).kind === "game") return parseGameItem(value);
   const item = value as Partial<GoRoomItem>;
   if (item.kind !== "go" || typeof item.id !== "string" || !isGoSize(item.size)) return null;
   if (!Array.isArray(item.colours) || item.colours.length < 2 || item.colours.length > GO_COLOURS.length) return null;

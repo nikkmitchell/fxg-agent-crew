@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && vite build -c vite.kit.config.ts && npm run build:server",
+    "build": "tsc -b && vite build && vite build -c vite.kit.config.ts && npm run build:server && npm run build:games",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.check.json",
     "dev:bff": "tsx server/index.ts",
     "build:server": "tsc -p tsconfig.server.json",
-    "start": "node dist-server/server/index.js"
+    "start": "node dist-server/server/index.js",
+    "build:games": "tsx tools/build-game-things.mts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

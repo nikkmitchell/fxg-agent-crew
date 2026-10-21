@@ -138,6 +138,13 @@ export interface Input {
   readonly hands: readonly TrackedHand[];
 }
 
+export interface GameTablePort {
+  /** Open this instance's match, then receive confirmed snapshots (also after reconnect). */
+  watch(game: import("../../shared/table-games").TableGame, fn: (table: import("../../shared/table-games").GameRoomItem) => void, failed?: (error: Error) => void): Off;
+  /** Authoritative seat/turn/legal-move checks; supply the last confirmed revision. */
+  action(change: Record<string, unknown>): Promise<import("../../shared/table-games").GameRoomItem>;
+}
+
 export interface Ctx {
   readonly id: string;
   readonly kind: ThingKind;
@@ -174,6 +181,7 @@ export interface Ctx {
   readonly viewer: Pose & { readonly distance: number };
   toLocal(world: THREE.Vector3, out?: THREE.Vector3): THREE.Vector3;
 
+  readonly games: GameTablePort;
   readonly input: Input;
   readonly haptics: { pulse(hand: Hand, strength: number, ms: number): void };
   readonly audio: {

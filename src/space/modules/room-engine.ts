@@ -7,6 +7,7 @@ import { EnvStack } from "../../engine/env";
 import type { Host, Resolved, TransportEvent } from "../../engine/host";
 import { Engine } from "../../engine/instance";
 import { createQuestionHost, queryPanel } from "./question-form";
+import { createGameHost } from "./game-host";
 import { createBookHost } from "./book-host";
 import { requestRoomGo } from "../room-go";
 import { createReviewHost } from "./review-host";
@@ -209,6 +210,7 @@ export function createRoomEngine(deps: {
     goToRoom: (room) => requestRoomGo(room),
     // ctx.books: Gutenberg, a shelf or a page at a time (book-host.ts; Nikk 7436).
     books: createBookHost(),
+    games: createGameHost(deps.subscribe),
     // ctx.ui.query: the room's panel, words back to the thing only (Mica 7395).
     query: queryPanel({ camera: deps.camera, me: deps.me, renderer: deps.gl }),
   };

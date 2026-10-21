@@ -1,33 +1,54 @@
 import { describe, it, expect } from "vitest";
+import { join } from "node:path";
 import { buildServer } from "../index.js";
 import { RoomItems } from "../space/items.js";
 import { tempDir } from "./test-config.js";
-import { defaultGameItem } from "../../shared/table-games.js";
-describe("shared game tables", () => {
-  it("persists seats and legal moves, rejects spectators/stale duplicates and isolates rooms", async () => {
-    const { app, sessions, config, database } = buildServer({
-      WEBHARNESS_URL: "https://example.test",
-      DATABASE_PATH: ":memory:",
-      BLOB_ROOT: tempDir("games-"),
-      LOG_LEVEL: "silent",
+import type { ModuleRoomItem } from "../../shared/room-items.js";
+const thing = (id = "game-one"): ModuleRoomItem => ({
+  id,
+  kind: "module",
+  revision: 0,
+  source: { space: "saha.ing", branch: "main", entry: "games-room" },
+  name: "Games room",
+  role: "space",
+  view: "placed",
+  position: { x: 0, y: 0, z: 3, rotationY: 0 },
+  scale: 1,
+  addedBy: "Alice",
+});
+function boot(path = ":memory:") {
+  const server = buildServer({
+    WEBHARNESS_URL: "https://example.test",
+    DATABASE_PATH: path,
+    BLOB_ROOT: tempDir("thing-games-"),
+    LOG_LEVEL: "silent",
+  });
+  const headers = (by = "Alice") => ({
+    cookie: `${server.config.cookieName}=${server.sessions.create(by, "t", "human")}`,
+  });
+  const items = new RoomItems(server.database);
+  const open = (id = "game-one", game = "connect-four") =>
+    server.app.inject({
+      method: "POST",
+      url: `/bff/space/items/${encodeURIComponent(id)}/game`,
+      headers: headers(),
+      payload: { game },
     });
+  const act = (by: string, change: object, id = "game-one") =>
+    server.app.inject({
+      method: "POST",
+      url: `/bff/space/items/${encodeURIComponent(id)}/game/action`,
+      headers: headers(by),
+      payload: change,
+    });
+  return { ...server, items, headers, open, act };
+}
+describe("game tables through Things", () => {
+  it("keeps turns authoritative, rejects spectators and duplicate moves, and requires both players to reset", async () => {
+    const { app, items, open, act, headers } = boot();
     try {
-      const items = new RoomItems(database),
-        item = defaultGameItem("game-one", "connect-four", "Alice");
-      items.insert("saha.ing", item, "Alice");
-      const cookies = Object.fromEntries(
-        ["Alice", "Bob", "Spectator"].map((n) => [
-          n,
-          `${config.cookieName}=${sessions.create(n, "t", "human")}`,
-        ]),
-      );
-      const act = (by: string, body: object) =>
-        app.inject({
-          method: "POST",
-          url: "/bff/space/items/game-one/action",
-          headers: { cookie: cookies[by] },
-          payload: body,
-        });
+      items.insert("saha.ing", thing(), "Alice");
+      expect((await open()).statusCode).toBe(201);
       expect(
         (await act("Alice", { action: "join", side: 1, revision: 0 }))
           .statusCode,
@@ -52,7 +73,7 @@ describe("shared game tables", () => {
         revision: 2,
       });
       expect(moved.statusCode).toBe(200);
-      expect(moved.json().item.state.board[35]).toBe(1);
+      expect(moved.json().table.state.board[35]).toBe(1);
       expect(
         (await act("Alice", { action: "move", column: 0, revision: 2 }))
           .statusCode,
@@ -61,72 +82,100 @@ describe("shared game tables", () => {
         (await act("Alice", { action: "move", column: 1, revision: 3 }))
           .statusCode,
       ).toBe(403);
-      expect(items.one("lobby", item.id)).toBeNull();
       expect(
-        (await act("Alice", { action: "reset", revision: 3 })).json().item.state
-          .board[35],
+        (await act("Alice", { action: "reset", revision: 3 })).json().table
+          .state.board[35],
       ).toBe(1);
-      const reset = await act("Bob", { action: "reset", revision: 4 });
-      expect(reset.json().item.state.board.every((n: number) => n === 0)).toBe(
+      expect(
+        (await act("Alice", { action: "cancel-reset", revision: 4 })).json()
+          .table.resetBy,
+      ).toEqual([]);
+      await act("Alice", { action: "reset", revision: 5 });
+      const reset = await act("Bob", { action: "reset", revision: 6 });
+      expect(reset.json().table.state.board.every((n: number) => n === 0)).toBe(
         true,
       );
       const read = await app.inject({
-        method: "GET",
         url: "/bff/space/games",
-        headers: { cookie: cookies.Alice },
+        headers: headers(),
       });
-      expect(read.json().games[0].revision).toBe(5);
-      expect(read.json().games[0].legalMoves).toHaveLength(7);
-      expect(items.one("saha.ing", item.id)).toEqual(reset.json().item);
+      expect(read.json().games[0]).toMatchObject({
+        id: "game-one",
+        revision: 7,
+        legalMoves: expect.any(Array),
+      });
+      expect(items.one("lobby", "game-one")).toBeNull();
     } finally {
       await app.close();
     }
   });
-  it("refuses malformed creation and keeps legal table placement through the existing item route", async () => {
-    const { app, sessions, config } = buildServer({
-      WEBHARNESS_URL: "https://example.test",
-      DATABASE_PATH: ":memory:",
-      BLOB_ROOT: tempDir("games-create-"),
-      LOG_LEVEL: "silent",
-    });
+  it("independently composes child matches, rejects bad instances and retains matches when moved", async () => {
+    const { app, items, open, act, headers } = boot();
     try {
-      const headers = {
-        cookie: `${config.cookieName}=${sessions.create("Alice", "t", "human")}`,
-      };
+      items.insert("saha.ing", thing(), "Alice");
+      expect((await open("missing")).statusCode).toBe(404);
+      expect((await open("game-one", "bad")).statusCode).toBe(400);
+      expect((await open("game-one/left", "chess")).statusCode).toBe(201);
+      expect((await open("game-one", "connect-four")).statusCode).toBe(201);
+      expect((await open("game-one/root", "chess")).statusCode).toBe(201);
+      expect((await open("game-one", "connect-four")).json().table.game).toBe("connect-four");
+      expect((await open("game-one/right", "chess")).statusCode).toBe(201);
+      expect((await open("game-one/left", "checkers")).statusCode).toBe(409);
+      await act(
+        "Alice",
+        { action: "join", side: 1, revision: 0 },
+        "game-one/left",
+      );
+      expect(
+        (await open("game-one/right", "chess")).json().table.seats,
+      ).toEqual([null, null]);
+      const placed = await app.inject({
+        method: "PATCH",
+        url: "/bff/space/items/game-one",
+        headers: headers(),
+        payload: { position: { x: 1, y: 0.3, z: 2, rotationY: 0.5 } },
+      });
+      expect(placed.json().item.tableGames.left.seats[0]).toBe("Alice");
+      expect(placed.json().item.kind).toBe("module");
+      await app.inject({
+        method: "DELETE",
+        url: "/bff/space/items/game-one",
+        headers: headers(),
+      });
+      expect((await open("game-one/left", "chess")).statusCode).toBe(404);
       expect(
         (
           await app.inject({
             method: "POST",
             url: "/bff/space/items",
-            headers,
-            payload: { kind: "game", game: "bad" },
+            headers: headers(),
+            payload: { kind: "game", game: "chess" },
           })
         ).statusCode,
       ).toBe(400);
-      const added = await app.inject({
-        method: "POST",
-        url: "/bff/space/items",
-        headers,
-        payload: { kind: "game", game: "chess" },
-      });
-      expect(added.statusCode).toBe(201);
-      const id = added.json().item.id;
-      const p = { x: 1, y: 0.3, z: 2, rotationY: 0.5 };
-      const placed = await app.inject({
-        method: "PATCH",
-        url: `/bff/space/items/${id}`,
-        headers,
-        payload: { position: p, revision: 0 },
-      });
-      expect(placed.json().item.position).toEqual(p);
-      const removed = await app.inject({
-        method: "DELETE",
-        url: `/bff/space/items/${id}`,
-        headers,
-      });
-      expect(removed.json().items).toEqual([]);
     } finally {
       await app.close();
+    }
+  });
+  it("restores a match from the durable room-item store after a server restart", async () => {
+    const path = join(tempDir("game-restart-"), "room.sqlite");
+    const first = boot(path);
+    first.items.insert("saha.ing", thing(), "Alice");
+    await first.open();
+    await first.act("Alice", { action: "join", side: 1, revision: 0 });
+    await first.act("Alice", { action: "move", column: 3, revision: 1 });
+    await first.app.close();
+    const second = boot(path);
+    try {
+      const read = await second.open();
+      expect(read.statusCode).toBe(200);
+      expect(read.json().table).toMatchObject({
+        revision: 2,
+        seats: ["Alice", null],
+      });
+      expect(read.json().table.state.board[38]).toBe(1);
+    } finally {
+      await second.app.close();
     }
   });
 });

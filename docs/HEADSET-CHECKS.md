@@ -250,10 +250,12 @@ built kit; nobody has looked at it in a space yet.
 
 ## Shared tabletop games (Skein)
 
-In a work room, open Settings → Activity items and add Chess, Checkers, Connect
-Four, Reversi or Tic-tac-toe. Take different seats with two people; play moves
+In a work room, open Settings → Library and bring in Chess, Checkers, Connect
+Four, Reversi or Tic-tac-toe from the tabletop Things space. Take different seats with two people; play moves
 with controller release and tracked-hand pointers. Check the highlighted moves,
 chess promotion choice, a multiple checkers jump and both faces of Connect Four.
-Hold the Move bar and use the thumbstick to place each table at arm’s length.
+Use the standard Thing carry handle and thumbstick to place each table at arm’s length.
+Also bring in Games room as a model and full size; each composed board must keep
+an independent match through a reload.
 Check text size, comfort and reach; try reconnecting one headset mid-game.
 Browser clicks and two room sockets passed locally; no headset pass is claimed.

@@ -35,3 +35,6 @@ __pycache__/
 *.pyc
 # Space ticket keys (server/spaces/tickets.ts): made by any server that runs, never committed.
 *.tickets-key
+
+# Space-ready bundles generated from src/things.
+dist-things/

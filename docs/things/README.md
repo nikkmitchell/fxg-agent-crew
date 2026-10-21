@@ -329,3 +329,13 @@ the folder your space publishes. Keep asset paths relative to the module:
 
 These are phase 1. Ordered actions and models (`ctx.act`), streams, grab, a thing's own website
 with avatars, and finished rooms come next; see DESIGN.md's build plan.
+
+## Competitive tabletop games
+
+`ctx.games.watch(game, changed, failed?)` opens this Thing's persistent match and
+watches server-confirmed snapshots; `ctx.games.action({action, revision, ...})`
+submits a seat, move, reset or resign command. Unlike `ctx.state`, this service
+checks seats, turns and stale revisions on the server and survives a restart.
+Each composed child has its own match. It requires a room host; subscriptions
+are disposed with the Thing. See [TABLE-GAMES.md](../TABLE-GAMES.md) for the five
+supported games, build output, action format and examples.

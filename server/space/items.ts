@@ -125,19 +125,48 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
   });
   app.get('/bff/space/games',async(request,reply)=>{
     const session=requireSession(request,reply);if(!session)return reply;
-    return reply.send({games:options.items.all(spaceRoomOf(session)).filter(i=>i.kind==='game').map(item=>({...item,text:gameBoardText(item),sides:[gameSide(item.game,1),gameSide(item.game,2)],legalMoves:legalGameMoves(item.game,item.state)}))});
+    return reply.send({games:options.items.all(spaceRoomOf(session)).flatMap(i=>i.kind==='module'?Object.values(i.tableGames??{}):[]).map(item=>({...item,text:gameBoardText(item),sides:[gameSide(item.game,1),gameSide(item.game,2)],legalMoves:legalGameMoves(item.game,item.state)}))});
   });
   app.post<{ Body: { game?: unknown; kind?: unknown; source?: unknown; view?: unknown; position?: unknown; scale?: unknown } }>("/bff/space/items", async (request, reply) => {
     const session = requireSession(request, reply); if (!session) return reply;
     if (locked(spaceRoomOf(session))) return reply.code(403).send(LOCKED);
-    if (request.body?.kind === "game") {
-      if (!isTableGame(request.body.game)) return reply.code(400).send({error:"Choose chess, checkers, connect-four, reversi or tic-tac-toe."});
-      const room=spaceRoomOf(session), item=defaultGameItem(randomUUID(),request.body.game,session.username,options.items.all(room).filter(i=>i.kind==='game').length);
-      options.items.insert(room,item,session.username);publish(room,session.username);return reply.code(201).send({item});
-    }
     if (request.body?.kind === "module") return addModule(request.body, session, reply);
     if (request.body?.kind !== "go") return reply.code(400).send({ code: "BAD_KIND", error: "a room item is a Go table, or a module from a space" });
     const room = spaceRoomOf(session); const item = options.items.add(room, session.username); publish(room, session.username); return reply.code(201).send({ item });
+  });
+
+  const gameOwner = (room: string, id: string) => {
+    if (!/^[A-Za-z0-9-]{1,64}(\/[a-z0-9][a-z0-9_-]{0,31}){0,3}$/.test(id)) return null;
+    const [root, ...parts] = id.split("/");
+    const item = options.items.one(room, root);
+    return item?.kind === "module" ? { item, key: parts.join("/") } : null;
+  };
+  app.post<{ Params: { id: string }; Body: { game?: unknown } }>("/bff/space/items/:id/game", async (request, reply) => {
+    const session = requireSession(request, reply); if (!session) return reply;
+    const room = spaceRoomOf(session), owner = gameOwner(room, request.params.id);
+    if (!owner) return reply.code(404).send({ error: "No such Thing in this room." });
+    if (!isTableGame(request.body?.game)) return reply.code(400).send({ error: "Unknown table game." });
+    const { item, key } = owner;
+    const table = Object.hasOwn(item.tableGames ?? {}, key) ? item.tableGames![key] : undefined;
+    if (table) return table.game === request.body.game ? reply.send({ table }) : reply.code(409).send({ error: "This Thing already has a different game." });
+    if (Object.keys(item.tableGames ?? {}).length >= 40) return reply.code(422).send({ error: "This Thing has too many tables." });
+    const next = defaultGameItem(request.params.id, request.body.game, session.username);
+    item.tableGames = { ...item.tableGames, [key]: next };
+    item.revision++;
+    options.items.save(room, item, session.username); publish(room, session.username);
+    return reply.code(201).send({ table: next });
+  });
+  app.post<{ Params: { id: string }; Body: import("./table-games.js").GameAction }>("/bff/space/items/:id/game/action", async (request, reply) => {
+    const session = requireSession(request, reply); if (!session) return reply;
+    const room = spaceRoomOf(session), owner = gameOwner(room, request.params.id);
+    const table = owner && Object.hasOwn(owner.item.tableGames ?? {}, owner.key) ? owner.item.tableGames![owner.key] : undefined;
+    if (!owner || !table) return reply.code(404).send({ error: "No game on this Thing." });
+    const result = actOnTableGame(table, session.username, request.body ?? {});
+    if ("error" in result) return reply.code(result.status).send({ error: result.error });
+    owner.item.tableGames![owner.key] = result;
+    owner.item.revision++;
+    options.items.save(room, owner.item, session.username); publish(room, session.username);
+    return reply.send({ table: result });
   });
 
   /** What a thing from a space (or a part of one: <item>/<key>) has decided so far, for a copy that is starting. */
@@ -224,13 +253,6 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (change?.revision !== undefined && change.revision !== item.revision) {
       request.log.info({ tableChangeRefused: { who: session.username, table: item.id, sent: change.revision, now: item.revision } }, "table change refused: stale revision");
       return reply.code(409).send({ code: "TABLE_CHANGED", error: "The table changed. Try again." });
-    }
-    if (item.kind === 'game') {
-      const heldBy=options.holds?.heldByOther(room,`item:${item.id}`,session.username);
-      if(heldBy)return reply.code(409).send({code:'HELD',error:heldBySentence(heldBy)});
-      if(change?.position!==undefined){const p=readPosition(change.position);if(!p)return reply.code(400).send({error:'Choose a position inside the room.'});item.position=p;}
-      if(change?.scale!==undefined){const n=readScale(change.scale);if(n===null)return reply.code(400).send({error:'Choose a valid table scale.'});item.scale=n;}
-      item.revision++;options.items.save(room,item,session.username);publish(room,session.username);return reply.send({item});
     }
     if (isModuleItem(item)) {
       // A thing from a space: where it stands, how big, and (a space) model or full size.
@@ -381,11 +403,6 @@ export function registerRoomItemRoutes(app: FastifyInstance, options: {
     if (locked(room)) return { status: 403, payload: LOCKED };
     const answer = (status: number, payload: Record<string, unknown>): ItemActionAnswer => ({ status, payload });
     const item = options.items.one(room, id); if (!item) return answer(404, { error: "room item not found" });
-    if(item.kind==='game'){
-      const result=actOnTableGame(item,username,body);
-      if('error'in result)return answer(result.status,{error:result.error,item:options.items.one(room,id)});
-      options.items.save(room,result,username);publish(room,username);return answer(200,{item:result});
-    }
     // Moves and stones are the Go table's; a thing from a space acts through its own code.
     if (item.kind !== "go") return answer(400, { code: "NOT_A_GAME", error: "Only a Go table takes moves." });
     if (body.revision !== undefined && body.revision !== item.revision) return answer(409, { code: "TABLE_CHANGED", error: "The table changed. Try again." });
