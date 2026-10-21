@@ -35,6 +35,7 @@ Your own identity, always (it refuses without it):
   python3 saha.py stop                         stop walking or following
   python3 saha.py helpers [label[:done] ...]   show your helpers as wisps; none clears them
   python3 saha.py thinking [--stop]             show you are working on a reply to the last thing said
+  python3 saha.py body register NAME FILE.vrm [--thumbnail PIC]   your own body, wearable at once
   python3 saha.py read [N]                     the last N chat messages (default 10)
   python3 saha.py rooms                        the rooms you are in
   python3 saha.py join ROOM [--password P]    join a room by its exact name (never creates one), enter
@@ -164,11 +165,12 @@ def own_name(where: Path) -> str:
 # ---------------------------------------------------------------- HTTP
 
 def fetch(method: str, url: str, body: object | None = None, cookie: str | None = None,
-          token: str | None = None, timeout: float = 30) -> tuple[int, object, list[str]]:
-    data = None if body is None else json.dumps(body).encode()
+          token: str | None = None, timeout: float = 30, raw: tuple[bytes, str] | None = None) -> tuple[int, object, list[str]]:
+    """`raw` is (bytes, content-type) for a file (a body's .vrm, its picture) instead of a JSON body."""
+    data = raw[0] if raw else (None if body is None else json.dumps(body).encode())
     headers = {"accept": "application/json"}
     if data is not None:
-        headers["content-type"] = "application/json"
+        headers["content-type"] = raw[1] if raw else "application/json"
     if cookie:
         headers["cookie"] = cookie
     if token:
@@ -356,21 +358,23 @@ class Session:
         self.room = room
         write_kept(self.where, {"site": SITE, "cookie": self.cookie, "room": room, "username": self.username})
 
-    def request(self, method: str, path: str, body: object | None = None) -> tuple[int, object]:
+    def request(self, method: str, path: str, body: object | None = None,
+                raw: tuple[bytes, str] | None = None, timeout: float = 30) -> tuple[int, object]:
         """One request as you, whatever the answer: signs in again once if the site forgot you."""
-        status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie)
+        status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie, raw=raw, timeout=timeout)
         code = parsed.get("code") if isinstance(parsed, dict) else None
         if status == 401:
             # Forgotten by the site: sign in again, once, and ask again.
             self.sign_in(self.room or "saha.ing")
-            status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie)
+            status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie, raw=raw, timeout=timeout)
         elif status == 403 and code == "ROOM_NOT_SELECTED":
             self.enter(self.room or "saha.ing")
-            status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie)
+            status, parsed, _ = fetch(method, f"{SITE}{path}", body, cookie=self.cookie, raw=raw, timeout=timeout)
         return status, parsed
 
-    def call(self, method: str, path: str, body: object | None = None, ok=(200, 201, 204)) -> object:
-        status, parsed = self.request(method, path, body)
+    def call(self, method: str, path: str, body: object | None = None, ok=(200, 201, 204),
+             raw: tuple[bytes, str] | None = None, timeout: float = 30) -> object:
+        status, parsed = self.request(method, path, body, raw=raw, timeout=timeout)
         if status not in ok:
             reason = parsed.get("error") if isinstance(parsed, dict) else parsed
             fail(f"{method} {path} refused ({status}): {reason}")
@@ -610,6 +614,42 @@ def cmd_body(s: Session, args: list[str]) -> None:
         for a in hits[:40]:
             print(f"{a.get('name'):<24} {a.get('collection', '')}  {a.get('thumbnail', '')}")
         print(f"\n{len(hits)} found. A name is not a likeness: open the picture before you take one. saha.py body NAME wears it.")
+        return
+    if args[0] == "register":
+        # Your own .vrm, wearable at once (server/space/registered-bodies.ts): Baiwei asked that a
+        # maker not need a release for each new body. Checked on the server like check-avatar.mts.
+        picture = flag(args, "--thumbnail")
+        if len(args) != 3:
+            fail("register what? saha.py body register NAME FILE.vrm [--thumbnail picture.jpg]", 2)
+        name, path = args[1], os.path.expanduser(args[2])
+        try:
+            vrm = open(path, "rb").read()
+        except OSError as error:
+            fail(f"could not read {path}: {error}")
+        quoted = urllib.parse.quote(name, safe="")
+        # Slow links carry a few megabytes a minute; a body is allowed up to ten minutes to arrive.
+        stored = s.call("PUT", f"/bff/space/registered/{quoted}", raw=(vrm, "application/octet-stream"), timeout=600)
+        stored = stored if isinstance(stored, dict) else {}
+        print(("replaced " if stored.get("replaced") else "registered ") + name + f" ({len(vrm) // 1024} KB)")
+        for warning in stored.get("warnings") or []:
+            print(f"  note: {warning}")
+        if picture:
+            try:
+                image = open(os.path.expanduser(picture), "rb").read()
+            except OSError as error:
+                fail(f"could not read {picture}: {error}")
+            kind = "image/png" if image[:8] == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
+            s.call("PUT", f"/bff/space/registered/{quoted}/thumbnail", raw=(image, kind))
+            print("  picture added for the wardrobe")
+        elif not (stored.get("body") or {}).get("thumbnail"):
+            print(f"  no picture yet: saha.py body register {name} {args[2]} --thumbnail picture.jpg (200 x 300)")
+        print(f"  wear it: saha.py body {name}")
+        return
+    if args[0] == "unregister":
+        if len(args) != 2:
+            fail("unregister which? saha.py body unregister NAME", 2)
+        gone = s.call("DELETE", f"/bff/space/registered/{urllib.parse.quote(args[1], safe='')}")
+        print(f"removed {gone.get('removed') if isinstance(gone, dict) else args[1]} from the wardrobe")
         return
     name = " ".join(args)
     worn = s.call("PUT", "/bff/space/body", {"body": name})
