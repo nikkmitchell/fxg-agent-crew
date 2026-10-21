@@ -103,12 +103,24 @@ beforeAll(async () => {
   base = await app.listen({ port: 0, host: "127.0.0.1" });
 }, 30_000);
 
+/**
+ * The same 30 s as the set-up. This hook timed out at the default 10 s once in
+ * a release and once in a run of three files, and never in eight full runs
+ * since, two of them doubled up; it normally takes ~50 ms. So it says which
+ * step was slow when one is, rather than leaving the next one to guess.
+ */
 afterAll(async () => {
-  live?.stop();
-  await app?.close();
-  await rm(root, { recursive: true, force: true });
-  await rm(work, { recursive: true, force: true });
-});
+  const slow = async (what: string, step: () => unknown) => {
+    const started = performance.now();
+    await step();
+    const took = performance.now() - started;
+    if (took > 2000) process.stderr.write(`spaces.test afterAll: ${what} took ${Math.round(took)} ms\n`);
+  };
+  await slow("live.stop", () => live?.stop());
+  await slow("app.close", () => app?.close());
+  await slow("removing the spaces root", () => rm(root, { recursive: true, force: true }));
+  await slow("removing the work folder", () => rm(work, { recursive: true, force: true }));
+}, 30_000);
 
 describe("spaces: our own git and deploy, one per room (Nikk, 6148)", () => {
   it("makes a space for a room you are in, with a live starter page", async () => {
@@ -598,6 +610,9 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     const three = await page("/kit/three/three.module.js");
     expect(three.status).toBe(200);
     expect(three.headers.get("access-control-allow-origin")).toBe("*");
+    // Read, not left: an unread 663 KB body can hold its connection open, and
+    // app.close() in afterAll waits for it (a release stopped on that hook, 2026-10-22).
+    expect(await three.text()).toContain("REVISION");
     expect((await page("/kit/three/addons/webxr/VRButton.js")).status).toBe(200);
     expect((await page("/kit/three/%2e%2e/package.json")).status).toBe(404);
     expect((await page("/kit/three/addons/../../package.json")).status).toBe(404);
