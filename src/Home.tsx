@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import type { RoomSummary } from "../shared/contracts";
 import { ApiError } from "./api-request";
 import { bff } from "./bff-client";
+import { base } from "./router";
 import { useHeadsetAvailable } from "./space/useHeadsetAvailable";
 
 type ListedRoom = { room: RoomSummary; joined: boolean };
@@ -200,6 +201,9 @@ export function Home({ onEnter, onOpenChat }: {
       <div className="room-front-intro">
         <p className="eyebrow">SAHA / ROOMS</p>
         <h1>Find your place.</h1>
+        {/* /meditate was built for a phone without a headset (2026-09-28) and
+            nothing on the site led to it. */}
+        <p><a href={`${base}/meditate`}>Guided meditations, without a headset</a></p>
       </div>
       <div className="room-front-layout">
         <div className="room-front-directory" id="room-directory">
