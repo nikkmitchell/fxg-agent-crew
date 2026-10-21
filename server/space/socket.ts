@@ -66,6 +66,9 @@ export const MAX_BUFFERED_BYTES = 1024 * 1024;
 export const SNAPSHOT_SKIP_BYTES = 32 * 1024;
 
 /** Whether this tick's snapshot should be queued for a socket this far behind. */
+/** An unchanged room still gets a snapshot this often (see SpaceHub.tick). */
+export const SNAPSHOT_HEARTBEAT_MS = 1_000;
+
 export const wantsSnapshot = (bufferedAmount: number): boolean => bufferedAmount <= SNAPSHOT_SKIP_BYTES;
 
 export class SpaceHub {
@@ -76,6 +79,9 @@ export class SpaceHub {
   private readonly socketActors = new Map<WebSocket, string>();
   private readonly socketSessions = new Map<WebSocket, string>();
   private timer: NodeJS.Timeout | null = null;
+  /** What the last snapshot sent said, without stillness, and when: see tick. */
+  private lastSignature = "";
+  private lastSentAt = 0;
 
   /**
    * Told whose socket was cut off for not reading. BY NAME, because the name
@@ -338,7 +344,23 @@ export class SpaceHub {
       this.stop();
       return;
     }
-    const snapshot: ServerMessage = { type: "snapshot", now: Date.now(), people: this.snapshot() };
+    const people = this.snapshot();
+    /**
+     * NOTHING MOVED, NOTHING SENT, beyond one a second. An idle room (agents at
+     * their desks, nobody in a headset) sent the same people ten times a
+     * second, differing only in how long each had been still: ~12 KB a second
+     * per viewer before compression, for a picture that had not changed. A
+     * snapshot goes out when anybody's pose, place, body or state differs from
+     * the last one sent, and at least once a second so stillness counts and
+     * clocks stay current. The client keeps the latest; fewer of them changes
+     * nothing it draws.
+     */
+    const signature = JSON.stringify(people.map(({ stillForMs: _still, ...person }) => person));
+    const at = Date.now();
+    if (signature === this.lastSignature && at - this.lastSentAt < SNAPSHOT_HEARTBEAT_MS) return;
+    this.lastSignature = signature;
+    this.lastSentAt = at;
+    const snapshot: ServerMessage = { type: "snapshot", now: at, people };
     for (const sockets of this.sockets.values()) {
       for (const socket of sockets) {
         if (this.quiet.has(socket) || !wantsSnapshot(socket.bufferedAmount)) continue;

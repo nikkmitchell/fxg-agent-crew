@@ -88,8 +88,7 @@ describe("a quiet socket holds presence without being sent the room", () => {
     hub.attach("Nikk2", "human", viewer.socket);
 
     hub.tick();
-    hub.tick();
-    expect(viewer.sent.filter((text) => text.includes('"snapshot"'))).toHaveLength(2);
+    expect(viewer.sent.filter((text) => text.includes('"snapshot"'))).toHaveLength(1);
     expect(holder.sent, "a holder draws nothing, so the snapshot is all cost").toHaveLength(0);
 
     expect(hub.deliver("Sill", { type: "refused", reason: "addressed to you" })).toBe(true);
@@ -109,5 +108,29 @@ describe("a socket that is behind skips snapshots rather than queueing them", ()
     // Far below the point where the socket is cut off, so a slow link keeps
     // its connection and only loses frames that were stale anyway.
     expect(SNAPSHOT_SKIP_BYTES * 8).toBeLessThan(MAX_BUFFERED_BYTES);
+  });
+});
+
+describe("an unchanged room is not re-sent ten times a second", () => {
+  it("sends a snapshot when somebody moves, and otherwise about once a second", async () => {
+    const { SNAPSHOT_HEARTBEAT_MS } = await import("../space/socket.js");
+    const hub = new SpaceHub(new Presence());
+    const sent: string[] = [];
+    const socket = { readyState: 1, bufferedAmount: 0, send: (text: string) => sent.push(text) } as unknown as WebSocket;
+    hub.attach("Nikk2", "human", socket);
+    const snapshots = () => sent.filter((text) => text.includes('"snapshot"')).length;
+    hub.tick();
+    expect(snapshots()).toBe(1);
+    hub.tick();
+    hub.tick();
+    expect(snapshots(), "nothing changed, nothing sent").toBe(1);
+    hub.presence.moveSelf("Nikk2", { x: 1, y: 0, z: 1 }, 0.5);
+    hub.tick();
+    expect(snapshots(), "a move goes out at once").toBe(2);
+    const start = Date.now();
+    while (Date.now() - start <= SNAPSHOT_HEARTBEAT_MS) { /* wait out the heartbeat */ }
+    hub.tick();
+    expect(snapshots(), "and once a second regardless").toBe(3);
+    hub.close();
   });
 });
