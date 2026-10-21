@@ -1,32 +1,18 @@
 import * as THREE from "three";
+import "./three-audio";
+import { pageAudio } from "./page-audio";
 import type { Off, Vec3 } from "./types";
 
 /**
  * SOUND FOR THINGS (docs/things/DESIGN.md, 7): one AudioContext for the
- * page (the room's own, which its listener follows and its gestures
- * unlock), a master for every thing, and a bus per thing. Sources placed at
- * an object get an HRTF panner the engine keeps at that object.
+ * page (page-audio.ts: the room's own, which its listener follows and its
+ * gestures unlock), a master for every thing, and a bus per thing. Sources
+ * placed at an object get an HRTF panner the engine keeps at that object.
  *
  * The context is the REAL one, not a proxy: AudioWorkletNode and friends
- * check what they are given. It is given a close() that does nothing, so a
- * thing that tidies up by closing its context (Mica's RainAudio does) cannot
- * silence the room's calls.
+ * check what they are given.
  */
-let master: GainNode | null = null;
-let guarded = false;
-
-export function pageAudio(): { context: AudioContext; master: GainNode } {
-  const context = THREE.AudioContext.getContext() as AudioContext;
-  if (!guarded) {
-    guarded = true;
-    (context as { close: () => Promise<void> }).close = () => Promise.resolve();
-  }
-  if (!master || master.context !== context) {
-    master = context.createGain();
-    master.connect(context.destination);
-  }
-  return { context, master };
-}
+export { pageAudio };
 
 /**
  * A WORKLET'S PROCESSORS, RENAMED PER ADDRESS, so a push (a new pinned

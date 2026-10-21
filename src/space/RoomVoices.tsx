@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import "../engine/three-audio";
 import { useThree } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
 import * as THREE from "three";
