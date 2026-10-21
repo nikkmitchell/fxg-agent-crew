@@ -32,6 +32,7 @@ import { SpaceAuth, parseBasic, type GitIdentity } from "./auth.js";
 import { DeployQueue, deployCommit, siteDir } from "./deploy.js";
 import { branches, createRepo, gitEnv, GitError, mergeInto, prepareAllRepos, prepareRepo, resolveCommit, commitLog, commitChanges, viewFile, treeFiles } from "./git.js";
 import { SpaceStore, type StoredDeploy } from "./store.js";
+import { visitorOf } from "../visitor.js";
 
 /**
  * SPACES, OVER HTTP (shared/spaces.ts has the whole story).
@@ -290,12 +291,8 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
     });
   }
 
-  /** The visitor, for limits: nginx's X-Real-IP, believed only from the local proxy. */
-  const visitor = (request: FastifyRequest): string => {
-    const local = request.ip === "127.0.0.1" || request.ip === "::1" || request.ip === "::ffff:127.0.0.1";
-    const real = request.headers["x-real-ip"];
-    return local && typeof real === "string" && real ? real : request.ip;
-  };
+  /** Who is asking, for limits: server/visitor.ts. */
+  const visitor = visitorOf;
 
   const summary = (name: string, createdBy: string, createdAt: string) => {
     const shown = store.publicInfo(name);
