@@ -68,7 +68,7 @@ columns are 0–6. Chess legal moves include promotion choices.
 Bring a Thing with the normal `POST /bff/space/items` and
 `{kind:"module",source:{space,branch,entry}}`. There is no native `kind:"game"`
 creation path. `POST /bff/space/items/<encoded ctx.id>/game` with `{game:"chess"}`
-opens or reads that instance's match. It refuses a different game on the same ID.
+creates (or confirms) that instance's match. GET of the same URL only reads, returning `{table:null}` when no match exists; the client tries GET before creating. It refuses a different game on the same ID.
 `POST /bff/space/items/<encoded ctx.id>/game/action` takes `{action,revision,...}`:
 
 - `join` / `leave`: `side` 1 or 2.
@@ -87,10 +87,13 @@ A manifest entry must explicitly grant its game slots. For an individual table:
 `{ "id": "chess", "item": "chess.js", "games": { "": "chess" } }`.
 For a composed space with a child named left:
 `{ "id": "club", "space": "club.js", "games": { "left": "chess" } }`.
-Paths are at most three child keys, with at most 40 declared slots. Grants are
-recorded by the server when a Thing is brought in, from the validated manifest;
-a write body cannot grant itself games. Re-bring the Thing after changing its
-slot declarations. Unrelated Things and undeclared child paths are refused.
+Paths are at most three child keys, with at most 40 declared slots. Grants are resolved from the current manifest on each create/action (or the
+pinned deploy when the code is pinned); a write body cannot grant itself games.
+New and renamed slots therefore work after a push without re-placing the Thing;
+removed slots immediately refuse writes. Unrelated Things and undeclared child
+paths are refused. After the async manifest check, the server reloads the item
+before checking revisions or saving, so an in-flight request cannot resurrect
+a removed Thing or overwrite a placement update.
 
 Game changes advance only the match revision. Carrying/scaling uses the Thing’s
 separate placement revision, so play does not invalidate a drag. Client merges
@@ -99,6 +102,6 @@ Invalid stored chess histories are quarantined when parsing saved Things, so
 one damaged match cannot break the room’s game listing.
 
 Finished spaces retain the platform’s existing write lock (also used by Go):
-opening or changing a match there is refused. This batch supports work rooms
+creating or changing a match there is refused; read-only GET still restores saved matches. This batch supports work rooms
 and composed work spaces; enabling play inside published finished spaces needs
 a separate platform policy change.

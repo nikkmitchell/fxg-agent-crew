@@ -12,7 +12,12 @@ export function createGameHost(
     let watchedGame: TableGame | null = null;
     const refresh = () =>
       watchedGame
-        ? space.openThingGame(id, watchedGame).then(({ table }) => {
+        ? space.readThingGame(id).then(async ({ table }) => {
+            if (!table && watchedGame)
+              table = (await space.openThingGame(id, watchedGame)).table;
+            if (!table) return;
+            if (table.game !== watchedGame)
+              throw new Error("This instance contains a different saved game.");
             for (const fn of listeners) fn(table);
           })
         : Promise.resolve();

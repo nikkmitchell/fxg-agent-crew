@@ -236,7 +236,7 @@ sign-in, and has no localStorage or cookies of its own.
 /** What a space's manifest says one entry is, for this person, on a branch's live deploy (server/space/items.ts). */
 export type DescribeModule = (
   who: { username: string; token: string },
-  source: { space: string; branch: string; entry: string },
+  source: { space: string; branch: string; entry: string; deploy?: string },
 ) => Promise<{ name: string; role: ModuleKind; games?: import("../../shared/table-games.js").GameSlots } | { status: number; error: string }>;
 
 export function registerSpacesHosting(app: FastifyInstance, deps: {
@@ -902,7 +902,9 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
       return { status: 502, error: "WebHarness could not be reached to check your rooms." };
     }
     if (!isPreviewableBranch(source.branch)) return { status: 400, error: "That is not a branch name." };
-    const entry = modulesOf(space, source.branch).modules.find((module) => module.id === source.entry);
+    const pinned = source.deploy ? store.deploy(source.deploy) : undefined;
+    if (source.deploy && (!pinned || pinned.space !== space || pinned.status !== "ready")) return { status: 404, error: "That pinned deploy is not available for this space." };
+    const entry = modulesOf(space, source.branch, pinned ?? undefined).modules.find((module) => module.id === source.entry);
     if (!entry) return { status: 404, error: `${space} (${source.branch}) has no item, environment or space called ${source.entry}.` };
     return { name: entry.name, role: entry.kind, games: entry.games };
   };

@@ -157,6 +157,7 @@ export const space = {
   /** Delete a table for good. Answers with the room's tables as they now are. */
   removeRoomItem: (id: string) =>
     requestJson<{ items: RoomItem[] }>(`${root}/items/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  readThingGame: (id: string) => requestJson<{ table: import("../shared/table-games").GameRoomItem | null }>(`${root}/items/${encodeURIComponent(id)}/game`),
   openThingGame: (id: string, game: string) => requestJson<{ table: import("../shared/table-games").GameRoomItem }>(`${root}/items/${encodeURIComponent(id)}/game`, { method: "POST", body: JSON.stringify({ game }) }),
   actOnThingGame: (id: string, change: Record<string, unknown>) => requestJson<{ table: import("../shared/table-games").GameRoomItem }>(`${root}/items/${encodeURIComponent(id)}/game/action`, { method: "POST", body: JSON.stringify(change) }),
   addRoomItem: () => requestJson<{ item: RoomItem }>(`${root}/items`, {

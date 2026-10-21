@@ -1,4 +1,4 @@
-import {parseGameItem, parseGameSlots, type GameSlots, type GameRoomItem} from "./table-games.js";
+import {parseGameItem, type GameRoomItem} from "./table-games.js";
 import type { GoClock } from "./go-clock.js";
 export const GO_SIZES = [5, 9, 13, 19, 25] as const;
 export type GoSize = (typeof GO_SIZES)[number];
@@ -97,8 +97,6 @@ export type ModuleRoomItem = {
   addedBy: string;
   /** Server-validated matches belonging to this Thing and its composed children. */
   tableGames?: Record<string, GameRoomItem>;
-  /** Immutable grants taken from the manifest when brought in; never from a write body. */
-  gameSlots?: GameSlots;
 };
 
 /** How big a placed thing may be made: a space as a model is small; an item about its own size. */
@@ -141,7 +139,6 @@ export function parseModuleItem(value: unknown): ModuleRoomItem | null {
     position: { x: position.x, y: position.y, z: position.z, rotationY: position.rotationY },
     scale,
     addedBy: typeof item.addedBy === "string" ? item.addedBy : "",
-    ...(parseGameSlots(item.gameSlots) ? { gameSlots: parseGameSlots(item.gameSlots)! } : {}),
     ...(item.tableGames && typeof item.tableGames === "object" ? { tableGames: Object.fromEntries(
       Object.entries(item.tableGames).filter(([key, game]) => (key === "" || /^[a-z0-9][a-z0-9_/-]{0,98}$/.test(key)) && parseGameItem(game)).map(([key, game]) => [key, parseGameItem(game)!])
     ) } : {}),

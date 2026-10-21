@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
-import { buildServer } from "../index.js";
-import { RoomItems } from "../space/items.js";
+import Fastify from "fastify";
+import cookie from "@fastify/cookie";
+import { DatabaseSync } from "node:sqlite";
+import { openDatabase } from "../db/open.js";
+import { MemorySessionStore } from "../session.js";
+import { FinishedSpaces } from "../space/finished.js";
+import { testConfig } from "./test-config.js";
+import { RoomItems, registerRoomItemRoutes } from "../space/items.js";
 import { tempDir } from "./test-config.js";
 import type { ModuleRoomItem } from "../../shared/room-items.js";
 const thing = (id = "game-one"): ModuleRoomItem => ({
@@ -15,20 +21,27 @@ const thing = (id = "game-one"): ModuleRoomItem => ({
   position: { x: 0, y: 0, z: 3, rotationY: 0 },
   scale: 1,
   addedBy: "Alice",
-  gameSlots: {
-    "": "connect-four",
-    left: "chess",
-    right: "chess",
-    root: "chess",
-  },
 });
 function boot(path = ":memory:") {
-  const server = buildServer({
-    WEBHARNESS_URL: "https://example.test",
-    DATABASE_PATH: path,
-    BLOB_ROOT: tempDir("thing-games-"),
-    LOG_LEVEL: "silent",
-  });
+  const config = testConfig(),
+    database = openDatabase(path, DatabaseSync);
+  const app = Fastify(),
+    sessions = new MemorySessionStore(60000);
+  app.register(cookie);
+  app.addHook("onClose", async () => database.close());
+  const manifests: Record<
+    string,
+    import("../../shared/table-games.js").GameSlots
+  > = {
+    "games-room": {
+      "": "connect-four",
+      left: "chess",
+      right: "chess",
+      root: "chess",
+    },
+  };
+  let beforeDescribe: (() => Promise<void>) | undefined;
+  const server = { app, sessions, config, database };
   const headers = (by = "Alice") => ({
     cookie: `${server.config.cookieName}=${server.sessions.create(by, "t", "human")}`,
   });
@@ -47,7 +60,32 @@ function boot(path = ":memory:") {
       headers: headers(by),
       payload: change,
     });
-  return { ...server, items, headers, open, act };
+  registerRoomItemRoutes(app, {
+    config,
+    sessions,
+    items,
+    announce: () => {},
+    locked: (room) => new FinishedSpaces(database).has(room),
+    describeModule: async (_who, source) => {
+      await beforeDescribe?.();
+      return {
+        name: "Games room",
+        role: "space",
+        games: manifests[source.entry],
+      };
+    },
+  });
+  return {
+    ...server,
+    items,
+    headers,
+    open,
+    act,
+    manifests,
+    delayDescribe(fn: () => Promise<void>) {
+      beforeDescribe = fn;
+    },
+  };
 }
 describe("game tables through Things", () => {
   it("keeps turns authoritative, rejects spectators and duplicate moves, and requires both players to reset", async () => {
@@ -212,7 +250,7 @@ describe("game review regressions", () => {
     const { app, items, open } = boot();
     try {
       const unrelated = thing("bookcase");
-      delete unrelated.gameSlots;
+      unrelated.source.entry = "bookcase";
       items.insert("saha.ing", unrelated, "Alice");
       items.insert("saha.ing", thing(), "Alice");
       expect((await open("bookcase")).statusCode).toBe(403);
@@ -279,6 +317,107 @@ describe("game review regressions", () => {
         (await act("Alice", { action: "join", side: 1, revision: 0 }))
           .statusCode,
       ).toBe(403);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe("live manifest grants and frozen reads", () => {
+  it("follows additions/removals without replacing a placed Thing", async () => {
+    const { app, items, open, act, manifests, headers } = boot();
+    try {
+      items.insert("saha.ing", thing(), "Alice");
+      expect((await open("game-one/new-board", "chess")).statusCode).toBe(403);
+      manifests["games-room"]["new-board"] = "chess";
+      expect((await open("game-one/new-board", "chess")).statusCode).toBe(201);
+      delete manifests["games-room"]["new-board"];
+      expect(
+        (
+          await act(
+            "Alice",
+            { action: "join", side: 1, revision: 0 },
+            "game-one/new-board",
+          )
+        ).statusCode,
+      ).toBe(403);
+      expect((await open("game-one/new-board", "chess")).statusCode).toBe(403);
+      const read = await app.inject({
+        url: "/bff/space/items/game-one%2Fnew-board/game",
+        headers: headers(),
+      });
+      expect(read.statusCode).toBe(200);
+      expect(read.json().table.game).toBe("chess");
+    } finally {
+      await app.close();
+    }
+  });
+  it("reads an existing match while finished writes stay locked", async () => {
+    const { app, items, open, headers, database } = boot();
+    try {
+      items.insert("saha.ing", thing(), "Alice");
+      await open();
+      new FinishedSpaces(database).put({
+        room: "saha.ing",
+        title: "Finished",
+        space: "saha.ing",
+        branch: "main",
+        entry: "games-room",
+        deploy: "d1",
+        by: "Alice",
+        at: new Date().toISOString(),
+      });
+      const read = await app.inject({
+        url: "/bff/space/items/game-one/game",
+        headers: headers(),
+      });
+      expect(read.statusCode).toBe(200);
+      expect(read.json().table.game).toBe("connect-four");
+      expect((await open()).statusCode).toBe(403);
+    } finally {
+      await app.close();
+    }
+  });
+  it("does not resurrect a Thing removed during the async manifest check", async () => {
+    const { app, items, open, act, delayDescribe } = boot();
+    try {
+      items.insert("saha.ing", thing(), "Alice");
+      await open();
+      let started!: () => void, release!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      delayDescribe(async () => {
+        started();
+        await held;
+      });
+      const pending = act("Alice", { action: "join", side: 1, revision: 0 });
+      const running = pending.then((result) => result);
+      await entered;
+      items.remove("saha.ing", "game-one");
+      release();
+      expect((await running).statusCode).toBe(404);
+      expect(items.one("saha.ing", "game-one")).toBeNull();
+    } finally {
+      await app.close();
+    }
+  });
+  it("serializes same-revision commands after async manifest checks", async () => {
+    const { app, items, open, act, delayDescribe } = boot();
+    try {
+      items.insert("saha.ing", thing(), "Alice");
+      await open();
+      delayDescribe(async () => {
+        await Promise.resolve();
+      });
+      const replies = await Promise.all([
+        act("Alice", { action: "join", side: 1, revision: 0 }),
+        act("Bob", { action: "join", side: 2, revision: 0 }),
+      ]);
+      expect(replies.map((r) => r.statusCode).sort()).toEqual([200, 409]);
     } finally {
       await app.close();
     }
