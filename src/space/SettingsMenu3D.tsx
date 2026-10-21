@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { MENU, hitMenu, layOutMenu, menuPixel, menuSignature, type MenuLayout, type MenuModel } from "./menu-layout";
 import { paintMenu } from "./menu-paint";
+import { makeInkCanvas } from "../engine/ink-canvas";
 import { NO_OFFSET, clampOffset, type MenuOffset } from "./menu-move";
 import { claimPointer } from "./pointer-claim";
 import { useGrab } from "./use-grab";
@@ -21,13 +22,9 @@ import type { Ray } from "../../shared/grab-move";
 /** Two presses of one target this close together are one press arriving twice (ray and touch). */
 const REPEAT_MS = 300;
 
+/** The room's ink canvas (engine/ink-canvas.ts), mipmapped: the menu is read from further off than a card. */
 function makeCanvas(width: number, height: number) {
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  const { canvas, texture } = makeInkCanvas(width, height);
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.generateMipmaps = true;
   return { canvas, texture };

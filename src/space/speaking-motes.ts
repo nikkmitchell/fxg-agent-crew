@@ -21,6 +21,7 @@
  * of audio for it, 24 kHz mono — 14.5 characters per second. So a line's length
  * predicts how long it is spoken for, close enough for a light that fades.
  */
+import { seededRandom } from "./seeded-random";
 import { sameActor } from "../../shared/board-rules";
 
 /** Characters per second, measured from a real Kokoro rendering. See above. */
@@ -73,16 +74,8 @@ export function pulseFor(
   return { actorId: line.actorId, seconds };
 }
 
-/** Deterministic pseudo-random numbers, so a pulse is testable. */
-function random(seed: number): () => number {
-  let state = seed >>> 0 || 1;
-  return () => {
-    state = Math.imul(state ^ (state >>> 15), 2246822507) >>> 0;
-    state = Math.imul(state ^ (state >>> 13), 3266489909) >>> 0;
-    state ^= state >>> 16;
-    return (state >>> 0) / 4294967296;
-  };
-}
+/** Deterministic pseudo-random numbers (seeded-random.ts). */
+const random = seededRandom;
 
 /**
  * The height a mote wraps back to the bottom at, so the column never empties.
