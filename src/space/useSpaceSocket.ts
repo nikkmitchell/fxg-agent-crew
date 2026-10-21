@@ -15,6 +15,7 @@ import type {
   Showing,
   WirePerson,
 } from "../../shared/space-wire";
+import { wireNumber, wirePose, wireVec } from "../../shared/space-wire";
 import type { Utterance } from "../../shared/voice";
 import type { Vec3 } from "../../shared/space-layout";
 import { mergeRoomItems, withFresher, type RoomItem } from "../../shared/room-items";
@@ -502,6 +503,28 @@ export function makeMoveSender(send: (message: ClientMessage) => void, minInterv
     lastSent = now;
     lastAt = { ...at };
     lastFacing = facing;
-    send({ type: "move", at, facing, ...tracked });
+    send(moveMessage(at, facing, tracked));
+  };
+}
+
+/**
+ * Where you are, as the room's socket carries it: four decimals each
+ * (space-wire.ts wireNumber), what a figure can show. One builder for the
+ * flat-screen sender above and the headset's own (Immersive), which throttles
+ * itself because the same clock gates its hand tracking.
+ */
+export function moveMessage(
+  at: Vec3,
+  facing: number,
+  tracked?: { head?: Pose; hands?: { left: HandPose | null; right: HandPose | null } },
+  standing?: number | null,
+): ClientMessage {
+  return {
+    type: "move",
+    at: wireVec(at),
+    facing: wireNumber(facing),
+    ...(tracked?.head ? { head: wirePose(tracked.head) } : {}),
+    ...(standing !== undefined && standing !== null ? { standing } : {}),
+    ...(tracked?.hands ? { hands: { left: tracked.hands.left && wirePose(tracked.hands.left), right: tracked.hands.right && wirePose(tracked.hands.right) } } : {}),
   };
 }

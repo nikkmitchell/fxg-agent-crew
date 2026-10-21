@@ -101,6 +101,19 @@ export type Pose = { p: Vec3; q: Quat };
  */
 export type HandPose = Pose & { f?: number[] };
 
+/**
+ * NUMBERS AS FAR AS A FIGURE CAN SHOW THEM: four decimals, a tenth of a
+ * millimetre and far under a hundredth of a degree, both ways on the room's
+ * socket (the server's snapshot, a headset's own moves). They went out with
+ * sixteen digits each, ten times a second, on a link that carries about 21 KB
+ * a second: a third of every snapshot was digits nobody could see. Fingers
+ * are rounded already (hand-fingers.ts fingersForWire).
+ */
+export const wireNumber = (value: number): number => Math.round(value * 1e4) / 1e4;
+export const wireVec = <V extends { x: number; y: number; z: number }>(v: V): V => ({ ...v, x: wireNumber(v.x), y: wireNumber(v.y), z: wireNumber(v.z) });
+export const wirePose = <P extends Pose>(pose: P): P =>
+  ({ ...pose, p: wireVec(pose.p), q: { x: wireNumber(pose.q.x), y: wireNumber(pose.q.y), z: wireNumber(pose.q.z), w: wireNumber(pose.q.w) } });
+
 /** One occupant, as the browser needs to draw them. */
 export type WirePerson = {
   actorId: string;

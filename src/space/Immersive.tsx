@@ -14,6 +14,7 @@ import {
 import * as THREE from "three";
 import { ROOM, WORLD, facingFor, type Vec3 } from "../../shared/space-layout";
 import { isLobby } from "../../shared/lobby-hall";
+import { moveMessage } from "./useSpaceSocket";
 import { roomKey } from "../../shared/space-room";
 import { clampToRoom, type Comfort } from "./comfort";
 import { heldHand, NO_HAND, type Held } from "./hand-hold";
@@ -1062,14 +1063,8 @@ export function ImmersivePlayer({
     }
 
     const myHeight = head ? standing.current.update(head.p.y, Math.min(delta, 0.25)) : standing.current.current;
-    send({
-      type: "move",
-      at,
-      facing: group.rotation.y,
-      ...(head ? { head } : {}),
-      ...(myHeight !== null ? { standing: myHeight } : {}),
-      hands: { left: held.current.left.pose, right: held.current.right.pose },
-    });
+    send(moveMessage(at, group.rotation.y,
+      { ...(head ? { head } : {}), hands: { left: held.current.left.pose, right: held.current.right.pose } }, myHeight));
   });
 
   return (
