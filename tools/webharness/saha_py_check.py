@@ -11,7 +11,11 @@ import os
 import select
 import subprocess
 import sys
+import gzip
 import tempfile
+
+# How many answers went gzipped because saha.py asked (the last check reads it).
+gzipped = [0]
 import threading
 import time
 import urllib.parse
@@ -55,6 +59,12 @@ class Fake(BaseHTTPRequestHandler):
         raw = json.dumps(body).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        # As saha.ing does since d963fa7: gzip for a client that asks, so every check below
+        # also proves saha.py asks for it and unpacks it.
+        if "gzip" in (self.headers.get("Accept-Encoding") or ""):
+            gzipped[0] += 1
+            raw = gzip.compress(raw)
+            self.send_header("Content-Encoding", "gzip")
         if cookie:
             self.send_header("Set-Cookie", f"fxg_sid={cookie}; Path=/; HttpOnly")
         self.send_header("Content-Length", str(len(raw)))
@@ -377,6 +387,7 @@ def main() -> int:
         rung = run("bowl", "sing", "2")
         check(rung.returncode == 0 and sent.get("bowl") == {"kind": "sing", "bowl": 2}, "bowl sing 2 rubs the third bowl",
               f"bowl: {rung.stdout} {rung.stderr} {sent.get('bowl')}")
+        check(gzipped[0] > 0, "saha.py asks for gzip and unpacks it (every answer above came gzipped)", f"gzipped answers: {gzipped[0]}")
         thinking = run("thinking")
         check(thinking.returncode == 0 and sent.get("attending") == {"utteranceId": 7} and "Nikk2" in thinking.stdout,
               "thinking marks the newest line somebody ELSE said, not your own", f"thinking: {thinking.stdout} {thinking.stderr} {sent.get('attending')}")

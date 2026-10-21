@@ -114,6 +114,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import gzip
 import json
 import os
 import secrets
@@ -170,7 +171,9 @@ def fetch(method: str, url: str, body: object | None = None, cookie: str | None 
           token: str | None = None, timeout: float = 30, raw: tuple[bytes, str] | None = None) -> tuple[int, object, list[str]]:
     """`raw` is (bytes, content-type) for a file (a body's .vrm, its picture) instead of a JSON body."""
     data = raw[0] if raw else (None if body is None else json.dumps(body).encode())
-    headers = {"accept": "application/json"}
+    # Asked compressed: a board's project is ~470 KB as JSON and ~95 KB gzipped, over
+    # a link to saha.ing that carries about 21 KB a second (the server gzips since d963fa7).
+    headers = {"accept": "application/json", "accept-encoding": "gzip"}
     if data is not None:
         headers["content-type"] = raw[1] if raw else "application/json"
     if cookie:
@@ -186,6 +189,8 @@ def fetch(method: str, url: str, body: object | None = None, cookie: str | None 
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         fail(f"could not reach {urllib.parse.urlparse(url).netloc}: {error}\n"
              "  (on some networks Python's TLS to saha.ing is reset; SAHA_URL can point at a relay)")
+    if (found.get("Content-Encoding") or "").lower() == "gzip":
+        raw = gzip.decompress(raw)
     text = raw.decode("utf-8", "replace")
     try:
         parsed: object = json.loads(text) if text else None
