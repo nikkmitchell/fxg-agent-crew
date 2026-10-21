@@ -237,9 +237,16 @@ function fresherItem<T extends RoomItem>(a: T, b: T): T {
   const base = (a.revision ?? 0) > (b.revision ?? 0) ? a : b;
   if (a.kind !== "module" || b.kind !== "module" || (!a.tableGames && !b.tableGames)) return base;
   const tables = new Map(Object.entries(a.tableGames ?? {}));
+  let newerTable = false;
   for (const [key, table] of Object.entries(b.tableGames ?? {})) {
-    if ((tables.get(key)?.revision ?? -1) <= table.revision) tables.set(key, table);
+    const held = tables.get(key);
+    if (!held || held.revision < table.revision) newerTable = true;
+    if ((held?.revision ?? -1) <= table.revision) tables.set(key, table);
   }
+  // NOTHING NEWER, NOTHING NEW: the item already held, as it was, so a caller
+  // comparing by identity (withFresher) knows nothing changed and nothing is
+  // drawn again. Every broadcast made a fresh object for a Thing with games.
+  if (!newerTable && (a.revision ?? 0) >= (b.revision ?? 0)) return a;
   return { ...base, tableGames: Object.fromEntries(tables) };
 }
 

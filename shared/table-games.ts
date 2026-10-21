@@ -148,14 +148,34 @@ export function parseGameItem(v: unknown): GameRoomItem | null {
     !Array.isArray(i.resetBy)
   )
     return null;
-  if (i.game === "chess") {
-    try {
-      chessOf(s);
-    } catch {
-      return null;
-    }
-  }
+  if (i.game === "chess" && !replayable(s.moves)) return null;
   return i;
+}
+
+/**
+ * Whether a saved chess history replays, remembered by the history itself.
+ * Every room broadcast is parsed by every client, and the server parses saved
+ * items on every read; replaying each game's moves through chess.js each time
+ * (up to 40 tables of 2,000 moves) was the cost of keeping a corrupt history
+ * out. The answer for a given list of moves never changes, so it is asked
+ * once. A move appends, which makes a new key; the oldest answers are let go.
+ */
+const replayed = new Map<string, boolean>();
+const REPLAYS_KEPT = 128;
+function replayable(moves: readonly string[]): boolean {
+  const key = moves.join(" ");
+  const known = replayed.get(key);
+  if (known !== undefined) return known;
+  let ok = true;
+  try {
+    const c = new Chess();
+    for (const move of moves) c.move(move);
+  } catch {
+    ok = false;
+  }
+  if (replayed.size >= REPLAYS_KEPT) replayed.delete(replayed.keys().next().value!);
+  replayed.set(key, ok);
+  return ok;
 }
 export type LegalGameMove = {
   from?: number;

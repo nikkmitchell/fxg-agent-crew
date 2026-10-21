@@ -213,3 +213,16 @@ describe("tabletop rules", () => {
     expect(parseGameItem(i)).toBeNull();
   });
 });
+
+describe("a saved chess history", () => {
+  it("is refused when it does not replay, however often it is read, and taken when it does", () => {
+    const good = defaultGameItem("t", "chess", "Alice");
+    good.state = { ...good.state, moves: ["e4", "e5", "Nf3"] };
+    const bad = defaultGameItem("t", "chess", "Alice");
+    bad.state = { ...bad.state, moves: ["e4", "e4"] };
+    for (let i = 0; i < 3; i += 1) {
+      expect(parseGameItem(JSON.parse(JSON.stringify(bad))), "read " + i).toBeNull();
+      expect(parseGameItem(JSON.parse(JSON.stringify(good))), "read " + i).not.toBeNull();
+    }
+  });
+});

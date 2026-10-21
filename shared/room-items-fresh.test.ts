@@ -47,3 +47,17 @@ it("merges game and placement revisions independently", async () => {
   expect(merged[0].position.x).toBe(2);expect(merged[0].tableGames![""].revision).toBe(5);
   const late=withFresher(merged,base);expect(late[0].tableGames![""].revision).toBe(5);
 });
+
+it("hands back the very item it had when a broadcast brings nothing newer, so nothing redraws", async () => {
+  const { defaultGameItem } = await import("./table-games");
+  const held: import("./room-items").ModuleRoomItem = {id:"games",kind:"module",revision:4,source:{space:"saha.ing",branch:"main",entry:"chess"},name:"Chess",role:"item",view:"placed",position:{x:2,y:0,z:1,rotationY:0},scale:1,addedBy:"Alice",tableGames:{"":{...defaultGameItem("games","chess","Alice"),revision:2}}};
+  const now = [held];
+  // The same item again, as a fresh object off the socket: same revisions.
+  expect(withFresher(now, JSON.parse(JSON.stringify(held)))).toBe(now);
+  expect(mergeRoomItems(now, [JSON.parse(JSON.stringify(held))])[0]).toBe(held);
+  // A newer match is still taken, and a newer placement still wins.
+  const moved = { ...held, tableGames: { "": { ...held.tableGames![""], revision: 3 } } };
+  expect(withFresher(now, moved)[0].tableGames![""].revision).toBe(3);
+  const carried = { ...held, revision: 5, position: { ...held.position, x: 7 } };
+  expect(withFresher(now, carried)[0].position.x).toBe(7);
+});
