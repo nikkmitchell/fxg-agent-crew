@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildServer } from "../index.js";
 import { MOST_WAITING, VOICE_SAMPLE, cacheName, registerSpeechRoutes, speakWith, speechCache, timeoutFor, type Speaker } from "../space/speak.js";
 import type { Utterance } from "../../shared/voice.js";
@@ -145,10 +145,11 @@ describe("reading a line aloud", () => {
     const speech = speechCache({ cacheRoot, speaker: () => engine.speak });
 
     speech.warm(said().say!, "af_heart");
-    await new Promise((settle) => setTimeout(settle, 20));
+    // On disk under the name the route will look for. Waited for, not slept on:
+    // a fixed 20 ms is outlasted by the disk read before the engine on a busy machine.
+    const file = join(cacheRoot, cacheName(said().say!, "af_heart"));
+    await vi.waitFor(async () => expect(await readFile(file, "utf8")).toContain("WAVE"), { timeout: 5_000 });
     expect(engine.calls).toEqual([{ text: said().say, voice: "af_heart" }]);
-    // And it is on disk under the name the route will look for.
-    expect(await readFile(join(cacheRoot, cacheName(said().say!, "af_heart")), "utf8")).toContain("WAVE");
   });
 
   /**
@@ -159,15 +160,19 @@ describe("reading a line aloud", () => {
    */
   it("asking for the line that is already being said waits for it", async () => {
     const cacheRoot = await mkdtemp(join(tmpdir(), "speech-inflight-"));
-    // Assigned inside the speaker; declared loose so TypeScript does not
-    // conclude from the initialiser that it is always null.
-    let finish = null as (() => void) | null;
+    // The gate exists before the engine starts. It used to be made INSIDE the
+    // speaker and opened 10 ms later; on a busy machine the speaker had not
+    // started by then (it reads the disk first), so the gate was opened before
+    // it existed, the line never ended, and every later test in this file
+    // queued behind it on the module's one `turn`: eight failures from one race.
+    let finish!: () => void;
+    const gate = new Promise<void>((done) => {
+      finish = done;
+    });
     let calls = 0;
     const slow: Speaker = async (_text, _voice, outPath) => {
       calls += 1;
-      await new Promise<void>((done) => {
-        finish = () => done();
-      });
+      await gate;
       await writeFile(outPath, Buffer.from("RIFF....WAVE"));
     };
     const speech = speechCache({ cacheRoot, speaker: () => slow });
@@ -176,7 +181,7 @@ describe("reading a line aloud", () => {
     await new Promise((settle) => setTimeout(settle, 10));
     const listener = speech.ensure("a line", "af_heart");
 
-    finish?.();
+    finish();
     expect(await listener, "the listener got the line, not a refusal").toBe(true);
     expect(calls, "and it was only said once").toBe(1);
   });
@@ -193,23 +198,24 @@ describe("reading a line aloud", () => {
     const gated = () => {
       const order: string[] = [];
       const gates: (() => void)[] = [];
+      let open = false;
       let running = 0;
       let mostAtOnce = 0;
       const speak: Speaker = async (text, _voice, outPath) => {
         running += 1;
         mostAtOnce = Math.max(mostAtOnce, running);
         order.push(text);
-        await new Promise<void>((done) => gates.push(done));
+        if (!open) await new Promise<void>((done) => gates.push(done));
         await writeFile(outPath, Buffer.from("RIFF....WAVE"));
         running -= 1;
       };
-      const release = async () => {
-        // Let each started line finish, in turn, until none is left waiting.
-        for (let spins = 0; spins < 200; spins += 1) {
-          const next = gates.shift();
-          if (next) next();
-          await new Promise((settle) => setTimeout(settle, 1));
-        }
+      // Opens for good, not for 200 spins of a millisecond: each line reads the
+      // disk before it reaches the engine, and on a busy machine that outlasted
+      // the spins and left a line waiting for a release that had already ended.
+      // The queue, not this gate, is what keeps it to one at a time.
+      const release = () => {
+        open = true;
+        for (const next of gates.splice(0)) next();
       };
       return { speak, order, release, mostAtOnce: () => mostAtOnce };
     };
@@ -219,7 +225,7 @@ describe("reading a line aloud", () => {
       const speech = speechCache({ cacheRoot: await mkdtemp(join(tmpdir(), "speech-turn-")), speaker: () => engine.speak });
       const first = speech.ensure("Sill: deployed.", "af_heart");
       const second = speech.ensure("Moraine: lobby is live.", "bf_emma");
-      await engine.release();
+      engine.release();
       expect(await first).toBe(true);
       expect(await second, "waited, then was said: never refused").toBe(true);
     });
@@ -228,7 +234,7 @@ describe("reading a line aloud", () => {
       const engine = gated();
       const speech = speechCache({ cacheRoot: await mkdtemp(join(tmpdir(), "speech-order-")), speaker: () => engine.speak });
       const lines = ["one", "two", "three", "four"].map((text) => speech.ensure(text, "af_heart"));
-      await engine.release();
+      engine.release();
       expect(await Promise.all(lines)).toEqual([true, true, true, true]);
       expect(engine.mostAtOnce(), "540MB each: never two at once").toBe(1);
       expect(engine.order).toEqual(["one", "two", "three", "four"]);
@@ -256,7 +262,7 @@ describe("reading a line aloud", () => {
       const speech = speechCache({ cacheRoot: await mkdtemp(join(tmpdir(), "speech-bound-")), speaker: () => engine.speak });
       const queued = Array.from({ length: MOST_WAITING }, (_, i) => speech.ensure(`line ${i}`, "af_heart"));
       expect(await speech.ensure("one too many", "af_heart"), "a runaway loop cannot queue the box for ever").toBe(false);
-      await engine.release();
+      engine.release();
       expect((await Promise.all(queued)).every(Boolean)).toBe(true);
     });
   });
