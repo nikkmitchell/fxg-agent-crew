@@ -116,7 +116,8 @@ export function useBoardCards(projectId: string | null): BoardFeed {
         setTrouble(null);
         return;
       }
-      const project = (await board.project(projectId)) as {
+      // Lean, as the Work page: a done card's older comment words come when the card is opened (detailOf).
+      const project = (await board.project(projectId, { lean: true })) as {
         tasks?: Record<string, unknown>[];
         boards?: Record<string, unknown>[];
         project?: { name?: string };
@@ -160,6 +161,8 @@ export function useBoardCards(projectId: string | null): BoardFeed {
   useEffect(() => {
     rows.current = {};
     boards.current = [];
+    asked.current = new Set();
+    setFullComments({});
     setCards([]);
     setMoodBoards([]);
     setProjectName(null);
@@ -176,10 +179,32 @@ export function useBoardCards(projectId: string | null): BoardFeed {
     };
   }, [read]);
 
+  /**
+   * A done card's whole discussion, fetched the first time it is opened: the
+   * project read is lean (see read), so its older comments came without words.
+   */
+  const [fullComments, setFullComments] = useState<Record<string, Record<string, unknown>[]>>({});
+  const asked = useRef(new Set<string>());
   const detailOf = useCallback((taskId: string): TaskDetail | null => {
     const row = rows.current[taskId];
     if (!row) return null;
-    const comments = Array.isArray(row.comments) ? (row.comments as Record<string, unknown>[]) : [];
+    const listed = Array.isArray(row.comments) ? (row.comments as Record<string, unknown>[]) : [];
+    const lean = listed.some((comment) => comment.lean);
+    if (lean && !asked.current.has(taskId)) {
+      asked.current.add(taskId);
+      void board.comments(taskId).then(
+        (answer) => setFullComments((held) => ({ ...held, [taskId]: answer.comments })),
+        () => asked.current.delete(taskId),
+      );
+    }
+    // Each lean comment takes its words from the fetched discussion, by id; until they arrive it is
+    // left out (the count on the card is already right). A newer comment came with its words anyway.
+    const fetched = fullComments[taskId];
+    const comments = !lean ? listed : listed.flatMap((comment) => {
+      if (!comment.lean) return [comment];
+      const whole = fetched?.find((one) => one.id === comment.id);
+      return whole ? [whole] : [];
+    });
     return {
       id: String(row.id),
       title: String(row.title ?? "untitled"),
@@ -201,7 +226,7 @@ export function useBoardCards(projectId: string | null): BoardFeed {
         ...(comment.created_at ? { createdAt: String(comment.created_at) } : {}),
       })),
     };
-  }, []);
+  }, [fullComments]);
 
   const moodItemsOf = useCallback((boardId: string | null): MoodItem[] => {
     const chosen = boardId
