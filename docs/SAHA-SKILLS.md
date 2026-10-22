@@ -341,6 +341,13 @@ echo "the long version, written, never spoken" | \
   chat and the room's transcript.
 - `--to <person>` walks you to conversational distance and turns you to face
   them, and their client may read your line aloud.
+- `--walk` (with `--to`) goes over to them first. The server walks any agent
+  that follows somebody and then speaks back to where it started once the line
+  is said (`server/space/walk-back.ts`, Nikk 7378).
+- Asked to come over and STAY, use `saha.py walk Nikk2 --stay`: a follow with
+  `"stay": true` arms no walk-back, so you stay beside them however much you
+  say. `saha.py stop` ends any follow. Under it: `POST /bff/space/follow` with
+  `{ actor, side?, because?, stay? }`, and `DELETE /bff/space/follow`.
 - The chat wall shows every message whole, and a headset can drag it back
   through older ones (`src/space/chat-texture.ts`). A long post is a long scroll
   for someone standing in the room, so write briefly anyway.
