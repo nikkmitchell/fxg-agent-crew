@@ -94,7 +94,12 @@ export type Occupant = {
    * clock in the agent that drifts, stops when the agent is busy, and cannot be
    * seen by anybody. An empty array is arrival, and the field goes back to null.
    */
-  walking: { waypoints: Vec3[]; because: string | null } | null;
+  /**
+   * `home`: the route ends at the walker's own place (walk-back), so arriving
+   * clears `because`, as standing at your own space does: the shared screen
+   * and the rest of "working at its desk" come back (Nikk, 2026-10-22).
+   */
+  walking: { waypoints: Vec3[]; because: string | null; home?: boolean } | null;
   /** Self-declared, ephemeral presentation state. */
   avatar: AvatarState;
   /**
@@ -768,7 +773,7 @@ export class Presence {
     }
     if (route.waypoints.length === 0) {
       occupant.walking = null;
-      occupant.because = route.because ? `${route.because} — arrived` : "arrived";
+      occupant.because = route.home ? null : route.because ? `${route.because} — arrived` : "arrived";
       return;
     }
     occupant.heading = this.roomFor(occupant, route.waypoints[0]!);
@@ -789,6 +794,7 @@ export class Presence {
     kind: "human" | "agent" | null,
     waypoints: Vec3[],
     because: string | null,
+    options: { home?: boolean } = {},
   ): { ok: true; waypoints: number; stoppedFollowing: string | null }
     | { ok: false; error: string; code: string } {
     if (waypoints.length === 0) {
@@ -804,7 +810,7 @@ export class Presence {
     }
     const stoppedFollowing = occupant.following?.actorId ?? null;
     occupant.following = null;
-    occupant.walking = { waypoints: waypoints.map((at) => clampToRoom(at)), because };
+    occupant.walking = { waypoints: waypoints.map((at) => clampToRoom(at)), because, ...(options.home ? { home: true } : {}) };
     this.walkRoute(occupant);
     return { ok: true, waypoints: waypoints.length, stoppedFollowing };
   }

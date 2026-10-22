@@ -607,7 +607,8 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     const walkBack = new WalkBack((room, actorId, spot) => {
       const presence = hubFor(room).presence;
       presence.stopFollowing(actorId);
-      presence.walk(actorId, "agent", [{ x: spot.x, y: 0, z: spot.z }], "back to where I was, having said it");
+      // home: arriving there is being back at its own space, screen and all (not "… — arrived").
+      presence.walk(actorId, "agent", [{ x: spot.x, y: 0, z: spot.z }], "back to where I was, having said it", { home: true });
     });
     registerUtteranceRoutes(
       scoped,
@@ -650,9 +651,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerPathRoutes(scoped, {
       config,
       sessions,
-      walk: (room, actorId, kind, waypoints, because) => {
+      walk: (room, actorId, kind, waypoints, because, options) => {
         walkBack.forget(room, actorId);
-        return hubFor(room).presence.walk(actorId, kind, waypoints, because);
+        return hubFor(room).presence.walk(actorId, kind, waypoints, because, options);
       },
       stopWalking: (room, actorId) => hubFor(room).presence.stopWalking(actorId),
     });

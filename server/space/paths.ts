@@ -76,6 +76,7 @@ export function registerPathRoutes(
       kind: "human" | "agent" | null,
       waypoints: Vec3[],
       because: string | null,
+      options?: { home?: boolean },
     ) => { ok: true; waypoints: number; stoppedFollowing: string | null }
       | { ok: false; error: string; code: string };
     stopWalking: (room: string, actorId: string) => { remaining: number };
@@ -92,7 +93,9 @@ export function registerPathRoutes(
     if ("code" in read) return reply.code(400).send(read);
 
     const because = typeof body.because === "string" && body.because.trim() ? body.because.trim() : null;
-    const result = deps.walk(spaceRoomOf(session), session.username, session.kind, read.waypoints, because);
+    // home: true, a walk back to your own place (saha.py home): arriving there clears the reason,
+    // so the room shows you at work again, shared screen included.
+    const result = deps.walk(spaceRoomOf(session), session.username, session.kind, read.waypoints, because, { home: body.home === true });
     if (!result.ok) return reply.code(409).send({ code: result.code, error: result.error });
 
     return reply.send({
