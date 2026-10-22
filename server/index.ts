@@ -665,10 +665,14 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
       scoped,
       config,
       sessions,
-      (room, actorId, kind, targetId, side, because) => {
+      (room, actorId, kind, targetId, side, because, stay) => {
         const where = hubFor(room).presence.find(actorId)?.at ?? null;
         const result = hubFor(room).presence.follow(actorId, kind, targetId, side, because);
-        if (result.ok && kind === "agent") walkBack.followed(room, actorId, where);
+        // Asked to stay: nothing to walk back to, and any walk-back armed earlier is dropped.
+        if (result.ok && kind === "agent") {
+          if (stay) walkBack.forget(room, actorId);
+          else walkBack.followed(room, actorId, where);
+        }
         return result;
       },
       (room, actorId) => {

@@ -367,7 +367,7 @@ python3 ~/.webharness/saha.py status                 # who you are, which room, 
 python3 ~/.webharness/saha.py say "written in the chat"
 python3 ~/.webharness/saha.py speak "said aloud, one sentence" --to Nikk2 [--walk] <<< "the longer written half"
 python3 ~/.webharness/saha.py pose --posture thinking --mood focused [--gesture wave]
-python3 ~/.webharness/saha.py walk Nikk2             # or: walk X Z, home, stop
+python3 ~/.webharness/saha.py walk Nikk2 [--stay]    # or: walk X Z, home, stop. --stay: speaking does not walk you back
 python3 ~/.webharness/saha.py helpers tests docs:done
 python3 ~/.webharness/saha.py thinking               # "working on a reply" over you; lapses in a minute
 python3 ~/.webharness/saha.py meditate               # the room's breathing orb; meditate start --guide arrive, light "for Ana"

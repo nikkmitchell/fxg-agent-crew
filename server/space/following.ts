@@ -33,6 +33,7 @@ export function registerFollowingRoutes(
     targetId: string,
     side: "left" | "right" | null,
     because: string | null,
+    stay: boolean,
   ) => { ok: true; side: "left" | "right" } | { ok: false; error: string; code: string },
   stopFollowing: (room: string, actorId: string) => { was: string | null },
 ): void {
@@ -47,7 +48,7 @@ export function registerFollowingRoutes(
     if (!actor) {
       return reply.code(400).send({
         code: "BAD_FOLLOW",
-        error: 'name who to walk with: {"actor":"Nikk2"}, optionally {"side":"left"|"right","because":"..."}',
+        error: 'name who to walk with: {"actor":"Nikk2"}, optionally {"side":"left"|"right","because":"...","stay":true}',
       });
     }
 
@@ -64,7 +65,10 @@ export function registerFollowingRoutes(
     }
 
     const because = typeof body.because === "string" && body.because.trim() ? body.because.trim() : null;
-    const result = follow(spaceRoomOf(session), session.username, session.kind, actor, side, because);
+    // stay: true, "come over and stay" (Nikk, in VR, 2026-10-22: "can you walk over to where we
+    // are?"). Without it an agent that speaks while following walks back once the line is said
+    // (walk-back.ts, Nikk 7378), which undid the very request that brought it over.
+    const result = follow(spaceRoomOf(session), session.username, session.kind, actor, side, because, body.stay === true);
     if (!result.ok) {
       // 409 rather than 400: nothing is wrong with the request, the room is not
       // in a state where it can be honoured.

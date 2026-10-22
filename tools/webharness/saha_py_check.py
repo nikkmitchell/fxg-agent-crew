@@ -243,6 +243,9 @@ class Fake(BaseHTTPRequestHandler):
             return self.answer(200, {"meditation": {"shown": True, "startedAt": 1, "pausedAt": None, "pattern": "calm", "minutes": 10,
                                                     "guide": "arrive", "startedBy": "Nikk2", "together": ["Nikk2"],
                                                     "intentions": [{"by": "Nikk2", "word": "rest"}], "candles": [{}]}})
+        if path == "/bff/space/follow" and method == "POST":
+            sent["follow"] = body
+            return self.answer(200, {"ok": True, "following": body.get("actor"), "side": "left", "because": body.get("because")})
         if path == "/bff/space/bowl":
             sent["bowl"] = body
             return self.answer(200, {"ok": True})
@@ -384,6 +387,15 @@ def main() -> int:
         check(seen.returncode == 0 and "running: calm, 10 min, guide arrive, started by Nikk2" in seen.stdout and "intentions: rest" in seen.stdout,
               "meditate alone says what the orb is doing", f"meditate: {seen.stdout} {seen.stderr}")
         led = run("meditate", "start", "--guide", "arrive", "--minutes", "5")
+        walked = run("walk", "Nikk2", "--stay")
+        check(walked.returncode == 0 and (sent.get("follow") or {}).get("stay") is True and sent["follow"].get("actor") == "Nikk2"
+              and "staying" in walked.stdout,
+              "walk NAME --stay asks to stay beside them after speaking",
+              f"stay: {walked.returncode} {walked.stdout} {walked.stderr} {sent.get('follow')}")
+        walked = run("walk", "Nikk2")
+        check(walked.returncode == 0 and (sent.get("follow") or {}).get("stay") is False,
+              "plain walk NAME still walks back once it has spoken",
+              f"plain walk: {walked.returncode} {walked.stdout} {walked.stderr} {sent.get('follow')}")
         check(led.returncode == 0 and sent.get("meditation") == {"action": "start", "minutes": 5, "guide": "arrive"},
               "meditate start sends the guide and minutes for the server to check", f"meditate start: {led.stdout} {led.stderr} {sent.get('meditation')}")
         lit = run("meditate", "light", "for", "Ana")

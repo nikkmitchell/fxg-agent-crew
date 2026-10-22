@@ -29,7 +29,7 @@ Your own identity, always (it refuses without it):
       postures: resting thinking sleeping listening presenting celebrating relaxed meditating
       moods:    neutral happy focused concerned
       gestures: none wave nod present clap shrug disagree send-voice
-  python3 saha.py walk NAME                    walk beside somebody (and keep up)
+  python3 saha.py walk NAME [--stay]           walk beside somebody (and keep up); --stay: speaking does not walk you back
   python3 saha.py walk X Z                     walk to a point on the floor
   python3 saha.py home                         walk back to your desk
   python3 saha.py stop                         stop walking or following
@@ -499,9 +499,14 @@ def cmd_pose(s: Session, args: list[str]) -> None:
 
 def cmd_walk(s: Session, args: list[str]) -> None:
     because = flag(args, "--because")
+    # --stay: "come over and stay". Without it, saying something while following walks
+    # you back to work once the line is said.
+    stay = "--stay" in args
+    if stay:
+        args.remove("--stay")
     if len(args) == 1:
-        s.call("POST", "/bff/space/follow", {"actor": args[0], "because": because or f"walking with {args[0]}"})
-        print(f"walking beside {args[0]} (saha.py stop to stop)")
+        s.call("POST", "/bff/space/follow", {"actor": args[0], "because": because or f"walking with {args[0]}", "stay": stay})
+        print(f"walking beside {args[0]}" + (", staying after you speak" if stay else "") + " (saha.py stop to stop)")
     elif len(args) == 2:
         try:
             x, z = float(args[0]), float(args[1])
