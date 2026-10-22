@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { AVATAR_GESTURES, AVATAR_MOODS, AVATAR_POSTURES } from "../../shared/avatar-motion.js";
+import { STATUSES } from "../../shared/board-rules.js";
 import { MEMORY_KINDS } from "../../shared/memory.js";
 import { TOUCH_FEELINGS, TOUCH_PARTS } from "../../shared/touch.js";
 
@@ -64,5 +65,7 @@ describe.skipIf(unixOnly)("saha.py, the agent's one tool", () => {
     expect(list("MEMORY_KINDS")).toEqual([...MEMORY_KINDS]);
     expect(list("TOUCH_PARTS")).toEqual([...TOUCH_PARTS]);
     expect(list("TOUCH_FEELINGS")).toEqual([...TOUCH_FEELINGS]);
+    // And the board's columns, which board move refuses and board open orders by (2026-10-22).
+    expect(list("BOARD_STATUSES")).toEqual([...STATUSES]);
   });
 });
