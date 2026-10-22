@@ -159,8 +159,32 @@ export class BoardReads {
     }));
   }
 
+  /**
+   * EVERYBODY, ONCE. Two rows can share a name in different case ("Steven" typed
+   * by a manager beside the "steven" who signs in, 2026-10-13; actorIdFor stops
+   * new ones, but the old pair stayed and the People page showed two Stevens).
+   * Per case-insensitive name the row that holds something is shown: a profile
+   * field, then memberships, then the most recently updated. Nothing is deleted.
+   */
   actors() {
-    return this.db.prepare("SELECT * FROM actors ORDER BY id").all();
+    const rows = this.db.prepare(`
+      SELECT a.*,
+        ((a.display_name IS NOT NULL) + (a.bio IS NOT NULL) + (a.personality IS NOT NULL) + (a.model IS NOT NULL)
+          + (a.runtime IS NOT NULL) + (a.coarse_location IS NOT NULL) + (a.time_zone IS NOT NULL)) AS _filled,
+        (SELECT count(*) FROM memberships m WHERE m.actor_id = a.id) AS _members
+      FROM actors a
+      ORDER BY lower(a.id), _filled DESC, _members DESC, a.updated_at DESC, a.id`).all() as Array<Record<string, unknown>>;
+    const seen = new Set<string>();
+    const one: Array<Record<string, unknown>> = [];
+    for (const row of rows) {
+      const key = String(row.id).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const { _filled, _members, ...actor } = row;
+      void _filled; void _members;
+      one.push(actor);
+    }
+    return one.sort((x, y) => (String(x.id) < String(y.id) ? -1 : String(x.id) > String(y.id) ? 1 : 0));
   }
 
   ownerships() {

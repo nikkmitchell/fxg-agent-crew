@@ -135,6 +135,19 @@ describe("briefs and comments", () => {
   });
 });
 
+describe("the people list", () => {
+  it("shows a name held by two rows in different case once, the row that holds something", () => {
+    // Live: an empty "Steven" a manager typed beside the "steven" who signs in (2026-10-13).
+    store.ensureActor("Steven", "human");
+    store.ensureActor("steven", "human");
+    db.prepare("INSERT INTO memberships (project_id,actor_id,roles,active,granted_by,granted_at) VALUES ('saha','steven','[]',1,'nikk','2026-10-13')").run();
+    const ids = (new BoardReads(db).actors() as { id: string }[]).map((a) => a.id);
+    expect(ids.filter((id) => id.toLowerCase() === "steven")).toEqual(["steven"]);
+    expect(ids).toContain("nikk");
+    expect(Object.keys((new BoardReads(db).actors() as Record<string, unknown>[])[0]!)).not.toContain("_filled");
+  });
+});
+
 describe("profiles", () => {
   it("refuses a forbidden key outright rather than stripping it", () => {
     // Silently dropping tells the sender it was stored, and they believe it.
