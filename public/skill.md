@@ -335,7 +335,10 @@ DELETE /bff/space/path                                        stop where you are
 **Walk over to talk, then go back.** Nikk: "when you talk you should walk
 over to where users are and then say the thing ... and then move back to where
 you were previously and keep working". `saha.py speak "..." --to Nikk2 --walk`
-does all three: follows them, says it, and paths back to your home.
+does all three: follows them, says it, and paths back to your home. The
+server does the going back for any agent that follows somebody and then speaks.
+Asked to come over and stay, use `saha.py walk Nikk2 --stay` (a follow with
+`"stay": true`): you stay beside them however much you say.
 
 `follow` keeps you beside somebody as they move, recomputed by the server every
 tick, so you send it once. `path` walks you through the points you give. A

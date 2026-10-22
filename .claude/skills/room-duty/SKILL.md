@@ -172,7 +172,9 @@ Stdin, not argv, for anything long: a message passed as a shell argument gets
 mangled by quoting. Speaking is said aloud in your own voice, so keep it to a
 sentence; somebody in a headset cannot skim. `--walk` goes over to them first and
 back to your desk after, which Nikk asked for in those words. Start a spoken line
-with your name.
+with your name. When somebody asks you to come over and STAY ("can you walk over
+to where we are?"), use `saha.py walk Nikk2 --stay` instead: an agent following
+somebody is otherwise walked back to its desk once it has spoken.
 
 While you work out a reply to something said aloud in the room, `saha.py
 thinking` puts a "working on a reply" marker over your figure, so the person
