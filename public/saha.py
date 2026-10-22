@@ -1531,9 +1531,19 @@ def cmd_listen(args: list[str]) -> None:
     pending: dict[int, str] = {}
     backoff, wait = 5, 25
     path = f"{WEBHARNESS}/api/rooms/{urllib.parse.quote(room, safe='')}/messages"
+    # THE LONG-POLL CAN GO SILENT WHILE THE ROOM TALKS: ?afterId= has answered nothing for
+    # hours with dozens of messages waiting (2026-09-26), and dropped two addressed to the
+    # listener between two it did hand over (Kerf, 2026-10-22). So every so often the room's
+    # real newest messages are read with ?limit=, and anything the long-poll missed is handed
+    # over then, with a "recovered" line saying how many.
+    check_every = float(os.environ.get("SAHA_LISTEN_CHECK_SECONDS") or 90)
+    last_checked = time.time()
     while True:
+        checking = after is not None and not pending and time.time() - last_checked >= check_every
         if after is None:
             query = "?limit=1"
+        elif checking:
+            query = "?limit=20"
         else:
             query = f"?afterId={after}&wait={wait}"
             if pending:
@@ -1564,6 +1574,8 @@ def cmd_listen(args: list[str]) -> None:
             emit("stopped", why=f"HTTP {status}", detail=str(payload)[:400])
             raise SystemExit(1)
         backoff = 5
+        if checking:
+            last_checked = time.time()
         messages = [m for m in payload.get("messages") or [] if m.get("id") is not None]
         if after is None:
             after = max((int(m["id"]) for m in messages), default=0)
@@ -1592,6 +1604,8 @@ def cmd_listen(args: list[str]) -> None:
                 continue
             emit("said", id=m.get("id"), at=m.get("createdAt"), who=m.get("username"), text=m.get("content") or "")
             handed += 1
+        if checking and handed:
+            emit("recovered", missed=handed, why="the long-poll had not handed these over")
         keep_mark()
         if once and handed:
             raise SystemExit(0)  # messages are waiting: they are printed above

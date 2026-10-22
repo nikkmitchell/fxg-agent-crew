@@ -30,6 +30,8 @@ lock = threading.Lock()
 # What the fake chat answers to each long-poll, in order (listen's check sets it).
 chat: list[tuple[int, object]] = []
 chat_queries: list[str] = []
+# The room's real newest messages, answered to a listener's ?limit=20 check (what its long-poll missed).
+tail: list[dict] = []
 # What the profile, voice and body commands sent.
 sent: dict[str, object] = {}
 # Rooms the fake chat has, and which the agent is a member of (join's check).
@@ -97,7 +99,10 @@ class Fake(BaseHTTPRequestHandler):
             return self.answer(200, {"roomName": body["roomName"], "created": False})
         if path.startswith("/api/rooms/") and path.endswith("/messages"):
             with lock:
-                chat_queries.append(self.path.split("?", 1)[1] if "?" in self.path else "")
+                query = self.path.split("?", 1)[1] if "?" in self.path else ""
+                chat_queries.append(query)
+                if tail and "limit=20" in query:
+                    return self.answer(200, {"messages": list(tail)})
                 answer = chat.pop(0) if chat else None
             if answer is None:
                 time.sleep(0.5)
@@ -585,6 +590,42 @@ def main() -> int:
               and any("streamIds=8" in q for q in chat_queries),
               "listen starts from now, skips your own, follows a streamed reply, and rides out a 503 and a 401",
               f"listen: said={said} kinds={kinds} queries={chat_queries[:6]}")
+
+        # listen: a long-poll that answers nothing while the room talks. The check every
+        # SAHA_LISTEN_CHECK_SECONDS reads the real tail and hands over what was missed, once.
+        chat[:] = [(200, {"messages": [msg(20, "Old", "said before listening")]})]
+        tail[:] = [msg(20, "Old", "said before listening"), msg(21, "Nikk", "the one the long-poll missed")]
+        chat_queries.clear()
+        listener = subprocess.Popen([sys.executable, str(SAHA), "listen", "testroom"], env={**env, "SAHA_LISTEN_CHECK_SECONDS": "1"},
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, stdin=subprocess.DEVNULL)
+        lines = []
+        deadline = time.time() + 8
+        while time.time() < deadline:
+            ready, _, _ = select.select([listener.stdout], [], [], max(0.0, deadline - time.time()))
+            if not ready:
+                break
+            line = listener.stdout.readline()
+            if not line:
+                break
+            try:
+                lines.append(json.loads(line))
+            except ValueError:
+                pass
+        listener.kill()
+        listener.wait()
+        # select() watches the pipe, not Python's buffer: lines already read into it come out here.
+        for line in listener.stdout.read().splitlines():
+            try:
+                lines.append(json.loads(line))
+            except ValueError:
+                pass
+        tail.clear()
+        said = [(l.get("who"), l.get("text")) for l in lines if l.get("listen") == "said"]
+        recovered = [l for l in lines if l.get("listen") == "recovered"]
+        check(said == [("Nikk", "the one the long-poll missed")] and len(recovered) == 1
+              and sum("limit=20" in q for q in chat_queries) >= 2,
+              "listen hands over what a silent long-poll missed, once, and says it recovered",
+              f"listen check: said={said} recovered={recovered} queries={chat_queries[:8]}")
 
     server.shutdown()
     return 1 if failures else 0
