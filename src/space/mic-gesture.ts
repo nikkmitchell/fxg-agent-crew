@@ -1,4 +1,5 @@
 import type { MicGestureHand, MicGestureSide } from "./mic-gesture-input";
+import { dot } from "../../shared/vec3";
 
 export const MIC_GESTURE_HOLD_MS = 500;
 export const MIC_GESTURE_TILT_RADIANS = (30 * Math.PI) / 180;
@@ -56,7 +57,6 @@ function rotationDistance(a: MicGestureHand["wrist"]["q"], b: MicGestureHand["wr
 /** Where the fingers point and which way the palm faces, both unit vectors. */
 export type HandFrame = { fingers: Point; palm: Point };
 type Point = { x: number; y: number; z: number };
-const dot = (a: Point, b: Point) => a.x * b.x + a.y * b.y + a.z * b.z;
 const minus = (a: Point, b: Point, k: number): Point => ({ x: a.x - b.x * k, y: a.y - b.y * k, z: a.z - b.z * k });
 const unit = (a: Point): Point | null => {
   const length = Math.hypot(a.x, a.y, a.z);

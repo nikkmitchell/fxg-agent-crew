@@ -17,13 +17,10 @@
  * the original comment said a full body would get wrong.
  */
 
-export type Vec = { x: number; y: number; z: number };
+import { add, dot, length, scale, sub } from "../../shared/vec3";
 
-const sub = (a: Vec, b: Vec): Vec => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
-const add = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
-const scale = (a: Vec, k: number): Vec => ({ x: a.x * k, y: a.y * k, z: a.z * k });
-const dot = (a: Vec, b: Vec): number => a.x * b.x + a.y * b.y + a.z * b.z;
-export const length = (a: Vec): number => Math.hypot(a.x, a.y, a.z);
+export type Vec = { x: number; y: number; z: number };
+export { length };
 
 const normalise = (a: Vec): Vec => {
   const l = length(a);

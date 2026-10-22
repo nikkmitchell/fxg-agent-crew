@@ -1,3 +1,5 @@
+import { cross, dot, length } from "./vec3.js";
+
 /**
  * Picking a thing up and carrying it, the way a headset does it.
  *
@@ -65,13 +67,6 @@ export type Grab = {
  */
 export const REACH = { nearest: 0.9, furthest: 12 } as const;
 
-const length = (v: Vec3) => Math.hypot(v.x, v.y, v.z);
-const dot = (a: Vec3, b: Vec3) => a.x * b.x + a.y * b.y + a.z * b.z;
-const cross = (a: Vec3, b: Vec3): Vec3 => ({
-  x: a.y * b.z - a.z * b.y,
-  y: a.z * b.x - a.x * b.z,
-  z: a.x * b.y - a.y * b.x,
-});
 
 /** A unit direction. A zero ray points straight ahead rather than producing NaNs. */
 export function unit(v: Vec3): Vec3 {

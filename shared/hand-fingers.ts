@@ -37,6 +37,7 @@
  * check it and a test can prove it.
  */
 export type V3 = { x: number; y: number; z: number };
+import { add, cross, dot, length, scale, sub } from "./vec3.js";
 
 export const FINGER_ANGLES = 20;
 
@@ -60,12 +61,6 @@ export const FINGER_JOINT_NAMES = [
   ]),
 ] as const;
 
-const sub = (a: V3, b: V3): V3 => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
-const dot = (a: V3, b: V3) => a.x * b.x + a.y * b.y + a.z * b.z;
-const cross = (a: V3, b: V3): V3 => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
-const add = (a: V3, b: V3): V3 => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
-const scale = (a: V3, s: number): V3 => ({ x: a.x * s, y: a.y * s, z: a.z * s });
-const length = (a: V3) => Math.hypot(a.x, a.y, a.z);
 const unit = (a: V3): V3 => scale(a, 1 / (length(a) || 1));
 /** `a` with its part along the unit `axis` removed. */
 const flatten = (a: V3, axis: V3): V3 => sub(a, scale(axis, dot(a, axis)));

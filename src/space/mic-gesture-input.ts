@@ -1,5 +1,6 @@
 import type { Point3 } from "../../shared/go-layout";
 import type { Pose } from "../../shared/space-wire";
+import { length, sub } from "../../shared/vec3";
 
 export const MIC_GESTURE_JOINT_NAMES = [
   "wrist",
@@ -125,8 +126,6 @@ export function classifyMicHand(
   return "other";
 }
 
-const sub = (a: Point3, b: Point3): Point3 => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
-const length = (v: Point3) => Math.hypot(v.x, v.y, v.z);
 
 /**
  * EVERY FINGER STRAIGHT. Nikk (5004): "only when your hand is flat". "Open"
