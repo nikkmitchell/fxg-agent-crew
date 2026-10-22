@@ -519,7 +519,8 @@ def cmd_home(s: Session, args: list[str]) -> None:
     if not mine:
         print("you have no desk in this room, so you stay where you are")
         return
-    s.call("POST", "/bff/space/path", {"waypoints": [{"x": mine["at"]["x"], "z": mine["at"]["z"]}], "because": "back to my desk to keep working"})
+    # home: arriving clears the reason, so the room shows you at work there again, screen and all.
+    s.call("POST", "/bff/space/path", {"waypoints": [{"x": mine["at"]["x"], "z": mine["at"]["z"]}], "because": "back to my desk to keep working", "home": True})
     print("walking back to your desk")
 
 

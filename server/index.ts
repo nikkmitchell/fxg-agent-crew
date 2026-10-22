@@ -651,9 +651,9 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     registerPathRoutes(scoped, {
       config,
       sessions,
-      walk: (room, actorId, kind, waypoints, because) => {
+      walk: (room, actorId, kind, waypoints, because, options) => {
         walkBack.forget(room, actorId);
-        return hubFor(room).presence.walk(actorId, kind, waypoints, because);
+        return hubFor(room).presence.walk(actorId, kind, waypoints, because, options);
       },
       stopWalking: (room, actorId) => hubFor(room).presence.stopWalking(actorId),
     });
