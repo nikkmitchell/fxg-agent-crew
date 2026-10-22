@@ -265,8 +265,8 @@ type OneShot = {
 
 /**
  * THE ORDER A FIGURE'S CLIPS ARRIVE IN. The player used to wait for all 24
- * (Promise.all), 1.3 MB even reduced: about a minute on saha.ing's ~21 KB/s
- * link with every figure on its procedural fallback pose, and one clip that
+ * (Promise.all), 1.3 MB even reduced, with every figure on its procedural
+ * fallback pose until the last of them arrived, and one clip that
  * failed to download cost a figure all its authored motion. Now it starts the
  * moment `idle` is here, and the rest come a few at a time, what is seen most
  * first: walking, then talk, thought and listening, then gestures.

@@ -5,7 +5,7 @@
  * /kit/three/* used to be read straight from node_modules, which the service
  * cannot write to (ProtectSystem=strict), so nothing could make a copy there:
  * every space using the room's three downloaded three.module.js and
- * three.core.js plain, 2.1 MB, about 100 s at saha.ing's ~21 KB/s. In dist the
+ * three.core.js plain, 2.1 MB where 0.3 MB would do. In dist the
  * static plugin serves these by their exact names, ahead of the route's
  * wildcard, which stays for a checkout that has not built.
  *

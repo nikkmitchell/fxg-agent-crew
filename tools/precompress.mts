@@ -5,8 +5,8 @@
  * NOTHING COMPRESSED THE SITE BEFORE THIS. nginx's gzip covers text/html only
  * (gzip_types is commented out in the box's shared nginx.conf), and
  * @fastify/static sends files as they are. So the "157 KB gzipped" first load
- * we counted was ~500 KB on the wire: about 24 s on saha.ing's ~21 KB/s link
- * where 7 would do. Measured on dist, 2026-10-22: JS 9.0 MB to 2.2 MB, the
+ * we counted was ~500 KB on the wire, three times what it needed to be.
+ * Measured on dist, 2026-10-22: JS 9.0 MB to 2.2 MB, the
  * avatars 36.5 MB to 15.4 MB, their animations 6.4 MB to 3.0 MB.
  *
  * Text gets brotli's best (quality 11: the 2 MB music room chunk takes ~3 s
