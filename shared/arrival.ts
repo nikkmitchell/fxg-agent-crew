@@ -31,15 +31,44 @@ export function isClearForArrival(spot: Point, others: readonly Point[], boards:
     && boards.every((board) => distanceToSegment(spot, board) >= ARRIVAL_CLEARANCE);
 }
 
-/** The spot to appear at: `spawn` if it is clear, else the nearest clear spot around it, else `spawn`. */
-export function arrivalSpot(spawn: Point, others: readonly Point[], boards: readonly Segment[] = []): Point {
+/**
+ * Which way round a ring is tried. FORWARD (the room's): from the way the
+ * spawn faces, alternating sides, so a crowd at the door spreads inward.
+ * BESIDE (a space's): right, then left, then working round both sides, so a
+ * newcomer joins a line beside the first person instead of standing in the
+ * view the space's author set up (Kerf, src/kit/arrive.ts, 2026-10-14).
+ */
+export type FirstStep = "forward" | "beside";
+
+/** Turns from the first direction, in twelfths of a circle, for each way of trying. */
+const ORDER: Record<FirstStep, readonly number[]> = {
+  forward: [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, 6],
+  // Right, its mirror on the left, then outward on both sides; all twelve once.
+  beside: [0, 6, -1, 7, 1, 5, -2, 8, 2, 4, -3, 3],
+};
+
+/**
+ * The spot to appear at: `spawn` if it is clear, else the nearest clear spot
+ * around it, else `spawn`. ONE RULE for the room and for spaces (the kit
+ * calls it with the space's facing and "beside"); it was two until 2026-10-22.
+ *
+ * `facing` is the spawn's rotation.y as three.js turns an object: 0 faces -z,
+ * which is the room's door looking in.
+ */
+export function arrivalSpot(
+  spawn: Point,
+  others: readonly Point[],
+  boards: readonly Segment[] = [],
+  options: { facing?: number; firstStep?: FirstStep } = {},
+): Point {
   if (isClearForArrival(spawn, others, boards)) return spawn;
+  const facing = options.facing ?? 0;
+  const firstStep = options.firstStep ?? "forward";
+  // Forward is angle PI + facing (x = sin, z = cos); your right is a quarter turn less.
+  const first = firstStep === "beside" ? Math.PI / 2 + facing : Math.PI + facing;
   for (let ring = 1; ring <= RINGS; ring += 1) {
-    for (let step = 0; step < PER_RING; step += 1) {
-      // Nearest first within a ring, starting toward the room (-z) and
-      // alternating sides, so a crowd at the door spreads out evenly.
-      const turn = (step % 2 === 0 ? 1 : -1) * Math.ceil(step / 2);
-      const angle = Math.PI + (turn / PER_RING) * Math.PI * 2;
+    for (const turn of ORDER[firstStep]) {
+      const angle = first + (turn / PER_RING) * Math.PI * 2;
       const candidate = { x: spawn.x + Math.sin(angle) * RING_STEP * ring, z: spawn.z + Math.cos(angle) * RING_STEP * ring };
       if (isClearForArrival(candidate, others, boards)) return candidate;
     }

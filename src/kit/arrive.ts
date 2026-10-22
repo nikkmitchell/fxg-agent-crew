@@ -9,25 +9,14 @@
  * left of where the space faces you first, so you join a line rather than block
  * anybody's view, then further round, then a ring further out.
  */
+import { arrivalSpot as sharedArrivalSpot } from "../../shared/arrival";
 export type Spot = { x: number; z: number };
 
-/** Directions to try, in the frame of where you face: x to your right, z behind you. */
-const AROUND: Array<[number, number]> = [
-  [1, 0], [-1, 0], [0.71, 0.71], [-0.71, 0.71], [0.71, -0.71], [-0.71, -0.71], [0, 1], [0, -1],
-];
-
-export function arrivalSpot(spot: Spot, others: Spot[], yaw: number, clear = 0.8): Spot {
-  const free = (x: number, z: number) => others.every((other) => Math.hypot(other.x - x, other.z - z) >= clear);
-  if (free(spot.x, spot.z)) return spot;
-  const cos = Math.cos(yaw);
-  const sin = Math.sin(yaw);
-  for (const radius of [0.9, 1.8, 2.7]) {
-    for (const [right, back] of AROUND) {
-      // Turned by yaw about the vertical, as three.js turns an object by rotation.y.
-      const x = spot.x + (right * cos + back * sin) * radius;
-      const z = spot.z + (-right * sin + back * cos) * radius;
-      if (free(x, z)) return { x, z };
-    }
-  }
-  return spot;
+/**
+ * THE ROOM'S RULE (shared/arrival.ts), turned to where the space faces you and
+ * trying beside first: one metre from everybody, as Nikk asked for joining.
+ * This had its own copy with 0.8 m and 0.9 m steps until 2026-10-22.
+ */
+export function arrivalSpot(spot: Spot, others: Spot[], yaw: number): Spot {
+  return sharedArrivalSpot(spot, others, [], { facing: yaw, firstStep: "beside" });
 }

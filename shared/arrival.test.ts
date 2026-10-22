@@ -24,3 +24,18 @@ describe("where a person appears on joining (Nikk, 2026-09-28)", () => {
     expect(distanceToSegment(spot, board)).toBeGreaterThanOrEqual(ARRIVAL_CLEARANCE);
   });
 });
+
+describe("one rule for the room and for spaces (2026-10-22)", () => {
+  it("tries toward the room first by default, and beside first when asked, turned by the facing", () => {
+    const blocked = [{ x: 0, z: 0 }];
+    const room = arrivalSpot({ x: 0, z: 0 }, blocked);
+    expect(room.x).toBeCloseTo(0);
+    expect(room.z).toBeCloseTo(-1.2);
+    const beside = arrivalSpot({ x: 0, z: 0 }, blocked, [], { firstStep: "beside" });
+    expect(beside.x).toBeCloseTo(1.2);
+    expect(beside.z).toBeCloseTo(0);
+    const turned = arrivalSpot({ x: 0, z: 0 }, blocked, [], { firstStep: "beside", facing: Math.PI / 2 });
+    expect(turned.x).toBeCloseTo(0);
+    expect(turned.z).toBeCloseTo(-1.2);
+  });
+});
