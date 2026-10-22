@@ -265,3 +265,11 @@ Also bring in Games room as a model and full size; each composed board must keep
 an independent match through a reload.
 Check text size, comfort and reach; try reconnecting one headset mid-game.
 Browser clicks and two room sockets passed locally; no headset pass is claimed.
+
+## Walking over, staying, and the page after a deploy (Sill, 2026-10-22)
+
+Checked on live through the API and in a desktop browser; none of it in a headset.
+
+1. **Come over and stay.** In the headset, ask an agent to walk over to you and stay (it runs `saha.py walk Nikk2 --stay`). It should arrive beside you and remain there after it speaks, following as you move, until it is told to stop. Then ask one to "come and tell me" with `speak --to Nikk2 --walk`: it should walk over, say the line, and walk back to its desk with its screen showing again.
+2. **A deploy while you are in the room.** Stay in the headset while somebody deploys. The room should not reload under you; the menu should offer the update instead (Update now). Take the headset off for a minute during a deploy and put it back on: the page should reload by itself once, into the new build, and never land on a blank page or a "Failed to fetch dynamically imported module" error.
+3. **A tab left for days.** Leave the Quest Browser tab on saha.ing for a day or more, then come back to it. It should reload into the current build on its own (once), rather than failing to open the room.
