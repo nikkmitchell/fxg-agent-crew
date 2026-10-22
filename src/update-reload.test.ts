@@ -238,5 +238,13 @@ describe("which build a page is", () => {
   it("is nothing on a development server, which serves source, so it never reloads anybody", () => {
     expect(buildOfPage('<script type="module" src="/src/main.tsx"></script>')).toBeNull();
   });
+
+  it("ignores files another origin or an extension put in the head", () => {
+    const served = page("index-AAA.js", "index-BBB.css");
+    const extended = served.replace("</head>",
+      '<script src="chrome-extension://abc/assets/inject-1.js"></script><link rel="stylesheet" href="https://cdn.example/assets/x.css"><script src="//cdn.example/assets/y.js"></script></head>');
+    expect(buildOfPage(extended)).toBe(buildOfPage(served));
+    expect(buildOfPage(page("index-AAA.js", "index-BBB.css").replace(/\/assets\//g, "/space/assets/"))).toContain("/space/assets/index-AAA.js");
+  });
 });
 

@@ -214,7 +214,10 @@ const textFieldsOnPage = (): TextField[] =>
  * files, in order. null when it loads none, which is a development server.
  */
 export function buildOfPage(html: string): string | null {
-  const files = [...html.matchAll(/(?:src|href)=["']([^"']*\/assets\/[^"']+\.(?:js|css))["']/g)].map((found) => found[1]!);
+  // Only this site's own files: a path from the root (under any base path), never another
+  // origin or a scheme. A browser extension that puts its own …/assets/x.js into the head
+  // must not make the page look like a different build (Nightjar's review, 2026-10-22).
+  const files = [...html.matchAll(/(?:src|href)=["'](\/(?!\/)(?:[^"':]*\/)?assets\/[^"':]+\.(?:js|css))["']/g)].map((found) => found[1]!);
   return files.length > 0 ? [...new Set(files)].sort().join(" ") : null;
 }
 
