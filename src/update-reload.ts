@@ -250,8 +250,18 @@ const TRIED_KEY = "saha.update-reload.tried";
 const triedBefore = (build: string): boolean => {
   try { return sessionStorage.getItem(TRIED_KEY) === build; } catch { return false; }
 };
-const markTried = (build: string): void => {
-  try { sessionStorage.setItem(TRIED_KEY, build); } catch { /* private window: one reload is still one reload */ }
+/**
+ * Whether the try was written down. If it cannot be (storage refused), nothing
+ * would stop the reloaded page reloading again, so the caller offers instead
+ * (Mica's review, 2026-10-22: 3 reloads out of 3 with storage denied).
+ */
+const markTried = (build: string): boolean => {
+  try {
+    sessionStorage.setItem(TRIED_KEY, build);
+    return sessionStorage.getItem(TRIED_KEY) === build;
+  } catch {
+    return false;
+  }
 };
 
 const CHECK_MS = 15_000;
@@ -301,13 +311,13 @@ export function startUpdateReload(options: {
       hidden: document.visibilityState === "hidden",
       inSession: sessions.size > 0,
     });
-    // Already reloaded once for this build and still behind it: offer, never loop.
-    const looping = decision === "reload" && serverHas !== null && triedBefore(serverHas);
+    // Already reloaded once for this build and still behind it, or unable to write the
+    // try down so that the next page could tell: offer, never loop.
+    const looping = decision === "reload" && serverHas !== null && (triedBefore(serverHas) || !markTried(serverHas));
     // "wait" means there IS a newer build and something is holding it back.
     setWaiting(decision === "wait" || looping);
     if (decision === "reload" && !looping) {
       stopped = true;
-      if (serverHas) markTried(serverHas);
       reload();
       return;
     }

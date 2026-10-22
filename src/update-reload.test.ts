@@ -112,6 +112,8 @@ describe("offering a new version instead of forcing it", () => {
       removeEventListener: () => {},
     });
     vi.stubGlobal("window", { addEventListener: () => {}, removeEventListener: () => {} });
+    const stored = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => { stored.set(k, v); } });
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -178,6 +180,8 @@ describe("a page brought back from the browser's cache (Baiwei and Nikk, 2026-10
       removeEventListener: () => {},
     });
     vi.stubGlobal("window", { addEventListener: () => {}, removeEventListener: () => {} });
+    const stored = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => { stored.set(k, v); } });
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -207,6 +211,17 @@ describe("a page brought back from the browser's cache (Baiwei and Nikk, 2026-10
     expect(reloads, "one automatic reload for today's build").toBe(1);
     expect(updateWaiting(), "and the update offered after that").toBe(true);
     second();
+  });
+
+  it("offers rather than reloads when it cannot write the try down (Mica's review)", async () => {
+    // Storage refused: the reloaded page could not tell it had tried, and would reload again.
+    vi.stubGlobal("sessionStorage", { getItem: () => { throw new Error("denied"); }, setItem: () => { throw new Error("denied"); } });
+    let reloads = 0;
+    const stop = startUpdateReload({ pageBuild: "old", fetchCommit: async () => "today", reload: () => { reloads += 1; } });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(reloads).toBe(0);
+    expect(updateWaiting(), "the update is offered instead").toBe(true);
+    stop();
   });
 
   it("leaves a page that runs the server's build alone", async () => {
