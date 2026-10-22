@@ -147,6 +147,8 @@ export const space = {
         }),
       },
     ),
+  /** Every board back where the room puts it; boards somebody else is holding are named, not moved. */
+  resetPanels: () => requestJson<{ placements: Placement[]; held: string[] }>(`${root}/panels/reset`, { method: "POST" }),
   /** Claim, renew or let go of the thing you are moving — see grab-hold.ts. */
   hold: (thing: string, held: boolean) =>
     requestJson<{ ok: true; held: boolean }>(`${root}/holds`, {

@@ -61,6 +61,8 @@ export type SettingsMenuInput = {
   teleport: boolean;
   setTeleport: (on: boolean) => void;
   resetHead: () => void;
+  /** Every board back where the room puts it, for everyone (Nikk, 2026-10-22). */
+  resetBoards: () => void;
   view3d: {
     dark: boolean;
     setDark: (on: boolean) => void;
@@ -277,6 +279,7 @@ function meSections(s: SettingsMenuInput): MenuSection[] {
         onTap: () => v.setHideStill(!v.hideStill),
       },
       { kind: "stepper", label: "Pointer", value: v.pointerOn ? v.pointer : "Off", onLess: v.pointerLess, onMore: v.pointerMore, onTap: v.pointerToggle },
+      { kind: "action", label: "Put all boards back", value: "Everyone", onTap: s.resetBoards },
       v.passthroughAvailable
         ? { kind: "toggle", label: "Passthrough", detail: v.passthrough ? "Your real room" : "Black void", on: v.passthrough, onTap: v.togglePassthrough }
         : { kind: "toggle", label: "Passthrough", detail: `Not on this headset (${v.blendMode ?? "unknown"})`, on: false, disabled: true, onTap: () => {} },

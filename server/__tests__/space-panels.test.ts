@@ -265,7 +265,7 @@ describe("moving a panel", () => {
     for (const [payload, why] of [
       [place(0, 0.1, 0), /too low/],
       [place(0, 40, 0), /above where anybody can read/],
-      [place(500, 1.6, 0), /outside the room/],
+      [place(20_000, 1.6, 0), /beyond where anybody could walk/],
     ] as const) {
       const response = await app.inject({
         method: "PUT",
@@ -445,6 +445,30 @@ describe("resizing a panel", () => {
       payload: { position: { x: 0, y: 1.6, z: 0 }, rotationY: 0, scale: "big" },
     });
     expect(response.statusCode).toBe(400);
+    await app.close();
+  });
+});
+
+describe("boards anywhere, and all of them back (Nikk, 2026-10-22)", () => {
+  it("keeps a board far outside the furnished room, and puts every board back on reset", async () => {
+    const { app, as } = boot();
+    const cookie = as("nikk");
+    const id = Object.keys(STATIONS)[0];
+    const far = await app.inject({
+      method: "PUT", url: `/bff/space/panels/${id}/place`, headers: { cookie },
+      payload: { position: { x: 60, y: 1.6, z: -45 }, rotationY: 0 },
+    });
+    expect(far.statusCode).toBe(200);
+    const moved = (await app.inject({ method: "GET", url: "/bff/space/panels", headers: { cookie } })).json();
+    expect(moved.places.find((p: { id: string }) => p.id === id).position).toMatchObject({ x: 60, z: -45 });
+    const reset = await app.inject({ method: "POST", url: "/bff/space/panels/reset", headers: { cookie } });
+    expect(reset.statusCode).toBe(200);
+    expect(reset.json().held).toEqual([]);
+    const back = (await app.inject({ method: "GET", url: "/bff/space/panels", headers: { cookie } })).json();
+    // Listed at the room's own place for it (the listing fills unmoved panels in).
+    const listed = back.places.find((p: { id: string }) => p.id === id);
+    expect(listed === undefined || JSON.stringify(listed.position) === JSON.stringify(STATIONS[id].surface.position)).toBe(true);
+    expect(reset.json().placements.find((p: { id: string }) => p.id === id).position).toEqual(STATIONS[id].surface.position);
     await app.close();
   });
 });

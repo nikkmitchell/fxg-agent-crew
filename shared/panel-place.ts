@@ -1,4 +1,4 @@
-import { ARC_FOCUS, ROOM, STAND_BACK, STATIONS } from "./space-layout.js";
+import { ARC_FOCUS, STAND_BACK, STATIONS, WORLD } from "./space-layout.js";
 import type { Placement } from "./space-wire.js";
 import type { Vec3 } from "./space-layout.js";
 
@@ -35,13 +35,6 @@ export function scaleOf(place: Placement): number {
   return place.scale ?? DEFAULT_SCALE;
 }
 
-/**
- * How close to the rail a panel may be pushed.
- *
- * Bigger than the walking margin: a person clamped to the boundary must still
- * be able to stand back far enough to read a panel pushed to the same edge.
- */
-const EDGE = 1.6;
 
 export function placementRefusal(place: Placement): string | null {
   if (!(place.id in STATIONS)) return `there is no panel called "${place.id}"`;
@@ -51,10 +44,17 @@ export function placementRefusal(place: Placement): string | null {
   }
   if (!Number.isFinite(place.rotationY)) return "that rotation is not a number";
 
-  const halfWidth = ROOM.width / 2 - EDGE;
-  const halfDepth = ROOM.depth / 2 - EDGE;
-  if (Math.abs(place.position.x) > halfWidth || Math.abs(place.position.z) > halfDepth) {
-    return "that is outside the room; nobody would be able to stand back far enough to read it";
+  /**
+   * ANYWHERE A PERSON CAN WALK, which is anywhere (Nikk, 2026-10-22, in VR:
+   * "There should be no limit to where things are in the room ... any board
+   * can be moved to any place"). Panels were held inside the furnished room
+   * less a 1.6 m edge, from when walking had a rail too; a board dragged past
+   * it stayed where the dragger let go, on their screen only, and went back for
+   * everyone else. Only the arithmetic bound remains, as for walking and homes
+   * (WORLD in space-layout.ts). "Put all boards back" undoes a lost one.
+   */
+  if (Math.abs(place.position.x) > WORLD.half || Math.abs(place.position.z) > WORLD.half) {
+    return "that is beyond where anybody could walk to it";
   }
   if (place.position.y < PANEL_Y.min) return "that is too low to read without crouching";
   if (place.position.y > PANEL_Y.max) return "that is above where anybody can read it";

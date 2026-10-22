@@ -187,6 +187,23 @@ export class PanelPlaces {
       );
     return { placement: stored };
   }
+
+  /**
+   * Every panel back where the room puts it (Nikk, 2026-10-22: "a button to
+   * reset the position of all boards"), except those named in `keep`, which
+   * somebody is holding. Returns each panel's default placement, for the room
+   * to be told one by one as it is told of any move.
+   */
+  resetAll(room: string, keep: ReadonlySet<string>): Placement[] {
+    const back: Placement[] = [];
+    for (const id of Object.keys(STATIONS)) {
+      if (keep.has(id)) continue;
+      this.database.prepare("DELETE FROM space_panel_place WHERE room = ? AND panel_id = ?").run(roomKey(room), id);
+      const home = defaultPlacement(id);
+      if (home) back.push({ ...home, scale: 1 });
+    }
+    return back;
+  }
 }
 
 export function registerPanelRoutes(
@@ -344,4 +361,19 @@ export function registerPanelRoutes(
       return reply.send({ placement: result.placement });
     },
   );
+
+  /**
+   * POST /bff/space/panels/reset: every board back to where the room puts it.
+   * A board somebody else is holding stays in their hands, and the answer says
+   * whose; everything else moves for everyone at once.
+   */
+  app.post("/bff/space/panels/reset", async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return reply;
+    const room = spaceRoomOf(session);
+    const held = Object.keys(STATIONS).filter((id) => holds?.heldByOther(room, `panel:${id}`, session.username));
+    const back = places.resetAll(room, new Set(held));
+    for (const placement of back) announce(room, placement, session.username);
+    return reply.send({ placements: back, held });
+  });
 }

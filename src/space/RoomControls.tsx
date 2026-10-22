@@ -1361,6 +1361,12 @@ export function RoomControls({
       onResetStanding();
       flash("Measuring your height from where your head is now.");
     },
+    resetBoards: () => {
+      void space.resetPanels().then(
+        ({ held }) => flash(held.length ? `Boards put back, except ${held.length} somebody is holding.` : "Every board is back where the room puts it."),
+        () => flash("That did not reach the room, so the boards stayed where they were."),
+      );
+    },
     view3d: {
       // DARK MODE, ON UNTIL TURNED OFF (Nikk).
       dark: preferences.dark,

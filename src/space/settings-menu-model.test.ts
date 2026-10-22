@@ -20,7 +20,7 @@ function input(view: SettingsView, extra: Partial<SettingsMenuInput> = {}): Sett
     setHandsShown: noop,
     teleport: false,
     setTeleport: noop,
-    resetHead: noop,
+    resetHead: noop, resetBoards: () => {},
     view3d: {
       dark: true, setDark: noop, rings: true, setRings: noop, hideStill: false, hiddenStill: 0, setHideStill: noop,
       pointer: "60%", pointerOn: true, pointerToggle: noop, pointerLess: noop, pointerMore: noop,

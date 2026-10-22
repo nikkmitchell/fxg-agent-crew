@@ -152,6 +152,7 @@ function Preview() {
     teleport,
     setTeleport,
     resetHead: () => log("reset head"),
+    resetBoards: () => log("reset boards"),
     view3d: {
       dark, setDark, rings, setRings,
       hideStill: still, hiddenStill: 2, setHideStill: setStill,

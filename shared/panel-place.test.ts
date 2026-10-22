@@ -7,7 +7,7 @@ import {
   placementRefusal,
   standFor,
 } from "./panel-place";
-import { ARC_FOCUS } from "./space-layout";
+import { ARC_FOCUS, WORLD } from "./space-layout";
 import { ROOM, STATIONS } from "./space-layout";
 
 const at = (x: number, y: number, z: number, rotationY = 0) => ({
@@ -29,9 +29,10 @@ describe("where a panel may be put", () => {
     expect(placementRefusal({ ...at(0, 1.6, 0), id: "whiteboard" })).toMatch(/no panel called/);
   });
 
-  it("refuses a position outside the room", () => {
-    expect(placementRefusal(at(ROOM.width, 1.6, 0))).toMatch(/outside the room/);
-    expect(placementRefusal(at(0, 1.6, ROOM.depth))).toMatch(/outside the room/);
+  it("takes a board anywhere a person can walk, well outside the furnished room (Nikk, 2026-10-22)", () => {
+    expect(placementRefusal(at(ROOM.width, 1.6, 0))).toBeNull();
+    expect(placementRefusal(at(0, 1.6, ROOM.depth * 3))).toBeNull();
+    expect(placementRefusal(at(WORLD.half + 1, 1.6, 0))).toMatch(/beyond where anybody could walk/);
   });
 
   it("refuses heights nobody can read", () => {
