@@ -1,5 +1,6 @@
 import { Text } from "@react-three/drei";
 import type { SessionRecord } from "../../shared/meditation";
+import { noRaycast } from "./no-raycast";
 
 /**
  * THE ROOM'S BOOK: a standing page beside the tree listing the latest
@@ -8,7 +9,6 @@ import type { SessionRecord } from "../../shared/meditation";
  * kept, only how many. Times are in the reader's own clock.
  */
 export const BOOK_AT: [number, number, number] = [-1.25, 0, 3.5];
-const noRaycast = () => undefined;
 
 export function bookLine(record: SessionRecord, locale?: string): string {
   const when = new Date(record.at);

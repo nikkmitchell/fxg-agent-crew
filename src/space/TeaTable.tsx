@@ -3,6 +3,7 @@ import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { READINGS } from "../../shared/guided";
+import { noRaycast } from "./no-raycast";
 
 /**
  * THE TEA TABLE: a low table with a teapot and a cup, near where people
@@ -14,7 +15,6 @@ import { READINGS } from "../../shared/guided";
 export const TEA_AT: [number, number, number] = [-1.7, 0, 6.8];
 const TABLE = 0.38;
 const POUR_MS = 3500;
-const noRaycast = () => undefined;
 
 export function TeaTable() {
   const [pouredAt, setPouredAt] = useState<number | null>(null);

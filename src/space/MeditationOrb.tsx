@@ -15,6 +15,7 @@ import { Typing3D } from "./Typing3D";
 import { INTENTION_LONGEST, type Intention } from "../../shared/meditation";
 import type { WirePerson } from "../../shared/space-wire";
 import { AirWeave } from "./AirWeave";
+import { noRaycast } from "./no-raycast";
 
 /**
  * The breathing orb. Nikk (4649): "the full AR meditation experience".
@@ -30,7 +31,6 @@ export const ORB_AT: [number, number, number] = [0, 1.5, 4.7];
 const SMALL = 0.16;
 const LARGE = 0.34;
 
-const noRaycast = () => undefined;
 /** Rows of guide buttons, three to a row. */
 const GUIDE_ROWS = Math.ceil(GUIDE_IDS.length / 3);
 

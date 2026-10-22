@@ -6,6 +6,7 @@ import { dawnScheduleLabelAt } from "../../shared/dawn";
 import * as THREE from "three";
 import { TOGGLEABLE } from "../../shared/room-pieces";
 import { space } from "../space-client";
+import { noRaycast } from "./no-raycast";
 
 /**
  * THE ROOM GUIDE SIGN (shared/room-guide.ts): a standing board just ahead of
@@ -14,7 +15,6 @@ import { space } from "../space-client";
  * corner. Arrows are from the arrival point, facing the orb.
  */
 export const SIGN_AT: [number, number, number] = [-0.95, 0, 5.55];
-const noRaycast = () => undefined;
 
 /** Remembered per browser, so the welcome is spoken to a first visit only. */
 const WELCOMED = "meditation-welcomed";

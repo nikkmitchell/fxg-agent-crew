@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { INTENTION_LONGEST, MOST_CANDLES, burning, candleLeft, type Meditation } from "../../shared/meditation";
 import { space } from "../space-client";
 import { Typing3D } from "./Typing3D";
+import { noRaycast } from "./no-raycast";
 
 /**
  * THE CANDLE SHELF. Light a candle, for someone or something if you like, and
@@ -16,8 +17,6 @@ export const SHELF_AT: [number, number, number] = [1.5, 0, 3.5];
 const SHELF_HEIGHT = 0.9;
 const SHELF_WIDTH = 1.2;
 const TALLEST = 0.14;
-
-const noRaycast = () => undefined;
 
 function Flame({ seed }: { seed: number }) {
   const flame = useRef<THREE.Mesh>(null);

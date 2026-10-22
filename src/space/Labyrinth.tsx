@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Line, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { LABYRINTH, labyrinthPath } from "../../shared/labyrinth";
+import { noRaycast } from "./no-raycast";
 
 /**
  * THE WALKING LABYRINTH (shared/labyrinth.ts): the classical seven-circuit
@@ -10,7 +11,6 @@ import { LABYRINTH, labyrinthPath } from "../../shared/labyrinth";
  * and back out, slowly. In passthrough it lies on your own floor. A separate
  * experience (Nikk, 5484); nothing is sent or kept.
  */
-const noRaycast = () => undefined;
 
 export function Labyrinth() {
   const points = useMemo(

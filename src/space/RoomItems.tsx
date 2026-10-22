@@ -23,6 +23,7 @@ import { bambooPixels, goTextureRepeat, rockPixels, stonePixels } from "./go-tex
 import { RockForm } from "./RockForm";
 import { useCarry } from "./modules/use-carry";
 import { clockNow } from "../../shared/go-clock";
+import { noRaycast } from "./no-raycast";
 
 /** Under the desk top (0.705 − half its 0.075), facing down: MOVE from below. */
 /**
@@ -54,7 +55,6 @@ const UNDERSIDE_Y = 0.66;
 const UNDERSIDE_HANDLE = 0.4;
 const ACCENTS = ["#edc58d", "#bdeeff", "#ff9582", "#7cbdff", "#ffdb7d", "#a9e6b3", "#d4afff", "#ffc0dc"];
 const xyz = (p: Point3): [number, number, number] => [p.x, p.y, p.z];
-const noRaycast = () => {};
 
 function woodTexture(): THREE.CanvasTexture {
   const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 512;

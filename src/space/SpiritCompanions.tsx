@@ -4,6 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { helperSummary, type Helper } from "../../shared/helpers";
 import type { WirePerson } from "../../shared/space-wire";
+import { noRaycast } from "./no-raycast";
 
 /**
  * Spirit companions: an agent's helpers, drawn as small wisps round it.
@@ -17,7 +18,6 @@ import type { WirePerson } from "../../shared/space-wire";
 
 const HEAD = 1.75;
 const ORBIT = 0.32;
-const noRaycast = () => undefined;
 
 export function SpiritCompanions({ helpers, peopleRef, reducedMotion }: {
   helpers: Record<string, Helper[]>;

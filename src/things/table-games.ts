@@ -13,6 +13,7 @@ import {
   type GameRoomItem,
   type TableGame,
 } from "../../shared/table-games";
+import { noRaycast } from "../space/no-raycast";
 
 const CELL = 0.125,
   TOP = 0.79;
@@ -25,7 +26,6 @@ const colours = {
   gold: "#edc46c",
   ink: "#20352e",
 };
-const noRaycast = () => {};
 
 /** Plain Three under ctx.root: the same item runs alone, in a composed space or in a model. */
 export function tableGameDefinition(

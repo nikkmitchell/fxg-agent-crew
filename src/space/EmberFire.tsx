@@ -11,6 +11,7 @@ import { Near } from "./Near";
 import { space } from "../space-client";
 import { ROOM } from "../../shared/space-layout";
 import { sameActor } from "../../shared/board-rules";
+import { noRaycast } from "./no-raycast";
 
 /**
  * THE EMBER FIRE (shared/fire.ts): a small fire in a ring of stones, to the
@@ -26,7 +27,6 @@ export const FIRE_AT = { x: 2.3, z: 5.5 } as const;
 const SPARKS_PER_WORD = 40;
 const BURN_SECONDS = 4.5;
 const IDLE_SPARKS = 36;
-const noRaycast = () => null;
 
 type Burning = { id: number; word: string; by: string; start: number; seeds: number[] };
 

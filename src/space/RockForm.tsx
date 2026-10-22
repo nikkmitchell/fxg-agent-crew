@@ -2,8 +2,7 @@ import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { goRockGeometry } from "./go-rock-geometry";
 import { GO_TILE_METRES, rockPixels } from "./go-textures";
-
-const noRaycast = () => {};
+import { noRaycast } from "./no-raycast";
 
 /** One closed sculpture and one draw call. Triplanar grain follows the stone
  * through the caves without stretched UVs or a texture seam at the lip. */

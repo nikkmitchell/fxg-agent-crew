@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Text } from "@react-three/drei";
 import { READINGS, READING_IDS } from "../../shared/guided";
 import { ORB_AT } from "./MeditationOrb";
+import { noRaycast } from "./no-raycast";
 
 /**
  * THE READING STONE: tap it to hear a short passage read aloud, a line at a
@@ -14,8 +15,6 @@ import { ORB_AT } from "./MeditationOrb";
  * be a room where a session gets talked over. Separate from the orb (5484).
  */
 export const READING_AT: [number, number, number] = [ORB_AT[0] - 1.35, 0, ORB_AT[2] - 0.45];
-
-const noRaycast = () => undefined;
 
 function StoneButton({ label, at, onTap, width = 0.2 }: { label: string; at: [number, number, number]; onTap: () => void; width?: number }) {
   const [hover, setHover] = useState(false);

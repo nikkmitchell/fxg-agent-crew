@@ -3,6 +3,7 @@ import { Text } from "@react-three/drei";
 import * as THREE from "three";
 import { leafColour, treeOf, type TreeColour } from "../../shared/meditation";
 import { ORB_AT } from "./MeditationOrb";
+import { noRaycast } from "./no-raycast";
 
 /**
  * THE STILLNESS TREE: a tree beside the orb that grows with every minute the
@@ -18,8 +19,6 @@ import { ORB_AT } from "./MeditationOrb";
  */
 /** To the orb's left: the singing bowls' table stands on its right (SingingBowls.tsx). */
 export const TREE_AT: [number, number, number] = [ORB_AT[0] - 0.95, 0, ORB_AT[2] - 0.15];
-
-const noRaycast = () => undefined;
 
 /** A small repeatable random: the same sequence on every device. */
 function seeded(seed: number) {

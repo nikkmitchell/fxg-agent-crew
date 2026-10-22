@@ -23,6 +23,7 @@ import { space } from "../space-client";
 import { drawInk, makeInkCanvas, measureWith } from "./ink-canvas";
 import { claimPointer } from "./pointer-claim";
 import { Typing3D } from "./Typing3D";
+import { noRaycast } from "./no-raycast";
 
 /** A slim, walk-up page between the room's book and candle shelf. */
 /**
@@ -34,7 +35,6 @@ import { Typing3D } from "./Typing3D";
 export const MINDFULNESS_PANEL_AT: [number, number, number] = [4.8, 0, 3.0];
 const PANEL_WIDTH = 1.28;
 const PANEL_HEIGHT = 0.8;
-const noRaycast = () => undefined;
 
 export function MindfulnessPanel({ subscribe }: {
   subscribe: (listener: (message: ServerMessage) => void) => () => void;

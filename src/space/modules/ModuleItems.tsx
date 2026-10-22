@@ -18,6 +18,7 @@ import { QuestionForm } from "./QuestionForm";
 import { arriveAtSpawn, holdSpawnFor } from "../arrival";
 import { ReviewBack } from "./ReviewBack";
 import { useReviewView, withReviewView } from "./review-view";
+import { noRaycast } from "../no-raycast";
 
 /**
  * THINGS FROM SPACES, LIVE IN THE ROOM (shared/room-items.ts, ModuleRoomItem;
@@ -29,8 +30,6 @@ import { useReviewView, withReviewView } from "./review-view";
  *
  * Mounted once in Scene.tsx, for the window and the headset alike.
  */
-
-const noRaycast = () => undefined;
 
 type Sources = Map<string, SpaceModules | { error: string }>;
 /** A branch's live listing, or one pinned deploy's (a finished space never moves with a push). */

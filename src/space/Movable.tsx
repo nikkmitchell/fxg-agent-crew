@@ -11,6 +11,7 @@ import type { ArrangeMode } from "./usePanelArrange";
 import type { Placement } from "../../shared/space-wire";
 import { useGrab } from "./use-grab";
 import { CARD_INK } from "../../shared/card-paint";
+import { noRaycast } from "./no-raycast";
 
 /**
  * A panel you can pick up and put somewhere else.
@@ -70,8 +71,6 @@ const BAR_HEIGHT = 0.28;
 
 /** How long the panel says why it would not move. Long enough to read twice. */
 const SAYS_FOR_MS = 4_000;
-
-const noRaycast = () => undefined;
 
 const distance = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 
