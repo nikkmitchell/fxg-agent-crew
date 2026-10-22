@@ -19,7 +19,7 @@ import { registerRequestTrust } from "./request-trust.js";
 import websocket from "@fastify/websocket";
 import { compressJson } from "./compress-json.js";
 import staticPlugin from "@fastify/static";
-import { staticFileOptions } from "./static-files.js";
+import { HASHED_FOR_A_YEAR, staticFileOptions } from "./static-files.js";
 import { BrotliCopies } from "./brotli-copies.js";
 import { loadConfig, type Config } from "./config.js";
 import { MemorySessionStore, SqliteSessionStore, type Session, type SessionStore } from "./session.js";
@@ -849,7 +849,20 @@ export function buildServer(env: NodeJS.ProcessEnv = process.env) {
     //
     // A path whose last segment has an extension is asking for a file. App
     // routes do not carry one.
-    if (/\.[a-zA-Z0-9]+$/.test(new URL(request.url, "http://placeholder").pathname)) {
+    const pathname = new URL(request.url, "http://placeholder").pathname;
+    // A BUILD FILE THAT ARRIVED AFTER THIS PROCESS STARTED. The static plugin lists
+    // dist/ once, at start-up (wildcard: false). A release copies the new build in
+    // 10-20 s before the restart, and in that window the new index.html (read from
+    // disk) was served while its chunks 404'd: every open page that checked for an
+    // update then reloaded into a blank page (21:03 and 21:17, 2026-10-22). Hashed
+    // names, so whatever is on disk under that name is the file, kept a year.
+    const late = (request.method === "GET" || request.method === "HEAD") && pathname.startsWith(`${basePath}/assets/`)
+      ? pathname.slice(`${basePath}/assets/`.length)
+      : null;
+    if (late && /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/.test(late) && existsSync(resolve(uiRoot, "assets", late))) {
+      return reply.header("cache-control", HASHED_FOR_A_YEAR).sendFile(`assets/${late}`);
+    }
+    if (/\.[a-zA-Z0-9]+$/.test(pathname)) {
       return reply.code(404).send({ error: "not found" });
     }
     return reply.sendFile("index.html");
