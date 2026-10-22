@@ -143,9 +143,12 @@ describe("an agent at work is not idle (Nikk, 2026-10-22)", () => {
     const working = person("Sill", { kind: "agent", connected: true });
     const away = person("Skein", { kind: "agent", connected: false });
     const human = person("Nikk2", { kind: "human", connected: true });
-    still.observe([working, away, human], 0);
-    const later = still.observe([working, away, human], 6 * MINUTE);
+    const asleep = person("Kerf", { kind: "agent", connected: true, avatar: { ...working.avatar, posture: "sleeping" } });
+    still.observe([working, away, human, asleep], 0);
+    const later = still.observe([working, away, human, asleep], 6 * MINUTE);
     expect(later.get("Sill")).toBe(0);
+    // Put to sleep by the room, its socket still held: idle, and hidden for whoever asked.
+    expect(later.get("Kerf")).toBe(6 * MINUTE);
     expect(later.get("Skein")).toBe(6 * MINUTE);
     expect(later.get("Nikk2")).toBe(6 * MINUTE);
   });

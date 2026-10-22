@@ -104,8 +104,10 @@ export class Stillness {
       // AN AGENT AT WORK IS NOT IDLE (Nikk, 2026-10-22: "you guys shouldn't count as still because you're
       // active in the room"). An agent works at its desk without moving, so by position alone it went
       // "still" after five minutes and vanished for anyone hiding idle people. While it holds a live
-      // connection it is in the room and working; a person still counts by how they move, as before.
-      const working = person.kind === "agent" && person.connected === true;
+      // connection and is awake it is in the room and working; one the room has put to sleep (30 idle
+      // minutes, its socket still held) is exactly who the setting is for (Sill, in review). A person still
+      // counts by how they move, as before.
+      const working = person.kind === "agent" && person.connected === true && person.avatar.posture !== "sleeping";
       if (!seen || seen.signature !== signature || person.moving || working) {
         this.last.set(key, { signature, since: now });
         stillFor.set(person.actorId, 0);
