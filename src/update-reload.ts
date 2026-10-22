@@ -218,12 +218,47 @@ export function buildOfPage(html: string): string | null {
   return files.length > 0 ? [...new Set(files)].sort().join(" ") : null;
 }
 
+/**
+ * THE BUILD THIS DOCUMENT WAS SERVED WITH, read when this module first runs.
+ *
+ * It used to be whatever the first check fetched, which is the server's build
+ * at that moment, not the page's. A tab the browser brought back from its cache
+ * days later (Baiwei's and Nikk's, 2026-10-22, running a build from 10-12)
+ * fetched today's page, took today's build as its own, and never reloaded. Its
+ * room chunk had been pruned after a week, so the room failed to load:
+ * "Failed to fetch dynamically imported module".
+ *
+ * Read at module evaluation, before anything renders: a lazy import adds
+ * modulepreload and stylesheet links to the head, and those are not in the
+ * served page, so reading the head later would differ from the server's copy
+ * of the same build.
+ */
+const SERVED_WITH = typeof document !== "undefined" && document.documentElement
+  ? buildOfPage(document.documentElement.outerHTML)
+  : null;
+
+/**
+ * ONE AUTOMATIC RELOAD PER BUILD. If a page reloaded for a build and still does
+ * not match it (a proxy serving a stale index.html, or the document read wrong),
+ * reloading again would loop for ever. The second time it offers the update
+ * instead, like a headset does.
+ */
+const TRIED_KEY = "saha.update-reload.tried";
+const triedBefore = (build: string): boolean => {
+  try { return sessionStorage.getItem(TRIED_KEY) === build; } catch { return false; }
+};
+const markTried = (build: string): void => {
+  try { sessionStorage.setItem(TRIED_KEY, build); } catch { /* private window: one reload is still one reload */ }
+};
+
 const CHECK_MS = 15_000;
 const RETRY_WHILE_WAITING_MS = 2_000;
 
 export function startUpdateReload(options: {
   fetchCommit?: () => Promise<string | null>;
   reload?: () => void;
+  /** The build this page runs; read from the served document unless a test says. */
+  pageBuild?: string | null;
 } = {}): () => void {
   const fetchCommit = options.fetchCommit ?? (async () => {
     // The page as the server would serve it now: public, so signed out works too.
@@ -232,7 +267,8 @@ export function startUpdateReload(options: {
     return buildOfPage(await response.text());
   });
   const reload = options.reload ?? (() => window.location.reload());
-  let loadedWith: string | null = null;
+  // null on a development server, and then the first check's answer stands in.
+  let loadedWith: string | null = options.pageBuild !== undefined ? options.pageBuild : SERVED_WITH;
   let serverHas: string | null = null;
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -262,10 +298,13 @@ export function startUpdateReload(options: {
       hidden: document.visibilityState === "hidden",
       inSession: sessions.size > 0,
     });
+    // Already reloaded once for this build and still behind it: offer, never loop.
+    const looping = decision === "reload" && serverHas !== null && triedBefore(serverHas);
     // "wait" means there IS a newer build and something is holding it back.
-    setWaiting(decision === "wait");
-    if (decision === "reload") {
+    setWaiting(decision === "wait" || looping);
+    if (decision === "reload" && !looping) {
       stopped = true;
+      if (serverHas) markTried(serverHas);
       reload();
       return;
     }

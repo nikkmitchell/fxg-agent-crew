@@ -165,6 +165,59 @@ describe("offering a new version instead of forcing it", () => {
   });
 });
 
+describe("a page brought back from the browser's cache (Baiwei and Nikk, 2026-10-22)", () => {
+  // Their tabs ran a build from 10-12; the first check fetched today's page and,
+  // taking that as the page's own build, never reloaded. Its room chunk had been
+  // pruned, so the room would not load.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("document", {
+      querySelectorAll: () => [],
+      visibilityState: "visible",
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    vi.stubGlobal("window", { addEventListener: () => {}, removeEventListener: () => {} });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("reloads on the first check when the page runs an older build than the server", async () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => { stored.set(k, v); } });
+    let reloaded = false;
+    const stop = startUpdateReload({ pageBuild: "old-10-12", fetchCommit: async () => "today", reload: () => { reloaded = true; } });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(reloaded).toBe(true);
+    stop();
+  });
+
+  it("reloads once per build, then offers it, so a page that cannot match never loops", async () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => { stored.set(k, v); } });
+    let reloads = 0;
+    const first = startUpdateReload({ pageBuild: "old", fetchCommit: async () => "today", reload: () => { reloads += 1; } });
+    await vi.advanceTimersByTimeAsync(1);
+    first();
+    // The reloaded page somehow still reads as "old".
+    const second = startUpdateReload({ pageBuild: "old", fetchCommit: async () => "today", reload: () => { reloads += 1; } });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(reloads, "one automatic reload for today's build").toBe(1);
+    expect(updateWaiting(), "and the update offered after that").toBe(true);
+    second();
+  });
+
+  it("leaves a page that runs the server's build alone", async () => {
+    let reloaded = false;
+    const stop = startUpdateReload({ pageBuild: "today", fetchCommit: async () => "today", reload: () => { reloaded = true; } });
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(reloaded).toBe(false);
+    stop();
+  });
+});
+
 describe("which build a page is", () => {
   const page = (entry: string, style: string) => `<!doctype html><html><head>
     <link rel="icon" href="data:image/svg+xml,x" />
