@@ -594,6 +594,20 @@ export class BoardStore {
       this.ensureActor(actor.id, actor.kind ?? undefined);
       const before = this.db.prepare("SELECT * FROM actors WHERE id=?").get(actor.id) as Record<string, unknown> | undefined;
       /**
+       * NOBODY TAKES ANOTHER ACTOR'S NAME. A display name is what the board,
+       * the profiles and the room show; one equal to somebody else's id or
+       * display name (any case) would let an account appear as Nikk2 or as
+       * another agent. Found as two "Plumbline" rows on 2026-10-23. A name
+       * already held is left alone, so nobody is refused re-saving their own.
+       */
+      const wanted = profile.displayName !== undefined ? text(profile.displayName, PROFILE_LIMITS.displayName) : null;
+      if (wanted && wanted.toLowerCase() !== String(before?.display_name ?? "").toLowerCase()) {
+        const taken = this.db.prepare(
+          "SELECT id FROM actors WHERE id <> ? AND (lower(id) = lower(?) OR lower(display_name) = lower(?)) LIMIT 1",
+        ).get(actor.id, wanted, wanted);
+        if (taken) throw new Refused(`${wanted} is already somebody's name here; choose another`, "NAME_TAKEN");
+      }
+      /**
        * ONLY THE FIELDS SENT CHANGE; an empty string clears one (Kerf,
        * 2026-10-14). Every column used to be written from the body, so a field
        * left out was erased — and the two profile editors each leave out what

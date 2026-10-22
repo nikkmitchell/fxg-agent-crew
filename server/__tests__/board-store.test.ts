@@ -157,6 +157,20 @@ describe("profiles", () => {
     expect((row("nikk").personality ?? "").length).toBe(limit);
   });
 
+  it("refuses a display name that is somebody else's id or display name, in any case", () => {
+    // Two "Plumbline" rows on live (2026-10-23); the same opening would let anybody appear as Nikk2.
+    const wren = { id: "wren", kind: "human" as const };
+    store.upsertProfile(nikk, { displayName: "Nikk" });
+    store.upsertProfile(wren, { displayName: "Wren" });
+    expect(() => store.upsertProfile(wren, { displayName: "nikk" })).toThrow(/already somebody's name/);
+    expect(() => store.upsertProfile(wren, { displayName: "NIKK" })).toThrow(/already somebody's name/);
+    expect(row("wren").display_name, "the refusal changed nothing").toBe("Wren");
+    // Your own name, re-saved or in another case, is yours.
+    expect(() => store.upsertProfile(nikk, { displayName: "Nikk", bio: "hi" })).not.toThrow();
+    expect(() => store.upsertProfile(nikk, { displayName: "NIKK" })).not.toThrow();
+    expect(() => store.upsertProfile(wren, { displayName: "Wren the second" })).not.toThrow();
+  });
+
   it("refuses a runtime on a person", () => {
     expect(() => store.upsertProfile(nikk, { displayName: "Nikk", model: "opus-5" }))
       .toThrow(/not a person/);
