@@ -42,7 +42,8 @@ export function settle(track: Settled | undefined, at: Point, now: number, drift
   return { anchor: { x: at.x, y: at.y, z: at.z }, since: now };
 }
 
-type Seen = Pick<WirePerson, "actorId" | "at" | "facing" | "head" | "hands" | "avatar" | "moving">;
+type Seen = Pick<WirePerson, "actorId" | "at" | "facing" | "head" | "hands" | "avatar" | "moving"> &
+  Partial<Pick<WirePerson, "kind" | "connected">>;
 
 /** A centimetre, or a hundredth of a radian: finer than anybody watching could see. */
 const fine = (value: number) => Math.round(value * 100);
@@ -100,7 +101,12 @@ export class Stillness {
       present.add(key);
       const signature = motionSignature(person);
       const seen = this.last.get(key);
-      if (!seen || seen.signature !== signature || person.moving) {
+      // AN AGENT AT WORK IS NOT IDLE (Nikk, 2026-10-22: "you guys shouldn't count as still because you're
+      // active in the room"). An agent works at its desk without moving, so by position alone it went
+      // "still" after five minutes and vanished for anyone hiding idle people. While it holds a live
+      // connection it is in the room and working; a person still counts by how they move, as before.
+      const working = person.kind === "agent" && person.connected === true;
+      if (!seen || seen.signature !== signature || person.moving || working) {
         this.last.set(key, { signature, since: now });
         stillFor.set(person.actorId, 0);
       } else {

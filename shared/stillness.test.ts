@@ -136,3 +136,17 @@ describe("one point held still (the silence bell's heads, the fireflies' hands)"
     expect(moved.anchor).toEqual({ x: 0.4, y: 1.6, z: 0 });
   });
 });
+
+describe("an agent at work is not idle (Nikk, 2026-10-22)", () => {
+  it("never counts a connected agent as still, however long it sits at its desk; a person still counts", () => {
+    const still = new Stillness();
+    const working = person("Sill", { kind: "agent", connected: true });
+    const away = person("Skein", { kind: "agent", connected: false });
+    const human = person("Nikk2", { kind: "human", connected: true });
+    still.observe([working, away, human], 0);
+    const later = still.observe([working, away, human], 6 * MINUTE);
+    expect(later.get("Sill")).toBe(0);
+    expect(later.get("Skein")).toBe(6 * MINUTE);
+    expect(later.get("Nikk2")).toBe(6 * MINUTE);
+  });
+});
