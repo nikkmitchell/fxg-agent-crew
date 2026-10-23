@@ -258,7 +258,9 @@ done
 # moved to `/` — its entire content was a link to the real page. Left in this
 # rsync it would have failed every deploy, which is the shape of bug that comes
 # from two branches each being green and only their MERGE being wrong.
-rsync -az -e "${SSH[*]}" deploy/robots.txt "$TARGET:/var/www/saha/"
+# restarting.html: what nginx shows a page asked for while the app restarts
+# (deploy/nginx.conf, error_page). On disk here because the app is what is down.
+rsync -az -e "${SSH[*]}" deploy/robots.txt deploy/restarting.html "$TARGET:/var/www/saha/"
 "${SSH[@]}" "$TARGET" "rm -f /var/www/saha/index.html"
 
 # Record exactly what was deployed, so the running service is traceable to a
