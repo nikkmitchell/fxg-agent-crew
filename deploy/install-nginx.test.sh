@@ -56,7 +56,8 @@ check "sends Connection: upgrade only when asked" \
 # thing that refuses and explains. Read from the source rather than restated
 # here, because a number copied into a test is a number that drifts.
 APP_MB=$(grep -o 'MAX_BYTES = [0-9]* \* 1024 \* 1024' "$HERE/../server/db/blobs.ts" | grep -o '^MAX_BYTES = [0-9]*' | grep -o '[0-9]*')
-NGINX_MB=$(grep -o 'client_max_body_size [0-9]*m' "$FXG_NGINX_SITE" | grep -o '[0-9]*')
+# The first one is the server-wide limit; /git/ has its own, far larger, for packs.
+NGINX_MB=$(grep -o 'client_max_body_size [0-9]*m' "$FXG_NGINX_SITE" | head -1 | grep -o '[0-9]*')
 if [ -n "$APP_MB" ] && [ -n "$NGINX_MB" ] && [ "$NGINX_MB" -gt "$APP_MB" ]; then
   echo "ok   - nginx body limit (${NGINX_MB}m) is above the app's (${APP_MB}m)"
 else
