@@ -216,7 +216,11 @@ export interface Ctx {
   /** Spaces: one handle per declared child, mounted or not. */
   readonly things: Record<string, ChildHandle>;
   readonly scene: string | null;
-  caption(text: string | null): void;
+  /**
+   * A line shown with the thing for everyone looking at it: a hint or what just happened, not a problem
+   * (docs/things/DESIGN.md). null takes it down; `for` takes it down after that many seconds.
+   */
+  caption(text: string | null, options?: { for?: number }): void;
   log(...args: unknown[]): void;
   /** Shown on the thing's badge, under its name. */
   problem(text: string): void;

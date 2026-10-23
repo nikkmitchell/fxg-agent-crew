@@ -54,6 +54,8 @@ export type RoomEngine = {
   know(url: string, source: { space: string; branch: string }, item: string): void;
   /** A thing's badge: problems for its id and its parts' ids. */
   onProblem(rootId: string, fn: (text: string) => void): () => void;
+  /** What a thing (or one of its parts) captions (ctx.caption), or null when it takes it down. */
+  onCaption(rootId: string, fn: (text: string | null) => void): () => void;
   /** A part this thing uses from another space has a new deploy: load the thing again. */
   onReload(rootId: string, fn: () => void): () => void;
   /**
@@ -82,6 +84,7 @@ export function createRoomEngine(deps: {
   const sources = new Map<string, { space: string; branch: string; item: string | null }>();
   const listings = new Map<string, Promise<SpaceModules>>();
   const badges = new Map<string, Set<(text: string) => void>>();
+  const captions = new Map<string, Set<(text: string | null) => void>>();
   const reloads = new Map<string, Set<() => void>>();
   /** For each space@branch, the things in the room with a part from it. */
   const users = new Map<string, Set<string>>();
@@ -198,8 +201,11 @@ export function createRoomEngine(deps: {
       for (const fn of badges.get(rootId) ?? []) fn(line);
       console.warn(`[thing ${id}]`, text);
     },
+    // A caption is not a problem (it used to be drawn as one: pink, "The Stacks: The Stacks · walk up…",
+    // and never taken down).
     caption(id, text) {
-      if (text) host.problem(id, text);
+      const [rootId] = id.split("/");
+      for (const fn of captions.get(rootId) ?? []) fn(text);
     },
     invalidate: deps.invalidate,
     occluders: deps.occluders,
@@ -265,6 +271,7 @@ export function createRoomEngine(deps: {
     turn,
     know: (url, source, item) => sources.set(url, { ...source, item }),
     onProblem: subscribeTo(badges as Map<string, Set<never>>),
+    onCaption: subscribeTo(captions as Map<string, Set<never>>),
     onReload: subscribeTo(reloads as Map<string, Set<never>>),
     dispose: () => {
       stop();

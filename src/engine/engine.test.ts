@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { EnvStack, type EnvState } from "./env";
 import type { Host, QuestionHost, TransportEvent } from "./host";
 import { Engine, ThingInstance } from "./instance";
@@ -13,6 +13,7 @@ function world(modules: Record<string, ThingDefinition> = {}, kept: Record<strin
   const sent: unknown[][] = [];
   const listeners = new Set<(event: TransportEvent) => void>();
   const problems: string[] = [];
+  const captions: [string, string | null][] = [];
   const env: unknown[] = [];
   const scene = new THREE.Scene();
   /** The surroundings as a room keeps them: layers over what the room had (env.ts). */
@@ -55,7 +56,7 @@ function world(modules: Record<string, ThingDefinition> = {}, kept: Record<strin
       };
     },
     problem: (id, text) => problems.push(`${id}: ${text}`),
-    caption: () => undefined,
+    caption: (id, text) => captions.push([id, text]),
     invalidate: () => undefined,
   };
   const engine = new Engine(host, { camera: () => host.camera, element: () => null, me: () => host.me });
@@ -64,7 +65,7 @@ function world(modules: Record<string, ThingDefinition> = {}, kept: Record<strin
     const instance = new ThingInstance(engine, { id, url: `https://saha.test/s/x/~d1/${id}.js`, def, mode: "item", scale: 1, parent: scene, surround: false, ...extra });
     return instance;
   };
-  return { host, engine, sent, deliver, problems, env, scene, run, surroundings };
+  return { host, engine, sent, deliver, problems, captions, env, scene, run, surroundings };
 }
 
 describe("a thing's life", () => {
@@ -344,3 +345,51 @@ describe("ctx.ui.openLink (Mica 7395)", () => {
   });
 });
 
+
+describe("a thing's caption (ctx.caption)", () => {
+  it("is not a problem: it goes to the host's caption, and null takes it down", async () => {
+    const { run, problems, captions } = world();
+    let ctx!: Ctx;
+    const sign = run("sign", thing("item", { name: "Sign", setup(c) { ctx = c; c.caption("Walk up to a shelf"); } }));
+    expect(await sign.start()).toBe(true);
+    ctx.caption(null);
+    expect(captions).toEqual([["sign", "Walk up to a shelf"], ["sign", null]]);
+    expect(problems).toEqual([]);
+  });
+
+  it("takes itself down after `for` seconds, unless another caption came first", async () => {
+    vi.useFakeTimers();
+    try {
+      const { run, captions } = world();
+      let ctx!: Ctx;
+      const glass = run("glass", thing("item", { name: "Glass", setup(c) { ctx = c; } }));
+      expect(await glass.start()).toBe(true);
+      ctx.caption("Nikk turned the glass", { for: 3 });
+      vi.advanceTimersByTime(2_000);
+      ctx.caption("Baiwei turned the glass", { for: 3 });
+      vi.advanceTimersByTime(2_000); // the first one's 3 s are up: it must not take the second down
+      expect(captions.at(-1)).toEqual(["glass", "Baiwei turned the glass"]);
+      vi.advanceTimersByTime(1_100);
+      expect(captions.at(-1)).toEqual(["glass", null]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("forgets its timer when the thing goes, and says nothing after", async () => {
+    vi.useFakeTimers();
+    try {
+      const { run, captions } = world();
+      let ctx!: Ctx;
+      const glass = run("glass", thing("item", { name: "Glass", setup(c) { ctx = c; } }));
+      expect(await glass.start()).toBe(true);
+      ctx.caption("Turned", { for: 3 });
+      glass.dispose();
+      vi.advanceTimersByTime(5_000);
+      ctx.caption("Too late");
+      expect(captions).toEqual([["glass", "Turned"]]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

@@ -48,6 +48,7 @@ export interface Host {
   envLayer(): EnvLayer;
   /** A line for whoever is building, on the thing's badge. */
   problem(instance: string, text: string): void;
+  /** ctx.caption: a line for everyone looking at the thing, or null to take it down. Not a problem. */
   caption(instance: string, text: string | null): void;
   /** Something changed: a host that draws on demand draws again. */
   invalidate(): void;

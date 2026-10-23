@@ -457,7 +457,7 @@ export class ThingInstance {
       get scene() {
         return instance.children?.scene ?? null;
       },
-      caption: (text) => host.caption(id, text),
+      caption: (text, options) => this.caption(text, options),
       log: (...args) => console.info(`[${id}]`, ...args),
       problem: (text) => host.problem(id, text),
     };
@@ -520,10 +520,27 @@ export class ThingInstance {
     }
   }
 
+  private captionTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** ctx.caption: shown until null, the next caption, `for` seconds, or the thing going. */
+  private caption(text: string | null, options?: { for?: number }): void {
+    if (this.captionTimer) clearTimeout(this.captionTimer);
+    this.captionTimer = null;
+    if (this.disposed) return;
+    this.engine.host.caption(this.id, text || null);
+    const seconds = options?.for;
+    if (text && typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0) {
+      this.captionTimer = setTimeout(() => this.caption(null), seconds * 1000);
+    }
+  }
+
   /** Take it away: its registrations undone, its dispose(), its root freed, the surroundings back. */
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    // Only the timer: the room takes a caption down with the thing, and a new version keeps its own.
+    if (this.captionTimer) clearTimeout(this.captionTimer);
+    this.captionTimer = null;
     try {
       this.handle?.dispose?.();
     } catch (error) {

@@ -19,6 +19,7 @@ import { arriveAtSpawn, holdSpawnFor } from "../arrival";
 import { ReviewBack } from "./ReviewBack";
 import { useReviewView, withReviewView } from "./review-view";
 import { noRaycast } from "../no-raycast";
+import { thingLabel } from "./thing-label";
 
 /**
  * THINGS FROM SPACES, LIVE IN THE ROOM (shared/room-items.ts, ModuleRoomItem;
@@ -318,6 +319,7 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
   const gl = useThree((state) => state.gl);
   const invalidate = useThree((state) => state.invalidate);
   const [problem, setProblem] = useState<string | null>(null);
+  const [caption, setCaption] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** A thing on the contract says its size: a model is fitted to its plinth from it. */
   const [size, setSize] = useState<readonly number[] | null>(null);
@@ -332,6 +334,7 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
   const [reload, setReload] = useState(0);
 
   useEffect(() => room.onProblem(item.id, setProblem), [room, item.id]);
+  useEffect(() => room.onCaption(item.id, setCaption), [room, item.id]);
   useEffect(() => room.onReload(item.id, () => setReload((n) => n + 1)), [room, item.id]);
   // A full view that cannot be read (missing, or its listing failed) has failed too.
   useEffect(() => {
@@ -380,6 +383,7 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
         }
         // This version's problems, from now: a badge from the last one does not linger, and its parts' problems from setup stay.
         setProblem(null);
+        setCaption(null);
         const next = new ThingInstance(room.engine, { id: item.id, url, def, mode, scale, parent: group, surround: full, hot: current.current?.save() });
         const ok = await next.start();
         if (!alive || !ok) {
@@ -452,7 +456,7 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
   const carry = useCarry({ id: item.id, position: item.position, body: place, save: (position) => save({ position }), notice: setNotice });
 
   const at = full ? { x: 0, y: 0, z: 0, rotationY: 0 } : item.position;
-  const words = missing ?? problem ?? notice;
+  const label = thingLabel(item.name, { missing, problem, notice, caption });
   // A model's plinth: its footprint in the room, from its size, and never smaller than a hand.
   const footprint = Math.min(1.5, Math.max(0.25, ((size ? Math.max(size[0], size[2]) : 12) / 2) * scale + 0.05));
   return (
@@ -465,9 +469,9 @@ function ModuleThing({ item, entry, missing, you, send, subscribe, running, room
           <meshStandardMaterial color="#2a2f38" roughness={0.85} />
         </mesh>
       ) : null}
-      {words ? (
-        <Text position={[0, mode === "model" ? 0.5 : 1.4, 0]} fontSize={0.05} color={missing || problem ? "#f0a0a0" : "#e9edf2"} maxWidth={1.4} textAlign="center" anchorY="bottom" raycast={noRaycast}>
-          {`${item.name}: ${words}`}
+      {label ? (
+        <Text position={[0, mode === "model" ? 0.5 : 1.4, 0]} fontSize={0.05} color={label.trouble ? "#f0a0a0" : "#e9edf2"} maxWidth={1.4} textAlign="center" anchorY="bottom" raycast={noRaycast}>
+          {label.text}
         </Text>
       ) : null}
       {full || locked ? null : (
