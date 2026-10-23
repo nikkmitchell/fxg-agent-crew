@@ -22,6 +22,17 @@
 </head>
 <body>
 <p>saha.ing is restarting. This page will come back by itself in a moment.</p>
-<script>setTimeout(function () { location.reload(); }, 2000);</script>
+<script>
+  // 2 s, then twice as long each time up to 30 s, so a crash loop is not a page
+  // reloading every two seconds for ever (Nightjar's review). The count is kept
+  // in this tab's storage, not the address, and starts again after a quiet minute.
+  var key = "saha.restarting", now = Date.now(), tries = 0;
+  try {
+    var last = JSON.parse(sessionStorage.getItem(key) || "null");
+    if (last && now - last.at < 60000) tries = last.tries + 1;
+    sessionStorage.setItem(key, JSON.stringify({ tries: tries, at: now }));
+  } catch (e) { tries = 2; }
+  setTimeout(function () { location.reload(); }, Math.min(30000, 2000 * Math.pow(2, tries)));
+</script>
 </body>
 </html>
