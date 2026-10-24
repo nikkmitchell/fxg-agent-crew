@@ -5,6 +5,7 @@ import type { WirePerson } from "../../shared/space-wire";
 import type { Utterance } from "../../shared/voice";
 import { MOTE_COUNT, moteField, moteOpacity, pulseFor, stepMotes } from "./speaking-motes";
 import { useDisposableList } from "./use-disposable";
+import { disposeGlowPoints, glowPoints } from "./glow-points";
 
 /** At most this many people lit at once; a fourth speaker reuses the oldest. */
 const POOL = 3;
@@ -47,28 +48,12 @@ export function SpeakingMotes({
   const pulses = useDisposableList<Pulse>(
     () =>
       Array.from({ length: POOL }, () => {
-        const positions = new Float32Array(MOTE_COUNT * 3);
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-        const material = new THREE.PointsMaterial({
-          // Cooler than the arrival burst's gold, so the two read as different
-          // events rather than as the same thing happening twice.
-          color: "#8fd8ff",
-          size: 0.045,
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-        });
-        const points = new THREE.Points(geometry, material);
-        points.visible = false;
-        points.frustumCulled = false;
+        // Cooler than the arrival burst's gold, so the two read as different
+        // events rather than as the same thing happening twice.
+        const { points, positions } = glowPoints(MOTE_COUNT, "#8fd8ff", 0.045);
         return { points, positions, rise: new Float32Array(MOTE_COUNT), actorId: null, age: 0, seconds: 0 };
       }),
-    (one) => {
-      one.points.geometry.dispose();
-      (one.points.material as THREE.Material).dispose();
-    },
+    (one) => disposeGlowPoints(one.points),
   );
 
   useFrame((_, delta) => {

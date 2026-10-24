@@ -282,13 +282,13 @@ function drawRow(context: CanvasRenderingContext2D, laid: LaidRow, layout: MenuL
   }
 }
 
-export function paintMenu(context: CanvasRenderingContext2D, layout: MenuLayout, hover: string | null, pressed: string | null): void {
-  const { width, height } = layout;
-  context.clearRect(0, 0, width, height);
-
-  // THE CARD, with a soft top-to-bottom shade and a hairline edge.
-  const panel = { x: 2, y: 2, width: width - 4, height: height - 4 };
-  roundedPath(context, panel, MENU.radius);
+/**
+ * THE PANEL CARD every canvas panel stands on: the platform's dark glass, a soft top-to-bottom shade and
+ * a hairline edge, inset 2 px so the edge is not cut. The settings menu and the lobby's welcome both paint
+ * it from here (they were two copies).
+ */
+export function paintPanelCard(context: CanvasRenderingContext2D, width: number, height: number, radius: number): void {
+  roundedPath(context, { x: 2, y: 2, width: width - 4, height: height - 4 }, radius);
   const shade = context.createLinearGradient(0, 0, 0, height);
   shade.addColorStop(0, MENU_INK.panelTop);
   shade.addColorStop(1, MENU_INK.panelBottom);
@@ -297,6 +297,13 @@ export function paintMenu(context: CanvasRenderingContext2D, layout: MenuLayout,
   context.lineWidth = 2;
   context.strokeStyle = MENU_INK.panelEdge;
   context.stroke();
+}
+
+export function paintMenu(context: CanvasRenderingContext2D, layout: MenuLayout, hover: string | null, pressed: string | null): void {
+  const { width, height } = layout;
+  context.clearRect(0, 0, width, height);
+
+  paintPanelCard(context, width, height, MENU.radius);
 
   const measure = (text: string) => context.measureText(text).width;
   const headerMid = MENU.pad + MENU.headerHeight / 2;

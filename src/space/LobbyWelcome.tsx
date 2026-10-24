@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
-import { MENU_INK } from "./menu-paint";
+import { MENU_INK, paintPanelCard } from "./menu-paint";
 
 /**
  * A SHORT WELCOME AND THE CONTROLS, on the lobby wall beside the doors.
@@ -67,16 +67,7 @@ function paintWelcome(canvas: HTMLCanvasElement): void {
   const { width, height, pad } = PX;
   context.clearRect(0, 0, width, height);
 
-  context.beginPath();
-  context.roundRect(2, 2, width - 4, height - 4, 44);
-  const shade = context.createLinearGradient(0, 0, 0, height);
-  shade.addColorStop(0, MENU_INK.panelTop);
-  shade.addColorStop(1, MENU_INK.panelBottom);
-  context.fillStyle = shade;
-  context.fill();
-  context.lineWidth = 2;
-  context.strokeStyle = MENU_INK.panelEdge;
-  context.stroke();
+  paintPanelCard(context, width, height, 44);
 
   const inner = width - pad * 2;
   context.textBaseline = "top";

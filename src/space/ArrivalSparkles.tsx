@@ -4,6 +4,7 @@ import * as THREE from "three";
 import type { WirePerson } from "../../shared/space-wire";
 import { SPARKLE_COUNT, SPARKLE_LIFE_S, arrivals, burstVelocities, sparkleOpacity, stepSparkles } from "./arrival-sparkle";
 import { useDisposableList } from "./use-disposable";
+import { disposeGlowPoints, glowPoints } from "./glow-points";
 
 /** At most this many bursts at once; a fifth arrival reuses the oldest. */
 const POOL = 4;
@@ -36,26 +37,10 @@ export function ArrivalSparkles({
   const bursts = useDisposableList<Burst>(
     () =>
       Array.from({ length: POOL }, () => {
-        const positions = new Float32Array(SPARKLE_COUNT * 3);
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-        const material = new THREE.PointsMaterial({
-          color: "#ffd23f",
-          size: 0.06,
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-        });
-        const points = new THREE.Points(geometry, material);
-        points.visible = false;
-        points.frustumCulled = false;
+        const { points, positions } = glowPoints(SPARKLE_COUNT, "#ffd23f", 0.06);
         return { points, positions, velocities: new Float32Array(SPARKLE_COUNT * 3), age: 0, live: false };
       }),
-    (one) => {
-      one.points.geometry.dispose();
-      (one.points.material as THREE.Material).dispose();
-    },
+    (one) => disposeGlowPoints(one.points),
   );
 
   useFrame((_, delta) => {
