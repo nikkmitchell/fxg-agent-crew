@@ -4,7 +4,7 @@
  * to be multiplayer, and then they can also publish it as a public room that
  * is accessable from the saha.ing lobby").
  *
- * A space page adds one script, public/kit/saha.js, and everyone in it sees
+ * A space page adds one script, /kit/saha.js, and everyone in it sees
  * everyone else: a figure per person with their name, moving where they look
  * from, plus a small shared state every visitor sees alike and short spoken
  * lines. This file is the wire between that script and the server

@@ -17,8 +17,8 @@
  *   node tools/polyhaven-fetch.mjs get brown_mud_leaves_01 --type textures --maps Diffuse --to ./scans/ground
  *
  * Put what you fetch in a space (git push), and load it from your page with three's GLTFLoader;
- * see src/space/scan-rock.ts in the saha.ing repository for one way to paint a scan to match a
- * scene. Nothing needs to change in saha.ing: they are just files in your space.
+ * see source/rock-and-grass.patch on the meditation.ar space's sill-stone branch for one way to
+ * paint a scan to match a scene (docs/SPACES.md). Nothing needs to change in saha.ing: they are just files in your space.
  *
  * Their API asks for a descriptive User-Agent, and their download host refuses the default one of
  * many tools, so this sends one. Needs Node 18 or later; no packages.

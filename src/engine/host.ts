@@ -4,7 +4,7 @@ import type { AskRefusal, AskResult, BookPage, BookSearch, BookShelf, Json, Pers
 
 /**
  * WHAT THE ENGINE NEEDS FROM WHEREVER IT RUNS (docs/things/DESIGN.md): the
- * saha.ing room (src/space/engine/room-host.ts), a thing's own page (the kit),
+ * saha.ing room (src/space/modules/room-engine.ts), a thing's own page (the kit),
  * or a test. Narrow on purpose: everything a thing can reach goes through
  * here, so a sandbox can later sit in this seam without a thing noticing.
  */
