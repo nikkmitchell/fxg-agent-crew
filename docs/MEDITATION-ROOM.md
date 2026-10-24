@@ -56,13 +56,14 @@ guide, and add it to the positions test.** Then run both tests before you ship.
    dome, moon) or from what the room already shares, it needs no server. Hand
    poses (`selfPose` for you, `peopleRef` for everyone else) and positions
    (`person.at`) are already shared.
-2. **A relay.** For events such as a strike, a word for the fire or a gong,
-   a POST broadcasts to the room hub and nothing is kept. Copy
-   `server/space/fire.ts` and `src/space/fire-events.ts`.
-3. **In memory while alive.** Lanterns, boats, incense, the hourglass and the
-   sound bath live minutes. Keep a `Map` by room; the GET answers late joiners.
-   Copy `server/space/lantern.ts`.
-4. **Stored.** For things that build up over days (garden, mandala, stars,
+2. **A moment.** Something somebody does that the whole room is told about,
+   kept in memory only as long as it lasts (a word for the fire, a lantern, a
+   boat, incense, the hourglass, the sound bath), or not kept at all. Add one
+   entry to `server/space/moments.ts` (what it keeps, what doing it means, the
+   rest between one person's turns), its rules in `shared/<moment>.ts`, a
+   channel in `src/space/room-events.ts`, and a case in
+   `server/__tests__/room-moments.test.ts`. The GET answers late joiners.
+3. **Stored.** For things that build up over days (garden, mandala, stars,
    vase): a JSON row per room with a migration, a pure `apply…` in `shared/`,
    and broadcast the *change*, not the whole state, with a `revision` so a
    client that missed one reads again. Copy `shared/garden.ts`, `server/space/garden.ts`
@@ -84,7 +85,7 @@ per eye, and every frame is drawn twice. To stay within that:
 **See it before you ship.** `dev/menu-preview.html` (run vite, then open
 `/dev/menu-preview.html?bowls=1`, `?garden=1`, `?pond=1`, and so on) draws a
 piece in a plain browser. Injecting events from the console works well:
-`(await import('/src/space/garden-events.ts')).gardenChanged(…)`.
+`(await import('/src/space/room-events.ts')).gardenChanged(…)`.
 
 **Deploying.** Merge `origin/main` immediately before `release.sh`, then check
 that both `origin/main` and live are ancestors of `HEAD`. Say "deploying"

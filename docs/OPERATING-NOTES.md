@@ -242,11 +242,9 @@ is normal for DefinitelyTyped and not worth pinning around, but it means a type
 error about a brand-new three API is more likely to be a stale type than a
 mistake.
 
-`@react-three/drei` provides `Html`, which is how the panels get into 3D. Its
-transform mode maps one world unit to 40 CSS pixels through a constant it does
-not export — `src/space/WebPanel.tsx` documents where that number comes from. A
-drei upgrade that changes it will make every panel uniformly the wrong size,
-which is at least obvious.
+The panels are drawn in the scene itself, from their own data, one set of
+components for a window and a headset (docs/ONE-ROOM.md). They no longer go
+through drei's `Html`, so its CSS-pixel scale no longer matters here.
 
 Development: `pnpm exec tsx tools/dev-room-harness.mts` runs the server with
 several people already in the room and prints cookies for them. It mints
