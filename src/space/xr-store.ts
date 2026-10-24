@@ -2,6 +2,7 @@ import { createXRStore, type XRStore } from "@react-three/xr";
 import { enterWhenGranted } from "../../shared/session-granted";
 import { TwoToneCursorMaterial, TwoToneRayMaterial } from "./pointer-materials";
 import { roomPreferences } from "./room-preferences";
+import { guardFramePoses } from "./xr-pose";
 
 /**
  * One XR store for the page.
@@ -162,6 +163,8 @@ const handPointerOptions = { ...pointerOptions, touchPointer: { cursorModel: cur
 export function getXRStore(): XRStore {
   // Arriving through a door from VR: go straight back in (shared/session-granted.ts).
   if (!store) enterWhenGranted(() => enterRoom());
+  // A pose read across a session change is no pose, for the library's own reads too (xr-pose.ts).
+  guardFramePoses();
   store ??= createXRStore({
     /**
      * TELEPORT ON THE LEFT HAND AND THE LEFT CONTROLLER.

@@ -32,3 +32,27 @@ export function jointIn(frame: XRFrame, joint: XRJointSpace, base: XRSpace): XRJ
     return null;
   }
 }
+
+const GUARDED = Symbol.for("saha.guardedGetPose");
+
+/**
+ * THE SAME RULE FOR @react-three/xr's OWN READS. Its hand and controller models place themselves with
+ * frame.getPose (pmndrs xr, space.js), unguarded even in 6.6.32, and in the frame or two after a new
+ * session starts their input-source spaces still belong to the old one: "XRSpace and XRFrame sessions do
+ * not match", uncaught, in Nikk's headset four times on 2026-10-23 (client error log), each costing a
+ * frame. So XRFrame.getPose answers such a read with no pose, which the library already treats as "not
+ * tracked this frame". Only that InvalidStateError: anything else still throws. Done once, at the store.
+ */
+export function guardFramePoses(proto: { getPose?: unknown } | undefined = (globalThis as { XRFrame?: { prototype: { getPose?: unknown } } }).XRFrame?.prototype): void {
+  if (!proto || typeof proto.getPose !== "function" || (proto as Record<symbol, unknown>)[GUARDED]) return;
+  const original = proto.getPose as (this: XRFrame, space: XRSpace, base: XRSpace) => XRPose | undefined;
+  proto.getPose = function guardedGetPose(this: XRFrame, space: XRSpace, base: XRSpace) {
+    try {
+      return original.call(this, space, base);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "InvalidStateError") return undefined;
+      throw error;
+    }
+  };
+  (proto as Record<symbol, unknown>)[GUARDED] = true;
+}
