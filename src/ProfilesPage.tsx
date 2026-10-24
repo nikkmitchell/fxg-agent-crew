@@ -2,7 +2,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { lazyRetrying } from "./lazy-retry";
 import { requestJson } from "./api-request";
-import { base } from "./router";
+import { base, pathForProfile, profileFromPath } from "./router";
 import { isWithdrawn, thumbPath } from "../shared/avatar-choice";
 import { board, toProfile } from "./board-client";
 import { sameActor } from "../shared/board-rules";
@@ -100,7 +100,19 @@ export function ProfilesPage({ me }: { me: string | null }) {
   // Project names by id, so a membership reads as the project people know.
   const [projectNames, setProjectNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [here, setHere] = useState<Presence>([]);
-  const [looking, setLooking] = useState<string | null>(null);
+  // Whose profile is open: the address says (/profiles/<name>), so it can be linked, refreshed and sent.
+  const [looking, setLooking] = useState<string | null>(() => profileFromPath(window.location.pathname));
+  useEffect(() => {
+    const onPop = () => setLooking(profileFromPath(window.location.pathname));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  /** Open (or close) a profile, and put it in the address; Back closes it again. */
+  const look = useCallback((actorId: string | null) => {
+    setLooking(actorId);
+    const path = pathForProfile(actorId);
+    if (window.location.pathname !== path) window.history.pushState(null, "", path);
+  }, []);
   const [trouble, setTrouble] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -159,7 +171,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
   const bodyOf = (actorId: string) => bodyOfActor(actorId, bodies?.chosen);
   const voiceOf = (actorId: string) => voiceOfActor(actorId, voices.taken);
   const isHere = (actorId: string) => here.some((p) => sameActor(p.actorId, actorId));
-  const open = looking ? profiles.find((p) => p.actorId === looking) ?? null : null;
+  const open = looking ? profiles.find((p) => sameActor(p.actorId, looking)) ?? null : null;
 
   return (
     <section className="profiles">
@@ -176,6 +188,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
         <p className="profiles-lede">
           <a className="text-button" href={`${base}/people`}>Who works on what, and which agents belong to whom</a>
         </p>
+        {looking && !open ? <p className="profiles-lede" role="status">Nobody here is called {looking}.</p> : null}
       </header>
 
       <ul className="profile-grid">
@@ -184,7 +197,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
             <button
               type="button"
               className={`profile-card${me && sameActor(profile.actorId, me) ? " is-you" : ""}`}
-              onClick={() => setLooking(profile.actorId)}
+              onClick={() => look(profile.actorId)}
             >
               <span className="profile-card-top">
                 <strong>{profile.displayName}</strong>
@@ -216,7 +229,7 @@ export function ProfilesPage({ me }: { me: string | null }) {
           chosenVoice={voiceOf(open.actorId)}
           voiceIsChosen={voiceWasChosen(open.actorId, voices.taken)}
           chosenBody={bodyOf(open.actorId)}
-          onClose={() => setLooking(null)}
+          onClose={() => look(null)}
           onSaved={load}
         />
       ) : null}

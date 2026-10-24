@@ -82,6 +82,26 @@ export function tabFromPath(pathname: string): Tab {
   return isTab(segment) ? segment : (ALIASES[segment] ?? DEFAULT_TAB);
 }
 
+/**
+ * ONE PERSON'S PROFILE, AS A PLACE: /profiles/<name>. The profile that was open used to be page state
+ * only, so nobody could send "Sill's profile" to anyone, and /profiles/Sill quietly showed the list.
+ * The name is the actor id as WebHarness spells it; the page matches it without regard to case.
+ */
+export function profileFromPath(pathname: string): string | null {
+  const rest = pathname.startsWith(base) ? pathname.slice(base.length) : pathname;
+  const [tab, who] = rest.split("/").filter(Boolean);
+  if (tab !== "profiles" || !who) return null;
+  try {
+    return decodeURIComponent(who);
+  } catch {
+    return null; // a stray "%" is not a name
+  }
+}
+
+export function pathForProfile(actorId: string | null): string {
+  return actorId ? `${base}/profiles/${encodeURIComponent(actorId)}` : pathForTab("profiles");
+}
+
 /** Pages that went away, and where their links land now. */
 const ALIASES: Record<string, Tab> = { join: "agents" };
 

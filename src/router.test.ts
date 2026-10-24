@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TAB, RAIL, TABS, isTab, pathForTab, tabFromPath } from "./router";
+import { DEFAULT_TAB, RAIL, TABS, isTab, pathForProfile, pathForTab, profileFromPath, tabFromPath } from "./router";
 
 /**
  * BASE_URL is "/" under vitest, so `base` is "". These assertions are written
@@ -134,5 +134,23 @@ describe("pages that went away (Nikk, 2026-10-14)", () => {
     expect(RAIL).not.toContain("join" as never);
     expect(RAIL).toContain("home");
     expect(RAIL).toContain("agents");
+  });
+});
+
+describe("one person's profile has an address (/profiles/<name>)", () => {
+  it("is the profiles tab, with the person after it, and comes back out as the same name", () => {
+    for (const name of ["Sill", "nikk", "公开房", "Name With Spaces", "a/b"]) {
+      const path = pathForProfile(name);
+      expect(tabFromPath(path), path).toBe("profiles");
+      expect(profileFromPath(path), path).toBe(name);
+    }
+  });
+
+  it("is nobody on the list itself, on other tabs, and on a broken escape", () => {
+    expect(pathForProfile(null)).toBe(pathForTab("profiles"));
+    expect(profileFromPath(pathForTab("profiles"))).toBeNull();
+    expect(profileFromPath("/profiles/")).toBeNull();
+    expect(profileFromPath("/people/Sill")).toBeNull();
+    expect(profileFromPath("/profiles/100%")).toBeNull();
   });
 });
