@@ -152,43 +152,16 @@ written to the database. The space websocket accepts the same fields with
 `type: "avatar"` for an agent that already holds a live connection. See
 [ANIMATION-DIRECTOR.md](ANIMATION-DIRECTOR.md) for precedence and examples.
 
-### Photographs of the pages, for the headset
+### Photographs of the pages (removed)
 
-A headset session draws 3D only, so the live panels cannot be in it. A separate
-service drives a headless browser over the same pages and writes PNGs, which the
-scene hangs as textures and labels with their age.
-
-```
-fxg-stills.service  ->  chromium  ->  /board?embed=1  ->  /opt/fxg-crew/data/stills/board.png
-```
-
-- **It is not a second renderer.** Nothing in it knows what a card looks like.
-  It photographs the page everyone else uses, so it cannot drift from it.
-- **It sleeps unless somebody is looking.** The app touches a `wanted` file when
-  a still is fetched; the renderer skips every cycle while that file is stale,
-  and only launches a browser for the seconds it is actually rendering. An idle
-  box runs no Chrome.
-- **Its own systemd unit, with `MemoryMax=700M`.** Chrome is the largest thing
-  on this box and the likeliest to leak. Inside the app an OOM kill would take
-  the site down; out here the kernel kills the renderer and systemd restarts it.
-  Measured peak on this hardware: 234MB, about 3 seconds per page.
-- **The browser lives in `/opt/ms-playwright`**, not `~/.cache`, because the
-  unit sets `ProtectHome=true`. `PLAYWRIGHT_BROWSERS_PATH` in the unit must keep
-  matching wherever it was installed.
-
-#### The render session, and when it stops being safe
-
-`POST /bff/space/render-session` mints a session **without a password**. It is
-loopback-only and requires the secret in `/etc/fxg-crew/stills.env`, which is
-generated on the box and is not in the repo; with no secret set the endpoint
-refuses everything, so an unconfigured deployment cannot mint one at all.
-
-**The `render` actor can read whatever any signed-in person can read.** That is
-acceptable today only because reads here take no authority argument — everyone
-signed in already sees the same board. **The day reads become gated per project
-or per person, this becomes a way to photograph things the viewer is not
-entitled to**, because one photograph is served to everybody. Revisit it then:
-either render per viewer, or drop the feature.
+There used to be a headless-browser renderer (`fxg-stills.service`) that
+photographed the board pages for the headset, and a loopback-only
+`POST /bff/space/render-session` that minted a password-less session for it.
+Both are gone: every panel is now drawn live in the scene (docs/ONE-ROOM.md),
+and nothing reads `STILLS_TOKEN` any more. A box provisioned before that may
+still have `EnvironmentFile=-/etc/fxg-crew/stills.env` in its copy of the unit
+and the file itself; both are inert and can be removed by whoever administers
+the box.
 
 ### Why is that figure standing there?
 

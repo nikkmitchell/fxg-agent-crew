@@ -212,9 +212,8 @@ const CATALOGUE: { id: string; label: string; tab: string; drawnInSession?: bool
    * drawn above your own head, because you are not drawn to yourself. So
    * speaking into the room looked exactly like speaking into nothing.
    *
-   * Photographed like the boards rather than drawn live: unlike the WebHarness
-   * chat, this reads a saha.ing endpoint, and the still renderer holds a real
-   * saha.ing session.
+   * Drawn live in the scene from the room's own utterances, like every panel
+   * since the still renderer was removed (docs/ONE-ROOM.md).
    */
   { id: "said", label: "Said in the room", tab: "said" },
   // The WebHarness room, which is where the project is discussed and where

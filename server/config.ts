@@ -34,7 +34,6 @@ export type Config = {
   spacesRoot: string;
   /** Pino level. "silent" exists so tests that bind a port stay readable. */
   logLevel: string;
-  /** Where the still renderer writes its PNGs, and the app reads them from. */
   /**
    * Where bodies fetched from the avatar collection are kept.
    *
@@ -66,11 +65,6 @@ export type Config = {
   speechCacheRoot: string;
   /** Where Gutenberg's shelves and books are kept once someone has opened them (ctx.books), beside the database. */
   booksCacheRoot: string;
-  /**
-   * Shared secret for the loopback-only render-session endpoint. EMPTY DISABLES
-   * IT, which is the right default: a deployment that has not deliberately set
-   * this has no way to mint a render session at all.
-   */
 };
 
 /**
