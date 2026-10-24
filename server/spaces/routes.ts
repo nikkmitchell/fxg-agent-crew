@@ -819,11 +819,12 @@ export function registerSpacesHosting(app: FastifyInstance, deps: {
   app.get<{ Params: { space: string }; Querystring: { ticket?: string; branch?: string; limit?: string } }>("/bff/spaces/:space/feedback", async (request, reply) => {
     feedbackCors(reply);
     const space = spaceKey(request.params.space);
-    if (!store.exists(space)) return reply.code(404).send({ code: "NO_SPACE", error: `There is no space called ${space}.` });
+    // Who is asking comes first, as in every other spaces route (memberSpace): this one alone answered
+    // "no such space" before asking. (Not a secret kept: a space's site at /s/<name>/ is public anyway.)
     if (!deps.tickets.read(request.query.ticket, space)) {
       const found = await memberSpace(request as unknown as FastifyRequest<{ Params: { space: string } }>, reply);
       if (!found) return reply;
-    }
+    } else if (!store.exists(space)) return reply.code(404).send({ code: "NO_SPACE", error: `There is no space called ${space}.` });
     const branch = request.query.branch && (request.query.branch === "main" || isPreviewableBranch(request.query.branch)) ? request.query.branch : null;
     const limit = Math.max(1, Math.min(FEEDBACK_LIMITS.list, Number(request.query.limit) || FEEDBACK_LIMITS.list));
     return reply.header("cache-control", "no-store").send({ feedback: store.feedback(space, branch, limit) });

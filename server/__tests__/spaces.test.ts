@@ -416,6 +416,9 @@ describe("the multiplayer kit: join a space and see each other (Nikk, 2026-09-29
     // Someone who is neither in the room nor holding a ticket does not.
     expect((await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/feedback", headers: { cookie: "who=baiwei" } })).statusCode).toBe(403);
     expect((await app.inject({ method: "GET", url: "/bff/spaces/meditation.ar/feedback" })).statusCode).toBe(401);
+    // Who is asking is checked first, for a space that does not exist too, as in every other spaces route.
+    expect((await app.inject({ method: "GET", url: "/bff/spaces/no.such.space/feedback" })).statusCode).toBe(401);
+    expect((await app.inject({ method: "GET", url: "/bff/spaces/no.such.space/feedback", headers: { cookie: "who=nikk" } })).statusCode).toBe(404);
   });
 
   it("records the exact deploy a report was about (Mica, 7265): the page's own if it is this space's, else the branch's live one", async () => {
